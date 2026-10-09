@@ -1,0 +1,3 @@
+{
+  "raw_output": "{\"tasks\":[{\"question\":\"HTTP 标准中 303 See Other 对后续访问 Location 的方法有何规定？\"},{\"question\":\"HTTP 标准中 307 Temporary Redirect 对原请求方法和请求体的保持有何规定？\"},{\"question\":\"HTTP 标准中 308 Permanent Redirect 对原请求方法和请求体的保持有何规定？\"},{\"question\":\"303、307、308 中哪些属于永久重定向，哪些属于临时重定向？\"},{\"question\":\"在“提交成功后显示订单确认页”的场景下，依据 HTTP 标准应选择 303、307 还是 308？\"},{\"question\":\"在“维护期间把原 POST 临时转到另一处理端点”的场景下，依据 HTTP 标准应选择 303、307 还是 308？\"},{\"question\":\"HTTP 标准如何限定用户代理在收到 3xx 重定向后的具体行为，为什么不能把所有 3xx 都描述为“自动 POST 变 GET”？\"}]}"
+}

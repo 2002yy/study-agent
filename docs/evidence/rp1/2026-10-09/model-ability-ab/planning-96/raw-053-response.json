@@ -1,0 +1,3 @@
+{
+  "raw_output": "{\"tasks\":[{\"question\":\"MySQL 8.4 在 REPEATABLE READ 隔离级别下，读快照是如何建立和维持的？\"},{\"question\":\"PostgreSQL 17 在 REPEATABLE READ 隔离级别下，读快照是如何建立和维持的？\"},{\"question\":\"MySQL 8.4 在 REPEATABLE READ 下，并发更新同一行时会发生什么？\"},{\"question\":\"PostgreSQL 17 在 REPEATABLE READ 下，并发更新同一行时会发生什么？\"},{\"question\":\"MySQL 8.4 在 REPEATABLE READ 下，哪些并发场景会产生序列化错误或类似错误？\"},{\"question\":\"PostgreSQL 17 在 REPEATABLE READ 下，哪些并发场景会产生序列化错误？\"},{\"question\":\"MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 下的读快照行为有何差异？\"},{\"question\":\"MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 下的并发更新行为有何差异？\"},{\"question\":\"MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 下的序列化错误行为有何差异？\"}]}"
+}

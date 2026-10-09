@@ -1,0 +1,191 @@
+{
+  "case_id": "H04",
+  "arm": "B",
+  "repeat": 1,
+  "publication_authority": false,
+  "qualification": false,
+  "raw_output": "{\"claims\":[{\"text\":\"303 See Other 表示服务器把用户代理重定向到 Location 头字段中 URI 所指示的不同资源，作为对原请求的间接响应。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.4\",\"quote\":\"The 303 (See Other) status code indicates that the server is\\n   redirecting the user agent to a different resource, as indicated by a URI\\n   in the Location header field, which is intended to provide\\n   an indirect response to the original request.\"}]},{\"text\":\"对于 303，用户代理可以对该 URI 执行检索请求（若使用 HTTP，则为 GET 或 HEAD 请求），并可能再次被重定向，最终结果作为对原请求的回答呈现。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.4\",\"quote\":\"A user agent can perform a\\n   retrieval request targeting that URI (a GET or HEAD request if using HTTP),\\n   which might also be redirected, and present the eventual result as an\\n   answer to the original request.\"}]},{\"text\":\"303 适用于任何 HTTP 方法，主要用于让 POST 动作的输出把用户代理重定向到不同资源。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.4\",\"quote\":\"This status code is applicable to any HTTP method.  It is\\n   primarily used to allow the output of a POST action to redirect\\n   the user agent to a different resource, since doing so provides the\\n   information corresponding to the POST response as a resource that\\n   can be separately identified, bookmarked, and cached.\"}]},{\"text\":\"307 Temporary Redirect 表示目标资源临时位于不同 URI，并且用户代理如果对该 URI 执行自动重定向，MUST NOT 改变请求方法。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.8\",\"quote\":\"The 307 (Temporary Redirect) status code indicates that the\\n   target resource resides temporarily under a different URI\\n   and the user agent MUST NOT change the request method if it performs an\\n   automatic redirection to that URI.\"}]},{\"text\":\"对于 307，由于重定向可能随时间变化，客户端应当继续对未来的请求使用原目标 URI。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.8\",\"quote\":\"Since the redirection can change over time, the client ought to continue\\n   using the original target URI for future requests.\"}]},{\"text\":\"对于 307，服务器 SHOULD 生成包含不同 URI 的 Location 头字段；用户代理 MAY 使用 Location 字段值进行自动重定向。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.8\",\"quote\":\"The server SHOULD generate a Location header field in the\\n   response containing a URI reference for the different URI.\\n   The user agent MAY use the Location field value for automatic redirection.\"}]},{\"text\":\"308 Permanent Redirect 表示目标资源已被分配新的永久 URI，未来对该资源的引用应当使用所附 URI 之一。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.9\",\"quote\":\"The 308 (Permanent Redirect) status code indicates that the\\n   target resource has been assigned a new permanent URI and\\n   any future references to this resource ought to use one of the enclosed\\n   URIs.\"}]},{\"text\":\"对于 308，服务器 SHOULD 生成包含新永久 URI 的首选 URI 引用的 Location 头字段；用户代理 MAY 使用 Location 字段值进行自动重定向。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.9\",\"quote\":\"The server SHOULD generate a Location header field in the\\n   response containing a preferred URI reference for the new permanent URI.\\n   The user agent MAY use the Location field value for automatic redirection.\"}]},{\"text\":\"308 响应可启发式缓存，除非方法定义或显式缓存控制另有指示。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.9\",\"quote\":\"A 308 response is heuristically cacheable; i.e., unless otherwise indicated by\\n   the method definition or explicit cache controls (see Section 4.2.2 of [CACHING]).\"}]},{\"text\":\"308 状态码比其同类状态码年轻得多（2014 年 6 月），因此可能并非在所有地方都被识别。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.9\",\"quote\":\"Note: This status code is much younger (June 2014) than its sibling codes and thus\\n    might not be recognized everywhere.\"}]},{\"text\":\"307 和 308 都规定用户代理如果执行自动重定向则 MUST NOT 改变请求方法；303 则描述用户代理可以执行检索请求（若使用 HTTP，则为 GET 或 HEAD）。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.8\",\"quote\":\"the user agent MUST NOT change the request method if it performs an\\n   automatic redirection to that URI.\"},{\"source_id\":\"rfc9110-section-15.4.4\",\"quote\":\"A user agent can perform a\\n   retrieval request targeting that URI (a GET or HEAD request if using HTTP),\\n   which might also be redirected, and present the eventual result as an\\n   answer to the original request.\"}]},{\"text\":\"307 是临时重定向，308 是永久重定向。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.8\",\"quote\":\"The 307 (Temporary Redirect) status code indicates that the\\n   target resource resides temporarily under a different URI\"},{\"source_id\":\"rfc9110-section-15.4.9\",\"quote\":\"The 308 (Permanent Redirect) status code indicates that the\\n   target resource has been assigned a new permanent URI\"}]},{\"text\":\"对于“提交成功后显示订单确认页”，303 被标准描述为主要用于让 POST 动作的输出把用户代理重定向到不同资源，因此与显示订单确认页的场景相符。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.4\",\"quote\":\"It is\\n   primarily used to allow the output of a POST action to redirect\\n   the user agent to a different resource, since doing so provides the\\n   information corresponding to the POST response as a resource that\\n   can be separately identified, bookmarked, and cached.\"}]},{\"text\":\"对于“维护期间把原 POST 临时转到另一处理端点”，307 表示目标资源临时位于不同 URI，并且用户代理如果自动重定向则 MUST NOT 改变请求方法，因此与临时保持 POST 方法的场景相符。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.8\",\"quote\":\"The 307 (Temporary Redirect) status code indicates that the\\n   target resource resides temporarily under a different URI\\n   and the user agent MUST NOT change the request method if it performs an\\n   automatic redirection to that URI.\"}]},{\"text\":\"标准对用户代理的具体行为有所限定：307 和 308 使用 MAY 表示用户代理可以使用 Location 字段值进行自动重定向，303 使用 can 表示用户代理可以执行检索请求，因此不能把所有 3xx 都描述为“自动 POST 变 GET”。\",\"citations\":[{\"source_id\":\"rfc9110-section-15.4.8\",\"quote\":\"The user agent MAY use the Location field value for automatic redirection.\"},{\"source_id\":\"rfc9110-section-15.4.9\",\"quote\":\"The user agent MAY use the Location field value for automatic redirection.\"},{\"source_id\":\"rfc9110-section-15.4.4\",\"quote\":\"A user agent can perform a\\n   retrieval request targeting that URI (a GET or HEAD request if using HTTP),\\n   which might also be redirected, and present the eventual result as an\\n   answer to the original request.\"}]}],\"unknowns\":[\"所提供来源未包含 303 对请求体处理方式的明确规定。\",\"所提供来源未包含 307 对请求体保持的明确规定。\",\"所提供来源未包含 308 对请求体保持的明确规定。\",\"所提供来源未包含用户代理在收到 303、307、308 后是否一定自动跟随重定向的强制要求。\",\"所提供来源未包含 303、307、308 在具体浏览器或客户端中的实际实现差异。\"],\"answer\":\"依据所给 HTTP 标准原文：303 See Other 表示服务器把用户代理重定向到 Location 头字段中 URI 所指示的不同资源，作为对原请求的间接响应；用户代理可以对该 URI 执行检索请求（若使用 HTTP，则为 GET 或 HEAD 请求），并可能再次被重定向，最终结果作为对原请求的回答呈现。303 适用于任何 HTTP 方法，主要用于让 POST 动作的输出把用户代理重定向到不同资源。307 Temporary Redirect 表示目标资源临时位于不同 URI，并且用户代理如果执行自动重定向，MUST NOT 改变请求方法；由于重定向可能随时间变化，客户端应当继续对未来的请求使用原目标 URI。308 Permanent Redirect 表示目标资源已被分配新的永久 URI，未来对该资源的引用应当使用所附 URI 之一；308 响应可启发式缓存，且该状态码比其同类状态码年轻得多（2014 年 6 月），可能并非在所有地方都被识别。因此，307 是临时重定向，308 是永久重定向。对于“提交成功后显示订单确认页”，标准把 303 描述为主要用于让 POST 动作的输出把用户代理重定向到不同资源，因此与显示订单确认页的场景相符。对于“维护期间把原 POST 临时转到另一处理端点”，307 表示目标资源临时位于不同 URI，并且用户代理如果自动重定向则 MUST NOT 改变请求方法，因此与临时保持 POST 方法的场景相符。标准对用户代理的具体行为有所限定：307 和 308 使用 MAY 表示用户代理可以使用 Location 字段值进行自动重定向，303 使用 can 表示用户代理可以执行检索请求，因此不能把所有 3xx 都描述为“自动 POST 变 GET”。所给来源未包含 303、307、308 对请求体处理方式的明确规定，也未包含用户代理是否一定自动跟随重定向的强制要求。\"}",
+  "finish_reason": "stop",
+  "model": "deepseek-flash",
+  "usage": {
+    "completion_tokens": 2215,
+    "prompt_tokens": 1768,
+    "total_tokens": 3983,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 1536
+    },
+    "prompt_cache_hit_tokens": 1536,
+    "prompt_cache_miss_tokens": 232
+  },
+  "output": {
+    "claims": [
+      {
+        "text": "303 See Other 表示服务器把用户代理重定向到 Location 头字段中 URI 所指示的不同资源，作为对原请求的间接响应。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.4",
+            "quote": "The 303 (See Other) status code indicates that the server is\n   redirecting the user agent to a different resource, as indicated by a URI\n   in the Location header field, which is intended to provide\n   an indirect response to the original request."
+          }
+        ]
+      },
+      {
+        "text": "对于 303，用户代理可以对该 URI 执行检索请求（若使用 HTTP，则为 GET 或 HEAD 请求），并可能再次被重定向，最终结果作为对原请求的回答呈现。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.4",
+            "quote": "A user agent can perform a\n   retrieval request targeting that URI (a GET or HEAD request if using HTTP),\n   which might also be redirected, and present the eventual result as an\n   answer to the original request."
+          }
+        ]
+      },
+      {
+        "text": "303 适用于任何 HTTP 方法，主要用于让 POST 动作的输出把用户代理重定向到不同资源。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.4",
+            "quote": "This status code is applicable to any HTTP method.  It is\n   primarily used to allow the output of a POST action to redirect\n   the user agent to a different resource, since doing so provides the\n   information corresponding to the POST response as a resource that\n   can be separately identified, bookmarked, and cached."
+          }
+        ]
+      },
+      {
+        "text": "307 Temporary Redirect 表示目标资源临时位于不同 URI，并且用户代理如果对该 URI 执行自动重定向，MUST NOT 改变请求方法。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.8",
+            "quote": "The 307 (Temporary Redirect) status code indicates that the\n   target resource resides temporarily under a different URI\n   and the user agent MUST NOT change the request method if it performs an\n   automatic redirection to that URI."
+          }
+        ]
+      },
+      {
+        "text": "对于 307，由于重定向可能随时间变化，客户端应当继续对未来的请求使用原目标 URI。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.8",
+            "quote": "Since the redirection can change over time, the client ought to continue\n   using the original target URI for future requests."
+          }
+        ]
+      },
+      {
+        "text": "对于 307，服务器 SHOULD 生成包含不同 URI 的 Location 头字段；用户代理 MAY 使用 Location 字段值进行自动重定向。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.8",
+            "quote": "The server SHOULD generate a Location header field in the\n   response containing a URI reference for the different URI.\n   The user agent MAY use the Location field value for automatic redirection."
+          }
+        ]
+      },
+      {
+        "text": "308 Permanent Redirect 表示目标资源已被分配新的永久 URI，未来对该资源的引用应当使用所附 URI 之一。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.9",
+            "quote": "The 308 (Permanent Redirect) status code indicates that the\n   target resource has been assigned a new permanent URI and\n   any future references to this resource ought to use one of the enclosed\n   URIs."
+          }
+        ]
+      },
+      {
+        "text": "对于 308，服务器 SHOULD 生成包含新永久 URI 的首选 URI 引用的 Location 头字段；用户代理 MAY 使用 Location 字段值进行自动重定向。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.9",
+            "quote": "The server SHOULD generate a Location header field in the\n   response containing a preferred URI reference for the new permanent URI.\n   The user agent MAY use the Location field value for automatic redirection."
+          }
+        ]
+      },
+      {
+        "text": "308 响应可启发式缓存，除非方法定义或显式缓存控制另有指示。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.9",
+            "quote": "A 308 response is heuristically cacheable; i.e., unless otherwise indicated by\n   the method definition or explicit cache controls (see Section 4.2.2 of [CACHING])."
+          }
+        ]
+      },
+      {
+        "text": "308 状态码比其同类状态码年轻得多（2014 年 6 月），因此可能并非在所有地方都被识别。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.9",
+            "quote": "Note: This status code is much younger (June 2014) than its sibling codes and thus\n    might not be recognized everywhere."
+          }
+        ]
+      },
+      {
+        "text": "307 和 308 都规定用户代理如果执行自动重定向则 MUST NOT 改变请求方法；303 则描述用户代理可以执行检索请求（若使用 HTTP，则为 GET 或 HEAD）。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.8",
+            "quote": "the user agent MUST NOT change the request method if it performs an\n   automatic redirection to that URI."
+          },
+          {
+            "source_id": "rfc9110-section-15.4.4",
+            "quote": "A user agent can perform a\n   retrieval request targeting that URI (a GET or HEAD request if using HTTP),\n   which might also be redirected, and present the eventual result as an\n   answer to the original request."
+          }
+        ]
+      },
+      {
+        "text": "307 是临时重定向，308 是永久重定向。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.8",
+            "quote": "The 307 (Temporary Redirect) status code indicates that the\n   target resource resides temporarily under a different URI"
+          },
+          {
+            "source_id": "rfc9110-section-15.4.9",
+            "quote": "The 308 (Permanent Redirect) status code indicates that the\n   target resource has been assigned a new permanent URI"
+          }
+        ]
+      },
+      {
+        "text": "对于“提交成功后显示订单确认页”，303 被标准描述为主要用于让 POST 动作的输出把用户代理重定向到不同资源，因此与显示订单确认页的场景相符。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.4",
+            "quote": "It is\n   primarily used to allow the output of a POST action to redirect\n   the user agent to a different resource, since doing so provides the\n   information corresponding to the POST response as a resource that\n   can be separately identified, bookmarked, and cached."
+          }
+        ]
+      },
+      {
+        "text": "对于“维护期间把原 POST 临时转到另一处理端点”，307 表示目标资源临时位于不同 URI，并且用户代理如果自动重定向则 MUST NOT 改变请求方法，因此与临时保持 POST 方法的场景相符。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.8",
+            "quote": "The 307 (Temporary Redirect) status code indicates that the\n   target resource resides temporarily under a different URI\n   and the user agent MUST NOT change the request method if it performs an\n   automatic redirection to that URI."
+          }
+        ]
+      },
+      {
+        "text": "标准对用户代理的具体行为有所限定：307 和 308 使用 MAY 表示用户代理可以使用 Location 字段值进行自动重定向，303 使用 can 表示用户代理可以执行检索请求，因此不能把所有 3xx 都描述为“自动 POST 变 GET”。",
+        "citations": [
+          {
+            "source_id": "rfc9110-section-15.4.8",
+            "quote": "The user agent MAY use the Location field value for automatic redirection."
+          },
+          {
+            "source_id": "rfc9110-section-15.4.9",
+            "quote": "The user agent MAY use the Location field value for automatic redirection."
+          },
+          {
+            "source_id": "rfc9110-section-15.4.4",
+            "quote": "A user agent can perform a\n   retrieval request targeting that URI (a GET or HEAD request if using HTTP),\n   which might also be redirected, and present the eventual result as an\n   answer to the original request."
+          }
+        ]
+      }
+    ],
+    "unknowns": [
+      "所提供来源未包含 303 对请求体处理方式的明确规定。",
+      "所提供来源未包含 307 对请求体保持的明确规定。",
+      "所提供来源未包含 308 对请求体保持的明确规定。",
+      "所提供来源未包含用户代理在收到 303、307、308 后是否一定自动跟随重定向的强制要求。",
+      "所提供来源未包含 303、307、308 在具体浏览器或客户端中的实际实现差异。"
+    ],
+    "answer": "依据所给 HTTP 标准原文：303 See Other 表示服务器把用户代理重定向到 Location 头字段中 URI 所指示的不同资源，作为对原请求的间接响应；用户代理可以对该 URI 执行检索请求（若使用 HTTP，则为 GET 或 HEAD 请求），并可能再次被重定向，最终结果作为对原请求的回答呈现。303 适用于任何 HTTP 方法，主要用于让 POST 动作的输出把用户代理重定向到不同资源。307 Temporary Redirect 表示目标资源临时位于不同 URI，并且用户代理如果执行自动重定向，MUST NOT 改变请求方法；由于重定向可能随时间变化，客户端应当继续对未来的请求使用原目标 URI。308 Permanent Redirect 表示目标资源已被分配新的永久 URI，未来对该资源的引用应当使用所附 URI 之一；308 响应可启发式缓存，且该状态码比其同类状态码年轻得多（2014 年 6 月），可能并非在所有地方都被识别。因此，307 是临时重定向，308 是永久重定向。对于“提交成功后显示订单确认页”，标准把 303 描述为主要用于让 POST 动作的输出把用户代理重定向到不同资源，因此与显示订单确认页的场景相符。对于“维护期间把原 POST 临时转到另一处理端点”，307 表示目标资源临时位于不同 URI，并且用户代理如果自动重定向则 MUST NOT 改变请求方法，因此与临时保持 POST 方法的场景相符。标准对用户代理的具体行为有所限定：307 和 308 使用 MAY 表示用户代理可以使用 Location 字段值进行自动重定向，303 使用 can 表示用户代理可以执行检索请求，因此不能把所有 3xx 都描述为“自动 POST 变 GET”。所给来源未包含 303、307、308 对请求体处理方式的明确规定，也未包含用户代理是否一定自动跟随重定向的强制要求。"
+  },
+  "checks": {
+    "structural_errors": [],
+    "semantic_support": "PENDING_HUMAN_REVIEW"
+  },
+  "status": "recorded",
+  "elapsed_seconds": 7.594
+}

@@ -1,0 +1,50 @@
+{
+  "stage": "planning_only",
+  "rows": 96,
+  "model_calls": 96,
+  "manifest_sha256": "195b5134486dc5b15783fe8e665cc190abcaee439af8ca848e61f56388d5d39b",
+  "semantic_assessment": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+  "arms": {
+    "A": {
+      "calls": 48,
+      "accepted_structure": 46,
+      "rejected": {
+        "question_id": 2
+      },
+      "both_repeats_accepted_cases": 23,
+      "mixed_structure_acceptance_cases": 0,
+      "mean_seconds": 1.85,
+      "median_seconds": 1.82,
+      "p95_seconds_nearest_rank": 2.5,
+      "task_count_range_on_accepted": [
+        1,
+        5
+      ],
+      "exact_duplicate_task_texts": 0,
+      "intents_A_only": {
+        "NEW_RESEARCH": 39,
+        "ABSTAIN": 5,
+        "ANSWER": 2
+      }
+    },
+    "B": {
+      "calls": 48,
+      "accepted_structure": 48,
+      "rejected": {},
+      "both_repeats_accepted_cases": 24,
+      "mixed_structure_acceptance_cases": 0,
+      "mean_seconds": 1.182,
+      "median_seconds": 1.148,
+      "p95_seconds_nearest_rank": 1.922,
+      "task_count_range_on_accepted": [
+        2,
+        13
+      ],
+      "exact_duplicate_task_texts": 0,
+      "intents_A_only": null
+    }
+  },
+  "tokens": "NOT_OBSERVED",
+  "cost": "NOT_OBSERVED",
+  "publication_authority": false
+}

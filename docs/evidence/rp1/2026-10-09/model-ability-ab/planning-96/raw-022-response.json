@@ -1,0 +1,3 @@
+{
+  "raw_output": "{\"task_id\": \"experiment-ed415835ae84bf3fc8a2bafe\", \"intent\": \"ABSTAIN\", \"subject\": \"小样本时延统计（平均值、中位数、最近秩p95）\", \"constraints_delta\": {}, \"unresolved_questions\": [{\"id\": \"rq-question\", \"question\": \"某实验5次时延为10、10、10、10、100秒。计算平均值、中位数；按最近秩定义计算p95，说明小样本限制，不能用中位数替代尾延迟。\"}], \"suggested_next_action\": \"无活动研究任务且该请求为纯计算/解释题，不进行网络检索；直接计算并说明小样本限制。\", \"proposed_queries\": []}"
+}

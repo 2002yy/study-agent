@@ -1,0 +1,3 @@
+{
+  "raw_output": "{\"task_id\": \"experiment-59b15f573db4c46b59a2776a\", \"intent\": \"ABSTAIN\", \"subject\": \"虚构城市青禾桥通行公告 N1–N4 的时段适用性判断\", \"constraints_delta\": {\"focus\": \"仅依据用户提供的 N1–N4 材料作答，不进行网络检索，不补造虚构地点资料\"}, \"unresolved_questions\": [{\"id\": \"rq-question\", \"question\": \"仅依据 N1–N4，2025-04-12 14:00 与 16:00 开车者和步行者能否通过青禾桥，各条材料对哪个时间段有效，哪些说法不足以代表最新正式政策，并标注公告编号与证据空白？\"}], \"suggested_next_action\": \"该请求要求仅依据用户提供的虚构材料 N1–N4 作答且明确禁止上网补造资料；当前无可用材料正文，无法检索或验证，应说明无法执行网络研究并请用户提供 N1–N4 原文。\", \"proposed_queries\": []}"
+}

@@ -1,0 +1,313 @@
+{
+  "reveal": [
+    {
+      "label": "output-001",
+      "case": "H05",
+      "topic": "asyncio",
+      "arm": "B",
+      "repeat": 1,
+      "score": 90
+    },
+    {
+      "label": "output-002",
+      "case": "H03",
+      "topic": "go",
+      "arm": "A",
+      "repeat": 1,
+      "score": 2
+    },
+    {
+      "label": "output-003",
+      "case": "H05",
+      "topic": "asyncio",
+      "arm": "A",
+      "repeat": 1,
+      "score": 79
+    },
+    {
+      "label": "output-004",
+      "case": "H05",
+      "topic": "asyncio",
+      "arm": "A",
+      "repeat": 2,
+      "score": 95
+    },
+    {
+      "label": "output-005",
+      "case": "H01",
+      "topic": "pricing",
+      "arm": "A",
+      "repeat": 1,
+      "score": 75
+    },
+    {
+      "label": "output-006",
+      "case": "H01",
+      "topic": "pricing",
+      "arm": "B",
+      "repeat": 2,
+      "score": 77
+    },
+    {
+      "label": "output-007",
+      "case": "H06",
+      "topic": "calendar",
+      "arm": "A",
+      "repeat": 2,
+      "score": 31
+    },
+    {
+      "label": "output-008",
+      "case": "H02",
+      "topic": "bridge",
+      "arm": "B",
+      "repeat": 1,
+      "score": 88
+    },
+    {
+      "label": "output-009",
+      "case": "H03",
+      "topic": "go",
+      "arm": "B",
+      "repeat": 1,
+      "score": 2
+    },
+    {
+      "label": "output-010",
+      "case": "H04",
+      "topic": "http",
+      "arm": "B",
+      "repeat": 1,
+      "score": 86
+    },
+    {
+      "label": "output-011",
+      "case": "H02",
+      "topic": "bridge",
+      "arm": "A",
+      "repeat": 2,
+      "score": 88
+    },
+    {
+      "label": "output-012",
+      "case": "H02",
+      "topic": "bridge",
+      "arm": "B",
+      "repeat": 2,
+      "score": 88
+    },
+    {
+      "label": "output-013",
+      "case": "H04",
+      "topic": "http",
+      "arm": "A",
+      "repeat": 2,
+      "score": 79
+    },
+    {
+      "label": "output-014",
+      "case": "H01",
+      "topic": "pricing",
+      "arm": "B",
+      "repeat": 1,
+      "score": 74
+    },
+    {
+      "label": "output-015",
+      "case": "H04",
+      "topic": "http",
+      "arm": "B",
+      "repeat": 2,
+      "score": 93
+    },
+    {
+      "label": "output-016",
+      "case": "H01",
+      "topic": "pricing",
+      "arm": "A",
+      "repeat": 2,
+      "score": 76
+    },
+    {
+      "label": "output-017",
+      "case": "H06",
+      "topic": "calendar",
+      "arm": "B",
+      "repeat": 1,
+      "score": 26
+    },
+    {
+      "label": "output-018",
+      "case": "H06",
+      "topic": "calendar",
+      "arm": "B",
+      "repeat": 2,
+      "score": 34
+    },
+    {
+      "label": "output-019",
+      "case": "H03",
+      "topic": "go",
+      "arm": "B",
+      "repeat": 2,
+      "score": 2
+    },
+    {
+      "label": "output-020",
+      "case": "H03",
+      "topic": "go",
+      "arm": "A",
+      "repeat": 2,
+      "score": 2
+    },
+    {
+      "label": "output-021",
+      "case": "H04",
+      "topic": "http",
+      "arm": "A",
+      "repeat": 1,
+      "score": 71
+    },
+    {
+      "label": "output-022",
+      "case": "H06",
+      "topic": "calendar",
+      "arm": "A",
+      "repeat": 1,
+      "score": 33
+    },
+    {
+      "label": "output-023",
+      "case": "H02",
+      "topic": "bridge",
+      "arm": "A",
+      "repeat": 1,
+      "score": 88
+    },
+    {
+      "label": "output-024",
+      "case": "H05",
+      "topic": "asyncio",
+      "arm": "B",
+      "repeat": 2,
+      "score": 94
+    }
+  ],
+  "arm_definition": {
+    "A": "structured production-style planner (ResearchEpisode.interpret)",
+    "B": "free-form natural-language subquestions (B_PROMPT)",
+    "model": "deepseek-flash",
+    "note": "same fixed evidence + same answer stage for both arms"
+  },
+  "per_question": [
+    {
+      "case": "H05",
+      "topic": "asyncio",
+      "A": [
+        79,
+        95
+      ],
+      "B": [
+        90,
+        94
+      ],
+      "A_mean": 87,
+      "B_mean": 92,
+      "delta_B_minus_A": 5,
+      "A_spread": 16,
+      "B_spread": 4
+    },
+    {
+      "case": "H03",
+      "topic": "go",
+      "A": [
+        2,
+        2
+      ],
+      "B": [
+        2,
+        2
+      ],
+      "A_mean": 2,
+      "B_mean": 2,
+      "delta_B_minus_A": 0,
+      "A_spread": 0,
+      "B_spread": 0
+    },
+    {
+      "case": "H01",
+      "topic": "pricing",
+      "A": [
+        75,
+        76
+      ],
+      "B": [
+        74,
+        77
+      ],
+      "A_mean": 75.5,
+      "B_mean": 75.5,
+      "delta_B_minus_A": 0.0,
+      "A_spread": 1,
+      "B_spread": 3
+    },
+    {
+      "case": "H06",
+      "topic": "calendar",
+      "A": [
+        33,
+        31
+      ],
+      "B": [
+        26,
+        34
+      ],
+      "A_mean": 32,
+      "B_mean": 30,
+      "delta_B_minus_A": -2,
+      "A_spread": 2,
+      "B_spread": 8
+    },
+    {
+      "case": "H02",
+      "topic": "bridge",
+      "A": [
+        88,
+        88
+      ],
+      "B": [
+        88,
+        88
+      ],
+      "A_mean": 88,
+      "B_mean": 88,
+      "delta_B_minus_A": 0,
+      "A_spread": 0,
+      "B_spread": 0
+    },
+    {
+      "case": "H04",
+      "topic": "http",
+      "A": [
+        71,
+        79
+      ],
+      "B": [
+        86,
+        93
+      ],
+      "A_mean": 75,
+      "B_mean": 89.5,
+      "delta_B_minus_A": 14.5,
+      "A_spread": 8,
+      "B_spread": 7
+    }
+  ],
+  "overall": {
+    "A_n": 12,
+    "A_mean": 59.917,
+    "B_n": 12,
+    "B_mean": 62.833,
+    "delta_B_minus_A": 2.917
+  }
+}

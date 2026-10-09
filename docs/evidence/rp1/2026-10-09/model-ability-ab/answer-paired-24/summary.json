@@ -1,0 +1,14 @@
+{
+  "calls": 6,
+  "qualified": false,
+  "parseable": 6,
+  "finish_reasons": [
+    "stop",
+    "stop",
+    "stop",
+    "stop",
+    "stop",
+    "stop"
+  ],
+  "publication_authority": false
+}

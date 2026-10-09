@@ -1,0 +1,170 @@
+[
+  {
+    "label": "output-001",
+    "case_id": "H05",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-002",
+    "case_id": "H03",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-003",
+    "case_id": "H05",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-004",
+    "case_id": "H05",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-005",
+    "case_id": "H01",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-006",
+    "case_id": "H01",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-007",
+    "case_id": "H06",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-008",
+    "case_id": "H02",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-009",
+    "case_id": "H03",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-010",
+    "case_id": "H04",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-011",
+    "case_id": "H02",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-012",
+    "case_id": "H02",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-013",
+    "case_id": "H04",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-014",
+    "case_id": "H01",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-015",
+    "case_id": "H04",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-016",
+    "case_id": "H01",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-017",
+    "case_id": "H06",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-018",
+    "case_id": "H06",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-019",
+    "case_id": "H03",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-020",
+    "case_id": "H03",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-021",
+    "case_id": "H04",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-022",
+    "case_id": "H06",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-023",
+    "case_id": "H02",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-024",
+    "case_id": "H05",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  }
+]

@@ -1,0 +1,35 @@
+{
+  "calls": 24,
+  "new_calls": 18,
+  "original_calls": 6,
+  "original_evidence_hashes_unchanged": true,
+  "identical_messages_and_sources_verified": true,
+  "unique_arm_case_repeat_rows": 24,
+  "parseable": 24,
+  "citation_checks_pass": 23,
+  "citation_checks_rejected": 1,
+  "finish_reasons": {
+    "stop": 24
+  },
+  "completion_tokens": 32191,
+  "money_cost": "NOT_OBSERVED",
+  "per_arm": {
+    "A": {
+      "calls": 12,
+      "parseable": 12,
+      "citation_checks_rejected": 0,
+      "mean_seconds": 4.501
+    },
+    "B": {
+      "calls": 12,
+      "parseable": 12,
+      "citation_checks_rejected": 1,
+      "mean_seconds": 5.034
+    }
+  },
+  "policy_deviation": "User explicitly authorized remaining 18 after initial reference-risk stop; no retries or repairs",
+  "semantic_review": "PENDING_USER_BLIND_REVIEW",
+  "publication_authority": false,
+  "unseen_qualification": false,
+  "rp1": "NO-GO"
+}
