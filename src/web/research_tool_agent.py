@@ -10,124 +10,14 @@ stay outside this loop.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import http.client
-import ipaddress
 import json
-import socket
-import ssl
 import time
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Mapping
 
+from src.web.safe_http import host_resolves_public, safe_fetch
 from src.web.tool_evidence import _public_url
-
-
-def host_resolves_public(host: str) -> bool:
-    """True only if every resolved address is a global (public) IP.
-
-    ``_public_url`` checks the URL string; this also rejects a public domain that
-    resolves to a private/loopback/link-local address (DNS-rebinding style).
-    """
-    if not host:
-        return False
-    try:
-        infos = socket.getaddrinfo(host, None)
-    except Exception:  # noqa: BLE001
-        return False
-    if not infos:
-        return False
-    for info in infos:
-        try:
-            ip = ipaddress.ip_address(info[4][0])
-        except ValueError:
-            return False
-        if not ip.is_global:
-            return False
-    return True
-
-
-def _resolve_public_ips(host: str) -> list[str]:
-    """Resolve the host once and require EVERY address to be a global IP.
-
-    Returns the validated IPs so the caller can connect to a fixed IP instead of
-    letting the HTTP client re-resolve (which is the DNS-rebinding gap).
-    """
-    try:
-        infos = socket.getaddrinfo(host, None)
-    except Exception as exc:  # noqa: BLE001
-        raise ValueError("dns_failed") from exc
-    if not infos:
-        raise ValueError("dns_empty")
-    ips: list[str] = []
-    for info in infos:
-        try:
-            ip = ipaddress.ip_address(info[4][0])
-        except ValueError as exc:
-            raise ValueError("dns_invalid") from exc
-        if not ip.is_global:
-            raise ValueError("unsafe_target")
-        ips.append(str(ip))
-    return ips
-
-
-def _http_get_pinned(url: str, host: str, ip: str, *, timeout: float) -> tuple[int, dict[str, str], str]:
-    """GET ``url`` by connecting to the already-validated ``ip`` (no re-resolution),
-    keeping the real host for the Host header and TLS SNI/certificate checks."""
-    parts = urlsplit(url)
-    port = parts.port or (443 if parts.scheme == "https" else 80)
-    target = parts.path or "/"
-    if parts.query:
-        target += "?" + parts.query
-    if parts.scheme == "https":
-        context = ssl.create_default_context()
-        raw = socket.create_connection((ip, port), timeout=timeout)
-        conn: http.client.HTTPConnection = http.client.HTTPSConnection(host, port, timeout=timeout)
-        conn.sock = context.wrap_socket(raw, server_hostname=host)
-    else:
-        conn = http.client.HTTPConnection(ip, port, timeout=timeout)
-    try:
-        conn.request("GET", target, headers={"Host": host, "User-Agent": "StudyAgent/feed"})
-        response = conn.getresponse()
-        body = response.read(300_000).decode("utf-8", "replace")
-        return response.status, {k.lower(): v for k, v in response.getheaders()}, body
-    finally:
-        conn.close()
-
-
-def safe_fetch(url: str, *, timeout: float, max_hops: int = 4,
-               deadline: float | None = None) -> str:
-    """Fetch a URL, validating scheme + resolved IP of EVERY redirect hop BEFORE
-    requesting it, and connecting to the validated IP (no re-resolution).
-
-    A hop to a private target is rejected without being contacted. ``deadline`` is
-    an absolute monotonic time shared across ALL hops, so a redirect chain cannot
-    renew the budget hop-by-hop.
-    """
-    current = url
-    for _ in range(max_hops):
-        hop_timeout = timeout
-        if deadline is not None:
-            hop_timeout = min(timeout, deadline - time.monotonic())
-            if hop_timeout <= 0:
-                raise ValueError("deadline_exhausted")
-        parts = urlsplit(current)
-        if parts.scheme not in {"http", "https"} or not parts.hostname:
-            raise ValueError("unsafe_scheme")
-        if not _public_url(current):
-            raise ValueError("unsafe_target")
-        ips = _resolve_public_ips(parts.hostname)
-        status, headers, body = _http_get_pinned(current, parts.hostname, ips[0], timeout=hop_timeout)
-        if status in {301, 302, 303, 307, 308}:
-            location = headers.get("location")
-            if not location:
-                raise ValueError("redirect_without_location")
-            current = urljoin(current, location)
-            continue
-        if status >= 400:
-            raise ValueError(f"http_{status}")
-        return body
-    raise ValueError("too_many_redirects")
 
 
 TOOLS = {"search", "feed", "read_page", "finish"}
