@@ -123,6 +123,32 @@ def test_feed_requires_confirmed_url():
     assert trace["calls"][0]["result"]["status"] == "pending_url_confirmation"
 
 
+def test_feed_rejects_private_redirect(monkeypatch):
+    import urllib.request
+
+    class Response:
+        url = "http://127.0.0.1/internal/feed"
+
+        def read(self, _n=None):
+            return b"<rss><channel><item><title>x</title><link>https://ex.org/x</link></item></channel></rss>"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: Response())
+    gw = FakeGateway()
+    completion = make_completion([
+        {"tool": "feed", "url": "https://ex.org/feed.xml"},
+        {"tool": "finish"},
+    ])
+    trace = run_tool_agent(gateway=gw, completion=completion, question="q", budget=AgentBudget(),
+                           initial_urls=("https://ex.org/feed.xml",))
+    assert trace["calls"][0].get("feed_error") == "ValueError"
+
+
 def test_agent_records_invalid_action_and_continues():
     gw = FakeGateway()
     completion = make_completion([

@@ -199,7 +199,12 @@ def run_tool_agent(
                 with urllib.request.urlopen(
                     request, timeout=min(15.0, max(1.0, deadline - monotonic()))
                 ) as response:
+                    final_url = response.url
                     payload = response.read(300_000).decode("utf-8", "replace")
+                # A redirect must not move a public feed URL onto a private/loopback
+                # target; re-validate the FINAL url, not just the original.
+                if not _public_url(final_url):
+                    raise ValueError("feed_redirect_not_public")
                 entries = parse_feed(payload)
             except Exception as exc:  # noqa: BLE001
                 entries = []
