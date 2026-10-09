@@ -334,6 +334,10 @@ def observe_answer_verification(
                 {
                     **asdict(check),
                     "label": boundary.label,
+                    "left": boundary.left,
+                    "right": boundary.right,
+                    "variable": boundary.variable,
+                    "claimed_value": boundary.result,
                     "formula_origin": asdict(origin),
                     "verified_support": (
                         check.status == "PASS" and origin.status != "unverified"

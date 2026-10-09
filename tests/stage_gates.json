@@ -34,7 +34,9 @@
       "tests/test_identity_evidence_binding.py",
       "tests/test_answer_claim_binder.py",
       "tests/test_chat_service.py",
-      "tests/test_shadow_isolation.py"
+      "tests/test_shadow_isolation.py",
+      "tests/test_answer_reliability_1b.py",
+      "tests/test_answer_reconciliation.py"
     ],
     "research_request_routing_trace": [
       "tests/test_research_request_routing_trace.py",
@@ -433,7 +435,9 @@
       "tests/test_chat_stream_cancellation.py",
       "tests/test_final_answer_auditor.py",
       "tests/test_grounded_excerpts.py",
-      "tests/test_stage_gates_policy.py"
+      "tests/test_stage_gates_policy.py",
+      "tests/test_answer_reliability_1b.py",
+      "tests/test_answer_reconciliation.py"
     ],
     "research-ability-ab-v1": [
       "tests/test_research_ability_ab.py",
