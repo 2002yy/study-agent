@@ -7,6 +7,11 @@ general:
 
 search:
   safe_search: 0
+  # Without a locale the Bing engine omits the ``mkt`` parameter and
+  # www.bing.com answers with a geo 302 (to cn.bing.com) that SearXNG does
+  # not follow, silently yielding zero results. Pinning the instance
+  # language makes engines send a stable locale.
+  default_lang: en-US
   formats:
     - html
     - json
@@ -21,3 +26,48 @@ server:
   image_proxy: false
   # SEARXNG_SECRET from ignored .env.local overrides this non-production value.
   secret_key: "overridden-by-SEARXNG_SECRET"
+
+# NOTE: the container already reaches the internet through the Clash TUN
+# virtual adapter (Docker Desktop NAT -> Windows routing). Sending engine
+# traffic through the explicit mixed port produced httpx RemoteProtocolError
+# / timeouts, so the proxy is intentionally left unset here. Enable only if
+# TUN routing is turned off.
+# outgoing:
+#   proxies:
+#     all://:
+#       - http://host.docker.internal:7890
+
+outgoing:
+  # Default 3 s is too tight for some engines from this network
+  # (yahoo answered in ~7 s in a raw probe).
+  request_timeout: 8.0
+  max_request_timeout: 15.0
+
+# Measured on this network (2026-10-09). Engines receiving HTTP 429 / CAPTCHA
+# / access-denied scoped to the exit IP are disabled so a search does not
+# spend its timeout budget on engines that cannot answer.
+engines:
+  # bing: verified working (10 results per query, 0.7-4.2 s).
+  # www.bing.com geo-redirects this network to cn.bing.com with a 302, and
+  # SearXNG engines do not follow redirects (searx/search/processors/online.py
+  # sets allow_redirects=False), so the engine parsed the empty 302 body and
+  # silently returned nothing. cn.bing.com serves the same markup
+  # (ol#b_results / li.b_algo), so the redirect hop is simply removed.
+  - name: bing
+    disabled: false
+    base_url: https://cn.bing.com
+  # Disabled after direct measurement: 429 / CAPTCHA / protocol error.
+  - name: brave
+    disabled: true
+  - name: duckduckgo
+    disabled: true
+  - name: google cse
+    disabled: true
+  - name: qwant
+    disabled: true
+  - name: startpage
+    disabled: true
+  - name: yahoo
+    disabled: true
+  - name: wikidata
+    disabled: true
