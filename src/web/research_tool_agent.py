@@ -95,21 +95,29 @@ def _http_get_pinned(url: str, host: str, ip: str, *, timeout: float) -> tuple[i
         conn.close()
 
 
-def safe_fetch(url: str, *, timeout: float, max_hops: int = 4) -> str:
+def safe_fetch(url: str, *, timeout: float, max_hops: int = 4,
+               deadline: float | None = None) -> str:
     """Fetch a URL, validating scheme + resolved IP of EVERY redirect hop BEFORE
     requesting it, and connecting to the validated IP (no re-resolution).
 
-    A hop to a private target is rejected without being contacted.
+    A hop to a private target is rejected without being contacted. ``deadline`` is
+    an absolute monotonic time shared across ALL hops, so a redirect chain cannot
+    renew the budget hop-by-hop.
     """
     current = url
     for _ in range(max_hops):
+        hop_timeout = timeout
+        if deadline is not None:
+            hop_timeout = min(timeout, deadline - time.monotonic())
+            if hop_timeout <= 0:
+                raise ValueError("deadline_exhausted")
         parts = urlsplit(current)
         if parts.scheme not in {"http", "https"} or not parts.hostname:
             raise ValueError("unsafe_scheme")
         if not _public_url(current):
             raise ValueError("unsafe_target")
         ips = _resolve_public_ips(parts.hostname)
-        status, headers, body = _http_get_pinned(current, parts.hostname, ips[0], timeout=timeout)
+        status, headers, body = _http_get_pinned(current, parts.hostname, ips[0], timeout=hop_timeout)
         if status in {301, 302, 303, 307, 308}:
             location = headers.get("location")
             if not location:
@@ -137,11 +145,15 @@ SYSTEM = (
 
 
 def parse_feed(payload: str, *, limit: int = 10) -> list[dict[str, str]]:
-    """Extract (title, url) from RSS <item> or Atom <entry>; stdlib only."""
+    """Extract (title, url) from RSS <item> or Atom <entry>; stdlib only.
+
+    Raises ``ValueError('invalid_feed_xml')`` on malformed XML so a non-feed body
+    is distinguished from a valid-but-empty feed.
+    """
     try:
         root = ET.fromstring(payload)
-    except ET.ParseError:
-        return []
+    except ET.ParseError as exc:
+        raise ValueError("invalid_feed_xml") from exc
     entries: list[dict[str, str]] = []
     for node in root.iter():
         tag = node.tag.split("}")[-1]
@@ -239,8 +251,17 @@ def run_tool_agent(
     reliable_sources: tuple[str, ...] = tuple(
         url for _, url in registry_sources if _public_url(url)
     )
-    confirmed: set[str] = {url for url in initial_urls if _public_url(url)}
-    confirmed.update(reliable_sources)
+    confirmed: set[str] = set()
+    confirmed_basis: dict[str, str] = {}
+    feed_links: dict[str, str] = {}
+    source_chain: list[dict[str, str]] = []
+    for _url in initial_urls:
+        if _public_url(_url):
+            confirmed.add(_url)
+            confirmed_basis.setdefault(_url, "initial_urls")
+    for _url in reliable_sources:
+        confirmed.add(_url)
+        confirmed_basis.setdefault(_url, "registry_seed")
     stop = "round_limit"
     for rnd in range(budget.max_rounds):
         if should_cancel():
@@ -285,6 +306,7 @@ def run_tool_agent(
                 url = str(r.get("url") or "")
                 if _public_url(url):
                     confirmed.add(url)
+                    confirmed_basis.setdefault(url, "search_result")
             call["result"] = {"status": result.get("status"), "reason": result.get("reason"),
                               "n": len(rows), "urls": [r.get("url") for r in rows]}
             brief = "\n".join(
@@ -310,17 +332,22 @@ def run_tool_agent(
                 continue
             searches += 1
             try:
-                payload = safe_fetch(
-                    action["url"], timeout=min(15.0, max(1.0, deadline - monotonic()))
-                )
+                payload = safe_fetch(action["url"], timeout=15.0, deadline=deadline)
                 entries = parse_feed(payload)
+                feed_status = "ok" if entries else "empty"
             except Exception as exc:  # noqa: BLE001
                 entries = []
+                feed_status = "unavailable"
                 call["feed_error"] = type(exc).__name__
+                if str(exc):
+                    call["feed_reason"] = str(exc)
             for entry in entries:
                 if _public_url(entry["url"]):
                     confirmed.add(entry["url"])
-            call["result"] = {"status": "ok" if entries else "empty", "n": len(entries),
+                    confirmed_basis.setdefault(entry["url"], "feed_entry")
+                    feed_links.setdefault(entry["url"], action["url"])
+            call["feed_status"] = feed_status
+            call["result"] = {"status": feed_status, "n": len(entries),
                               "urls": [entry["url"] for entry in entries]}
             brief = "\n".join(f"- {entry['title']} | {entry['url']}" for entry in entries)
             observations.append(f"round {rnd}: feed '{action['url']}' ->\n{brief or '(no entries)'}")
@@ -354,12 +381,25 @@ def run_tool_agent(
                                     timeout=min(8.0, max(0.5, deadline - monotonic())))
             except Exception as exc:  # noqa: BLE001
                 body = {"ok": False, "url": action["url"], "error": f"{type(exc).__name__}"}
+            final_url = str(body.get("url") or action["url"])
+            # Defense in depth: the reader follows its own redirects, so re-check
+            # the FINAL url it reports. (Pre-connection safety inside the reader is
+            # a separate slice; the production block stays until then.)
+            if body.get("ok") and not _public_url(final_url):
+                body = {**body, "ok": False, "error": "reader_final_url_not_public"}
             content = str(body.get("content") or body.get("readme") or "")
             call["result"] = {"ok": body.get("ok"), "chars": len(content),
                               "error": body.get("error") or body.get("error_code")}
-            bodies.append({"url": action["url"], "ok": bool(body.get("ok")),
+            bodies.append({"url": final_url, "ok": bool(body.get("ok")),
                            "chars": len(content), "preview": content[:600],
                            "reason": action.get("reason", "")})
+            if body.get("ok"):
+                source_chain.append({
+                    "basis": confirmed_basis.get(action["url"], ""),
+                    "feed_url": feed_links.get(action["url"], ""),
+                    "entry_url": action["url"],
+                    "read_url": final_url,
+                })
             observations.append(
                 f"round {rnd}: read {action['url']} ok={body.get('ok')} chars={len(content)} "
                 f"error={body.get('error') or body.get('error_code') or ''}\n{content[:1200]}"
@@ -377,5 +417,6 @@ def run_tool_agent(
         "bodies": bodies,
         "calls": calls,
         "registry_sources": list(reliable_sources),
+        "source_chain": source_chain,
         "publication_authority": False,
     }

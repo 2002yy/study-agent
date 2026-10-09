@@ -178,3 +178,48 @@ def test_agent_records_invalid_action_and_continues():
     trace = run_tool_agent(gateway=gw, completion=completion, question="q", budget=AgentBudget())
     assert trace["calls"][0]["error"]
     assert trace["stop_reason"] == "finished"
+
+
+def _feed_run(monkeypatch, fetch):
+    import src.web.research_tool_agent as agent
+
+    monkeypatch.setattr(agent, "safe_fetch", fetch)
+    completion = make_completion([{"tool": "feed", "url": "https://ex.org/f.xml"}, {"tool": "finish"}])
+    return run_tool_agent(gateway=FakeGateway(), completion=completion, question="q",
+                          budget=AgentBudget(), initial_urls=("https://ex.org/f.xml",))
+
+
+def test_feed_empty_vs_unavailable(monkeypatch):
+    empty = _feed_run(monkeypatch, lambda url, timeout=15.0, deadline=None: "<rss><channel></channel></rss>")
+    assert empty["calls"][0]["feed_status"] == "empty"
+
+    invalid = _feed_run(monkeypatch, lambda url, timeout=15.0, deadline=None: "<rss><channel>")
+    assert invalid["calls"][0]["feed_status"] == "unavailable"
+
+    def unreachable(url, timeout=15.0, deadline=None):
+        raise ValueError("dns_failed")
+
+    down = _feed_run(monkeypatch, unreachable)
+    assert down["calls"][0]["feed_status"] == "unavailable"
+
+
+def test_source_chain_records_registry_feed_entry_and_basis(monkeypatch):
+    import src.web.research_tool_agent as agent
+
+    monkeypatch.setattr(agent, "host_resolves_public", lambda host: True)
+    monkeypatch.setattr(
+        agent, "safe_fetch",
+        lambda url, timeout=15.0, deadline=None:
+        "<rss><channel><item><title>t</title><link>https://ex.org/a</link></item></channel></rss>",
+    )
+    completion = make_completion([
+        {"tool": "feed", "url": "https://ex.org/f.xml"},
+        {"tool": "read_page", "url": "https://ex.org/a"},
+        {"tool": "finish"},
+    ])
+    trace = run_tool_agent(gateway=FakeGateway(), completion=completion, question="q",
+                           budget=AgentBudget(), registry_sources=(("src-1", "https://ex.org/f.xml"),))
+    chain = trace["source_chain"]
+    assert chain and chain[0]["entry_url"] == "https://ex.org/a"
+    assert chain[0]["feed_url"] == "https://ex.org/f.xml"
+    assert chain[0]["basis"] == "feed_entry"
