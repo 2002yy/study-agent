@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import threading
+import time
 
 import src.application.shadow_isolation as iso
 from src.application.shadow_isolation import BestEffortTelemetry, submit_shadow_bounded
 from src.application.standard_continuation import StandardContinuationService
 from src.application.standard_shadow_seam import (
     SHADOW_EVIDENCE_COMPLETION,
+    grants_evidence_authority,
     observe_shadow_for_standard,
     standard_shadow_enabled,
     summarize_trace,
@@ -25,6 +27,14 @@ class _Sink:
 def _telemetry() -> tuple[BestEffortTelemetry, _Sink]:
     sink = _Sink()
     return BestEffortTelemetry(sink), sink
+
+
+def _wait_for_items(sink: "_Sink", expected: int = 1, timeout: float = 3.0) -> None:
+    """BestEffortTelemetry.flush() only drains the queue; the sink write happens in
+    the flusher thread. Wait for the sink itself so assertions are not racy."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline and len(sink.items) < expected:
+        time.sleep(0.01)
 
 
 def test_flag_defaults_off(monkeypatch):
@@ -60,6 +70,7 @@ def test_flag_on_records_only_non_authoritative_telemetry(monkeypatch):
     assert result.enabled is True and result.submitted is True
     assert result.telemetry_only is True
     assert telemetry.flush(timeout=2.0) is True
+    _wait_for_items(sink)
     assert len(sink.items) == 1
     payload = sink.items[0]
     assert payload["authoritative"] is False
@@ -109,6 +120,14 @@ def test_shadow_submit_is_non_blocking_and_rejects_on_saturation():
     assert submit_shadow_bounded(slow, on_result=rejected.append) is False
     assert rejected and rejected[0].status != "ok"
     release.set()
+    # Deterministically wait for the shared admission tokens to come back, so this
+    # test cannot starve later tests in the same session.
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if iso.shadow_resource_state()["capacity_available"] == iso.SHADOW_CAPACITY:
+            break
+        time.sleep(0.01)
+    assert iso.shadow_resource_state()["capacity_available"] == iso.SHADOW_CAPACITY
 
 
 def test_continuation_shadow_helper_never_raises(monkeypatch):
@@ -117,5 +136,38 @@ def test_continuation_shadow_helper_never_raises(monkeypatch):
     service.shadow_telemetry = None
     service.shadow_runner = lambda q, b: (_ for _ in ()).throw(RuntimeError("boom"))
 
-    # Must not raise even when the runner explodes.
+    # Must raise nothing even when the runner explodes.
     service._observe_standard_shadow(query="q", handoff=None)  # noqa: SLF001
+
+
+def test_finished_trace_cannot_gain_evidence_authority(monkeypatch):
+    monkeypatch.setenv("BSEARCH_STANDARD_SHADOW", "on")
+    telemetry, sink = _telemetry()
+
+    def runner(query: str, budget: float) -> dict:
+        return {
+            "stop_reason": "finished",
+            "evidence_completion": "SUPPORTED",
+            "coverage_audit": {"sub_goals": {"a": {"status": "supported"}}},
+        }
+
+    observe_shadow_for_standard(query="q", telemetry=telemetry, runner=runner)
+    assert telemetry.flush(timeout=2.0) is True
+    _wait_for_items(sink)
+    payload = sink.items[0]
+    assert grants_evidence_authority(payload) is False
+    assert grants_evidence_authority(payload["observation"]) is False
+    telemetry.close()
+
+
+def test_only_an_explicit_audit_grant_could_pass():
+    assert grants_evidence_authority({}) is False
+    assert grants_evidence_authority(
+        {"authoritative": True, "evidence_completion": "SUPPORTED"}) is False
+    assert grants_evidence_authority(
+        {"authoritative": True, "evidence_completion": "UNVERIFIED", "audit_ref": "x"}
+    ) is False
+    # the only shape that would ever pass — never produced by this seam
+    assert grants_evidence_authority(
+        {"authoritative": True, "evidence_completion": "SUPPORTED", "audit_ref": "audit-1"}
+    ) is True

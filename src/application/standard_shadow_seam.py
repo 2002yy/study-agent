@@ -44,6 +44,27 @@ BSEARCH_SHADOW_MAX_READS = 3
 #: turn an unattested shadow run into evidence.
 SHADOW_EVIDENCE_COMPLETION = "UNVERIFIED"
 
+#: A shadow record never carries evidence authority. `grants_evidence_authority` is
+#: the single choke point every future consumer must pass before a B-Search record
+#: may inform an answer, a citation or the Evidence Gate.
+EVIDENCE_AUTHORITY = False
+
+
+def grants_evidence_authority(payload: Mapping[str, Any]) -> bool:
+    """Whether a record may inform an answer or the Evidence Gate.
+
+    Always False for shadow records: they are born with ``authoritative=False`` and
+    ``evidence_completion="UNVERIFIED"``, so this stays False even when the inner
+    observation claims ``finished`` or ``supported``. A record could only pass with
+    an explicit authority grant plus a named independent audit reference, which
+    this seam never produces.
+    """
+    if payload.get("authoritative") is not True:
+        return False
+    if payload.get("evidence_completion") != "SUPPORTED":
+        return False
+    return bool(payload.get("audit_ref"))
+
 
 def standard_shadow_enabled() -> bool:
     """Default off; unset or unknown keeps the production behaviour unchanged."""
