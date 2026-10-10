@@ -520,3 +520,25 @@ def test_safe_fetch_result_blocks_private_without_request(monkeypatch):
     with pytest.raises(ValueError):
         sh.safe_fetch_result("https://ex.org/a", timeout=5)
     assert called == []
+
+
+def _read_run(**extra):
+    completion = make_completion([
+        {"tool": "read_page", "url": "https://ex.org/known"},
+        {"tool": "finish"},
+    ])
+    return run_tool_agent(gateway=FakeGateway(), completion=completion, question="q",
+                          budget=AgentBudget(), initial_urls=("https://ex.org/known",),
+                          **extra)
+
+
+def test_full_text_capture_is_opt_in():
+    """Default traces carry only a preview; same-run evidence needs opt-in capture."""
+    off = _read_run()
+    ok_off = [b for b in off["bodies"] if b["ok"]]
+    assert ok_off and "text" not in ok_off[0]
+
+    on = _read_run(capture_full_text=True)
+    ok_on = [b for b in on["bodies"] if b["ok"]]
+    assert ok_on and isinstance(ok_on[0].get("text"), str)
+    assert len(ok_on[0]["text"]) == ok_on[0]["chars"]
