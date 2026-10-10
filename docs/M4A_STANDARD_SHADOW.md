@@ -114,13 +114,14 @@ anything, so a 0-search no-op can never be mistaken for a legitimate result. Cov
 
 **Done**: same-run full-text capture (`capture_full_text`, default **off**); durable
 telemetry wiring; non-authoritative records with the `grants_evidence_authority` choke
-point; the `INVALID_RUN` guard; and the same-run full-text re-audit of the high-risk
-trio (Redis / Minecraft / K8s).
+point; the `INVALID_RUN` guard; the same-run full-text re-audit of the high-risk trio
+(Redis / Minecraft / K8s); the real **OFF/ON pairing** of the whole Standard path
+(result and bindings identical modulo per-parent identity hashes, ON adds no meaningful
+latency, the persisted observation stays non-authoritative); and the telemetry resource
+lifecycle check (one shared flusher per process, closed at interpreter exit).
 
-**Remaining**: a real OFF/ON paired run of the whole Standard path (main answer,
-citations and persisted state unchanged; shadow failure non-blocking); then M4-B
-(Lookup/Deep shadow) and M5 (limited enablement). Full text stays opt-in and is never
-written to production telemetry by default.
+**Remaining**: M4-B (Lookup/Deep shadow) and M5 (limited enablement). Full text stays
+opt-in and is never written to production telemetry by default.
 
 Boundaries held: production B OFF; RP-1 NO-GO; `assess_body` UNQUALIFIED; no search
 source added; URL confirmation not weakened; default budgets unchanged.
