@@ -8,12 +8,10 @@ import re
 import time
 from collections.abc import MutableMapping
 from dataclasses import dataclass
-from socket import getaddrinfo
 from typing import Any
 from urllib.parse import urlparse
 from urllib.request import (
     HTTPRedirectHandler,
-    Request,
     build_opener,
 )
 
@@ -28,6 +26,7 @@ from src.news.readers.jina_reader import read_with_jina_reader
 from src.news.readers.local_reader import read_html_locally
 from src.news.url_normalizer import is_probable_article_page_url
 from src.web.concurrency import BoundedTask, run_bounded
+from src.web.safe_http import SafeFetchRefusal, safe_fetch_result
 
 
 @dataclass(frozen=True)
@@ -93,31 +92,16 @@ def jina_fallback_enabled() -> bool:
 def _check_dns_target_safe(hostname: str) -> bool:
     """Resolve hostname and reject if it points to a private/internal address.
 
-    Note: there is a TOCTOU window between this DNS check and the real
-    urlopen() connection.  For a personal tool the risk is acceptable;
-    a production-grade fix would pin resolved IPs or use a single
-    connection path that integrates resolution with fetch.
+    Delegates to the shared resolver so that, when ``SAFE_HTTP_DOH_URL`` is set, the
+    Reader validates the SAME real public IPs the transport will connect to (no
+    fake-IP bypass, fail closed on DNS failure).
     """
     try:
-        addrs = getaddrinfo(hostname, None)
-    except Exception:
+        from src.web.safe_http import host_resolves_public
+
+        return host_resolves_public(hostname)
+    except Exception:  # noqa: BLE001
         return False
-    for _family, _type, _proto, _canon, sockaddr in addrs:
-        raw_ip = sockaddr[0]
-        try:
-            ip = ipaddress.ip_address(raw_ip)
-            if (
-                ip.is_private
-                or ip.is_loopback
-                or ip.is_link_local
-                or ip.is_multicast
-                or ip.is_reserved
-                or ip.is_unspecified
-            ):
-                return False
-        except ValueError:
-            continue
-    return True
 
 
 def _is_fetchable_article_url(url: str) -> bool:
@@ -197,34 +181,28 @@ def _fetch_html_payload(
     """Return (html_text, final_url, content_type, reason).
 
     reason is empty on success, otherwise a diagnostic key like
-    "non_html_resource", "empty_response", etc.
+    "non_html_resource", "empty_response", etc. A security refusal propagates
+    (``SafeFetchRefusal``) so callers never route it into a weaker fallback.
     """
-    req = Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-    )
+    try:
+        deadline = time.monotonic() + float(timeout)
+        result = safe_fetch_result(url, timeout=float(timeout), max_bytes=max_bytes, deadline=deadline)
+    except SafeFetchRefusal:
+        raise
+    except Exception:  # noqa: BLE001 - ordinary network/status failure
+        return "", url, "", "fetch_failed"
 
-    with _SAFE_OPENER.open(req, timeout=timeout) as response:
-        final_url = response.geturl()
-        if final_url and not _is_fetchable_article_url(final_url):
-            return "", final_url or url, "", "unsafe_redirect_target"
+    final_url = result["final_url"]
+    if final_url and not _is_fetchable_article_url(final_url):
+        return "", final_url or url, "", "unsafe_redirect_target"
 
-        content_type = response.headers.get("Content-Type", "")
-        if "html" not in content_type.lower() and "text" not in content_type.lower():
-            return "", final_url or url, content_type, "non_html_resource"
+    content_type = result["content_type"]
+    if "html" not in content_type.lower() and "text" not in content_type.lower():
+        return "", final_url or url, content_type, "non_html_resource"
 
-        payload = response.read(max_bytes + 1)
-        if len(payload) > max_bytes:
-            payload = payload[:max_bytes]
-        # Undo a transport Content-Encoding before decoding: a gzip body would
-        # otherwise be handed to the HTML/text decoder as binary garbage.
-        payload = _decompress_transport_payload(
-            payload, response.headers.get("Content-Encoding", "")
-        )
-
+    payload = _decompress_transport_payload(result["raw"], result["content_encoding"])
+    if len(payload) > max_bytes:  # post-decompress cap
+        return "", final_url or url, content_type, "response_too_large"
     return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
 
 
@@ -236,43 +214,29 @@ def _fetch_text_payload(
     """Return (text, final_url, content_type, reason) for any textual resource.
 
     Unlike :func:`_fetch_html_payload` this accepts XML/JSON inventories (e.g.
-    ``/sitemap.xml``), which the §63 domain-targeted channel harvests for
-    <loc> entries. Same opener, same redirect/DNS guard, same bounds; reason is
-    empty on success, otherwise a diagnostic key such as "non_text_resource".
+    ``/sitemap.xml``). Uses the shared safe transport; a security refusal
+    propagates.
     """
-    req = Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": (
-                "application/xml,application/xhtml+xml,text/xml,application/json,"
-                "text/html;q=0.9,*/*;q=0.8"
-            ),
-        },
-    )
+    try:
+        deadline = time.monotonic() + float(timeout)
+        result = safe_fetch_result(url, timeout=float(timeout), max_bytes=max_bytes, deadline=deadline)
+    except SafeFetchRefusal:
+        raise
+    except Exception:  # noqa: BLE001 - ordinary network/status failure
+        return "", url, "", "fetch_failed"
 
-    with _SAFE_OPENER.open(req, timeout=timeout) as response:
-        final_url = response.geturl()
-        if final_url and not _is_fetchable_article_url(final_url):
-            return "", final_url or url, "", "unsafe_redirect_target"
+    final_url = result["final_url"]
+    if final_url and not _is_fetchable_article_url(final_url):
+        return "", final_url or url, "", "unsafe_redirect_target"
 
-        content_type = response.headers.get("Content-Type", "")
-        lowered = content_type.lower()
-        if not any(
-            token in lowered
-            for token in ("html", "text", "xml", "json", "javascript")
-        ):
-            return "", final_url or url, content_type, "non_text_resource"
+    content_type = result["content_type"]
+    lowered = content_type.lower()
+    if not any(token in lowered for token in ("html", "text", "xml", "json", "javascript")):
+        return "", final_url or url, content_type, "non_text_resource"
 
-        payload = response.read(max_bytes + 1)
-        if len(payload) > max_bytes:
-            payload = payload[:max_bytes]
-        # Undo a transport Content-Encoding before decoding: a gzip body would
-        # otherwise be handed to the HTML/text decoder as binary garbage.
-        payload = _decompress_transport_payload(
-            payload, response.headers.get("Content-Encoding", "")
-        )
-
+    payload = _decompress_transport_payload(result["raw"], result["content_encoding"])
+    if len(payload) > max_bytes:  # post-decompress cap
+        return "", final_url or url, content_type, "response_too_large"
     return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
 
 
@@ -398,6 +362,11 @@ def fetch_article_read_result(
             requested_url=url,
             final_url=final_url or url,
             reason="all_backends_failed",
+        )
+    except SafeFetchRefusal as refusal:
+        # Security refusals are fail-closed: never fall back to a weaker reader.
+        return ArticleReadResult(
+            ok=False, requested_url=url, reason=f"security_refused:{refusal.reason}"
         )
     except Exception as exc:
         text, method = _try_firecrawl(url, timeout=timeout, max_chars=max_chars)
