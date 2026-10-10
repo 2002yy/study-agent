@@ -146,6 +146,7 @@ def run_tool_agent(
     sub_goals: tuple[tuple[str, tuple[str, ...]], ...] = (),
     entry_selection: bool = True,
     assessment_feedback: bool = True,
+    capture_full_text: bool = False,
     monotonic: Callable[[], float] = time.monotonic,
     should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict[str, Any]:
@@ -536,9 +537,15 @@ def run_tool_agent(
                 assessment = assess_body(content, question)
                 call["assessment"] = assessment
                 call["admission"] = url_admission.get(action["url"], "")
-            bodies.append({"url": final_url, "ok": bool(body.get("ok")),
+            body_record = {"url": final_url, "ok": bool(body.get("ok")),
                            "chars": len(content), "preview": content[:600],
-                           "reason": action.get("reason", ""), "assessment": assessment})
+                           "reason": action.get("reason", ""), "assessment": assessment}
+            if capture_full_text:
+                # Opt-in (default off): persist the text THIS run actually read, so an
+                # independent audit never has to substitute a later re-fetch for the
+                # original same-run evidence.
+                body_record["text"] = content
+            bodies.append(body_record)
             if body.get("ok"):
                 import hashlib as _hashlib
 

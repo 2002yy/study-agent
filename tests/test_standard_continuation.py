@@ -356,3 +356,74 @@ def test_complete_turn_is_a_no_op_without_a_continuation_service(ctx, monkeypatc
         lambda self, prepared, suffix: completed,
     )
     assert _chat_with(None).complete_turn(prepared=None, suffix="") is completed
+
+
+def _stable(result):
+    """Drop run-identity fields so two independent parents can be compared by content."""
+    drop = ("run_id", "handoff_sha256", "payload_sha256")
+    return {
+        k: v
+        for k, v in (result or {}).items()
+        if k not in drop and not k.endswith("_id") and not k.endswith("_sha256")
+    }
+
+
+def test_shadow_off_on_pairing_matches_the_standard_outcome(ctx, tmp_path, monkeypatch):
+    """M4-A acceptance pairing: flag OFF vs ON on the real continuation path.
+
+    Checks the main result (and citations/bindings it carries) is identical, the ON
+    run adds no meaningful latency, and with the flag ON a durable, non-authoritative
+    observation is actually persisted.
+    """
+    import json
+    import time
+
+    import tests.test_standard_handoff as handoff
+    from src.application import standard_continuation as _sc
+    from src.application.standard_shadow_seam import grants_evidence_authority
+
+    # --- OFF baseline (the ctx service was built with the flag unset)
+    off_service, _repository, _runs, parent, _created, gateway, clock = ctx
+    assert off_service.shadow_telemetry is None
+    t0 = time.monotonic()
+    off = off_service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    off_seconds = time.monotonic() - t0
+    assert off.status == "completed"
+
+    # --- ON: an independent parent double, flag on, durable sink
+    log = tmp_path / "shadow" / "observations.jsonl"
+    monkeypatch.setenv("BSEARCH_STANDARD_SHADOW", "on")
+    monkeypatch.setenv("BSEARCH_STANDARD_SHADOW_LOG", str(log))
+    monkeypatch.setattr(_sc, "_SHADOW_TELEMETRY", None)
+    second = tmp_path / "second"
+    second.mkdir()
+    repo2, runs2, parent2, created2 = handoff.saved_parent.__wrapped__(second)
+
+    service = StandardContinuationService(
+        repo2, runs2, gateway, clock=lambda: created2 + timedelta(seconds=3),
+        planner_factory=lambda: planner,
+    )
+    assert service.shadow_telemetry is not None
+    # hermetic: never run the real observer inside CI
+    service.shadow_runner = lambda q, b: {
+        "stop_reason": "finished", "authoritative": True, "evidence_completion": "SUPPORTED",
+    }
+
+    t1 = time.monotonic()
+    on = service.continue_pending(parent_turn_id=parent2.id, thread_id=parent2.thread_id)
+    on_seconds = time.monotonic() - t1
+
+    assert on.status == off.status == "completed"
+    assert _stable(on.result) == _stable(off.result)  # main result + bindings unchanged
+    assert on_seconds <= off_seconds + 1.5  # the shadow must not add real latency
+
+    # --- the observation is persisted and carries no evidence authority
+    assert service.shadow_telemetry.flush(timeout=2.0) is True
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline and not log.exists():
+        time.sleep(0.01)
+    record = json.loads(log.read_text(encoding="utf-8").strip().splitlines()[0])
+    assert record["authoritative"] is False
+    assert record["observation"]["evidence_completion"] == "UNVERIFIED"
+    assert grants_evidence_authority(record) is False
+    _sc._close_shared_shadow_telemetry()
