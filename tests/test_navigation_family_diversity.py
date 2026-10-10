@@ -10,6 +10,7 @@ from src.web.link_discovery import (
     diversify_navigation_families,
     question_terms,
     rank_candidates,
+    requested_versions,
     version_family,
 )
 
@@ -98,3 +99,46 @@ def test_version_family_only_folds_doc_versions():
     assert token == "17" and family and "*" in family
     # locale variants belong to the shared canonical_document helper, not this layer
     assert version_family("https://wiki.factorio.com/Logistic_network/zh") == ("", "")
+    # a numeric segment without a documentation context is NOT a version
+    assert version_family("https://blog.example.com/posts/2024/guide") == ("", "")
+    assert version_family("https://books.example.com/books/1/chapter") == ("", "")
+
+
+def _candidate(url: str, score: float = 1.0, order: int = 0) -> Candidate:
+    return Candidate(url=url, path=url, score=score, order=order, page_type="article")
+
+
+def _kept_urls(urls: list[str], question: str) -> list[str]:
+    ranked = [_candidate(u, score=float(len(urls) - i), order=i)
+              for i, u in enumerate(urls)]
+    kept = diversify_navigation_families(ranked, question=question)
+    return [c.url for c in kept]
+
+
+def test_year_articles_are_not_folded():
+    urls = ["https://blog.example.com/posts/2024/guide",
+            "https://blog.example.com/posts/2025/guide",
+            "https://blog.example.com/posts/2026/guide"]
+    assert _kept_urls(urls, "这三年的指南有什么变化？") == urls
+
+
+def test_numbered_book_chapters_are_not_folded():
+    urls = ["https://books.example.com/books/1/chapter",
+            "https://books.example.com/books/2/chapter",
+            "https://books.example.com/books/3/chapter"]
+    assert _kept_urls(urls, "这几本书的章节结构如何？") == urls
+
+
+def test_no_question_context_never_suppresses():
+    urls = [f"https://www.postgresql.org/docs/{v}/mvcc.html"
+            for v in ("14", "15", "16", "17")]
+    assert _kept_urls(urls, "") == urls          # old callers keep their behaviour
+    assert _kept_urls(urls, "   ") == urls
+
+
+def test_requested_versions_ignores_bare_numbers_and_years():
+    assert requested_versions("这里有 3 个问题，写于 2025 年") == set()
+    assert requested_versions("PostgreSQL 17 的 MVCC 如何避免阻塞？") == {"17"}
+    assert requested_versions("比较 PostgreSQL 17 与 18") == {"17", "18"}
+    assert requested_versions("Python 3.12 的 f-string 变化") == {"3.12"}
+    assert requested_versions("升级到 v17 有什么影响") == {"17"}
