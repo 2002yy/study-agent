@@ -421,6 +421,34 @@ def test_identical_body_from_two_urls_is_flagged_and_not_double_counted(monkeypa
     assert len(trace["coverage_log"]) == 1        # only the first body contributed
 
 
+def test_sub_goals_track_missing_and_block_a_false_finish(monkeypatch):
+    """A sub-goal without supporting text stays 'missing' and forces finished_incomplete."""
+    import src.web.research_tool_agent as agent
+
+    monkeypatch.setattr(agent, "host_resolves_public", lambda host: True)
+    actions = [{"tool": "read_page", "url": "https://example.org/a"}, {"tool": "finish"}]
+
+    class _GW:
+        def read(self, url, *, max_chars=6000, timeout=8.0):
+            return {"ok": True, "url": url, "content": "the liberty and capture basics"}
+
+    def completion(messages, **kwargs):
+        return json.dumps(actions.pop(0))
+
+    trace = run_tool_agent(gateway=_GW(), completion=completion,
+                           question="go capture and ko rule",
+                           sub_goals=(("liberties and capture", ("liberty", "capture")),
+                                      ("ko rule", ("ko rule", "recapture"))),
+                           budget=AgentBudget(), initial_urls=("https://example.org/a",))
+    audit = trace["coverage_audit"]
+    assert audit["sub_goals"]["liberties and capture"]["status"] == "explored"
+    assert audit["sub_goals"]["liberties and capture"]["url"].endswith("/a")
+    assert audit["sub_goals"]["ko rule"]["status"] == "missing"
+    assert audit["pending_sub_goals"] == ["ko rule"]
+    assert trace["stop_reason"] == "finished_incomplete"
+    assert audit["complete"] is False
+
+
 def test_safe_fetch_result_structured(monkeypatch):
     import src.web.safe_http as sh
 

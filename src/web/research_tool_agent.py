@@ -143,6 +143,7 @@ def run_tool_agent(
     budget: AgentBudget | None = None,
     initial_urls: tuple[str, ...] = (),
     registry_sources: tuple[tuple[str, str], ...] = (),
+    sub_goals: tuple[tuple[str, tuple[str, ...]], ...] = (),
     entry_selection: bool = True,
     assessment_feedback: bool = True,
     monotonic: Callable[[], float] = time.monotonic,
@@ -162,6 +163,12 @@ def run_tool_agent(
     coverage_log: list[dict[str, Any]] = []
     covered_terms: set[str] = set()
     goal_terms = question_terms(question)
+    # Sub-goals are supplied (frozen per task) rather than auto-extracted, so the
+    # state never invents meta-words like 什么/分别. Each entry is (label, terms).
+    goal_specs = {label: tuple(terms) for label, terms in sub_goals}
+    sub_goal_state: dict[str, dict[str, Any]] = {
+        label: {"status": "missing", "url": "", "excerpt": ""} for label in goal_specs
+    }
     bodies: list[dict[str, Any]] = []
     # Only URLs confirmed by an actual search result (or supplied up front) may be
     # read; a model-guessed URL is recorded as pending, never fetched. Registry
@@ -207,6 +214,15 @@ def run_tool_agent(
                            max(0, int(deadline - monotonic())),
                            len(read_pages), len(unread_candidates),
                            ", ".join(missing_terms) if missing_terms else "(none)"))
+        if goal_specs:
+            pending = [label for label, st in sub_goal_state.items() if st["status"] == "missing"]
+            budget_state += (
+                "\n  sub-goals explored %d/%d | still to verify: %s"
+                "\n  next step: target the missing sub-goals - search for their specific terms or"
+                " follow a confirmed category page; do not repeat the whole question, re-read a"
+                " page, or guess an unconfirmed URL"
+                % (len(goal_specs) - len(pending), len(goal_specs),
+                   ", ".join(pending) if pending else "(none)"))
         try:
             raw = completion(
                 messages=_prompt(question, observations, reliable_sources, state=budget_state),
@@ -228,14 +244,24 @@ def run_tool_agent(
             # reported as unfinished instead of being presented as completion. This grants
             # no publication authority (Evidence Gate and RP-1 stay untouched).
             missing_terms = [term for term in sorted(goal_terms) if term not in covered_terms]
-            call["coverage_audit"] = {"covered": sorted(covered_terms), "missing": missing_terms,
-                                      "read_pages": len(read_pages)}
-            if missing_terms:
+            pending_goals = [label for label, st in sub_goal_state.items()
+                             if st["status"] == "missing"]
+            call["coverage_audit"] = {
+                "covered": sorted(covered_terms),
+                "missing": missing_terms,
+                "read_pages": len(read_pages),
+                "sub_goals": {label: {"status": st["status"], "url": st["url"],
+                                      "excerpt": str(st["excerpt"])[:200]}
+                              for label, st in sub_goal_state.items()},
+                "pending_sub_goals": pending_goals,
+            }
+            if pending_goals or (not goal_specs and missing_terms):
+                unresolved = pending_goals or missing_terms
                 stop = "finished_incomplete"
-                call["result"] = {"status": "finished_incomplete", "missing": missing_terms}
+                call["result"] = {"status": "finished_incomplete", "missing": unresolved}
                 observations.append(
                     "round %d: finish recorded, but the coverage audit still misses: %s"
-                    % (rnd, ", ".join(missing_terms))
+                    % (rnd, ", ".join(unresolved))
                 )
             else:
                 stop = "finished"
@@ -537,6 +563,22 @@ def run_tool_agent(
                     covered_terms.update(contributed)
                     coverage_log.append({"url": final_url, "chars": len(content),
                                          "contributed": sorted(contributed)})
+                    # Targeted sub-goal tracking: a term hit is only a clue that this body
+                    # may address the sub-goal; status stays "explored (unverified)".
+                    low = content.lower()
+                    for label, terms in goal_specs.items():
+                        state = sub_goal_state[label]
+                        if state["status"] == "explored":
+                            continue
+                        hit = next((term for term in terms if term in low), "")
+                        if not hit:
+                            continue
+                        idx = low.find(hit)
+                        state.update({
+                            "status": "explored",
+                            "url": final_url,
+                            "excerpt": content[max(0, idx - 80):idx + 160].replace("\n", " "),
+                        })
                 source_chain.append({
                     "basis": confirmed_basis.get(action["url"], ""),
                     "feed_url": feed_links.get(action["url"], ""),
@@ -568,7 +610,14 @@ def run_tool_agent(
             "covered": sorted(covered_terms),
             "missing": [term for term in sorted(goal_terms) if term not in covered_terms],
             "read_pages": len(read_pages),
-            "complete": bool(read_pages) and not [t for t in goal_terms if t not in covered_terms],
+            "sub_goals": {label: {"status": st["status"], "url": st["url"],
+                                  "excerpt": str(st["excerpt"])[:200]}
+                          for label, st in sub_goal_state.items()},
+            "pending_sub_goals": [label for label, st in sub_goal_state.items()
+                                  if st["status"] == "missing"],
+            "complete": bool(read_pages)
+            and not [label for label, st in sub_goal_state.items() if st["status"] == "missing"]
+            and not [t for t in goal_terms if t not in covered_terms],
         },
         "coverage_log": coverage_log,
         "bodies": bodies,
