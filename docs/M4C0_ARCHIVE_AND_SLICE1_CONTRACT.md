@@ -114,8 +114,18 @@ both cells read two confirmed candidates instead of spending the slot on a guess
 bodies were still site roots / overviews, not answer pages — so utilisation improved
 while discovery quality remains the open half for M4-C1.
 
-## 5. Order of work
-1. M4-C0 archived (this document) with the corrected budget/quota semantics.
+**Narrow fix (same PR, after review).** `confirmed` does **not** imply `eligible`:
+sources recorded in `entry_exclusions` for the current question are no longer offered as
+`confirmed_unread`, and the read gate itself is untouched (the source fact stays as
+diagnostics). Read accounting is split into
+`confirmed / eligible / attempted / succeeded / failure_reason` instead of one
+`admitted` flag, and `newly_confirmed` is a true diff against what was known **before**
+the call, so a repeated discovery is not counted again. Tests add a deep-page end-to-end
+case (follow a directory -> a new deep page becomes a legal candidate -> it is shown ->
+the read succeeds with basis `followed_link`) and a negative control (an excluded
+candidate is never recommended while the gate still rejects it).
+
+## 5. Order of work1. M4-C0 archived (this document) with the corrected budget/quota semantics.
 2. Baseline frozen.
 3. Slice-1 implemented in one bounded PR, then verified once.
 4. M4-C1 paired re-test: original vs fixed vs existing research paths, reporting quality

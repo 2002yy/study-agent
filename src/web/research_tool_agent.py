@@ -233,7 +233,8 @@ def run_tool_agent(
             stop = "budget_exhausted"
             break
         missing_terms = [term for term in sorted(goal_terms) if term not in covered_terms][:5]
-        unread_candidates = [url for url in confirmed if url not in read_pages]
+        unread_candidates = [url for url in confirmed
+                             if url not in read_pages and url not in entry_exclusions]
         unread_rows = _rank_unread(unread_candidates, goal_terms, confirmed_basis)[:6]
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
                         " | read pages: %d | unread candidates: %d"
@@ -479,6 +480,7 @@ def run_tool_agent(
             except Exception:  # noqa: BLE001 - discovery must never break the loop
                 candidates = []
             links = rank_candidates(candidates, question_terms(question), limit=10)
+            before_confirm = set(confirmed)
             for link in links:
                 seen_links.add(link.url)
             for link in links:
@@ -495,8 +497,9 @@ def run_tool_agent(
                 "raw_candidates": len(candidates), "ranked": len(links),
                 "shown": [link.url for link in links],
                 "page_types": [link.page_type for link in links],
+                # truly NEW this call, not merely "a followed link seen before"
                 "newly_confirmed": [link.url for link in links
-                                    if confirmed_basis.get(link.url) == "followed_link"],
+                                    if _public_url(link.url) and link.url not in before_confirm],
             })
             brief = "\n".join(
                 f"- [{link.page_type} {link.score:g}] {link.anchor or '(no anchor text)'} | {link.url}"
@@ -520,6 +523,12 @@ def run_tool_agent(
             if action["url"] in entry_exclusions:
                 _why = entry_exclusions[action["url"]]
                 call["result"] = {"status": "entry_not_eligible", "reason": _why}
+                candidate_trace.append({
+                    "round": rnd, "tool": "read_page", "url": action["url"],
+                    "basis": confirmed_basis.get(action["url"], ""),
+                    "confirmed": action["url"] in confirmed, "eligible": False,
+                    "attempted": False, "succeeded": False,
+                    "failure_reason": f"entry_not_eligible:{_why}"})
                 observations.append(
                     f"round {rnd}: read rejected: {action['url']} is not eligible for this "
                     f"goal ({_why}); pick a different entry or finish."
@@ -529,8 +538,14 @@ def run_tool_agent(
             if action["url"] not in confirmed:
                 call["result"] = {"status": "pending_url_confirmation",
                                   "reason": "url_not_from_search_result"}
-                unread_now = _rank_unread([u for u in confirmed if u not in read_pages],
-                                          goal_terms, confirmed_basis)[:5]
+                candidate_trace.append({
+                    "round": rnd, "tool": "read_page", "url": action["url"],
+                    "basis": "", "confirmed": False, "eligible": False,
+                    "attempted": False, "succeeded": False,
+                    "failure_reason": "url_not_from_search_result"})
+                unread_now = _rank_unread(
+                    [u for u in confirmed if u not in read_pages and u not in entry_exclusions],
+                    goal_terms, confirmed_basis)[:5]
                 observations.append(
                     f"round {rnd}: read rejected: {action['url']} was never discovered by a search "
                     "result or a followed page; guessing a URL is not evidence. Read one of the "
@@ -539,12 +554,19 @@ def run_tool_agent(
                        if unread_now else " (none left - search for a missing term)."))
                 calls.append(call)
                 continue
-            candidate_trace.append({"round": rnd, "tool": "read_page", "url": action["url"],
-                                    "admitted": True,
-                                    "basis": confirmed_basis.get(action["url"], "")})
+            # Slice-1 accounting: one row per read ATTEMPT, split into the distinct
+            # states so "found / eligible / tried / succeeded" cannot be conflated.
+            read_row: dict[str, Any] = {
+                "round": rnd, "tool": "read_page", "url": action["url"],
+                "basis": confirmed_basis.get(action["url"], ""),
+                "confirmed": True, "eligible": True,
+                "attempted": False, "succeeded": False, "failure_reason": "",
+            }
+            candidate_trace.append(read_row)
             if action["url"] in read_pages:
                 # Already read successfully: refuse WITHOUT spending read quota, and say so,
                 # so the previous audit's "same page read three times" cannot happen again.
+                read_row["failure_reason"] = "page_read_before"
                 call["result"] = {"status": "already_read", "reason": "page_read_before",
                                   "chars": read_pages[action["url"]]}
                 observations.append(
@@ -555,11 +577,13 @@ def run_tool_agent(
                 calls.append(call)
                 continue
             if reads >= budget.max_reads:
+                read_row["failure_reason"] = "read_quota"
                 call["result"] = {"status": "quota_exceeded", "reason": "read_quota"}
                 observations.append(f"round {rnd}: read quota reached.")
                 calls.append(call)
                 continue
             if not host_resolves_public(urlsplit(action["url"]).hostname or ""):
+                read_row["failure_reason"] = "host_not_public"
                 call["result"] = {"status": "blocked_unsafe_target", "reason": "host_not_public"}
                 observations.append(
                     f"round {rnd}: read rejected: {action['url']} resolves to a non-public address."
@@ -567,6 +591,7 @@ def run_tool_agent(
                 calls.append(call)
                 continue
             reads += 1
+            read_row["attempted"] = True
             try:
                 body = gateway.read(action["url"], max_chars=6000,
                                     timeout=min(8.0, max(0.5, deadline - monotonic())))
@@ -581,6 +606,10 @@ def run_tool_agent(
             content = str(body.get("content") or body.get("readme") or "")
             call["result"] = {"ok": body.get("ok"), "chars": len(content),
                               "error": body.get("error") or body.get("error_code")}
+            read_row["succeeded"] = bool(body.get("ok"))
+            if not body.get("ok"):
+                read_row["failure_reason"] = str(
+                    body.get("error") or body.get("error_code") or "read_failed")
             assessment: dict[str, Any] = {}
             if body.get("ok") and entry_selection:
                 from src.web.research.entry_selection import assess_body
