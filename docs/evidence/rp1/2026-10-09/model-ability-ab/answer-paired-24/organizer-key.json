@@ -1,0 +1,44 @@
+[
+  {
+    "label": "output-001",
+    "case_id": "H05",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-002",
+    "case_id": "H03",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-003",
+    "case_id": "H05",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-004",
+    "case_id": "H05",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-005",
+    "case_id": "H01",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "fixed-evidence"
+  },
+  {
+    "label": "output-006",
+    "case_id": "H01",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "fixed-evidence"
+  }
+]

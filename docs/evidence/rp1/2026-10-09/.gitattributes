@@ -1,0 +1,3 @@
+# Preserve frozen request/response and review bytes, including CRLF and BOM.
+model-ability-ab/** -text whitespace=cr-at-eol
+ui/*.png binary

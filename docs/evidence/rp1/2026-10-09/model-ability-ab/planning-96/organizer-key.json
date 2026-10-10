@@ -1,0 +1,674 @@
+[
+  {
+    "label": "output-001",
+    "case_id": "Q2",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-002",
+    "case_id": "C1",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-003",
+    "case_id": "C3",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-004",
+    "case_id": "Q2",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-005",
+    "case_id": "T1",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-006",
+    "case_id": "C2",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-007",
+    "case_id": "H05",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-008",
+    "case_id": "M3",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-009",
+    "case_id": "R3",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-010",
+    "case_id": "Q3",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-011",
+    "case_id": "M1",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-012",
+    "case_id": "H04",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-013",
+    "case_id": "T2",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-014",
+    "case_id": "M3",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-015",
+    "case_id": "H01",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-016",
+    "case_id": "M2",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-017",
+    "case_id": "F3",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-018",
+    "case_id": "H02",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-019",
+    "case_id": "H03",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-020",
+    "case_id": "Q1",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-021",
+    "case_id": "C1",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-022",
+    "case_id": "R3",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-023",
+    "case_id": "H01",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-024",
+    "case_id": "M3",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-025",
+    "case_id": "M2",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-026",
+    "case_id": "Q2",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-027",
+    "case_id": "R1",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-028",
+    "case_id": "H03",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-029",
+    "case_id": "C2",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-030",
+    "case_id": "F1",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-031",
+    "case_id": "H06",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-032",
+    "case_id": "H04",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-033",
+    "case_id": "T2",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-034",
+    "case_id": "F3",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-035",
+    "case_id": "H02",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-036",
+    "case_id": "R3",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-037",
+    "case_id": "R2",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-038",
+    "case_id": "H01",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-039",
+    "case_id": "M3",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-040",
+    "case_id": "Q1",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-041",
+    "case_id": "H03",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-042",
+    "case_id": "T3",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-043",
+    "case_id": "H02",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-044",
+    "case_id": "R1",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-045",
+    "case_id": "C2",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-046",
+    "case_id": "M1",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-047",
+    "case_id": "H06",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-048",
+    "case_id": "Q1",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-049",
+    "case_id": "Q3",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-050",
+    "case_id": "F1",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-051",
+    "case_id": "R2",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-052",
+    "case_id": "R1",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-053",
+    "case_id": "T1",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-054",
+    "case_id": "C3",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-055",
+    "case_id": "F3",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-056",
+    "case_id": "H02",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-057",
+    "case_id": "M1",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-058",
+    "case_id": "T1",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-059",
+    "case_id": "F2",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-060",
+    "case_id": "C1",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-061",
+    "case_id": "M2",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-062",
+    "case_id": "Q3",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-063",
+    "case_id": "M2",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-064",
+    "case_id": "H05",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-065",
+    "case_id": "R2",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-066",
+    "case_id": "C3",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-067",
+    "case_id": "F3",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-068",
+    "case_id": "T3",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-069",
+    "case_id": "R3",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-070",
+    "case_id": "H01",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-071",
+    "case_id": "F1",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-072",
+    "case_id": "H04",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-073",
+    "case_id": "H04",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-074",
+    "case_id": "R1",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-075",
+    "case_id": "M1",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-076",
+    "case_id": "F2",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-077",
+    "case_id": "H06",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-078",
+    "case_id": "T3",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-079",
+    "case_id": "C3",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-080",
+    "case_id": "R2",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-081",
+    "case_id": "Q1",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-082",
+    "case_id": "C1",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-083",
+    "case_id": "H05",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-084",
+    "case_id": "H05",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-085",
+    "case_id": "Q3",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-086",
+    "case_id": "H03",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-087",
+    "case_id": "T2",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-088",
+    "case_id": "T2",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-089",
+    "case_id": "T3",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-090",
+    "case_id": "T1",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-091",
+    "case_id": "F2",
+    "arm": "B",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-092",
+    "case_id": "F1",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-093",
+    "case_id": "Q2",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-094",
+    "case_id": "C2",
+    "arm": "A",
+    "repeat": 2,
+    "phase": "planning"
+  },
+  {
+    "label": "output-095",
+    "case_id": "H06",
+    "arm": "A",
+    "repeat": 1,
+    "phase": "planning"
+  },
+  {
+    "label": "output-096",
+    "case_id": "F2",
+    "arm": "B",
+    "repeat": 1,
+    "phase": "planning"
+  }
+]

@@ -1,0 +1,1066 @@
+{
+  "scoring_unit": "answer_primary_claims_for_citation_verification",
+  "group_mapping": "not revealed",
+  "total": 24,
+  "grades": [
+    {
+      "id": "output-001",
+      "topic": "asyncio",
+      "score": 90,
+      "rubric_scores": {
+        "gather_exception": {
+          "score": 18,
+          "max": 18,
+          "critical": false
+        },
+        "gather_sibling": {
+          "score": 16,
+          "max": 22,
+          "critical": true
+        },
+        "taskgroup_cancel": {
+          "score": 22,
+          "max": 22,
+          "critical": true
+        },
+        "taskgroup_exception": {
+          "score": 11,
+          "max": 13,
+          "critical": false
+        },
+        "conditions": {
+          "score": 8,
+          "max": 10,
+          "critical": false
+        },
+        "sources": {
+          "score": 15,
+          "max": 15,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "gather_sibling（结论不完整）"
+      ],
+      "reason": "核心机制正确；反复将 gather 下日志能否写入标为未知，未充分完成场景推断。",
+      "quote_count": 11,
+      "quote_contiguous_matches": 11
+    },
+    {
+      "id": "output-002",
+      "topic": "go",
+      "score": 2,
+      "rubric_scores": {
+        "rule": {
+          "score": 0,
+          "max": 15,
+          "critical": false
+        },
+        "a_pre": {
+          "score": 0,
+          "max": 15,
+          "critical": false
+        },
+        "a_move": {
+          "score": 0,
+          "max": 20,
+          "critical": true
+        },
+        "a_post": {
+          "score": 0,
+          "max": 15,
+          "critical": true
+        },
+        "b_move": {
+          "score": 0,
+          "max": 20,
+          "critical": true
+        },
+        "practice": {
+          "score": 0,
+          "max": 10,
+          "critical": false
+        },
+        "consistency": {
+          "score": 2,
+          "max": 5,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "a_move",
+        "a_post",
+        "b_move",
+        "consistency（仅部分）"
+      ],
+      "reason": "只说明初始棋图存在，没有讲规则、推演或练习。",
+      "quote_count": 2,
+      "quote_contiguous_matches": 2
+    },
+    {
+      "id": "output-003",
+      "topic": "asyncio",
+      "score": 79,
+      "rubric_scores": {
+        "gather_exception": {
+          "score": 15,
+          "max": 18,
+          "critical": false
+        },
+        "gather_sibling": {
+          "score": 16,
+          "max": 22,
+          "critical": true
+        },
+        "taskgroup_cancel": {
+          "score": 15,
+          "max": 22,
+          "critical": true
+        },
+        "taskgroup_exception": {
+          "score": 11,
+          "max": 13,
+          "critical": false
+        },
+        "conditions": {
+          "score": 7,
+          "max": 10,
+          "critical": false
+        },
+        "sources": {
+          "score": 15,
+          "max": 15,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "gather_sibling（未明确日志结果）",
+        "taskgroup_cancel（未明确日志结果）"
+      ],
+      "reason": "明确两种取消机制，但不敢确认两种日志结果；还未直接点明裸 ValueError。",
+      "quote_count": 9,
+      "quote_contiguous_matches": 9
+    },
+    {
+      "id": "output-004",
+      "topic": "asyncio",
+      "score": 95,
+      "rubric_scores": {
+        "gather_exception": {
+          "score": 16,
+          "max": 18,
+          "critical": false
+        },
+        "gather_sibling": {
+          "score": 22,
+          "max": 22,
+          "critical": true
+        },
+        "taskgroup_cancel": {
+          "score": 22,
+          "max": 22,
+          "critical": true
+        },
+        "taskgroup_exception": {
+          "score": 11,
+          "max": 13,
+          "critical": false
+        },
+        "conditions": {
+          "score": 9,
+          "max": 10,
+          "critical": false
+        },
+        "sources": {
+          "score": 15,
+          "max": 15,
+          "critical": true
+        }
+      },
+      "critical_observations": [],
+      "reason": "两种日志结论均明确且正确，附重要边界；对具体 ValueError 和 except* 可再直接一些。",
+      "quote_count": 11,
+      "quote_contiguous_matches": 11
+    },
+    {
+      "id": "output-005",
+      "topic": "pricing",
+      "score": 75,
+      "rubric_scores": {
+        "time": {
+          "score": 16,
+          "max": 16,
+          "critical": true
+        },
+        "formula": {
+          "score": 15,
+          "max": 18,
+          "critical": false
+        },
+        "normal": {
+          "score": 17,
+          "max": 19,
+          "critical": false
+        },
+        "peak": {
+          "score": 17,
+          "max": 19,
+          "critical": false
+        },
+        "threshold": {
+          "score": 0,
+          "max": 18,
+          "critical": false
+        },
+        "citation": {
+          "score": 10,
+          "max": 10,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "threshold（非 critical 标签，但为必答结果）"
+      ],
+      "reason": "生效日期和两档月费正确；临界值错报 17.5（正确 20.3125）；欠缺完整成本函数及差价。",
+      "quote_count": 6,
+      "quote_contiguous_matches": 6
+    },
+    {
+      "id": "output-006",
+      "topic": "pricing",
+      "score": 77,
+      "rubric_scores": {
+        "time": {
+          "score": 16,
+          "max": 16,
+          "critical": true
+        },
+        "formula": {
+          "score": 18,
+          "max": 18,
+          "critical": false
+        },
+        "normal": {
+          "score": 17,
+          "max": 19,
+          "critical": false
+        },
+        "peak": {
+          "score": 17,
+          "max": 19,
+          "critical": false
+        },
+        "threshold": {
+          "score": 0,
+          "max": 18,
+          "critical": false
+        },
+        "citation": {
+          "score": 9,
+          "max": 10,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "threshold（非 critical 标签，但为必答结果）"
+      ],
+      "reason": "正确列出交点方程却错解为约 12.31；另有一条引文删去中间文本，并非原文连续摘录。",
+      "quote_count": 12,
+      "quote_contiguous_matches": 11
+    },
+    {
+      "id": "output-007",
+      "topic": "calendar",
+      "score": 31,
+      "rubric_scores": {
+        "british_dates": {
+          "score": 0,
+          "max": 22,
+          "critical": true
+        },
+        "russian_dates": {
+          "score": 22,
+          "max": 22,
+          "critical": true
+        },
+        "why_diff": {
+          "score": 0,
+          "max": 20,
+          "critical": false
+        },
+        "year_start": {
+          "score": 0,
+          "max": 16,
+          "critical": false
+        },
+        "caveat": {
+          "score": 1,
+          "max": 7,
+          "critical": false
+        },
+        "evidence": {
+          "score": 8,
+          "max": 13,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "british_dates",
+        "evidence（英国关键结论缺证）"
+      ],
+      "reason": "俄国日期与跳过 13 日正确；英国关键日期、不同跳天原因、新年起点全部缺失。",
+      "quote_count": 5,
+      "quote_contiguous_matches": 5
+    },
+    {
+      "id": "output-008",
+      "topic": "bridge",
+      "score": 88,
+      "rubric_scores": {
+        "at14": {
+          "score": 24,
+          "max": 24,
+          "critical": true
+        },
+        "at16": {
+          "score": 24,
+          "max": 24,
+          "critical": true
+        },
+        "precedence": {
+          "score": 18,
+          "max": 18,
+          "critical": false
+        },
+        "weak_source": {
+          "score": 12,
+          "max": 12,
+          "critical": false
+        },
+        "detour": {
+          "score": 0,
+          "max": 12,
+          "critical": false
+        },
+        "citation": {
+          "score": 10,
+          "max": 10,
+          "critical": true
+        }
+      },
+      "critical_observations": [],
+      "reason": "两时点与公告优先级正确；最终答案没有提到机动车应走北绕城路。",
+      "quote_count": 13,
+      "quote_contiguous_matches": 13
+    },
+    {
+      "id": "output-009",
+      "topic": "go",
+      "score": 2,
+      "rubric_scores": {
+        "rule": {
+          "score": 0,
+          "max": 15,
+          "critical": false
+        },
+        "a_pre": {
+          "score": 0,
+          "max": 15,
+          "critical": false
+        },
+        "a_move": {
+          "score": 0,
+          "max": 20,
+          "critical": true
+        },
+        "a_post": {
+          "score": 0,
+          "max": 15,
+          "critical": true
+        },
+        "b_move": {
+          "score": 0,
+          "max": 20,
+          "critical": true
+        },
+        "practice": {
+          "score": 0,
+          "max": 10,
+          "critical": false
+        },
+        "consistency": {
+          "score": 2,
+          "max": 5,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "a_move",
+        "a_post",
+        "b_move",
+        "consistency（仅部分）"
+      ],
+      "reason": "复述棋图位置并放弃全部提子推导；两局仍保持区分。",
+      "quote_count": 3,
+      "quote_contiguous_matches": 3
+    },
+    {
+      "id": "output-010",
+      "topic": "http",
+      "score": 86,
+      "rubric_scores": {
+        "303": {
+          "score": 20,
+          "max": 20,
+          "critical": true
+        },
+        "307": {
+          "score": 17,
+          "max": 20,
+          "critical": true
+        },
+        "308": {
+          "score": 9,
+          "max": 20,
+          "critical": true
+        },
+        "choices": {
+          "score": 15,
+          "max": 15,
+          "critical": false
+        },
+        "nuance": {
+          "score": 10,
+          "max": 10,
+          "critical": false
+        },
+        "sources": {
+          "score": 15,
+          "max": 15,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "308（未完成方法保持）"
+      ],
+      "reason": "303/307 及两场景选择正确；308 只回答「永久」，未答「保留 POST 和请求体」。",
+      "quote_count": 19,
+      "quote_contiguous_matches": 19
+    },
+    {
+      "id": "output-011",
+      "topic": "bridge",
+      "score": 88,
+      "rubric_scores": {
+        "at14": {
+          "score": 24,
+          "max": 24,
+          "critical": true
+        },
+        "at16": {
+          "score": 24,
+          "max": 24,
+          "critical": true
+        },
+        "precedence": {
+          "score": 18,
+          "max": 18,
+          "critical": false
+        },
+        "weak_source": {
+          "score": 12,
+          "max": 12,
+          "critical": false
+        },
+        "detour": {
+          "score": 0,
+          "max": 12,
+          "critical": false
+        },
+        "citation": {
+          "score": 10,
+          "max": 10,
+          "critical": true
+        }
+      },
+      "critical_observations": [],
+      "reason": "两时点与优先级正确；遗漏 N2 已指定绕行路，附加未知项略显冗余。",
+      "quote_count": 12,
+      "quote_contiguous_matches": 12
+    },
+    {
+      "id": "output-012",
+      "topic": "bridge",
+      "score": 88,
+      "rubric_scores": {
+        "at14": {
+          "score": 24,
+          "max": 24,
+          "critical": true
+        },
+        "at16": {
+          "score": 24,
+          "max": 24,
+          "critical": true
+        },
+        "precedence": {
+          "score": 18,
+          "max": 18,
+          "critical": false
+        },
+        "weak_source": {
+          "score": 12,
+          "max": 12,
+          "critical": false
+        },
+        "detour": {
+          "score": 0,
+          "max": 12,
+          "critical": false
+        },
+        "citation": {
+          "score": 10,
+          "max": 10,
+          "critical": true
+        }
+      },
+      "critical_observations": [],
+      "reason": "两时点与优先级正确；遗漏 N2 已指定绕行路。",
+      "quote_count": 9,
+      "quote_contiguous_matches": 9
+    },
+    {
+      "id": "output-013",
+      "topic": "http",
+      "score": 79,
+      "rubric_scores": {
+        "303": {
+          "score": 20,
+          "max": 20,
+          "critical": true
+        },
+        "307": {
+          "score": 17,
+          "max": 20,
+          "critical": true
+        },
+        "308": {
+          "score": 9,
+          "max": 20,
+          "critical": true
+        },
+        "choices": {
+          "score": 8,
+          "max": 15,
+          "critical": false
+        },
+        "nuance": {
+          "score": 10,
+          "max": 10,
+          "critical": false
+        },
+        "sources": {
+          "score": 15,
+          "max": 15,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "308（未完成方法保持）",
+        "choices（只有隐含结论）"
+      ],
+      "reason": "303/307 核心正确；308 保留方法未说明；虽然暗示 303/307 对应使用场景，却拒绝明确作选择。",
+      "quote_count": 9,
+      "quote_contiguous_matches": 9
+    },
+    {
+      "id": "output-014",
+      "topic": "pricing",
+      "score": 74,
+      "rubric_scores": {
+        "time": {
+          "score": 16,
+          "max": 16,
+          "critical": true
+        },
+        "formula": {
+          "score": 14,
+          "max": 18,
+          "critical": false
+        },
+        "normal": {
+          "score": 17,
+          "max": 19,
+          "critical": false
+        },
+        "peak": {
+          "score": 17,
+          "max": 19,
+          "critical": false
+        },
+        "threshold": {
+          "score": 0,
+          "max": 18,
+          "critical": false
+        },
+        "citation": {
+          "score": 10,
+          "max": 10,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "threshold（非 critical 标签，但为必答结果）"
+      ],
+      "reason": "生效与月费正确；临界值错报 12.5，未写出完整分段成本函数。",
+      "quote_count": 13,
+      "quote_contiguous_matches": 13
+    },
+    {
+      "id": "output-015",
+      "topic": "http",
+      "score": 93,
+      "rubric_scores": {
+        "303": {
+          "score": 20,
+          "max": 20,
+          "critical": true
+        },
+        "307": {
+          "score": 20,
+          "max": 20,
+          "critical": true
+        },
+        "308": {
+          "score": 13,
+          "max": 20,
+          "critical": true
+        },
+        "choices": {
+          "score": 15,
+          "max": 15,
+          "critical": false
+        },
+        "nuance": {
+          "score": 10,
+          "max": 10,
+          "critical": false
+        },
+        "sources": {
+          "score": 15,
+          "max": 15,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "308（未充分证明方法保持）"
+      ],
+      "reason": "最完整的 HTTP 候选；明确两种选型且说明请求体，但 308 仅凭相似性推定保持方法，缺少直接规范依据。",
+      "quote_count": 22,
+      "quote_contiguous_matches": 22
+    },
+    {
+      "id": "output-016",
+      "topic": "pricing",
+      "score": 76,
+      "rubric_scores": {
+        "time": {
+          "score": 16,
+          "max": 16,
+          "critical": true
+        },
+        "formula": {
+          "score": 16,
+          "max": 18,
+          "critical": false
+        },
+        "normal": {
+          "score": 17,
+          "max": 19,
+          "critical": false
+        },
+        "peak": {
+          "score": 17,
+          "max": 19,
+          "critical": false
+        },
+        "threshold": {
+          "score": 0,
+          "max": 18,
+          "critical": false
+        },
+        "citation": {
+          "score": 10,
+          "max": 10,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "threshold（非 critical 标签，但为必答结果）"
+      ],
+      "reason": "正确列出交点方程但解为 12.5；其余定价有效期、月费正确。",
+      "quote_count": 8,
+      "quote_contiguous_matches": 8
+    },
+    {
+      "id": "output-017",
+      "topic": "calendar",
+      "score": 26,
+      "rubric_scores": {
+        "british_dates": {
+          "score": 0,
+          "max": 22,
+          "critical": true
+        },
+        "russian_dates": {
+          "score": 18,
+          "max": 22,
+          "critical": true
+        },
+        "why_diff": {
+          "score": 0,
+          "max": 20,
+          "critical": false
+        },
+        "year_start": {
+          "score": 0,
+          "max": 16,
+          "critical": false
+        },
+        "caveat": {
+          "score": 0,
+          "max": 7,
+          "critical": false
+        },
+        "evidence": {
+          "score": 8,
+          "max": 13,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "british_dates",
+        "evidence（英国关键结论缺证）"
+      ],
+      "reason": "俄国首末日期正确但未明确 13 日；英国、规则差异、新年起算均未回答。",
+      "quote_count": 3,
+      "quote_contiguous_matches": 3
+    },
+    {
+      "id": "output-018",
+      "topic": "calendar",
+      "score": 34,
+      "rubric_scores": {
+        "british_dates": {
+          "score": 8,
+          "max": 22,
+          "critical": true
+        },
+        "russian_dates": {
+          "score": 18,
+          "max": 22,
+          "critical": true
+        },
+        "why_diff": {
+          "score": 0,
+          "max": 20,
+          "critical": false
+        },
+        "year_start": {
+          "score": 0,
+          "max": 16,
+          "critical": false
+        },
+        "caveat": {
+          "score": 0,
+          "max": 7,
+          "critical": false
+        },
+        "evidence": {
+          "score": 8,
+          "max": 13,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "british_dates（不完整）",
+        "evidence（英国关键结论缺证）"
+      ],
+      "reason": "能指出英国新式首日 9 月 14 日和俄国首末日期，但缺英国旧末日、两国差数与新年起点。",
+      "quote_count": 3,
+      "quote_contiguous_matches": 3
+    },
+    {
+      "id": "output-019",
+      "topic": "go",
+      "score": 2,
+      "rubric_scores": {
+        "rule": {
+          "score": 0,
+          "max": 15,
+          "critical": false
+        },
+        "a_pre": {
+          "score": 0,
+          "max": 15,
+          "critical": false
+        },
+        "a_move": {
+          "score": 0,
+          "max": 20,
+          "critical": true
+        },
+        "a_post": {
+          "score": 0,
+          "max": 15,
+          "critical": true
+        },
+        "b_move": {
+          "score": 0,
+          "max": 20,
+          "critical": true
+        },
+        "practice": {
+          "score": 0,
+          "max": 10,
+          "critical": false
+        },
+        "consistency": {
+          "score": 2,
+          "max": 5,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "a_move",
+        "a_post",
+        "b_move",
+        "consistency（仅部分）"
+      ],
+      "reason": "复述棋图位置，拒绝进行合法性及提子分析。",
+      "quote_count": 3,
+      "quote_contiguous_matches": 3
+    },
+    {
+      "id": "output-020",
+      "topic": "go",
+      "score": 2,
+      "rubric_scores": {
+        "rule": {
+          "score": 0,
+          "max": 15,
+          "critical": false
+        },
+        "a_pre": {
+          "score": 0,
+          "max": 15,
+          "critical": false
+        },
+        "a_move": {
+          "score": 0,
+          "max": 20,
+          "critical": true
+        },
+        "a_post": {
+          "score": 0,
+          "max": 15,
+          "critical": true
+        },
+        "b_move": {
+          "score": 0,
+          "max": 20,
+          "critical": true
+        },
+        "practice": {
+          "score": 0,
+          "max": 10,
+          "critical": false
+        },
+        "consistency": {
+          "score": 2,
+          "max": 5,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "a_move",
+        "a_post",
+        "b_move",
+        "consistency（仅部分）"
+      ],
+      "reason": "复述棋图位置，拒绝进行合法性及提子分析。",
+      "quote_count": 2,
+      "quote_contiguous_matches": 2
+    },
+    {
+      "id": "output-021",
+      "topic": "http",
+      "score": 71,
+      "rubric_scores": {
+        "303": {
+          "score": 20,
+          "max": 20,
+          "critical": true
+        },
+        "307": {
+          "score": 17,
+          "max": 20,
+          "critical": true
+        },
+        "308": {
+          "score": 9,
+          "max": 20,
+          "critical": true
+        },
+        "choices": {
+          "score": 0,
+          "max": 15,
+          "critical": false
+        },
+        "nuance": {
+          "score": 10,
+          "max": 10,
+          "critical": false
+        },
+        "sources": {
+          "score": 15,
+          "max": 15,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "308（未完成方法保持）",
+        "choices（未完成场景选择）"
+      ],
+      "reason": "能说明 303/307，明确知道 308 是永久却又称无法回答；拒绝两种具体场景选型。",
+      "quote_count": 8,
+      "quote_contiguous_matches": 8
+    },
+    {
+      "id": "output-022",
+      "topic": "calendar",
+      "score": 33,
+      "rubric_scores": {
+        "british_dates": {
+          "score": 0,
+          "max": 22,
+          "critical": true
+        },
+        "russian_dates": {
+          "score": 18,
+          "max": 22,
+          "critical": true
+        },
+        "why_diff": {
+          "score": 0,
+          "max": 20,
+          "critical": false
+        },
+        "year_start": {
+          "score": 0,
+          "max": 16,
+          "critical": false
+        },
+        "caveat": {
+          "score": 7,
+          "max": 7,
+          "critical": false
+        },
+        "evidence": {
+          "score": 8,
+          "max": 13,
+          "critical": true
+        }
+      },
+      "critical_observations": [
+        "british_dates",
+        "evidence（英国关键结论缺证）"
+      ],
+      "reason": "俄国首末日期正确、宗教历法区别交代清楚；英国日期和年初调整缺失。",
+      "quote_count": 4,
+      "quote_contiguous_matches": 4
+    },
+    {
+      "id": "output-023",
+      "topic": "bridge",
+      "score": 88,
+      "rubric_scores": {
+        "at14": {
+          "score": 24,
+          "max": 24,
+          "critical": true
+        },
+        "at16": {
+          "score": 24,
+          "max": 24,
+          "critical": true
+        },
+        "precedence": {
+          "score": 18,
+          "max": 18,
+          "critical": false
+        },
+        "weak_source": {
+          "score": 12,
+          "max": 12,
+          "critical": false
+        },
+        "detour": {
+          "score": 0,
+          "max": 12,
+          "critical": false
+        },
+        "citation": {
+          "score": 10,
+          "max": 10,
+          "critical": true
+        }
+      },
+      "critical_observations": [],
+      "reason": "两时点、公告时段正确；结构化 claims 中提及北绕城路，但最终 answer 没有呈现。",
+      "quote_count": 13,
+      "quote_contiguous_matches": 13
+    },
+    {
+      "id": "output-024",
+      "topic": "asyncio",
+      "score": 94,
+      "rubric_scores": {
+        "gather_exception": {
+          "score": 18,
+          "max": 18,
+          "critical": false
+        },
+        "gather_sibling": {
+          "score": 20,
+          "max": 22,
+          "critical": true
+        },
+        "taskgroup_cancel": {
+          "score": 21,
+          "max": 22,
+          "critical": true
+        },
+        "taskgroup_exception": {
+          "score": 11,
+          "max": 13,
+          "critical": false
+        },
+        "conditions": {
+          "score": 9,
+          "max": 10,
+          "critical": false
+        },
+        "sources": {
+          "score": 15,
+          "max": 15,
+          "critical": true
+        }
+      },
+      "critical_observations": [],
+      "reason": "比较完整，但 gather 只说「有机会」写日志，末尾仍对可推断的结果保留过多不确定性。",
+      "quote_count": 11,
+      "quote_contiguous_matches": 11
+    }
+  ]
+}

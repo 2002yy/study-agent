@@ -1,0 +1,73 @@
+{
+  "case_id": "H06",
+  "arm": "B",
+  "repeat": 1,
+  "publication_authority": false,
+  "qualification": false,
+  "raw_output": "{\n  \"claims\": [\n    {\n      \"text\": \"In Russia, the decree specified that the day after January 31, 1918, would be February 14, 1918.\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendarrussia\",\n          \"quote\": \"According to the decree, the next day after January 31, 1918, would be February 14.\"\n        }\n      ]\n    },\n    {\n      \"text\": \"For several months after the initial change, both Julian and Gregorian dates were shown in official documents in Russia, and on July 1, 1918, the country moved to the Gregorian calendar completely.\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendarrussia\",\n          \"quote\": \"For several months, both dates were shown in the official documents, and then on July 1, 1918, the country moved to the Gregorian calendar completely.\"\n        }\n      ]\n    },\n    {\n      \"text\": \"The British legislation references the fourteenth day of September in the context of the calendar change.\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendaruk\",\n          \"quote\": \"he said fourteenth day of September\"\n        }\n      ]\n    }\n  ],\n  \"unknowns\": [\n    \"The last civil date before the British calendar change in 1752.\",\n    \"The first civil date after the British calendar change in 1752.\",\n    \"The number of calendar dates skipped in the British calendar change in 1752.\",\n    \"The last civil date before the Russian calendar change in 1918.\",\n    \"The first civil date after the Russian calendar change in 1918.\",\n    \"The number of calendar dates skipped in the Russian calendar change in 1918.\",\n    \"The reason why the number of skipped days differs between the British 1752 and Russian 1918 calendar changes.\",\n    \"The fact that Britain adjusted the start of the new year at the same time as the calendar change in 1752.\",\n    \"How to distinguish between Britain's adjustment of the new year start date and the skipping of dates in the Julian to Gregorian calendar change.\",\n    \"Verifiable authoritative historical or legal sources that record the date details of the British 1752 calendar change.\",\n    \"Verifiable authoritative historical or legal sources that record the date details of the Russian 1918 calendar change.\"\n  ],\n  \"answer\": \"Based on the provided sources, the following information is supported: For Russia's 1918 calendar change, the decree stated that the day after January 31, 1918, would be February 14, 1918, and for several months both dates were shown in official documents before a complete move to the Gregorian calendar on July 1, 1918. For Britain's 1752 calendar change, the legislation mentions the fourteenth day of September, but the sources do not provide the last civil date before the change, the first civil date after the change, or the number of skipped dates. The sources also do not explain why the number of skipped days differs between the two changes, nor do they discuss Britain's adjustment of the new year start date. Therefore, the requested comparison cannot be fully answered with the given evidence.\"\n}",
+  "finish_reason": "stop",
+  "model": "deepseek-flash",
+  "usage": {
+    "completion_tokens": 676,
+    "prompt_tokens": 2676,
+    "total_tokens": 3352,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 2432
+    },
+    "prompt_cache_hit_tokens": 2432,
+    "prompt_cache_miss_tokens": 244
+  },
+  "output": {
+    "claims": [
+      {
+        "text": "In Russia, the decree specified that the day after January 31, 1918, would be February 14, 1918.",
+        "citations": [
+          {
+            "source_id": "calendarrussia",
+            "quote": "According to the decree, the next day after January 31, 1918, would be February 14."
+          }
+        ]
+      },
+      {
+        "text": "For several months after the initial change, both Julian and Gregorian dates were shown in official documents in Russia, and on July 1, 1918, the country moved to the Gregorian calendar completely.",
+        "citations": [
+          {
+            "source_id": "calendarrussia",
+            "quote": "For several months, both dates were shown in the official documents, and then on July 1, 1918, the country moved to the Gregorian calendar completely."
+          }
+        ]
+      },
+      {
+        "text": "The British legislation references the fourteenth day of September in the context of the calendar change.",
+        "citations": [
+          {
+            "source_id": "calendaruk",
+            "quote": "he said fourteenth day of September"
+          }
+        ]
+      }
+    ],
+    "unknowns": [
+      "The last civil date before the British calendar change in 1752.",
+      "The first civil date after the British calendar change in 1752.",
+      "The number of calendar dates skipped in the British calendar change in 1752.",
+      "The last civil date before the Russian calendar change in 1918.",
+      "The first civil date after the Russian calendar change in 1918.",
+      "The number of calendar dates skipped in the Russian calendar change in 1918.",
+      "The reason why the number of skipped days differs between the British 1752 and Russian 1918 calendar changes.",
+      "The fact that Britain adjusted the start of the new year at the same time as the calendar change in 1752.",
+      "How to distinguish between Britain's adjustment of the new year start date and the skipping of dates in the Julian to Gregorian calendar change.",
+      "Verifiable authoritative historical or legal sources that record the date details of the British 1752 calendar change.",
+      "Verifiable authoritative historical or legal sources that record the date details of the Russian 1918 calendar change."
+    ],
+    "answer": "Based on the provided sources, the following information is supported: For Russia's 1918 calendar change, the decree stated that the day after January 31, 1918, would be February 14, 1918, and for several months both dates were shown in official documents before a complete move to the Gregorian calendar on July 1, 1918. For Britain's 1752 calendar change, the legislation mentions the fourteenth day of September, but the sources do not provide the last civil date before the change, the first civil date after the change, or the number of skipped dates. The sources also do not explain why the number of skipped days differs between the two changes, nor do they discuss Britain's adjustment of the new year start date. Therefore, the requested comparison cannot be fully answered with the given evidence."
+  },
+  "checks": {
+    "structural_errors": [],
+    "semantic_support": "PENDING_HUMAN_REVIEW"
+  },
+  "status": "recorded",
+  "elapsed_seconds": 2.875
+}

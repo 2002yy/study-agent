@@ -1,0 +1,138 @@
+{
+  "case_id": "H05",
+  "arm": "B",
+  "repeat": 1,
+  "publication_authority": false,
+  "qualification": false,
+  "raw_output": "{\"claims\":[{\"text\":\"asyncio.gather 默认 return_exceptions=False 时，第一个抛出的异常会立即传播给等待 gather() 的任务；aws 序列中的其他 awaitable 不会被取消，会继续运行。\",\"citations\":[{\"source_id\":\"asyncio312-asyncio.gather\",\"quote\":\"If return_exceptions is False (default), the first\\nraised exception is immediately propagated to the task that\\nawaits on gather().  Other awaitables in the aws sequence\\nwon’t be cancelled and will continue to run.\"}]},{\"text\":\"asyncio.gather 的文档说明：如果 return_exceptions 为 false，在 gather() 已被标记为完成后取消它不会取消任何已提交的 awaitable；例如 gather 在向调用方传播异常后可能已被标记为完成，因此在捕获异常后调用 gather.cancel() 不会取消其他 awaitable。\",\"citations\":[{\"source_id\":\"asyncio312-asyncio.gather\",\"quote\":\"If return_exceptions is false, cancelling gather() after it\\nhas been marked done won’t cancel any submitted awaitables.\\nFor instance, gather can be marked done after propagating an\\nexception to the caller, therefore, calling gather.cancel()\\nafter catching an exception (raised by one of the awaitables) from\\ngather won’t cancel any other awaitables.\"}]},{\"text\":\"asyncio.gather 文档指出 TaskGroup 是并发创建和运行任务并等待其完成的替代方案；TaskGroup 提供比 gather 更强的安全保证：如果某个任务（或子任务）抛出异常，TaskGroup 会取消剩余已调度的任务，而 gather 不会。\",\"citations\":[{\"source_id\":\"asyncio312-asyncio.gather\",\"quote\":\"A new alternative to create and run tasks concurrently and\\nwait for their completion is asyncio.TaskGroup. TaskGroup\\nprovides stronger safety guarantees than gather for scheduling a nesting of subtasks:\\nif a task (or a subtask, a task scheduled by a task)\\nraises an exception, TaskGroup will, while gather will not,\\ncancel the remaining scheduled tasks).\"}]},{\"text\":\"TaskGroup 中，当组内任一任务首次因非 asyncio.CancelledError 的异常失败时，组内剩余任务会被取消。\",\"citations\":[{\"source_id\":\"asyncio312-task-groups\",\"quote\":\"The first time any of the tasks belonging to the group fails\\nwith an exception other than asyncio.CancelledError,\\nthe remaining tasks in the group are cancelled.\"}]},{\"text\":\"TaskGroup 中，当所有任务完成后，如果有任务因非 asyncio.CancelledError 的异常失败，这些异常会被合并为一个 ExceptionGroup 或 BaseExceptionGroup 并抛出。\",\"citations\":[{\"source_id\":\"asyncio312-task-groups\",\"quote\":\"Once all tasks have finished, if any tasks have failed\\nwith an exception other than asyncio.CancelledError,\\nthose exceptions are combined in an\\nExceptionGroup or BaseExceptionGroup\\n(as appropriate; see their documentation)\\nwhich is then raised.\"}]},{\"text\":\"TaskGroup 中，如果 async with 语句体仍处于活动状态（即 __aexit__() 尚未被调用），直接包含该 async with 语句的任务也会被取消；由此产生的 asyncio.CancelledError 会中断 await，但不会从包含它的 async with 语句中向外冒泡。\",\"citations\":[{\"source_id\":\"asyncio312-task-groups\",\"quote\":\"At this point, if the body of the async with statement is still active\\n(i.e., __aexit__() hasn’t been called yet),\\nthe task directly containing the async with statement is also cancelled.\\nThe resulting asyncio.CancelledError will interrupt an await,\\nbut it will not bubble out of the containing async with statement.\"}]},{\"text\":\"TaskGroup 中，如果 async with 语句体以异常退出（即 __aexit__() 被调用时设置了异常），这被视为与某个任务失败相同：剩余任务被取消并等待，非取消异常被分组到异常组中并抛出；传入 __aexit__() 的异常（除非是 asyncio.CancelledError）也会被包含在异常组中。\",\"citations\":[{\"source_id\":\"asyncio312-task-groups\",\"quote\":\"If the body of the async with statement exits with an exception\\n(so __aexit__() is called with an exception set),\\nthis is treated the same as if one of the tasks failed:\\nthe remaining tasks are cancelled and then waited for,\\nand non-cancellation exceptions are grouped into an\\nexception group and raised.\\nThe exception passed into __aexit__(),\\nunless it is asyncio.CancelledError,\\nis also included in the exception group.\"}]},{\"text\":\"TaskGroup 中，如果任一任务因 KeyboardInterrupt 或 SystemExit 失败，任务组仍会取消剩余任务并等待它们，但随后会重新抛出最初的 KeyboardInterrupt 或 SystemExit，而不是 ExceptionGroup 或 BaseExceptionGroup。\",\"citations\":[{\"source_id\":\"asyncio312-task-groups\",\"quote\":\"If any task fails with KeyboardInterrupt or SystemExit,\\nthe task group still cancels the remaining tasks and waits for them,\\nbut then the initial KeyboardInterrupt or SystemExit\\nis re-raised instead of ExceptionGroup or BaseExceptionGroup.\"}]},{\"text\":\"asyncio.gather 文档说明：如果 gather() 被取消，所有尚未完成的已提交 awaitable 也会被取消。\",\"citations\":[{\"source_id\":\"asyncio312-asyncio.gather\",\"quote\":\"If gather() is cancelled, all submitted awaitables\\n(that have not completed yet) are also cancelled.\"}]},{\"text\":\"asyncio.gather 文档说明：如果 aws 序列中的任何 Task 或 Future 被取消，会被视为抛出了 CancelledError——在这种情况下 gather() 调用不会被取消；这是为了防止一个已提交 Task/Future 的取消导致其他 Task/Future 被取消。\",\"citations\":[{\"source_id\":\"asyncio312-asyncio.gather\",\"quote\":\"If any Task or Future from the aws sequence is cancelled, it is\\ntreated as if it raised CancelledError – the gather()\\ncall is not cancelled in this case.  This is to prevent the\\ncancellation of one submitted Task/Future to cause other\\nTasks/Futures to be cancelled.\"}]},{\"text\":\"TaskGroup 是一个异步上下文管理器，持有一组任务；任务可通过 create_task() 添加；当上下文管理器退出时，所有任务都会被等待。\",\"citations\":[{\"source_id\":\"asyncio312-task-groups\",\"quote\":\"An asynchronous context manager\\nholding a group of tasks.\\nTasks can be added to the group using create_task().\\nAll tasks are awaited when the context manager exits.\"}]}],\"unknowns\":[\"在 Python 3.12 中，asyncio.gather(fail(), slow()) 默认选项下，slow() 是否通常还能写入日志（即 slow() 是否通常能在两秒后完成并写入日志）——证据只说明其他 awaitable 不会被取消并会继续运行，未直接说明 slow() 是否通常能完成并写入日志。\",\"在 Python 3.12 中，asyncio.TaskGroup 并发创建 fail() 和 slow() 时，slow() 是否通常还能写入日志——证据说明剩余任务会被取消，但未直接说明 slow() 是否通常能完成并写入日志。\",\"在 Python 3.12 中，asyncio.gather 默认选项与 asyncio.TaskGroup 在 fail() 引发 ValueError 时抛出的异常类型形态差异——证据分别说明 gather 传播第一个异常、TaskGroup 合并为 ExceptionGroup/BaseExceptionGroup，但未直接对比两者在 ValueError 场景下的具体异常类型形态。\",\"在 Python 3.12 中，asyncio.gather 默认选项与 asyncio.TaskGroup 在错误传播和兄弟任务取消方面的重要边界条件——证据列出若干边界条件，但未完整列举或对比所有重要边界条件。\"],\"answer\":\"根据所提供的 Python 3.12 官方文档证据：\\n\\n1. asyncio.gather(fail(), slow()) 默认选项（return_exceptions=False）：第一个抛出的异常（此处为 fail() 的 ValueError）会立即传播给等待 gather() 的任务；aws 序列中的其他 awaitable（即 slow()）不会被取消，会继续运行。文档还说明，gather 在向调用方传播异常后可能已被标记为完成，因此在捕获异常后调用 gather.cancel() 不会取消其他 awaitable。因此，从取消行为看，slow() 不会被 gather 取消，会继续运行；但证据未直接说明 slow() 是否通常能在两秒后完成并写入日志。\\n\\n2. asyncio.TaskGroup 并发创建 fail() 和 slow()：当组内任一任务首次因非 asyncio.CancelledError 的异常失败时，组内剩余任务会被取消。因此 slow() 会被取消；由于 slow() 不吞掉 CancelledError，它通常无法完成两秒等待并写入日志。当所有任务完成后，失败任务的异常会被合并为 ExceptionGroup 或 BaseExceptionGroup 并抛出。\\n\\n3. 异常类型形态差异：gather 默认选项下，第一个异常（ValueError）被直接传播；TaskGroup 下，失败异常被合并为 ExceptionGroup 或 BaseExceptionGroup 后抛出。文档还指出，TaskGroup 提供比 gather 更强的安全保证：如果某个任务抛出异常，TaskGroup 会取消剩余已调度的任务，而 gather 不会。\\n\\n4. 重要边界条件：\\n- gather：如果 gather() 本身被取消，所有尚未完成的已提交 awaitable 也会被取消；如果 aws 序列中的任何 Task/Future 被取消，会被视为抛出了 CancelledError，gather() 调用不会被取消，以防止一个已提交 Task/Future 的取消导致其他 Task/Future 被取消。\\n- TaskGroup：如果 async with 语句体仍处于活动状态，直接包含该 async with 语句的任务也会被取消，由此产生的 asyncio.CancelledError 会中断 await，但不会从包含它的 async with 语句中向外冒泡；如果 async with 语句体以异常退出，剩余任务被取消并等待，非取消异常被分组到异常组中并抛出，传入 __aexit__() 的异常（除非是 asyncio.CancelledError）也会被包含在异常组中；如果任一任务因 KeyboardInterrupt 或 SystemExit 失败，任务组仍会取消剩余任务并等待它们，但随后会重新抛出最初的 KeyboardInterrupt 或 SystemExit，而不是 ExceptionGroup 或 BaseExceptionGroup。\\n\\n5. 关于 slow() 是否通常还能写入日志：证据仅支持 gather 默认选项下 slow() 不会被取消并会继续运行，以及 TaskGroup 下 slow() 会被取消；证据未直接说明两种写法中 slow() 是否通常能在两秒后完成并写入日志。\"}",
+  "finish_reason": "stop",
+  "model": "deepseek-flash",
+  "usage": {
+    "completion_tokens": 2404,
+    "prompt_tokens": 2484,
+    "total_tokens": 4888,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 2304
+    },
+    "prompt_cache_hit_tokens": 2304,
+    "prompt_cache_miss_tokens": 180
+  },
+  "output": {
+    "claims": [
+      {
+        "text": "asyncio.gather 默认 return_exceptions=False 时，第一个抛出的异常会立即传播给等待 gather() 的任务；aws 序列中的其他 awaitable 不会被取消，会继续运行。",
+        "citations": [
+          {
+            "source_id": "asyncio312-asyncio.gather",
+            "quote": "If return_exceptions is False (default), the first\nraised exception is immediately propagated to the task that\nawaits on gather().  Other awaitables in the aws sequence\nwon’t be cancelled and will continue to run."
+          }
+        ]
+      },
+      {
+        "text": "asyncio.gather 的文档说明：如果 return_exceptions 为 false，在 gather() 已被标记为完成后取消它不会取消任何已提交的 awaitable；例如 gather 在向调用方传播异常后可能已被标记为完成，因此在捕获异常后调用 gather.cancel() 不会取消其他 awaitable。",
+        "citations": [
+          {
+            "source_id": "asyncio312-asyncio.gather",
+            "quote": "If return_exceptions is false, cancelling gather() after it\nhas been marked done won’t cancel any submitted awaitables.\nFor instance, gather can be marked done after propagating an\nexception to the caller, therefore, calling gather.cancel()\nafter catching an exception (raised by one of the awaitables) from\ngather won’t cancel any other awaitables."
+          }
+        ]
+      },
+      {
+        "text": "asyncio.gather 文档指出 TaskGroup 是并发创建和运行任务并等待其完成的替代方案；TaskGroup 提供比 gather 更强的安全保证：如果某个任务（或子任务）抛出异常，TaskGroup 会取消剩余已调度的任务，而 gather 不会。",
+        "citations": [
+          {
+            "source_id": "asyncio312-asyncio.gather",
+            "quote": "A new alternative to create and run tasks concurrently and\nwait for their completion is asyncio.TaskGroup. TaskGroup\nprovides stronger safety guarantees than gather for scheduling a nesting of subtasks:\nif a task (or a subtask, a task scheduled by a task)\nraises an exception, TaskGroup will, while gather will not,\ncancel the remaining scheduled tasks)."
+          }
+        ]
+      },
+      {
+        "text": "TaskGroup 中，当组内任一任务首次因非 asyncio.CancelledError 的异常失败时，组内剩余任务会被取消。",
+        "citations": [
+          {
+            "source_id": "asyncio312-task-groups",
+            "quote": "The first time any of the tasks belonging to the group fails\nwith an exception other than asyncio.CancelledError,\nthe remaining tasks in the group are cancelled."
+          }
+        ]
+      },
+      {
+        "text": "TaskGroup 中，当所有任务完成后，如果有任务因非 asyncio.CancelledError 的异常失败，这些异常会被合并为一个 ExceptionGroup 或 BaseExceptionGroup 并抛出。",
+        "citations": [
+          {
+            "source_id": "asyncio312-task-groups",
+            "quote": "Once all tasks have finished, if any tasks have failed\nwith an exception other than asyncio.CancelledError,\nthose exceptions are combined in an\nExceptionGroup or BaseExceptionGroup\n(as appropriate; see their documentation)\nwhich is then raised."
+          }
+        ]
+      },
+      {
+        "text": "TaskGroup 中，如果 async with 语句体仍处于活动状态（即 __aexit__() 尚未被调用），直接包含该 async with 语句的任务也会被取消；由此产生的 asyncio.CancelledError 会中断 await，但不会从包含它的 async with 语句中向外冒泡。",
+        "citations": [
+          {
+            "source_id": "asyncio312-task-groups",
+            "quote": "At this point, if the body of the async with statement is still active\n(i.e., __aexit__() hasn’t been called yet),\nthe task directly containing the async with statement is also cancelled.\nThe resulting asyncio.CancelledError will interrupt an await,\nbut it will not bubble out of the containing async with statement."
+          }
+        ]
+      },
+      {
+        "text": "TaskGroup 中，如果 async with 语句体以异常退出（即 __aexit__() 被调用时设置了异常），这被视为与某个任务失败相同：剩余任务被取消并等待，非取消异常被分组到异常组中并抛出；传入 __aexit__() 的异常（除非是 asyncio.CancelledError）也会被包含在异常组中。",
+        "citations": [
+          {
+            "source_id": "asyncio312-task-groups",
+            "quote": "If the body of the async with statement exits with an exception\n(so __aexit__() is called with an exception set),\nthis is treated the same as if one of the tasks failed:\nthe remaining tasks are cancelled and then waited for,\nand non-cancellation exceptions are grouped into an\nexception group and raised.\nThe exception passed into __aexit__(),\nunless it is asyncio.CancelledError,\nis also included in the exception group."
+          }
+        ]
+      },
+      {
+        "text": "TaskGroup 中，如果任一任务因 KeyboardInterrupt 或 SystemExit 失败，任务组仍会取消剩余任务并等待它们，但随后会重新抛出最初的 KeyboardInterrupt 或 SystemExit，而不是 ExceptionGroup 或 BaseExceptionGroup。",
+        "citations": [
+          {
+            "source_id": "asyncio312-task-groups",
+            "quote": "If any task fails with KeyboardInterrupt or SystemExit,\nthe task group still cancels the remaining tasks and waits for them,\nbut then the initial KeyboardInterrupt or SystemExit\nis re-raised instead of ExceptionGroup or BaseExceptionGroup."
+          }
+        ]
+      },
+      {
+        "text": "asyncio.gather 文档说明：如果 gather() 被取消，所有尚未完成的已提交 awaitable 也会被取消。",
+        "citations": [
+          {
+            "source_id": "asyncio312-asyncio.gather",
+            "quote": "If gather() is cancelled, all submitted awaitables\n(that have not completed yet) are also cancelled."
+          }
+        ]
+      },
+      {
+        "text": "asyncio.gather 文档说明：如果 aws 序列中的任何 Task 或 Future 被取消，会被视为抛出了 CancelledError——在这种情况下 gather() 调用不会被取消；这是为了防止一个已提交 Task/Future 的取消导致其他 Task/Future 被取消。",
+        "citations": [
+          {
+            "source_id": "asyncio312-asyncio.gather",
+            "quote": "If any Task or Future from the aws sequence is cancelled, it is\ntreated as if it raised CancelledError – the gather()\ncall is not cancelled in this case.  This is to prevent the\ncancellation of one submitted Task/Future to cause other\nTasks/Futures to be cancelled."
+          }
+        ]
+      },
+      {
+        "text": "TaskGroup 是一个异步上下文管理器，持有一组任务；任务可通过 create_task() 添加；当上下文管理器退出时，所有任务都会被等待。",
+        "citations": [
+          {
+            "source_id": "asyncio312-task-groups",
+            "quote": "An asynchronous context manager\nholding a group of tasks.\nTasks can be added to the group using create_task().\nAll tasks are awaited when the context manager exits."
+          }
+        ]
+      }
+    ],
+    "unknowns": [
+      "在 Python 3.12 中，asyncio.gather(fail(), slow()) 默认选项下，slow() 是否通常还能写入日志（即 slow() 是否通常能在两秒后完成并写入日志）——证据只说明其他 awaitable 不会被取消并会继续运行，未直接说明 slow() 是否通常能完成并写入日志。",
+      "在 Python 3.12 中，asyncio.TaskGroup 并发创建 fail() 和 slow() 时，slow() 是否通常还能写入日志——证据说明剩余任务会被取消，但未直接说明 slow() 是否通常能完成并写入日志。",
+      "在 Python 3.12 中，asyncio.gather 默认选项与 asyncio.TaskGroup 在 fail() 引发 ValueError 时抛出的异常类型形态差异——证据分别说明 gather 传播第一个异常、TaskGroup 合并为 ExceptionGroup/BaseExceptionGroup，但未直接对比两者在 ValueError 场景下的具体异常类型形态。",
+      "在 Python 3.12 中，asyncio.gather 默认选项与 asyncio.TaskGroup 在错误传播和兄弟任务取消方面的重要边界条件——证据列出若干边界条件，但未完整列举或对比所有重要边界条件。"
+    ],
+    "answer": "根据所提供的 Python 3.12 官方文档证据：\n\n1. asyncio.gather(fail(), slow()) 默认选项（return_exceptions=False）：第一个抛出的异常（此处为 fail() 的 ValueError）会立即传播给等待 gather() 的任务；aws 序列中的其他 awaitable（即 slow()）不会被取消，会继续运行。文档还说明，gather 在向调用方传播异常后可能已被标记为完成，因此在捕获异常后调用 gather.cancel() 不会取消其他 awaitable。因此，从取消行为看，slow() 不会被 gather 取消，会继续运行；但证据未直接说明 slow() 是否通常能在两秒后完成并写入日志。\n\n2. asyncio.TaskGroup 并发创建 fail() 和 slow()：当组内任一任务首次因非 asyncio.CancelledError 的异常失败时，组内剩余任务会被取消。因此 slow() 会被取消；由于 slow() 不吞掉 CancelledError，它通常无法完成两秒等待并写入日志。当所有任务完成后，失败任务的异常会被合并为 ExceptionGroup 或 BaseExceptionGroup 并抛出。\n\n3. 异常类型形态差异：gather 默认选项下，第一个异常（ValueError）被直接传播；TaskGroup 下，失败异常被合并为 ExceptionGroup 或 BaseExceptionGroup 后抛出。文档还指出，TaskGroup 提供比 gather 更强的安全保证：如果某个任务抛出异常，TaskGroup 会取消剩余已调度的任务，而 gather 不会。\n\n4. 重要边界条件：\n- gather：如果 gather() 本身被取消，所有尚未完成的已提交 awaitable 也会被取消；如果 aws 序列中的任何 Task/Future 被取消，会被视为抛出了 CancelledError，gather() 调用不会被取消，以防止一个已提交 Task/Future 的取消导致其他 Task/Future 被取消。\n- TaskGroup：如果 async with 语句体仍处于活动状态，直接包含该 async with 语句的任务也会被取消，由此产生的 asyncio.CancelledError 会中断 await，但不会从包含它的 async with 语句中向外冒泡；如果 async with 语句体以异常退出，剩余任务被取消并等待，非取消异常被分组到异常组中并抛出，传入 __aexit__() 的异常（除非是 asyncio.CancelledError）也会被包含在异常组中；如果任一任务因 KeyboardInterrupt 或 SystemExit 失败，任务组仍会取消剩余任务并等待它们，但随后会重新抛出最初的 KeyboardInterrupt 或 SystemExit，而不是 ExceptionGroup 或 BaseExceptionGroup。\n\n5. 关于 slow() 是否通常还能写入日志：证据仅支持 gather 默认选项下 slow() 不会被取消并会继续运行，以及 TaskGroup 下 slow() 会被取消；证据未直接说明两种写法中 slow() 是否通常能在两秒后完成并写入日志。"
+  },
+  "checks": {
+    "structural_errors": [],
+    "semantic_support": "PENDING_HUMAN_REVIEW"
+  },
+  "status": "recorded",
+  "elapsed_seconds": 8.235
+}

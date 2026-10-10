@@ -1,0 +1,2637 @@
+[
+  {
+    "label": "output-001",
+    "question": "在假设方案A每月50元含200次、超出0.4元/次，B无月费0.7元/次的条件下，求成本交叉点并讨论0、200和500次；不忽略分段计费。",
+    "rubric": [
+      "分段函数",
+      "交叉点与适用区间",
+      "三个检查点",
+      "假设报价"
+    ],
+    "output": [
+      "在方案A每月50元含200次、超出0.4元/次，方案B无月费0.7元/次的条件下，如何建立分段计费的成本函数？",
+      "在方案A每月50元含200次、超出0.4元/次，方案B无月费0.7元/次的条件下，成本交叉点是多少次？",
+      "在方案A每月50元含200次、超出0.4元/次，方案B无月费0.7元/次的条件下，使用0次时两个方案的成本分别是多少？",
+      "在方案A每月50元含200次、超出0.4元/次，方案B无月费0.7元/次的条件下，使用200次时两个方案的成本分别是多少？",
+      "在方案A每月50元含200次、超出0.4元/次，方案B无月费0.7元/次的条件下，使用500次时两个方案的成本分别是多少？",
+      "在方案A每月50元含200次、超出0.4元/次，方案B无月费0.7元/次的条件下，如何根据分段计费讨论0、200和500次时哪个方案更便宜？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-002",
+    "question": "比较 SQLite 与 PostgreSQL 对本地单用户笔记应用的部署与维护要求，先明确适用条件再建议。",
+    "rubric": [
+      "本地单用户",
+      "部署维护",
+      "条件化建议"
+    ],
+    "output": [
+      "SQLite 与 PostgreSQL 在本地单用户笔记应用场景下的部署要求分别是什么？",
+      "SQLite 与 PostgreSQL 在本地单用户笔记应用场景下的维护要求分别是什么？",
+      "在比较 SQLite 与 PostgreSQL 的部署与维护要求前，需要明确哪些适用条件？",
+      "基于适用条件，对本地单用户笔记应用选择 SQLite 或 PostgreSQL 有何建议？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-003",
+    "question": "比较 gzip 与 zstd 用于离线备份和实时传输的取舍，分别考虑压缩级别、数据类型、吞吐、延迟和兼容性；没有同口径测试则不能给普适倍数。",
+    "rubric": [
+      "双用途条件",
+      "全部比较维度",
+      "测试口径与未知倍率"
+    ],
+    "output": [
+      "What are the key design and compatibility differences between gzip and zstd relevant to offline backup and real-time transfer?",
+      "How do gzip and zstd compare in throughput and latency at comparable compression levels and across data types?",
+      "Which trade-offs favor gzip or zstd for offline backup workloads?",
+      "Which trade-offs favor gzip or zstd for real-time transfer workloads?",
+      "How do gzip and zstd differ in ecosystem, tooling, and format compatibility?"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-004",
+    "question": "在假设方案A每月50元含200次、超出0.4元/次，B无月费0.7元/次的条件下，求成本交叉点并讨论0、200和500次；不忽略分段计费。",
+    "rubric": [
+      "分段函数",
+      "交叉点与适用区间",
+      "三个检查点",
+      "假设报价"
+    ],
+    "output": [
+      "在方案A每月50元含200次、超出0.4元/次，B无月费0.7元/次的条件下，成本交叉点是多少？",
+      "使用0次时，方案A与方案B的成本分别是多少？",
+      "使用200次时，方案A与方案B的成本分别是多少？",
+      "使用500次时，方案A与方案B的成本分别是多少？",
+      "分段计费如何影响交叉点与各使用量下的成本比较？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-005",
+    "question": "解释唐代三省制度的基本分工，注明是概括性模型而非每一时期都完全相同。",
+    "rubric": [
+      "三省分工",
+      "时段限制"
+    ],
+    "output": [
+      "唐代三省制度中，中书省、门下省、尚书省各自的基本职能分工是什么？",
+      "唐代三省制度的基本分工在哪些方面是概括性模型，而非每一时期都完全相同？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-006",
+    "question": "比较 MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 下的行为，区分读快照、并发更新与序列化错误，不拿不同隔离级别混比。",
+    "rubric": [
+      "双版本和相同级别",
+      "三种并发行为",
+      "避免跨级别混比"
+    ],
+    "output": [
+      "How does MySQL 8.4 REPEATABLE READ implement read snapshots (consistent reads) and what anomalies does it prevent or allow?",
+      "How does PostgreSQL 17 REPEATABLE READ implement snapshot isolation and what anomalies does it prevent or allow?",
+      "How do MySQL 8.4 and PostgreSQL 17 differ in handling concurrent updates under REPEATABLE READ (locking, lost update, write skew)?",
+      "What serialization errors or deadlock/lock-wait behaviors occur under REPEATABLE READ in MySQL 8.4 versus PostgreSQL 17?",
+      "What are the key behavioral differences between MySQL 8.4 and PostgreSQL 17 under REPEATABLE READ when comparing read snapshots, concurrent updates, and serialization errors?"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-007",
+    "question": "针对 Python 3.12 的 asyncio，请对比 `asyncio.gather(fail(), slow())` 默认选项与用 `asyncio.TaskGroup` 并发创建同样两个任务的错误传播和兄弟任务取消行为。假设 fail() 很快引发 ValueError；slow() 等待两秒后写入一条日志，不吞掉 CancelledError；上层捕获抛出的异常后仍保持事件循环运行至少三秒，且没有外部取消。两种写法中 slow() 是否通常还能写入日志？解释异常类型形态差异、重要边界条件，并给出 Python 官方文档作为依据。",
+    "rubric": [
+      {
+        "critical": false,
+        "expected": "gather(return_exceptions=False) 立即向等待者传播首个异常；通常是 ValueError，而非默认包成 ExceptionGroup。",
+        "id": "gather_exception",
+        "points": 18
+      },
+      {
+        "critical": true,
+        "expected": "默认 gather 在该子任务异常时不自动取消其他未完成 awaitable；题设保持事件循环运行，slow() 可以继续完成并写日志。",
+        "id": "gather_sibling",
+        "points": 22
+      },
+      {
+        "critical": true,
+        "expected": "TaskGroup 子任务非 CancelledError 异常会取消剩余组内任务并等待；slow() 收到取消后不会写入日志。",
+        "id": "taskgroup_cancel",
+        "points": 22
+      },
+      {
+        "critical": false,
+        "expected": "TaskGroup 将非取消异常组成 ExceptionGroup（或 BaseExceptionGroup）从上下文抛出；可用 except* 处理。",
+        "id": "taskgroup_exception",
+        "points": 13
+      },
+      {
+        "critical": false,
+        "expected": "交代差异依赖题设：slow 不吞取消、上层不取消整个 gather、循环足够存活；不能无条件保证副作用。",
+        "id": "conditions",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "引用 Python 3.12 官方 asyncio-task 文档的 gather / Task Groups 部分，引用必须真实可核查。",
+        "id": "sources",
+        "points": 15
+      }
+    ],
+    "output": [
+      "In Python 3.12, with asyncio.gather(fail(), slow()) using default options, when fail() raises ValueError quickly, what exception is propagated to the caller and is slow() cancelled or left running?",
+      "In Python 3.12, when asyncio.TaskGroup concurrently runs fail() and slow() and fail() raises ValueError, what exception type is raised (ExceptionGroup/BaseExceptionGroup) and how are sibling tasks cancelled?",
+      "In each pattern, given slow() awaits 2 seconds then logs and does not swallow CancelledError, while the event loop keeps running at least 3 seconds after the caller catches the exception, does slow() typically still write its log?",
+      "What important boundary conditions affect the outcome, such as return_exceptions, cancellation timing, shielding, exception group handling, and event loop lifetime?",
+      "What do the Python 3.12 official asyncio documentation pages say about gather, TaskGroup, cancellation, and exception groups as the basis for this comparison?"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-008",
+    "question": "研究崩坏：星穹铁道流萤首发到目标4.2的配队演变、机制、低高投入及敌人条件；历史版本分开，目标版本无可靠资料则未知，区分官方数据、计算、实测与社区意见。",
+    "rubric": [
+      "不串历史与目标版本",
+      "机制投入敌人条件",
+      "四种证据类别",
+      "4.2无法证明则未知"
+    ],
+    "output": [
+      "流萤的角色定位、技能机制与核心配队要素是什么（官方数据）？",
+      "从首发版本到4.2，流萤的配队演变如何按版本划分？",
+      "流萤低投入与高投入配队分别有哪些方案与差异？",
+      "不同敌人条件（弱点、抗性、机制）对流萤配队选择有何影响？",
+      "目标版本4.2是否有可靠资料？若无则标注未知。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-009",
+    "question": "围棋9×9：白C3，黑B3/D3/C4，轮黑C2；说明合法性、提子和棋盘更新，再说明仅这些规则不足以实现完整围棋（劫、自杀与计分规则要明确）。",
+    "rubric": [
+      "提白C3",
+      "合法性与更新",
+      "不冒充全规则引擎",
+      "劫自杀计分需约定"
+    ],
+    "output": [
+      "在9×9棋盘上，白C3、黑B3/D3/C4、轮黑下C2这一手是否合法？",
+      "黑下C2后是否发生提子？哪些白子被提，棋盘如何更新？",
+      "为什么仅凭落子与提子规则不足以实现完整围棋？劫、自杀与计分规则需要如何明确？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-010",
+    "question": "某实验5次时延为10、10、10、10、100秒。计算平均值、中位数；按最近秩定义计算p95，说明小样本限制，不能用中位数替代尾延迟。",
+    "rubric": [
+      "平均28中位10",
+      "最近秩p95为100",
+      "小样本限制",
+      "指标不互换"
+    ],
+    "output": [
+      "这组5次时延数据（10、10、10、10、100秒）的平均值是多少？",
+      "这组5次时延数据（10、10、10、10、100秒）的中位数是多少？",
+      "按最近秩定义，这组5次时延数据（10、10、10、10、100秒）的p95是多少？",
+      "对于这组5次时延数据，小样本对p95等尾延迟指标的计算和解释有哪些限制？",
+      "为什么在这组时延数据中不能用中位数替代尾延迟（如p95）来反映尾部情况？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-011",
+    "question": "解释 JVM 垃圾回收中的可达性与引用计数差别，并说明循环引用为何重要。",
+    "rubric": [
+      "两种机制",
+      "循环引用原因",
+      "不臆造所有JVM相同实现"
+    ],
+    "output": [
+      "JVM 垃圾回收中可达性分析的基本原理是什么？",
+      "JVM 垃圾回收中引用计数法的基本原理是什么？",
+      "可达性分析与引用计数法在判定对象存活方面有哪些主要差别？",
+      "在 JVM 垃圾回收中，循环引用为何重要？",
+      "引用计数法如何处理循环引用？",
+      "可达性分析如何避免循环引用导致的对象无法回收问题？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-012",
+    "question": "某网站提交订单使用 POST /checkout，之后服务器可能返回 303、307、308。请比较：用户代理随后通常使用什么方法访问 Location、哪类重定向保持原方法/请求体、哪种属于永久重定向。你会为“提交成功后显示订单确认页”和“维护期间把原 POST 临时转到另一处理端点”分别选哪个？要求以 HTTP 标准原文为主要依据，指出不能把全部 3xx 都讲成“自动 POST 变 GET”，并保留对客户端具体行为的适当限定。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "303 See Other 常用于 POST 处理后引导 GET 到另一资源（或 HEAD），即 Post/Redirect/Get 场景。",
+        "id": "303",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "307 Temporary Redirect：必须保留原方法；相应 POST 不应无提示改成 GET，临时重定向。",
+        "id": "307",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "308 Permanent Redirect：保留原方法，永久重定向。",
+        "id": "308",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "确认页建议 303，临时 POST 转处理端点建议 307；如资源永久迁移且需保留方法，可解释 308。",
+        "id": "choices",
+        "points": 15
+      },
+      {
+        "critical": false,
+        "expected": "不要一概断言 301/302/所有3xx 方法保持或都变 GET；不要强制保证所有实现行为完全相同。",
+        "id": "nuance",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "优先绑定 RFC 9110 对 303/307/308 的对应章节；链接/引用真实可核查，不能只凭无来源的博客。",
+        "id": "sources",
+        "points": 15
+      }
+    ],
+    "output": [
+      "根据 HTTP 标准原文，当服务器对 POST /checkout 请求返回 303 See Other 时，用户代理随后通常使用什么方法访问 Location 头指定的资源？",
+      "根据 HTTP 标准原文，当服务器对 POST /checkout 请求返回 307 Temporary Redirect 时，用户代理随后通常使用什么方法访问 Location 头指定的资源？请求体如何处理？",
+      "根据 HTTP 标准原文，当服务器对 POST /checkout 请求返回 308 Permanent Redirect 时，用户代理随后通常使用什么方法访问 Location 头指定的资源？请求体如何处理？",
+      "在 303、307、308 这三种重定向状态码中，哪一类或哪几类会保持原请求的方法和请求体不变？",
+      "在 303、307、308 这三种重定向状态码中，哪一类或哪几类属于永久重定向？",
+      "HTTP 标准原文如何描述 3xx 状态码与用户代理自动改变请求方法之间的关系？为什么不能把全部 3xx 都概括为“自动 POST 变 GET”？",
+      "对于“提交成功后显示订单确认页”这一场景，在 303、307、308 中应选择哪个状态码？依据是什么？",
+      "对于“维护期间把原 POST 临时转到另一处理端点”这一场景，在 303、307、308 中应选择哪个状态码？依据是什么？",
+      "HTTP 标准原文对用户代理在收到 3xx 重定向后的具体行为有哪些限定或允许的实现差异？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-013",
+    "question": "比较 HTTP 缓存规范从 RFC 7234 到 RFC 9111 的变化，区分文字整理、澄清与真实语义变化。",
+    "rubric": [
+      "两版规范",
+      "三类变化分开",
+      "以原文为依据"
+    ],
+    "output": [
+      "RFC 7234 和 RFC 9111 分别规定了哪些 HTTP 缓存机制和语义？",
+      "从 RFC 7234 到 RFC 9111，哪些内容属于文字整理或编辑性调整？",
+      "从 RFC 7234 到 RFC 9111，哪些内容属于对原有规定的澄清？",
+      "从 RFC 7234 到 RFC 9111，哪些内容属于真实的语义变化？",
+      "RFC 7234 到 RFC 9111 的变化中，文字整理、澄清与真实语义变化之间如何区分？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-014",
+    "question": "研究崩坏：星穹铁道流萤首发到目标4.2的配队演变、机制、低高投入及敌人条件；历史版本分开，目标版本无可靠资料则未知，区分官方数据、计算、实测与社区意见。",
+    "rubric": [
+      "不串历史与目标版本",
+      "机制投入敌人条件",
+      "四种证据类别",
+      "4.2无法证明则未知"
+    ],
+    "output": [
+      "从流萤首发版本到目标4.2版本，崩坏：星穹铁道中流萤的配队演变经历了哪些阶段？",
+      "流萤在首发版本时的配队机制是什么？",
+      "流萤在目标4.2版本时的配队机制是什么？",
+      "流萤在低投入条件下的配队方案有哪些？",
+      "流萤在高投入条件下的配队方案有哪些？",
+      "流萤配队对敌人条件有哪些要求或适应策略？",
+      "在流萤配队演变的历史版本中，哪些信息来自官方数据？",
+      "在流萤配队演变的历史版本中，哪些信息来自计算？",
+      "在流萤配队演变的历史版本中，哪些信息来自实测？",
+      "在流萤配队演变的历史版本中，哪些信息来自社区意见？",
+      "关于流萤在目标4.2版本的配队，是否存在可靠资料？",
+      "如果目标4.2版本无可靠资料，流萤在该版本的配队信息是否应标记为未知？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-015",
+    "question": "下面提供两份**虚构的、仅用于测试的**价格公告。仅依据这些公告，比较 2025-07-01 当日团队选择日志服务 A 或 B 的成本。团队预测一般月份处理 1200 万事件，旺季处理 3000 万事件；不涉及税、存储和出网费。计算两种情况下 A、B 各自的月费、较便宜者，并求两方案在高于免费额度范围的成本临界事件量（百万为单位）。注意公告有生效日期差异；解释为什么不能直接使用较新的公告。请引用公告编号；不必联网搜索虚构产品。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "适用 2025-07-01，应采用 P1；P2 到 2025-08-01 才生效，不能追溯。",
+        "id": "time",
+        "points": 16
+      },
+      {
+        "critical": false,
+        "expected": "令 x 为每月百万事件，A(x)=20+0.9x；B(x)=2.5max(0,x-5)。",
+        "id": "formula",
+        "points": 18
+      },
+      {
+        "critical": false,
+        "expected": "x=12，A=30.80 美元，B=17.50 美元；B 更便宜，差 13.30 美元。",
+        "id": "normal",
+        "points": 19
+      },
+      {
+        "critical": false,
+        "expected": "x=30，A=47.00 美元，B=62.50 美元；A 更便宜，差 15.50 美元。",
+        "id": "peak",
+        "points": 19
+      },
+      {
+        "critical": false,
+        "expected": "x>5 解 20+0.9x=2.5(x-5)，x=20.3125 百万事件；更低 B 便宜，更高 A 便宜。",
+        "id": "threshold",
+        "points": 18
+      },
+      {
+        "critical": true,
+        "expected": "依据公告 P1/P2 明确引用；不能编造第三份定价或遗漏生效日。",
+        "id": "citation",
+        "points": 10
+      }
+    ],
+    "output": [
+      "仅依据两份虚构价格公告，比较 2025-07-01 当日日志服务 A 与 B 在 1200 万和 3000 万事件/月下的月费、较便宜者，以及高于免费额度范围的成本临界事件量，并解释生效日期差异为何使较新公告不能直接使用。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-016",
+    "question": "解释陶瓷釉料烧成中温度、气氛与冷却过程如何共同影响结果；区分机制解释与未经测试的配方建议。",
+    "rubric": [
+      "温度气氛冷却",
+      "相互关系",
+      "未测试建议不可当实证"
+    ],
+    "output": [
+      "陶瓷釉料烧成中，温度如何影响釉层的形成与最终结果？",
+      "陶瓷釉料烧成中，气氛如何影响釉层的形成与最终结果？",
+      "陶瓷釉料烧成中，冷却过程如何影响釉层的形成与最终结果？",
+      "温度、气氛与冷却过程在陶瓷釉料烧成中如何共同作用并影响最终结果？",
+      "在陶瓷釉料烧成中，哪些关于温度、气氛与冷却过程影响结果的解释属于机制解释？",
+      "在陶瓷釉料烧成中，哪些关于温度、气氛与冷却过程影响结果的建议属于未经测试的配方建议？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-017",
+    "question": "核实一种开源工具的许可与商业使用条件：以 Blender 4.2 为目标，区分程序许可、生成作品权利及第三方素材许可，无法确证则明确未知。",
+    "rubric": [
+      "保留4.2",
+      "三种权利不混用",
+      "条件与未知保留"
+    ],
+    "output": [
+      "Blender 4.2 的程序本身采用什么开源许可证？",
+      "Blender 4.2 的许可证对商业使用有哪些具体条件或限制？",
+      "使用 Blender 4.2 创作生成的模型、动画、渲染图等作品，其版权归属和商业使用权利如何规定？",
+      "Blender 4.2 中内置或随附的第三方素材（如纹理、模型、插件等）分别适用什么许可证？",
+      "对于 Blender 4.2 的许可与商业使用条件，有哪些信息目前无法确证或存在未知？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-018",
+    "question": "以下是一个**完全虚构**城市的桥梁通行公告材料。请仅依据 N1–N4，回答：2025-04-12 14:00，开车者和步行者能不能通过青禾桥？同日 16:00 呢？哪条材料对哪个时间段有效？哪些说法不足以代表最新正式政策？为每项判断标注公告编号。如果证据存在范围以外的空白，应明确指出，不要上网为虚构地点补造资料。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "14:00 机动车和行人均不能通行；N4 针对此时段暂时覆盖 N2，不能只引用 N2。",
+        "id": "at14",
+        "points": 24
+      },
+      {
+        "critical": true,
+        "expected": "16:00 机动车不能通行，行人可通过南侧临时通道；依据 N2 + N4 的 15:00 恢复条款。",
+        "id": "at16",
+        "points": 24
+      },
+      {
+        "critical": false,
+        "expected": "N1 的相关安排已由 N2 替代；N4 仅在 13:00–15:00 临时覆盖，之后回到 N2。",
+        "id": "precedence",
+        "points": 18
+      },
+      {
+        "critical": false,
+        "expected": "N3 为匿名转发，不可作为正式更新，且与 N2/N4 不符。",
+        "id": "weak_source",
+        "points": 12
+      },
+      {
+        "critical": false,
+        "expected": "开车者绕行北绕城路，有 N2 依据；不要凭空杜撰新的绕行道路。",
+        "id": "detour",
+        "points": 12
+      },
+      {
+        "critical": true,
+        "expected": "每条结论绑定至题内公告；声明虚构事实不对应现实地名或网站。",
+        "id": "citation",
+        "points": 10
+      }
+    ],
+    "output": [
+      "根据 N1–N4，2025-04-12 14:00 开车者能否通过青禾桥？",
+      "根据 N1–N4，2025-04-12 14:00 步行者能否通过青禾桥？",
+      "根据 N1–N4，2025-04-12 16:00 开车者能否通过青禾桥？",
+      "根据 N1–N4，2025-04-12 16:00 步行者能否通过青禾桥？",
+      "N1–N4 中哪条材料对 2025-04-12 14:00 这个时间段有效？",
+      "N1–N4 中哪条材料对 2025-04-12 16:00 这个时间段有效？",
+      "N1–N4 中哪些说法不足以代表最新正式政策？",
+      "N1–N4 中是否存在证据范围以外的空白，需要明确指出而不得补造资料？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-019",
+    "question": "请给刚学围棋的学生讲清楚“气”和“提子”，并分析下面两盘互不关联的 5×5 棋局。列从左到右为 A–E，行从上到下为 1–5；X=黑棋，O=白棋，.=空点。采用通常不允许自杀的规则，暂不涉及劫。棋局甲轮白下 C4；棋局乙轮黑下 C3。分别判断落子是否合法、提掉哪颗棋子及落子后的棋盘；再给一道只基于甲局的小练习和正确答案。请确保文字、坐标、棋图完全一致，不要把甲、乙当成同一连续对局。",
+    "rubric": [
+      {
+        "critical": false,
+        "expected": "气为棋子或连接棋块在上下左右相邻的空交叉点，不算对角；无气的敌方棋块被提走。",
+        "id": "rule",
+        "points": 15
+      },
+      {
+        "critical": false,
+        "expected": "甲局黑 C3 落白 C4 前只有 C4 这一口气，B3/C2/D3 均为白子。",
+        "id": "a_pre",
+        "points": 15
+      },
+      {
+        "critical": true,
+        "expected": "甲局白 C4 合法，提掉黑 C3 恰好 1 子；C3 变为空点。",
+        "id": "a_move",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "甲局落后 5×5 图：第2行 ..O..；第3行 .O.O.；第4行 ..O..；第1/5行全空。",
+        "id": "a_post",
+        "points": 15
+      },
+      {
+        "critical": true,
+        "expected": "乙局黑 C3 若落子没有气、不能提走相邻白子，属于自杀而不合法，棋盘保持不变。",
+        "id": "b_move",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "练习只针对甲局，例如“白下 C4 后黑 C3 仍在吗？”标准答案：不在，C3 为空。",
+        "id": "practice",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "两局互相独立；文字、图、坐标和练习不矛盾。",
+        "id": "consistency",
+        "points": 5
+      }
+    ],
+    "output": [
+      "在围棋中，“气”和“提子”分别是什么意思？请用适合初学者的方式解释。",
+      "在5×5棋盘上，坐标列从左到右为A–E，行从上到下为1–5，X表示黑棋，O表示白棋，.表示空点。采用通常不允许自杀的规则，暂不涉及劫。棋局甲轮白下C4。请判断白棋下在C4是否合法，如果合法会提掉哪颗棋子，并给出落子后的棋盘。",
+      "在5×5棋盘上，坐标列从左到右为A–E，行从上到下为1–5，X表示黑棋，O表示白棋，.表示空点。采用通常不允许自杀的规则，暂不涉及劫。棋局乙轮黑下C3。请判断黑棋下在C3是否合法，如果合法会提掉哪颗棋子，并给出落子后的棋盘。",
+      "请给出一道只基于棋局甲的小练习，并给出正确答案。练习和答案应涉及“气”或“提子”的概念，且不要与棋局乙混淆。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-020",
+    "question": "某服务每月固定费20元，另按0.3元/次收费；使用150次是多少？这些是假设价格，不是任何真实服务报价。解释计算过程。",
+    "rubric": [
+      "固定费和按量费",
+      "65元",
+      "假设非真实报价"
+    ],
+    "output": [
+      "某服务每月固定费20元，另按0.3元/次收费；使用150次是多少？这些是假设价格，不是任何真实服务报价。解释计算过程。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-021",
+    "question": "比较 SQLite 与 PostgreSQL 对本地单用户笔记应用的部署与维护要求，先明确适用条件再建议。",
+    "rubric": [
+      "本地单用户",
+      "部署维护",
+      "条件化建议"
+    ],
+    "output": [
+      "What are the deployment requirements of SQLite for a local single-user note application?",
+      "What are the deployment requirements of PostgreSQL for a local single-user note application?",
+      "How do SQLite and PostgreSQL compare in ongoing maintenance burden for a local single-user note app?",
+      "Under what conditions (data size, concurrency, backup, portability) should each database be recommended?"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-022",
+    "question": "围棋9×9：白C3，黑B3/D3/C4，轮黑C2；说明合法性、提子和棋盘更新，再说明仅这些规则不足以实现完整围棋（劫、自杀与计分规则要明确）。",
+    "rubric": [
+      "提白C3",
+      "合法性与更新",
+      "不冒充全规则引擎",
+      "劫自杀计分需约定"
+    ],
+    "output": [
+      "在9×9围棋棋盘上，白棋位于C3，黑棋位于B3、D3、C4，轮黑棋下在C2，这步棋是否合法？",
+      "黑棋下在C2后，是否会提掉白棋C3？请说明提子判定和棋盘更新过程。",
+      "仅凭上述局面和基本落子提子规则，为什么不足以实现完整围棋？请分别说明劫争、自杀和计分规则需要如何明确。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-023",
+    "question": "下面提供两份**虚构的、仅用于测试的**价格公告。仅依据这些公告，比较 2025-07-01 当日团队选择日志服务 A 或 B 的成本。团队预测一般月份处理 1200 万事件，旺季处理 3000 万事件；不涉及税、存储和出网费。计算两种情况下 A、B 各自的月费、较便宜者，并求两方案在高于免费额度范围的成本临界事件量（百万为单位）。注意公告有生效日期差异；解释为什么不能直接使用较新的公告。请引用公告编号；不必联网搜索虚构产品。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "适用 2025-07-01，应采用 P1；P2 到 2025-08-01 才生效，不能追溯。",
+        "id": "time",
+        "points": 16
+      },
+      {
+        "critical": false,
+        "expected": "令 x 为每月百万事件，A(x)=20+0.9x；B(x)=2.5max(0,x-5)。",
+        "id": "formula",
+        "points": 18
+      },
+      {
+        "critical": false,
+        "expected": "x=12，A=30.80 美元，B=17.50 美元；B 更便宜，差 13.30 美元。",
+        "id": "normal",
+        "points": 19
+      },
+      {
+        "critical": false,
+        "expected": "x=30，A=47.00 美元，B=62.50 美元；A 更便宜，差 15.50 美元。",
+        "id": "peak",
+        "points": 19
+      },
+      {
+        "critical": false,
+        "expected": "x>5 解 20+0.9x=2.5(x-5)，x=20.3125 百万事件；更低 B 便宜，更高 A 便宜。",
+        "id": "threshold",
+        "points": 18
+      },
+      {
+        "critical": true,
+        "expected": "依据公告 P1/P2 明确引用；不能编造第三份定价或遗漏生效日。",
+        "id": "citation",
+        "points": 10
+      }
+    ],
+    "output": [
+      "根据这两份虚构价格公告，日志服务 A 在 2025-07-01 当日的有效定价是什么？",
+      "根据这两份虚构价格公告，日志服务 B 在 2025-07-01 当日的有效定价是什么？",
+      "在一般月份处理 1200 万事件且不涉及税、存储和出网费的情况下，日志服务 A 和 B 在 2025-07-01 当日的月费分别是多少，哪个更便宜？",
+      "在旺季处理 3000 万事件且不涉及税、存储和出网费的情况下，日志服务 A 和 B 在 2025-07-01 当日的月费分别是多少，哪个更便宜？",
+      "在高于免费额度的事件量范围内，日志服务 A 和 B 在 2025-07-01 当日的成本临界事件量（以百万事件为单位）是多少？",
+      "这两份虚构价格公告的生效日期差异是什么，为什么在计算 2025-07-01 当日成本时不能直接使用较新的公告？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-024",
+    "question": "研究崩坏：星穹铁道流萤首发到目标4.2的配队演变、机制、低高投入及敌人条件；历史版本分开，目标版本无可靠资料则未知，区分官方数据、计算、实测与社区意见。",
+    "rubric": [
+      "不串历史与目标版本",
+      "机制投入敌人条件",
+      "四种证据类别",
+      "4.2无法证明则未知"
+    ],
+    "output": [
+      "流萤的角色定位、技能机制与核心配队逻辑是什么？",
+      "从首发版本到4.2，流萤的配队演变如何（各历史版本分开）？",
+      "流萤在低投入与高投入下的配队与表现差异是什么？",
+      "流萤配队在不同敌人条件下的适用性与限制是什么？",
+      "目标版本4.2中流萤的配队与机制是否有可靠资料？若无则标注未知。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-025",
+    "question": "解释陶瓷釉料烧成中温度、气氛与冷却过程如何共同影响结果；区分机制解释与未经测试的配方建议。",
+    "rubric": [
+      "温度气氛冷却",
+      "相互关系",
+      "未测试建议不可当实证"
+    ],
+    "output": [
+      "温度、气氛与冷却过程如何共同影响陶瓷釉料的烧成结果（机制解释）？",
+      "烧成温度（峰值温度与保温时间）对釉料熔融、流动与微观结构的作用机制是什么？",
+      "窑炉气氛（氧化/还原）如何影响釉料中着色氧化物与化学平衡？",
+      "冷却速率与冷却阶段如何影响釉面析晶、相分离与最终外观？",
+      "如何区分有实验依据的机制解释与未经测试的配方建议？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-026",
+    "question": "在假设方案A每月50元含200次、超出0.4元/次，B无月费0.7元/次的条件下，求成本交叉点并讨论0、200和500次；不忽略分段计费。",
+    "rubric": [
+      "分段函数",
+      "交叉点与适用区间",
+      "三个检查点",
+      "假设报价"
+    ],
+    "output": [
+      "在方案A每月50元含200次、超出0.4元/次，B无月费0.7元/次的条件下，成本交叉点是多少？",
+      "在0次、200次和500次使用量下，方案A与方案B的成本分别是多少？",
+      "分段计费（含200次后超出部分0.4元/次）如何影响交叉点与各使用量下的成本比较？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-027",
+    "question": "用9×9棋盘讲解气与提子：白E5，黑D5/F5/E6，轮到黑。演示E4落子前后并给一道练习，棋图与气数必须一致。",
+    "rubric": [
+      "E5一气E4",
+      "落子后提白",
+      "前后图状态一致",
+      "练习合法且可验证"
+    ],
+    "output": [
+      "围棋中“气”与“提子”的规则定义是什么？",
+      "白E5、黑D5/F5/E6、黑先时，E4落子前各棋子的气数分别是多少？",
+      "黑在E4落子后，白E5的气数与提子结果如何？",
+      "如何设计一道棋图与气数一致的9×9气与提子练习题？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-028",
+    "question": "请给刚学围棋的学生讲清楚“气”和“提子”，并分析下面两盘互不关联的 5×5 棋局。列从左到右为 A–E，行从上到下为 1–5；X=黑棋，O=白棋，.=空点。采用通常不允许自杀的规则，暂不涉及劫。棋局甲轮白下 C4；棋局乙轮黑下 C3。分别判断落子是否合法、提掉哪颗棋子及落子后的棋盘；再给一道只基于甲局的小练习和正确答案。请确保文字、坐标、棋图完全一致，不要把甲、乙当成同一连续对局。",
+    "rubric": [
+      {
+        "critical": false,
+        "expected": "气为棋子或连接棋块在上下左右相邻的空交叉点，不算对角；无气的敌方棋块被提走。",
+        "id": "rule",
+        "points": 15
+      },
+      {
+        "critical": false,
+        "expected": "甲局黑 C3 落白 C4 前只有 C4 这一口气，B3/C2/D3 均为白子。",
+        "id": "a_pre",
+        "points": 15
+      },
+      {
+        "critical": true,
+        "expected": "甲局白 C4 合法，提掉黑 C3 恰好 1 子；C3 变为空点。",
+        "id": "a_move",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "甲局落后 5×5 图：第2行 ..O..；第3行 .O.O.；第4行 ..O..；第1/5行全空。",
+        "id": "a_post",
+        "points": 15
+      },
+      {
+        "critical": true,
+        "expected": "乙局黑 C3 若落子没有气、不能提走相邻白子，属于自杀而不合法，棋盘保持不变。",
+        "id": "b_move",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "练习只针对甲局，例如“白下 C4 后黑 C3 仍在吗？”标准答案：不在，C3 为空。",
+        "id": "practice",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "两局互相独立；文字、图、坐标和练习不矛盾。",
+        "id": "consistency",
+        "points": 5
+      }
+    ],
+    "output": [
+      "如何用初学者能理解的方式讲清围棋中“气”和“提子”的概念？",
+      "棋局甲中白下C4是否合法？会提掉哪颗棋子？落子后的棋盘是什么？",
+      "棋局乙中黑下C3是否合法？会提掉哪颗棋子？落子后的棋盘是什么？",
+      "只基于甲局的小练习和正确答案是什么？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-029",
+    "question": "比较 MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 下的行为，区分读快照、并发更新与序列化错误，不拿不同隔离级别混比。",
+    "rubric": [
+      "双版本和相同级别",
+      "三种并发行为",
+      "避免跨级别混比"
+    ],
+    "output": [
+      "MySQL 8.4 在 REPEATABLE READ 隔离级别下，读快照（read snapshot）是如何建立和维持的？",
+      "PostgreSQL 17 在 REPEATABLE READ 隔离级别下，读快照（read snapshot）是如何建立和维持的？",
+      "MySQL 8.4 在 REPEATABLE READ 隔离级别下，并发更新同一行时会发生什么行为？",
+      "PostgreSQL 17 在 REPEATABLE READ 隔离级别下，并发更新同一行时会发生什么行为？",
+      "MySQL 8.4 在 REPEATABLE READ 隔离级别下，哪些并发场景会产生序列化错误或类似错误？",
+      "PostgreSQL 17 在 REPEATABLE READ 隔离级别下，哪些并发场景会产生序列化错误？",
+      "MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 隔离级别下，读快照行为有何异同？",
+      "MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 隔离级别下，并发更新行为有何异同？",
+      "MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 隔离级别下，序列化错误的触发条件与表现有何异同？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-030",
+    "question": "核实 Python 3.14.0 正式版发布日期，区分正式发布与预发布日期，给出来源。",
+    "rubric": [
+      "保留精确版本及正式版",
+      "日期与来源分别核验"
+    ],
+    "output": [
+      "Python 3.14.0 正式版的发布日期是什么？",
+      "Python 3.14.0 有哪些预发布版本（如 alpha、beta、rc），它们的发布日期分别是什么？",
+      "如何区分 Python 3.14.0 的正式发布与预发布日期？",
+      "哪些来源可以核实 Python 3.14.0 正式版的发布日期？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-031",
+    "question": "请比较英国（1752 年）与俄国（1918 年）在民用历法上从儒略历转换到格里高利历的实施方式：转换前最后一个民用日期、转换后第一个民用日期、跳过的日历日期个数；解释为什么两次需要跳过的天数不同。此外，请辨析英国同时调整新年起算日这一容易混淆的事实。要求给出至少两处可核查的权威历史或法律资料，并将各个日期判断绑定到相应来源。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "英国 1752-09-02（旧式）后接 1752-09-14（新式），跳过 9月3日至13日共 11 个民用日期。",
+        "id": "british_dates",
+        "points": 22
+      },
+      {
+        "critical": true,
+        "expected": "苏俄 1918-01-31（旧式）后接 1918-02-14（新式），跳过 2月1日至13日共 13 个民用日期。",
+        "id": "russian_dates",
+        "points": 22
+      },
+      {
+        "critical": false,
+        "expected": "差距因儒略历和公历的闰年规则不同而累积，1800/1900 在儒略历为闰年但公历不是；1752 年差 11 日、1918 年差 13 日。",
+        "id": "why_diff",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "英国同时将法定新年起点从 3 月 25 日转向 1 月 1 日，不能将其混同于跳过 11 天的日期变更。",
+        "id": "year_start",
+        "points": 16
+      },
+      {
+        "critical": false,
+        "expected": "说明是当时民用历法变更，不把宗教仪式/个别地区采用史与中央民用转换混为一谈。",
+        "id": "caveat",
+        "points": 7
+      },
+      {
+        "critical": true,
+        "expected": "至少两处真实可信的历史/法律来源，关键日期能定位支持；不得伪造历史资料。",
+        "id": "evidence",
+        "points": 13
+      }
+    ],
+    "output": [
+      "英国1752年转换前最后一个民用日期、转换后第一个民用日期及跳过的日历日期个数是什么？",
+      "俄国1918年转换前最后一个民用日期、转换后第一个民用日期及跳过的日历日期个数是什么？",
+      "为什么英国与俄国转换时需要跳过的天数不同？",
+      "英国同时调整新年起算日（1月1日）这一事实如何辨析，与历法转换有何区别？",
+      "哪些可核查的权威历史或法律资料支持上述日期判断？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-032",
+    "question": "某网站提交订单使用 POST /checkout，之后服务器可能返回 303、307、308。请比较：用户代理随后通常使用什么方法访问 Location、哪类重定向保持原方法/请求体、哪种属于永久重定向。你会为“提交成功后显示订单确认页”和“维护期间把原 POST 临时转到另一处理端点”分别选哪个？要求以 HTTP 标准原文为主要依据，指出不能把全部 3xx 都讲成“自动 POST 变 GET”，并保留对客户端具体行为的适当限定。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "303 See Other 常用于 POST 处理后引导 GET 到另一资源（或 HEAD），即 Post/Redirect/Get 场景。",
+        "id": "303",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "307 Temporary Redirect：必须保留原方法；相应 POST 不应无提示改成 GET，临时重定向。",
+        "id": "307",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "308 Permanent Redirect：保留原方法，永久重定向。",
+        "id": "308",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "确认页建议 303，临时 POST 转处理端点建议 307；如资源永久迁移且需保留方法，可解释 308。",
+        "id": "choices",
+        "points": 15
+      },
+      {
+        "critical": false,
+        "expected": "不要一概断言 301/302/所有3xx 方法保持或都变 GET；不要强制保证所有实现行为完全相同。",
+        "id": "nuance",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "优先绑定 RFC 9110 对 303/307/308 的对应章节；链接/引用真实可核查，不能只凭无来源的博客。",
+        "id": "sources",
+        "points": 15
+      }
+    ],
+    "output": [
+      "HTTP 303 See Other 规定用户代理随后通常用什么方法访问 Location？",
+      "307 和 308 是否保持原请求方法与请求体？",
+      "303、307、308 中哪种属于永久重定向？",
+      "“提交成功后显示订单确认页”和“维护期间把原 POST 临时转到另一处理端点”分别应选哪种重定向？",
+      "为什么不能把全部 3xx 都讲成“自动 POST 变 GET”，客户端具体行为应如何限定？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-033",
+    "question": "比较 HTTP 缓存规范从 RFC 7234 到 RFC 9111 的变化，区分文字整理、澄清与真实语义变化。",
+    "rubric": [
+      "两版规范",
+      "三类变化分开",
+      "以原文为依据"
+    ],
+    "output": [
+      "RFC 7234 与 RFC 9111 各自的规范身份、发布状态与取代关系是什么？",
+      "从 RFC 7234 到 RFC 9111 有哪些纯文字整理或编辑性改动？",
+      "哪些改动属于对既有语义的澄清而非语义变化？",
+      "哪些改动构成真实的语义变化（新增、删除或修改行为要求）？",
+      "独立分析或对比资料如何评价 RFC 7234 到 RFC 9111 的变化分类？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-034",
+    "question": "核实一种开源工具的许可与商业使用条件：以 Blender 4.2 为目标，区分程序许可、生成作品权利及第三方素材许可，无法确证则明确未知。",
+    "rubric": [
+      "保留4.2",
+      "三种权利不混用",
+      "条件与未知保留"
+    ],
+    "output": [
+      "Blender 4.2 的程序本身采用什么开源许可证？",
+      "Blender 4.2 的许可证对商业使用有哪些具体条件或限制？",
+      "使用 Blender 4.2 创作生成的模型、动画、渲染图等作品，其版权归属和商业使用权利如何规定？",
+      "Blender 4.2 中内置或随附的第三方素材（如纹理、模型、插件等）分别适用什么许可证？",
+      "对于 Blender 4.2 的第三方素材许可，哪些情况无法确证，应标记为未知？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-035",
+    "question": "以下是一个**完全虚构**城市的桥梁通行公告材料。请仅依据 N1–N4，回答：2025-04-12 14:00，开车者和步行者能不能通过青禾桥？同日 16:00 呢？哪条材料对哪个时间段有效？哪些说法不足以代表最新正式政策？为每项判断标注公告编号。如果证据存在范围以外的空白，应明确指出，不要上网为虚构地点补造资料。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "14:00 机动车和行人均不能通行；N4 针对此时段暂时覆盖 N2，不能只引用 N2。",
+        "id": "at14",
+        "points": 24
+      },
+      {
+        "critical": true,
+        "expected": "16:00 机动车不能通行，行人可通过南侧临时通道；依据 N2 + N4 的 15:00 恢复条款。",
+        "id": "at16",
+        "points": 24
+      },
+      {
+        "critical": false,
+        "expected": "N1 的相关安排已由 N2 替代；N4 仅在 13:00–15:00 临时覆盖，之后回到 N2。",
+        "id": "precedence",
+        "points": 18
+      },
+      {
+        "critical": false,
+        "expected": "N3 为匿名转发，不可作为正式更新，且与 N2/N4 不符。",
+        "id": "weak_source",
+        "points": 12
+      },
+      {
+        "critical": false,
+        "expected": "开车者绕行北绕城路，有 N2 依据；不要凭空杜撰新的绕行道路。",
+        "id": "detour",
+        "points": 12
+      },
+      {
+        "critical": true,
+        "expected": "每条结论绑定至题内公告；声明虚构事实不对应现实地名或网站。",
+        "id": "citation",
+        "points": 10
+      }
+    ],
+    "output": [
+      "仅依据 N1–N4，2025-04-12 14:00 与 16:00 开车者和步行者能否通过青禾桥，各条材料对哪个时间段有效，哪些说法不足以代表最新正式政策，并标注公告编号与证据空白？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-036",
+    "question": "围棋9×9：白C3，黑B3/D3/C4，轮黑C2；说明合法性、提子和棋盘更新，再说明仅这些规则不足以实现完整围棋（劫、自杀与计分规则要明确）。",
+    "rubric": [
+      "提白C3",
+      "合法性与更新",
+      "不冒充全规则引擎",
+      "劫自杀计分需约定"
+    ],
+    "output": [
+      "在9×9围棋棋盘上，白棋位于C3，黑棋位于B3、D3、C4，轮黑棋下在C2，这步棋是否合法？",
+      "黑棋下在C2后，是否会提掉白棋C3？请说明提子过程。",
+      "黑棋下在C2并完成提子后，棋盘上各位置的黑白棋子如何更新？",
+      "为什么仅凭上述落子、提子与棋盘更新规则不足以实现完整围棋？请说明劫、自杀与计分规则需要明确的原因。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-037",
+    "question": "解释 Python 列表别名：a=[[]]*3; a[0].append(1)。预测a，再给避免共享子列表的写法与一个练习，不把浅复制当成深复制。",
+    "rubric": [
+      "三项都变为[1]",
+      "独立子列表写法",
+      "浅深拷贝区别",
+      "可验证练习"
+    ],
+    "output": [
+      "在 Python 中，表达式 a=[[]]*3 创建了怎样的列表结构？a[0]、a[1]、a[2] 是否指向同一个子列表对象？",
+      "执行 a=[[]]*3; a[0].append(1) 后，a 的值是什么？请解释为什么会出现这个结果。",
+      "如何修改 a=[[]]*3 的写法，使得 a 中的三个子列表互不共享，从而避免 a[0].append(1) 影响其他子列表？请给出至少一种写法。",
+      "浅复制（如 list.copy()、切片、copy.copy()）与深复制（copy.deepcopy()）在处理嵌套列表时有何区别？为什么浅复制不能解决 a=[[]]*3 导致的共享子列表问题？",
+      "设计一个关于 Python 列表别名与共享子列表的练习题，要求学习者预测代码输出并说明原因，且不把浅复制误认为深复制。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-038",
+    "question": "下面提供两份**虚构的、仅用于测试的**价格公告。仅依据这些公告，比较 2025-07-01 当日团队选择日志服务 A 或 B 的成本。团队预测一般月份处理 1200 万事件，旺季处理 3000 万事件；不涉及税、存储和出网费。计算两种情况下 A、B 各自的月费、较便宜者，并求两方案在高于免费额度范围的成本临界事件量（百万为单位）。注意公告有生效日期差异；解释为什么不能直接使用较新的公告。请引用公告编号；不必联网搜索虚构产品。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "适用 2025-07-01，应采用 P1；P2 到 2025-08-01 才生效，不能追溯。",
+        "id": "time",
+        "points": 16
+      },
+      {
+        "critical": false,
+        "expected": "令 x 为每月百万事件，A(x)=20+0.9x；B(x)=2.5max(0,x-5)。",
+        "id": "formula",
+        "points": 18
+      },
+      {
+        "critical": false,
+        "expected": "x=12，A=30.80 美元，B=17.50 美元；B 更便宜，差 13.30 美元。",
+        "id": "normal",
+        "points": 19
+      },
+      {
+        "critical": false,
+        "expected": "x=30，A=47.00 美元，B=62.50 美元；A 更便宜，差 15.50 美元。",
+        "id": "peak",
+        "points": 19
+      },
+      {
+        "critical": false,
+        "expected": "x>5 解 20+0.9x=2.5(x-5)，x=20.3125 百万事件；更低 B 便宜，更高 A 便宜。",
+        "id": "threshold",
+        "points": 18
+      },
+      {
+        "critical": true,
+        "expected": "依据公告 P1/P2 明确引用；不能编造第三份定价或遗漏生效日。",
+        "id": "citation",
+        "points": 10
+      }
+    ],
+    "output": [
+      "根据公告，日志服务 A 在 2025-07-01 当日适用的定价规则是什么？",
+      "根据公告，日志服务 B 在 2025-07-01 当日适用的定价规则是什么？",
+      "两份公告的生效日期分别是什么？为什么不能直接使用较新的公告来比较 2025-07-01 当日的成本？",
+      "在一般月份处理 1200 万事件且不涉及税、存储和出网费的情况下，日志服务 A 和 B 各自的月费是多少？哪一项较便宜？",
+      "在旺季处理 3000 万事件且不涉及税、存储和出网费的情况下，日志服务 A 和 B 各自的月费是多少？哪一项较便宜？",
+      "在高于免费额度的事件量范围内，日志服务 A 和 B 的成本临界事件量（以百万事件为单位）是多少？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-039",
+    "question": "研究崩坏：星穹铁道流萤首发到目标4.2的配队演变、机制、低高投入及敌人条件；历史版本分开，目标版本无可靠资料则未知，区分官方数据、计算、实测与社区意见。",
+    "rubric": [
+      "不串历史与目标版本",
+      "机制投入敌人条件",
+      "四种证据类别",
+      "4.2无法证明则未知"
+    ],
+    "output": [
+      "从流萤首发版本到目标4.2版本，官方公布的流萤角色机制、技能与星魂效果分别是什么？",
+      "从流萤首发版本到目标4.2版本，各历史版本中流萤的主流配队阵容分别有哪些？",
+      "从流萤首发版本到目标4.2版本，流萤配队演变过程中，各版本配队思路发生了哪些变化？",
+      "从流萤首发版本到目标4.2版本，流萤配队中低投入（低金/低星魂/低遗器）的配置方案有哪些？",
+      "从流萤首发版本到目标4.2版本，流萤配队中高投入（高金/高星魂/高遗器）的配置方案有哪些？",
+      "从流萤首发版本到目标4.2版本，流萤配队在不同敌人条件下的适配性与表现如何？",
+      "在目标4.2版本，是否有关于流萤配队的可靠官方资料、计算、实测或社区意见？",
+      "从流萤首发版本到目标4.2版本，关于流萤配队的官方数据、理论计算、实战实测与社区意见分别有哪些？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-040",
+    "question": "某服务每月固定费20元，另按0.3元/次收费；使用150次是多少？这些是假设价格，不是任何真实服务报价。解释计算过程。",
+    "rubric": [
+      "固定费和按量费",
+      "65元",
+      "假设非真实报价"
+    ],
+    "output": [
+      "某服务每月固定费20元，另按0.3元/次收费；使用150次是多少？这些是假设价格，不是任何真实服务报价。解释计算过程。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-041",
+    "question": "请给刚学围棋的学生讲清楚“气”和“提子”，并分析下面两盘互不关联的 5×5 棋局。列从左到右为 A–E，行从上到下为 1–5；X=黑棋，O=白棋，.=空点。采用通常不允许自杀的规则，暂不涉及劫。棋局甲轮白下 C4；棋局乙轮黑下 C3。分别判断落子是否合法、提掉哪颗棋子及落子后的棋盘；再给一道只基于甲局的小练习和正确答案。请确保文字、坐标、棋图完全一致，不要把甲、乙当成同一连续对局。",
+    "rubric": [
+      {
+        "critical": false,
+        "expected": "气为棋子或连接棋块在上下左右相邻的空交叉点，不算对角；无气的敌方棋块被提走。",
+        "id": "rule",
+        "points": 15
+      },
+      {
+        "critical": false,
+        "expected": "甲局黑 C3 落白 C4 前只有 C4 这一口气，B3/C2/D3 均为白子。",
+        "id": "a_pre",
+        "points": 15
+      },
+      {
+        "critical": true,
+        "expected": "甲局白 C4 合法，提掉黑 C3 恰好 1 子；C3 变为空点。",
+        "id": "a_move",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "甲局落后 5×5 图：第2行 ..O..；第3行 .O.O.；第4行 ..O..；第1/5行全空。",
+        "id": "a_post",
+        "points": 15
+      },
+      {
+        "critical": true,
+        "expected": "乙局黑 C3 若落子没有气、不能提走相邻白子，属于自杀而不合法，棋盘保持不变。",
+        "id": "b_move",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "练习只针对甲局，例如“白下 C4 后黑 C3 仍在吗？”标准答案：不在，C3 为空。",
+        "id": "practice",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "两局互相独立；文字、图、坐标和练习不矛盾。",
+        "id": "consistency",
+        "points": 5
+      }
+    ],
+    "output": [
+      "用适合初学围棋学生的语言解释“气”和“提子”分别是什么意思？",
+      "在通常不允许自杀、暂不涉及劫的规则下，判断棋局甲轮白下 C4 是否合法？",
+      "在棋局甲中，如果白下 C4 合法，会提掉哪颗棋子？落子后的棋盘是什么样？",
+      "在通常不允许自杀、暂不涉及劫的规则下，判断棋局乙轮黑下 C3 是否合法？",
+      "在棋局乙中，如果黑下 C3 合法，会提掉哪颗棋子？落子后的棋盘是什么样？",
+      "请给出一道只基于棋局甲的小练习，并给出正确答案。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-042",
+    "question": "研究一个城市轨道系统票制的历史变化，以伦敦为例，区分历史政策、生效日期、当前规则与未确认未来变更，不把今日规则倒填过去。",
+    "rubric": [
+      "日期与时段",
+      "历史当前未来分离",
+      "政策范围与未知"
+    ],
+    "output": [
+      "伦敦城市轨道系统票制历史上经历过哪些主要政策变化？",
+      "这些票制政策变化各自的生效日期是什么？",
+      "伦敦城市轨道系统当前适用的票制规则是什么？",
+      "伦敦城市轨道系统票制有哪些已宣布但尚未确认的未来变更？",
+      "在梳理伦敦票制历史时，如何区分历史政策、生效日期、当前规则与未确认未来变更，避免把今日规则倒填到过去？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-043",
+    "question": "以下是一个**完全虚构**城市的桥梁通行公告材料。请仅依据 N1–N4，回答：2025-04-12 14:00，开车者和步行者能不能通过青禾桥？同日 16:00 呢？哪条材料对哪个时间段有效？哪些说法不足以代表最新正式政策？为每项判断标注公告编号。如果证据存在范围以外的空白，应明确指出，不要上网为虚构地点补造资料。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "14:00 机动车和行人均不能通行；N4 针对此时段暂时覆盖 N2，不能只引用 N2。",
+        "id": "at14",
+        "points": 24
+      },
+      {
+        "critical": true,
+        "expected": "16:00 机动车不能通行，行人可通过南侧临时通道；依据 N2 + N4 的 15:00 恢复条款。",
+        "id": "at16",
+        "points": 24
+      },
+      {
+        "critical": false,
+        "expected": "N1 的相关安排已由 N2 替代；N4 仅在 13:00–15:00 临时覆盖，之后回到 N2。",
+        "id": "precedence",
+        "points": 18
+      },
+      {
+        "critical": false,
+        "expected": "N3 为匿名转发，不可作为正式更新，且与 N2/N4 不符。",
+        "id": "weak_source",
+        "points": 12
+      },
+      {
+        "critical": false,
+        "expected": "开车者绕行北绕城路，有 N2 依据；不要凭空杜撰新的绕行道路。",
+        "id": "detour",
+        "points": 12
+      },
+      {
+        "critical": true,
+        "expected": "每条结论绑定至题内公告；声明虚构事实不对应现实地名或网站。",
+        "id": "citation",
+        "points": 10
+      }
+    ],
+    "output": [
+      "根据N1–N4，2025-04-12 14:00开车者能否通过青禾桥？",
+      "根据N1–N4，2025-04-12 14:00步行者能否通过青禾桥？",
+      "根据N1–N4，2025-04-12 16:00开车者能否通过青禾桥？",
+      "根据N1–N4，2025-04-12 16:00步行者能否通过青禾桥？",
+      "N1–N4中哪条材料对2025-04-12 14:00这一时间段有效？",
+      "N1–N4中哪条材料对2025-04-12 16:00这一时间段有效？",
+      "N1–N4中哪些说法不足以代表青禾桥的最新正式通行政策？",
+      "N1–N4中是否存在关于2025-04-12 14:00或16:00青禾桥通行范围的证据空白？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-044",
+    "question": "用9×9棋盘讲解气与提子：白E5，黑D5/F5/E6，轮到黑。演示E4落子前后并给一道练习，棋图与气数必须一致。",
+    "rubric": [
+      "E5一气E4",
+      "落子后提白",
+      "前后图状态一致",
+      "练习合法且可验证"
+    ],
+    "output": [
+      "白E5、黑D5/F5/E6在9×9棋盘上的正确棋图与各方气数分别是多少？",
+      "黑在E4落子前后，白E5的气数如何变化，是否被提子？",
+      "可提供一道与上述棋图、气数一致的9×9气与提子练习题（含答案）吗？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-045",
+    "question": "比较 MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 下的行为，区分读快照、并发更新与序列化错误，不拿不同隔离级别混比。",
+    "rubric": [
+      "双版本和相同级别",
+      "三种并发行为",
+      "避免跨级别混比"
+    ],
+    "output": [
+      "MySQL 8.4 在 REPEATABLE READ 隔离级别下，读快照是如何建立和维持的？",
+      "PostgreSQL 17 在 REPEATABLE READ 隔离级别下，读快照是如何建立和维持的？",
+      "MySQL 8.4 在 REPEATABLE READ 下，并发更新同一行时会发生什么？",
+      "PostgreSQL 17 在 REPEATABLE READ 下，并发更新同一行时会发生什么？",
+      "MySQL 8.4 在 REPEATABLE READ 下，哪些并发场景会产生序列化错误或类似错误？",
+      "PostgreSQL 17 在 REPEATABLE READ 下，哪些并发场景会产生序列化错误？",
+      "MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 下的读快照行为有何差异？",
+      "MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 下的并发更新行为有何差异？",
+      "MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 下的序列化错误行为有何差异？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-046",
+    "question": "解释 JVM 垃圾回收中的可达性与引用计数差别，并说明循环引用为何重要。",
+    "rubric": [
+      "两种机制",
+      "循环引用原因",
+      "不臆造所有JVM相同实现"
+    ],
+    "output": [
+      "JVM 垃圾回收中可达性分析的基本原理是什么？",
+      "JVM 垃圾回收中引用计数法的基本原理是什么？",
+      "可达性分析与引用计数法在判定对象存活时的主要区别是什么？",
+      "在 JVM 垃圾回收中，循环引用为什么重要？",
+      "引用计数法如何处理循环引用？",
+      "可达性分析如何避免循环引用导致的对象无法回收问题？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-047",
+    "question": "请比较英国（1752 年）与俄国（1918 年）在民用历法上从儒略历转换到格里高利历的实施方式：转换前最后一个民用日期、转换后第一个民用日期、跳过的日历日期个数；解释为什么两次需要跳过的天数不同。此外，请辨析英国同时调整新年起算日这一容易混淆的事实。要求给出至少两处可核查的权威历史或法律资料，并将各个日期判断绑定到相应来源。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "英国 1752-09-02（旧式）后接 1752-09-14（新式），跳过 9月3日至13日共 11 个民用日期。",
+        "id": "british_dates",
+        "points": 22
+      },
+      {
+        "critical": true,
+        "expected": "苏俄 1918-01-31（旧式）后接 1918-02-14（新式），跳过 2月1日至13日共 13 个民用日期。",
+        "id": "russian_dates",
+        "points": 22
+      },
+      {
+        "critical": false,
+        "expected": "差距因儒略历和公历的闰年规则不同而累积，1800/1900 在儒略历为闰年但公历不是；1752 年差 11 日、1918 年差 13 日。",
+        "id": "why_diff",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "英国同时将法定新年起点从 3 月 25 日转向 1 月 1 日，不能将其混同于跳过 11 天的日期变更。",
+        "id": "year_start",
+        "points": 16
+      },
+      {
+        "critical": false,
+        "expected": "说明是当时民用历法变更，不把宗教仪式/个别地区采用史与中央民用转换混为一谈。",
+        "id": "caveat",
+        "points": 7
+      },
+      {
+        "critical": true,
+        "expected": "至少两处真实可信的历史/法律来源，关键日期能定位支持；不得伪造历史资料。",
+        "id": "evidence",
+        "points": 13
+      }
+    ],
+    "output": [
+      "英国1752年从儒略历转换为格里高利历时，转换前最后一个民用日期是哪一天？",
+      "英国1752年从儒略历转换为格里高利历时，转换后第一个民用日期是哪一天？",
+      "英国1752年历法转换中跳过的日历日期个数是多少？",
+      "俄国1918年从儒略历转换为格里高利历时，转换前最后一个民用日期是哪一天？",
+      "俄国1918年从儒略历转换为格里高利历时，转换后第一个民用日期是哪一天？",
+      "俄国1918年历法转换中跳过的日历日期个数是多少？",
+      "为什么英国1752年与俄国1918年历法转换需要跳过的天数不同？",
+      "英国在1752年历法转换时同时调整新年起算日的事实是什么？",
+      "英国调整新年起算日与儒略历转格里高利历的日期跳过是两件不同的事，如何辨析？",
+      "有哪些可核查的权威历史或法律资料记载了英国1752年历法转换的日期细节？",
+      "有哪些可核查的权威历史或法律资料记载了俄国1918年历法转换的日期细节？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-048",
+    "question": "某服务每月固定费20元，另按0.3元/次收费；使用150次是多少？这些是假设价格，不是任何真实服务报价。解释计算过程。",
+    "rubric": [
+      "固定费和按量费",
+      "65元",
+      "假设非真实报价"
+    ],
+    "output": [
+      "该服务的每月固定费是多少？",
+      "该服务每次使用的费用是多少？",
+      "该服务的使用次数是多少？",
+      "如何根据每月固定费、每次使用费用和使用次数计算总费用？",
+      "使用150次时，总费用是多少？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-049",
+    "question": "某实验5次时延为10、10、10、10、100秒。计算平均值、中位数；按最近秩定义计算p95，说明小样本限制，不能用中位数替代尾延迟。",
+    "rubric": [
+      "平均28中位10",
+      "最近秩p95为100",
+      "小样本限制",
+      "指标不互换"
+    ],
+    "output": [
+      "对时延样本10、10、10、10、100秒，平均值和中位数分别是多少？",
+      "按最近秩（nearest-rank）定义，这5个样本的p95如何计算，结果是多少？",
+      "小样本下p95估计有哪些统计限制，为什么不能用中位数替代尾延迟？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-050",
+    "question": "核实 Python 3.14.0 正式版发布日期，区分正式发布与预发布日期，给出来源。",
+    "rubric": [
+      "保留精确版本及正式版",
+      "日期与来源分别核验"
+    ],
+    "output": [
+      "Python 3.14.0 正式版的发布日期是什么？",
+      "Python 3.14.0 有哪些预发布版本（如 alpha、beta、rc）及其发布日期？",
+      "哪些官方来源可以核实 Python 3.14.0 正式版的发布日期？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-051",
+    "question": "解释 Python 列表别名：a=[[]]*3; a[0].append(1)。预测a，再给避免共享子列表的写法与一个练习，不把浅复制当成深复制。",
+    "rubric": [
+      "三项都变为[1]",
+      "独立子列表写法",
+      "浅深拷贝区别",
+      "可验证练习"
+    ],
+    "output": [
+      "Python 中 a=[[]]*3 创建了什么结构，为什么三个元素指向同一个子列表？",
+      "执行 a[0].append(1) 后 a 的值是什么，为什么？",
+      "如何避免共享子列表（如列表推导式、独立创建、copy/deepcopy 的适用场景）？",
+      "给出一个练习，帮助区分浅复制与深复制并避免把浅复制当成深复制。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-052",
+    "question": "用9×9棋盘讲解气与提子：白E5，黑D5/F5/E6，轮到黑。演示E4落子前后并给一道练习，棋图与气数必须一致。",
+    "rubric": [
+      "E5一气E4",
+      "落子后提白",
+      "前后图状态一致",
+      "练习合法且可验证"
+    ],
+    "output": [
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6的初始局面中，白棋E5的气有哪些？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6的初始局面中，黑棋D5、F5、E6各自的气有哪些？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子后，白棋E5的气如何变化？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子后，白棋E5是否被提子？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子后，黑棋D5、F5、E6的气如何变化？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子后，黑棋E4的气有哪些？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子后，棋盘上各棋子的气数分别是多少？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子前，棋盘上各棋子的气数分别是多少？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子前后，白棋E5的气数变化如何用棋图表示？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子前后，黑棋各子的气数变化如何用棋图表示？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子前后，如何用棋图展示提子过程？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子前后，如何设计一道关于气与提子的练习？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子前后，练习中棋图与气数如何保持一致？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-053",
+    "question": "解释唐代三省制度的基本分工，注明是概括性模型而非每一时期都完全相同。",
+    "rubric": [
+      "三省分工",
+      "时段限制"
+    ],
+    "output": [
+      "唐代三省制度中，中书省、门下省、尚书省各自的基本职能分工是什么？",
+      "唐代三省制度的基本分工在哪些方面是概括性模型，而非每一时期都完全相同？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-054",
+    "question": "比较 gzip 与 zstd 用于离线备份和实时传输的取舍，分别考虑压缩级别、数据类型、吞吐、延迟和兼容性；没有同口径测试则不能给普适倍数。",
+    "rubric": [
+      "双用途条件",
+      "全部比较维度",
+      "测试口径与未知倍率"
+    ],
+    "output": [
+      "What are the key design and compatibility differences between gzip and zstd relevant to offline backup and real-time transfer?",
+      "How do gzip and zstd compare in throughput and latency at comparable compression levels, and how do data types affect this?",
+      "Which trade-offs favor gzip vs zstd for offline backup scenarios across compression levels and data types?",
+      "Which trade-offs favor gzip vs zstd for real-time transfer scenarios considering latency, throughput, and compatibility?",
+      "What same-benchmark independent tests exist comparing gzip and zstd, and what do they show without universal multipliers?"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-055",
+    "question": "核实一种开源工具的许可与商业使用条件：以 Blender 4.2 为目标，区分程序许可、生成作品权利及第三方素材许可，无法确证则明确未知。",
+    "rubric": [
+      "保留4.2",
+      "三种权利不混用",
+      "条件与未知保留"
+    ],
+    "output": [
+      "Blender 4.2 程序本身的许可是什么，商业使用是否被允许？",
+      "使用 Blender 4.2 生成的作品（模型、渲染、动画等）的权利归属与商业使用条件是什么？",
+      "Blender 4.2 内置或官方分发的第三方素材/库/插件的许可条件是什么？",
+      "哪些许可与商业使用条件无法从官方来源确证，应明确标注为未知？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-056",
+    "question": "以下是一个**完全虚构**城市的桥梁通行公告材料。请仅依据 N1–N4，回答：2025-04-12 14:00，开车者和步行者能不能通过青禾桥？同日 16:00 呢？哪条材料对哪个时间段有效？哪些说法不足以代表最新正式政策？为每项判断标注公告编号。如果证据存在范围以外的空白，应明确指出，不要上网为虚构地点补造资料。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "14:00 机动车和行人均不能通行；N4 针对此时段暂时覆盖 N2，不能只引用 N2。",
+        "id": "at14",
+        "points": 24
+      },
+      {
+        "critical": true,
+        "expected": "16:00 机动车不能通行，行人可通过南侧临时通道；依据 N2 + N4 的 15:00 恢复条款。",
+        "id": "at16",
+        "points": 24
+      },
+      {
+        "critical": false,
+        "expected": "N1 的相关安排已由 N2 替代；N4 仅在 13:00–15:00 临时覆盖，之后回到 N2。",
+        "id": "precedence",
+        "points": 18
+      },
+      {
+        "critical": false,
+        "expected": "N3 为匿名转发，不可作为正式更新，且与 N2/N4 不符。",
+        "id": "weak_source",
+        "points": 12
+      },
+      {
+        "critical": false,
+        "expected": "开车者绕行北绕城路，有 N2 依据；不要凭空杜撰新的绕行道路。",
+        "id": "detour",
+        "points": 12
+      },
+      {
+        "critical": true,
+        "expected": "每条结论绑定至题内公告；声明虚构事实不对应现实地名或网站。",
+        "id": "citation",
+        "points": 10
+      }
+    ],
+    "output": [
+      "仅依据 N1–N4，2025-04-12 14:00 开车者和步行者能否通过青禾桥？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-057",
+    "question": "解释 JVM 垃圾回收中的可达性与引用计数差别，并说明循环引用为何重要。",
+    "rubric": [
+      "两种机制",
+      "循环引用原因",
+      "不臆造所有JVM相同实现"
+    ],
+    "output": [
+      "JVM 垃圾回收中可达性分析与引用计数法有何区别？",
+      "为什么循环引用对引用计数法重要，而可达性分析如何处理循环引用？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-058",
+    "question": "解释唐代三省制度的基本分工，注明是概括性模型而非每一时期都完全相同。",
+    "rubric": [
+      "三省分工",
+      "时段限制"
+    ],
+    "output": [
+      "唐代三省（中书省、门下省、尚书省）的基本分工是什么？",
+      "为何三省分工只能作为概括性模型，而非每一时期都完全相同？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-059",
+    "question": "核实 SQLite 3.45.3 的发布日期与关键修复，不把包上传日期当成发布日。",
+    "rubric": [
+      "保留3.45.3",
+      "发布日与上传日区分",
+      "修复需对应版本"
+    ],
+    "output": [
+      "SQLite 3.45.3 的官方发布日期是什么（而非包上传日期）？",
+      "SQLite 3.45.3 包含哪些关键修复？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-060",
+    "question": "比较 SQLite 与 PostgreSQL 对本地单用户笔记应用的部署与维护要求，先明确适用条件再建议。",
+    "rubric": [
+      "本地单用户",
+      "部署维护",
+      "条件化建议"
+    ],
+    "output": [
+      "What are SQLite's deployment and maintenance requirements for a local single-user note application?",
+      "What are PostgreSQL's deployment and maintenance requirements for a local single-user note application?",
+      "How do SQLite and PostgreSQL compare on deployment and maintenance for a local single-user note app?",
+      "Under what conditions (data size, concurrency, sync, backup needs) should each be recommended?"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-061",
+    "question": "解释陶瓷釉料烧成中温度、气氛与冷却过程如何共同影响结果；区分机制解释与未经测试的配方建议。",
+    "rubric": [
+      "温度气氛冷却",
+      "相互关系",
+      "未测试建议不可当实证"
+    ],
+    "output": [
+      "温度、气氛与冷却过程在陶瓷釉料烧成中各自及共同影响结果的机制是什么？",
+      "温度、气氛与冷却过程之间如何相互作用并共同决定釉面结果？",
+      "哪些关于温度、气氛与冷却影响的说法属于有依据的机制解释，哪些属于未经测试的配方建议？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-062",
+    "question": "某实验5次时延为10、10、10、10、100秒。计算平均值、中位数；按最近秩定义计算p95，说明小样本限制，不能用中位数替代尾延迟。",
+    "rubric": [
+      "平均28中位10",
+      "最近秩p95为100",
+      "小样本限制",
+      "指标不互换"
+    ],
+    "output": [
+      "这组5次时延数据（10、10、10、10、100秒）的平均值是多少？",
+      "这组5次时延数据（10、10、10、10、100秒）的中位数是多少？",
+      "按最近秩定义，这组5次时延数据（10、10、10、10、100秒）的p95是多少？",
+      "对于这组5次时延数据，小样本对p95等尾延迟指标的计算和解释有哪些限制？",
+      "为什么在这组时延数据中不能用中位数替代尾延迟（如p95）？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-063",
+    "question": "解释陶瓷釉料烧成中温度、气氛与冷却过程如何共同影响结果；区分机制解释与未经测试的配方建议。",
+    "rubric": [
+      "温度气氛冷却",
+      "相互关系",
+      "未测试建议不可当实证"
+    ],
+    "output": [
+      "陶瓷釉料烧成过程中，温度如何影响釉层的形成与最终性能？",
+      "陶瓷釉料烧成过程中，气氛条件如何影响釉层的形成与最终性能？",
+      "陶瓷釉料烧成过程中，冷却过程如何影响釉层的形成与最终性能？",
+      "温度、气氛与冷却过程在陶瓷釉料烧成中如何相互作用并共同影响最终结果？",
+      "在陶瓷釉料烧成中，哪些关于温度、气氛与冷却影响结果的解释属于机制解释？",
+      "在陶瓷釉料烧成中，哪些关于温度、气氛与冷却影响结果的建议属于未经测试的配方建议？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-064",
+    "question": "针对 Python 3.12 的 asyncio，请对比 `asyncio.gather(fail(), slow())` 默认选项与用 `asyncio.TaskGroup` 并发创建同样两个任务的错误传播和兄弟任务取消行为。假设 fail() 很快引发 ValueError；slow() 等待两秒后写入一条日志，不吞掉 CancelledError；上层捕获抛出的异常后仍保持事件循环运行至少三秒，且没有外部取消。两种写法中 slow() 是否通常还能写入日志？解释异常类型形态差异、重要边界条件，并给出 Python 官方文档作为依据。",
+    "rubric": [
+      {
+        "critical": false,
+        "expected": "gather(return_exceptions=False) 立即向等待者传播首个异常；通常是 ValueError，而非默认包成 ExceptionGroup。",
+        "id": "gather_exception",
+        "points": 18
+      },
+      {
+        "critical": true,
+        "expected": "默认 gather 在该子任务异常时不自动取消其他未完成 awaitable；题设保持事件循环运行，slow() 可以继续完成并写日志。",
+        "id": "gather_sibling",
+        "points": 22
+      },
+      {
+        "critical": true,
+        "expected": "TaskGroup 子任务非 CancelledError 异常会取消剩余组内任务并等待；slow() 收到取消后不会写入日志。",
+        "id": "taskgroup_cancel",
+        "points": 22
+      },
+      {
+        "critical": false,
+        "expected": "TaskGroup 将非取消异常组成 ExceptionGroup（或 BaseExceptionGroup）从上下文抛出；可用 except* 处理。",
+        "id": "taskgroup_exception",
+        "points": 13
+      },
+      {
+        "critical": false,
+        "expected": "交代差异依赖题设：slow 不吞取消、上层不取消整个 gather、循环足够存活；不能无条件保证副作用。",
+        "id": "conditions",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "引用 Python 3.12 官方 asyncio-task 文档的 gather / Task Groups 部分，引用必须真实可核查。",
+        "id": "sources",
+        "points": 15
+      }
+    ],
+    "output": [
+      "In Python 3.12, with asyncio.gather(fail(), slow()) default options, when fail() raises ValueError quickly, is slow() cancelled or does it continue and typically write its log after 2 seconds?",
+      "In Python 3.12, with asyncio.TaskGroup creating fail() and slow() concurrently, when fail() raises ValueError, is slow() cancelled and does it typically fail to write its log?",
+      "What is the difference in exception type/shape between asyncio.gather default and asyncio.TaskGroup when one child raises ValueError (e.g., bare ValueError vs ExceptionGroup)?",
+      "What boundary conditions matter: return_exceptions, CancelledError handling in slow(), event loop staying alive 3 seconds, no external cancellation, and timing of cancellation delivery?",
+      "What do the Python 3.12 official asyncio documentation pages say about gather, TaskGroup, cancellation, and exception groups as the basis for this comparison?"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-065",
+    "question": "解释 Python 列表别名：a=[[]]*3; a[0].append(1)。预测a，再给避免共享子列表的写法与一个练习，不把浅复制当成深复制。",
+    "rubric": [
+      "三项都变为[1]",
+      "独立子列表写法",
+      "浅深拷贝区别",
+      "可验证练习"
+    ],
+    "output": [
+      "为什么 a=[[]]*3 后 a[0].append(1) 会导致所有三个子列表都变成 [1]？",
+      "如何用列表推导式或独立创建子列表来避免共享子列表？",
+      "浅复制（如 list.copy、copy.copy）与深复制（copy.deepcopy）在嵌套列表场景下有何区别？",
+      "可以给出一个关于列表别名与共享子列表的练习及其预期结果吗？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-066",
+    "question": "比较 gzip 与 zstd 用于离线备份和实时传输的取舍，分别考虑压缩级别、数据类型、吞吐、延迟和兼容性；没有同口径测试则不能给普适倍数。",
+    "rubric": [
+      "双用途条件",
+      "全部比较维度",
+      "测试口径与未知倍率"
+    ],
+    "output": [
+      "在离线备份场景下，gzip 与 zstd 在不同压缩级别下的压缩率、压缩吞吐和解压吞吐如何比较？",
+      "在实时传输场景下，gzip 与 zstd 在不同压缩级别下的压缩延迟、解压延迟和吞吐如何比较？",
+      "对于不同类型的数据（如文本、日志、JSON、二进制、已压缩数据），gzip 与 zstd 的压缩效果和速度表现有何差异？",
+      "gzip 与 zstd 在兼容性方面（如软件支持、库依赖、协议集成、平台可用性）分别有哪些限制和优势？",
+      "在缺乏同口径基准测试的情况下，为什么不能给出 gzip 与 zstd 之间普适的压缩率或速度倍数？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-067",
+    "question": "核实一种开源工具的许可与商业使用条件：以 Blender 4.2 为目标，区分程序许可、生成作品权利及第三方素材许可，无法确证则明确未知。",
+    "rubric": [
+      "保留4.2",
+      "三种权利不混用",
+      "条件与未知保留"
+    ],
+    "output": [
+      "Blender 4.2 程序本身的许可是什么，商业使用是否被允许？",
+      "使用 Blender 4.2 生成的作品（模型、渲染、动画等）的权利归属与商业使用条件是什么？",
+      "Blender 4.2 内置或随附的第三方素材（如资产库、纹理、插件）的许可与商业使用条件是什么？",
+      "哪些许可与商业使用条件无法从官方或可靠来源确证，应明确标注为未知？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-068",
+    "question": "研究一个城市轨道系统票制的历史变化，以伦敦为例，区分历史政策、生效日期、当前规则与未确认未来变更，不把今日规则倒填过去。",
+    "rubric": [
+      "日期与时段",
+      "历史当前未来分离",
+      "政策范围与未知"
+    ],
+    "output": [
+      "伦敦城市轨道（含地铁、地上铁、DLR等）票制历史上经历了哪些主要政策变化？",
+      "这些票制变化各自的生效日期是什么？",
+      "截至2026年10月，伦敦城市轨道票制的当前规则是什么？",
+      "有哪些已提出但尚未确认的伦敦票制未来变更？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-069",
+    "question": "围棋9×9：白C3，黑B3/D3/C4，轮黑C2；说明合法性、提子和棋盘更新，再说明仅这些规则不足以实现完整围棋（劫、自杀与计分规则要明确）。",
+    "rubric": [
+      "提白C3",
+      "合法性与更新",
+      "不冒充全规则引擎",
+      "劫自杀计分需约定"
+    ],
+    "output": [
+      "在9×9棋盘上，白C3、黑B3/D3/C4、轮黑C2这一手是否合法？",
+      "黑C2后是否发生提子？被提的是哪些棋子，棋盘如何更新？",
+      "为什么仅凭落子与提子规则不足以实现完整围棋？劫、自杀与计分规则分别需要如何明确？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-070",
+    "question": "下面提供两份**虚构的、仅用于测试的**价格公告。仅依据这些公告，比较 2025-07-01 当日团队选择日志服务 A 或 B 的成本。团队预测一般月份处理 1200 万事件，旺季处理 3000 万事件；不涉及税、存储和出网费。计算两种情况下 A、B 各自的月费、较便宜者，并求两方案在高于免费额度范围的成本临界事件量（百万为单位）。注意公告有生效日期差异；解释为什么不能直接使用较新的公告。请引用公告编号；不必联网搜索虚构产品。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "适用 2025-07-01，应采用 P1；P2 到 2025-08-01 才生效，不能追溯。",
+        "id": "time",
+        "points": 16
+      },
+      {
+        "critical": false,
+        "expected": "令 x 为每月百万事件，A(x)=20+0.9x；B(x)=2.5max(0,x-5)。",
+        "id": "formula",
+        "points": 18
+      },
+      {
+        "critical": false,
+        "expected": "x=12，A=30.80 美元，B=17.50 美元；B 更便宜，差 13.30 美元。",
+        "id": "normal",
+        "points": 19
+      },
+      {
+        "critical": false,
+        "expected": "x=30，A=47.00 美元，B=62.50 美元；A 更便宜，差 15.50 美元。",
+        "id": "peak",
+        "points": 19
+      },
+      {
+        "critical": false,
+        "expected": "x>5 解 20+0.9x=2.5(x-5)，x=20.3125 百万事件；更低 B 便宜，更高 A 便宜。",
+        "id": "threshold",
+        "points": 18
+      },
+      {
+        "critical": true,
+        "expected": "依据公告 P1/P2 明确引用；不能编造第三份定价或遗漏生效日。",
+        "id": "citation",
+        "points": 10
+      }
+    ],
+    "output": [
+      "仅依据两份虚构价格公告，比较 2025-07-01 当日日志服务 A 与 B 在 1200 万和 3000 万事件/月下的月费、较便宜者，以及高于免费额度范围的成本临界事件量，并解释生效日期差异为何不能直接使用较新公告。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-071",
+    "question": "核实 Python 3.14.0 正式版发布日期，区分正式发布与预发布日期，给出来源。",
+    "rubric": [
+      "保留精确版本及正式版",
+      "日期与来源分别核验"
+    ],
+    "output": [
+      "Python 3.14.0 正式版（final release）的发布日期是什么？",
+      "Python 3.14.0 的预发布（alpha/beta/rc）日期有哪些，如何与正式发布区分？",
+      "哪些官方来源可核实 Python 3.14.0 正式版发布日期？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-072",
+    "question": "某网站提交订单使用 POST /checkout，之后服务器可能返回 303、307、308。请比较：用户代理随后通常使用什么方法访问 Location、哪类重定向保持原方法/请求体、哪种属于永久重定向。你会为“提交成功后显示订单确认页”和“维护期间把原 POST 临时转到另一处理端点”分别选哪个？要求以 HTTP 标准原文为主要依据，指出不能把全部 3xx 都讲成“自动 POST 变 GET”，并保留对客户端具体行为的适当限定。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "303 See Other 常用于 POST 处理后引导 GET 到另一资源（或 HEAD），即 Post/Redirect/Get 场景。",
+        "id": "303",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "307 Temporary Redirect：必须保留原方法；相应 POST 不应无提示改成 GET，临时重定向。",
+        "id": "307",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "308 Permanent Redirect：保留原方法，永久重定向。",
+        "id": "308",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "确认页建议 303，临时 POST 转处理端点建议 307；如资源永久迁移且需保留方法，可解释 308。",
+        "id": "choices",
+        "points": 15
+      },
+      {
+        "critical": false,
+        "expected": "不要一概断言 301/302/所有3xx 方法保持或都变 GET；不要强制保证所有实现行为完全相同。",
+        "id": "nuance",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "优先绑定 RFC 9110 对 303/307/308 的对应章节；链接/引用真实可核查，不能只凭无来源的博客。",
+        "id": "sources",
+        "points": 15
+      }
+    ],
+    "output": [
+      "HTTP 标准中 303 See Other 对后续访问 Location 的方法有何规定？",
+      "HTTP 标准中 307 Temporary Redirect 对原请求方法和请求体的保持有何规定？",
+      "HTTP 标准中 308 Permanent Redirect 对原请求方法和请求体的保持有何规定？",
+      "303、307、308 中哪些属于永久重定向，哪些属于临时重定向？",
+      "在“提交成功后显示订单确认页”的场景下，依据 HTTP 标准应选择 303、307 还是 308？",
+      "在“维护期间把原 POST 临时转到另一处理端点”的场景下，依据 HTTP 标准应选择 303、307 还是 308？",
+      "HTTP 标准如何限定用户代理在收到 3xx 重定向后的具体行为，为什么不能把所有 3xx 都描述为“自动 POST 变 GET”？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-073",
+    "question": "某网站提交订单使用 POST /checkout，之后服务器可能返回 303、307、308。请比较：用户代理随后通常使用什么方法访问 Location、哪类重定向保持原方法/请求体、哪种属于永久重定向。你会为“提交成功后显示订单确认页”和“维护期间把原 POST 临时转到另一处理端点”分别选哪个？要求以 HTTP 标准原文为主要依据，指出不能把全部 3xx 都讲成“自动 POST 变 GET”，并保留对客户端具体行为的适当限定。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "303 See Other 常用于 POST 处理后引导 GET 到另一资源（或 HEAD），即 Post/Redirect/Get 场景。",
+        "id": "303",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "307 Temporary Redirect：必须保留原方法；相应 POST 不应无提示改成 GET，临时重定向。",
+        "id": "307",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "308 Permanent Redirect：保留原方法，永久重定向。",
+        "id": "308",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "确认页建议 303，临时 POST 转处理端点建议 307；如资源永久迁移且需保留方法，可解释 308。",
+        "id": "choices",
+        "points": 15
+      },
+      {
+        "critical": false,
+        "expected": "不要一概断言 301/302/所有3xx 方法保持或都变 GET；不要强制保证所有实现行为完全相同。",
+        "id": "nuance",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "优先绑定 RFC 9110 对 303/307/308 的对应章节；链接/引用真实可核查，不能只凭无来源的博客。",
+        "id": "sources",
+        "points": 15
+      }
+    ],
+    "output": [
+      "按 HTTP 标准，303、307、308 重定向后用户代理通常分别用什么方法访问 Location？",
+      "哪类重定向保持原请求方法/请求体，哪类属于永久重定向？",
+      "“提交成功后显示订单确认页”和“维护期间把原 POST 临时转到另一处理端点”分别应选 303、307 还是 308？",
+      "为什么不能把全部 3xx 都讲成“自动 POST 变 GET”，客户端具体行为有哪些限定？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-074",
+    "question": "用9×9棋盘讲解气与提子：白E5，黑D5/F5/E6，轮到黑。演示E4落子前后并给一道练习，棋图与气数必须一致。",
+    "rubric": [
+      "E5一气E4",
+      "落子后提白",
+      "前后图状态一致",
+      "练习合法且可验证"
+    ],
+    "output": [
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6的初始局面中，白棋E5的气有哪些？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6的初始局面中，黑棋D5、F5、E6各自的气有哪些？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子后，白棋E5的气如何变化？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子后，白棋E5是否被提子？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子后，黑棋D5、F5、E6的气如何变化？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子后，黑棋D5、F5、E6是否被提子？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子前后，棋盘上各棋子的气数分别是多少？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子前后，棋图与气数如何保持一致？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子前后，如何用棋图演示气与提子？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子前后，可以设计一道关于气与提子的练习吗？",
+      "在9×9棋盘上，白棋E5、黑棋D5/F5/E6、轮到黑棋时，黑棋在E4落子前后，练习的棋图与气数如何保持一致？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-075",
+    "question": "解释 JVM 垃圾回收中的可达性与引用计数差别，并说明循环引用为何重要。",
+    "rubric": [
+      "两种机制",
+      "循环引用原因",
+      "不臆造所有JVM相同实现"
+    ],
+    "output": [
+      "JVM 垃圾回收中可达性分析（reachability analysis）是如何工作的？",
+      "引用计数（reference counting）在垃圾回收中是如何工作的？",
+      "可达性与引用计数在 JVM 垃圾回收中的主要差别是什么？",
+      "循环引用为何对引用计数重要，而可达性分析如何处理循环引用？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-076",
+    "question": "核实 SQLite 3.45.3 的发布日期与关键修复，不把包上传日期当成发布日。",
+    "rubric": [
+      "保留3.45.3",
+      "发布日与上传日区分",
+      "修复需对应版本"
+    ],
+    "output": [
+      "SQLite 3.45.3 的官方发布日期是什么（而非包上传日期）？",
+      "SQLite 3.45.3 包含哪些关键修复？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-077",
+    "question": "请比较英国（1752 年）与俄国（1918 年）在民用历法上从儒略历转换到格里高利历的实施方式：转换前最后一个民用日期、转换后第一个民用日期、跳过的日历日期个数；解释为什么两次需要跳过的天数不同。此外，请辨析英国同时调整新年起算日这一容易混淆的事实。要求给出至少两处可核查的权威历史或法律资料，并将各个日期判断绑定到相应来源。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "英国 1752-09-02（旧式）后接 1752-09-14（新式），跳过 9月3日至13日共 11 个民用日期。",
+        "id": "british_dates",
+        "points": 22
+      },
+      {
+        "critical": true,
+        "expected": "苏俄 1918-01-31（旧式）后接 1918-02-14（新式），跳过 2月1日至13日共 13 个民用日期。",
+        "id": "russian_dates",
+        "points": 22
+      },
+      {
+        "critical": false,
+        "expected": "差距因儒略历和公历的闰年规则不同而累积，1800/1900 在儒略历为闰年但公历不是；1752 年差 11 日、1918 年差 13 日。",
+        "id": "why_diff",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "英国同时将法定新年起点从 3 月 25 日转向 1 月 1 日，不能将其混同于跳过 11 天的日期变更。",
+        "id": "year_start",
+        "points": 16
+      },
+      {
+        "critical": false,
+        "expected": "说明是当时民用历法变更，不把宗教仪式/个别地区采用史与中央民用转换混为一谈。",
+        "id": "caveat",
+        "points": 7
+      },
+      {
+        "critical": true,
+        "expected": "至少两处真实可信的历史/法律来源，关键日期能定位支持；不得伪造历史资料。",
+        "id": "evidence",
+        "points": 13
+      }
+    ],
+    "output": [
+      "英国1752年从儒略历转换为格里高利历时，转换前最后一个民用日期是哪一天？",
+      "英国1752年从儒略历转换为格里高利历时，转换后第一个民用日期是哪一天？",
+      "英国1752年历法转换中跳过了多少个日历日期？",
+      "俄国1918年从儒略历转换为格里高利历时，转换前最后一个民用日期是哪一天？",
+      "俄国1918年从儒略历转换为格里高利历时，转换后第一个民用日期是哪一天？",
+      "俄国1918年历法转换中跳过了多少个日历日期？",
+      "为什么英国1752年与俄国1918年历法转换需要跳过的天数不同？",
+      "英国在1752年历法改革中同时调整新年起算日是怎么回事？",
+      "有哪些权威历史或法律资料可以核查英国1752年历法转换的日期细节？",
+      "有哪些权威历史或法律资料可以核查俄国1918年历法转换的日期细节？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-078",
+    "question": "研究一个城市轨道系统票制的历史变化，以伦敦为例，区分历史政策、生效日期、当前规则与未确认未来变更，不把今日规则倒填过去。",
+    "rubric": [
+      "日期与时段",
+      "历史当前未来分离",
+      "政策范围与未知"
+    ],
+    "output": [
+      "伦敦城市轨道系统票制从早期至今经历了哪些主要历史政策变化？",
+      "伦敦城市轨道系统票制各项历史政策变化的生效日期分别是什么？",
+      "伦敦城市轨道系统当前适用的票制规则有哪些？",
+      "伦敦城市轨道系统票制有哪些已宣布但尚未确认生效的未来变更？",
+      "在梳理伦敦城市轨道系统票制历史时，如何区分历史政策、生效日期、当前规则与未确认未来变更，避免将今日规则倒填到过去？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-079",
+    "question": "比较 gzip 与 zstd 用于离线备份和实时传输的取舍，分别考虑压缩级别、数据类型、吞吐、延迟和兼容性；没有同口径测试则不能给普适倍数。",
+    "rubric": [
+      "双用途条件",
+      "全部比较维度",
+      "测试口径与未知倍率"
+    ],
+    "output": [
+      "在离线备份场景下，gzip 与 zstd 在不同压缩级别下的压缩率、压缩吞吐和解压吞吐如何比较？",
+      "在实时传输场景下，gzip 与 zstd 在不同压缩级别下的压缩延迟、解压延迟和吞吐如何比较？",
+      "对于不同类型的数据（如文本、日志、JSON、二进制、已压缩数据），gzip 与 zstd 的压缩效果和性能表现有何差异？",
+      "gzip 与 zstd 在离线备份和实时传输中的兼容性如何，包括工具支持、库支持、协议支持和平台支持？",
+      "在离线备份和实时传输中，gzip 与 zstd 的取舍分别受哪些因素影响，如何根据压缩级别、数据类型、吞吐、延迟和兼容性进行权衡？",
+      "是否存在 gzip 与 zstd 在相同测试口径下的公开基准测试结果，能否据此给出普适的性能倍数？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-080",
+    "question": "解释 Python 列表别名：a=[[]]*3; a[0].append(1)。预测a，再给避免共享子列表的写法与一个练习，不把浅复制当成深复制。",
+    "rubric": [
+      "三项都变为[1]",
+      "独立子列表写法",
+      "浅深拷贝区别",
+      "可验证练习"
+    ],
+    "output": [
+      "在 Python 中，表达式 a=[[]]*3 创建了什么样的列表结构？a 中的三个元素是否指向同一个子列表对象？",
+      "执行 a=[[]]*3; a[0].append(1) 后，a 的值是什么？请解释为什么会产生这个结果。",
+      "如何修改 a=[[]]*3 的写法，使得 a 中的三个子列表互不共享，从而避免 a[0].append(1) 影响其他子列表？",
+      "在避免共享子列表的写法中，为什么使用列表推导式或循环创建独立子列表是有效的？它与浅复制和深复制的区别是什么？",
+      "请设计一个关于 Python 列表别名的练习，要求学习者预测代码输出并解释原因，且练习中不把浅复制误认为深复制。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-081",
+    "question": "某服务每月固定费20元，另按0.3元/次收费；使用150次是多少？这些是假设价格，不是任何真实服务报价。解释计算过程。",
+    "rubric": [
+      "固定费和按量费",
+      "65元",
+      "假设非真实报价"
+    ],
+    "output": [
+      "该服务的每月固定费是多少元？",
+      "该服务每次使用的收费是多少元？",
+      "该服务的使用次数是多少次？",
+      "如何根据每月固定费、每次收费和使用次数计算总费用？",
+      "使用150次时，按每次0.3元计算的总使用费是多少元？",
+      "将每月固定费20元与使用150次的总使用费相加，总费用是多少元？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-082",
+    "question": "比较 SQLite 与 PostgreSQL 对本地单用户笔记应用的部署与维护要求，先明确适用条件再建议。",
+    "rubric": [
+      "本地单用户",
+      "部署维护",
+      "条件化建议"
+    ],
+    "output": [
+      "SQLite 与 PostgreSQL 在本地单用户笔记应用场景下的部署要求分别是什么？",
+      "SQLite 与 PostgreSQL 在本地单用户笔记应用场景下的维护要求分别是什么？",
+      "在比较 SQLite 与 PostgreSQL 的部署与维护要求前，需要明确哪些适用条件？",
+      "基于适用条件，对本地单用户笔记应用选择 SQLite 或 PostgreSQL 有何建议？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-083",
+    "question": "针对 Python 3.12 的 asyncio，请对比 `asyncio.gather(fail(), slow())` 默认选项与用 `asyncio.TaskGroup` 并发创建同样两个任务的错误传播和兄弟任务取消行为。假设 fail() 很快引发 ValueError；slow() 等待两秒后写入一条日志，不吞掉 CancelledError；上层捕获抛出的异常后仍保持事件循环运行至少三秒，且没有外部取消。两种写法中 slow() 是否通常还能写入日志？解释异常类型形态差异、重要边界条件，并给出 Python 官方文档作为依据。",
+    "rubric": [
+      {
+        "critical": false,
+        "expected": "gather(return_exceptions=False) 立即向等待者传播首个异常；通常是 ValueError，而非默认包成 ExceptionGroup。",
+        "id": "gather_exception",
+        "points": 18
+      },
+      {
+        "critical": true,
+        "expected": "默认 gather 在该子任务异常时不自动取消其他未完成 awaitable；题设保持事件循环运行，slow() 可以继续完成并写日志。",
+        "id": "gather_sibling",
+        "points": 22
+      },
+      {
+        "critical": true,
+        "expected": "TaskGroup 子任务非 CancelledError 异常会取消剩余组内任务并等待；slow() 收到取消后不会写入日志。",
+        "id": "taskgroup_cancel",
+        "points": 22
+      },
+      {
+        "critical": false,
+        "expected": "TaskGroup 将非取消异常组成 ExceptionGroup（或 BaseExceptionGroup）从上下文抛出；可用 except* 处理。",
+        "id": "taskgroup_exception",
+        "points": 13
+      },
+      {
+        "critical": false,
+        "expected": "交代差异依赖题设：slow 不吞取消、上层不取消整个 gather、循环足够存活；不能无条件保证副作用。",
+        "id": "conditions",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "引用 Python 3.12 官方 asyncio-task 文档的 gather / Task Groups 部分，引用必须真实可核查。",
+        "id": "sources",
+        "points": 15
+      }
+    ],
+    "output": [
+      "在 Python 3.12 的 asyncio 中，asyncio.gather(fail(), slow()) 使用默认选项时，当 fail() 很快引发 ValueError，slow() 的取消行为是什么？slow() 是否通常还能写入日志？",
+      "在 Python 3.12 的 asyncio 中，使用 asyncio.TaskGroup 并发创建 fail() 和 slow() 两个任务时，当 fail() 很快引发 ValueError，slow() 的取消行为是什么？slow() 是否通常还能写入日志？",
+      "在 Python 3.12 的 asyncio 中，asyncio.gather 默认选项与 asyncio.TaskGroup 在错误传播方面有何差异？抛出的异常类型形态有何不同？",
+      "在 Python 3.12 的 asyncio 中，asyncio.gather 默认选项与 asyncio.TaskGroup 在兄弟任务取消行为方面有何差异？",
+      "在 Python 3.12 的 asyncio 中，当上层捕获 asyncio.gather 或 asyncio.TaskGroup 抛出的异常后，事件循环保持运行至少三秒且无外部取消，这对 slow() 写入日志的可能性有何影响？有哪些重要边界条件？",
+      "Python 官方文档中关于 asyncio.gather 和 asyncio.TaskGroup 的错误传播、任务取消和异常处理的依据是什么？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-084",
+    "question": "针对 Python 3.12 的 asyncio，请对比 `asyncio.gather(fail(), slow())` 默认选项与用 `asyncio.TaskGroup` 并发创建同样两个任务的错误传播和兄弟任务取消行为。假设 fail() 很快引发 ValueError；slow() 等待两秒后写入一条日志，不吞掉 CancelledError；上层捕获抛出的异常后仍保持事件循环运行至少三秒，且没有外部取消。两种写法中 slow() 是否通常还能写入日志？解释异常类型形态差异、重要边界条件，并给出 Python 官方文档作为依据。",
+    "rubric": [
+      {
+        "critical": false,
+        "expected": "gather(return_exceptions=False) 立即向等待者传播首个异常；通常是 ValueError，而非默认包成 ExceptionGroup。",
+        "id": "gather_exception",
+        "points": 18
+      },
+      {
+        "critical": true,
+        "expected": "默认 gather 在该子任务异常时不自动取消其他未完成 awaitable；题设保持事件循环运行，slow() 可以继续完成并写日志。",
+        "id": "gather_sibling",
+        "points": 22
+      },
+      {
+        "critical": true,
+        "expected": "TaskGroup 子任务非 CancelledError 异常会取消剩余组内任务并等待；slow() 收到取消后不会写入日志。",
+        "id": "taskgroup_cancel",
+        "points": 22
+      },
+      {
+        "critical": false,
+        "expected": "TaskGroup 将非取消异常组成 ExceptionGroup（或 BaseExceptionGroup）从上下文抛出；可用 except* 处理。",
+        "id": "taskgroup_exception",
+        "points": 13
+      },
+      {
+        "critical": false,
+        "expected": "交代差异依赖题设：slow 不吞取消、上层不取消整个 gather、循环足够存活；不能无条件保证副作用。",
+        "id": "conditions",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "引用 Python 3.12 官方 asyncio-task 文档的 gather / Task Groups 部分，引用必须真实可核查。",
+        "id": "sources",
+        "points": 15
+      }
+    ],
+    "output": [
+      "在 Python 3.12 的 asyncio 中，asyncio.gather(fail(), slow()) 使用默认选项时，当 fail() 很快引发 ValueError，slow() 是否通常还能写入日志？",
+      "在 Python 3.12 的 asyncio 中，使用 asyncio.TaskGroup 并发创建 fail() 和 slow() 两个任务时，当 fail() 很快引发 ValueError，slow() 是否通常还能写入日志？",
+      "在 Python 3.12 的 asyncio 中，asyncio.gather(fail(), slow()) 默认选项下，fail() 引发 ValueError 后，错误传播和兄弟任务取消行为是怎样的？",
+      "在 Python 3.12 的 asyncio 中，asyncio.TaskGroup 并发创建 fail() 和 slow() 时，fail() 引发 ValueError 后，错误传播和兄弟任务取消行为是怎样的？",
+      "在 Python 3.12 的 asyncio 中，asyncio.gather 默认选项与 asyncio.TaskGroup 在 fail() 引发 ValueError 时，抛出的异常类型形态有何差异？",
+      "在 Python 3.12 的 asyncio 中，asyncio.gather 默认选项与 asyncio.TaskGroup 在错误传播和兄弟任务取消方面有哪些重要边界条件？",
+      "Python 官方文档中关于 asyncio.gather 的错误传播和取消行为的依据是什么？",
+      "Python 官方文档中关于 asyncio.TaskGroup 的错误传播和取消行为的依据是什么？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-085",
+    "question": "某实验5次时延为10、10、10、10、100秒。计算平均值、中位数；按最近秩定义计算p95，说明小样本限制，不能用中位数替代尾延迟。",
+    "rubric": [
+      "平均28中位10",
+      "最近秩p95为100",
+      "小样本限制",
+      "指标不互换"
+    ],
+    "output": [
+      "某实验5次时延为10、10、10、10、100秒。计算平均值、中位数；按最近秩定义计算p95，说明小样本限制，不能用中位数替代尾延迟。"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-086",
+    "question": "请给刚学围棋的学生讲清楚“气”和“提子”，并分析下面两盘互不关联的 5×5 棋局。列从左到右为 A–E，行从上到下为 1–5；X=黑棋，O=白棋，.=空点。采用通常不允许自杀的规则，暂不涉及劫。棋局甲轮白下 C4；棋局乙轮黑下 C3。分别判断落子是否合法、提掉哪颗棋子及落子后的棋盘；再给一道只基于甲局的小练习和正确答案。请确保文字、坐标、棋图完全一致，不要把甲、乙当成同一连续对局。",
+    "rubric": [
+      {
+        "critical": false,
+        "expected": "气为棋子或连接棋块在上下左右相邻的空交叉点，不算对角；无气的敌方棋块被提走。",
+        "id": "rule",
+        "points": 15
+      },
+      {
+        "critical": false,
+        "expected": "甲局黑 C3 落白 C4 前只有 C4 这一口气，B3/C2/D3 均为白子。",
+        "id": "a_pre",
+        "points": 15
+      },
+      {
+        "critical": true,
+        "expected": "甲局白 C4 合法，提掉黑 C3 恰好 1 子；C3 变为空点。",
+        "id": "a_move",
+        "points": 20
+      },
+      {
+        "critical": true,
+        "expected": "甲局落后 5×5 图：第2行 ..O..；第3行 .O.O.；第4行 ..O..；第1/5行全空。",
+        "id": "a_post",
+        "points": 15
+      },
+      {
+        "critical": true,
+        "expected": "乙局黑 C3 若落子没有气、不能提走相邻白子，属于自杀而不合法，棋盘保持不变。",
+        "id": "b_move",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "练习只针对甲局，例如“白下 C4 后黑 C3 仍在吗？”标准答案：不在，C3 为空。",
+        "id": "practice",
+        "points": 10
+      },
+      {
+        "critical": true,
+        "expected": "两局互相独立；文字、图、坐标和练习不矛盾。",
+        "id": "consistency",
+        "points": 5
+      }
+    ],
+    "output": [
+      "如何向刚学围棋的学生讲清楚“气”和“提子”的基本规则？",
+      "棋局甲轮白下C4是否合法？会提掉哪颗棋子？落子后的棋盘是什么？",
+      "棋局乙轮黑下C3是否合法？会提掉哪颗棋子？落子后的棋盘是什么？",
+      "只基于甲局的小练习和正确答案是什么？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-087",
+    "question": "比较 HTTP 缓存规范从 RFC 7234 到 RFC 9111 的变化，区分文字整理、澄清与真实语义变化。",
+    "rubric": [
+      "两版规范",
+      "三类变化分开",
+      "以原文为依据"
+    ],
+    "output": [
+      "RFC 7234 和 RFC 9111 分别规定了哪些 HTTP 缓存机制和语义？",
+      "从 RFC 7234 到 RFC 9111，哪些内容属于文字整理或编辑性调整？",
+      "从 RFC 7234 到 RFC 9111，哪些内容属于对原有规定的澄清？",
+      "从 RFC 7234 到 RFC 9111，哪些内容属于真实的语义变化？",
+      "RFC 7234 与 RFC 9111 在缓存指令、缓存存储和缓存失效等具体条款上有哪些差异？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-088",
+    "question": "比较 HTTP 缓存规范从 RFC 7234 到 RFC 9111 的变化，区分文字整理、澄清与真实语义变化。",
+    "rubric": [
+      "两版规范",
+      "三类变化分开",
+      "以原文为依据"
+    ],
+    "output": [
+      "RFC 7234 与 RFC 9111 各自的规范身份、发布状态与取代关系是什么？",
+      "从 RFC 7234 到 RFC 9111 有哪些纯文字整理或编辑性变化（如重组、措辞、引用更新）？",
+      "哪些变化属于对原有规则的澄清而非语义改变？",
+      "哪些变化构成真实的语义变化（新增、删除或修改缓存行为要求）？",
+      "如何系统区分文字整理、澄清与真实语义变化，并给出可核对的对照？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-089",
+    "question": "研究一个城市轨道系统票制的历史变化，以伦敦为例，区分历史政策、生效日期、当前规则与未确认未来变更，不把今日规则倒填过去。",
+    "rubric": [
+      "日期与时段",
+      "历史当前未来分离",
+      "政策范围与未知"
+    ],
+    "output": [
+      "伦敦城市轨道（含地铁/地上铁等）票制历史上经历了哪些主要政策变化？",
+      "这些票制变化的生效日期分别是什么？",
+      "截至2026年10月，伦敦城市轨道当前适用的票制规则是什么？",
+      "有哪些已提出但尚未确认的未来票制变更？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-090",
+    "question": "解释唐代三省制度的基本分工，注明是概括性模型而非每一时期都完全相同。",
+    "rubric": [
+      "三省分工",
+      "时段限制"
+    ],
+    "output": [
+      "唐代三省（中书省、门下省、尚书省）各自的基本职能与分工是什么？",
+      "三省之间在决策与执行流程中如何相互配合与制衡？",
+      "为何三省分工只能作为概括性模型，不同时期有哪些主要变化？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-091",
+    "question": "核实 SQLite 3.45.3 的发布日期与关键修复，不把包上传日期当成发布日。",
+    "rubric": [
+      "保留3.45.3",
+      "发布日与上传日区分",
+      "修复需对应版本"
+    ],
+    "output": [
+      "SQLite 3.45.3 的官方发布日期是什么？",
+      "SQLite 3.45.3 包含哪些关键修复？",
+      "如何区分 SQLite 3.45.3 的官方发布日期与包上传日期？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-092",
+    "question": "核实 Python 3.14.0 正式版发布日期，区分正式发布与预发布日期，给出来源。",
+    "rubric": [
+      "保留精确版本及正式版",
+      "日期与来源分别核验"
+    ],
+    "output": [
+      "Python 3.14.0 正式版（final release）的发布日期是什么？",
+      "Python 3.14.0 的预发布（alpha/beta/rc）日期有哪些，如何与正式发布区分？",
+      "哪些官方来源可核实 Python 3.14.0 正式版发布日期？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-093",
+    "question": "在假设方案A每月50元含200次、超出0.4元/次，B无月费0.7元/次的条件下，求成本交叉点并讨论0、200和500次；不忽略分段计费。",
+    "rubric": [
+      "分段函数",
+      "交叉点与适用区间",
+      "三个检查点",
+      "假设报价"
+    ],
+    "output": [
+      "在方案A每月50元含200次、超出0.4元/次，方案B无月费0.7元/次的条件下，如何建立分段计费的成本函数？",
+      "根据方案A和方案B的分段计费规则，成本交叉点是多少？",
+      "在0次、200次和500次使用量下，方案A和方案B的成本分别是多少？",
+      "在0次、200次和500次使用量下，哪个方案更便宜？",
+      "分段计费对成本交叉点和不同使用量下的方案选择有什么影响？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-094",
+    "question": "比较 MySQL 8.4 与 PostgreSQL 17 在 REPEATABLE READ 下的行为，区分读快照、并发更新与序列化错误，不拿不同隔离级别混比。",
+    "rubric": [
+      "双版本和相同级别",
+      "三种并发行为",
+      "避免跨级别混比"
+    ],
+    "output": [
+      "How does MySQL 8.4 REPEATABLE READ implement read snapshots (consistent reads) and what anomalies does it prevent or allow?",
+      "How does PostgreSQL 17 REPEATABLE READ implement snapshot isolation and what anomalies does it prevent or allow?",
+      "How do MySQL 8.4 and PostgreSQL 17 differ in handling concurrent updates under REPEATABLE READ (locking, lost update, write skew)?",
+      "What serialization errors or retry behavior occur under REPEATABLE READ in MySQL 8.4 versus PostgreSQL 17?",
+      "What are the key behavioral differences between MySQL 8.4 and PostgreSQL 17 REPEATABLE READ for read snapshots, concurrent updates, and serialization errors?"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-095",
+    "question": "请比较英国（1752 年）与俄国（1918 年）在民用历法上从儒略历转换到格里高利历的实施方式：转换前最后一个民用日期、转换后第一个民用日期、跳过的日历日期个数；解释为什么两次需要跳过的天数不同。此外，请辨析英国同时调整新年起算日这一容易混淆的事实。要求给出至少两处可核查的权威历史或法律资料，并将各个日期判断绑定到相应来源。",
+    "rubric": [
+      {
+        "critical": true,
+        "expected": "英国 1752-09-02（旧式）后接 1752-09-14（新式），跳过 9月3日至13日共 11 个民用日期。",
+        "id": "british_dates",
+        "points": 22
+      },
+      {
+        "critical": true,
+        "expected": "苏俄 1918-01-31（旧式）后接 1918-02-14（新式），跳过 2月1日至13日共 13 个民用日期。",
+        "id": "russian_dates",
+        "points": 22
+      },
+      {
+        "critical": false,
+        "expected": "差距因儒略历和公历的闰年规则不同而累积，1800/1900 在儒略历为闰年但公历不是；1752 年差 11 日、1918 年差 13 日。",
+        "id": "why_diff",
+        "points": 20
+      },
+      {
+        "critical": false,
+        "expected": "英国同时将法定新年起点从 3 月 25 日转向 1 月 1 日，不能将其混同于跳过 11 天的日期变更。",
+        "id": "year_start",
+        "points": 16
+      },
+      {
+        "critical": false,
+        "expected": "说明是当时民用历法变更，不把宗教仪式/个别地区采用史与中央民用转换混为一谈。",
+        "id": "caveat",
+        "points": 7
+      },
+      {
+        "critical": true,
+        "expected": "至少两处真实可信的历史/法律来源，关键日期能定位支持；不得伪造历史资料。",
+        "id": "evidence",
+        "points": 13
+      }
+    ],
+    "output": [
+      "英国1752年转换前最后一个民用日期、转换后第一个民用日期及跳过的日历日期个数是什么？",
+      "俄国1918年转换前最后一个民用日期、转换后第一个民用日期及跳过的日历日期个数是什么？",
+      "为什么英国与俄国转换时需要跳过的天数不同？",
+      "英国同时调整新年起算日（从3月25日改为1月1日）这一事实应如何辨析，以免与历法转换混淆？",
+      "哪些可核查的权威历史或法律资料支持上述各日期判断？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  },
+  {
+    "label": "output-096",
+    "question": "核实 SQLite 3.45.3 的发布日期与关键修复，不把包上传日期当成发布日。",
+    "rubric": [
+      "保留3.45.3",
+      "发布日与上传日区分",
+      "修复需对应版本"
+    ],
+    "output": [
+      "SQLite 3.45.3 的官方发布日期是什么？",
+      "SQLite 3.45.3 包含哪些关键修复？",
+      "如何区分 SQLite 3.45.3 的官方发布日期与包上传日期？"
+    ],
+    "sources": [],
+    "score": null,
+    "dangerous_errors": null
+  }
+]
