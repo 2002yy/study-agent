@@ -26,7 +26,10 @@ from typing import Any, Callable, Literal, Mapping
 
 from src.application.standard_execution import StandardExecution
 from src.application.standard_research import ModelStandardPlanner, StandardResearchLoop
-from src.application.standard_shadow_seam import observe_shadow_for_standard
+from src.application.standard_shadow_seam import (
+    observe_shadow_for_standard,
+    standard_shadow_enabled,
+)
 from src.application.shadow_isolation import BestEffortTelemetry
 from src.repositories.runtime_repository import RuntimeRepository
 from src.repositories.standard_execution_repository import (
@@ -42,6 +45,17 @@ from src.web.research.standard_binding_projection import (
 from src.web.research_recovery import LOOKUP_BUDGET, STANDARD_BUDGET, model_targets
 
 CONTINUATION_SCHEMA = "standard-auto-continuation-v1"
+
+
+def _default_shadow_telemetry() -> BestEffortTelemetry:
+    """The real, durable telemetry used when the shadow is enabled.
+
+    Flag ON must produce an observable record; otherwise the observer would spend
+    model and network budget and silently discard the result.
+    """
+    from src.application.shadow_telemetry_sink import JsonlShadowSink
+
+    return BestEffortTelemetry(JsonlShadowSink())
 
 # At most this many advance() calls: None means "paused at a persisted step boundary", and the
 # total action budget is already bounded, so one extra call is enough to finish.
@@ -99,7 +113,11 @@ class StandardContinuationService:
         self.gateway = gateway
         self.clock = clock
         self.planner_factory = planner_factory
-        self.shadow_telemetry = shadow_telemetry
+        self.shadow_telemetry = (
+            shadow_telemetry
+            if shadow_telemetry is not None
+            else (_default_shadow_telemetry() if standard_shadow_enabled() else None)
+        )
         self.shadow_runner = shadow_runner
         self.journal = StandardExecutionRepository(repository.database)
 

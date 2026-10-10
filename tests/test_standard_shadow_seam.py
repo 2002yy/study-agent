@@ -1,8 +1,10 @@
 """M4-A: the Standard B-Search shadow must be inert, bounded and non-authoritative."""
 from __future__ import annotations
 
+import json
 import threading
 import time
+import types
 
 import src.application.shadow_isolation as iso
 from src.application.shadow_isolation import BestEffortTelemetry, submit_shadow_bounded
@@ -171,3 +173,52 @@ def test_only_an_explicit_audit_grant_could_pass():
     assert grants_evidence_authority(
         {"authoritative": True, "evidence_completion": "SUPPORTED", "audit_ref": "audit-1"}
     ) is True
+
+
+def test_flag_on_without_a_sink_refuses_to_spend(monkeypatch):
+    """Flag ON with no observable sink must NOT burn model/network budget."""
+    monkeypatch.setenv("BSEARCH_STANDARD_SHADOW", "on")
+    calls: list[str] = []
+
+    result = observe_shadow_for_standard(
+        query="q", telemetry=None, runner=lambda q, b: calls.append(q) or {}
+    )
+    assert result.enabled is True
+    assert result.submitted is False
+    assert calls == []
+
+
+def test_service_builds_real_telemetry_when_enabled(monkeypatch):
+    """A real Standard service must obtain a sink by itself when the flag is on."""
+    from src.application.standard_continuation import _default_shadow_telemetry
+
+    monkeypatch.setenv("BSEARCH_STANDARD_SHADOW", "on")
+    service = StandardContinuationService(
+        types.SimpleNamespace(database=object()), runs=object(), gateway=object()
+    )
+    assert service.shadow_telemetry is not None
+
+    monkeypatch.delenv("BSEARCH_STANDARD_SHADOW", raising=False)
+    off = StandardContinuationService(
+        types.SimpleNamespace(database=object()), runs=object(), gateway=object()
+    )
+    assert off.shadow_telemetry is None
+    assert _default_shadow_telemetry() is not None
+
+
+def test_jsonl_sink_appends_and_never_raises(tmp_path):
+    from src.application.shadow_telemetry_sink import JsonlShadowSink
+
+    path = tmp_path / "obs.jsonl"
+    sink = JsonlShadowSink(path)
+    sink.record({"a": 1})
+    sink.record({"b": [1, 2]})
+    lines = path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 2
+    assert json.loads(lines[0]) == {"a": 1}
+    assert sink.written == 2
+
+    # an unusable path must degrade to "no record", never raise
+    broken = JsonlShadowSink(tmp_path)  # a directory, not a file
+    broken.record({"c": 3})
+    assert broken.written == 0

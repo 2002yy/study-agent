@@ -171,6 +171,10 @@ def observe_shadow_for_standard(
     inputs = build_standard_input_hashes(query=query, handoff=handoff)
     if not standard_shadow_enabled():
         return StandardShadowResult(False, False, inputs)
+    if telemetry is None:
+        # No observable sink: refuse to spend model/network budget on a run whose
+        # result would be discarded. Enabled, but deliberately not submitted.
+        return StandardShadowResult(True, False, inputs)
 
     run = runner or _default_runner
 
