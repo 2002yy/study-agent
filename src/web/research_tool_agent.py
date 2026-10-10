@@ -268,6 +268,13 @@ def run_tool_agent(
             if rows and "article" not in page_types:
                 brief += ("\n(no [article] target among these results: read nothing yet - follow a "
                           "[category] page closest to the question, or search different terms)")
+            rounds_left = max(0, budget.max_rounds - rnd - 1)
+            searches_left = max(0, budget.max_searches - searches)
+            if rows:
+                brief += ("\n(next step: %d rounds and %d searches left - if any result above can "
+                          "lead to the answer, follow or read it before searching again; search "
+                          "again only when nothing above is usable)"
+                          % (rounds_left, searches_left))
             observations.append(f"round {rnd}: search '{action['query']}' ->\n{brief or '(no results)'}")
             calls.append(call)
             continue

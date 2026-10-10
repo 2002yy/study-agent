@@ -88,6 +88,24 @@ def test_link_cap_is_enforced():
     assert len(extract_candidates(many, _BASE, max_links=5)) == 5
 
 
+def test_article_bonus_requires_a_topical_match():
+    """A structurally-article page with no question overlap must not outrank a real target."""
+    html = ("<html><body><h2>X</h2>"
+            '<a href="/wiki/Game_modes_and_options">Game modes and options</a>'
+            '<a href="/wiki/Trains">Trains</a>'
+            '<a href="/wiki/Train_interrupts">Train interrupts</a>'
+            "</body></html>")
+    links = extract_candidates(html, "https://wiki.example/Main_Page")
+    ranked = rank_candidates(links, question_terms("train interrupts"), limit=10)
+    scores = {link.url: link.score for link in ranked}
+    generic = scores["https://wiki.example/wiki/Game_modes_and_options"]
+    partial = scores["https://wiki.example/wiki/Trains"]
+    exact = scores["https://wiki.example/wiki/Train_interrupts"]
+    assert generic < partial < exact
+    assert ranked[0].url.endswith("Train_interrupts")
+    assert "coverage" in ranked[0].why
+
+
 def test_malformed_or_empty_html_never_raises():
     assert extract_candidates("", _BASE) == []
     assert extract_candidates("<<< not really html", _BASE) == []

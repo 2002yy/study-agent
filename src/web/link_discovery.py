@@ -233,25 +233,48 @@ def rank_candidates(
     what the model is offered, so every entry carries its score, type and a short
     ``why`` string the model can reason about.
     """
+    if not candidates:
+        return []
+    # Rare query terms are stronger signals than common ones: weight each term by
+    # how few same-page candidates mention it. Computed over this page only.
+    mentions = {term: 0 for term in terms}
+    for probe in candidates:
+        hay = f"{probe.anchor} {probe.path}".lower()
+        for term in terms:
+            if term in hay:
+                mentions[term] += 1
+    total = len(candidates)
+    weights = {
+        term: (1.0 + total / count) if count else 0.0
+        for term, count in mentions.items()
+    }
     for index, candidate in enumerate(candidates):
         candidate.page_type = classify_page(candidate.url, candidate.anchor, candidate.context)
         hay_anchor = candidate.anchor.lower()
         hay_path = candidate.path.lower().replace("-", " ").replace("_", " ")
         hay_context = candidate.context.lower()
-        hits: list[str] = []
+        matched: set[str] = set()
         score = 0.0
         for term in terms:
+            weight = weights.get(term, 0.0)
+            if not weight:
+                continue
             if term in hay_anchor:
-                score += 3.0
-                hits.append(term)
+                score += 3.0 * weight
+                matched.add(term)
             elif term in hay_path:
-                score += 1.0
-                hits.append(term)
+                score += 1.0 * weight
+                matched.add(term)
             elif term in hay_context:
-                score += 0.5
-                hits.append(term)
+                score += 0.5 * weight
+                matched.add(term)
+        coverage = len(matched) / len(terms) if terms else 0.0
         prior = {"article": 1.5, "category": 1.0, "home": -3.0, "uncertain": 0.0}
-        score += prior.get(candidate.page_type, 0.0)
+        base_prior = prior.get(candidate.page_type, 0.0)
+        if base_prior < 0:
+            score += base_prior            # a site root is never the answer
+        elif matched:
+            score += base_prior * coverage  # being an article is not evidence of relevance
         if candidate.path.count("/") > 0:
             score += 0.2
         noise = _noise_reason(
@@ -264,8 +287,9 @@ def rank_candidates(
             score -= 5.0
         candidate.score = score
         bits = []
-        if hits:
-            bits.append("matches " + "+".join(sorted(set(hits))[:4]))
+        if matched:
+            bits.append("matches " + "+".join(sorted(matched)[:4]))
+            bits.append("coverage %.2f" % coverage)
         bits.append(candidate.page_type)
         if noise:
             bits.append("noise:" + noise)
