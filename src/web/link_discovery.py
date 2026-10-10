@@ -146,7 +146,11 @@ def requested_versions(question: str) -> set[str]:
     found |= set(re.findall(r"\b\d+\.\d+(?:\.\d+)?\b", text))
     found |= set(re.findall(r"\bv(\d+(?:\.\d+)*)\b", text))
     found |= set(re.findall(r"(?:版本|version|docs?)\s*(\d+(?:\.\d+)*)", text))
-    found |= set(re.findall(r"[a-z][\w-]*\s+(\d+(?:\.\d+)*)\b", text))
+    # A latin product name followed by a number ("PostgreSQL 17"), but ONLY when the
+    # number is not followed by another latin word: "Explain 3 reasons" or
+    # "Compare 3 methods" are counts, not versions.
+    found |= set(re.findall(
+        r"[a-z][a-z0-9_-]{3,}\s+(\d+(?:\.\d+)*)\b(?!\s*[a-z])", text))
     found |= set(re.findall(r"\b(\d+(?:\.\d+)*)\s*(?:与|和|vs\.?|versus)\s*\d", text))
     found |= set(re.findall(r"\d+\s*(?:与|和|vs\.?|versus)\s*(\d+(?:\.\d+)*)", text))
     return {token for token in found if not _YEAR_RE.match(token)}

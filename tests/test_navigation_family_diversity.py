@@ -142,3 +142,11 @@ def test_requested_versions_ignores_bare_numbers_and_years():
     assert requested_versions("比较 PostgreSQL 17 与 18") == {"17", "18"}
     assert requested_versions("Python 3.12 的 f-string 变化") == {"3.12"}
     assert requested_versions("升级到 v17 有什么影响") == {"17"}
+
+
+def test_requested_versions_ignores_english_plain_counts():
+    assert requested_versions("Explain 3 reasons MVCC is useful") == set()
+    assert requested_versions("Compare 3 methods for hopper sorting") == set()
+    assert requested_versions("Describe 3 PostgreSQL concepts") == set()
+    assert requested_versions("List 5 facts about PostgreSQL 17") == {"17"}
+    assert requested_versions("upgrade to PostgreSQL 17") == {"17"}
