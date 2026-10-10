@@ -299,6 +299,38 @@ def test_follow_lists_same_origin_links_only(monkeypatch):
     assert trace["reads"] == 2  # 1 follow + 1 explicit read_page
 
 
+def test_follow_ranks_links_by_question_not_document_order(monkeypatch):
+    """A relevant article beyond the first five links must still be offered."""
+    import src.web.research_tool_agent as agent
+    import src.web.safe_http as sh
+
+    html = (
+        "<html><body>"
+        '<a href="/cs">Cesky</a>'
+        '<a href="/de">Deutsch</a>'
+        '<a href="/fr">Francais</a>'
+        '<a href="/Login">Log in</a>'
+        '<a href="/category">Categories</a>'
+        '<a href="/wiki/Train_interrupts">Train interrupts</a>'
+        "</body></html>"
+    )
+    monkeypatch.setattr(agent, "host_resolves_public", lambda host: True)
+    monkeypatch.setattr(sh, "safe_fetch_result", lambda url, **k: {"content": html})
+    completion = make_completion([
+        {"tool": "follow", "url": "https://wiki.example/"},
+        {"tool": "finish"},
+    ])
+    trace = run_tool_agent(gateway=FakeGateway(), completion=completion,
+                           question="Factorio train interrupts schedule",
+                           budget=AgentBudget(), initial_urls=("https://wiki.example/",))
+    follow = [c for c in trace["calls"] if c.get("action", {}).get("tool") == "follow"][0]
+    urls = [link["url"] for link in follow["links"]]
+    assert urls and urls[0].endswith("/wiki/Train_interrupts")
+    assert follow["result"]["candidates"] >= 6          # every same-site link was considered
+    # one fetch only: follow never reads the child pages itself
+    assert trace["reads"] == 1
+
+
 def test_safe_fetch_result_structured(monkeypatch):
     import src.web.safe_http as sh
 

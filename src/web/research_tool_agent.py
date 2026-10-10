@@ -12,10 +12,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import time
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Mapping
 
+from src.web.link_discovery import classify_page, extract_candidates, question_terms, rank_candidates
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
 from src.web.tool_evidence import _public_url
 
@@ -33,8 +34,13 @@ SYSTEM = (
     "only a hub/home/navigation page, use follow to list its same-site article links and "
     "then read the specific article; never treat a hub page as the answer; do not repeat a "
     "failed action; one action per turn. A page you read is exploratory and does not prove any fact. "
-    "Prefer reading a specific article URL that a search already returned; only follow a "
-    "hub/home/navigation page when the search returned no suitable specific article."
+            "Prefer reading a specific article URL that a search already returned; only follow a "
+            "hub/home/navigation page when the search returned no suitable specific article. "
+            "Search results and follow links are labelled [article|category|home|uncertain]: read "
+            "[article] targets first. A follow answers with up to ten ranked same-site links and "
+            "never fetches them; spend one action per page you actually need, and if the first "
+            "layer only holds a category that matches the question, follow that category once "
+            "more before reading the article. Do not repeat a query or a page you already used."
 )
 
 
@@ -110,12 +116,15 @@ def parse_action(raw: Any) -> dict[str, str]:
 
 
 def _prompt(question: str, observations: list[str],
-            reliable_sources: tuple[str, ...] = ()) -> list[dict[str, str]]:
+            reliable_sources: tuple[str, ...] = (),
+            state: str = "") -> list[dict[str, str]]:
     context: dict[str, Any] = {
         "question": question,
         "observations": observations[-6:],
         "instruction": SYSTEM,
     }
+    if state:
+        context["budget_state"] = state
     if reliable_sources:
         context["reliable_sources"] = [
             {"url": url, "basis": "registry_seed"} for url in reliable_sources
@@ -146,6 +155,8 @@ def run_tool_agent(
     calls: list[dict[str, Any]] = []
     observations: list[str] = []
     searches = reads = 0
+    searched_queries: set[str] = set()
+    visited: set[str] = set()
     bodies: list[dict[str, Any]] = []
     # Only URLs confirmed by an actual search result (or supplied up front) may be
     # read; a model-guessed URL is recorded as pending, never fetched. Registry
@@ -180,9 +191,14 @@ def run_tool_agent(
         if monotonic() >= deadline:
             stop = "budget_exhausted"
             break
+        budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
+                        % (rnd + 1, budget.max_rounds,
+                           searches, budget.max_searches, max(0, budget.max_searches - searches),
+                           reads, budget.max_reads, max(0, budget.max_reads - reads),
+                           max(0, int(deadline - monotonic()))))
         try:
             raw = completion(
-                messages=_prompt(question, observations, reliable_sources),
+                messages=_prompt(question, observations, reliable_sources, state=budget_state),
                 timeout=min(20.0, max(1.0, deadline - monotonic())),
                 task_name="research_tool_agent",
             )
@@ -206,6 +222,16 @@ def run_tool_agent(
                 observations.append(f"round {rnd}: search quota reached.")
                 calls.append(call)
                 continue
+            normalised_query = " ".join(action["query"].split()).casefold()
+            if normalised_query in searched_queries:
+                call["result"] = {"status": "duplicate_search", "reason": "query_already_issued"}
+                observations.append(
+                    f"round {rnd}: search '{action['query']}' was already issued; reuse those "
+                    "results or use a materially different query."
+                )
+                calls.append(call)
+                continue
+            searched_queries.add(normalised_query)
             searches += 1
             try:
                 result = gateway.search_exact(action["query"], max_results=5)
@@ -230,9 +256,18 @@ def run_tool_agent(
             call["search_diag"] = {k: result.get(k) for k in
                                    ("status", "reason", "providers_attempted", "provider_errors")
                                    if k in result}
+            page_types = [
+                classify_page(str(r.get("url") or ""), str(r.get("title") or ""),
+                              str(r.get("snippet") or ""))
+                for r in rows
+            ]
             brief = "\n".join(
-                f"- {r.get('title')} | {r.get('url')} | {str(r.get('snippet'))[:160]}" for r in rows
+                f"- [{ptype}] {r.get('title')} | {r.get('url')} | {str(r.get('snippet'))[:160]}"
+                for ptype, r in zip(page_types, rows)
             )
+            if rows and "article" not in page_types:
+                brief += ("\n(no [article] target among these results: read nothing yet - follow a "
+                          "[category] page closest to the question, or search different terms)")
             observations.append(f"round {rnd}: search '{action['query']}' ->\n{brief or '(no results)'}")
             calls.append(call)
             continue
@@ -305,14 +340,20 @@ def run_tool_agent(
             calls.append(call)
             continue
         if action["tool"] == "follow":
-            # Bounded in-page link discovery: from a CONFIRMED page, fetch its real HTML,
-            # extract true <a href> links (never guess URLs from body text), keep
-            # same-origin only, list at most 5 — then the model must read one via read_page.
-            import re as _re
-
+            # Bounded in-page discovery: ONE fetch of a CONFIRMED page, then every same-site
+            # link is parsed (lxml), classified and ranked by relevance to the question.
+            # Children are never fetched here; the model must read a target explicitly.
             from src.web.safe_http import safe_fetch_result
 
             url = action["url"]
+            if url in visited:
+                call["result"] = {"status": "already_visited", "reason": "page_seen_before"}
+                observations.append(
+                    f"round {rnd}: follow rejected: {url} was already visited; use a link "
+                    "discovered there, or read a target you have not opened."
+                )
+                calls.append(call)
+                continue
             if url not in confirmed:
                 call["result"] = {"status": "pending_url_confirmation", "reason": "url_not_from_search_result"}
                 observations.append(f"round {rnd}: follow rejected: {url} was not confirmed.")
@@ -337,31 +378,31 @@ def run_tool_agent(
             except Exception as exc:  # noqa: BLE001
                 html = ""
                 call["follow_error"] = type(exc).__name__
-            base_host = urlsplit(url).hostname or ""
-            links: list[dict[str, str]] = []
-            for m in _re.finditer(r'<a\s+[^>]*href\s*=\s*["\']([^"\']+)["\'][^>]*>(.*?)</a>', html, _re.I | _re.S):
-                href = m.group(1).strip()
-                if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
-                    continue
-                resolved = urljoin(url, href)
-                parts = urlsplit(resolved)
-                if parts.scheme not in ("http", "https") or (parts.hostname or "") != base_host:
-                    continue
-                if resolved in seen_links:
-                    continue
-                seen_links.add(resolved)
-                links.append({"url": resolved, "anchor": _re.sub(r"<[^>]+>", "", m.group(2)).strip()[:120],
-                              "href": href})
-                if len(links) >= 5:
-                    break
+            try:
+                candidates = extract_candidates(html, url)
+            except Exception:  # noqa: BLE001 - discovery must never break the loop
+                candidates = []
+            links = rank_candidates(candidates, question_terms(question), limit=10)
             for link in links:
-                if _public_url(link["url"]):
-                    confirmed.add(link["url"])
-                    confirmed_basis.setdefault(link["url"], "followed_link")
-                    follow_provenance.setdefault(link["url"], url)
-            call["result"] = {"status": "ok", "n": len(links)}
-            call["links"] = links
-            brief = "\n".join(f"- {link['anchor']} | {link['url']}" for link in links)
+                seen_links.add(link.url)
+            for link in links:
+                if _public_url(link.url):
+                    confirmed.add(link.url)
+                    confirmed_basis.setdefault(link.url, "followed_link")
+                    follow_provenance.setdefault(link.url, url)
+            page_type = classify_page(url)
+            call["result"] = {"status": "ok", "n": len(links), "candidates": len(candidates),
+                              "page_type": page_type}
+            call["links"] = [link.as_dict() for link in links]
+            brief = "\n".join(
+                f"- [{link.page_type} {link.score:g}] {link.anchor or '(no anchor text)'} | {link.url}"
+                + (f" | section: {link.context}" if link.context else "")
+                for link in links
+            )
+            if links and "article" not in [link.page_type for link in links]:
+                brief += ("\n(no [article] link on this page: follow a [category] closest to the "
+                          "question once more, instead of guessing a URL)")
+            visited.add(url)
             observations.append(
                 f"round {rnd}: follow '{url}' ->\n{brief or '(no same-site links found)'}"
             )
