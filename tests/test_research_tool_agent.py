@@ -368,6 +368,59 @@ def test_reading_the_same_page_twice_does_not_spend_quota(monkeypatch):
     assert any("still uncovered" in prompt for prompt in prompts)
 
 
+def test_finish_reports_incomplete_coverage(monkeypatch):
+    """A finish that leaves question terms uncovered is reported as incomplete, not done."""
+    import src.web.research_tool_agent as agent
+
+    monkeypatch.setattr(agent, "host_resolves_public", lambda host: True)
+    actions = [{"tool": "read_page", "url": "https://example.org/a"}, {"tool": "finish"}]
+
+    class _GW:
+        def read(self, url, *, max_chars=6000, timeout=8.0):
+            return {"ok": True, "url": url, "content": "train interrupts only"}
+
+    def completion(messages, **kwargs):
+        return json.dumps(actions.pop(0))
+
+    trace = run_tool_agent(gateway=_GW(), completion=completion,
+                           question="Factorio train interrupts schedule",
+                           budget=AgentBudget(), initial_urls=("https://example.org/a",))
+    assert trace["stop_reason"] == "finished_incomplete"
+    assert trace["coverage_audit"]["missing"]
+    assert trace["coverage_audit"]["complete"] is False
+    finish = [c for c in trace["calls"] if (c.get("action") or {}).get("tool") == "finish"][0]
+    assert finish["result"]["status"] == "finished_incomplete"
+    assert finish["coverage_audit"]["missing"]
+
+
+def test_identical_body_from_two_urls_is_flagged_and_not_double_counted(monkeypatch):
+    """Same text behind a different URL adds no coverage and is reported."""
+    import src.web.research_tool_agent as agent
+
+    monkeypatch.setattr(agent, "host_resolves_public", lambda host: True)
+    actions = [
+        {"tool": "read_page", "url": "https://example.org/a"},
+        {"tool": "read_page", "url": "https://example.org/b"},
+        {"tool": "finish"},
+    ]
+
+    class _GW:
+        def read(self, url, *, max_chars=6000, timeout=8.0):
+            return {"ok": True, "url": url, "content": "train interrupts explained"}
+
+    def completion(messages, **kwargs):
+        return json.dumps(actions.pop(0))
+
+    trace = run_tool_agent(gateway=_GW(), completion=completion, question="train interrupts",
+                           budget=AgentBudget(),
+                           initial_urls=("https://example.org/a", "https://example.org/b"))
+    reads = [c["result"] for c in trace["calls"]
+             if (c.get("action") or {}).get("tool") == "read_page"]
+    assert reads[0].get("ok") is True
+    assert reads[1].get("duplicate_body") is True
+    assert len(trace["coverage_log"]) == 1        # only the first body contributed
+
+
 def test_safe_fetch_result_structured(monkeypatch):
     import src.web.safe_http as sh
 

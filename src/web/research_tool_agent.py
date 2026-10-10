@@ -158,6 +158,8 @@ def run_tool_agent(
     searched_queries: set[str] = set()
     visited: set[str] = set()
     read_pages: dict[str, int] = {}
+    body_fingerprints: dict[str, str] = {}
+    coverage_log: list[dict[str, Any]] = []
     covered_terms: set[str] = set()
     goal_terms = question_terms(question)
     bodies: list[dict[str, Any]] = []
@@ -222,7 +224,22 @@ def run_tool_agent(
             calls.append(call)
             continue
         if action["tool"] == "finish":
-            stop = "finished"
+            # A completion claim is audited before it is recorded: unfinished coverage is
+            # reported as unfinished instead of being presented as completion. This grants
+            # no publication authority (Evidence Gate and RP-1 stay untouched).
+            missing_terms = [term for term in sorted(goal_terms) if term not in covered_terms]
+            call["coverage_audit"] = {"covered": sorted(covered_terms), "missing": missing_terms,
+                                      "read_pages": len(read_pages)}
+            if missing_terms:
+                stop = "finished_incomplete"
+                call["result"] = {"status": "finished_incomplete", "missing": missing_terms}
+                observations.append(
+                    "round %d: finish recorded, but the coverage audit still misses: %s"
+                    % (rnd, ", ".join(missing_terms))
+                )
+            else:
+                stop = "finished"
+                call["result"] = {"status": "finished_complete"}
             calls.append(call)
             break
         if action["tool"] == "search":
@@ -497,10 +514,29 @@ def run_tool_agent(
                            "chars": len(content), "preview": content[:600],
                            "reason": action.get("reason", ""), "assessment": assessment})
             if body.get("ok"):
+                import hashlib as _hashlib
+
+                fingerprint = _hashlib.sha256(
+                    content.strip().encode("utf-8", "ignore")).hexdigest()
+                duplicate_body = fingerprint in body_fingerprints
+                if duplicate_body:
+                    # Same text behind a different URL: no new evidence, and it must not
+                    # inflate coverage. The fetch already happened, so only report it.
+                    call["result"] = {**(call.get("result") or {}), "duplicate_body": True,
+                                      "duplicate_of": body_fingerprints[fingerprint]}
+                    observations.append(
+                        f"round {rnd}: body is byte-identical to {body_fingerprints[fingerprint]} "
+                        "already read; it adds no new coverage."
+                    )
+                body_fingerprints.setdefault(fingerprint, final_url)
                 read_pages[final_url] = len(content)
                 if action["url"] != final_url:
                     read_pages[action["url"]] = len(content)
-                covered_terms.update(term for term in goal_terms if term in content.lower())
+                if not duplicate_body:
+                    contributed = [term for term in goal_terms if term in content.lower()]
+                    covered_terms.update(contributed)
+                    coverage_log.append({"url": final_url, "chars": len(content),
+                                         "contributed": sorted(contributed)})
                 source_chain.append({
                     "basis": confirmed_basis.get(action["url"], ""),
                     "feed_url": feed_links.get(action["url"], ""),
@@ -528,6 +564,13 @@ def run_tool_agent(
         "reads": reads,
         "elapsed_seconds": elapsed,
         "dns_stats": get_dns_stats(),
+        "coverage_audit": {
+            "covered": sorted(covered_terms),
+            "missing": [term for term in sorted(goal_terms) if term not in covered_terms],
+            "read_pages": len(read_pages),
+            "complete": bool(read_pages) and not [t for t in goal_terms if t not in covered_terms],
+        },
+        "coverage_log": coverage_log,
         "bodies": bodies,
         "calls": calls,
         "registry_sources": list(reliable_sources),
