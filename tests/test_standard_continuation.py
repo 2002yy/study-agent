@@ -379,7 +379,7 @@ def test_shadow_off_on_pairing_matches_the_standard_outcome(ctx, tmp_path, monke
     import time
 
     import tests.test_standard_handoff as handoff
-    from src.application import standard_continuation as _sc
+    from src.application import shadow_telemetry_sink as sink
     from src.application.standard_shadow_seam import grants_evidence_authority
 
     # --- OFF baseline (the ctx service was built with the flag unset)
@@ -394,7 +394,7 @@ def test_shadow_off_on_pairing_matches_the_standard_outcome(ctx, tmp_path, monke
     log = tmp_path / "shadow" / "observations.jsonl"
     monkeypatch.setenv("BSEARCH_STANDARD_SHADOW", "on")
     monkeypatch.setenv("BSEARCH_STANDARD_SHADOW_LOG", str(log))
-    monkeypatch.setattr(_sc, "_SHADOW_TELEMETRY", None)
+    monkeypatch.setattr(sink, "_SHARED", None)
     second = tmp_path / "second"
     second.mkdir()
     repo2, runs2, parent2, created2 = handoff.saved_parent.__wrapped__(second)
@@ -426,4 +426,4 @@ def test_shadow_off_on_pairing_matches_the_standard_outcome(ctx, tmp_path, monke
     assert record["authoritative"] is False
     assert record["observation"]["evidence_completion"] == "UNVERIFIED"
     assert grants_evidence_authority(record) is False
-    _sc._close_shared_shadow_telemetry()
+    sink.close_shadow_telemetry()
