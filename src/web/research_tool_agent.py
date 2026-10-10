@@ -115,9 +115,31 @@ def parse_action(raw: Any) -> dict[str, str]:
     return {"tool": "finish", "reason": reason}
 
 
+def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str]) -> list[dict[str, str]]:
+    """Order confirmed-but-unread URLs so the model can act on what it already has.
+
+    Deterministic and cheap: more question-term hits in the URL path win, deep pages
+    beat site roots, and stable bases beat exploratory ones. This only *orders* the
+    candidates the run has already legitimately discovered — it grants no new access.
+    """
+    basis_priority = {
+        "followed_link": 0, "feed_entry": 1, "search_result": 2,
+        "initial_urls": 3, "registry_seed": 4,
+    }
+
+    def key(url: str) -> tuple[int, int, int, str]:
+        lowered = url.casefold()
+        hits = sum(1 for term in terms if term and term.casefold() in lowered)
+        depth = 0 if urlsplit(lowered).path.strip("/") else 1  # 0 = deep page
+        return (-hits, depth, basis_priority.get(basis.get(url, ""), 9), lowered)
+
+    return [{"url": url, "basis": basis.get(url, "")} for url in sorted(urls, key=key)]
+
+
 def _prompt(question: str, observations: list[str],
             reliable_sources: tuple[str, ...] = (),
-            state: str = "") -> list[dict[str, str]]:
+            state: str = "",
+            candidates: list[dict[str, str]] | None = None) -> list[dict[str, str]]:
     context: dict[str, Any] = {
         "question": question,
         "observations": observations[-6:],
@@ -129,6 +151,10 @@ def _prompt(question: str, observations: list[str],
         context["reliable_sources"] = [
             {"url": url, "basis": "registry_seed"} for url in reliable_sources
         ]
+    if candidates:
+        # Already-discovered, not-yet-read targets. Reading one of these needs no new
+        # search and no new confirmation, so it is the cheapest way to spend a read.
+        context["confirmed_unread"] = candidates
     return [
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
@@ -189,6 +215,8 @@ def run_tool_agent(
     seen_links: set[str] = set()
     follow_provenance: dict[str, str] = {}
     source_chain: list[dict[str, str]] = []
+    # Slice-1 diagnostics: raw -> filtered -> shown -> confirmed -> read, per tool call.
+    candidate_trace: list[dict[str, Any]] = []
     for _url in initial_urls:
         if _public_url(_url):
             confirmed.add(_url)
@@ -206,6 +234,7 @@ def run_tool_agent(
             break
         missing_terms = [term for term in sorted(goal_terms) if term not in covered_terms][:5]
         unread_candidates = [url for url in confirmed if url not in read_pages]
+        unread_rows = _rank_unread(unread_candidates, goal_terms, confirmed_basis)[:6]
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
                         " | read pages: %d | unread candidates: %d"
                         " | still uncovered (term check, hint only): %s"
@@ -226,7 +255,8 @@ def run_tool_agent(
                    ", ".join(pending) if pending else "(none)"))
         try:
             raw = completion(
-                messages=_prompt(question, observations, reliable_sources, state=budget_state),
+                messages=_prompt(question, observations, reliable_sources,
+                                 state=budget_state, candidates=unread_rows),
                 timeout=min(20.0, max(1.0, deadline - monotonic())),
                 task_name="research_tool_agent",
             )
@@ -309,6 +339,12 @@ def run_tool_agent(
             call["search_diag"] = {k: result.get(k) for k in
                                    ("status", "reason", "providers_attempted", "provider_errors")
                                    if k in result}
+            shown_urls = [str(r.get("url") or "") for r in rows]
+            candidate_trace.append({
+                "round": rnd, "tool": "search", "query": action.get("query"),
+                "results": len(rows), "shown": shown_urls[:10],
+                "excluded": [u for u in shown_urls if u in entry_exclusions],
+            })
             page_types = [
                 classify_page(str(r.get("url") or ""), str(r.get("title") or ""),
                               str(r.get("snippet") or ""))
@@ -454,6 +490,14 @@ def run_tool_agent(
             call["result"] = {"status": "ok", "n": len(links), "candidates": len(candidates),
                               "page_type": page_type}
             call["links"] = [link.as_dict() for link in links]
+            candidate_trace.append({
+                "round": rnd, "tool": "follow", "page": url, "page_type": page_type,
+                "raw_candidates": len(candidates), "ranked": len(links),
+                "shown": [link.url for link in links],
+                "page_types": [link.page_type for link in links],
+                "newly_confirmed": [link.url for link in links
+                                    if confirmed_basis.get(link.url) == "followed_link"],
+            })
             brief = "\n".join(
                 f"- [{link.page_type} {link.score:g}] {link.anchor or '(no anchor text)'} | {link.url}"
                 + (f" | section: {link.context}" if link.context else "")
@@ -485,12 +529,19 @@ def run_tool_agent(
             if action["url"] not in confirmed:
                 call["result"] = {"status": "pending_url_confirmation",
                                   "reason": "url_not_from_search_result"}
+                unread_now = _rank_unread([u for u in confirmed if u not in read_pages],
+                                          goal_terms, confirmed_basis)[:5]
                 observations.append(
-                    f"round {rnd}: read rejected: {action['url']} was not confirmed by a search "
-                    "result; choose a URL that appeared in the search results."
-                )
+                    f"round {rnd}: read rejected: {action['url']} was never discovered by a search "
+                    "result or a followed page; guessing a URL is not evidence. Read one of the "
+                    "confirmed, not-yet-read candidates instead"
+                    + (": " + "; ".join(f"{row['url']} ({row['basis']})" for row in unread_now)
+                       if unread_now else " (none left - search for a missing term)."))
                 calls.append(call)
                 continue
+            candidate_trace.append({"round": rnd, "tool": "read_page", "url": action["url"],
+                                    "admitted": True,
+                                    "basis": confirmed_basis.get(action["url"], "")})
             if action["url"] in read_pages:
                 # Already read successfully: refuse WITHOUT spending read quota, and say so,
                 # so the previous audit's "same page read three times" cannot happen again.
@@ -631,5 +682,6 @@ def run_tool_agent(
         "calls": calls,
         "registry_sources": list(reliable_sources),
         "source_chain": source_chain,
+        "candidate_trace": candidate_trace,
         "publication_authority": False,
     }
