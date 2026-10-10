@@ -11,6 +11,8 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from src.domain.runtime_entities import WebLookupRun, new_id, utc_now
 from src.news.digest import format_news_source_block
+from src.application.research_shadow_seam import observe_shadow, shadow_enabled
+from src.application.shadow_telemetry_sink import shadow_telemetry
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research_contract import (
     build_research_context,
@@ -421,6 +423,20 @@ def stop_reason_from_payloads(attempts: list[dict[str, Any]]) -> str:
     ):
         return "providers_failed"
     return "providers_returned_no_results"
+
+
+def _observe_lookup_shadow(query: str) -> None:
+    """Best-effort, non-blocking, read-only B-Search shadow for the Lookup phase.
+
+    Submitted, never awaited, and its result cannot be read by the research below.
+    Flag OFF makes this a no-op, so the production path stays unchanged.
+    """
+    if not shadow_enabled("lookup"):
+        return
+    try:
+        observe_shadow(phase="lookup", query=query, telemetry=shadow_telemetry())
+    except Exception:  # noqa: BLE001 - shadow must never break the main chain
+        return
 
 
 class WebLookupService:
@@ -932,6 +948,10 @@ class WebLookupService:
                 answer_confidence=answer_confidence,
                 raise_on_error=raise_on_error,
             )
+
+        # M4-B read-only shadow for the Lookup phase: submitted, never awaited, and
+        # its result cannot be read by the research below. Flag OFF makes this a no-op.
+        _observe_lookup_shadow(run.query)
 
         def checkpoint() -> WebLookupRun:
             return self.repository.checkpoint(

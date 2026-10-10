@@ -20,8 +20,6 @@ false, and the assistant message is never touched.
 
 from __future__ import annotations
 
-import atexit
-import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Literal, Mapping
@@ -48,42 +46,19 @@ from src.web.research_recovery import LOOKUP_BUDGET, STANDARD_BUDGET, model_targ
 
 CONTINUATION_SCHEMA = "standard-auto-continuation-v1"
 
-_SHADOW_TELEMETRY: BestEffortTelemetry | None = None
-_SHADOW_TELEMETRY_LOCK = threading.Lock()
-
 
 def _shared_shadow_telemetry() -> BestEffortTelemetry:
-    """One telemetry instance per process.
+    """The process-wide shadow telemetry (shared across phases; closed at exit)."""
+    from src.application.shadow_telemetry_sink import shadow_telemetry
 
-    ``BestEffortTelemetry`` starts a dedicated flusher thread, so constructing one
-    per service instance would multiply threads whenever the service is built more
-    than once. The production factory is ``lru_cache``d, but call sites and tests are
-    not, so the instance is shared and closed at interpreter exit. The sink stays
-    best-effort: a record can still be dropped (permissions, full disk) and must
-    never be assumed persisted from ``submitted=True`` alone.
-    """
-    global _SHADOW_TELEMETRY
-    with _SHADOW_TELEMETRY_LOCK:
-        if _SHADOW_TELEMETRY is None:
-            from src.application.shadow_telemetry_sink import JsonlShadowSink
-
-            _SHADOW_TELEMETRY = BestEffortTelemetry(JsonlShadowSink())
-            atexit.register(_close_shared_shadow_telemetry)
-        return _SHADOW_TELEMETRY
+    return shadow_telemetry()
 
 
 def _close_shared_shadow_telemetry() -> None:
     """Stop the shared flusher thread. Idempotent; safe at interpreter exit."""
-    global _SHADOW_TELEMETRY
-    with _SHADOW_TELEMETRY_LOCK:
-        if _SHADOW_TELEMETRY is not None:
-            _SHADOW_TELEMETRY.close()
-            _SHADOW_TELEMETRY = None
+    from src.application.shadow_telemetry_sink import close_shadow_telemetry
 
-
-def _default_shadow_telemetry() -> BestEffortTelemetry:
-    """Backwards-compatible alias returning the shared, controlled instance."""
-    return _shared_shadow_telemetry()
+    close_shadow_telemetry()
 
 # At most this many advance() calls: None means "paused at a persisted step boundary", and the
 # total action budget is already bounded, so one extra call is enough to finish.

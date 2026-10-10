@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Literal
 
 from src.application.deep_execution import DeepExecutionService
+from src.application.research_shadow_seam import observe_shadow, shadow_enabled
+from src.application.shadow_isolation import BestEffortTelemetry
 from src.repositories.deep_continuation_repository import (
     REASON_CHILD_MISSING,
     REASON_HANDOFF_INTEGRITY,
@@ -47,6 +49,13 @@ class DeepContinuationOutcome:
     result: dict[str, Any] | None = None
 
 
+def _shared_shadow_telemetry() -> BestEffortTelemetry:
+    """The process-wide shadow telemetry (shared across phases; closed at exit)."""
+    from src.application.shadow_telemetry_sink import shadow_telemetry
+
+    return shadow_telemetry()
+
+
 class DeepContinuationService:
     def __init__(
         self,
@@ -55,12 +64,20 @@ class DeepContinuationService:
         execution: DeepExecutionService,
         *,
         clock: Callable[[], datetime] = _utc_now,
+        shadow_telemetry: BestEffortTelemetry | None = None,
+        shadow_runner: Callable[[str, float], dict[str, Any]] | None = None,
     ):
         self.repository = repository
         self.runs = runs
         self.execution = execution
         self.clock = clock
         self.terminal = DeepContinuationRepository(repository.database)
+        self.shadow_telemetry = (
+            shadow_telemetry
+            if shadow_telemetry is not None
+            else (_shared_shadow_telemetry() if shadow_enabled("deep") else None)
+        )
+        self.shadow_runner = shadow_runner
 
     def continue_pending(
         self, *, parent_turn_id: str, thread_id: str
@@ -148,6 +165,10 @@ class DeepContinuationService:
         if execution.status == "blocked":
             return self._block(parent_turn_id, thread_id, execution.reason)
 
+        # M4-B read-only shadow: submitted, never awaited, and its result cannot be
+        # read by anything below. Flag OFF makes this a no-op.
+        self._observe_deep_shadow(query=child.query, handoff=handoff)
+
         # Completed (or an unexpected status): trust only a re-read of durable truth.
         refreshed = self.runs.get(child_run_id)
         if refreshed is None:
@@ -175,6 +196,26 @@ class DeepContinuationService:
             reason=str(terminal.get("reason") or ""),
             result=result if isinstance(result, dict) else None,
         )
+
+    def _observe_deep_shadow(
+        self, *, query: str, handoff: Any
+    ) -> None:
+        """Best-effort, non-blocking, read-only B-Search shadow for the Deep phase.
+
+        The submission returns immediately; the outcome is only ever recorded as
+        telemetry. Any failure here is swallowed so Deep research cannot be slowed or
+        interrupted by the observer.
+        """
+        try:
+            observe_shadow(
+                phase="deep",
+                query=query,
+                handoff=handoff if isinstance(handoff, dict) else None,
+                telemetry=self.shadow_telemetry,
+                runner=self.shadow_runner,
+            )
+        except Exception:  # noqa: BLE001 - shadow must never break the main chain
+            return
 
     def _block(
         self, parent_turn_id: str, thread_id: str, reason: str

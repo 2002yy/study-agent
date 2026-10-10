@@ -208,9 +208,9 @@ def test_service_builds_real_telemetry_when_enabled(monkeypatch):
 
 def test_shared_telemetry_reuses_one_thread_and_closes(monkeypatch):
     """Constructing many services must not multiply flusher threads."""
-    from src.application import standard_continuation as sc
+    from src.application import shadow_telemetry_sink as sink
 
-    monkeypatch.setattr(sc, "_SHADOW_TELEMETRY", None)
+    monkeypatch.setattr(sink, "_SHARED", None)
     monkeypatch.setenv("BSEARCH_STANDARD_SHADOW", "on")
 
     def telemetry_threads() -> int:
@@ -226,7 +226,7 @@ def test_shared_telemetry_reuses_one_thread_and_closes(monkeypatch):
     assert len({id(s.shadow_telemetry) for s in services}) == 1  # one shared instance
     assert telemetry_threads() - baseline == 1  # one flusher, not five
 
-    sc._close_shared_shadow_telemetry()
+    sink.close_shadow_telemetry()
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline and telemetry_threads() > baseline:
         time.sleep(0.01)
