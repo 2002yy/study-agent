@@ -169,6 +169,45 @@ def _allow_local_fixture_reads() -> None:
 
     article_fetcher._is_fetchable_article_url = _allowed  # noqa: SLF001
 
+    # The Reader now transports through src.web.safe_http, whose public-IP check
+    # would refuse the intentional loopback fixture. Relax ONLY that check, in this
+    # test helper's scope: production still enforces public IPs.
+    from src.web import safe_http
+
+    original_resolve = safe_http.resolve_public_ips
+    original_host_ok = safe_http.host_resolves_public
+
+    def _local(host: str) -> bool:
+        return (host or "").lower() in {"127.0.0.1", "localhost", "::1"}
+
+    def _resolve(host, *, deadline=None):
+        return ["127.0.0.1"] if _local(host) else original_resolve(host, deadline=deadline)
+
+    def _host_ok(host, *, deadline=None):
+        return True if _local(host) else original_host_ok(host, deadline=deadline)
+
+    safe_http.resolve_public_ips = _resolve
+    safe_http.host_resolves_public = _host_ok
+
+    original_public_url = safe_http._public_url  # noqa: SLF001
+
+    def _public_url_local(value):
+        raw = str(value or "").strip()
+        if _local((urlparse(raw).hostname or "").lower()):
+            return raw
+        return original_public_url(value)
+
+    safe_http._public_url = _public_url_local  # noqa: SLF001
+
+    original_check_target = safe_http._check_target  # noqa: SLF001
+
+    def _check_target_local(current):
+        if _local((urlparse(str(current or "")).hostname or "").lower()):
+            return
+        return original_check_target(current)
+
+    safe_http._check_target = _check_target_local  # noqa: SLF001
+
 
 # ---------------------------------------------------------------- default side
 

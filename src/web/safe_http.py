@@ -282,6 +282,21 @@ def decompress_bounded(raw: bytes, encoding: str, *, limit: int = MAX_DECOMPRESS
     return out
 
 
+def _check_target(current: str) -> None:
+    """Scheme/port/public-IP admission for one hop (fail-closed).
+
+    Kept as a module-level hook so a caller may substitute a policy (e.g. the F2
+    fixture harness allows intentional loopback hosts); the default unchanged.
+    """
+    parts = urlsplit(current)
+    if parts.scheme not in {"http", "https"} or not parts.hostname:
+        _raise_safe("unsafe_scheme")
+    if parts.port not in (None, 80, 443):
+        _raise_safe("unsafe_port")
+    if not _public_url(current):
+        _raise_safe("unsafe_target")
+
+
 def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
                       deadline: float | None = None, max_bytes: int = MAX_BYTES) -> dict:
     """Structured article-reader transport over the same safety rules.
@@ -302,12 +317,7 @@ def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
             if hop_timeout <= 0:
                 _raise_safe("deadline_exhausted")
         parts = urlsplit(current)
-        if parts.scheme not in {"http", "https"} or not parts.hostname:
-            _raise_safe("unsafe_scheme")
-        if parts.port not in (None, 80, 443):
-            _raise_safe("unsafe_port")
-        if not _public_url(current):
-            _raise_safe("unsafe_target")
+        _check_target(current)
         try:
             ips = resolve_public_ips(parts.hostname, deadline=deadline)
         except SafeFetchRefusal:
