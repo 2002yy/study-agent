@@ -249,3 +249,37 @@ def test_jsonl_sink_appends_and_never_raises(tmp_path):
     broken = JsonlShadowSink(tmp_path)  # a directory, not a file
     broken.record({"c": 3})
     assert broken.written == 0
+
+
+def test_standard_contract_is_unchanged_by_the_generic_seam(monkeypatch, tmp_path):
+    """M4-A public result type and telemetry schema must not change silently."""
+    import dataclasses
+
+    from src.application import shadow_telemetry_sink as sink
+    from src.application.standard_shadow_seam import (
+        StandardShadowResult,
+        observe_shadow_for_standard,
+    )
+
+    assert {f.name for f in dataclasses.fields(StandardShadowResult)} == {
+        "enabled",
+        "submitted",
+        "decision_inputs",
+    }
+
+    monkeypatch.setattr(sink, "_SHARED", None)
+    monkeypatch.setenv("BSEARCH_STANDARD_SHADOW", "on")
+    telemetry, rec = _telemetry()
+    result = observe_shadow_for_standard(
+        query="q", telemetry=telemetry, runner=lambda q, b: {"stop_reason": "finished"}
+    )
+    assert isinstance(result, StandardShadowResult)
+    assert not hasattr(result, "phase")  # M4-A result has no phase field
+
+    assert telemetry.flush(timeout=2.0) is True
+    _wait_for_items(rec)
+    payload = rec.items[0]
+    assert payload["seam_version"] == "standard-bsearch-shadow-seam-v1"
+    assert "phase" not in payload  # legacy Standard record shape
+    telemetry.close()
+    sink.close_shadow_telemetry()

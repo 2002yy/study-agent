@@ -40,6 +40,15 @@ PHASE_FLAGS = {
 
 SEAM_VERSION = "research-bsearch-shadow-seam-v1"
 
+#: Per-phase telemetry schema. The Standard record keeps the M4-A shape exactly
+#: (version ``standard-bsearch-shadow-seam-v1``, no ``phase`` key) so the merged M4-A
+#: contract is not silently changed; Lookup/Deep use the phase-aware format.
+PHASE_SCHEMA: dict[str, tuple[str, bool]] = {
+    "standard": ("standard-bsearch-shadow-seam-v1", False),
+    "lookup": (SEAM_VERSION, True),
+    "deep": (SEAM_VERSION, True),
+}
+
 #: Bounded, but large enough to be meaningful. This is the inner bound the observer
 #: enforces on itself (the outer submit does not wait, so it cannot bound the worker).
 BSEARCH_SHADOW_BUDGET_SECONDS = 20.0
@@ -190,13 +199,16 @@ def observe_shadow(
         # Sanitize unconditionally: no runner may hand the shadow authority.
         record["authoritative"] = False
         record["evidence_completion"] = SHADOW_EVIDENCE_COMPLETION
-        return {
-            "seam_version": SEAM_VERSION,
-            "phase": phase,
+        version, include_phase = PHASE_SCHEMA.get(phase, (SEAM_VERSION, True))
+        payload: dict[str, Any] = {
+            "seam_version": version,
             "authoritative": False,
             "decision_inputs": inputs.to_dict(),
             "observation": record,
         }
+        if include_phase:
+            payload["phase"] = phase
+        return payload
 
     def on_result(outcome: ShadowOutcome) -> None:
         if telemetry is not None and outcome.ok:

@@ -165,16 +165,16 @@ class DeepContinuationService:
         if execution.status == "blocked":
             return self._block(parent_turn_id, thread_id, execution.reason)
 
-        # M4-B read-only shadow: submitted, never awaited, and its result cannot be
-        # read by anything below. Flag OFF makes this a no-op.
-        self._observe_deep_shadow(query=child.query, handoff=handoff)
-
         # Completed (or an unexpected status): trust only a re-read of durable truth.
         refreshed = self.runs.get(child_run_id)
         if refreshed is None:
             return self._block(parent_turn_id, thread_id, REASON_CHILD_MISSING)
         if refreshed.status not in TERMINAL_CHILD_STATUSES:
             return self._outcome("deferred", parent_turn_id, child_run_id, "in_progress")
+        # M4-B read-only shadow: only a child THIS execution drove to a real terminal is
+        # observed. A replay of an existing terminal and a deferred run both observe
+        # nothing, so a resumption or repeated call cannot double-count a phase.
+        self._observe_deep_shadow(query=refreshed.query, handoff=handoff)
         return self._finalize(parent_turn_id, thread_id, child_run_id)
 
     def _finalize(

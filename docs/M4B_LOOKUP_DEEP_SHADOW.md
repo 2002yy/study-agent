@@ -46,10 +46,33 @@ shared sink is one instance per process.
 
 Existing M4-A tests still pass unchanged (the shim preserves the public names).
 
+## Telemetry schema (explicit, not silent)
+
+Records are versioned per phase (`PHASE_SCHEMA`):
+
+| phase | `seam_version` | `phase` key |
+| --- | --- | --- |
+| standard | `standard-bsearch-shadow-seam-v1` | **absent** (M4-A shape preserved) |
+| lookup / deep | `research-bsearch-shadow-seam-v1` | present |
+
+The M4-A public return type (`StandardShadowResult`: `enabled`, `submitted`,
+`decision_inputs`) is restored as a real dataclass — not an alias of the generic
+result — so no constructor field is added under existing callers.
+
+## Deep observation semantics
+
+The Deep shadow is submitted **only** when this execution drove the child to a real
+terminal (after the durable re-read). Consequences, each pinned by a test:
+
+- a newly-terminal child is observed exactly once;
+- a **deferred** run observes nothing;
+- a **replay** of an already-terminal child observes nothing (no double-count on
+  resumption or repeated calls).
+
 ## Verification
 
 - Regression across Standard / Deep / Lookup / continuation / shadow / learner / reader
-  suites: **857 passed, 1 skipped**.
+  suites: **857 passed, 1 skipped** (plus the M4-B closeout tests below).
 - `ruff` clean; mypy baseline gate **122/128, NEW=0**.
 
 ## Boundaries

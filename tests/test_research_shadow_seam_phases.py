@@ -59,6 +59,7 @@ def test_lookup_phase_records_sanitized_telemetry(monkeypatch):
     _wait_for_items(rec)
     payload = rec.items[0]
     assert payload["phase"] == "lookup"
+    assert payload["seam_version"] == "research-bsearch-shadow-seam-v1"
     assert payload["authoritative"] is False
     assert payload["observation"]["evidence_completion"] == "UNVERIFIED"
     assert grants_evidence_authority(payload) is False
