@@ -24,7 +24,8 @@ test("first answer needs no configuration decision and survives refresh", async 
   await page.goto("/");
 
   const successArtifacts: string[] = [];
-  await expect(page.getByRole("heading", { name: "学习工作台" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "对话" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   successArtifacts.push(
     await captureSuccessStep(page, testInfo, "first_answer", "ready"),
   );
