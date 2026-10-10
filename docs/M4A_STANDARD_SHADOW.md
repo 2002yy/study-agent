@@ -92,3 +92,26 @@ non-authoritative.
 
 Boundaries held: production B OFF; RP-1 NO-GO; `assess_body` UNQUALIFIED; no search
 source added; URL confirmation not weakened; default budgets unchanged.
+
+## Same-run full-text re-audit of the high-risk trio (2026-10-10)
+
+Re-ran Redis / Minecraft / K8s at the enhanced budget **with `capture_full_text=True`**,
+so the audit reads the text that run actually saw — never a later re-fetch. The
+`6000`-char bodies are the reader's *visible* cap, i.e. the honest boundary of what the
+agent could use.
+
+| case | sub-goal | verdict | same-run basis |
+| --- | --- | --- | --- |
+| K8s | 三者区别 | **SUPPORTED** | kubernetes.io: startup / liveness / readiness explicitly distinguished |
+| K8s | 误用后果 | **SUPPORTED** | "…重启不健康的容器，或者停止向尚未就绪的容器发送流量" |
+| Minecraft | 信号作用 | **SUPPORTED** | "…用于加强、延迟、锁存红石信号以及阻止信号倒流" |
+| Minecraft | 延迟档位 | **PARTIAL** | page explains the repeater has 档位; the numeric 1–4 tick mapping is not in the read text |
+| Redis | 单线程原因 | **MISSING** | no single-threading explanation in either saved body |
+| Redis | 瓶颈 | **MISSING** | only persistence keys in an install guide |
+
+Findings: (a) the system's own `explored` status **over-claimed** for Redis — the
+same-run full text supports neither sub-goal; (b) those gaps are now evidence-backed
+rather than inferred; (c) Minecraft/K8s earn a verdict only through an explicit
+independent audit like this one — the shadow seam still emits `UNVERIFIED` and
+`grants_evidence_authority()` stays False.
+
