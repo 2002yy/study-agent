@@ -318,15 +318,16 @@ def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
                 _raise_safe("deadline_exhausted")
         parts = urlsplit(current)
         _check_target(current)
+        host = parts.hostname or ""
         try:
-            ips = resolve_public_ips(parts.hostname, deadline=deadline)
+            ips = resolve_public_ips(host, deadline=deadline)
         except SafeFetchRefusal:
             raise
         except Exception as exc:  # noqa: BLE001
             _raise_safe(str(exc) or "dns_failed")
         try:
             status, headers, raw, truncated = http_get_raw(
-                current, parts.hostname, ips[0], timeout=hop_timeout, max_bytes=max_bytes
+                current, host, ips[0], timeout=hop_timeout, max_bytes=max_bytes
             )
         except (OSError, http.client.HTTPException) as exc:
             raise SafeFetchError(f"network:{type(exc).__name__}") from exc
@@ -353,7 +354,7 @@ def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
                     _raise_safe("deadline_exhausted")
             try:
                 status, headers, raw, truncated = http_get_raw(
-                    current, parts.hostname, ips[0], timeout=retry_timeout,
+                    current, host, ips[0], timeout=retry_timeout,
                     max_bytes=MAX_BYTES_LARGE
                 )
             except (OSError, http.client.HTTPException) as exc:
