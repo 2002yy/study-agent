@@ -375,6 +375,11 @@ def test_shadow_on_records_a_non_authoritative_observation_on_the_real_path(
     log = tmp_path / "shadow" / "observations.jsonl"
     monkeypatch.setenv("BSEARCH_STANDARD_SHADOW", "on")
     monkeypatch.setenv("BSEARCH_STANDARD_SHADOW_LOG", str(log))
+    # The telemetry instance is shared per process, so reset it to bind THIS test's
+    # log path (another test may have created it earlier with a different path).
+    from src.application import standard_continuation as _sc
+
+    monkeypatch.setattr(_sc, "_SHADOW_TELEMETRY", None)
 
     _off_service, repository, runs, parent, _created, gateway, clock = ctx
     # built before the flag was set -> no sink, no work

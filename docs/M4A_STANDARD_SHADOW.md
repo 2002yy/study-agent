@@ -89,6 +89,20 @@ is present, so an enabled flag can never burn model/network budget on a run whos
 result would be discarded. The sink is best-effort: it drops on failure and never
 raises into research.
 
+### Resource lifecycle
+
+`BestEffortTelemetry` starts one flusher thread per instance, so the service reuses a
+single **process-wide** instance (`_shared_shadow_telemetry`, created lazily, closed at
+interpreter exit). Verified locally: with the flag ON, 25 service constructions would
+create **25** flusher threads if each owned one; with the shared instance they create
+**1**, and `_close_shared_shadow_telemetry()` returns the count to baseline. In
+production the chat-service factory is `lru_cache(maxsize=1)`, so the service is already
+a singleton — the shared instance is belt-and-braces for other call sites and tests.
+
+`submitted=True` means the work was **admitted to the bounded worker**, not that a
+record was persisted. The sink is best-effort (permissions, full disk) and drops on
+failure; persistence must be observed at the sink, never inferred from this flag.
+
 ## Evaluation validity
 
 `tools/m3_battery.py` refuses invalid runs: a missing env file or model credentials

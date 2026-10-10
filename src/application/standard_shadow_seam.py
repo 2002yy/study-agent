@@ -148,7 +148,12 @@ def _default_runner(query: str, budget_seconds: float) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class StandardShadowResult:
-    """What the seam produced. Never an exception, never a business input."""
+    """What the seam produced. Never an exception, never a business input.
+
+    ``submitted`` means the work was *admitted to the bounded worker* — it does not
+    mean a record was persisted. The sink is best-effort (permissions, full disk),
+    so persistence must be observed at the sink, never inferred from this flag.
+    """
 
     enabled: bool
     submitted: bool

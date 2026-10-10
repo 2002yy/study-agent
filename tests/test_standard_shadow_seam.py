@@ -190,20 +190,47 @@ def test_flag_on_without_a_sink_refuses_to_spend(monkeypatch):
 
 def test_service_builds_real_telemetry_when_enabled(monkeypatch):
     """A real Standard service must obtain a sink by itself when the flag is on."""
-    from src.application.standard_continuation import _default_shadow_telemetry
+    from src.application.standard_continuation import _shared_shadow_telemetry
 
     monkeypatch.setenv("BSEARCH_STANDARD_SHADOW", "on")
     service = StandardContinuationService(
         types.SimpleNamespace(database=object()), runs=object(), gateway=object()
     )
     assert service.shadow_telemetry is not None
+    assert service.shadow_telemetry is _shared_shadow_telemetry()  # shared, not per-instance
 
     monkeypatch.delenv("BSEARCH_STANDARD_SHADOW", raising=False)
     off = StandardContinuationService(
         types.SimpleNamespace(database=object()), runs=object(), gateway=object()
     )
     assert off.shadow_telemetry is None
-    assert _default_shadow_telemetry() is not None
+
+
+def test_shared_telemetry_reuses_one_thread_and_closes(monkeypatch):
+    """Constructing many services must not multiply flusher threads."""
+    from src.application import standard_continuation as sc
+
+    monkeypatch.setattr(sc, "_SHADOW_TELEMETRY", None)
+    monkeypatch.setenv("BSEARCH_STANDARD_SHADOW", "on")
+
+    def telemetry_threads() -> int:
+        return sum(1 for t in threading.enumerate() if t.name == "shadow-telemetry")
+
+    baseline = telemetry_threads()
+    services = [
+        StandardContinuationService(
+            types.SimpleNamespace(database=object()), runs=object(), gateway=object()
+        )
+        for _ in range(5)
+    ]
+    assert len({id(s.shadow_telemetry) for s in services}) == 1  # one shared instance
+    assert telemetry_threads() - baseline == 1  # one flusher, not five
+
+    sc._close_shared_shadow_telemetry()
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline and telemetry_threads() > baseline:
+        time.sleep(0.01)
+    assert telemetry_threads() == baseline
 
 
 def test_jsonl_sink_appends_and_never_raises(tmp_path):
