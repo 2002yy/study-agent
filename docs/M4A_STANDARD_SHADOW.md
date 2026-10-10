@@ -53,12 +53,31 @@ Optional constructor injection: `shadow_telemetry` (`BestEffortTelemetry`) and
 
 ## Verification
 
-- `tests/test_standard_shadow_seam.py`: 7 passed (flag default OFF; OFF never runs
+- `tests/test_standard_shadow_seam.py`: 9 passed (flag default OFF; OFF never runs
   the observer; ON records only non-authoritative telemetry; a lying runner cannot
-  grant authority; runner failure swallowed; saturation rejects without blocking;
-  the continuation helper never raises).
-- Standard/continuation/shadow/learner regression: **322 passed**.
+  grant authority; a `finished` + `supported` trace still yields a non-authoritative
+  record; only an explicit audited grant could pass and the seam never emits one;
+  runner failure swallowed; saturation rejects without blocking and returns its
+  tokens; the continuation helper never raises).
+- Standard/continuation/shadow/learner regression: **331 passed**.
 - `ruff` clean; mypy baseline gate **122/128, NEW=0**.
+
+### Paired shadow probe (real observer, flag ON)
+
+Two frozen questions submitted through `observe_shadow_for_standard` with the real
+B-Search runner and a `BestEffortTelemetry` sink:
+
+| case | submit_ms | submitted | stop_reason | evidence_completion | authoritative | grants_authority | bodies |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| minecraft | **0.0** | true | round_limit | UNVERIFIED | false | false | 1 |
+| k8s | **0.0** | true | round_limit | UNVERIFIED | false | false | 0 |
+
+Reading: submission is genuinely non-blocking (0.0 ms — the main chain never waits),
+the observations completed later in the background (≈13 s / ≈16 s within the shadow's
+own bounded budget), and **no record gained evidence authority even though one read a
+real article body**. This is the M4-A property under test: observable, bounded, and
+non-authoritative.
+
 
 ## Not done / next
 
