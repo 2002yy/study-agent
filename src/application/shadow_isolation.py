@@ -201,6 +201,69 @@ def run_shadow_bounded(
     return outcome
 
 
+def submit_shadow_bounded(
+    work: Callable[[], object],
+    *,
+    on_result: Callable[[ShadowOutcome], None] | None = None,
+) -> bool:
+    """Submit shadow work WITHOUT waiting: zero caller latency, bounded resources.
+
+    ``run_shadow_bounded`` blocks the caller for up to its budget, which is right
+    for a turn that can afford it but wrong for a research shadow that must never
+    slow the main chain. This variant admits the work through the same semaphore
+    and the same fixed worker pool, then returns immediately; the outcome is
+    delivered to ``on_result`` from the worker thread (best effort).
+
+    Honest limitation: because the caller does not wait, the *caller* budget does
+    not apply here — the submitted work must bound itself internally. Admission
+    still rejects immediately when saturated, so a stuck worker cannot let an
+    unbounded backlog grow.
+    """
+
+    if not _capacity.acquire(blocking=False):
+        if on_result is not None:
+            try:
+                on_result(ShadowOutcome(
+                    SHADOW_UNAVAILABLE, None, "capacity_exhausted", CALLER_REJECTED
+                ))
+            except Exception:  # noqa: BLE001 - telemetry may be dropped
+                pass
+        return False
+
+    def _run() -> ShadowOutcome:
+        try:
+            value = work()
+        except Exception as exc:  # noqa: BLE001 - business failure isolation
+            return ShadowOutcome(
+                SHADOW_ERROR, None, type(exc).__name__, CALLER_FAILED,
+                worker_termination_known=True,
+            )
+        return ShadowOutcome(
+            SHADOW_OK, value, "", CALLER_COMPLETED, worker_termination_known=True
+        )
+
+    future = _shared_executor().submit(_run)
+
+    def _done(_future) -> None:
+        try:
+            outcome = _future.result()
+        except BaseException:  # noqa: BLE001 - never let shadow surface a failure
+            outcome = ShadowOutcome(
+                SHADOW_ERROR, None, "isolated:future_failed", CALLER_FAILED,
+                worker_termination_known=True,
+            )
+        finally:
+            _capacity.release()
+        if on_result is not None:
+            try:
+                on_result(outcome)
+            except Exception:  # noqa: BLE001 - telemetry may be dropped
+                pass
+
+    future.add_done_callback(_done)
+    return True
+
+
 class BestEffortTelemetry:
     """Bounded telemetry sink: drop on overload instead of growing a backlog.
 

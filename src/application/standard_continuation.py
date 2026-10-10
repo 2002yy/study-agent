@@ -22,10 +22,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, Mapping
 
 from src.application.standard_execution import StandardExecution
 from src.application.standard_research import ModelStandardPlanner, StandardResearchLoop
+from src.application.standard_shadow_seam import observe_shadow_for_standard
+from src.application.shadow_isolation import BestEffortTelemetry
 from src.repositories.runtime_repository import RuntimeRepository
 from src.repositories.standard_execution_repository import (
     StandardExecutionRepository,
@@ -89,12 +91,16 @@ class StandardContinuationService:
         *,
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         planner_factory: Callable[[], Callable[[dict], dict]] = ModelStandardPlanner,
+        shadow_telemetry: BestEffortTelemetry | None = None,
+        shadow_runner: Callable[[str, float], dict[str, Any]] | None = None,
     ):
         self.repository = repository
         self.runs = runs
         self.gateway = gateway
         self.clock = clock
         self.planner_factory = planner_factory
+        self.shadow_telemetry = shadow_telemetry
+        self.shadow_runner = shadow_runner
         self.journal = StandardExecutionRepository(repository.database)
 
     def continue_pending(
@@ -174,6 +180,9 @@ class StandardContinuationService:
             )
 
         query = (terminal.get("handoff") or {}).get("query") or parent.user_message
+        # M4-A read-only shadow: submitted, never awaited, and its result cannot be
+        # read by anything below. Flag OFF makes this a no-op.
+        self._observe_standard_shadow(query=query, handoff=terminal.get("handoff"))
         ledger = self.journal.child_ledger(execution.run_id, thread_id)
         fields = result.get("unresolved_gaps") or []
         trusted = project_trusted_sources(ledger)
@@ -197,6 +206,25 @@ class StandardContinuationService:
             reason=str(bound.get("stop_reason") or ""),
             result=saved.get("result") if isinstance(saved.get("result"), dict) else bound,
         )
+
+    def _observe_standard_shadow(
+        self, *, query: str, handoff: Mapping[str, Any] | None
+    ) -> None:
+        """Best-effort, non-blocking, read-only B-Search shadow.
+
+        The submission returns immediately; the outcome is only ever recorded as
+        telemetry. Any failure here is swallowed so the main research chain cannot
+        be slowed or interrupted by the observer.
+        """
+        try:
+            observe_shadow_for_standard(
+                query=query,
+                handoff=handoff,
+                telemetry=self.shadow_telemetry,
+                runner=self.shadow_runner,
+            )
+        except Exception:  # noqa: BLE001 - shadow must never break the main chain
+            return
 
     def _blocked(
         self, parent_turn_id: str, thread_id: str, reason: str
