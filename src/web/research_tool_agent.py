@@ -479,7 +479,8 @@ def run_tool_agent(
                 candidates = extract_candidates(html, url)
             except Exception:  # noqa: BLE001 - discovery must never break the loop
                 candidates = []
-            links = rank_candidates(candidates, question_terms(question), limit=10)
+            links = rank_candidates(candidates, question_terms(question), limit=10,
+                                    question=question)
             before_confirm = set(confirmed)
             for link in links:
                 seen_links.add(link.url)

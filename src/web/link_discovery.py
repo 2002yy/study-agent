@@ -22,6 +22,8 @@ from urllib.parse import unquote, urljoin, urlsplit
 
 from lxml import html as lxml_html  # type: ignore[import-untyped]
 
+from src.web.recovery_candidates import canonical_document
+
 # Hard bounds: one page can never make the agent process an unbounded document.
 MAX_LINKS = 500
 MAX_HTML_BYTES = 300_000
@@ -91,6 +93,70 @@ def question_terms(question: str) -> set[str]:
             terms.add(run)
         terms.update(run[i:i + 2] for i in range(len(run) - 1))
     return terms
+
+
+# --- navigation-family display diversity ---------------------------------------------
+
+_VERSION_SEGMENT = re.compile(
+    r"^(?:\d+(?:\.\d+)*|current|devel|beta|rc\d*|stable|latest|master)$"
+)
+
+
+def version_family(url: str) -> tuple[str, str]:
+    """(scheduling-family, version token) for a URL with ONE doc-version segment.
+
+    Locale and tracking normalisation is reused from the existing
+    ``recovery_candidates.canonical_document`` (it is a scheduling identity only and
+    never rewrites a fetched URL). This layer adds the doc-version segment, which the
+    shared helper does not fold: ``/docs/17/mvcc.html`` and ``/docs/18/mvcc.html``
+    become one family with tokens ``17`` / ``18``.
+    """
+    base = canonical_document(url)
+    head, _, rest = base.partition("/")
+    segments = rest.split("/") if rest else []
+    for index, segment in enumerate(segments):
+        if _VERSION_SEGMENT.fullmatch(segment.casefold()):
+            folded = list(segments)
+            folded[index] = "*"
+            return f"{head}/{'/'.join(folded)}", segment.casefold()
+    return "", ""
+
+
+def requested_versions(question: str) -> set[str]:
+    """Version tokens the question names. Only decides how many family members keep a
+    display slot; it grants no access and never rewrites a URL."""
+    found = set(re.findall(r"\b\d+(?:\.\d+)?\b", (question or "").lower()))
+    return {token for token in found if len(token) <= 8}
+
+
+def diversify_navigation_families(
+    ranked: list[Candidate], *, question: str = "", min_family: int = 3
+) -> list[Candidate]:
+    """Stop one navigation family (doc versions / locales) from filling every slot.
+
+    Identity is preserved: no version is canonicalised, no URL is rewritten, and a
+    suppressed link simply does not occupy a shown slot (so it also gains no
+    confirmation from this path). A question that names version(s) keeps those; a
+    question without one keeps a single representative.
+    """
+    families: dict[str, list[Candidate]] = {}
+    for candidate in ranked:
+        family, _token = version_family(candidate.url)
+        if family:
+            families.setdefault(family, []).append(candidate)
+
+    requested = requested_versions(question)
+    drop: set[str] = set()
+    for members in families.values():
+        if len(members) < min_family:
+            continue
+        mentioned = [c for c in members if version_family(c.url)[1] in requested]
+        if mentioned:
+            keep = {c.url for c in mentioned}
+        else:
+            keep = {max(members, key=lambda c: (c.score, -c.order)).url}
+        drop.update(c.url for c in members if c.url not in keep)
+    return [c for c in ranked if c.url not in drop]
 
 
 def _is_locale_segment(segment: str) -> bool:
@@ -227,6 +293,7 @@ def rank_candidates(
     terms: set[str],
     *,
     limit: int = 10,
+    question: str = "",
 ) -> list[Candidate]:
     """Rank candidates by question relevance, then page type, then document order.
 
@@ -313,4 +380,6 @@ def rank_candidates(
         key=lambda c: (c.score, -c.order),
         reverse=True,
     )
+    # Display diversity last: one navigation family must not take every shown slot.
+    ranked = diversify_navigation_families(ranked, question=question)
     return ranked[:limit]
