@@ -356,3 +356,50 @@ def test_complete_turn_is_a_no_op_without_a_continuation_service(ctx, monkeypatc
         lambda self, prepared, suffix: completed,
     )
     assert _chat_with(None).complete_turn(prepared=None, suffix="") is completed
+
+
+def test_shadow_on_records_a_non_authoritative_observation_on_the_real_path(
+    ctx, tmp_path, monkeypatch
+):
+    """M4-A acceptance: on the REAL continuation path, flag ON must leave the Standard
+    outcome intact and actually persist a non-authoritative observation.
+
+    The OFF baseline is the whole existing continuation suite (it runs with the flag
+    unset); here we additionally pin that OFF provisions no sink and ON does.
+    """
+    import json
+    import time
+
+    from src.application.standard_shadow_seam import grants_evidence_authority
+
+    log = tmp_path / "shadow" / "observations.jsonl"
+    monkeypatch.setenv("BSEARCH_STANDARD_SHADOW", "on")
+    monkeypatch.setenv("BSEARCH_STANDARD_SHADOW_LOG", str(log))
+
+    _off_service, repository, runs, parent, _created, gateway, clock = ctx
+    # built before the flag was set -> no sink, no work
+    assert _off_service.shadow_telemetry is None
+
+    service = StandardContinuationService(
+        repository, runs, gateway, clock=lambda: clock[0], planner_factory=lambda: planner
+    )
+    assert service.shadow_telemetry is not None
+    # hermetic: never run the real observer inside CI
+    service.shadow_runner = lambda q, b: {
+        "stop_reason": "finished",
+        "authoritative": True,
+        "evidence_completion": "SUPPORTED",
+    }
+
+    outcome = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert outcome.status == "completed"
+    assert outcome.result is not None
+
+    assert service.shadow_telemetry.flush(timeout=2.0) is True
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline and not log.exists():
+        time.sleep(0.01)
+    record = json.loads(log.read_text(encoding="utf-8").strip().splitlines()[0])
+    assert record["authoritative"] is False
+    assert record["observation"]["evidence_completion"] == "UNVERIFIED"
+    assert grants_evidence_authority(record) is False
