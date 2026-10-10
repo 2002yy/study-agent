@@ -74,6 +74,11 @@ BUDGETS = {
 }
 
 
+#: Persist the text the run actually read (bounded by the reader's visible cap) so
+#: an audit never substitutes a later re-fetch for the same-run evidence.
+CAPTURE_FULL_TEXT = True
+
+
 def precheck() -> tuple[bool, str]:
     """Refuse to run an invalid evaluation instead of producing silent no-ops.
 
@@ -126,6 +131,7 @@ def main() -> int:
                 gateway=gw, completion=configured_completion, question=case["question"],
                 budget=BUDGETS[bname], registry_sources=tuple(seeds),
                 sub_goals=[(l, tuple(t)) for l, t in case["sub_goals"].items()],
+                capture_full_text=CAPTURE_FULL_TEXT,
             )
             (out / f"{case['id']}.{bname}.json").write_text(
                 json.dumps(trace, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -143,7 +149,7 @@ def main() -> int:
                 # Honest evidence labelling: the trace only carries a bounded
                 # preview, so a shadow/at-a-distance audit must not be mistaken for
                 # a full-text verdict, and no run may self-grant authority.
-                "evidence_capture": "preview_only",
+                "evidence_capture": "full_text" if CAPTURE_FULL_TEXT else "preview_only",
                 "evidence_completion": "UNVERIFIED",
             }, ensure_ascii=False), flush=True)
             # evidence view: matched excerpt per sub-goal from the read bodies
