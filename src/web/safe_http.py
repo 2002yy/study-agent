@@ -16,7 +16,9 @@ from urllib.parse import urljoin, urlsplit
 
 from src.web.tool_evidence import _public_url
 
-MAX_BYTES = 300_000
+MAX_BYTES = 512 * 1024          # ordinary page cap (512 KiB)
+MAX_BYTES_LARGE = 1024 * 1024   # ONE bounded retry for a legitimately large article
+MAX_DECOMPRESSED = 4 * 1024 * 1024  # post-decompression cap, independent of the wire cap
 MAX_HOPS = 4
 
 # Security refusals (SSRF-class) must be distinguishable from ordinary network
@@ -250,6 +252,36 @@ def safe_fetch(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
     raise ValueError("too_many_redirects")
 
 
+def decompress_bounded(raw: bytes, encoding: str, *, limit: int = MAX_DECOMPRESSED) -> bytes:
+    """Decode gzip/deflate with an explicit post-decompression cap.
+
+    The wire cap and the decoded cap are separate: a small compressed body can
+    expand far beyond the download limit, so the decoded size is bounded here.
+    Unknown encodings are returned untouched.
+    """
+    name = (encoding or "").strip().lower()
+    if not name or name == "identity":
+        return raw
+    import zlib
+
+    wbits = {"gzip": 16 + zlib.MAX_WBITS, "deflate": zlib.MAX_WBITS, "x-gzip": 16 + zlib.MAX_WBITS}.get(name)
+    if wbits is None:
+        return raw
+    try:
+        obj = zlib.decompressobj(wbits)
+        out = obj.decompress(raw, limit + 1)
+        if len(out) > limit:
+            raise SafeFetchError("decompressed_too_large")
+        out += obj.flush()
+    except SafeFetchError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - malformed compressed body
+        raise SafeFetchError("decompress_failed") from exc
+    if len(out) > limit:
+        raise SafeFetchError("decompressed_too_large")
+    return out
+
+
 def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
                       deadline: float | None = None, max_bytes: int = MAX_BYTES) -> dict:
     """Structured article-reader transport over the same safety rules.
@@ -295,11 +327,35 @@ def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
             chain.append(current)
             current = urljoin(current, location)
             continue
+        if str(headers.get("cf-mitigated", "")).strip().lower() == "challenge":
+            # Cloudflare access control (WAF / Bot Management). Not a size or SSRF
+            # problem, and this reader does not attempt to bypass it: report it.
+            raise SafeFetchError("site_challenge")
         if status >= 400:
             _raise_safe(f"http_{status}")
+        if truncated and max_bytes < MAX_BYTES_LARGE:
+            # One bounded retry for a genuinely large article (e.g. a ~800 KB wiki
+            # page): same validated IP, same redirect/deadline rules, no new hops.
+            retry_timeout = timeout
+            if deadline is not None:
+                retry_timeout = min(timeout, deadline - time.monotonic())
+                if retry_timeout <= 0:
+                    _raise_safe("deadline_exhausted")
+            try:
+                status, headers, raw, truncated = http_get_raw(
+                    current, parts.hostname, ips[0], timeout=retry_timeout,
+                    max_bytes=MAX_BYTES_LARGE
+                )
+            except (OSError, http.client.HTTPException) as exc:
+                raise SafeFetchError(f"network:{type(exc).__name__}") from exc
+            if str(headers.get("cf-mitigated", "")).strip().lower() == "challenge":
+                raise SafeFetchError("site_challenge")
+            if status >= 400:
+                _raise_safe(f"http_{status}")
         if truncated:
             # A truncated body must NOT be reported as a clean success.
             _raise_safe("response_too_large")
+        text = decompress_bounded(raw, headers.get("content-encoding", "")).decode("utf-8", "replace")
         return {
             "requested_url": url,
             "redirect_chain": chain,
@@ -309,7 +365,7 @@ def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
             "content_type": headers.get("content-type", ""),
             "content_encoding": headers.get("content-encoding", ""),
             "raw": raw,
-            "text": raw.decode("utf-8", "replace"),
+            "text": text,
             "truncated": False,
         }
     _raise_safe("too_many_redirects")

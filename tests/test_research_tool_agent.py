@@ -450,18 +450,22 @@ def test_sub_goals_track_missing_and_block_a_false_finish(monkeypatch):
 
 
 def test_safe_fetch_result_structured(monkeypatch):
+    import gzip
+
     import src.web.safe_http as sh
 
     monkeypatch.setattr(sh, "resolve_public_ips", lambda host, **kwargs: ["1.2.3.4"])
+    packed = gzip.compress(b"<html>hi</html>")
     monkeypatch.setattr(
         sh, "http_get_raw",
-        lambda url, host, ip, *, timeout, max_bytes=300_000:
-        (200, {"content-type": "text/html", "content-encoding": "gzip"}, b"<html>hi</html>", False),
+        lambda url, host, ip, *, timeout, max_bytes=sh.MAX_BYTES:
+        (200, {"content-type": "text/html", "content-encoding": "gzip"}, packed, False),
     )
     result = sh.safe_fetch_result("https://ex.org/a", timeout=5)
     assert result["status"] == 200 and result["final_url"] == "https://ex.org/a"
     assert result["content_type"] == "text/html" and result["content_encoding"] == "gzip"
-    assert result["raw"] == b"<html>hi</html>" and result["truncated"] is False
+    assert result["raw"] == packed and result["truncated"] is False
+    assert result["text"] == "<html>hi</html>"      # bounded gzip decode applied
 
 
 def test_safe_fetch_result_reports_truncation(monkeypatch):
