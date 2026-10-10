@@ -38,10 +38,14 @@ server:
 #       - http://host.docker.internal:7890
 
 outgoing:
-  # Default 3 s is too tight for some engines from this network
-  # (yahoo answered in ~7 s in a raw probe).
-  request_timeout: 8.0
-  max_request_timeout: 15.0
+  # Budget coordination with the client: the Study Agent aborts a provider call
+  # after WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS (6 s default) and the whole search
+  # after 8 s, so the server must answer INSIDE that window instead of spending
+  # up to 8 s per engine (which made the client give up before a reply arrived).
+  # Engines slower than ~4 s are now cut off by design; the engines that could
+  # not answer at all are disabled below.
+  request_timeout: 4.0
+  max_request_timeout: 6.0
 
 # Measured on this network (2026-10-09). Engines receiving HTTP 429 / CAPTCHA
 # / access-denied scoped to the exit IP are disabled so a search does not
