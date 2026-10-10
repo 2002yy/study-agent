@@ -86,3 +86,29 @@ def test_large_page_retry_that_redirects_is_followed_not_returned(monkeypatch):
     assert res["final_url"] == "https://example.org/final"
     assert "final" in res["text"]
     assert res["status"] == 200
+
+
+@pytest.mark.parametrize("reason", ["site_challenge", "http_403", "decompress_failed"])
+def test_reader_preserves_transport_reason(monkeypatch, reason):
+    """A SafeFetchError must keep its stable reason instead of degrading to
+    'fetch_failed' (diagnostic contract for site challenges / 403s / limits)."""
+
+    def boom(*a, **k):
+        raise sh.SafeFetchError(reason)
+
+    monkeypatch.setattr(af, "safe_fetch_result", boom)
+    html, _u, _c, why = af._fetch_html_payload("https://example.org/a", timeout=8, max_bytes=sh.MAX_BYTES)
+    assert why == reason
+    txt, _u2, _c2, why2 = af._fetch_text_payload("https://example.org/a", timeout=8, max_bytes=sh.MAX_BYTES)
+    assert why2 == reason
+
+
+def test_reader_still_fails_closed_on_security_refusal(monkeypatch):
+    """A security refusal must propagate, never be routed into a weaker fallback."""
+
+    def boom(*a, **k):
+        raise sh.SafeFetchRefusal("unsafe_target")
+
+    monkeypatch.setattr(af, "safe_fetch_result", boom)
+    with pytest.raises(sh.SafeFetchRefusal):
+        af._fetch_html_payload("https://example.org/a", timeout=8, max_bytes=sh.MAX_BYTES)

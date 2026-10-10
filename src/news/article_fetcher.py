@@ -26,7 +26,13 @@ from src.news.readers.jina_reader import read_with_jina_reader
 from src.news.readers.local_reader import read_html_locally
 from src.news.url_normalizer import is_probable_article_page_url
 from src.web.concurrency import BoundedTask, run_bounded
-from src.web.safe_http import MAX_BYTES, MAX_DECOMPRESSED, SafeFetchRefusal, safe_fetch_result
+from src.web.safe_http import (
+    MAX_BYTES,
+    MAX_DECOMPRESSED,
+    SafeFetchError,
+    SafeFetchRefusal,
+    safe_fetch_result,
+)
 
 
 @dataclass(frozen=True)
@@ -189,6 +195,12 @@ def _fetch_html_payload(
         result = safe_fetch_result(url, timeout=float(timeout), max_bytes=max_bytes, deadline=deadline)
     except SafeFetchRefusal:
         raise
+    except SafeFetchError as exc:
+        # Preserve the stable transport reason (site_challenge, http_403,
+        # decompress_failed, deadline_exhausted, ...) instead of flattening every
+        # ordinary failure into "fetch_failed". Still fail-closed: no weaker
+        # fallback is entered.
+        return "", url, "", exc.reason or "fetch_failed"
     except Exception:  # noqa: BLE001 - ordinary network/status failure
         return "", url, "", "fetch_failed"
 
@@ -222,6 +234,12 @@ def _fetch_text_payload(
         result = safe_fetch_result(url, timeout=float(timeout), max_bytes=max_bytes, deadline=deadline)
     except SafeFetchRefusal:
         raise
+    except SafeFetchError as exc:
+        # Preserve the stable transport reason (site_challenge, http_403,
+        # decompress_failed, deadline_exhausted, ...) instead of flattening every
+        # ordinary failure into "fetch_failed". Still fail-closed: no weaker
+        # fallback is entered.
+        return "", url, "", exc.reason or "fetch_failed"
     except Exception:  # noqa: BLE001 - ordinary network/status failure
         return "", url, "", "fetch_failed"
 
