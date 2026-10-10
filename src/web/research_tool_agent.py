@@ -157,6 +157,9 @@ def run_tool_agent(
     searches = reads = 0
     searched_queries: set[str] = set()
     visited: set[str] = set()
+    read_pages: dict[str, int] = {}
+    covered_terms: set[str] = set()
+    goal_terms = question_terms(question)
     bodies: list[dict[str, Any]] = []
     # Only URLs confirmed by an actual search result (or supplied up front) may be
     # read; a model-guessed URL is recorded as pending, never fetched. Registry
@@ -191,11 +194,17 @@ def run_tool_agent(
         if monotonic() >= deadline:
             stop = "budget_exhausted"
             break
+        missing_terms = [term for term in sorted(goal_terms) if term not in covered_terms][:5]
+        unread_candidates = [url for url in confirmed if url not in read_pages]
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
+                        " | read pages: %d | unread candidates: %d"
+                        " | still uncovered (term check, hint only): %s"
                         % (rnd + 1, budget.max_rounds,
                            searches, budget.max_searches, max(0, budget.max_searches - searches),
                            reads, budget.max_reads, max(0, budget.max_reads - reads),
-                           max(0, int(deadline - monotonic()))))
+                           max(0, int(deadline - monotonic())),
+                           len(read_pages), len(unread_candidates),
+                           ", ".join(missing_terms) if missing_terms else "(none)"))
         try:
             raw = completion(
                 messages=_prompt(question, observations, reliable_sources, state=budget_state),
@@ -438,6 +447,18 @@ def run_tool_agent(
                 )
                 calls.append(call)
                 continue
+            if action["url"] in read_pages:
+                # Already read successfully: refuse WITHOUT spending read quota, and say so,
+                # so the previous audit's "same page read three times" cannot happen again.
+                call["result"] = {"status": "already_read", "reason": "page_read_before",
+                                  "chars": read_pages[action["url"]]}
+                observations.append(
+                    f"round {rnd}: read skipped: {action['url']} was already read successfully "
+                    f"({read_pages[action['url']]} chars) and did not spend read quota; reuse that "
+                    "body or pick an unread target."
+                )
+                calls.append(call)
+                continue
             if reads >= budget.max_reads:
                 call["result"] = {"status": "quota_exceeded", "reason": "read_quota"}
                 observations.append(f"round {rnd}: read quota reached.")
@@ -476,6 +497,10 @@ def run_tool_agent(
                            "chars": len(content), "preview": content[:600],
                            "reason": action.get("reason", ""), "assessment": assessment})
             if body.get("ok"):
+                read_pages[final_url] = len(content)
+                if action["url"] != final_url:
+                    read_pages[action["url"]] = len(content)
+                covered_terms.update(term for term in goal_terms if term in content.lower())
                 source_chain.append({
                     "basis": confirmed_basis.get(action["url"], ""),
                     "feed_url": feed_links.get(action["url"], ""),

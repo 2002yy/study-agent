@@ -106,6 +106,20 @@ def test_article_bonus_requires_a_topical_match():
     assert "coverage" in ranked[0].why
 
 
+def test_specific_target_outranks_the_broader_domain_page():
+    """'Same domain' must not beat 'this is the question': 中继器 over 红石电路."""
+    html = ("<html><body><h2>X</h2>"
+            '<a href="/w/红石电路">红石电路</a>'
+            '<a href="/w/红石中继器">红石中继器</a>'
+            "</body></html>")
+    links = extract_candidates(html, "https://wiki.example/")
+    ranked = rank_candidates(links, question_terms("红石中继器 延迟 锁定"), limit=10)
+    assert ranked[0].url.endswith("红石中继器")
+    broad = next(link for link in ranked if link.url.endswith("红石电路"))
+    assert "broader" in broad.why
+    assert broad.score < ranked[0].score
+
+
 def test_malformed_or_empty_html_never_raises():
     assert extract_candidates("", _BASE) == []
     assert extract_candidates("<<< not really html", _BASE) == []

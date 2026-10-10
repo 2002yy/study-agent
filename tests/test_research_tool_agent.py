@@ -331,6 +331,43 @@ def test_follow_ranks_links_by_question_not_document_order(monkeypatch):
     assert trace["reads"] == 1
 
 
+def test_reading_the_same_page_twice_does_not_spend_quota(monkeypatch):
+    """A successful read is not repeated: the second attempt costs no read quota."""
+    import src.web.research_tool_agent as agent
+
+    monkeypatch.setattr(agent, "host_resolves_public", lambda host: True)
+    prompts: list[str] = []
+    actions = [
+        {"tool": "read_page", "url": "https://example.org/a"},
+        {"tool": "read_page", "url": "https://example.org/a"},
+        {"tool": "finish"},
+    ]
+
+    class _GW:
+        def __init__(self):
+            self.reads = []
+
+        def read(self, url, *, max_chars=6000, timeout=8.0):
+            self.reads.append(url)
+            return {"ok": True, "url": url,
+                    "content": "train interrupts: trigger conditions and the schedule relation"}
+
+    def completion(messages, **kwargs):
+        prompts.append(messages[-1]["content"])
+        return json.dumps(actions.pop(0))
+
+    gw = _GW()
+    trace = run_tool_agent(gateway=gw, completion=completion,
+                           question="Factorio train interrupts",
+                           budget=AgentBudget(), initial_urls=("https://example.org/a",))
+    results = [c["result"] for c in trace["calls"]
+               if (c.get("action") or {}).get("tool") == "read_page"]
+    assert results[0].get("ok") is True
+    assert results[1].get("status") == "already_read"
+    assert trace["reads"] == 1 and len(gw.reads) == 1     # second attempt spent nothing
+    assert any("still uncovered" in prompt for prompt in prompts)
+
+
 def test_safe_fetch_result_structured(monkeypatch):
     import src.web.safe_http as sh
 

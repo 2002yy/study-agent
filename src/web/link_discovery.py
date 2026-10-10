@@ -68,6 +68,7 @@ class Candidate:
     why: str = ""
     repeated: int = 0
     order: int = 0
+    matched: frozenset[str] = frozenset()
 
     def as_dict(self) -> dict[str, str]:
         return {
@@ -286,6 +287,7 @@ def rank_candidates(
         if noise:
             score -= 5.0
         candidate.score = score
+        candidate.matched = frozenset(matched)
         bits = []
         if matched:
             bits.append("matches " + "+".join(sorted(matched)[:4]))
@@ -295,6 +297,17 @@ def rank_candidates(
             bits.append("noise:" + noise)
         candidate.why = "; ".join(bits)
         candidate.order = index
+    # Specificity: when one candidate matches strictly more of the question than
+    # another, the broader page is "same domain" rather than the question itself
+    # (中继器 ⊃ 红石, Train interrupts ⊃ Train). Rank the narrower, more specific
+    # target above the broader one instead of relying on the [article] label.
+    for candidate in candidates:
+        if not candidate.matched:
+            continue
+        if any(other is not candidate and candidate.matched < other.matched
+               for other in candidates):
+            candidate.score -= 1.0
+            candidate.why += "; broader than a more specific match"
     ranked = sorted(
         candidates,
         key=lambda c: (c.score, -c.order),
