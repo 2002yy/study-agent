@@ -150,35 +150,42 @@ def _task_useful(units_recovered: int) -> bool:
     return units_recovered >= 1
 
 
-def _allow_local_fixture_reads() -> None:
+def _allow_local_fixture_reads(monkeypatch=None) -> None:
     """Relax ONLY the SSRF target policy for the intentional loopback fixture.
 
     Read semantics (retry / window admission / escalation context / timeout) and
-    reader construction are untouched: this swaps the URL-safety predicate only.
+    reader construction are untouched. Pass a pytest ``monkeypatch`` to scope the
+    relaxation to one test: the patches must NOT leak into other tests in the same
+    session (the private-redirect regression depends on the default policy).
     """
 
     from src.news import article_fetcher
 
+    def _set(obj, name, value):
+        if monkeypatch is not None:
+            monkeypatch.setattr(obj, name, value)
+        else:
+            setattr(obj, name, value)
+
+    def _local(host) -> bool:
+        return (str(host or "")).lower() in {"127.0.0.1", "localhost", "::1"}
+
     original = article_fetcher._is_fetchable_article_url  # noqa: SLF001
 
     def _allowed(url: str) -> bool:
-        host = (urlparse(str(url or "")).hostname or "").lower()
-        if host in {"127.0.0.1", "localhost", "::1"}:
+        if _local(urlparse(str(url or "")).hostname):
             return True
         return bool(original(url))
 
-    article_fetcher._is_fetchable_article_url = _allowed  # noqa: SLF001
+    _set(article_fetcher, "_is_fetchable_article_url", _allowed)
 
-    # The Reader now transports through src.web.safe_http, whose public-IP check
-    # would refuse the intentional loopback fixture. Relax ONLY that check, in this
-    # test helper's scope: production still enforces public IPs.
+    # The Reader now transports through src.web.safe_http, whose hop admission
+    # (scheme / port / public IP) correctly refuses the loopback fixture. Relax
+    # ONLY that admission here; production still enforces public IPs.
     from src.web import safe_http
 
     original_resolve = safe_http.resolve_public_ips
     original_host_ok = safe_http.host_resolves_public
-
-    def _local(host: str) -> bool:
-        return (host or "").lower() in {"127.0.0.1", "localhost", "::1"}
 
     def _resolve(host, *, deadline=None):
         return ["127.0.0.1"] if _local(host) else original_resolve(host, deadline=deadline)
@@ -186,27 +193,25 @@ def _allow_local_fixture_reads() -> None:
     def _host_ok(host, *, deadline=None):
         return True if _local(host) else original_host_ok(host, deadline=deadline)
 
-    safe_http.resolve_public_ips = _resolve
-    safe_http.host_resolves_public = _host_ok
+    _set(safe_http, "resolve_public_ips", _resolve)
+    _set(safe_http, "host_resolves_public", _host_ok)
 
     original_public_url = safe_http._public_url  # noqa: SLF001
 
     def _public_url_local(value):
         raw = str(value or "").strip()
-        if _local((urlparse(raw).hostname or "").lower()):
-            return raw
-        return original_public_url(value)
+        return raw if _local(urlparse(raw).hostname) else original_public_url(value)
 
-    safe_http._public_url = _public_url_local  # noqa: SLF001
+    _set(safe_http, "_public_url", _public_url_local)
 
     original_check_target = safe_http._check_target  # noqa: SLF001
 
     def _check_target_local(current):
-        if _local((urlparse(str(current or "")).hostname or "").lower()):
-            return
-        return original_check_target(current)
+        if not _local(urlparse(str(current or "")).hostname):
+            return original_check_target(current)
+        return None
 
-    safe_http._check_target = _check_target_local  # noqa: SLF001
+    _set(safe_http, "_check_target", _check_target_local)
 
 
 # ---------------------------------------------------------------- default side
