@@ -26,7 +26,7 @@ from src.news.readers.jina_reader import read_with_jina_reader
 from src.news.readers.local_reader import read_html_locally
 from src.news.url_normalizer import is_probable_article_page_url
 from src.web.concurrency import BoundedTask, run_bounded
-from src.web.safe_http import SafeFetchRefusal, safe_fetch_result
+from src.web.safe_http import MAX_BYTES, MAX_DECOMPRESSED, SafeFetchRefusal, safe_fetch_result
 
 
 @dataclass(frozen=True)
@@ -201,7 +201,7 @@ def _fetch_html_payload(
         return "", final_url or url, content_type, "non_html_resource"
 
     payload = _decompress_transport_payload(result["raw"], result["content_encoding"])
-    if len(payload) > max_bytes:  # post-decompress cap
+    if len(payload) > MAX_DECOMPRESSED:  # decompression-bomb guard, NOT the wire cap
         return "", final_url or url, content_type, "response_too_large"
     return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
 
@@ -235,7 +235,7 @@ def _fetch_text_payload(
         return "", final_url or url, content_type, "non_text_resource"
 
     payload = _decompress_transport_payload(result["raw"], result["content_encoding"])
-    if len(payload) > max_bytes:  # post-decompress cap
+    if len(payload) > MAX_DECOMPRESSED:  # decompression-bomb guard, NOT the wire cap
         return "", final_url or url, content_type, "response_too_large"
     return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
 
@@ -261,7 +261,7 @@ def _try_jina(url: str, timeout: int, max_chars: int) -> tuple[str, str]:
 def fetch_article_text_with_method(
     url: str,
     timeout: int = 8,
-    max_bytes: int = 350_000,
+    max_bytes: int = MAX_BYTES,
     max_chars: int = 5000,
 ) -> tuple[str, str]:
     """Compatibility wrapper around the structured article reader API."""
@@ -277,7 +277,7 @@ def fetch_article_text_with_method(
 def fetch_article_read_result(
     url: str,
     timeout: int = 8,
-    max_bytes: int = 350_000,
+    max_bytes: int = MAX_BYTES,
     max_chars: int = 5000,
 ) -> ArticleReadResult:
     """Fetch article and return a structured result with failure diagnostics."""

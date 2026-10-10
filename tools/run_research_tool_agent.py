@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -23,7 +24,8 @@ sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv("C:/Users/Zhang/Desktop/study agent/.env")
+# Project-local env by default; override with STUDY_AGENT_ENV. No machine-specific path.
+load_dotenv(os.environ.get("STUDY_AGENT_ENV", str(ROOT / ".env")))
 from src.web.research_tool_agent import AgentBudget, run_tool_agent  # noqa: E402
 from src.web.research.source_directory import load_directory, recall_sources  # noqa: E402
 from src.web.semantic_recovery import configured_completion  # noqa: E402

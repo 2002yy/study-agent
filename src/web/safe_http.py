@@ -348,6 +348,16 @@ def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
                 )
             except (OSError, http.client.HTTPException) as exc:
                 raise SafeFetchError(f"network:{type(exc).__name__}") from exc
+            if status in {301, 302, 303, 307, 308}:
+                # The retry may itself answer with a redirect: keep it inside the
+                # same redirect/deadline rules instead of returning the 3xx body
+                # as if it were content.
+                location = headers.get("location")
+                if not location:
+                    _raise_safe("redirect_without_location")
+                chain.append(current)
+                current = urljoin(current, location)
+                continue
             if str(headers.get("cf-mitigated", "")).strip().lower() == "challenge":
                 raise SafeFetchError("site_challenge")
             if status >= 400:
