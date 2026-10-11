@@ -27,7 +27,7 @@ from src.web.link_discovery import (
 )
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
 from src.web.research_claim_verifier import verify_claims
-from src.web.research_claims import extract_claims
+from src.web.research_claims import candidate_windows, extract_claims
 from src.web.research_gap_planner import plan_followups
 from src.web.research_notebook import ResearchNotebook
 from src.web.tool_evidence import _public_url
@@ -246,6 +246,8 @@ def run_tool_agent(
     claim_rows: list[Any] = []
     claim_verdicts: list[Any] = []
     claim_rejections: dict[str, int] = {}
+    #: Why the run's single evidence loop was NOT spent (empty once it is spent).
+    evidence_loop_skipped: str = ""
     followups: list[dict[str, Any]] = []
     adopted_evidence: dict[str, dict[str, Any]] = {}
     #: Ordered escalation chain (each entry is used at most once).
@@ -373,82 +375,102 @@ def run_tool_agent(
         if model_calls > min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP):
             stop = "model_call_limit"
             break
-        # Evidence loop (opt-in, at most ONCE per run): extraction -> verification -> gap
-        # follow-ups. The two extra calls are counted against the SAME hard model-call cap,
-        # so this never opens a second free budget.
-        if (evidence_loop and not loop_spent and notebook.bodies and goal_specs
-                and model_calls + 2 <= min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP)
-                and monotonic() < deadline):
-            loop_spent = True
-            unfinished = {label: tuple(terms) for label, terms in goal_specs.items()
-                          if sub_goal_state[label]["status"] != "supported"}
-            bodies_view = dict(notebook.by_source)
-            def _count_call() -> None:
-                """Count a REAL model call, so cost never overstates what was spent."""
-                nonlocal model_calls
-                model_calls += 1
-
-            def _count_reject(reason: str) -> None:
-                """Audit why a candidate claim was refused (fabricated source, bad span...)."""
-                claim_rejections[reason] = claim_rejections.get(reason, 0) + 1
-
-            claims = extract_claims(
-                goals=unfinished, bodies=bodies_view, completion=completion,
-                timeout=min(20.0, max(1.0, deadline - monotonic())), on_call=_count_call,
-                on_reject=_count_reject)
-            verdicts = verify_claims(
-                claims=claims, goals=unfinished,
-                label_to_id={label: label for label in unfinished}, bodies=bodies_view,
-                adopted=adopted_evidence, completion=completion,
-                timeout=min(20.0, max(1.0, deadline - monotonic())), on_call=_count_call)
-            claim_rows.extend(claims)
-            claim_verdicts.extend(verdicts)
-            for verdict in verdicts:
-                if not verdict.internal_supported:
-                    continue
-                hit_body = bodies_view.get(verdict.source_id)
-                record: dict[str, Any] = {
-                    "url": getattr(hit_body, "final_url", ""),
-                    "source_id": verdict.source_id,
-                    "requested_url": getattr(hit_body, "requested_url", ""),
-                    "host": getattr(hit_body, "host", ""),
-                    "digest": getattr(hit_body, "digest", ""),
-                    "content_hash": getattr(hit_body, "content_hash", ""),
-                    "span_start": verdict.span_start,
-                    "span_end": verdict.span_end,
-                    "quote": verdict.quote,
-                    "status": "supported",
-                    "verified_by": "claim_verifier",
-                    "terms_hit": [], "relation": "",
-                    "ratio": 0.0, "conflict": "",
-                    "excerpt": (getattr(hit_body, "text", "") or "")[
-                        verdict.span_start:verdict.span_end][:200]}
-                goal_evidence.setdefault(verdict.goal_id, []).append(record)
-                # A verified claim answers PART of a goal. The goal is settled only when the
-                # goal's own terms are actually covered by its supported excerpts; otherwise
-                # the finding stays partial and the goal remains `explored`.
-                supported_text = " ".join(
-                    str(row.get("excerpt") or "")
-                    for row in goal_evidence[verdict.goal_id]
-                    if row.get("status") == "supported")
-                terms = goal_specs.get(verdict.goal_id, ())
-                covered = [t for t in terms if str(t).lower() in supported_text.lower()]
-                ratio = len(covered) / len(terms) if terms else 0.0
-                record["coverage_ratio"] = round(ratio, 2)
-                if ratio >= GOAL_COVERAGE_THRESHOLD:
-                    sub_goal_state[verdict.goal_id].update({
-                        "status": "supported", "url": record["url"],
-                        "excerpt": record["excerpt"]})
+        # Evidence loop (opt-in, at most ONCE per run). It is spent ONLY when material that
+        # can actually be checked is in hand: reading an index page must not burn the run's
+        # single extraction chance. The calls are counted against the SAME hard cap, so this
+        # never opens a second free budget.
+        if evidence_loop and not loop_spent and monotonic() < deadline:
+            substantive = {sid: body for sid, body in notebook.by_source.items()
+                           if body.kind == "substantive"}
+            if not notebook.bodies:
+                evidence_loop_skipped = "acquisition_failure"
+            elif not substantive:
+                # We hold text, but only index/navigation shells: keep acquiring instead.
+                evidence_loop_skipped = "no_substantive_body"
+            elif not goal_specs:
+                evidence_loop_skipped = "no_goals"
+            elif model_calls + 2 > min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP):
+                evidence_loop_skipped = "model_call_cap"
+            else:
+                planned = {label: candidate_windows(terms, substantive)
+                           for label, terms in goal_specs.items()
+                           if sub_goal_state[label]["status"] != "supported"}
+                planned = {label: windows for label, windows in planned.items() if windows}
+                if not planned:
+                    evidence_loop_skipped = "candidate_window_gap"
                 else:
-                    record["partial"] = True
-                    sub_goal_state[verdict.goal_id].update({
-                        "status": "explored", "url": record["url"],
-                        "excerpt": record["excerpt"]})
-            followups.extend(plan_followups(verdicts=verdicts, goals=goal_specs,
-                                            issued=sorted(searched_queries)))
-            # The bodies this cycle consumed have their content version bound; anything read
-            # later stays visibly `pending_verification` in the notebook.
-            notebook.mark_verified(list(bodies_view))
+                    evidence_loop_skipped = ""
+                    loop_spent = True
+                    unfinished = {label: tuple(terms) for label, terms in goal_specs.items()
+                                  if sub_goal_state[label]["status"] != "supported"}
+                    bodies_view = dict(substantive)
+                    def _count_call() -> None:
+                        """Count a REAL model call, so cost never overstates what was spent."""
+                        nonlocal model_calls
+                        model_calls += 1
+
+                    def _count_reject(reason: str) -> None:
+                        """Audit why a candidate claim was refused (invented source, bad span…)."""
+                        claim_rejections[reason] = claim_rejections.get(reason, 0) + 1
+
+                    claims = extract_claims(
+                        goals=unfinished, bodies=bodies_view, completion=completion,
+                        timeout=min(20.0, max(1.0, deadline - monotonic())),
+                        on_call=_count_call, on_reject=_count_reject)
+                    verdicts = verify_claims(
+                        claims=claims, goals=unfinished,
+                        label_to_id={label: label for label in unfinished},
+                        bodies=bodies_view, adopted=adopted_evidence, completion=completion,
+                        timeout=min(20.0, max(1.0, deadline - monotonic())),
+                        on_call=_count_call)
+                    claim_rows.extend(claims)
+                    claim_verdicts.extend(verdicts)
+                    for verdict in verdicts:
+                        if not verdict.internal_supported:
+                            continue
+                        hit_body = bodies_view.get(verdict.source_id)
+                        record: dict[str, Any] = {
+                            "url": getattr(hit_body, "final_url", ""),
+                            "source_id": verdict.source_id,
+                            "requested_url": getattr(hit_body, "requested_url", ""),
+                            "host": getattr(hit_body, "host", ""),
+                            "digest": getattr(hit_body, "digest", ""),
+                            "content_hash": getattr(hit_body, "content_hash", ""),
+                            "span_start": verdict.span_start,
+                            "span_end": verdict.span_end,
+                            "quote": verdict.quote,
+                            "status": "supported",
+                            "verified_by": "claim_verifier",
+                            "terms_hit": [], "relation": "",
+                            "ratio": 0.0, "conflict": "",
+                            "excerpt": (getattr(hit_body, "text", "") or "")[
+                                verdict.span_start:verdict.span_end][:200]}
+                        goal_evidence.setdefault(verdict.goal_id, []).append(record)
+                        # A verified claim answers PART of a goal. The goal is settled only
+                        # when the goal's own terms are covered by its supported excerpts;
+                        # otherwise the finding stays partial and the goal remains `explored`.
+                        supported_text = " ".join(
+                            str(row.get("excerpt") or "")
+                            for row in goal_evidence[verdict.goal_id]
+                            if row.get("status") == "supported")
+                        terms = goal_specs.get(verdict.goal_id, ())
+                        covered = [t for t in terms if str(t).lower() in supported_text.lower()]
+                        ratio = len(covered) / len(terms) if terms else 0.0
+                        record["coverage_ratio"] = round(ratio, 2)
+                        if ratio >= GOAL_COVERAGE_THRESHOLD:
+                            sub_goal_state[verdict.goal_id].update({
+                                "status": "supported", "url": record["url"],
+                                "excerpt": record["excerpt"]})
+                        else:
+                            record["partial"] = True
+                            sub_goal_state[verdict.goal_id].update({
+                                "status": "explored", "url": record["url"],
+                                "excerpt": record["excerpt"]})
+                    followups.extend(plan_followups(verdicts=verdicts, goals=goal_specs,
+                                                    issued=sorted(searched_queries)))
+                    # The bodies this cycle consumed have their content version bound;
+                    # anything read later stays visibly `pending_verification`.
+                    notebook.mark_verified(list(bodies_view))
         if rnd > 0:
             progress_history.append(productive_events != last_productive)
         last_productive = productive_events
@@ -510,6 +532,15 @@ def run_tool_agent(
                            max(0, int(deadline - monotonic())),
                            len(read_pages), len(unread_candidates),
                            ", ".join(missing_terms) if missing_terms else "(none)"))
+        if notebook.bodies and not any(body.kind == "substantive"
+                                       for body in notebook.by_source.values()):
+            # Acquisition gate: the run holds text but nothing checkable, so say what the
+            # next action has to be instead of letting another index page be read.
+            budget_state += (
+                "\n  BODY STATUS: every page read so far is an index/navigation shell, so"
+                " there is nothing a claim could be verified against yet. Follow a confirmed"
+                " ARTICLE link from one of those pages (or search for the specific article)"
+                " and read it; do not read another directory page.")
         if goal_specs:
             # Two different states, deliberately not merged: a goal with NO candidate needs
             # searching for, while a goal that was merely explored needs VERIFYING against a
@@ -971,6 +1002,16 @@ def run_tool_agent(
                 read_pages[final_url] = len(content)
                 if action["url"] != final_url:
                     read_pages[action["url"]] = len(content)
+                cached_body = None
+                digest = ""
+                source_id = ""
+                if not duplicate_body:
+                    # EVERY distinct body this run read is registered, an index page
+                    # included: the notebook must record what was read and mark it
+                    # ineligible, never pretend the read did not happen.
+                    cached_body = notebook.record(action["url"], final_url, content)
+                    digest = cached_body.digest if cached_body else ""
+                    source_id = cached_body.source_id if cached_body else ""
                 # A navigation/index page must not contribute keyword coverage: its terms
                 # are links, not mechanism evidence (negative control from review).
                 if not duplicate_body and call.get("page_kind") != "navigation":
@@ -984,9 +1025,6 @@ def run_tool_agent(
                     # may address the sub-goal; status stays "explored (unverified)".
                     # Every successfully read body is registered, EVEN when it matches no
                     # goal: a later round may still need to know this page was read.
-                    cached_body = notebook.record(action["url"], final_url, content)
-                    digest = cached_body.digest if cached_body else ""
-                    source_id = cached_body.source_id if cached_body else ""
                     touched: list[str] = []
                     for label, terms in goal_specs.items():
                         state = sub_goal_state[label]
@@ -1045,6 +1083,21 @@ def run_tool_agent(
             calls.append(call)
             continue
     elapsed = round(monotonic() - started, 3)
+    # One honest label for where the evidence flow stopped: "the model proposed nothing" must
+    # never be reported when the run never actually held an article.
+    if not notebook.bodies:
+        evidence_outcome = "acquisition_failure"
+    elif not any(body.kind == "substantive" for body in notebook.by_source.values()):
+        evidence_outcome = "no_substantive_body"
+    elif not claim_rows:
+        evidence_outcome = "candidate_window_gap" if evidence_loop_skipped \
+            else "extraction_no_claim"
+    elif not any(item.internal_supported for item in claim_verdicts):
+        evidence_outcome = "verification_insufficient"
+    elif any(st["status"] == "supported" for st in sub_goal_state.values()):
+        evidence_outcome = "verified"
+    else:
+        evidence_outcome = "partial_only"
     return {
         "question": question,
         "stop_reason": stop,
@@ -1082,6 +1135,15 @@ def run_tool_agent(
         # Why candidate claims were refused: an audit of the anti-fabrication rules, and the
         # reason a run produced no verifiable claim at all.
         "claim_rejections": dict(sorted(claim_rejections.items())),
+        # Body acquisition and the evidence loop, reported separately so "no support" is
+        # never attributed to the model when the run simply never held a real article.
+        "substantive_bodies": sorted(body.source_id for body in notebook.by_source.values()
+                                     if body.kind == "substantive"),
+        "navigation_only_reads": sorted(body.source_id for body in notebook.by_source.values()
+                                        if body.kind == "navigation"),
+        "body_kinds": {body.source_id: body.kind for body in notebook.by_source.values()},
+        "evidence_loop_skipped": evidence_loop_skipped,
+        "evidence_outcome": evidence_outcome,
         "followups": followups,
         # Observability for the action-optimisation audit: wasted repeats are counted,
         # not hidden, and each escalation records the round limit it moved to.

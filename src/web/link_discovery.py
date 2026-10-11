@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import unquote, urljoin, urlsplit
 
 from lxml import html as lxml_html  # type: ignore[import-untyped]
@@ -309,6 +310,77 @@ def looks_like_navigation(text: str) -> bool:
     numbers = len(re.findall(r"\b\d+(?:\.\d+)*\b", body))
     separators = sum(body.count(char) for char in _NAV_SEPARATORS)
     return numbers >= _NAV_MIN_NUMBERS and separators >= _NAV_MIN_SEPARATORS
+
+
+#: Below this there is no body at all (empty, blocked, or a JS shell) - not a short page.
+#: Eligibility is decided by the prose measure below, never by page length.
+MIN_BODY_CHARS = 60
+#: A prose block is a run of text with sentence punctuation, not a nav item or a button.
+PROSE_BLOCK_MIN_CHARS = 60
+#: Two punctuated sentences of this total size is content a claim could be drawn from; a
+#: single-paragraph article counts. Sentence density — not line structure — decides, so a
+#: link list cannot inflate the measure and a short real answer is not thrown away.
+MIN_PROSE_CHARS = 80
+MIN_PROSE_CHARS_PER_UNIT = 12
+MIN_PROSE_SENTENCES = 2
+_SENTENCE_PUNCT = re.compile(r"[.。！？!?;；:：]")
+#: Sentence units KEEP their terminator, so a unit is prose only if it ends like a sentence
+#: (or is a long unpunctuated line). A column of short link labels is therefore not prose.
+_UNIT_SPLIT = re.compile(r"(?<=[.。！？!?;；])\s*|\n+")
+_BLOCK_SPLIT = re.compile(r"\n\s*\n|\n")
+
+
+def prose_blocks(text: str) -> list[str]:
+    """Blocks that read as prose: long enough and carrying sentence punctuation.
+
+    A nav item, a button or a link label is short and unpunctuated, so it cannot inflate the
+    measure however many of them a page lists.
+    """
+    blocks = [block.strip() for block in _BLOCK_SPLIT.split(text or "") if block.strip()]
+    return [block for block in blocks
+            if len(block) >= PROSE_BLOCK_MIN_CHARS and _SENTENCE_PUNCT.search(block)]
+
+
+def prose_units(text: str) -> list[str]:
+    """Sentence-like units: punctuated sentences, or long unpunctuated lines."""
+    units: list[str] = []
+    for raw in _UNIT_SPLIT.split(text or ""):
+        unit = raw.strip()
+        if len(unit) < MIN_PROSE_CHARS_PER_UNIT:
+            continue
+        if _SENTENCE_PUNCT.search(unit) or len(unit) >= PROSE_BLOCK_MIN_CHARS:
+            units.append(unit)
+    return units
+
+
+def classify_body(text: str) -> tuple[str, dict[str, Any]]:
+    """Classify an extracted body as substantive / navigation / unusable.
+
+    Sentence density and page type decide this, not a length threshold: a 250-character
+    answer counts, and a 4,000-character link farm does not. Navigation detection is the
+    shared ``looks_like_navigation`` rule and wins outright, because a numbered index list
+    is prose-shaped without being prose.
+    """
+    body = (text or "").strip()
+    if len(body) < MIN_BODY_CHARS:
+        return "unusable", {"chars": len(body), "prose_chars": 0, "prose_blocks": 0,
+                            "prose_share": 0.0, "looks_like_navigation": False,
+                            "reason": "no_body"}
+    units = prose_units(body)
+    prose_chars = sum(len(unit) for unit in units)
+    navigation = looks_like_navigation(body)
+    evidence: dict[str, Any] = {
+        "chars": len(body), "prose_chars": prose_chars, "prose_blocks": len(units),
+        "prose_share": round(prose_chars / len(body), 2),
+        "looks_like_navigation": navigation}
+    if navigation:
+        evidence["reason"] = "link_farm"
+        return "navigation", evidence
+    if len(units) >= MIN_PROSE_SENTENCES and prose_chars >= MIN_PROSE_CHARS:
+        evidence["reason"] = "prose_sentences"
+        return "substantive", evidence
+    evidence["reason"] = "no_prose"
+    return "unusable", evidence
 
 
 def _is_locale_segment(segment: str) -> bool:

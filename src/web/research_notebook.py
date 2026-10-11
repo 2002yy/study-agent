@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from hashlib import sha256
+
+from src.web.link_discovery import classify_body
 from typing import Any, Iterable, Mapping
 
 MAX_BODIES = 8                 # cached bodies per run
@@ -44,12 +46,18 @@ class CachedBody:
     source_id: str = ""
     #: What was requested, so a redirect/rebrand is distinguishable from the final document.
     requested_url: str = ""
+    #: Body eligibility: substantive / navigation / unusable (never a length threshold).
+    kind: str = ""
+    quality: dict[str, Any] = field(default_factory=dict)
 
     def to_view(self, *, verified: bool = False) -> dict[str, Any]:
         return {"source_id": self.source_id, "url": self.url,
                 "requested_url": self.requested_url, "final_url": self.final_url,
                 "host": self.host, "chars": self.chars, "digest": self.digest,
                 "content_hash": self.content_hash[:16], "goals": self.goals,
+                # The model must be able to tell a real article from an index shell when it
+                # decides what to read next.
+                "body_kind": self.kind, "prose_chars": self.quality.get("prose_chars", 0),
                 # A body read after the last verification cycle stays visibly pending, so a
                 # finding it contains is never confused with a checked one.
                 "pending_verification": not verified}
@@ -86,10 +94,12 @@ class ResearchNotebook:
         full_hash = sha256(body.encode("utf-8", "ignore")).hexdigest()
         source_id = f"S{self._next_source}"
         self._next_source += 1
+        kind, quality = classify_body(body)
         cached = CachedBody(url=url, final_url=final_url or url, host=host,
                             digest=full_hash[:12], chars=len(body), text=body,
                             goals=sorted(set(goals or [])), content_hash=full_hash,
-                            source_id=source_id, requested_url=url)
+                            source_id=source_id, requested_url=url,
+                            kind=kind, quality=quality)
         self.bodies[url] = cached
         self.by_source[source_id] = cached
         while len(self.bodies) > MAX_BODIES:                # bound the cache, oldest first
