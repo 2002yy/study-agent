@@ -1,0 +1,77 @@
+{
+  "case_id": "H06",
+  "arm": "A",
+  "repeat": 1,
+  "publication_authority": false,
+  "qualification": false,
+  "raw_output": "{\n  \"claims\": [\n    {\n      \"text\": \"For Russia, the decree provided that the day after January 31, 1918, would be February 14, 1918.\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendarrussia\",\n          \"quote\": \"According to the decree, the next day after January 31, 1918, would be February 14.\"\n        }\n      ]\n    },\n    {\n      \"text\": \"For several months after the Russian change, both Julian and Gregorian dates were shown in official documents, and on July 1, 1918, the country moved to the Gregorian calendar completely.\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendarrussia\",\n          \"quote\": \"For several months, both dates were shown in the official documents, and then on July 1, 1918, the country moved to the Gregorian calendar completely.\"\n        }\n      ]\n    },\n    {\n      \"text\": \"The Russian change did not affect the Russian Orthodox Church, which continues to use the old Julian calendar.\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendarrussia\",\n          \"quote\": \"However, this change did not affect the Russian Orthodox Church, which continues to live according to the old Julian calendar.\"\n        }\n      ]\n    },\n    {\n      \"text\": \"The British statute text refers to the fourteenth day of September in connection with the calendar change.\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendaruk\",\n          \"quote\": \"he said fourteenth day of September\"\n        }\n      ]\n    }\n  ],\n  \"unknowns\": [\n    \"The exact last civil date before the British change and the exact first civil date after the British change are not stated in the supplied evidence.\",\n    \"The number of calendar dates skipped in the British change is not stated in the supplied evidence.\",\n    \"The number of calendar dates skipped in the Russian change is not explicitly stated in the supplied evidence, though it can be inferred from the cited dates.\",\n    \"The reason why the number of skipped days differed between Britain and Russia is not explained in the supplied evidence.\",\n    \"The fact that Britain simultaneously adjusted the start of the new year from March 25 to January 1 is not mentioned in the supplied evidence.\",\n    \"No additional authoritative historical or legal sources beyond the two supplied sources are provided.\"\n  ],\n  \"answer\": \"Based only on the supplied evidence, the Russian change is documented: the decree stated that the day after January 31, 1918, would be February 14, 1918, and for several months both dates appeared in official documents before a complete move to the Gregorian calendar on July 1, 1918. The Russian Orthodox Church did not adopt the change and continued using the Julian calendar. For the British change, the supplied statute text mentions the fourteenth day of September, but it does not state the last civil date before the change, the first civil date after the change, or the number of skipped dates. The evidence also does not explain why the number of skipped days differed between Britain and Russia, nor does it mention any simultaneous British adjustment of the new year start date. Therefore, those parts of the question cannot be answered from the supplied evidence.\"\n}",
+  "finish_reason": "stop",
+  "model": "deepseek-flash",
+  "usage": {
+    "completion_tokens": 685,
+    "prompt_tokens": 2344,
+    "total_tokens": 3029,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 2176
+    },
+    "prompt_cache_hit_tokens": 2176,
+    "prompt_cache_miss_tokens": 168
+  },
+  "output": {
+    "claims": [
+      {
+        "text": "For Russia, the decree provided that the day after January 31, 1918, would be February 14, 1918.",
+        "citations": [
+          {
+            "source_id": "calendarrussia",
+            "quote": "According to the decree, the next day after January 31, 1918, would be February 14."
+          }
+        ]
+      },
+      {
+        "text": "For several months after the Russian change, both Julian and Gregorian dates were shown in official documents, and on July 1, 1918, the country moved to the Gregorian calendar completely.",
+        "citations": [
+          {
+            "source_id": "calendarrussia",
+            "quote": "For several months, both dates were shown in the official documents, and then on July 1, 1918, the country moved to the Gregorian calendar completely."
+          }
+        ]
+      },
+      {
+        "text": "The Russian change did not affect the Russian Orthodox Church, which continues to use the old Julian calendar.",
+        "citations": [
+          {
+            "source_id": "calendarrussia",
+            "quote": "However, this change did not affect the Russian Orthodox Church, which continues to live according to the old Julian calendar."
+          }
+        ]
+      },
+      {
+        "text": "The British statute text refers to the fourteenth day of September in connection with the calendar change.",
+        "citations": [
+          {
+            "source_id": "calendaruk",
+            "quote": "he said fourteenth day of September"
+          }
+        ]
+      }
+    ],
+    "unknowns": [
+      "The exact last civil date before the British change and the exact first civil date after the British change are not stated in the supplied evidence.",
+      "The number of calendar dates skipped in the British change is not stated in the supplied evidence.",
+      "The number of calendar dates skipped in the Russian change is not explicitly stated in the supplied evidence, though it can be inferred from the cited dates.",
+      "The reason why the number of skipped days differed between Britain and Russia is not explained in the supplied evidence.",
+      "The fact that Britain simultaneously adjusted the start of the new year from March 25 to January 1 is not mentioned in the supplied evidence.",
+      "No additional authoritative historical or legal sources beyond the two supplied sources are provided."
+    ],
+    "answer": "Based only on the supplied evidence, the Russian change is documented: the decree stated that the day after January 31, 1918, would be February 14, 1918, and for several months both dates appeared in official documents before a complete move to the Gregorian calendar on July 1, 1918. The Russian Orthodox Church did not adopt the change and continued using the Julian calendar. For the British change, the supplied statute text mentions the fourteenth day of September, but it does not state the last civil date before the change, the first civil date after the change, or the number of skipped dates. The evidence also does not explain why the number of skipped days differed between Britain and Russia, nor does it mention any simultaneous British adjustment of the new year start date. Therefore, those parts of the question cannot be answered from the supplied evidence."
+  },
+  "checks": {
+    "structural_errors": [],
+    "semantic_support": "PENDING_HUMAN_REVIEW"
+  },
+  "status": "recorded",
+  "elapsed_seconds": 2.954
+}

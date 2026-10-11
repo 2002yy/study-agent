@@ -1,0 +1,3 @@
+{
+  "raw_output": "{\"task_id\": \"experiment-212bec7e8ebfa8cbca2cd849\", \"intent\": \"ANSWER\", \"subject\": \"假设定价计算：月固定费20元加0.3元/次，使用150次\", \"constraints_delta\": {\"focus\": \"纯算术解释，不涉及真实服务报价\"}, \"unresolved_questions\": [{\"id\": \"rq-question\", \"question\": \"某服务每月固定费20元，另按0.3元/次收费；使用150次是多少？这些是假设价格，不是任何真实服务报价。解释计算过程。\"}], \"suggested_next_action\": \"直接给出计算：固定费20元 + 0.3元/次 × 150次 = 20 + 45 = 65元，并说明这是假设价格。\", \"proposed_queries\": []}"
+}

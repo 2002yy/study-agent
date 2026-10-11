@@ -1,0 +1,13 @@
+﻿{
+    "sealed_at_utc":  "2026-10-09T13:58:16Z",
+    "seal_reason":  "Freeze semantic scores BEFORE reading organizer-key.json (group reveal)",
+    "scores_file":  "blind-answer-semantic-scores.json",
+    "scores_sha256":  "5D5F3E8A7D8B29F0ABADA53FE652778B64E2509A139A00AEB3B7BE9AD26B87F4",
+    "review_file":  "blind-answer-semantic-review.md",
+    "review_sha256":  "0CC558DFA4457F5453E57CAAC1AF0F8231265670A05FB676BCA066E6886EA106",
+    "total":  24,
+    "headline_mean":  61.375,
+    "semantic_gate":  "NO-GO",
+    "runtime_param_switch":  "conditional_GO",
+    "source_origin":  "C:/Users/Zhang/Downloads"
+}
