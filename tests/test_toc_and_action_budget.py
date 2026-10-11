@@ -11,6 +11,9 @@ from src.application.research_shadow_seam import (
     BSEARCH_SHADOW_MAX_READS,
     BSEARCH_SHADOW_MAX_ROUNDS,
     BSEARCH_SHADOW_MAX_SEARCHES,
+    BUDGET_TIERS,
+    DEFAULT_TIER,
+    tier_budget,
 )
 from src.web.link_discovery import looks_like_navigation
 from src.web.research_tool_agent import AgentBudget, run_tool_agent
@@ -163,10 +166,52 @@ def test_short_numbered_guides_are_not_navigation():
     assert looks_like_navigation("步骤 1 2 3 4 5 6 7 8") is False
 
 
-def test_budgets_are_unchanged_by_this_slice():
+def test_budget_tiers_and_default():
+    """The tier table is the configuration entry point; standard is the default."""
+    assert BUDGET_TIERS["quick"] == (4, 2, 2, 20.0)
+    assert BUDGET_TIERS["standard"] == (8, 4, 5, 40.0)
+    assert BUDGET_TIERS["deep"] == (12, 6, 8, 75.0)
+    assert DEFAULT_TIER == "standard"
+    assert tier_budget("deep") == (12, 6, 8, 75.0)
+    assert (BSEARCH_SHADOW_MAX_ROUNDS, BSEARCH_SHADOW_MAX_SEARCHES,
+            BSEARCH_SHADOW_MAX_READS, BSEARCH_SHADOW_BUDGET_SECONDS) == BUDGET_TIERS["standard"]
+    # the low-level tool default is separate and unchanged
     default = AgentBudget()
     assert (default.max_rounds, default.max_searches, default.max_reads) == (6, 4, 3)
-    assert default.hard_seconds == 60.0
-    assert (BSEARCH_SHADOW_MAX_ROUNDS, BSEARCH_SHADOW_MAX_SEARCHES,
-            BSEARCH_SHADOW_MAX_READS) == (6, 4, 3)
-    assert BSEARCH_SHADOW_BUDGET_SECONDS == 20.0
+
+
+def test_escalation_extends_the_same_run_without_restarting():
+    """Unresolved goals + an actionable candidate extend the run once; state is kept."""
+    gateway = FakeGateway()
+    seen: list[dict] = []
+    completion = _completion([
+        {"tool": "search", "query": "first"},
+        {"tool": "read_page", "url": "https://example.org/a"},
+        {"tool": "read_page", "url": "https://example.org/b"},   # after escalation
+        {"tool": "finish"},
+    ], seen)
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion, question="q",
+        budget=AgentBudget(max_rounds=2, max_searches=2, max_reads=3, hard_seconds=30.0),
+        escalation_budget=AgentBudget(max_rounds=4, max_searches=4, max_reads=5,
+                                      hard_seconds=30.0),
+        sub_goals=(("a", ("topic",)),),
+    )
+    assert trace["escalated"] is True
+    assert len(trace["calls"]) == 4                     # it continued past round 2
+    tools = [c["action"]["tool"] for c in trace["calls"]]
+    assert tools.count("search") == 1                   # nothing was re-searched
+
+
+def test_escalation_needs_unresolved_goals_and_an_actionable_state():
+    gateway = FakeGateway()
+    gateway._results = []                               # no candidates -> nothing to act on
+    completion = _completion([{"tool": "search", "query": "s"}], [])
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion, question="q",
+        budget=AgentBudget(max_rounds=1, max_searches=2, max_reads=1, hard_seconds=30.0),
+        escalation_budget=AgentBudget(max_rounds=3, max_searches=3, max_reads=3,
+                                      hard_seconds=30.0),
+        sub_goals=(("a", ("topic",)),),
+    )
+    assert trace["escalated"] is False                  # no actionable candidate

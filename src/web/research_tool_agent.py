@@ -178,6 +178,7 @@ def run_tool_agent(
     completion: Callable[..., str],
     question: str,
     budget: AgentBudget | None = None,
+    escalation_budget: AgentBudget | None = None,
     initial_urls: tuple[str, ...] = (),
     registry_sources: tuple[tuple[str, str], ...] = (),
     sub_goals: tuple[tuple[str, tuple[str, ...]], ...] = (),
@@ -188,6 +189,11 @@ def run_tool_agent(
     should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict[str, Any]:
     budget = budget or AgentBudget()
+    # Effective limits: the run may be extended ONCE by ``escalation_budget`` (dynamic
+    # tier escalation) without restarting, so these are local and mutable.
+    max_rounds, max_searches, max_reads = (
+        budget.max_rounds, budget.max_searches, budget.max_reads)
+    escalated = False
     started = monotonic()
     deadline = started + budget.hard_seconds
     reset_dns_stats()  # per-run DoH cache + counters
@@ -239,7 +245,26 @@ def run_tool_agent(
         confirmed.add(_url)
         confirmed_basis.setdefault(_url, "registry_seed")
     stop = "round_limit"
-    for rnd in range(budget.max_rounds):
+    unread_candidates: list[str] = []
+    pending_follows: list[str] = []
+    rnd = -1
+    while True:
+        if rnd + 1 >= max_rounds:
+            # Dynamic escalation: extend THIS run once (sources, bodies, goal state and
+            # action history stay in scope - nothing restarts and nothing is paid for
+            # twice) and only when goals are still unresolved AND the state is actionable.
+            if (escalation_budget is not None and not escalated
+                    and escalation_budget.max_rounds > max_rounds
+                    and any(st["status"] != "supported" for st in sub_goal_state.values())
+                    and (unread_candidates or pending_follows)):
+                escalated = True
+                max_rounds = escalation_budget.max_rounds
+                max_searches = escalation_budget.max_searches
+                max_reads = escalation_budget.max_reads
+                deadline = started + escalation_budget.hard_seconds
+                continue
+            break
+        rnd += 1
         if should_cancel():
             stop = "cancelled"
             break
@@ -256,9 +281,9 @@ def run_tool_agent(
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
                         " | read pages: %d | unread candidates: %d"
                         " | still uncovered (term check, hint only): %s"
-                        % (rnd + 1, budget.max_rounds,
-                           searches, budget.max_searches, max(0, budget.max_searches - searches),
-                           reads, budget.max_reads, max(0, budget.max_reads - reads),
+                        % (rnd + 1, max_rounds,
+                           searches, max_searches, max(0, max_searches - searches),
+                           reads, max_reads, max(0, max_reads - reads),
                            max(0, int(deadline - monotonic())),
                            len(read_pages), len(unread_candidates),
                            ", ".join(missing_terms) if missing_terms else "(none)"))
@@ -276,14 +301,14 @@ def run_tool_agent(
         # half spent and readable candidates already exist, the guide tells the model the
         # remaining rounds belong to follow/read. It never fires without candidates, so a
         # topic that genuinely needs more searching is not cut short.
-        if searches >= 1 and unread_candidates and budget.max_rounds - rnd <= 4:
+        if searches >= 1 and unread_candidates and max_rounds - rnd <= 4:
             budget_state += (
                 "\n  BUDGET: %d round(s) left - do NOT search again. This overrides the "
                 "generic 'prefer an article' rule: if the run already holds a navigation/"
                 "index page (see next_follow) or confirmed unread candidates, FOLLOW the "
                 "navigation page to obtain its chapter links, then read_page the specific "
                 "chapter, so the run reaches mechanism text instead of another list of links."
-                % (budget.max_rounds - rnd))
+                % (max_rounds - rnd))
         try:
             raw = completion(
                 messages=_prompt(question, observations, reliable_sources,
@@ -332,7 +357,7 @@ def run_tool_agent(
             calls.append(call)
             break
         if action["tool"] == "search":
-            if searches >= budget.max_searches:
+            if searches >= max_searches:
                 call["result"] = {"status": "quota_exceeded", "reason": "search_quota"}
                 observations.append(f"round {rnd}: search quota reached.")
                 calls.append(call)
@@ -389,8 +414,8 @@ def run_tool_agent(
             if rows and "article" not in page_types:
                 brief += ("\n(no [article] target among these results: read nothing yet - follow a "
                           "[category] page closest to the question, or search different terms)")
-            rounds_left = max(0, budget.max_rounds - rnd - 1)
-            searches_left = max(0, budget.max_searches - searches)
+            rounds_left = max(0, max_rounds - rnd - 1)
+            searches_left = max(0, max_searches - searches)
             if rows:
                 brief += ("\n(next step: %d rounds and %d searches left - if any result above can "
                           "lead to the answer, follow or read it before searching again; search "
@@ -409,7 +434,7 @@ def run_tool_agent(
                 )
                 calls.append(call)
                 continue
-            if searches >= budget.max_searches:
+            if searches >= max_searches:
                 call["result"] = {"status": "quota_exceeded", "reason": "search_quota"}
                 observations.append(f"round {rnd}: feed/search quota reached.")
                 calls.append(call)
@@ -487,7 +512,7 @@ def run_tool_agent(
                 observations.append(f"round {rnd}: follow rejected: {url} was not confirmed.")
                 calls.append(call)
                 continue
-            if reads >= budget.max_reads:
+            if reads >= max_reads:
                 call["result"] = {"status": "quota_exceeded", "reason": "read_quota"}
                 observations.append(f"round {rnd}: follow/read quota reached.")
                 calls.append(call)
@@ -615,7 +640,7 @@ def run_tool_agent(
                     )
                 calls.append(call)
                 continue
-            if reads >= budget.max_reads:
+            if reads >= max_reads:
                 read_row["failure_reason"] = "read_quota"
                 call["result"] = {"status": "quota_exceeded", "reason": "read_quota"}
                 observations.append(f"round {rnd}: read quota reached.")
@@ -764,6 +789,7 @@ def run_tool_agent(
         "bodies": bodies,
         "calls": calls,
         "registry_sources": list(reliable_sources),
+        "escalated": escalated,
         "source_chain": source_chain,
         "candidate_trace": candidate_trace,
         # What the model was actually told, kept for the action audit (review request).

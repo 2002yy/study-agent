@@ -49,12 +49,28 @@ PHASE_SCHEMA: dict[str, tuple[str, bool]] = {
     "deep": (SEAM_VERSION, True),
 }
 
-#: Bounded, but large enough to be meaningful. This is the inner bound the observer
-#: enforces on itself (the outer submit does not wait, so it cannot bound the worker).
-BSEARCH_SHADOW_BUDGET_SECONDS = 20.0
-BSEARCH_SHADOW_MAX_ROUNDS = 6
-BSEARCH_SHADOW_MAX_SEARCHES = 4
-BSEARCH_SHADOW_MAX_READS = 3
+#: Research budget tiers: (rounds, searches, page requests, seconds). The tier is the
+#: single configuration entry point (env ``BSEARCH_SHADOW_TIER``) - no call site hardcodes
+#: a number. ``standard`` is the default; a run may escalate once to ``deep`` while keeping
+#: all state (no restart, no re-payment) when goals remain unresolved and the state still
+#: holds an actionable candidate.
+BUDGET_TIERS: dict[str, tuple[int, int, int, float]] = {
+    "quick": (4, 2, 2, 20.0),
+    "standard": (8, 4, 5, 40.0),
+    "deep": (12, 6, 8, 75.0),
+}
+DEFAULT_TIER = "standard"
+ESCALATION_TIER = "deep"
+
+
+def tier_budget(tier: str | None = None) -> tuple[int, int, int, float]:
+    """(rounds, searches, page requests, seconds) for a tier name or the env default."""
+    name = (tier or os.getenv("BSEARCH_SHADOW_TIER") or DEFAULT_TIER).strip().lower()
+    return BUDGET_TIERS.get(name, BUDGET_TIERS[DEFAULT_TIER])
+
+
+BSEARCH_SHADOW_MAX_ROUNDS, BSEARCH_SHADOW_MAX_SEARCHES, BSEARCH_SHADOW_MAX_READS, \
+    BSEARCH_SHADOW_BUDGET_SECONDS = tier_budget()
 
 #: The only evidence verdict this seam may emit.
 SHADOW_EVIDENCE_COMPLETION = "UNVERIFIED"
@@ -140,17 +156,22 @@ def _default_runner(query: str, budget_seconds: float) -> dict[str, Any]:
     from src.web.semantic_recovery import configured_completion
     from src.web.tool_gateway import GeneralWebGateway
 
+    rounds, searches, reads, seconds = tier_budget()
     budget = AgentBudget(
-        max_rounds=BSEARCH_SHADOW_MAX_ROUNDS,
-        max_searches=BSEARCH_SHADOW_MAX_SEARCHES,
-        max_reads=BSEARCH_SHADOW_MAX_READS,
-        hard_seconds=budget_seconds,
+        max_rounds=rounds,
+        max_searches=searches,
+        max_reads=reads,
+        hard_seconds=budget_seconds or seconds,
     )
+    esc_rounds, esc_searches, esc_reads, esc_seconds = tier_budget(ESCALATION_TIER)
+    escalation = AgentBudget(max_rounds=esc_rounds, max_searches=esc_searches,
+                             max_reads=esc_reads, hard_seconds=esc_seconds)
     trace = run_tool_agent(
         gateway=GeneralWebGateway(),
         completion=configured_completion,
         question=query,
         budget=budget,
+        escalation_budget=escalation,
     )
     return summarize_trace(trace, budget_seconds=budget_seconds)
 
