@@ -108,6 +108,61 @@ def test_budget_guide_is_absent_without_candidates():
     assert trace["searches"] == 4
 
 
+def _nav_gateway(text: str) -> FakeGateway:
+    gateway = FakeGateway()
+    gateway.read = lambda url, max_chars=6000, timeout=8: {
+        "ok": True, "url": url, "content": text}
+    return gateway
+
+
+def test_navigation_page_does_not_contribute_coverage():
+    """A navigation page's keywords must not count as mechanism evidence."""
+    trace = run_tool_agent(
+        gateway=_nav_gateway(TOC_TEXT), question="PostgreSQL 版本",
+        completion=_completion([{"tool": "read_page", "url": "https://example.org/toc"},
+                                {"tool": "finish"}], []),
+        budget=AgentBudget(), initial_urls=("https://example.org/toc",))
+    assert trace["coverage_log"] == []
+    assert trace["coverage_audit"]["covered"] == []
+
+
+def test_read_navigation_becomes_a_pending_follow_and_reread_is_redirected():
+    seen: list[dict] = []
+    trace = run_tool_agent(
+        gateway=_nav_gateway(TOC_TEXT), question="PostgreSQL 版本 说明",
+        completion=_completion([{"tool": "read_page", "url": "https://example.org/toc"},
+                                {"tool": "read_page", "url": "https://example.org/toc"},
+                                {"tool": "finish"}], seen),
+        budget=AgentBudget(), initial_urls=("https://example.org/toc",))
+    # the next round is told which navigation page still needs following
+    assert any((ctx.get("next_follow") or []) == ["https://example.org/toc"] for ctx in seen)
+    # a second read of a known navigation page gets the explicit instruction
+    assert "KNOWN navigation page" in json.dumps(trace["observations"], ensure_ascii=False)
+    # and the navigation verdict is recorded on the read itself
+    assert [c.get("page_kind") for c in trace["calls"]
+            if c["action"].get("tool") == "read_page"][0] == "navigation"
+
+
+def test_budget_guide_fires_before_the_third_search():
+    seen: list[dict] = []
+    run_tool_agent(
+        gateway=FakeGateway(), question="q",
+        completion=_completion([{"tool": "search", "query": f"q{i}"} for i in range(3)]
+                               + [{"tool": "finish"}], seen),
+        budget=AgentBudget())
+    guides = [i for i, ctx in enumerate(seen)
+              if "do NOT search again" in json.dumps(ctx.get("budget_state") or "")]
+    assert guides and guides[0] <= 2          # warned by the third model call
+    assert any("overrides the generic" in json.dumps(ctx.get("budget_state") or "")
+               for ctx in seen)
+
+
+def test_short_numbered_guides_are_not_navigation():
+    assert looks_like_navigation(
+        "第1步 打开设置 第2步 选择语言 第3步 保存 第4步 重启 第5步 完成") is False
+    assert looks_like_navigation("步骤 1 2 3 4 5 6 7 8") is False
+
+
 def test_budgets_are_unchanged_by_this_slice():
     default = AgentBudget()
     assert (default.max_rounds, default.max_searches, default.max_reads) == (6, 4, 3)

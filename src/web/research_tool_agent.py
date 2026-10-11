@@ -145,7 +145,8 @@ def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str]) -> lis
 def _prompt(question: str, observations: list[str],
             reliable_sources: tuple[str, ...] = (),
             state: str = "",
-            candidates: list[dict[str, str]] | None = None) -> list[dict[str, str]]:
+            candidates: list[dict[str, str]] | None = None,
+            pending_follows: list[str] | None = None) -> list[dict[str, str]]:
     context: dict[str, Any] = {
         "question": question,
         "observations": observations[-6:],
@@ -161,6 +162,10 @@ def _prompt(question: str, observations: list[str],
         # Already-discovered, not-yet-read targets. Reading one of these needs no new
         # search and no new confirmation, so it is the cheapest way to spend a read.
         context["confirmed_unread"] = candidates
+    if pending_follows:
+        # A navigation page that was read but never expanded: following it is the next
+        # action, and it takes precedence over the generic "prefer an article" advice.
+        context["next_follow"] = pending_follows[:3]
     return [
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
@@ -193,6 +198,9 @@ def run_tool_agent(
     visited: set[str] = set()
     read_pages: dict[str, int] = {}
     body_fingerprints: dict[str, str] = {}
+    #: URLs whose read returned navigation/index content. Kept across rounds so the state
+    #: can distinguish "already read, must not read again" from "not yet followed".
+    navigation_urls: set[str] = set()
     coverage_log: list[dict[str, Any]] = []
     covered_terms: set[str] = set()
     goal_terms = question_terms(question)
@@ -241,6 +249,9 @@ def run_tool_agent(
         missing_terms = [term for term in sorted(goal_terms) if term not in covered_terms][:5]
         unread_candidates = [url for url in confirmed
                              if url not in read_pages and url not in entry_exclusions]
+        # A navigation page that was read but never followed is the clearest next action:
+        # it is NOT in the unread list (it was read) yet it must still be expanded.
+        pending_follows = sorted(url for url in navigation_urls if url not in visited)
         unread_rows = _rank_unread(unread_candidates, goal_terms, confirmed_basis)[:6]
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
                         " | read pages: %d | unread candidates: %d"
@@ -265,17 +276,19 @@ def run_tool_agent(
         # half spent and readable candidates already exist, the guide tells the model the
         # remaining rounds belong to follow/read. It never fires without candidates, so a
         # topic that genuinely needs more searching is not cut short.
-        if searches >= 2 and unread_candidates and budget.max_rounds - rnd <= 3:
+        if searches >= 1 and unread_candidates and budget.max_rounds - rnd <= 4:
             budget_state += (
-                "\n  BUDGET: %d round(s) left and %d confirmed, unread candidate(s) already "
-                "in hand - do NOT search again. Spend the remaining rounds on follow "
-                "(a chapter/index page) and read_page (the specific chapter), so the run "
-                "reaches mechanism text instead of another list of links."
-                % (budget.max_rounds - rnd, len(unread_candidates)))
+                "\n  BUDGET: %d round(s) left - do NOT search again. This overrides the "
+                "generic 'prefer an article' rule: if the run already holds a navigation/"
+                "index page (see next_follow) or confirmed unread candidates, FOLLOW the "
+                "navigation page to obtain its chapter links, then read_page the specific "
+                "chapter, so the run reaches mechanism text instead of another list of links."
+                % (budget.max_rounds - rnd))
         try:
             raw = completion(
                 messages=_prompt(question, observations, reliable_sources,
-                                 state=budget_state, candidates=unread_rows),
+                                 state=budget_state, candidates=unread_rows,
+                                 pending_follows=pending_follows),
                 timeout=min(20.0, max(1.0, deadline - monotonic())),
                 task_name="research_tool_agent",
             )
@@ -588,11 +601,18 @@ def run_tool_agent(
                 read_row["failure_reason"] = "page_read_before"
                 call["result"] = {"status": "already_read", "reason": "page_read_before",
                                   "chars": read_pages[action["url"]]}
-                observations.append(
-                    f"round {rnd}: read skipped: {action['url']} was already read successfully "
-                    f"({read_pages[action['url']]} chars) and did not spend read quota; reuse that "
-                    "body or pick an unread target."
-                )
+                if action["url"] in navigation_urls:
+                    observations.append(
+                        f"round {rnd}: '{action['url']}' is a KNOWN navigation page you already "
+                        "read; reading it again cannot help. NEXT ACTION: follow it to obtain its "
+                        "chapter links, then read_page the specific chapter."
+                    )
+                else:
+                    observations.append(
+                        f"round {rnd}: read skipped: {action['url']} was already read successfully "
+                        f"({read_pages[action['url']]} chars) and did not spend read quota; reuse "
+                        "that body or pick an unread target."
+                    )
                 calls.append(call)
                 continue
             if reads >= budget.max_reads:
@@ -633,6 +653,8 @@ def run_tool_agent(
             # text, so say so instead of letting it pass as an answer.
             if body.get("ok") and looks_like_navigation(content):
                 call["page_kind"] = "navigation"
+                navigation_urls.add(action["url"])
+                read_row["page_kind"] = "navigation"
                 observations.append(
                     f"round {rnd}: '{action['url']}' returned navigation/index content "
                     f"({len(content)} chars), not mechanism text - it is a list of links, not "
@@ -675,7 +697,9 @@ def run_tool_agent(
                 read_pages[final_url] = len(content)
                 if action["url"] != final_url:
                     read_pages[action["url"]] = len(content)
-                if not duplicate_body:
+                # A navigation/index page must not contribute keyword coverage: its terms
+                # are links, not mechanism evidence (negative control from review).
+                if not duplicate_body and call.get("page_kind") != "navigation":
                     contributed = [term for term in goal_terms if term in content.lower()]
                     covered_terms.update(contributed)
                     coverage_log.append({"url": final_url, "chars": len(content),
@@ -742,5 +766,7 @@ def run_tool_agent(
         "registry_sources": list(reliable_sources),
         "source_chain": source_chain,
         "candidate_trace": candidate_trace,
+        # What the model was actually told, kept for the action audit (review request).
+        "observations": observations,
         "publication_authority": False,
     }

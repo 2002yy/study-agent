@@ -198,18 +198,22 @@ def diversify_navigation_families(
 #: mentions a version once, not five times, in under 1,200 characters.
 _NAV_MAX_CHARS = 1_200
 _NAV_MIN_NUMBERS = 5
-_NAV_MIN_SEPARATORS = 6
+_NAV_MIN_SEPARATORS = 2
 _NAV_SEPARATORS = ("|", "·", "»", "›", "/")
 
 
 def looks_like_navigation(text: str) -> bool:
-    """True when a SHORT extracted body reads as an index/version page, not prose."""
+    """True when a SHORT extracted body reads as an index/version page, not prose.
+
+    Both token signals must hold, so a short game guide that merely lists five numbered
+    steps (numbers but no separators) is not mistaken for a directory.
+    """
     body = (text or "").strip()
     if not body or len(body) > _NAV_MAX_CHARS:
         return False
     numbers = len(re.findall(r"\b\d+(?:\.\d+)*\b", body))
     separators = sum(body.count(char) for char in _NAV_SEPARATORS)
-    return numbers >= _NAV_MIN_NUMBERS or separators >= _NAV_MIN_SEPARATORS
+    return numbers >= _NAV_MIN_NUMBERS and separators >= _NAV_MIN_SEPARATORS
 
 
 def _is_locale_segment(segment: str) -> bool:
