@@ -26,6 +26,9 @@ from src.web.link_discovery import (
     verify_goal_evidence,
 )
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
+from src.web.research_claim_verifier import verify_claims
+from src.web.research_claims import extract_claims
+from src.web.research_gap_planner import plan_followups
 from src.web.research_notebook import ResearchNotebook
 from src.web.tool_evidence import _public_url
 
@@ -213,6 +216,7 @@ def run_tool_agent(
     budget: AgentBudget | None = None,
     escalation_budget: AgentBudget | None = None,
     escalation_budgets: tuple[AgentBudget, ...] = (),
+    evidence_loop: bool = False,
     initial_urls: tuple[str, ...] = (),
     registry_sources: tuple[tuple[str, str], ...] = (),
     sub_goals: tuple[tuple[str, tuple[str, ...]], ...] = (),
@@ -230,6 +234,13 @@ def run_tool_agent(
     escalated = False
     corrections = 0        # free corrections used, bounded by MAX_CORRECTIONS
     model_calls = 0        # every completion call, corrections included
+    #: Evidence loop state: run-once guard, verdicts, gap follow-ups, and the adopted
+    #: evidence map used for eviction-safe deterministic checking.
+    loop_spent = False
+    claim_rows: list[Any] = []
+    claim_verdicts: list[Any] = []
+    followups: list[dict[str, Any]] = []
+    adopted_evidence: dict[str, dict[str, Any]] = {}
     #: Ordered escalation chain (each entry is used at most once).
     pending_escalations = [item for item in
                            ((escalation_budget,) + tuple(escalation_budgets)) if item]
@@ -349,6 +360,48 @@ def run_tool_agent(
         if model_calls > max_rounds + MAX_CORRECTIONS:
             stop = "model_call_limit"
             break
+        # Evidence loop (opt-in, at most ONCE per run): extraction -> verification -> gap
+        # follow-ups. The two extra calls are counted against the SAME hard model-call cap,
+        # so this never opens a second free budget.
+        if (evidence_loop and not loop_spent and notebook.bodies and goal_specs
+                and model_calls + 2 <= max_rounds + MAX_CORRECTIONS
+                and monotonic() < deadline):
+            loop_spent = True
+            unfinished = {label: tuple(terms) for label, terms in goal_specs.items()
+                          if sub_goal_state[label]["status"] != "supported"}
+            bodies_view = dict(notebook.bodies)
+            claims = extract_claims(
+                goals=unfinished, bodies=bodies_view, completion=completion,
+                timeout=min(20.0, max(1.0, deadline - monotonic())))
+            model_calls += 1
+            verdicts = verify_claims(
+                claims=claims, goals=unfinished,
+                label_to_id={label: label for label in unfinished}, bodies=bodies_view,
+                adopted=adopted_evidence, completion=completion,
+                timeout=min(20.0, max(1.0, deadline - monotonic())))
+            model_calls += 1
+            claim_rows.extend(claims)
+            claim_verdicts.extend(verdicts)
+            for verdict in verdicts:
+                if not verdict.internal_supported:
+                    continue
+                hit_body = bodies_view.get(verdict.source_id)
+                record: dict[str, Any] = {
+                    "url": getattr(hit_body, "final_url", ""),
+                    "host": getattr(hit_body, "host", ""),
+                    "digest": getattr(hit_body, "digest", ""),
+                    "status": "supported",
+                    "verified_by": "claim_verifier",
+                    "terms_hit": [], "relation": "",
+                    "ratio": 0.0, "conflict": "",
+                    "excerpt": (getattr(hit_body, "text", "") or "")[
+                        verdict.span_start:verdict.span_end][:200]}
+                goal_evidence.setdefault(verdict.goal_id, []).append(record)
+                sub_goal_state[verdict.goal_id].update({
+                    "status": "supported", "url": record["url"],
+                    "excerpt": record["excerpt"]})
+            followups.extend(plan_followups(verdicts=verdicts, goals=goal_specs,
+                                            issued=sorted(searched_queries)))
         if rnd > 0:
             progress_history.append(productive_events != last_productive)
         last_productive = productive_events
@@ -399,7 +452,8 @@ def run_tool_agent(
         notebook_view = notebook.build_view(
             goals=goal_specs, goal_state=sub_goal_state, goal_evidence=goal_evidence,
             refused=[row for row in action_rows if row["outcome"] in _REFUSED_OUTCOMES],
-            next_action=(action_state["legal_next"][0] if action_state["legal_next"] else None))
+            next_action=(action_state["legal_next"][0] if action_state["legal_next"] else None),
+            claims=claim_rows, verdicts=claim_verdicts, followups=followups)
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
                         " | read pages: %d | unread candidates: %d"
                         " | still uncovered (term check, hint only): %s"
@@ -434,6 +488,11 @@ def run_tool_agent(
                     for label in need_evidence[:3])
                 budget_state += (
                     f"\n  MISSING goals (search for these specifically): {hints}")
+            if followups:
+                budget_state += (
+                    "\n  TARGETED FOLLOW-UPS (from evidence gaps): "
+                    + "; ".join(f"{item['goal_id']} -> {item['query']}"
+                                for item in followups[:2]))
         # Conditional budget reserve: instruction, not a refusal. A refusal would spend the
         # very round it is trying to save (the round loop is fixed), so once searches are
         # half spent and readable candidates already exist, the guide tells the model the
@@ -888,6 +947,10 @@ def run_tool_agent(
                         status, evidence = verify_goal_evidence(terms, content)
                         if status == "missing":
                             continue          # this body carries none of the goal's terms
+                        # The keyword/relation rule is CANDIDATE FILTERING only: it may mark a
+                        # goal `explored`, never `supported`. Only the claim verifier decides
+                        # that a goal is answered.
+                        status = "explored"
                         touched.append(label)
                         goal_evidence.setdefault(label, []).append({
                             "url": final_url,
@@ -904,6 +967,11 @@ def run_tool_agent(
                         elif state["status"] != "explored":
                             state.update({"status": "explored", "url": final_url,
                                           "excerpt": evidence["excerpt"] or ""})
+                        # Eviction-safe map: the verifier may use this retained excerpt when
+                        # the full body is no longer cached.
+                        adopted_evidence[final_url] = {
+                            "excerpt": evidence.get("excerpt") or "",
+                            "digest": digest}
                     if touched:
                         notebook.record(action["url"], final_url, content, goals=touched)
                 source_chain.append({
@@ -958,6 +1026,8 @@ def run_tool_agent(
         "derived_sub_goals": [label for label, _terms in derived_goals],
         "goal_evidence": goal_evidence,
         "notebook_digests": {url: body.digest for url, body in notebook.bodies.items()},
+        "claim_verdicts": [vars(item) for item in claim_verdicts],
+        "followups": followups,
         # Observability for the action-optimisation audit: wasted repeats are counted,
         # not hidden, and each escalation records the round limit it moved to.
         "repeat_actions": {

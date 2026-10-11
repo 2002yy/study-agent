@@ -14,7 +14,7 @@ Rules kept deliberately:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from typing import Any, Mapping
 
@@ -87,7 +87,10 @@ class ResearchNotebook:
     def build_view(self, *, goals: Mapping[str, Any], goal_state: Mapping[str, Any],
                    goal_evidence: Mapping[str, list[dict[str, Any]]],
                    refused: list[dict[str, str]],
-                   next_action: dict[str, str] | None) -> dict[str, Any]:
+                   next_action: dict[str, str] | None,
+                   claims: list[Any] | None = None,
+                   verdicts: list[Any] | None = None,
+                   followups: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """A bounded, per-round picture: goals, best evidence, gaps, what failed, what next."""
         goal_rows = []
         for label, terms in goals.items():
@@ -125,8 +128,16 @@ class ResearchNotebook:
                              list(self.bodies.values())[-MAX_READ_SOURCES:]],
             "invalid_actions": refused[-MAX_INVALID_ACTIONS:],
             "next_action": next_action or {},
+            # Candidate claims and their verification verdicts: the model reads these, it
+            # can never write them back into the run's state.
+            "claims": [asdict(item) if hasattr(item, "__dataclass_fields__") else item
+                       for item in (claims or [])][:6],
+            "claim_verdicts": [asdict(item) if hasattr(item, "__dataclass_fields__") else item
+                               for item in (verdicts or [])][:6],
+            "followups": (followups or [])[:2],
             "rules": ("excerpts are verbatim from this run; a rule-verified row is NOT a "
-                      "semantic proof and grants no publication authority"),
+                      "semantic proof and grants no publication authority; an internal "
+                      "'supported' verdict comes only from the claim verifier"),
         }
         return view
 

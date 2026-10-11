@@ -194,6 +194,7 @@ def _default_runner(query: str, budget_seconds: float) -> dict[str, Any]:
         question=query,
         budget=budget,
         escalation_budgets=escalations,
+        evidence_loop=True,
     )
     record = summarize_trace(trace, budget_seconds=budget_seconds)
     # Honest runtime accounting: the record names the whole escalation chain instead of
