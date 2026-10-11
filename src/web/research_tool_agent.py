@@ -269,7 +269,7 @@ def run_tool_agent(
             # "Unresolved" must not depend on explicit sub-goals: the default shadow entry
             # passes none. Without them the question's own uncovered terms are the honest
             # signal - a coverage gap, never a claim that keyword hits mean completion.
-            unresolved = (
+            has_unresolved = (
                 any(st["status"] != "supported" for st in sub_goal_state.values())
                 if sub_goal_state
                 else bool([t for t in goal_terms if t not in covered_terms])
@@ -277,7 +277,7 @@ def run_tool_agent(
             recent_progress = (productive_events != last_productive
                                or any(progress_history[-3:]))
             if (nxt is not None and nxt.max_rounds > max_rounds
-                    and unresolved
+                    and has_unresolved
                     and (unread_candidates or pending_follows)
                     and recent_progress
                     and monotonic() < deadline):
