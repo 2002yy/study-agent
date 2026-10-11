@@ -104,8 +104,8 @@ _CLAUSE_SPLIT = re.compile(
 _CLAUSE_CONNECT = re.compile(r"(?:和|与|及|跟)")
 
 
-#: Mechanism/relation markers. SUPPORTED needs one, so a page that merely shares keywords
-#: with a goal can never settle it (keyword containment is not semantic support).
+#: Mechanism/relation markers for candidate prioritisation only.
+#: No co-occurrence rule, even with a relation marker, may certify support.
 _RELATION_MARKERS = (
     "因为", "由于", "导致", "造成", "使得", "通过", "意味着", "从而", "以便", "为了",
     "作用是", "用于", "取决于", "所以", "因此",
@@ -119,15 +119,11 @@ _CONFLICT_MARKERS = ("并非", "不是", "错误", "不正确", "incorrect", "my
 def verify_goal_evidence(terms: tuple[str, ...] | list[str], content: str, *,
                          min_ratio: float = 0.6, min_chars: int = 120,
                          window: int = 240) -> tuple[str, dict]:
-    """Two-stage goal-level check: deterministic candidates, then window-scoped support.
+    """Screen for relevant candidate excerpts; NEVER assert semantic support.
 
-    Stage 1 (deterministic): the body's terms are matched; no terms means ``missing``.
-    Stage 2 (support): ``supported`` requires the goal's terms AND a relation/mechanism
-    marker inside the SAME window, so a marker sitting in an unrelated paragraph cannot
-    certify the goal. A conflict marker in that window yields ``conflict``. Everything
-    weaker stays ``explored`` (a candidate, never a verdict).
-
-    Internal, auditable judgement only: no publication authority, Evidence Gate untouched.
+    Co-located terms, relation words and negation only annotate a candidate for the
+    independent M4-C5 semantic verifier. Return values are missing or explored.
+    The prior supported/conflict states were an unsafe semantic overclaim.
     """
     text = content or ""
     lowered = text.lower()
@@ -147,7 +143,7 @@ def verify_goal_evidence(terms: tuple[str, ...] | list[str], content: str, *,
                 marker = next((item for item in _RELATION_MARKERS if item in chunk), "")
                 if marker:
                     conflict = next((item for item in _CONFLICT_MARKERS if item in chunk), "")
-                    return ("conflict" if conflict else "supported"), {
+                    return "explored", {
                         "terms_hit": in_window, "relation": marker, "conflict": conflict,
                         "ratio": round(ratio, 2),
                         "excerpt": text[start:end].replace("\n", " ")}

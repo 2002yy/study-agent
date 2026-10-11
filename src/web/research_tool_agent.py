@@ -1,10 +1,8 @@
-"""B-Search-2 controlled research tool agent (prototype).
+"""Bounded research tool agent with optional M4-C5 semantic evidence loop.
 
-The model chooses the next tool action; the program executes it and enforces
-URL safety, quotas and the deadline, then returns the real result (body or error)
-so the model can decide again. Bodies read here are **exploratory**: they grant no
-evidence or publication authority; the Evidence Gate and post-read verification
-stay outside this loop.
+Tool reads are exploratory, and the C4 relevance screen cannot grant support.
+When explicitly enabled, an independently verified, exact-span, same-read claim
+may mark an internal goal supported; Evidence Gate remains the sole publication gate.
 """
 
 from __future__ import annotations
@@ -27,6 +25,11 @@ from src.web.link_discovery import (
 )
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
 from src.web.research_notebook import ResearchNotebook
+from src.web.research_assertion_extractor import (
+    extraction_messages, source_snapshots, validate_proposals,
+)
+from src.web.research_assertion_verifier import bind_and_verify, verification_messages
+from src.web.research_gap_followup import plan_gaps, useful_followup
 from src.web.tool_evidence import _public_url
 
 
@@ -147,6 +150,8 @@ def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str]) -> lis
 
 #: Outcomes that mean the action was refused without spending a network request.
 MAX_CORRECTIONS = 2  # bounded free corrections for refused decisions
+MAX_TOTAL_MODEL_CALLS = 22  # includes both semantic passes, not only tool decisions
+MAX_TOTAL_SECONDS = 180.0
 
 _REFUSED_OUTCOMES = frozenset({
     "duplicate_search", "already_read", "already_visited", "pending_url_confirmation",
@@ -219,6 +224,7 @@ def run_tool_agent(
     entry_selection: bool = True,
     assessment_feedback: bool = True,
     capture_full_text: bool = False,
+    evidence_loop: bool = False,  # explicit prototype gate; production B remains OFF
     monotonic: Callable[[], float] = time.monotonic,
     should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict[str, Any]:
@@ -226,7 +232,7 @@ def run_tool_agent(
     # Effective limits: the run may be extended ONCE by ``escalation_budget`` (dynamic
     # tier escalation) without restarting, so these are local and mutable.
     max_rounds, max_searches, max_reads = (
-        budget.max_rounds, budget.max_searches, budget.max_reads)
+        min(budget.max_rounds, MAX_TOTAL_MODEL_CALLS), budget.max_searches, budget.max_reads)
     escalated = False
     corrections = 0        # free corrections used, bounded by MAX_CORRECTIONS
     model_calls = 0        # every completion call, corrections included
@@ -241,7 +247,7 @@ def run_tool_agent(
     productive_events = 0
     last_productive = 0
     started = monotonic()
-    deadline = started + budget.hard_seconds
+    deadline = started + min(budget.hard_seconds, MAX_TOTAL_SECONDS)
     reset_dns_stats()  # per-run DoH cache + counters
     calls: list[dict[str, Any]] = []
     observations: list[str] = []
@@ -256,6 +262,14 @@ def run_tool_agent(
     #: Run-local notebook: caches the bodies actually read so a 20-round run can still cite
     #: its early evidence without re-fetching. Rebuilt from authoritative state each round.
     notebook = ResearchNotebook()
+    # One batched extraction and at most one independent semantic verification per run.
+    # The model never owns these records, and late reads remain pending candidates.
+    extraction_used = False
+    assertion_candidates: list[dict[str, Any]] = []
+    assertion_verdicts: list[dict[str, Any]] = []
+    extraction_rejections: list[str] = []
+    gap_queries: list[dict[str, str]] = []
+    post_verification_reads: list[str] = []
     #: Per-goal evidence records (url, host, excerpt, how it was verified).
     #: URLs whose read returned navigation/index content. Kept across rounds so the state
     #: can distinguish "already read, must not read again" from "not yet followed".
@@ -271,6 +285,9 @@ def run_tool_agent(
     derived_goals = () if sub_goals else derive_sub_goals(question)
     if derived_goals:
         goal_specs = {label: tuple(terms) for label, terms in derived_goals}
+    if evidence_loop and not goal_specs:
+        # A single-clause question is still one semantic goal, never a term-based pass.
+        goal_specs = {question[:120]: tuple(sorted(goal_terms))}
     sub_goal_state: dict[str, dict[str, Any]] = {
         label: {"status": "missing", "url": "", "excerpt": ""} for label in goal_specs
     }
@@ -331,10 +348,10 @@ def run_tool_agent(
                 pending_escalations.pop(0)
                 escalations_applied.append(nxt.max_rounds)
                 escalated = True
-                max_rounds = nxt.max_rounds
+                max_rounds = min(nxt.max_rounds, MAX_TOTAL_MODEL_CALLS)
                 max_searches = nxt.max_searches
                 max_reads = nxt.max_reads
-                deadline = started + nxt.hard_seconds
+                deadline = started + min(nxt.hard_seconds, MAX_TOTAL_SECONDS)
                 continue
             break
         rnd += 1
@@ -345,10 +362,12 @@ def run_tool_agent(
                 and (calls[-1].get("result") or {}).get("status") in _REFUSED_OUTCOMES):
             corrections += 1
             rnd -= 1
-        model_calls += 1
-        if model_calls > max_rounds + MAX_CORRECTIONS:
+        if model_calls >= min(
+                MAX_TOTAL_MODEL_CALLS,
+                max_rounds + MAX_CORRECTIONS + (2 if evidence_loop else 0)):
             stop = "model_call_limit"
             break
+        model_calls += 1
         if rnd > 0:
             progress_history.append(productive_events != last_productive)
         last_productive = productive_events
@@ -399,7 +418,14 @@ def run_tool_agent(
         notebook_view = notebook.build_view(
             goals=goal_specs, goal_state=sub_goal_state, goal_evidence=goal_evidence,
             refused=[row for row in action_rows if row["outcome"] in _REFUSED_OUTCOMES],
-            next_action=(action_state["legal_next"][0] if action_state["legal_next"] else None))
+            next_action=(
+                {"tool": "search", "target": gap_queries[0]["query"]}
+                if gap_queries and searches < max_searches
+                else action_state["legal_next"][0]
+                if action_state["legal_next"] else None),
+            assertions=assertion_verdicts or assertion_candidates,
+            gaps=gap_queries, extraction_used=extraction_used,
+            pending_sources=post_verification_reads)
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
                         " | read pages: %d | unread candidates: %d"
                         " | still uncovered (term check, hint only): %s"
@@ -417,7 +443,8 @@ def run_tool_agent(
                              if st["status"] == "missing"]
             needs_verification = [label for label, st in sub_goal_state.items()
                                   if st["status"] == "explored"]
-            settled = len(goal_specs) - len(need_evidence) - len(needs_verification)
+            settled = sum(1 for st in sub_goal_state.values()
+                          if st["status"] == "supported")
             budget_state += (
                 "\n  goals supported %d/%d | needs evidence (no candidate yet): %s"
                 " | has candidates, needs verification: %s"
@@ -439,6 +466,14 @@ def run_tool_agent(
         # half spent and readable candidates already exist, the guide tells the model the
         # remaining rounds belong to follow/read. It never fires without candidates, so a
         # topic that genuinely needs more searching is not cut short.
+        if evidence_loop and gap_queries and searches < max_searches:
+            action_state["gap_queries"] = gap_queries
+            action_state["legal_next"] = (
+                [{"tool": "search", "target": gap["query"]} for gap in gap_queries]
+                + action_state["legal_next"])
+            budget_state += (
+                "\n  VERIFIED RESEARCH GAPS: use a specific gap query, not the"
+                " original broad question: " + "; ".join(gap["query"] for gap in gap_queries))
         if searches >= 1 and unread_candidates and max_rounds - rnd <= 4:
             budget_state += (
                 "\n  BUDGET: %d round(s) left - do NOT search again. This overrides the "
@@ -482,8 +517,12 @@ def run_tool_agent(
                               for label, st in sub_goal_state.items()},
                 "pending_sub_goals": pending_goals,
             }
-            if pending_goals or (not goal_specs and missing_terms):
-                unresolved = pending_goals or missing_terms
+            if (pending_goals or (evidence_loop and post_verification_reads)
+                    or (not goal_specs and missing_terms)):
+                unresolved = (pending_goals
+                              or (["new_source_pending_verification"]
+                                  if evidence_loop and post_verification_reads else [])
+                              or missing_terms)
                 stop = "finished_incomplete"
                 call["result"] = {"status": "finished_incomplete", "missing": unresolved}
                 observations.append(
@@ -508,6 +547,16 @@ def run_tool_agent(
                     f"round {rnd}: search '{action['query']}' was already issued; reuse those "
                     "results or use a materially different query."
                 )
+                calls.append(call)
+                continue
+            if (evidence_loop and extraction_used and gap_queries
+                    and not useful_followup(action["query"], gap_queries,
+                                            searched_queries, question)):
+                call["result"] = {"status": "entry_not_eligible",
+                                  "reason": "not_a_targeted_gap_query"}
+                observations.append(
+                    f"round {rnd}: generic search refused after verification; "
+                    "search for a specific missing mechanism or limitation.")
                 calls.append(call)
                 continue
             searched_queries.add(normalised_query)
@@ -837,7 +886,8 @@ def run_tool_agent(
                 assessment = assess_body(content, question)
                 call["assessment"] = assessment
                 call["admission"] = url_admission.get(action["url"], "")
-            body_record = {"url": final_url, "ok": bool(body.get("ok")),
+            body_record = {"url": final_url, "final_url": final_url,
+                           "ok": bool(body.get("ok")),
                            "chars": len(content), "preview": content[:600],
                            "reason": action.get("reason", ""), "assessment": assessment}
             if capture_full_text:
@@ -862,6 +912,8 @@ def run_tool_agent(
                         "already read; it adds no new coverage."
                     )
                 body_fingerprints.setdefault(fingerprint, final_url)
+                body_record["content_hash"] = _hashlib.sha256(
+                    content.encode("utf-8")).hexdigest()
                 read_pages[final_url] = len(content)
                 if action["url"] != final_url:
                     read_pages[action["url"]] = len(content)
@@ -883,29 +935,105 @@ def run_tool_agent(
                     touched: list[str] = []
                     for label, terms in goal_specs.items():
                         state = sub_goal_state[label]
-                        if state["status"] == "supported":
-                            continue          # a settled goal is not re-derived
+                        # A late article remains an unverified candidate even if an
+                        # earlier article supported this goal. Never silently discard it.
                         status, evidence = verify_goal_evidence(terms, content)
-                        if status == "missing":
-                            continue          # this body carries none of the goal's terms
+                        # Defense in depth: C4 relevance cannot settle a goal,
+                        # even if a legacy implementation returns "supported".
+                        rule_status = status
+                        if rule_status == "missing":
+                            continue
+                        status = "explored"  # candidate only, no semantic promotion
                         touched.append(label)
                         goal_evidence.setdefault(label, []).append({
                             "url": final_url,
                             "host": urlsplit(final_url).hostname or "",
                             "digest": digest,
                             "status": status,
-                            "verified_by": "terms+relation" if status == "supported"
-                            else "terms_only",
+                            "candidate_rule": rule_status,
+                            "verification_state": (
+                                "pending_new_read" if extraction_used else "awaiting_batch"),
+                            "verified_by": "candidate_filter_only",
                             **evidence,
                         })
-                        if status == "supported":
-                            state.update({"status": "supported", "url": final_url,
-                                          "excerpt": evidence["excerpt"]})
-                        elif state["status"] != "explored":
+                        if state["status"] == "missing":
                             state.update({"status": "explored", "url": final_url,
                                           "excerpt": evidence["excerpt"] or ""})
                     if touched:
                         notebook.record(action["url"], final_url, content, goals=touched)
+                    if extraction_used and touched:
+                        post_verification_reads.append(final_url)
+                    # C5 runs one extract+verify batch after meaningful source accumulation.
+                    # With one article, run now if no other confirmed unread article remains
+                    # or the decision window is narrow. No additional search/read budget.
+                    more_unread = any(
+                        url not in read_pages and url not in entry_exclusions
+                        for url in confirmed)
+                    should_batch = (len(notebook.bodies) >= 2 or not more_unread
+                                    or max_rounds - rnd <= 4 or reads >= max_reads)
+                    if (evidence_loop and not extraction_used and should_batch
+                            and any(goal_evidence.values())
+                            and model_calls <= MAX_TOTAL_MODEL_CALLS - 2
+                            and not should_cancel() and deadline - monotonic() > 1.0):
+                        extraction_used = True
+                        snapshots = source_snapshots(notebook.bodies)
+                        model_calls += 1
+                        try:
+                            proposed = completion(
+                                messages=extraction_messages(question, goal_specs, snapshots),
+                                timeout=min(20.0, max(0.5, deadline - monotonic())),
+                                task_name="research_assertion_extract",
+                            )
+                        except Exception as exc:  # noqa: BLE001 - fail closed
+                            proposed = ""
+                            extraction_rejections.append(type(exc).__name__)
+                        assertion_candidates, invalid = validate_proposals(
+                            proposed, snapshots, goal_specs)
+                        extraction_rejections.extend(invalid)
+                        if (assertion_candidates and model_calls < MAX_TOTAL_MODEL_CALLS
+                                and deadline - monotonic() > 0.5 and not should_cancel()):
+                            model_calls += 1
+                            try:
+                                checked = completion(
+                                    messages=verification_messages(
+                                        question, assertion_candidates),
+                                    timeout=min(20.0, max(0.5, deadline - monotonic())),
+                                    task_name="research_assertion_verify",
+                                )
+                            except Exception as exc:  # noqa: BLE001 - fail closed
+                                checked = ""
+                                extraction_rejections.append(type(exc).__name__)
+                            assertion_verdicts = bind_and_verify(
+                                checked, assertion_candidates, snapshots)
+                            for verdict in assertion_verdicts:
+                                label = verdict["goal"]
+                                record = {
+                                    "url": verdict["final_url"],
+                                    "host": urlsplit(verdict["final_url"]).hostname or "",
+                                    "source_id": verdict["source_id"],
+                                    "content_hash": verdict["content_hash"],
+                                    "digest": verdict["content_hash"][:12],
+                                    "span_start": verdict["span_start"],
+                                    "span_end": verdict["span_end"],
+                                    "excerpt": verdict["quote"],
+                                    "status": verdict["status"],
+                                    "verified_by": verdict["verified_by"],
+                                    "reason": verdict["reason"],
+                                }
+                                goal_evidence.setdefault(label, []).insert(0, record)
+                                state = sub_goal_state[label]
+                                if verdict["status"] == "supported":
+                                    state.update({"status": "supported",
+                                                  "url": verdict["final_url"],
+                                                  "excerpt": verdict["quote"]})
+                                elif (verdict["status"] == "conflict"
+                                      and state["status"] != "supported"):
+                                    state.update({"status": "conflict",
+                                                  "url": verdict["final_url"],
+                                                  "excerpt": verdict["quote"]})
+                        gap_queries = plan_gaps(
+                            goal_specs, sub_goal_state, assertion_verdicts,
+                            question, searched_queries)
                 source_chain.append({
                     "basis": confirmed_basis.get(action["url"], ""),
                     "feed_url": feed_links.get(action["url"], ""),
@@ -942,10 +1070,11 @@ def run_tool_agent(
                           for label, st in sub_goal_state.items()},
             "pending_sub_goals": [label for label, st in sub_goal_state.items()
                                   if st["status"] != "supported"],
-            "complete": bool(read_pages)
-            and not [label for label, st in sub_goal_state.items()
-                     if st["status"] != "supported"]
-            and not [t for t in goal_terms if t not in covered_terms],
+            "complete": bool(evidence_loop and read_pages and sub_goal_state)
+            and not post_verification_reads
+            and all(st["status"] == "supported" for st in sub_goal_state.values()),
+            "semantic_required": True,
+            "pending_verification_sources": post_verification_reads,
         },
         "coverage_log": coverage_log,
         "bodies": bodies,
@@ -957,6 +1086,12 @@ def run_tool_agent(
         # caller supplied them explicitly).
         "derived_sub_goals": [label for label, _terms in derived_goals],
         "goal_evidence": goal_evidence,
+        "assertion_candidates": assertion_candidates,
+        "assertion_verdicts": assertion_verdicts,
+        "extraction_rejections": extraction_rejections,
+        "extraction_used": extraction_used,
+        "gap_queries": gap_queries,
+        "post_verification_reads": post_verification_reads,
         "notebook_digests": {url: body.digest for url, body in notebook.bodies.items()},
         # Observability for the action-optimisation audit: wasted repeats are counted,
         # not hidden, and each escalation records the round limit it moved to.

@@ -34,6 +34,16 @@ from src.web.tool_gateway import GeneralWebGateway  # noqa: E402
 ENTRY_DIRECTORY = ROOT / "config" / "research_entry_directory.json"
 
 CASES: dict[str, tuple[str, list[tuple[str, list[str]]]]] = {
+    "postgres": (
+        "PostgreSQL 的 MVCC 快照为什么不会阻塞普通读写，它引入哪些主要代价？",
+        [("读写阻塞机制", ["PostgreSQL", "MVCC", "快照", "阻塞"]),
+         ("主要代价", ["VACUUM", "旧版本", "膨胀", "清理"])],
+    ),
+    "hopper-sort": (
+        "Minecraft 漏斗如何传输物品，比较器在物品分类与排序中起什么作用？",
+        [("漏斗传输", ["漏斗", "输入", "输出", "传输"]),
+         ("比较器与分类", ["比较器", "过滤器", "分类", "排序"])],
+    ),
     "weiqi": (
         "研究围棋中打劫与提子的规则，说明禁止全局同形再现（劫争）的判定条件与例外。",
         [("打劫与提子", ["打劫", "提子", "劫"]),
@@ -76,8 +86,13 @@ def select_seeds(index: dict, question: str, k: int = 3) -> list[tuple[str, str]
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cases", nargs="*", default=list(CASES))
+    ap.add_argument(
+        "--cases", nargs="*",
+        default=["weiqi", "python", "minecraft", "factorio", "unseen-http"],
+    )
     ap.add_argument("--no-seeds", action="store_true", help="disable registry entry seeds")
+    ap.add_argument("--evidence-loop", action="store_true",
+                    help="opt into M4-C5; default OFF, no production publication authority")
     ap.add_argument("--out", default=str(DEFAULT_OUT))
     ap.add_argument("--rounds", type=int, default=6)
     ap.add_argument("--searches", type=int, default=4)
@@ -99,6 +114,7 @@ def main() -> int:
             gateway=gw, completion=configured_completion, question=question,
             budget=budget, registry_sources=tuple(seeds),
             sub_goals=[(label, tuple(terms)) for label, terms in goals],
+            evidence_loop=args.evidence_loop,
         )
         (out / f"{name}.json").write_text(json.dumps(trace, ensure_ascii=False, indent=2),
                                           encoding="utf-8")
@@ -114,6 +130,15 @@ def main() -> int:
             "bodies_ok": len(ok), "body_urls": [b["url"] for b in ok],
             "sub_goals": {k: (v or {}).get("status") for k, v in (audit.get("sub_goals") or {}).items()},
             "covered_n": len(audit.get("covered", [])),
+            "semantic_enabled": bool(args.evidence_loop),
+            "extraction_used": bool(trace.get("extraction_used")),
+            "assertions_proposed": len(trace.get("assertion_candidates") or []),
+            "assertions_verified": len(trace.get("assertion_verdicts") or []),
+            "assertions_supported": sum(
+                1 for row in trace.get("assertion_verdicts") or []
+                if row.get("status") == "supported"),
+            "pending_goals": audit.get("pending_sub_goals", []),
+            "cost": trace.get("cost", {}),
         })
         print(json.dumps(summary[-1], ensure_ascii=False), flush=True)
     (out / ("results-no-seeds.json" if args.no_seeds else "results.json")).write_text(

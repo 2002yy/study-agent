@@ -29,7 +29,7 @@ def test_conflicting_source_is_marked_conflict():
     text = "有说法认为快照会阻塞，但这种说法是错误的：因为多版本并发控制恰恰避免了阻塞。" * 4
     assert len(text) >= 120
     status, evidence = verify_goal_evidence(("快照", "阻塞"), text)
-    assert status == "conflict" and evidence["conflict"], evidence
+    assert status == "explored" and evidence["conflict"], evidence
 
 
 def test_two_insufficient_sources_do_not_add_up():
@@ -40,7 +40,7 @@ def test_two_insufficient_sources_do_not_add_up():
 
 def test_supported_excerpt_is_locatable_in_the_body():
     status, evidence = verify_goal_evidence(("快照", "阻塞", "代价"), MECHANISM)
-    assert status == "supported"
+    assert status == "explored"  # locatable does not mean semantically verified
     assert evidence["excerpt"] and evidence["excerpt"] in MECHANISM.replace("\n", " ") or \
         evidence["excerpt"] in MECHANISM
 
@@ -54,7 +54,7 @@ def test_keyword_only_body_is_explored_not_supported():
 def test_mechanism_body_with_relation_marker_is_supported():
     status, evidence = verify_goal_evidence(
         ("快照", "阻塞", "代价"), MECHANISM)
-    assert status == "supported"
+    assert status == "explored"
     assert evidence["relation"] and evidence["excerpt"]
 
 
@@ -95,6 +95,6 @@ def test_agent_records_evidence_per_goal_and_keeps_records_apart():
     assert records, trace["coverage_audit"]
     for label, items in records.items():
         assert items and all(item["url"] and item["host"] for item in items)
-        assert all(item["status"] in {"explored", "supported"} for item in items)
+        assert all(item["status"] == "explored" for item in items)
         # each goal keeps its own record; nothing is merged into a shared claim
         assert label in trace["coverage_audit"]["sub_goals"]

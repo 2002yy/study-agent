@@ -40,8 +40,12 @@ class CachedBody:
     goals: list[str] = field(default_factory=list)
 
     def to_view(self) -> dict[str, Any]:
-        return {"url": self.url, "host": self.host, "chars": self.chars,
-                "digest": self.digest, "goals": self.goals}
+        full_hash = sha256(self.text.encode("utf-8")).hexdigest()
+        source_id = sha256((self.final_url + "\n" + full_hash).encode("utf-8")).hexdigest()[:20]
+        return {"url": self.url, "final_url": self.final_url,
+                "host": self.host, "chars": self.chars, "digest": self.digest,
+                "content_hash": full_hash, "source_id": source_id,
+                "goals": self.goals}
 
 
 @dataclass
@@ -87,16 +91,35 @@ class ResearchNotebook:
     def build_view(self, *, goals: Mapping[str, Any], goal_state: Mapping[str, Any],
                    goal_evidence: Mapping[str, list[dict[str, Any]]],
                    refused: list[dict[str, str]],
-                   next_action: dict[str, str] | None) -> dict[str, Any]:
+                   next_action: dict[str, str] | None,
+                   assertions: list[dict[str, Any]] | None = None,
+                   gaps: list[dict[str, str]] | None = None,
+                   extraction_used: bool = False,
+                   pending_sources: list[str] | None = None) -> dict[str, Any]:
         """A bounded, per-round picture: goals, best evidence, gaps, what failed, what next."""
         goal_rows = []
         for label, terms in goals.items():
             state = goal_state.get(label) or {}
             records = list(goal_evidence.get(label) or [])
             shown = []
-            for record in records[:MAX_EVIDENCE_PER_GOAL]:
+            prioritized: list[dict[str, Any]] = []
+            # Surface late unverified reads before old records, while retaining one
+            # independently verified quote when possible.
+            for record in (
+                [row for row in reversed(records)
+                 if row.get("verification_state") == "pending_new_read"]
+                + [row for row in records
+                   if row.get("verified_by") == "independent_semantic"]
+                + records
+            ):
+                if record not in prioritized:
+                    prioritized.append(record)
+                if len(prioritized) >= MAX_EVIDENCE_PER_GOAL:
+                    break
+            for record in prioritized:
                 url = record.get("url", "")
-                cached = self.bodies.get(url)
+                cached = self.bodies.get(url) or next(
+                    (body for body in self.bodies.values() if body.final_url == url), None)
                 excerpt = record.get("excerpt") or self.excerpt(url, tuple(terms))
                 shown.append({
                     "source": url,
@@ -104,20 +127,38 @@ class ResearchNotebook:
                     # The adopted record keeps its own digest, so evicting the full text from
                     # the cache cannot break the audit trail.
                     "digest": record.get("digest") or (cached.digest if cached else ""),
+                    "source_id": record.get("source_id", ""),
+                    "content_hash": record.get("content_hash", ""),
+                    "span_start": record.get("span_start"),
+                    "span_end": record.get("span_end"),
                     "excerpt": str(excerpt)[:MAX_EXCERPT_CHARS],
                     "basis": "verbatim excerpt from this run",
                     "status": record.get("status", "explored"),
                     "full_text_cached": cached is not None,
-                    "verification": RULE_VERIFICATION if record.get("status") == "supported"
-                    else "candidate only - no verification yet",
+                    "verification": (
+                        "independent semantic verdict on same-read bound span "
+                        "(not publication authority)"
+                        if (record.get("status") == "supported"
+                            and record.get("verified_by") == "independent_semantic")
+                        else RULE_VERIFICATION + "; not semantic proof"
+                        if record.get("status") == "supported"
+                        else "candidate only - not semantic proof"
+                        if record.get("verified_by") != "independent_semantic"
+                        else "independent semantic verdict: " + str(record.get("status"))
+                    ),
                 })
             goal_rows.append({
                 "goal": label,
                 "status": state.get("status", "missing"),
                 "evidence": shown,
-                "gap": "no candidate read yet" if state.get("status") == "missing"
+                "gap": "newly read source pending independent verification"
+                if any(row.get("verification_state") == "pending_new_read"
+                       for row in records)
+                else "no candidate read yet" if state.get("status") == "missing"
                 else ("has candidates, needs verification" if state.get("status") == "explored"
-                      else "rule-verified excerpt on record"),
+                      else "contradictory evidence; research further"
+                      if state.get("status") == "conflict"
+                      else "independently checked excerpt on record"),
             })
         view = {
             "goals": goal_rows,
@@ -125,9 +166,23 @@ class ResearchNotebook:
                              list(self.bodies.values())[-MAX_READ_SOURCES:]],
             "invalid_actions": refused[-MAX_INVALID_ACTIONS:],
             "next_action": next_action or {},
-            "rules": ("excerpts are verbatim from this run; a rule-verified row is NOT a "
-                      "semantic proof and grants no publication authority"),
+            "rules": ("excerpts are verbatim from this run; keyword rules are "
+                      "candidate filters only. Only an independently checked same-read "
+                      "span may count as supported; no publication authority."),
         }
+        if assertions:
+            view["assertions"] = [
+                {"goal": row.get("goal"), "claim": str(row.get("claim", ""))[:220],
+                 "status": row.get("status", "pending"),
+                 "source_id": row.get("source_id", "")}
+                for row in assertions[:6]
+            ]
+        if gaps:
+            view["gaps"] = gaps[:3]
+        if extraction_used:
+            view["semantic_batch_used"] = True
+        if pending_sources:
+            view["pending_verification_sources"] = pending_sources[-3:]
         return view
 
 
