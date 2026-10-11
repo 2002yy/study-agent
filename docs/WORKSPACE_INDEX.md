@@ -27,8 +27,8 @@
 
 ## 已知合并阻断
 
-- #203：两条 P1 已由真实研究/HTTP持久化快照与落库负控补齐并 resolve；修复候选 `a312d78423903fd9e60146a3e581d43f6cee312c` 等待精确 head CI 与最终审阅。Learning State-1 L2–L6 继续 NOT CLOSED。
-- #204：原CI secrets报告完整133项为固定Git/校验值；修复候选 `ad35077f913db1e60166e4abd114c60ea970a908` 精确登记逐文件/行/值，其他告警仍阻断。原409文件字节与Git blobs验证不变；等新head CI与最终审阅。
+- #203：两条 P1 已由真实研究/HTTP持久化快照与落库负控补齐并 resolve；修复候选 `b0590c4ce62b14cad6335738d7747ee7f85fa23a` 等待精确 head CI 与最终审阅。Learning State-1 L2–L6 继续 NOT CLOSED。
+- #204：原CI secrets报告完整133项为固定Git/校验值；修复候选 `cf906e2c86135d329611f133050a40ced38f89ef` 精确登记逐文件/行/值，其他告警仍阻断。原409文件字节与Git blobs验证不变；等新head CI与最终审阅。
 - #207、#214的精确候选CI已成功且expected-head合并；完整候选SHA、branch/worktree、CI/run与merge SHA见PROJECT_STATUS Current Handoff。#215修复新增P1后仍须新head CI。
 - RP-1、Deep-4B 与 B-Search 的研究质量资格门保持原裁定；基础设施或展示层回归通过不能替代真实研究验收。
 
