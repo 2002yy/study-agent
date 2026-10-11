@@ -1,0 +1,86 @@
+{
+  "case_id": "H06",
+  "arm": "A",
+  "repeat": 2,
+  "publication_authority": false,
+  "qualification": false,
+  "raw_output": "{\n  \"claims\": [\n    {\n      \"text\": \"英国1752年历法转换法令（Calendar (New Style) Act 1750）中提及了1752年9月14日这一日期，作为转换相关日期之一。\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendaruk\",\n          \"quote\": \"he said fourteenth day of September\"\n        }\n      ]\n    },\n    {\n      \"text\": \"俄国1918年转换前最后一个民用日期是1918年1月31日。\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendarrussia\",\n          \"quote\": \"the next day after January 31, 1918, would be February 14\"\n        }\n      ]\n    },\n    {\n      \"text\": \"俄国1918年转换后第一个民用日期是1918年2月14日。\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendarrussia\",\n          \"quote\": \"the next day after January 31, 1918, would be February 14\"\n        }\n      ]\n    },\n    {\n      \"text\": \"俄国1918年转换跳过的日历日期个数为13天（1月31日之后直接为2月14日）。\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendarrussia\",\n          \"quote\": \"the next day after January 31, 1918, would be February 14\"\n        }\n      ]\n    },\n    {\n      \"text\": \"俄国在转换后数月内官方文件中同时显示新旧两种日期，直到1918年7月1日才完全采用格里高利历。\",\n      \"citations\": [\n        {\n          \"source_id\": \"calendarrussia\",\n          \"quote\": \"For several months, both dates were shown in the official documents, and then on July 1, 1918, the country moved to the Gregorian calendar completely.\"\n        }\n      ]\n    }\n  ],\n  \"unknowns\": [\n    \"英国1752年转换前最后一个民用日期（具体日期）\",\n    \"英国1752年转换后第一个民用日期（具体日期）\",\n    \"英国1752年转换跳过的日历日期个数\",\n    \"英国与俄国转换时需要跳过的天数不同的原因\",\n    \"英国同时调整新年起算日（1月1日）这一事实的辨析\",\n    \"支持英国日期判断的权威历史或法律资料（除已引用的法令片段外，缺乏明确日期信息）\"\n  ],\n  \"answer\": \"根据提供的证据，可以确认俄国1918年历法转换的部分事实：转换前最后一个民用日期是1918年1月31日，转换后第一个民用日期是1918年2月14日，跳过了13个日历日期；转换后数月内官方文件同时显示新旧日期，直到1918年7月1日完全采用格里高利历。对于英国1752年的转换，证据中仅提及1752年9月14日这一日期，但未明确说明转换前最后一个民用日期、转换后第一个民用日期以及跳过的日历日期个数。因此，无法基于现有证据比较两国转换的具体日期和跳过天数，也无法解释跳过天数不同的原因，以及辨析英国同时调整新年起算日的事实。\"\n}",
+  "finish_reason": "stop",
+  "model": "deepseek-flash",
+  "usage": {
+    "completion_tokens": 694,
+    "prompt_tokens": 2334,
+    "total_tokens": 3028,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 2176
+    },
+    "prompt_cache_hit_tokens": 2176,
+    "prompt_cache_miss_tokens": 158
+  },
+  "output": {
+    "claims": [
+      {
+        "text": "英国1752年历法转换法令（Calendar (New Style) Act 1750）中提及了1752年9月14日这一日期，作为转换相关日期之一。",
+        "citations": [
+          {
+            "source_id": "calendaruk",
+            "quote": "he said fourteenth day of September"
+          }
+        ]
+      },
+      {
+        "text": "俄国1918年转换前最后一个民用日期是1918年1月31日。",
+        "citations": [
+          {
+            "source_id": "calendarrussia",
+            "quote": "the next day after January 31, 1918, would be February 14"
+          }
+        ]
+      },
+      {
+        "text": "俄国1918年转换后第一个民用日期是1918年2月14日。",
+        "citations": [
+          {
+            "source_id": "calendarrussia",
+            "quote": "the next day after January 31, 1918, would be February 14"
+          }
+        ]
+      },
+      {
+        "text": "俄国1918年转换跳过的日历日期个数为13天（1月31日之后直接为2月14日）。",
+        "citations": [
+          {
+            "source_id": "calendarrussia",
+            "quote": "the next day after January 31, 1918, would be February 14"
+          }
+        ]
+      },
+      {
+        "text": "俄国在转换后数月内官方文件中同时显示新旧两种日期，直到1918年7月1日才完全采用格里高利历。",
+        "citations": [
+          {
+            "source_id": "calendarrussia",
+            "quote": "For several months, both dates were shown in the official documents, and then on July 1, 1918, the country moved to the Gregorian calendar completely."
+          }
+        ]
+      }
+    ],
+    "unknowns": [
+      "英国1752年转换前最后一个民用日期（具体日期）",
+      "英国1752年转换后第一个民用日期（具体日期）",
+      "英国1752年转换跳过的日历日期个数",
+      "英国与俄国转换时需要跳过的天数不同的原因",
+      "英国同时调整新年起算日（1月1日）这一事实的辨析",
+      "支持英国日期判断的权威历史或法律资料（除已引用的法令片段外，缺乏明确日期信息）"
+    ],
+    "answer": "根据提供的证据，可以确认俄国1918年历法转换的部分事实：转换前最后一个民用日期是1918年1月31日，转换后第一个民用日期是1918年2月14日，跳过了13个日历日期；转换后数月内官方文件同时显示新旧日期，直到1918年7月1日完全采用格里高利历。对于英国1752年的转换，证据中仅提及1752年9月14日这一日期，但未明确说明转换前最后一个民用日期、转换后第一个民用日期以及跳过的日历日期个数。因此，无法基于现有证据比较两国转换的具体日期和跳过天数，也无法解释跳过天数不同的原因，以及辨析英国同时调整新年起算日的事实。"
+  },
+  "checks": {
+    "structural_errors": [],
+    "semantic_support": "PENDING_HUMAN_REVIEW"
+  },
+  "status": "recorded",
+  "elapsed_seconds": 3.125
+}

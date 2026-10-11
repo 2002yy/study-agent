@@ -1,0 +1,33 @@
+{
+  "manifest_sha256": "195b5134486dc5b15783fe8e665cc190abcaee439af8ca848e61f56388d5d39b",
+  "harness_sha256": "5eac1f32c8c015df9cb28dd7509aae5d448013ab70bae097c0d1bc3126e80329",
+  "model": "deepseek-flash",
+  "effective_config": {
+    "model": "deepseek-flash",
+    "temperature": 0,
+    "max_tokens": 1400,
+    "timeout": 5,
+    "response_format": {
+      "type": "json_object"
+    },
+    "structured_output_options": {
+      "thinking": {
+        "type": "disabled"
+      }
+    }
+  },
+  "model_revision": "NOT_OBSERVED_PROVIDER_ALIAS",
+  "dependency_hashes": {
+    "src/web/semantic_recovery.py": "547149b291d1c9de3a0a50029d19281b10c1fc52a934b22940df2aea67987bca",
+    "src/llm_client.py": "a35b73fdd4bdba99df1e920a357eb301f4c50a59fc001ce0e85dd52923d0feba"
+  },
+  "model_profile": "flash",
+  "max_tokens": 1400,
+  "timeout_seconds": 5,
+  "temperature": 0,
+  "request_max_retries": 0,
+  "phase": "planning",
+  "planned_rows": 96,
+  "publication_authority": false,
+  "semantic_review": "PENDING_HUMAN_REVIEW"
+}

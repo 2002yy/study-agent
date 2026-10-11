@@ -1,0 +1,123 @@
+{
+  "case_id": "H05",
+  "arm": "A",
+  "repeat": 1,
+  "publication_authority": false,
+  "qualification": false,
+  "raw_output": "{\"claims\": [{\"text\": \"With asyncio.gather default options (return_exceptions=False), the first raised exception is immediately propagated to the task awaiting gather(), and other awaitables in the aws sequence are not cancelled and continue to run.\", \"citations\": [{\"source_id\": \"asyncio312-asyncio.gather\", \"quote\": \"If return_exceptions is False (default), the first\\nraised exception is immediately propagated to the task that\\nawaits on gather().  Other awaitables in the aws sequence\\nwon’t be cancelled and will continue to run.\"}]}, {\"text\": \"With asyncio.gather, if a submitted Task or Future is cancelled, it is treated as if it raised CancelledError and the gather() call is not cancelled in that case.\", \"citations\": [{\"source_id\": \"asyncio312-asyncio.gather\", \"quote\": \"If any Task or Future from the aws sequence is cancelled, it is\\ntreated as if it raised CancelledError – the gather()\\ncall is not cancelled in this case.\"}]}, {\"text\": \"With asyncio.gather, if return_exceptions is false, cancelling gather() after it has been marked done won’t cancel any submitted awaitables; for instance, gather can be marked done after propagating an exception to the caller, so calling gather.cancel() after catching an exception won’t cancel other awaitables.\", \"citations\": [{\"source_id\": \"asyncio312-asyncio.gather\", \"quote\": \"If return_exceptions is false, cancelling gather() after it\\nhas been marked done won’t cancel any submitted awaitables.\\nFor instance, gather can be marked done after propagating an\\nexception to the caller, therefore, calling gather.cancel()\\nafter catching an exception (raised by one of the awaitables) from\\ngather won’t cancel any other awaitables.\"}]}, {\"text\": \"With asyncio.TaskGroup, the first time any task in the group fails with an exception other than asyncio.CancelledError, the remaining tasks in the group are cancelled.\", \"citations\": [{\"source_id\": \"asyncio312-task-groups\", \"quote\": \"The first time any of the tasks belonging to the group fails\\nwith an exception other than asyncio.CancelledError,\\nthe remaining tasks in the group are cancelled.\"}]}, {\"text\": \"With asyncio.TaskGroup, once all tasks have finished, if any tasks failed with an exception other than asyncio.CancelledError, those exceptions are combined in an ExceptionGroup or BaseExceptionGroup which is then raised.\", \"citations\": [{\"source_id\": \"asyncio312-task-groups\", \"quote\": \"Once all tasks have finished, if any tasks have failed\\nwith an exception other than asyncio.CancelledError,\\nthose exceptions are combined in an\\nExceptionGroup or BaseExceptionGroup\\n(as appropriate; see their documentation)\\nwhich is then raised.\"}]}, {\"text\": \"The asyncio.gather documentation notes that asyncio.TaskGroup is a new alternative that provides stronger safety guarantees than gather for scheduling a nesting of subtasks: if a task raises an exception, TaskGroup will, while gather will not, cancel the remaining scheduled tasks.\", \"citations\": [{\"source_id\": \"asyncio312-asyncio.gather\", \"quote\": \"A new alternative to create and run tasks concurrently and\\nwait for their completion is asyncio.TaskGroup. TaskGroup\\nprovides stronger safety guarantees than gather for scheduling a nesting of subtasks:\\nif a task (or a subtask, a task scheduled by a task)\\nraises an exception, TaskGroup will, while gather will not,\\ncancel the remaining scheduled tasks).\"}]}, {\"text\": \"With asyncio.TaskGroup, if the body of the async with statement is still active when a task fails, the task directly containing the async with statement is also cancelled, and the resulting asyncio.CancelledError will interrupt an await but will not bubble out of the containing async with statement.\", \"citations\": [{\"source_id\": \"asyncio312-task-groups\", \"quote\": \"At this point, if the body of the async with statement is still active\\n(i.e., __aexit__() hasn’t been called yet),\\nthe task directly containing the async with statement is also cancelled.\\nThe resulting asyncio.CancelledError will interrupt an await,\\nbut it will not bubble out of the containing async with statement.\"}]}, {\"text\": \"With asyncio.TaskGroup, if any task fails with KeyboardInterrupt or SystemExit, the task group still cancels the remaining tasks and waits for them, but then the initial KeyboardInterrupt or SystemExit is re-raised instead of ExceptionGroup or BaseExceptionGroup.\", \"citations\": [{\"source_id\": \"asyncio312-task-groups\", \"quote\": \"If any task fails with KeyboardInterrupt or SystemExit,\\nthe task group still cancels the remaining tasks and waits for them,\\nbut then the initial KeyboardInterrupt or SystemExit\\nis re-raised instead of ExceptionGroup or BaseExceptionGroup.\"}]}, {\"text\": \"With asyncio.TaskGroup, if the body of the async with statement exits with an exception, this is treated the same as if one of the tasks failed: the remaining tasks are cancelled and then waited for, and non-cancellation exceptions are grouped into an exception group and raised; the exception passed into __aexit__(), unless it is asyncio.CancelledError, is also included in the exception group.\", \"citations\": [{\"source_id\": \"asyncio312-task-groups\", \"quote\": \"If the body of the async with statement exits with an exception\\n(so __aexit__() is called with an exception set),\\nthis is treated the same as if one of the tasks failed:\\nthe remaining tasks are cancelled and then waited for,\\nand non-cancellation exceptions are grouped into an\\nexception group and raised.\\nThe exception passed into __aexit__(),\\nunless it is asyncio.CancelledError,\\nis also included in the exception group.\"}]}], \"unknowns\": [\"The supplied evidence does not explicitly state the exact exception type/shape raised by asyncio.gather default when one child raises ValueError (e.g., whether it is a bare ValueError).\", \"The supplied evidence does not explicitly state the exact exception type/shape raised by asyncio.TaskGroup when one child raises ValueError, beyond saying exceptions are combined in an ExceptionGroup or BaseExceptionGroup.\", \"The supplied evidence does not explicitly state whether slow() typically writes its log after 2 seconds under asyncio.gather default in the described scenario.\", \"The supplied evidence does not explicitly state whether slow() typically fails to write its log under asyncio.TaskGroup in the described scenario.\", \"The supplied evidence does not explicitly describe timing of cancellation delivery to slow() or whether slow() can write its log before cancellation is delivered.\", \"The supplied evidence does not explicitly address the condition that the upper layer catches the thrown exception and keeps the event loop running for at least three seconds with no external cancellation.\", \"The supplied evidence does not explicitly address slow() not swallowing CancelledError as a boundary condition.\"], \"answer\": \"Based on the supplied Python 3.12 asyncio documentation, the two patterns differ in error propagation and sibling-task cancellation. With asyncio.gather(fail(), slow()) using default return_exceptions=False, the first raised exception is immediately propagated to the task awaiting gather(), and the other awaitables in the aws sequence are not cancelled and will continue to run. The documentation also notes that if return_exceptions is false, cancelling gather() after it has been marked done won’t cancel any submitted awaitables; for example, gather can be marked done after propagating an exception to the caller, so calling gather.cancel() after catching an exception won’t cancel other awaitables. Therefore, under the documented gather behavior, slow() is not cancelled by gather when fail() raises ValueError, and if the event loop remains running, slow() would be expected to continue running. However, the supplied evidence does not explicitly state whether slow() typically writes its log after two seconds in this exact scenario. With asyncio.TaskGroup, the first time any task in the group fails with an exception other than asyncio.CancelledError, the remaining tasks in the group are cancelled. Once all tasks have finished, if any tasks failed with an exception other than asyncio.CancelledError, those exceptions are combined in an ExceptionGroup or BaseExceptionGroup which is then raised. Thus, under the documented TaskGroup behavior, slow() is cancelled when fail() raises ValueError, and the exception shape is an ExceptionGroup or BaseExceptionGroup rather than a bare ValueError. The supplied evidence does not explicitly state whether slow() typically fails to write its log in this exact scenario, nor does it explicitly describe cancellation timing or the condition that the upper layer catches the exception and keeps the event loop running for at least three seconds with no external cancellation. The gather documentation also notes that TaskGroup provides stronger safety guarantees than gather for scheduling a nesting of subtasks: if a task raises an exception, TaskGroup will, while gather will not, cancel the remaining scheduled tasks. Boundary conditions mentioned in the evidence include return_exceptions, cancellation of gather after it is marked done, special handling of KeyboardInterrupt and SystemExit in TaskGroup, and exceptions raised by the async with body being grouped into an exception group. The evidence does not explicitly address slow() not swallowing CancelledError as a boundary condition.\"}",
+  "finish_reason": "stop",
+  "model": "deepseek-flash",
+  "usage": {
+    "completion_tokens": 2043,
+    "prompt_tokens": 2216,
+    "total_tokens": 4259,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 2048
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 168
+  },
+  "output": {
+    "claims": [
+      {
+        "text": "With asyncio.gather default options (return_exceptions=False), the first raised exception is immediately propagated to the task awaiting gather(), and other awaitables in the aws sequence are not cancelled and continue to run.",
+        "citations": [
+          {
+            "source_id": "asyncio312-asyncio.gather",
+            "quote": "If return_exceptions is False (default), the first\nraised exception is immediately propagated to the task that\nawaits on gather().  Other awaitables in the aws sequence\nwon’t be cancelled and will continue to run."
+          }
+        ]
+      },
+      {
+        "text": "With asyncio.gather, if a submitted Task or Future is cancelled, it is treated as if it raised CancelledError and the gather() call is not cancelled in that case.",
+        "citations": [
+          {
+            "source_id": "asyncio312-asyncio.gather",
+            "quote": "If any Task or Future from the aws sequence is cancelled, it is\ntreated as if it raised CancelledError – the gather()\ncall is not cancelled in this case."
+          }
+        ]
+      },
+      {
+        "text": "With asyncio.gather, if return_exceptions is false, cancelling gather() after it has been marked done won’t cancel any submitted awaitables; for instance, gather can be marked done after propagating an exception to the caller, so calling gather.cancel() after catching an exception won’t cancel other awaitables.",
+        "citations": [
+          {
+            "source_id": "asyncio312-asyncio.gather",
+            "quote": "If return_exceptions is false, cancelling gather() after it\nhas been marked done won’t cancel any submitted awaitables.\nFor instance, gather can be marked done after propagating an\nexception to the caller, therefore, calling gather.cancel()\nafter catching an exception (raised by one of the awaitables) from\ngather won’t cancel any other awaitables."
+          }
+        ]
+      },
+      {
+        "text": "With asyncio.TaskGroup, the first time any task in the group fails with an exception other than asyncio.CancelledError, the remaining tasks in the group are cancelled.",
+        "citations": [
+          {
+            "source_id": "asyncio312-task-groups",
+            "quote": "The first time any of the tasks belonging to the group fails\nwith an exception other than asyncio.CancelledError,\nthe remaining tasks in the group are cancelled."
+          }
+        ]
+      },
+      {
+        "text": "With asyncio.TaskGroup, once all tasks have finished, if any tasks failed with an exception other than asyncio.CancelledError, those exceptions are combined in an ExceptionGroup or BaseExceptionGroup which is then raised.",
+        "citations": [
+          {
+            "source_id": "asyncio312-task-groups",
+            "quote": "Once all tasks have finished, if any tasks have failed\nwith an exception other than asyncio.CancelledError,\nthose exceptions are combined in an\nExceptionGroup or BaseExceptionGroup\n(as appropriate; see their documentation)\nwhich is then raised."
+          }
+        ]
+      },
+      {
+        "text": "The asyncio.gather documentation notes that asyncio.TaskGroup is a new alternative that provides stronger safety guarantees than gather for scheduling a nesting of subtasks: if a task raises an exception, TaskGroup will, while gather will not, cancel the remaining scheduled tasks.",
+        "citations": [
+          {
+            "source_id": "asyncio312-asyncio.gather",
+            "quote": "A new alternative to create and run tasks concurrently and\nwait for their completion is asyncio.TaskGroup. TaskGroup\nprovides stronger safety guarantees than gather for scheduling a nesting of subtasks:\nif a task (or a subtask, a task scheduled by a task)\nraises an exception, TaskGroup will, while gather will not,\ncancel the remaining scheduled tasks)."
+          }
+        ]
+      },
+      {
+        "text": "With asyncio.TaskGroup, if the body of the async with statement is still active when a task fails, the task directly containing the async with statement is also cancelled, and the resulting asyncio.CancelledError will interrupt an await but will not bubble out of the containing async with statement.",
+        "citations": [
+          {
+            "source_id": "asyncio312-task-groups",
+            "quote": "At this point, if the body of the async with statement is still active\n(i.e., __aexit__() hasn’t been called yet),\nthe task directly containing the async with statement is also cancelled.\nThe resulting asyncio.CancelledError will interrupt an await,\nbut it will not bubble out of the containing async with statement."
+          }
+        ]
+      },
+      {
+        "text": "With asyncio.TaskGroup, if any task fails with KeyboardInterrupt or SystemExit, the task group still cancels the remaining tasks and waits for them, but then the initial KeyboardInterrupt or SystemExit is re-raised instead of ExceptionGroup or BaseExceptionGroup.",
+        "citations": [
+          {
+            "source_id": "asyncio312-task-groups",
+            "quote": "If any task fails with KeyboardInterrupt or SystemExit,\nthe task group still cancels the remaining tasks and waits for them,\nbut then the initial KeyboardInterrupt or SystemExit\nis re-raised instead of ExceptionGroup or BaseExceptionGroup."
+          }
+        ]
+      },
+      {
+        "text": "With asyncio.TaskGroup, if the body of the async with statement exits with an exception, this is treated the same as if one of the tasks failed: the remaining tasks are cancelled and then waited for, and non-cancellation exceptions are grouped into an exception group and raised; the exception passed into __aexit__(), unless it is asyncio.CancelledError, is also included in the exception group.",
+        "citations": [
+          {
+            "source_id": "asyncio312-task-groups",
+            "quote": "If the body of the async with statement exits with an exception\n(so __aexit__() is called with an exception set),\nthis is treated the same as if one of the tasks failed:\nthe remaining tasks are cancelled and then waited for,\nand non-cancellation exceptions are grouped into an\nexception group and raised.\nThe exception passed into __aexit__(),\nunless it is asyncio.CancelledError,\nis also included in the exception group."
+          }
+        ]
+      }
+    ],
+    "unknowns": [
+      "The supplied evidence does not explicitly state the exact exception type/shape raised by asyncio.gather default when one child raises ValueError (e.g., whether it is a bare ValueError).",
+      "The supplied evidence does not explicitly state the exact exception type/shape raised by asyncio.TaskGroup when one child raises ValueError, beyond saying exceptions are combined in an ExceptionGroup or BaseExceptionGroup.",
+      "The supplied evidence does not explicitly state whether slow() typically writes its log after 2 seconds under asyncio.gather default in the described scenario.",
+      "The supplied evidence does not explicitly state whether slow() typically fails to write its log under asyncio.TaskGroup in the described scenario.",
+      "The supplied evidence does not explicitly describe timing of cancellation delivery to slow() or whether slow() can write its log before cancellation is delivered.",
+      "The supplied evidence does not explicitly address the condition that the upper layer catches the thrown exception and keeps the event loop running for at least three seconds with no external cancellation.",
+      "The supplied evidence does not explicitly address slow() not swallowing CancelledError as a boundary condition."
+    ],
+    "answer": "Based on the supplied Python 3.12 asyncio documentation, the two patterns differ in error propagation and sibling-task cancellation. With asyncio.gather(fail(), slow()) using default return_exceptions=False, the first raised exception is immediately propagated to the task awaiting gather(), and the other awaitables in the aws sequence are not cancelled and will continue to run. The documentation also notes that if return_exceptions is false, cancelling gather() after it has been marked done won’t cancel any submitted awaitables; for example, gather can be marked done after propagating an exception to the caller, so calling gather.cancel() after catching an exception won’t cancel other awaitables. Therefore, under the documented gather behavior, slow() is not cancelled by gather when fail() raises ValueError, and if the event loop remains running, slow() would be expected to continue running. However, the supplied evidence does not explicitly state whether slow() typically writes its log after two seconds in this exact scenario. With asyncio.TaskGroup, the first time any task in the group fails with an exception other than asyncio.CancelledError, the remaining tasks in the group are cancelled. Once all tasks have finished, if any tasks failed with an exception other than asyncio.CancelledError, those exceptions are combined in an ExceptionGroup or BaseExceptionGroup which is then raised. Thus, under the documented TaskGroup behavior, slow() is cancelled when fail() raises ValueError, and the exception shape is an ExceptionGroup or BaseExceptionGroup rather than a bare ValueError. The supplied evidence does not explicitly state whether slow() typically fails to write its log in this exact scenario, nor does it explicitly describe cancellation timing or the condition that the upper layer catches the exception and keeps the event loop running for at least three seconds with no external cancellation. The gather documentation also notes that TaskGroup provides stronger safety guarantees than gather for scheduling a nesting of subtasks: if a task raises an exception, TaskGroup will, while gather will not, cancel the remaining scheduled tasks. Boundary conditions mentioned in the evidence include return_exceptions, cancellation of gather after it is marked done, special handling of KeyboardInterrupt and SystemExit in TaskGroup, and exceptions raised by the async with body being grouped into an exception group. The evidence does not explicitly address slow() not swallowing CancelledError as a boundary condition."
+  },
+  "checks": {
+    "structural_errors": [],
+    "semantic_support": "PENDING_HUMAN_REVIEW"
+  },
+  "status": "recorded",
+  "elapsed_seconds": 7.719
+}

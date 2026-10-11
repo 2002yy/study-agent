@@ -1,0 +1,3 @@
+{
+  "raw_output": "{\"tasks\":[{\"question\":\"SQLite 与 PostgreSQL 在本地单用户笔记应用场景下的部署要求分别是什么？\"},{\"question\":\"SQLite 与 PostgreSQL 在本地单用户笔记应用场景下的维护要求分别是什么？\"},{\"question\":\"在比较 SQLite 与 PostgreSQL 的部署与维护要求前，需要明确哪些适用条件？\"},{\"question\":\"基于适用条件，对本地单用户笔记应用选择 SQLite 或 PostgreSQL 有何建议？\"}]}"
+}
