@@ -20,15 +20,15 @@
 | UI/#201、#207与旧#164/#176 | 阅读/对话并排、正文/PDF/引用定位、唯一顶部H1、笔记本参考资产 | #201/#207已合并；#215已恢复五份图片/JSON与历史规范，#176参考资产已覆盖。旧Firefly/search-first PR含旧base与重叠实现 | 使用已整合UI；#161/#164/#168/#176暂保留，不自动关PR或导入过时状态 |
 | Learning State-1/#203 | 学习事实来源分类与研究/UI持久化隔离 | L1 `0de80751`；新增真实服务/HTTP快照与四写入负控、显式closure正控，精确headCI `38119916006` SUCCESS，merge `4486e600` | 两条P1最终语义审阅通过；学习验收可按该证据收口，非研究质量或自然模型验收 |
 | 工作区/#205/#208/#215 | 固定开发MCP、惰性目录/平台契约、保留工作索引 | 已合并；#208契约不授予运行/发布权；#215CI `38119966073` SUCCESS、merge `0eed3a73` | 保留原6文件/26图/11MCP与备份、旧worktrees和refs；main干净不表示其他工作已清空 |
-| RP-1证据/#204 | 409原始实验/UI文件与机械证据归档 | 原133哈希误报已审查；CI又发现新增清单158项和工具4项，修复head `bd7c42da5eb5c51c0047aae680c8a55c7ac0b3aa`待新CI | 必须保持扫描插件/排除/强制门；逐字段重计算清单元数据。提交后完整扫描199项均验证，注入合成AWS格式Key后仅真实告警保留并拒绝通过 |
+| RP-1证据/#204 | 409原始实验/UI文件与机械证据归档 | 原133哈希误报已审查；CI又发现新增清单158项和工具4项，修复head `bd7c42da5eb5c51c0047aae680c8a55c7ac0b3aa`，exact-head pull_request CI `38122180943` SUCCESS，expected-head merge `7a8b6d5573a202debb1051ecb743aedc5138cbc8` | 必须保持扫描插件/排除/强制门；逐字段重计算清单元数据。提交后完整扫描199项均验证，注入合成AWS格式Key后仅真实告警保留并拒绝通过 |
 
 ## 当前已执行与验收
 
-- 已expected-head合并#215、#203并fast-forward主目录，未改研究生产权威。
+- 已expected-head合并#215、#203、#204并fast-forward主目录，未改研究生产权威。
 - #204真实失败原因已修复：元数据只接受从原文件重新计算的manifest/file SHA256、源字段SHA1，工具只接受四个已固定公开Git身份。源报告133项与新增162项重放均无剩余；21过滤/负控+41 CI enforcement共62 PASS，Ruff与差异检查PASS。提交前目录扫描会漏掉未跟踪新文件，现以提交后完整候选扫描为验收；原409字节不改。
 - 全量4294 PASS/6 SKIP仍是原组合候选证据。主线生产/frontend/依赖树未改，新增隔离和安全工具分别有定向证据，不为本批文档与普通合并重跑后端全量。
 - 旧RP-1 R6、B-Search跨主题到达/读后判断仍NO-GO/PARTIAL，盲审揭盲后的诊断不重新包装为未见资格样本。算术PASS不能提升semantic_support或publication authority。
 
 ## 单一下一执行切片
 
-先完成#204新headCI与最终安全审阅、合并后精确mainCI，完成整理门。随后搜索主线按 [M4-C冻结合同](M4C0_ARCHIVE_AND_SLICE1_CONTRACT.md) 的具体文章到达/有效阅读继续：定位已确认的高相关文章首次在哪个raw→filtered→shown→selected→read环节丢失；保持原预算与安全门，并按冻结Q1记录是否真正回答原题字段。先复用已有trace与负控，再对实际改动补必要配对真实证据。不要并行导入Tavily、替换规划、Answer Reliability修复、学习UI新功能来掩盖同一失败。涉及对外模型/provider的费用运行另按合同范围执行。
+main `4486e600` exact-main push CI `38121690501` SUCCESS；#204已通过新headCI和最终安全审阅并合并，当前main `7a8b6d5573a202debb1051ecb743aedc5138cbc8` 的CI另核对。整理门最终CI与#217文档收口并行；用户已授权启动搜索切片。搜索主线按 [M4-C冻结合同](M4C0_ARCHIVE_AND_SLICE1_CONTRACT.md) 的具体文章到达/有效阅读继续：定位已确认的高相关文章首次在哪个raw→filtered→shown→confirmed→read（读取分开记录eligible / attempted / succeeded）环节丢失；保持原预算与安全门，并按冻结Q1记录是否真正回答原题字段。先复用已有trace与负控，再对实际改动补必要配对真实证据。不要并行导入Tavily、替换规划、Answer Reliability修复、学习UI新功能来掩盖同一失败。涉及对外模型/provider的费用运行另按合同范围执行。
