@@ -26,6 +26,7 @@ from src.web.link_discovery import (
     verify_goal_evidence,
 )
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
+from src.web.research_notebook import ResearchNotebook
 from src.web.tool_evidence import _public_url
 
 
@@ -169,7 +170,8 @@ def _prompt(question: str, observations: list[str],
             state: str = "",
             candidates: list[dict[str, str]] | None = None,
             pending_follows: list[str] | None = None,
-            actions: dict[str, Any] | None = None) -> list[dict[str, str]]:
+            actions: dict[str, Any] | None = None,
+            notebook: dict[str, Any] | None = None) -> list[dict[str, str]]:
     context: dict[str, Any] = {
         "question": question,
         "observations": observations[-6:],
@@ -194,6 +196,9 @@ def _prompt(question: str, observations: list[str],
         # and which concrete actions are legal next. The model still spends a decision on
         # every attempt; only the network request is saved.
         context["action_state"] = actions
+    if notebook:
+        # Bounded run-local notebook: goals, best verbatim evidence, gaps, next action.
+        context["research_notebook"] = notebook
     return [
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
@@ -248,6 +253,9 @@ def run_tool_agent(
     #: Per-goal evidence records: url, host, excerpt and how each verdict was reached.
     #: One body may serve several goals, but every goal keeps its own record.
     goal_evidence: dict[str, list[dict[str, Any]]] = {}
+    #: Run-local notebook: caches the bodies actually read so a 20-round run can still cite
+    #: its early evidence without re-fetching. Rebuilt from authoritative state each round.
+    notebook = ResearchNotebook()
     #: Per-goal evidence records (url, host, excerpt, how it was verified).
     #: URLs whose read returned navigation/index content. Kept across rounds so the state
     #: can distinguish "already read, must not read again" from "not yet followed".
@@ -370,7 +378,7 @@ def run_tool_agent(
         ]
         needs_evidence = [label for label, st in sub_goal_state.items()
                           if st["status"] == "missing"]
-        action_state = {
+        action_state: dict[str, Any] = {
             "completed": [row for row in action_rows
                           if row["outcome"] not in _REFUSED_OUTCOMES][-6:],
             "invalid": [row for row in action_rows
@@ -387,6 +395,11 @@ def run_tool_agent(
                 + [{"tool": "finish", "target": "only when every goal is settled"}]
             ),
         }
+        # Run-local notebook view: bounded, rebuilt from authoritative state, no model call.
+        notebook_view = notebook.build_view(
+            goals=goal_specs, goal_state=sub_goal_state, goal_evidence=goal_evidence,
+            refused=[row for row in action_rows if row["outcome"] in _REFUSED_OUTCOMES],
+            next_action=(action_state["legal_next"][0] if action_state["legal_next"] else None))
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
                         " | read pages: %d | unread candidates: %d"
                         " | still uncovered (term check, hint only): %s"
@@ -438,7 +451,8 @@ def run_tool_agent(
             raw = completion(
                 messages=_prompt(question, observations, reliable_sources,
                                  state=budget_state, candidates=unread_rows,
-                                 pending_follows=pending_follows, actions=action_state),
+                                 pending_follows=pending_follows, actions=action_state,
+                                 notebook=notebook_view),
                 timeout=min(20.0, max(1.0, deadline - monotonic())),
                 task_name="research_tool_agent",
             )
@@ -883,6 +897,8 @@ def run_tool_agent(
                         elif state["status"] != "explored":
                             state.update({"status": "explored", "url": final_url,
                                           "excerpt": evidence["excerpt"] or ""})
+                        notebook.record(action["url"], final_url, content,
+                                        goals=[label])
                 source_chain.append({
                     "basis": confirmed_basis.get(action["url"], ""),
                     "feed_url": feed_links.get(action["url"], ""),
@@ -934,6 +950,7 @@ def run_tool_agent(
         # caller supplied them explicitly).
         "derived_sub_goals": [label for label, _terms in derived_goals],
         "goal_evidence": goal_evidence,
+        "notebook_digests": {url: body.digest for url, body in notebook.bodies.items()},
         # Observability for the action-optimisation audit: wasted repeats are counted,
         # not hidden, and each escalation records the round limit it moved to.
         "repeat_actions": {
