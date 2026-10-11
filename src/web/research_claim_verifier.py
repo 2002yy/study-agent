@@ -73,7 +73,8 @@ def _deterministic_stage(claim: Claim, body: Any | None,
 def verify_claims(*, claims: list[Claim], goals: Mapping[str, tuple[str, ...]],
                   label_to_id: Mapping[str, str], bodies: Mapping[str, Any],
                   adopted: Mapping[str, dict[str, Any]] | None,
-                  completion: Callable[..., str], timeout: float = 20.0) -> list[ClaimVerdict]:
+                  completion: Callable[..., str], timeout: float = 20.0,
+                  on_call: Callable[[], None] | None = None) -> list[ClaimVerdict]:
     """Verify a batch of claims. Deterministic failures are never sent to the model."""
     if not claims:
         return []
@@ -93,6 +94,8 @@ def verify_claims(*, claims: list[Claim], goals: Mapping[str, tuple[str, ...]],
                          "claim": claim.claim, "excerpt": excerpt[:1200]})
     verdicts: dict[str, dict[str, Any]] = {}
     if any(usable for usable, _reason in forced.values()):
+        if on_call is not None:
+            on_call()                  # a real verification call is being made
         try:
             raw = completion(
                 messages=[{"role": "system", "content": _SYSTEM},

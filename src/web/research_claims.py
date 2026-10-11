@@ -77,16 +77,14 @@ def _valid_claim(raw: Mapping[str, Any], *, goal_ids: set[str],
     body = bodies[source_id]
     text = body.text
     quote = str(raw.get("quote") or "").strip()
-    span_start = span_end = -1
-    if quote:
-        position = text.find(quote)
-        if position >= 0:
-            span_start, span_end = position, position + len(quote)
-    if span_start < 0:
-        window = _window(text, goals.get(goal_id, ()))
-        if window is None:
-            return None
-        span_start, span_end = window["span_start"], window["span_end"]
+    if not quote:
+        # A claim without a locatable quote is not accepted: falling back to the keyword
+        # window would let a phrase the model never quoted pass as its citation.
+        return None
+    position = text.find(quote)
+    if position < 0:
+        return None
+    span_start, span_end = position, position + len(quote)
     if not (0 <= span_start < span_end <= len(text)):
         return None
     # the cited span must actually mention the goal's terms - otherwise it is not evidence
@@ -100,7 +98,8 @@ def _valid_claim(raw: Mapping[str, Any], *, goal_ids: set[str],
 
 
 def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str, Any],
-                   completion: Callable[..., str], timeout: float = 20.0) -> list[Claim]:
+                   completion: Callable[..., str], timeout: float = 20.0,
+                   on_call: Callable[[], None] | None = None) -> list[Claim]:
     """One batched extraction over every unfinished goal. Never raises on bad model output."""
     if not goals or not bodies:
         return []
@@ -110,6 +109,8 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
                   for goal_id, terms in goals.items()],
         "rules": "cite only the given source_id; a claim without a passage is not allowed",
     }
+    if on_call is not None:
+        on_call()                      # the caller counts a REAL model call, never a guess
     try:
         raw = completion(
             messages=[{"role": "system", "content": _SYSTEM},

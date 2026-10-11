@@ -145,16 +145,16 @@ def test_gap_planner_is_bounded_and_skips_issued_queries():
 
 # --- loop integration and budget ----------------------------------------------------
 
-def test_evidence_loop_runs_once_and_counts_its_calls():
+def _loop_run(quote: str) -> dict:
     gateway = FakeGateway()
     gateway.read = lambda url, max_chars=6000, timeout=8: {
         "ok": True, "url": url, "content": MECHANISM}
     seen: list[str] = []
-    trace = run_tool_agent(
+    return run_tool_agent(
         gateway=gateway, completion=_completion([
             {"tool": "read_page", "url": "https://example.org/a"},
             {"claims": [{"goal_id": "g1", "source_id": "https://example.org/a",
-                         "claim": "MVCC 需要清理旧版本", "quote": "代价是旧版本必须清理"}]},
+                         "claim": "MVCC 需要清理旧版本", "quote": quote}]},
             {"verdicts": [{"claim_id": "c0", "verdict": "supported", "reason": "states it"}]},
             {"tool": "finish"},
         ], seen),
@@ -163,7 +163,18 @@ def test_evidence_loop_runs_once_and_counts_its_calls():
         sub_goals=(("g1", ("快照", "代价")),),
         initial_urls=("https://example.org/a",),
     )
-    assert "research_claims" in seen and "research_claim_verifier" in seen
-    assert trace["cost"]["model_calls"] == len(seen)
-    assert trace["coverage_audit"]["sub_goals"]["g1"]["status"] == "supported"
+
+
+def test_partial_support_does_not_settle_a_goal():
+    """One verified claim answers PART of a goal; the goal must stay unsettled."""
+    trace = _loop_run("代价是旧版本必须清理")
     assert trace["claim_verdicts"] and trace["claim_verdicts"][0]["verdict"] == "supported"
+    assert trace["coverage_audit"]["sub_goals"]["g1"]["status"] == "explored"
+    assert any(row.get("partial") for row in trace["goal_evidence"].get("g1", []))
+
+
+def test_complete_coverage_settles_the_goal_and_counts_calls():
+    trace = _loop_run("每个事务读取自己的快照，读操作不会阻塞写操作。代价是旧版本必须清理")
+    assert trace["coverage_audit"]["sub_goals"]["g1"]["status"] == "supported"
+    assert trace["cost"]["model_calls"] == 4          # read decision + extract + verify + finish
+    assert "research_claims" in str(trace["calls"]) or trace["claim_verdicts"]

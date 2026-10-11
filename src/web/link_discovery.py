@@ -116,18 +116,14 @@ _RELATION_MARKERS = (
 _CONFLICT_MARKERS = ("并非", "不是", "错误", "不正确", "incorrect", "myth", "not true")
 
 
-def verify_goal_evidence(terms: tuple[str, ...] | list[str], content: str, *,
-                         min_ratio: float = 0.6, min_chars: int = 120,
-                         window: int = 240) -> tuple[str, dict]:
-    """Two-stage goal-level check: deterministic candidates, then window-scoped support.
+def classify_goal_candidate(terms: tuple[str, ...] | list[str], content: str, *,
+                            min_ratio: float = 0.6, min_chars: int = 120,
+                            window: int = 240) -> tuple[str, dict]:
+    """CANDIDATE-level signal for one goal against one body: missing | explored only.
 
-    Stage 1 (deterministic): the body's terms are matched; no terms means ``missing``.
-    Stage 2 (support): ``supported`` requires the goal's terms AND a relation/mechanism
-    marker inside the SAME window, so a marker sitting in an unrelated paragraph cannot
-    certify the goal. A conflict marker in that window yields ``conflict``. Everything
-    weaker stays ``explored`` (a candidate, never a verdict).
-
-    Internal, auditable judgement only: no publication authority, Evidence Gate untouched.
+    It can NEVER grant semantic support - that requires the independent claim verifier
+    (`research_claim_verifier`). The window rule only says "this body is worth checking",
+    so no caller can inherit evidence authority from a keyword pattern.
     """
     text = content or ""
     lowered = text.lower()
@@ -147,7 +143,9 @@ def verify_goal_evidence(terms: tuple[str, ...] | list[str], content: str, *,
                 marker = next((item for item in _RELATION_MARKERS if item in chunk), "")
                 if marker:
                     conflict = next((item for item in _CONFLICT_MARKERS if item in chunk), "")
-                    return ("conflict" if conflict else "supported"), {
+                    # A candidate signal, never a verdict: support must come from the
+                    # independent claim verifier.
+                    return "explored", {
                         "terms_hit": in_window, "relation": marker, "conflict": conflict,
                         "ratio": round(ratio, 2),
                         "excerpt": text[start:end].replace("\n", " ")}

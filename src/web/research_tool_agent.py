@@ -17,13 +17,13 @@ import xml.etree.ElementTree as ET
 from typing import Any, Callable, Mapping
 
 from src.web.link_discovery import (
+    classify_goal_candidate,
     classify_page,
     derive_sub_goals,
     extract_candidates,
     looks_like_navigation,
     question_terms,
     rank_candidates,
-    verify_goal_evidence,
 )
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
 from src.web.research_claim_verifier import verify_claims
@@ -150,6 +150,12 @@ def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str]) -> lis
 
 #: Outcomes that mean the action was refused without spending a network request.
 MAX_CORRECTIONS = 2  # bounded free corrections for refused decisions
+#: Global limits independent of any caller-supplied budget: the semantic loop can never
+#: open a second, larger allowance.
+HARD_MODEL_CALL_CAP = 22
+HARD_WALL_SECONDS = 180.0
+#: A goal is settled only when this share of its own terms is covered by supported excerpts.
+GOAL_COVERAGE_THRESHOLD = 0.8
 
 _REFUSED_OUTCOMES = frozenset({
     "duplicate_search", "already_read", "already_visited", "pending_url_confirmation",
@@ -252,7 +258,7 @@ def run_tool_agent(
     productive_events = 0
     last_productive = 0
     started = monotonic()
-    deadline = started + budget.hard_seconds
+    deadline = min(started + budget.hard_seconds, started + HARD_WALL_SECONDS)
     reset_dns_stats()  # per-run DoH cache + counters
     calls: list[dict[str, Any]] = []
     observations: list[str] = []
@@ -282,6 +288,12 @@ def run_tool_agent(
     derived_goals = () if sub_goals else derive_sub_goals(question)
     if derived_goals:
         goal_specs = {label: tuple(terms) for label, terms in derived_goals}
+    if not goal_specs:
+        # A single-goal question must still enter the semantic loop: one implicit goal owns
+        # the whole question, so nothing depends on derive_sub_goals splitting it.
+        implicit_terms = tuple(sorted(question_terms(question)))[:8]
+        if implicit_terms:
+            goal_specs = {(question or "goal").strip()[:48] or "goal": implicit_terms}
     sub_goal_state: dict[str, dict[str, Any]] = {
         label: {"status": "missing", "url": "", "excerpt": ""} for label in goal_specs
     }
@@ -357,29 +369,32 @@ def run_tool_agent(
             corrections += 1
             rnd -= 1
         model_calls += 1
-        if model_calls > max_rounds + MAX_CORRECTIONS:
+        if model_calls > min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP):
             stop = "model_call_limit"
             break
         # Evidence loop (opt-in, at most ONCE per run): extraction -> verification -> gap
         # follow-ups. The two extra calls are counted against the SAME hard model-call cap,
         # so this never opens a second free budget.
         if (evidence_loop and not loop_spent and notebook.bodies and goal_specs
-                and model_calls + 2 <= max_rounds + MAX_CORRECTIONS
+                and model_calls + 2 <= min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP)
                 and monotonic() < deadline):
             loop_spent = True
             unfinished = {label: tuple(terms) for label, terms in goal_specs.items()
                           if sub_goal_state[label]["status"] != "supported"}
             bodies_view = dict(notebook.bodies)
+            def _count_call() -> None:
+                """Count a REAL model call, so cost never overstates what was spent."""
+                nonlocal model_calls
+                model_calls += 1
+
             claims = extract_claims(
                 goals=unfinished, bodies=bodies_view, completion=completion,
-                timeout=min(20.0, max(1.0, deadline - monotonic())))
-            model_calls += 1
+                timeout=min(20.0, max(1.0, deadline - monotonic())), on_call=_count_call)
             verdicts = verify_claims(
                 claims=claims, goals=unfinished,
                 label_to_id={label: label for label in unfinished}, bodies=bodies_view,
                 adopted=adopted_evidence, completion=completion,
-                timeout=min(20.0, max(1.0, deadline - monotonic())))
-            model_calls += 1
+                timeout=min(20.0, max(1.0, deadline - monotonic())), on_call=_count_call)
             claim_rows.extend(claims)
             claim_verdicts.extend(verdicts)
             for verdict in verdicts:
@@ -397,11 +412,31 @@ def run_tool_agent(
                     "excerpt": (getattr(hit_body, "text", "") or "")[
                         verdict.span_start:verdict.span_end][:200]}
                 goal_evidence.setdefault(verdict.goal_id, []).append(record)
-                sub_goal_state[verdict.goal_id].update({
-                    "status": "supported", "url": record["url"],
-                    "excerpt": record["excerpt"]})
+                # A verified claim answers PART of a goal. The goal is settled only when the
+                # goal's own terms are actually covered by its supported excerpts; otherwise
+                # the finding stays partial and the goal remains `explored`.
+                supported_text = " ".join(
+                    str(row.get("excerpt") or "")
+                    for row in goal_evidence[verdict.goal_id]
+                    if row.get("status") == "supported")
+                terms = goal_specs.get(verdict.goal_id, ())
+                covered = [t for t in terms if str(t).lower() in supported_text.lower()]
+                ratio = len(covered) / len(terms) if terms else 0.0
+                record["coverage_ratio"] = round(ratio, 2)
+                if ratio >= GOAL_COVERAGE_THRESHOLD:
+                    sub_goal_state[verdict.goal_id].update({
+                        "status": "supported", "url": record["url"],
+                        "excerpt": record["excerpt"]})
+                else:
+                    record["partial"] = True
+                    sub_goal_state[verdict.goal_id].update({
+                        "status": "explored", "url": record["url"],
+                        "excerpt": record["excerpt"]})
             followups.extend(plan_followups(verdicts=verdicts, goals=goal_specs,
                                             issued=sorted(searched_queries)))
+            # The bodies this cycle consumed have their content version bound; anything read
+            # later stays visibly `pending_verification` in the notebook.
+            notebook.mark_verified(list(bodies_view))
         if rnd > 0:
             progress_history.append(productive_events != last_productive)
         last_productive = productive_events
@@ -944,7 +979,7 @@ def run_tool_agent(
                         state = sub_goal_state[label]
                         if state["status"] == "supported":
                             continue          # a settled goal is not re-derived
-                        status, evidence = verify_goal_evidence(terms, content)
+                        status, evidence = classify_goal_candidate(terms, content)
                         if status == "missing":
                             continue          # this body carries none of the goal's terms
                         # The keyword/relation rule is CANDIDATE FILTERING only: it may mark a

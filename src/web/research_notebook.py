@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from hashlib import sha256
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 MAX_BODIES = 8                 # cached bodies per run
 MAX_BODY_CHARS = 6_000         # per cached body (what the reader handed the agent)
@@ -38,10 +38,15 @@ class CachedBody:
     chars: int
     text: str
     goals: list[str] = field(default_factory=list)
+    content_hash: str = ""
 
-    def to_view(self) -> dict[str, Any]:
+    def to_view(self, *, verified: bool = False) -> dict[str, Any]:
         return {"url": self.url, "host": self.host, "chars": self.chars,
-                "digest": self.digest, "goals": self.goals}
+                "digest": self.digest, "content_hash": self.content_hash[:16],
+                "goals": self.goals,
+                # A body read after the last verification cycle stays visibly pending, so a
+                # finding it contains is never confused with a checked one.
+                "pending_verification": not verified}
 
 
 @dataclass
@@ -49,6 +54,12 @@ class ResearchNotebook:
     """The run's own record. Populated on read; never written from model output."""
 
     bodies: dict[str, CachedBody] = field(default_factory=dict)
+    #: Bodies already consumed by a verification cycle (their content version is bound).
+    verified: set[str] = field(default_factory=set)
+
+    def mark_verified(self, urls: Iterable[str]) -> None:
+        for url in urls:
+            self.verified.add(url)
 
     def record(self, url: str, final_url: str, text: str,
                goals: list[str] | None = None) -> CachedBody | None:
@@ -62,9 +73,10 @@ class ResearchNotebook:
                 existing.goals = sorted(set(existing.goals) | set(goals))
             return existing
         host = (final_url or url).split("/")[2] if "//" in (final_url or url) else ""
+        full_hash = sha256(body.encode("utf-8", "ignore")).hexdigest()
         cached = CachedBody(url=url, final_url=final_url or url, host=host,
-                            digest=sha256(body.encode("utf-8", "ignore")).hexdigest()[:12],
-                            chars=len(body), text=body, goals=sorted(set(goals or [])))
+                            digest=full_hash[:12], chars=len(body), text=body,
+                            goals=sorted(set(goals or [])), content_hash=full_hash)
         self.bodies[url] = cached
         while len(self.bodies) > MAX_BODIES:                # bound the cache, oldest first
             self.bodies.pop(next(iter(self.bodies)))
@@ -124,8 +136,8 @@ class ResearchNotebook:
             })
         view = {
             "goals": goal_rows,
-            "read_sources": [body.to_view() for body in
-                             list(self.bodies.values())[-MAX_READ_SOURCES:]],
+            "read_sources": [body.to_view(verified=body.url in self.verified)
+                             for body in list(self.bodies.values())[-MAX_READ_SOURCES:]],
             "invalid_actions": refused[-MAX_INVALID_ACTIONS:],
             "next_action": next_action or {},
             # Candidate claims and their verification verdicts: the model reads these, it
