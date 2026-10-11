@@ -49,12 +49,48 @@ PHASE_SCHEMA: dict[str, tuple[str, bool]] = {
     "deep": (SEAM_VERSION, True),
 }
 
-#: Bounded, but large enough to be meaningful. This is the inner bound the observer
-#: enforces on itself (the outer submit does not wait, so it cannot bound the worker).
-BSEARCH_SHADOW_BUDGET_SECONDS = 20.0
-BSEARCH_SHADOW_MAX_ROUNDS = 6
-BSEARCH_SHADOW_MAX_SEARCHES = 4
-BSEARCH_SHADOW_MAX_READS = 3
+#: Research budget tiers: (rounds, searches, page requests, seconds). The tier is the
+#: single configuration entry point (env ``BSEARCH_SHADOW_TIER``) - no call site hardcodes
+#: a number. ``standard`` is the default; a run may escalate once to ``deep`` while keeping
+#: all state (no restart, no re-payment) when goals remain unresolved and the state still
+#: holds an actionable candidate.
+BUDGET_TIERS: dict[str, tuple[int, int, int, float]] = {
+    "quick": (4, 2, 2, 20.0),
+    "standard": (8, 4, 5, 40.0),
+    "deep": (12, 6, 8, 75.0),
+    "extended": (20, 8, 14, 180.0),
+}
+DEFAULT_TIER = "standard"
+#: Escalation is a CHAIN, applied in order, once per step, inside the same run.
+ESCALATION_CHAIN: tuple[str, ...] = ("deep", "extended")
+
+
+def tier_budget(tier: str | None = None) -> tuple[int, int, int, float]:
+    """(rounds, searches, page requests, seconds) for a tier name or the env default."""
+    name = (tier or os.getenv("BSEARCH_SHADOW_TIER") or DEFAULT_TIER).strip().lower()
+    return BUDGET_TIERS.get(name, BUDGET_TIERS[DEFAULT_TIER])
+
+
+def escalation_chain(tier: str | None = None) -> tuple[str, ...]:
+    """Tiers a run at ``tier`` may escalate through, in order.
+
+    The declared maximum is the last tier in the chain, so the shadow's recorded bound
+    matches what the run can actually consume (the earlier wiring let the default runner
+    escalate to a deeper tier while the record still claimed the base tier's seconds).
+    """
+    name = (tier or os.getenv("BSEARCH_SHADOW_TIER") or DEFAULT_TIER).strip().lower()
+    if name not in BUDGET_TIERS:
+        name = DEFAULT_TIER
+    # Only the default tier escalates. `quick` promises a low-cost answer, and a caller on
+    # `deep`/`extended` already asked for the bigger budget, so neither may grow silently.
+    # A caller that really wants more passes an explicit escalation list.
+    if name != DEFAULT_TIER:
+        return ()
+    return ESCALATION_CHAIN
+
+
+BSEARCH_SHADOW_MAX_ROUNDS, BSEARCH_SHADOW_MAX_SEARCHES, BSEARCH_SHADOW_MAX_READS, \
+    BSEARCH_SHADOW_BUDGET_SECONDS = tier_budget()
 
 #: The only evidence verdict this seam may emit.
 SHADOW_EVIDENCE_COMPLETION = "UNVERIFIED"
@@ -140,19 +176,31 @@ def _default_runner(query: str, budget_seconds: float) -> dict[str, Any]:
     from src.web.semantic_recovery import configured_completion
     from src.web.tool_gateway import GeneralWebGateway
 
+    rounds, searches, reads, seconds = tier_budget()
     budget = AgentBudget(
-        max_rounds=BSEARCH_SHADOW_MAX_ROUNDS,
-        max_searches=BSEARCH_SHADOW_MAX_SEARCHES,
-        max_reads=BSEARCH_SHADOW_MAX_READS,
-        hard_seconds=budget_seconds,
+        max_rounds=rounds,
+        max_searches=searches,
+        max_reads=reads,
+        hard_seconds=budget_seconds or seconds,
+    )
+    escalations = tuple(
+        AgentBudget(max_rounds=tier[0], max_searches=tier[1], max_reads=tier[2],
+                    hard_seconds=tier[3])
+        for tier in (tier_budget(name) for name in escalation_chain())
     )
     trace = run_tool_agent(
         gateway=GeneralWebGateway(),
         completion=configured_completion,
         question=query,
         budget=budget,
+        escalation_budgets=escalations,
     )
-    return summarize_trace(trace, budget_seconds=budget_seconds)
+    record = summarize_trace(trace, budget_seconds=budget_seconds)
+    # Honest runtime accounting: the record names the whole escalation chain instead of
+    # claiming only the base tier's seconds.
+    record["escalation_seconds"] = [item.hard_seconds for item in escalations]
+    record["escalations"] = list(trace.get("escalations") or [])
+    return record
 
 
 @dataclass(frozen=True)

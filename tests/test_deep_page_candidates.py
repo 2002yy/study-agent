@@ -143,6 +143,7 @@ def test_budgets_are_unchanged_by_slice1():
     default = AgentBudget()
     assert (default.max_rounds, default.max_searches, default.max_reads) == (6, 4, 3)
     assert default.hard_seconds == 60.0
+    # the shadow tier table is the configuration entry point (standard is the default)
     assert (BSEARCH_SHADOW_MAX_ROUNDS, BSEARCH_SHADOW_MAX_SEARCHES,
-            BSEARCH_SHADOW_MAX_READS) == (6, 4, 3)
-    assert BSEARCH_SHADOW_BUDGET_SECONDS == 20.0
+            BSEARCH_SHADOW_MAX_READS) == (8, 4, 5)
+    assert BSEARCH_SHADOW_BUDGET_SECONDS == 40.0

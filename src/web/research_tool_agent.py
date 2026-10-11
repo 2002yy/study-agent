@@ -16,7 +16,13 @@ from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Mapping
 
-from src.web.link_discovery import classify_page, extract_candidates, question_terms, rank_candidates
+from src.web.link_discovery import (
+    classify_page,
+    extract_candidates,
+    looks_like_navigation,
+    question_terms,
+    rank_candidates,
+)
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
 from src.web.tool_evidence import _public_url
 
@@ -139,7 +145,8 @@ def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str]) -> lis
 def _prompt(question: str, observations: list[str],
             reliable_sources: tuple[str, ...] = (),
             state: str = "",
-            candidates: list[dict[str, str]] | None = None) -> list[dict[str, str]]:
+            candidates: list[dict[str, str]] | None = None,
+            pending_follows: list[str] | None = None) -> list[dict[str, str]]:
     context: dict[str, Any] = {
         "question": question,
         "observations": observations[-6:],
@@ -155,6 +162,10 @@ def _prompt(question: str, observations: list[str],
         # Already-discovered, not-yet-read targets. Reading one of these needs no new
         # search and no new confirmation, so it is the cheapest way to spend a read.
         context["confirmed_unread"] = candidates
+    if pending_follows:
+        # A navigation page that was read but never expanded: following it is the next
+        # action, and it takes precedence over the generic "prefer an article" advice.
+        context["next_follow"] = pending_follows[:3]
     return [
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
@@ -167,6 +178,8 @@ def run_tool_agent(
     completion: Callable[..., str],
     question: str,
     budget: AgentBudget | None = None,
+    escalation_budget: AgentBudget | None = None,
+    escalation_budgets: tuple[AgentBudget, ...] = (),
     initial_urls: tuple[str, ...] = (),
     registry_sources: tuple[tuple[str, str], ...] = (),
     sub_goals: tuple[tuple[str, tuple[str, ...]], ...] = (),
@@ -177,6 +190,21 @@ def run_tool_agent(
     should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict[str, Any]:
     budget = budget or AgentBudget()
+    # Effective limits: the run may be extended ONCE by ``escalation_budget`` (dynamic
+    # tier escalation) without restarting, so these are local and mutable.
+    max_rounds, max_searches, max_reads = (
+        budget.max_rounds, budget.max_searches, budget.max_reads)
+    escalated = False
+    #: Ordered escalation chain (each entry is used at most once).
+    pending_escalations = [item for item in
+                           ((escalation_budget,) + tuple(escalation_budgets)) if item]
+    escalations_applied: list[int] = []
+    #: Per-round PROGRESS is measured in productive events, not in "a body arrived":
+    #: new coverage from a genuine body, a newly discovered navigation page, or a follow
+    #: that newly confirmed candidates. A duplicate or off-topic body counts for nothing.
+    progress_history: list[bool] = []
+    productive_events = 0
+    last_productive = 0
     started = monotonic()
     deadline = started + budget.hard_seconds
     reset_dns_stats()  # per-run DoH cache + counters
@@ -187,6 +215,9 @@ def run_tool_agent(
     visited: set[str] = set()
     read_pages: dict[str, int] = {}
     body_fingerprints: dict[str, str] = {}
+    #: URLs whose read returned navigation/index content. Kept across rounds so the state
+    #: can distinguish "already read, must not read again" from "not yet followed".
+    navigation_urls: set[str] = set()
     coverage_log: list[dict[str, Any]] = []
     covered_terms: set[str] = set()
     goal_terms = question_terms(question)
@@ -225,7 +256,44 @@ def run_tool_agent(
         confirmed.add(_url)
         confirmed_basis.setdefault(_url, "registry_seed")
     stop = "round_limit"
-    for rnd in range(budget.max_rounds):
+    unread_candidates: list[str] = []
+    pending_follows: list[str] = []
+    rnd = -1
+    while True:
+        if rnd + 1 >= max_rounds:
+            # Dynamic escalation along an ordered chain, inside THIS run (sources, bodies,
+            # goal state and history stay in scope). It requires an unresolved goal, an
+            # actionable state, RECENT PROGRESS (looping must not buy budget) and time
+            # still available; otherwise the run stops.
+            nxt = pending_escalations[0] if pending_escalations else None
+            # "Unresolved" must not depend on explicit sub-goals: the default shadow entry
+            # passes none. Without them the question's own uncovered terms are the honest
+            # signal - a coverage gap, never a claim that keyword hits mean completion.
+            has_unresolved = (
+                any(st["status"] != "supported" for st in sub_goal_state.values())
+                if sub_goal_state
+                else bool([t for t in goal_terms if t not in covered_terms])
+            )
+            recent_progress = (productive_events != last_productive
+                               or any(progress_history[-3:]))
+            if (nxt is not None and nxt.max_rounds > max_rounds
+                    and has_unresolved
+                    and (unread_candidates or pending_follows)
+                    and recent_progress
+                    and monotonic() < deadline):
+                pending_escalations.pop(0)
+                escalations_applied.append(nxt.max_rounds)
+                escalated = True
+                max_rounds = nxt.max_rounds
+                max_searches = nxt.max_searches
+                max_reads = nxt.max_reads
+                deadline = started + nxt.hard_seconds
+                continue
+            break
+        rnd += 1
+        if rnd > 0:
+            progress_history.append(productive_events != last_productive)
+        last_productive = productive_events
         if should_cancel():
             stop = "cancelled"
             break
@@ -235,13 +303,16 @@ def run_tool_agent(
         missing_terms = [term for term in sorted(goal_terms) if term not in covered_terms][:5]
         unread_candidates = [url for url in confirmed
                              if url not in read_pages and url not in entry_exclusions]
+        # A navigation page that was read but never followed is the clearest next action:
+        # it is NOT in the unread list (it was read) yet it must still be expanded.
+        pending_follows = sorted(url for url in navigation_urls if url not in visited)
         unread_rows = _rank_unread(unread_candidates, goal_terms, confirmed_basis)[:6]
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
                         " | read pages: %d | unread candidates: %d"
                         " | still uncovered (term check, hint only): %s"
-                        % (rnd + 1, budget.max_rounds,
-                           searches, budget.max_searches, max(0, budget.max_searches - searches),
-                           reads, budget.max_reads, max(0, budget.max_reads - reads),
+                        % (rnd + 1, max_rounds,
+                           searches, max_searches, max(0, max_searches - searches),
+                           reads, max_reads, max(0, max_reads - reads),
                            max(0, int(deadline - monotonic())),
                            len(read_pages), len(unread_candidates),
                            ", ".join(missing_terms) if missing_terms else "(none)"))
@@ -254,10 +325,32 @@ def run_tool_agent(
                 " page, or guess an unconfirmed URL"
                 % (len(goal_specs) - len(pending), len(goal_specs),
                    ", ".join(pending) if pending else "(none)"))
+            # Missing-goal targeting: name each gap with its probe terms, so the next search
+            # is about the gap rather than a re-run of the whole question. "explored" is not
+            # SUPPORTED, so a goal that only produced a keyword hit stays in this list.
+            if pending:
+                hints = "; ".join(
+                    f"{label} -> {', '.join(list(goal_specs[label])[:4])}" for label in pending[:3])
+                budget_state += (
+                    f"\n  MISSING goals (search for these specifically): {hints}")
+        # Conditional budget reserve: instruction, not a refusal. A refusal would spend the
+        # very round it is trying to save (the round loop is fixed), so once searches are
+        # half spent and readable candidates already exist, the guide tells the model the
+        # remaining rounds belong to follow/read. It never fires without candidates, so a
+        # topic that genuinely needs more searching is not cut short.
+        if searches >= 1 and unread_candidates and max_rounds - rnd <= 4:
+            budget_state += (
+                "\n  BUDGET: %d round(s) left - do NOT search again. This overrides the "
+                "generic 'prefer an article' rule: if the run already holds a navigation/"
+                "index page (see next_follow) or confirmed unread candidates, FOLLOW the "
+                "navigation page to obtain its chapter links, then read_page the specific "
+                "chapter, so the run reaches mechanism text instead of another list of links."
+                % (max_rounds - rnd))
         try:
             raw = completion(
                 messages=_prompt(question, observations, reliable_sources,
-                                 state=budget_state, candidates=unread_rows),
+                                 state=budget_state, candidates=unread_rows,
+                                 pending_follows=pending_follows),
                 timeout=min(20.0, max(1.0, deadline - monotonic())),
                 task_name="research_tool_agent",
             )
@@ -301,7 +394,7 @@ def run_tool_agent(
             calls.append(call)
             break
         if action["tool"] == "search":
-            if searches >= budget.max_searches:
+            if searches >= max_searches:
                 call["result"] = {"status": "quota_exceeded", "reason": "search_quota"}
                 observations.append(f"round {rnd}: search quota reached.")
                 calls.append(call)
@@ -358,8 +451,8 @@ def run_tool_agent(
             if rows and "article" not in page_types:
                 brief += ("\n(no [article] target among these results: read nothing yet - follow a "
                           "[category] page closest to the question, or search different terms)")
-            rounds_left = max(0, budget.max_rounds - rnd - 1)
-            searches_left = max(0, budget.max_searches - searches)
+            rounds_left = max(0, max_rounds - rnd - 1)
+            searches_left = max(0, max_searches - searches)
             if rows:
                 brief += ("\n(next step: %d rounds and %d searches left - if any result above can "
                           "lead to the answer, follow or read it before searching again; search "
@@ -378,7 +471,7 @@ def run_tool_agent(
                 )
                 calls.append(call)
                 continue
-            if searches >= budget.max_searches:
+            if searches >= max_searches:
                 call["result"] = {"status": "quota_exceeded", "reason": "search_quota"}
                 observations.append(f"round {rnd}: feed/search quota reached.")
                 calls.append(call)
@@ -456,7 +549,7 @@ def run_tool_agent(
                 observations.append(f"round {rnd}: follow rejected: {url} was not confirmed.")
                 calls.append(call)
                 continue
-            if reads >= budget.max_reads:
+            if reads >= max_reads:
                 call["result"] = {"status": "quota_exceeded", "reason": "read_quota"}
                 observations.append(f"round {rnd}: follow/read quota reached.")
                 calls.append(call)
@@ -493,14 +586,17 @@ def run_tool_agent(
             call["result"] = {"status": "ok", "n": len(links), "candidates": len(candidates),
                               "page_type": page_type}
             call["links"] = [link.as_dict() for link in links]
+            newly_confirmed = [link.url for link in links
+                               if _public_url(link.url) and link.url not in before_confirm]
+            if newly_confirmed:
+                productive_events += 1          # a follow that discovered something new
             candidate_trace.append({
                 "round": rnd, "tool": "follow", "page": url, "page_type": page_type,
                 "raw_candidates": len(candidates), "ranked": len(links),
                 "shown": [link.url for link in links],
                 "page_types": [link.page_type for link in links],
                 # truly NEW this call, not merely "a followed link seen before"
-                "newly_confirmed": [link.url for link in links
-                                    if _public_url(link.url) and link.url not in before_confirm],
+                "newly_confirmed": newly_confirmed,
             })
             brief = "\n".join(
                 f"- [{link.page_type} {link.score:g}] {link.anchor or '(no anchor text)'} | {link.url}"
@@ -570,14 +666,21 @@ def run_tool_agent(
                 read_row["failure_reason"] = "page_read_before"
                 call["result"] = {"status": "already_read", "reason": "page_read_before",
                                   "chars": read_pages[action["url"]]}
-                observations.append(
-                    f"round {rnd}: read skipped: {action['url']} was already read successfully "
-                    f"({read_pages[action['url']]} chars) and did not spend read quota; reuse that "
-                    "body or pick an unread target."
-                )
+                if action["url"] in navigation_urls:
+                    observations.append(
+                        f"round {rnd}: '{action['url']}' is a KNOWN navigation page you already "
+                        "read; reading it again cannot help. NEXT ACTION: follow it to obtain its "
+                        "chapter links, then read_page the specific chapter."
+                    )
+                else:
+                    observations.append(
+                        f"round {rnd}: read skipped: {action['url']} was already read successfully "
+                        f"({read_pages[action['url']]} chars) and did not spend read quota; reuse "
+                        "that body or pick an unread target."
+                    )
                 calls.append(call)
                 continue
-            if reads >= budget.max_reads:
+            if reads >= max_reads:
                 read_row["failure_reason"] = "read_quota"
                 call["result"] = {"status": "quota_exceeded", "reason": "read_quota"}
                 observations.append(f"round {rnd}: read quota reached.")
@@ -611,6 +714,20 @@ def run_tool_agent(
             if not body.get("ok"):
                 read_row["failure_reason"] = str(
                     body.get("error") or body.get("error_code") or "read_failed")
+            # Content-level index detection: a navigation-shaped page is not mechanism
+            # text, so say so instead of letting it pass as an answer.
+            if body.get("ok") and looks_like_navigation(content):
+                call["page_kind"] = "navigation"
+                navigation_urls.add(action["url"])
+                read_row["page_kind"] = "navigation"
+                productive_events += 1           # navigation discovery is its own progress
+                observations.append(
+                    f"round {rnd}: '{action['url']}' returned navigation/index content "
+                    f"({len(content)} chars), not mechanism text - it is a list of links, not "
+                    f"an answer. NEXT ACTION: follow {action['url']} (a confirmed URL) to get "
+                    "its chapter links, then read_page the specific chapter. Do not read this "
+                    "page again."
+                )
             assessment: dict[str, Any] = {}
             if body.get("ok") and entry_selection:
                 from src.web.research.entry_selection import assess_body
@@ -646,9 +763,13 @@ def run_tool_agent(
                 read_pages[final_url] = len(content)
                 if action["url"] != final_url:
                     read_pages[action["url"]] = len(content)
-                if not duplicate_body:
+                # A navigation/index page must not contribute keyword coverage: its terms
+                # are links, not mechanism evidence (negative control from review).
+                if not duplicate_body and call.get("page_kind") != "navigation":
                     contributed = [term for term in goal_terms if term in content.lower()]
                     covered_terms.update(contributed)
+                    if contributed:
+                        productive_events += 1   # a genuine body that extended coverage
                     coverage_log.append({"url": final_url, "chars": len(content),
                                          "contributed": sorted(contributed)})
                     # Targeted sub-goal tracking: a term hit is only a clue that this body
@@ -711,7 +832,19 @@ def run_tool_agent(
         "bodies": bodies,
         "calls": calls,
         "registry_sources": list(reliable_sources),
+        "escalated": escalated,
+        "escalations": escalations_applied,
+        # Observability for the action-optimisation audit: wasted repeats are counted,
+        # not hidden, and each escalation records the round limit it moved to.
+        "repeat_actions": {
+            "search": sum(1 for c in calls
+                          if (c.get("result") or {}).get("status") == "duplicate_search"),
+            "read": sum(1 for c in calls
+                        if (c.get("result") or {}).get("status") == "already_read"),
+        },
         "source_chain": source_chain,
         "candidate_trace": candidate_trace,
+        # What the model was actually told, kept for the action audit (review request).
+        "observations": observations,
         "publication_authority": False,
     }
