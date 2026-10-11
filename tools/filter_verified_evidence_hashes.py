@@ -87,6 +87,7 @@ def _filter_artifact_checksums(findings: dict[str, Any], root: Path) -> int:
         return 0
     allowed: set[tuple[str, int, str, str]] = set()
     files: dict[str, bytes] = {}
+    metadata: set[tuple[str, str]] = {("manifest_sha256", baseline["manifest_sha256"])}
     for item in baseline["reviewed_findings"]:
         filename = item["filename"]
         # The reviewed list is archive-specific. Never follow paths outside it.
@@ -110,6 +111,10 @@ def _filter_artifact_checksums(findings: dict[str, Any], root: Path) -> int:
         if hashlib.sha1(match.group(2).encode()).hexdigest() != item["hashed_secret"]:
             continue
         allowed.add((filename, line_number, item["hashed_secret"], item["type"]))
+        metadata.add(("file_sha256", hashlib.sha256(content).hexdigest()))
+        metadata.add(
+            ("hashed_secret", hashlib.sha1(match.group(2).encode()).hexdigest())
+        )
     removed = 0
     for filename in list(findings):
         retained = []
@@ -132,6 +137,48 @@ def _filter_artifact_checksums(findings: dict[str, Any], root: Path) -> int:
             findings[filename] = retained
         else:
             findings.pop(filename)
+    return removed + _filter_verified_metadata(findings, root, metadata)
+
+
+def _filter_verified_metadata(
+    findings: dict[str, Any], root: Path, metadata: set[tuple[str, str]]
+) -> int:
+    """Accept only computed checksum metadata or the four known public Git IDs."""
+    owners = {
+        "config/rp1_reviewed_hash_findings.json": metadata,
+        "tools/filter_verified_evidence_hashes.py": set(REVIEWED_HEADS.items()),
+    }
+    removed = 0
+    for filename, known in owners.items():
+        path = root / filename
+        if not path.is_file():
+            continue
+        allowed = set()
+        for index, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            match = re.fullmatch(
+                r'\s*"([^"\n]+)"\s*:\s*"([0-9a-f]{40}|[0-9a-f]{64})"\s*,?\s*', line
+            )
+            if match and match.groups() in known:
+                allowed.add((index, hashlib.sha1(match.group(2).encode()).hexdigest()))
+        for report_path in list(findings):
+            if report_path.replace("\\", "/") != filename:
+                continue
+            retained = []
+            for row in findings[report_path]:
+                identity = (row.get("line_number"), row.get("hashed_secret"))
+                if (
+                    row.get("type") == "Hex High Entropy String"
+                    and row.get("filename", "").replace("\\", "/") == filename
+                    and identity in allowed
+                ):
+                    allowed.remove(identity)
+                    removed += 1
+                else:
+                    retained.append(row)
+            if retained:
+                findings[report_path] = retained
+            else:
+                findings.pop(report_path)
     return removed
 
 

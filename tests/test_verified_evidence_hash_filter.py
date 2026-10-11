@@ -189,3 +189,57 @@ def test_windows_report_paths_are_supported_without_widening_scope(artifact_scan
     }
     result, removed = filter_report(report, root)
     assert removed == 5 and result["results"] == {}
+
+
+def _metadata_rows(root, filename):
+    import re
+
+    rows = []
+    for line_number, line in enumerate(
+        (root / filename).read_text(encoding="utf-8").splitlines(), 1
+    ):
+        match = re.fullmatch(
+            r'\s*"[^"\n]+"\s*:\s*"([0-9a-f]{40}|[0-9a-f]{64})"\s*,?\s*', line
+        )
+        if match:
+            rows.append(
+                {
+                    "filename": filename,
+                    "line_number": line_number,
+                    "hashed_secret": hashlib.sha1(match.group(1).encode()).hexdigest(),
+                    "type": "Hex High Entropy String",
+                }
+            )
+    return rows
+
+
+def test_only_recomputed_baseline_metadata_is_recognized(artifact_scan):
+    root, report, _ = artifact_scan
+    filename = "config/rp1_reviewed_hash_findings.json"
+    data = json.loads((root / filename).read_text(encoding="utf-8"))
+    (root / filename).write_text(json.dumps(data, indent=2), encoding="utf-8")
+    report["results"][filename] = _metadata_rows(root, filename)
+    result, removed = filter_report(report, root)
+    assert removed == 8 and result["results"] == {}
+
+
+def test_other_secret_in_baseline_file_is_still_blocking(artifact_scan):
+    root, report, _ = artifact_scan
+    filename = "config/rp1_reviewed_hash_findings.json"
+    data = json.loads((root / filename).read_text(encoding="utf-8"))
+    data["api_key"] = "b4" * 20
+    (root / filename).write_text(json.dumps(data, indent=2), encoding="utf-8")
+    report["results"][filename] = _metadata_rows(root, filename)
+    result, removed = filter_report(report, root)
+    assert removed == 8 and len(result["results"][filename]) == 1
+
+
+def test_tool_constants_recognize_only_the_four_pinned_git_identities(artifact_scan):
+    root, report, _ = artifact_scan
+    filename = "tools/filter_verified_evidence_hashes.py"
+    (root / "tools").mkdir()
+    values = dict(REVIEWED_HEADS, api_key="c3" * 20)
+    (root / filename).write_text(json.dumps(values, indent=2), encoding="utf-8")
+    report["results"][filename] = _metadata_rows(root, filename)
+    result, removed = filter_report(report, root)
+    assert removed == 9 and len(result["results"][filename]) == 1
