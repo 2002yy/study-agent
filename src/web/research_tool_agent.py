@@ -156,6 +156,9 @@ HARD_MODEL_CALL_CAP = 22
 HARD_WALL_SECONDS = 180.0
 #: A goal is settled only when this share of its own terms is covered by supported excerpts.
 GOAL_COVERAGE_THRESHOLD = 0.8
+#: The evidence loop needs real time for its extraction call: spending the run's single
+#: chance with a second left on the clock would guarantee a truncated answer.
+MIN_LOOP_SECONDS = 8.0
 
 _REFUSED_OUTCOMES = frozenset({
     "duplicate_search", "already_read", "already_visited", "pending_url_confirmation",
@@ -389,6 +392,10 @@ def run_tool_agent(
                 evidence_loop_skipped = "no_substantive_body"
             elif not goal_specs:
                 evidence_loop_skipped = "no_goals"
+            elif deadline - monotonic() < MIN_LOOP_SECONDS:
+                # Material exists but the clock does not: wait for a round that still has
+                # time to run a real extraction instead of a truncated one.
+                evidence_loop_skipped = "insufficient_time"
             elif model_calls + 2 > min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP):
                 evidence_loop_skipped = "model_call_cap"
             else:

@@ -19,7 +19,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
-from src.web.research_claims import Claim
+from src.web.research_claims import Claim, locate_quote
 
 VERDICTS = ("supported", "contradicted", "insufficient", "unavailable")
 
@@ -64,7 +64,9 @@ def _deterministic_stage(claim: Claim, body: Any | None,
         if not (0 <= claim.span_start < claim.span_end <= len(text)):
             return False, "span_out_of_range"
         span_text = text[claim.span_start:claim.span_end]
-        if claim.quote and claim.quote not in text:
+        if claim.quote and locate_quote(text, claim.quote)[0] < 0:
+            # The verifier locates the quote with the SAME rule the extractor used, so a
+            # passage accepted with an ellipsis or a reflow is not rejected here.
             return False, "quote_not_locatable"
         if not span_text.strip():
             return False, "empty_span"

@@ -15,7 +15,9 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
-from src.web.link_discovery import PROSE_BLOCK_MIN_CHARS, _SENTENCE_PUNCT, prose_blocks
+from src.web.link_discovery import (PROSE_BLOCK_MIN_CHARS, _SENTENCE_PUNCT,
+                                    looks_like_list, looks_like_navigation,
+                                    prose_blocks)
 
 MAX_WINDOWS_PER_GOAL = 2
 WINDOW_CHARS = 420
@@ -51,6 +53,9 @@ class Claim:
     #: True when the model's quote omitted parts of the passage with an ellipsis; every
     #: fragment still had to occur, in order, in the registered body.
     elided: bool = False
+    #: Whether the cited span repeats the goal's own derived words. Recorded for audit; it is
+    #: NOT a requirement, because those words are fragments of a question, not a contract.
+    goal_terms_present: bool = False
 
 
 def _window(text: str, terms: tuple[str, ...]) -> dict[str, Any] | None:
@@ -102,17 +107,22 @@ def candidate_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
         hits = sum(1 for term in terms if term in lowered)
         quality = getattr(body, "quality", None) or {}
         prose = int(quality.get("prose_chars", 0) or 0)
-        window = _window(text, goal_terms)
-        if window is not None:
+        term_window = _window(text, goal_terms)
+        prose_window = _prose_window(text)
+        for rank, window in ((3, term_window), (2, prose_window)):
+            if window is None:
+                continue
             excerpt = str(window.get("excerpt") or "")
-            # A window that is itself prose is worth more than one centred on a term that
-            # only appears in a link list or a caption.
-            speaks = bool(_SENTENCE_PUNCT.search(excerpt)) and len(excerpt) >= 60
-            ranked.append((3 if speaks else 1, hits, prose, source_id, window))
-            continue
-        window = _prose_window(text)
-        if window is not None:
-            ranked.append((2, hits, prose, source_id, window))
+            # An index or item-list passage is not material for a claim even when the goal's
+            # words appear in it: showing it invites an empty answer. Fall through to the
+            # body's prose window instead of dropping the body.
+            if looks_like_navigation(excerpt) or looks_like_list(excerpt):
+                continue
+            if rank == 3 and not (bool(_SENTENCE_PUNCT.search(excerpt))
+                                  and len(excerpt) >= 60):
+                rank = 1     # a term that only occurs in a caption or a label
+            ranked.append((rank, hits, prose, source_id, window))
+            break
     ranked.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
     return [{"source_id": source_id, **window}
             for _rank, _hits, _prose, source_id, window in ranked[:limit]]
@@ -177,6 +187,25 @@ def _locate_elided(text: str, quote: str) -> tuple[int, int]:
     return start, end
 
 
+def locate_quote(text: str, quote: str) -> tuple[int, int, bool]:
+    """Locate a quote in a body: exact, then whitespace-reflowed, then elided.
+
+    The single locator both the extractor and the verifier use, so a passage the model
+    legitimately quoted (perhaps with an ellipsis, perhaps respaced) is never judged
+    "unlocatable" by one stage after the other accepted it. Returns (start, end, elided).
+    """
+    if not quote:
+        return -1, -1, False
+    position = text.find(quote)
+    if position >= 0:
+        return position, position + len(quote), False
+    start, end = _locate_loose(text, quote)
+    if start >= 0:
+        return start, end, False
+    start, end = _locate_elided(text, quote)
+    return (start, end, True) if start >= 0 else (-1, -1, False)
+
+
 def _valid_claim(raw: Mapping[str, Any], *, goal_ids: set[str],
                  bodies: Mapping[str, Any], goals: Mapping[str, tuple[str, ...]],
                  windows: Mapping[str, list[dict[str, Any]]] | None = None,
@@ -205,14 +234,7 @@ def _valid_claim(raw: Mapping[str, Any], *, goal_ids: set[str],
         return None
     span_start, span_end = -1, -1
     elided = False
-    position = text.find(quote)
-    if position >= 0:
-        span_start, span_end = position, position + len(quote)
-    else:
-        span_start, span_end = _locate_loose(text, quote)
-        if span_start < 0:
-            span_start, span_end = _locate_elided(text, quote)
-            elided = span_start >= 0
+    span_start, span_end, elided = locate_quote(text, quote)
     if span_start < 0:
         reject("quote_not_found")
         return None
@@ -228,23 +250,23 @@ def _valid_claim(raw: Mapping[str, Any], *, goal_ids: set[str],
     if shown and not inside:
         reject("span_outside_windows")
         return None
-    kinds = {str(w.get("window_kind") or "term") for w in inside} or {"term"}
-    if kinds == {"prose"}:
-        # No goal term occurs in this body (e.g. a Chinese question over an English page):
-        # the span must still read as prose rather than a nav item or a label.
-        if len(span_text.strip()) < MIN_PROSE_SPAN_CHARS and not _SENTENCE_PUNCT.search(span_text):
-            reject("span_not_prose")
-            return None
-    elif not any(term and str(term).lower() in span_text.lower()
-                 for term in goals.get(goal_id, ())):
-        # the cited span must actually mention the goal's terms - otherwise it is not evidence
-        reject("span_misses_goal_terms")
+    if not shown and not _SENTENCE_PUNCT.search(span_text) \
+            and len(span_text.strip()) < MIN_PROSE_SPAN_CHARS:
+        # With no window to anchor to, the span itself must at least read as prose.
+        reject("span_not_prose")
         return None
+    kinds = {str(w.get("window_kind") or "term") for w in inside} or {"term"}
+    # Whether the span repeats the goal's own derived words is RECORDED, not required: those
+    # words are fragments of a question ("么代", "何避" for a Chinese one), and demanding them
+    # would throw away a claim that answers the goal from a passage this run selected itself.
+    goal_terms_present = any(term and str(term).lower() in span_text.lower()
+                             for term in goals.get(goal_id, ()))
     # a URL in the model's output is dropped: only registered sources are citable
     claim = re.sub(r"https?://\S+", "", claim).strip()
     return Claim(goal_id=goal_id, claim=claim, source_id=source_id,
                  span_start=span_start, span_end=span_end, quote=quote,
-                 window_kind="prose" if kinds == {"prose"} else "term", elided=elided)
+                 window_kind="prose" if kinds == {"prose"} else "term", elided=elided,
+                 goal_terms_present=goal_terms_present)
 
 
 def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str, Any],

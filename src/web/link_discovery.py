@@ -353,6 +353,23 @@ def prose_units(text: str) -> list[str]:
     return units
 
 
+def looks_like_list(text: str) -> bool:
+    """True when a passage is a list of names/links rather than prose sentences.
+
+    ``looks_like_navigation`` needs numbers and separators, which an item list such as
+    " - 末影珍珠 - 末影之眼 - ..." has none of. A passage with many short separated segments
+    and almost no sentence punctuation is a list, whatever it lists.
+    """
+    body = (text or "").strip()
+    if not body:
+        return False
+    bullets = len(re.findall(r"(?:^|\s)[-•·|»]\s", body))
+    sentences = len(re.findall(r"[.。！？!?]", body))
+    segments = [segment for segment in re.split(r"\s[-•·|»]\s", body) if segment.strip()]
+    short = sum(1 for segment in segments if len(segment.strip()) <= 24)
+    return (bullets >= 4 and sentences <= 1) or len(segments) >= 6 and short >= len(segments) - 1
+
+
 def classify_body(text: str) -> tuple[str, dict[str, Any]]:
     """Classify an extracted body as substantive / navigation / unusable.
 
