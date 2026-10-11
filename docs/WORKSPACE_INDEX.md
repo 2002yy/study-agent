@@ -14,6 +14,8 @@
 | 隔离组合验收候选 | `D:/study-agent-validation/consolidation-20261011` |
 | 历史 notebook 设计参考（无执行权） | [NOTEBOOK_PAGE_SPEC.md](design/NOTEBOOK_PAGE_SPEC.md) |
 
+最终64工作树复核与11本地MCP配置逐文件备份清单：`D:/study-agent-validation/consolidation-20261011-final-audit/inventory.json` / `local-config-backups.json`。12个dirty工作树均为既有保留工作，原六文件diff与stash仍一致，26图片仍保留；本轮修复工作树均已提交且干净。
+
 ## 保存与整理原则
 
 - 原 main 提交 `28f2ce6a259ea82dbdbf2ac5b8151461d50bc2cd` 保留在 `codex/preserve-mixed-main-20261011`。六文件补丁有 Git stash 和独立工作树双份保留；两者 diff 已核对相同。26 份头像/预览图片随该工作树保存，SHA256 写入 inventory。
@@ -25,8 +27,8 @@
 
 ## 已知合并阻断
 
-- #203：两条 P1 尚未关闭；结构性写入者扫描不能替代合同要求的研究/模拟 UI 动作与 durable 快照负控。Learning State-1 L2–L6 继续 NOT CLOSED。
-- #204：CI 失败在 secrets 门；目前定位到 manifest 的 `source_heads` Git SHA 被熵扫描标记。证据原字节保持不动，需独立完成窄范围误报处理及归档审阅。
+- #203：两条 P1 已由真实研究/HTTP持久化快照与落库负控补齐并 resolve；修复候选 `a312d78423903fd9e60146a3e581d43f6cee312c` 等待精确 head CI 与最终审阅。Learning State-1 L2–L6 继续 NOT CLOSED。
+- #204：原CI secrets报告完整133项为固定Git/校验值；修复候选 `ad35077f913db1e60166e4abd114c60ea970a908` 精确登记逐文件/行/值，其他告警仍阻断。原409文件字节与Git blobs验证不变；等新head CI与最终审阅。
 - #207、#214的精确候选CI已成功且expected-head合并；完整候选SHA、branch/worktree、CI/run与merge SHA见PROJECT_STATUS Current Handoff。#215修复新增P1后仍须新head CI。
 - RP-1、Deep-4B 与 B-Search 的研究质量资格门保持原裁定；基础设施或展示层回归通过不能替代真实研究验收。
 
