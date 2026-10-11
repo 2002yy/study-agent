@@ -1,0 +1,1168 @@
+{
+  "schema": "rp1-reviewed-immutable-checksums-v1",
+  "manifest_sha256": "795440006584039d204226df47638dedd5a7ad312cbfc987fa23a2d299a4d59b",
+  "reviewed_findings": [
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-complete/sealed-scores/SEAL.json",
+      "file_sha256": "cc97a652e8e6c2b05cc9e722c1f99ce7c700ca684bf80e436daaf5bcd29d3900",
+      "line_number": 5,
+      "hashed_secret": "f075687f10c242b305f61ec9d8bf22dbbfd00f9c",
+      "type": "Hex High Entropy String",
+      "json_key": "scores_sha256",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-complete/sealed-scores/SEAL.json",
+      "file_sha256": "cc97a652e8e6c2b05cc9e722c1f99ce7c700ca684bf80e436daaf5bcd29d3900",
+      "line_number": 7,
+      "hashed_secret": "827b40123cbf4d0d19f9960ce37e8830200464c4",
+      "type": "Hex High Entropy String",
+      "json_key": "review_sha256",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 7,
+      "hashed_secret": "672c4104974953b8d0d67a2a9af0e2ba0a1f402f",
+      "type": "Hex High Entropy String",
+      "json_key": "blind-answer-review.md",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 8,
+      "hashed_secret": "3ca49179a369a2f7c3b8c1061b7ede9b3b6ab0d8",
+      "type": "Hex High Entropy String",
+      "json_key": "blind-review.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 9,
+      "hashed_secret": "4411eab5a5bb3abfcb260f6ed6a2a016668e4a61",
+      "type": "Hex High Entropy String",
+      "json_key": "organizer-key.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 10,
+      "hashed_secret": "a446f3e337bdd8b3f2dd302f69a19be97fbc7ddd",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-000-request.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 11,
+      "hashed_secret": "d582bd2165d8779ebe1bff911e7d6fdfcb70a88e",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-000-response.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 12,
+      "hashed_secret": "5f721a1ccde6116dcacd63638879e0cbcd79a907",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-001-request.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 13,
+      "hashed_secret": "034397e814c2832f0cb010cd6736edf48a168529",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-001-response.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 14,
+      "hashed_secret": "647cf2c7187d38f8263a11421c3a8473c29fb27f",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-002-request.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 15,
+      "hashed_secret": "cb4eb124e803f183654cf4993f1326e572f1ecc6",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-002-response.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 16,
+      "hashed_secret": "b8781e8ef8edb226e1284fde5e278cf8eca6d7c5",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-003-request.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 17,
+      "hashed_secret": "59b436f68306dbb2ead3bd70ca84d1547ad6fca0",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-003-response.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 18,
+      "hashed_secret": "27c2ae86f7001314a812f71399dbccbf8290867e",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-004-request.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 19,
+      "hashed_secret": "5f70dcbb219c79cb47743baa4e2d42b6f4bf8c1e",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-004-response.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 20,
+      "hashed_secret": "f813ef826148f1da897fa584709ef236fd9c621a",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-005-request.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 21,
+      "hashed_secret": "bdc6340b36c7e4721499cb9e3d33d451ecd2671d",
+      "type": "Hex High Entropy String",
+      "json_key": "raw-005-response.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 22,
+      "hashed_secret": "b0658e1a4ceb70e07002ce59ff1a14a257fd4ee8",
+      "type": "Hex High Entropy String",
+      "json_key": "registry.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 23,
+      "hashed_secret": "a3d2b5e695b99b8b9e307e2f58b366cf5c7dbad7",
+      "type": "Hex High Entropy String",
+      "json_key": "row-000.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 24,
+      "hashed_secret": "a050408e0d693caffde2902734aaca6ec70f2574",
+      "type": "Hex High Entropy String",
+      "json_key": "row-001.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 25,
+      "hashed_secret": "e81ae202bd48a5b97ffff63ddf20f2e8f0326461",
+      "type": "Hex High Entropy String",
+      "json_key": "row-002.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 26,
+      "hashed_secret": "17a9e5149d5e47fea9d7e36a67ff6eee0a1e7226",
+      "type": "Hex High Entropy String",
+      "json_key": "row-003.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 27,
+      "hashed_secret": "abbb91b302dd3b3dbfcdec18df02fc5bf8d9949c",
+      "type": "Hex High Entropy String",
+      "json_key": "row-004.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 28,
+      "hashed_secret": "96835d787a15002829eb8654e39dad5a49b5daa5",
+      "type": "Hex High Entropy String",
+      "json_key": "row-005.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 29,
+      "hashed_secret": "a866504a1d86e00eb529427e8da3f9c9f564b737",
+      "type": "Hex High Entropy String",
+      "json_key": "stopped.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 30,
+      "hashed_secret": "ff5eb2ad566531947fdb26b45c104b10b9e4a96b",
+      "type": "Hex High Entropy String",
+      "json_key": "summary.json",
+      "reason": "Verified SHA256 of an archived artifact"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24-continuation/registry.json",
+      "file_sha256": "49831480459db898aa086fdd9dacdc68ca7d65d6a522eb59ed79cdceead55fd5",
+      "line_number": 111,
+      "hashed_secret": "21021887606c9a07e23a9c03d77a4ff15ffc7805",
+      "type": "Hex High Entropy String",
+      "json_key": "wrapper_sha256",
+      "reason": "Frozen producer provenance checksum; no credential field or value"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/answer-paired-24/registry.json",
+      "file_sha256": "81c2f37776e7f590c712f184c862164d5ee75b2ac8e21ff043b0653d0d797991",
+      "line_number": 107,
+      "hashed_secret": "3b95b5f98f55024325031bf54632a2310e45038a",
+      "type": "Hex High Entropy String",
+      "json_key": "wrapper_sha256",
+      "reason": "Frozen producer provenance checksum; no credential field or value"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/mechanical-summary.json",
+      "file_sha256": "352c5eb3ed6f39d6339255efd28a1a7fd784462ffa22e6753558dba68be0f5c8",
+      "line_number": 5,
+      "hashed_secret": "b836525b1f6b435446bf58bc96a1b650bf9f558e",
+      "type": "Hex High Entropy String",
+      "json_key": "manifest_sha256",
+      "reason": "Frozen producer provenance checksum; no credential field or value"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/registry.json",
+      "file_sha256": "69399cf21cb28fc75916132ff4f4ec6529106e39ea31545c3fa1b43e69f7c72a",
+      "line_number": 2,
+      "hashed_secret": "b836525b1f6b435446bf58bc96a1b650bf9f558e",
+      "type": "Hex High Entropy String",
+      "json_key": "manifest_sha256",
+      "reason": "Frozen producer provenance checksum; no credential field or value"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/registry.json",
+      "file_sha256": "69399cf21cb28fc75916132ff4f4ec6529106e39ea31545c3fa1b43e69f7c72a",
+      "line_number": 3,
+      "hashed_secret": "3819ccf12a60478f0add9f2fa02595f20f5bb7bc",
+      "type": "Hex High Entropy String",
+      "json_key": "harness_sha256",
+      "reason": "Producer file_sha provenance field in research_ability_ab.py registry; frozen source checksum"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/registry.json",
+      "file_sha256": "69399cf21cb28fc75916132ff4f4ec6529106e39ea31545c3fa1b43e69f7c72a",
+      "line_number": 21,
+      "hashed_secret": "701c8a0c62272a01ebaf097efd914e803228bb15",
+      "type": "Hex High Entropy String",
+      "json_key": "src/web/semantic_recovery.py",
+      "reason": "Producer file_sha provenance field in research_ability_ab.py registry; frozen source checksum"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/registry.json",
+      "file_sha256": "69399cf21cb28fc75916132ff4f4ec6529106e39ea31545c3fa1b43e69f7c72a",
+      "line_number": 22,
+      "hashed_secret": "60c9e9234ec535bcea4a7a8827a1c931f66495b6",
+      "type": "Hex High Entropy String",
+      "json_key": "src/llm_client.py",
+      "reason": "Producer file_sha provenance field in research_ability_ab.py registry; frozen source checksum"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-000.json",
+      "file_sha256": "c94c0736b8b6ac4cf444d22dd7d976614ffe06f8963dfca289ff37c8eaa75dca",
+      "line_number": 6,
+      "hashed_secret": "154af69b6b97b25288bdb3677dbe9c81596bae4b",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-001.json",
+      "file_sha256": "82fc232fba6ec8451ecb716641b7aeb951bd2f0f4463dca6fc2501562c172aee",
+      "line_number": 6,
+      "hashed_secret": "b19d98884bd1667b705867642381541d3747d9af",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-002.json",
+      "file_sha256": "4dda205797a18d4fd75158ef3b7d30bc4111c95943a955e51218400aac02a9ea",
+      "line_number": 6,
+      "hashed_secret": "dfb1c9df5410be621b35ee142cf334eede3f3880",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-003.json",
+      "file_sha256": "527575102bb5d848f4c1e8e0f9869b8e3d8cfe57c4ce136068d7275a5a60ed66",
+      "line_number": 6,
+      "hashed_secret": "660c2b6c654c22a42bfcd83f07dfbaa595db5bd2",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-004.json",
+      "file_sha256": "1b2dbbeb37ff2922925c82f90cc1dd8dbc5496125955f57f2c52a4ded25028f4",
+      "line_number": 6,
+      "hashed_secret": "06a8f1a3b1ef61d0600197bafb5781d9246d12ec",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-005.json",
+      "file_sha256": "8700778fc3fe3b03648b85d3d3443bb24f0a414db26233cac3af091269643599",
+      "line_number": 6,
+      "hashed_secret": "a0c2d2d2e54464e31892a99f4bdfd03a53d58dfe",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-006.json",
+      "file_sha256": "7eba642a629974ded60a90446aa842e8f8db6f320862892c51f068ac7d102c67",
+      "line_number": 6,
+      "hashed_secret": "3a8a21517cec0888edf2917e51387b64e1c18a08",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-007.json",
+      "file_sha256": "6febc7a15dc4fb3045fed542a7667115cc49290b206ed99204366586df6b0473",
+      "line_number": 6,
+      "hashed_secret": "5872e185072a9a5aaf25f404c58dd08a4ecf56c6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-008.json",
+      "file_sha256": "45e9038df12c8f0d8decb9463a80d6fa6a67acc760631255aca62c3bcc864da2",
+      "line_number": 6,
+      "hashed_secret": "bfbfda3b1d27088c9c040ec8e84d6f6258f0e3ed",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-009.json",
+      "file_sha256": "c15fc7faed84e524d5485cf287a790bd8f63277c8677ffec6935925ff15ecb54",
+      "line_number": 6,
+      "hashed_secret": "dd429c272f27743f3cb86de640a09d10cba62fc0",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-010.json",
+      "file_sha256": "5af82ebeffd3f9c93a1878aa1354d903a558a841a1360bf021b9dbd72524a96c",
+      "line_number": 6,
+      "hashed_secret": "3174bf9c31128f8899a232d25b327348aa2eb96f",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-011.json",
+      "file_sha256": "4aef38017ee1eab918569da5d48cefd3523fd3f2bfb3fd8447a600b7064207a8",
+      "line_number": 6,
+      "hashed_secret": "fd400928492366aa3f1291f2def44bcae27d6112",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-012.json",
+      "file_sha256": "4ea6907335df9f2566e5ce7cba98fec0b6dff8737f69fe33b373ca8cb4a18b47",
+      "line_number": 6,
+      "hashed_secret": "a0c2d2d2e54464e31892a99f4bdfd03a53d58dfe",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-013.json",
+      "file_sha256": "e0e90db96fe789251273f49a88f1191390080c00e4bdd11b0731ac08f4c14b28",
+      "line_number": 6,
+      "hashed_secret": "dd429c272f27743f3cb86de640a09d10cba62fc0",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-014.json",
+      "file_sha256": "d0fe43faae8cf2e33364efa16f324d86bea6fc4365c764ab9413980fb32d04ae",
+      "line_number": 6,
+      "hashed_secret": "06a8f1a3b1ef61d0600197bafb5781d9246d12ec",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-015.json",
+      "file_sha256": "291648613053b20f0fc4df372b12e7966ace776f20960b77dd68faa72b050d32",
+      "line_number": 6,
+      "hashed_secret": "96e647538ecc2ec716c204b5e57717efeabc568e",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-016.json",
+      "file_sha256": "4e3f18b9eeaf6edd01a1622bb8c535d1eeaddc8b97d43681f6c3979da1cdb8b3",
+      "line_number": 6,
+      "hashed_secret": "fd400928492366aa3f1291f2def44bcae27d6112",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-017.json",
+      "file_sha256": "93e241a59360331869cc04169172dce68c3b095406d19660c92edb23d00e2c89",
+      "line_number": 6,
+      "hashed_secret": "322178e8a98ca0ecd0a0ad6b8bb1b8bbc72ff566",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-018.json",
+      "file_sha256": "8969a1106f91e9d9868addc5b3c315119341e353822b5460ebe1a65d8569da46",
+      "line_number": 6,
+      "hashed_secret": "660c2b6c654c22a42bfcd83f07dfbaa595db5bd2",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-019.json",
+      "file_sha256": "090518b6571697ef9834575215f14e0094bf37d3efc620d256a77eb4deaba9c3",
+      "line_number": 6,
+      "hashed_secret": "38746cc391b496ce408b5d58182c642a5d9ac5d7",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-020.json",
+      "file_sha256": "9b7a1bfa34a7a6597386dd78b552a94cc75098605edd4785c9e15e121706dfdc",
+      "line_number": 6,
+      "hashed_secret": "2cd71da1b885b82a0e8690af2d7c6d0be00f75d6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-021.json",
+      "file_sha256": "e574e05eacfbad7da03dc5f48b6dac0b01f704899428a76803b0e465b98dbe46",
+      "line_number": 6,
+      "hashed_secret": "d7e2fdba944bf6e81ad886458f240d88d15f39a7",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-022.json",
+      "file_sha256": "029fb86a9d739714d1afb031806b591b40123b3e4be7ecbf14bb771799cabeb7",
+      "line_number": 6,
+      "hashed_secret": "f9ae359b5cfb6f486fed86ae4f2cabc05e213fa6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-023.json",
+      "file_sha256": "318ed786e8c494f7adf1de23c903542cdde50e7fd25fe3b5de61f989cc1dff2c",
+      "line_number": 6,
+      "hashed_secret": "dfb1c9df5410be621b35ee142cf334eede3f3880",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-024.json",
+      "file_sha256": "32edc4e251440fba6da32d17448edba7fcde30453d9b4c62f2a82cbccd142807",
+      "line_number": 6,
+      "hashed_secret": "dfb1c9df5410be621b35ee142cf334eede3f3880",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-025.json",
+      "file_sha256": "22bc7a6106f26c678fce313c83d26e96ada12b25ce31dd69928f84f12146dd61",
+      "line_number": 6,
+      "hashed_secret": "3174bf9c31128f8899a232d25b327348aa2eb96f",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-026.json",
+      "file_sha256": "e69bb1ed74141563d8b36300ba69eebcafffb2656aafd049536edbd10d032550",
+      "line_number": 6,
+      "hashed_secret": "96e647538ecc2ec716c204b5e57717efeabc568e",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-027.json",
+      "file_sha256": "05659067d00640355aa0fb056f94e6b9e395ea98715f1636ad73b756a43236be",
+      "line_number": 6,
+      "hashed_secret": "3174bf9c31128f8899a232d25b327348aa2eb96f",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-028.json",
+      "file_sha256": "88df8ce0be58a81f3efb3466dc0d33bf5bbb46f9a08da6ed3aa1aeb757f5da8d",
+      "line_number": 6,
+      "hashed_secret": "660c2b6c654c22a42bfcd83f07dfbaa595db5bd2",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-029.json",
+      "file_sha256": "d97a3f5e40fca320d71b9bc648cb070fffb25e4dc6c5d2ff8306eac59127d0a2",
+      "line_number": 6,
+      "hashed_secret": "588845bc04678e7077b44e0512f692808e415ac9",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-030.json",
+      "file_sha256": "f5c127a15ac23032fb4c481a103cabd48a74bbdd10f809ea9f9f384ac1cc51bf",
+      "line_number": 6,
+      "hashed_secret": "f4057b7d86938042ebeb3fca069079bfe75cf995",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-031.json",
+      "file_sha256": "4059fd92d8ab405f345930aaed710c2cc6ef288d1522434161c2092d9ac14ced",
+      "line_number": 6,
+      "hashed_secret": "dd429c272f27743f3cb86de640a09d10cba62fc0",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-032.json",
+      "file_sha256": "a5eed18cc27828ae73f2e18b53e9d393ce467cfd373248fed3dd9bb37dc2b578",
+      "line_number": 6,
+      "hashed_secret": "96e647538ecc2ec716c204b5e57717efeabc568e",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-033.json",
+      "file_sha256": "7a4b580a0eb16b008e26db3e92df7d896591390c2178351ce7d6d7e798cc01dc",
+      "line_number": 6,
+      "hashed_secret": "dd429c272f27743f3cb86de640a09d10cba62fc0",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-034.json",
+      "file_sha256": "5732f55b45c38b281a40f6517125eff6303e52aa63026dc9cd578f1c21fc797d",
+      "line_number": 6,
+      "hashed_secret": "762d858c1a1cf786a38f7cc8fd27f82a5ad8b1f5",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-035.json",
+      "file_sha256": "64127661f7342a9564afaaa1c2bca7c81c5f468304bcd377df4238241ab306f9",
+      "line_number": 6,
+      "hashed_secret": "762d858c1a1cf786a38f7cc8fd27f82a5ad8b1f5",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-036.json",
+      "file_sha256": "93dfe6754ef665e8bd877171e0a3942c5422ed0ae1602d28f13836d7c70b9349",
+      "line_number": 6,
+      "hashed_secret": "154af69b6b97b25288bdb3677dbe9c81596bae4b",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-037.json",
+      "file_sha256": "2c3d3d8f035818a678ba8e73b9135ae510f313c4b2223222a1f3ba2dbe97d166",
+      "line_number": 6,
+      "hashed_secret": "5872e185072a9a5aaf25f404c58dd08a4ecf56c6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-038.json",
+      "file_sha256": "38b34622bdb568d66eb4f24e9a46b893ad48b7f083e71a266e65205b5b67408f",
+      "line_number": 6,
+      "hashed_secret": "96e647538ecc2ec716c204b5e57717efeabc568e",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-039.json",
+      "file_sha256": "269be26c85aaa38c80fc20796abc0531bc2a913269bf0aaaf239b3327b0099c8",
+      "line_number": 6,
+      "hashed_secret": "bfbfda3b1d27088c9c040ec8e84d6f6258f0e3ed",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-040.json",
+      "file_sha256": "0913d6466e0304d9fe12d150d1677f121e5217637a5f585cb1f8baad173cd1ab",
+      "line_number": 6,
+      "hashed_secret": "54e7faecfb1ec14ae84dc20bc200990d55179461",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-041.json",
+      "file_sha256": "a8872d6ba191826e29cab33c80fe94f6318d913f28f49fcaf4517abc1d90a7fc",
+      "line_number": 6,
+      "hashed_secret": "5872e185072a9a5aaf25f404c58dd08a4ecf56c6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-042.json",
+      "file_sha256": "b5fd6592ea4fd308126f9bda5623e09dd6b5ed592eb112f692f660a10c457785",
+      "line_number": 6,
+      "hashed_secret": "052fe690a75deddeba4558611609a5ff56ca02cb",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-043.json",
+      "file_sha256": "f1fd265afe5f9274a97e145f6e0cf637e50b6b4f8cf0d5dd03b549b054c2d6fd",
+      "line_number": 6,
+      "hashed_secret": "f9ae359b5cfb6f486fed86ae4f2cabc05e213fa6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-044.json",
+      "file_sha256": "3467563152df0511d85a846f80176ae91bd62fc14ff59c5857db4b594e9a03a5",
+      "line_number": 6,
+      "hashed_secret": "052fe690a75deddeba4558611609a5ff56ca02cb",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-045.json",
+      "file_sha256": "856c77b6ddeb6be9dee0bac99f3a17de65f5b8c4042f055f109fc844a381a702",
+      "line_number": 6,
+      "hashed_secret": "3a8a21517cec0888edf2917e51387b64e1c18a08",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-046.json",
+      "file_sha256": "a4ec7141b6f6cbf56dce614cbe7c4f0ab97ac64f377b29f5b1e98ca7cd0d9f02",
+      "line_number": 6,
+      "hashed_secret": "54e7faecfb1ec14ae84dc20bc200990d55179461",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-047.json",
+      "file_sha256": "d7707febc1256a2cf8da3871fba4d7a61bd39400fa56f495713d16609703e7e8",
+      "line_number": 6,
+      "hashed_secret": "38746cc391b496ce408b5d58182c642a5d9ac5d7",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-048.json",
+      "file_sha256": "4288221f3c422a079b48e64c83a0e22d7acab3e652c5365bea56b3b60b2833ce",
+      "line_number": 6,
+      "hashed_secret": "5866572f5ba48b599e0bee43310940103bb50238",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-049.json",
+      "file_sha256": "7c77631245b2fa6488bb32bec348995515d9492a63c813f8074aac51047418ac",
+      "line_number": 6,
+      "hashed_secret": "f4057b7d86938042ebeb3fca069079bfe75cf995",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-050.json",
+      "file_sha256": "d14f8ff414b3850b63055625718f495a58f8c9db690b5523cae5e4cf69144cd7",
+      "line_number": 6,
+      "hashed_secret": "d7e2fdba944bf6e81ad886458f240d88d15f39a7",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-051.json",
+      "file_sha256": "d05d2ce65d139cc44691ab165e2cb5456880e5268e6b991ba466ebeed7fb44b4",
+      "line_number": 6,
+      "hashed_secret": "bfbfda3b1d27088c9c040ec8e84d6f6258f0e3ed",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-052.json",
+      "file_sha256": "3cc2643d81a0bdfd2735317f38b037c7d7df972167956a739e0e699fbb5f9c94",
+      "line_number": 6,
+      "hashed_secret": "54e7faecfb1ec14ae84dc20bc200990d55179461",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-053.json",
+      "file_sha256": "93e1e895284c904caa9a5c8ee156c2fa693dcfe7b33764588595dec41b566714",
+      "line_number": 6,
+      "hashed_secret": "b19d98884bd1667b705867642381541d3747d9af",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-054.json",
+      "file_sha256": "273954c91189a09d8ce34d8928defa68773533a7cae6be8ef293e7cd81e28c2b",
+      "line_number": 6,
+      "hashed_secret": "06a8f1a3b1ef61d0600197bafb5781d9246d12ec",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-055.json",
+      "file_sha256": "903d22c355d013125f1f183d64417ad21fcd9f0267223c67c411500ec214d344",
+      "line_number": 6,
+      "hashed_secret": "5872e185072a9a5aaf25f404c58dd08a4ecf56c6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-056.json",
+      "file_sha256": "e7b693557f93200cf89d5137b3af64958ddec17883a59d93e6e71e82bd0cee30",
+      "line_number": 6,
+      "hashed_secret": "052fe690a75deddeba4558611609a5ff56ca02cb",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-057.json",
+      "file_sha256": "7cb9ef1dd8bb1f29f53d5f957a1630c9808407230a4e32f6b2fdafbeaac23b9e",
+      "line_number": 6,
+      "hashed_secret": "a0c2d2d2e54464e31892a99f4bdfd03a53d58dfe",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-058.json",
+      "file_sha256": "a5705d25d2c7e997014ff9bfd5e2fa4d5feee5c987ec78666500f2cc1dd87416",
+      "line_number": 6,
+      "hashed_secret": "5866572f5ba48b599e0bee43310940103bb50238",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-059.json",
+      "file_sha256": "f66eb6632a0de591157c48b96046f2ab1969165c811049c39b01e3b62da23a37",
+      "line_number": 6,
+      "hashed_secret": "b19d98884bd1667b705867642381541d3747d9af",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-060.json",
+      "file_sha256": "9a606781afac88f4d4f1f3d3be3eebfc46694e59d4240845d8310ab74926e05e",
+      "line_number": 6,
+      "hashed_secret": "2cd71da1b885b82a0e8690af2d7c6d0be00f75d6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-061.json",
+      "file_sha256": "1aba47d6b4013975f0346cbd4e15e272c344043b04dc05be977a72a64ec25ef2",
+      "line_number": 6,
+      "hashed_secret": "f4057b7d86938042ebeb3fca069079bfe75cf995",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-062.json",
+      "file_sha256": "a883448ac671d8e97e5ee613e2623714833d1fbdd7bb1b6160268c639094b12e",
+      "line_number": 6,
+      "hashed_secret": "f4057b7d86938042ebeb3fca069079bfe75cf995",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-063.json",
+      "file_sha256": "a2d8730189328044cf204580623fb874273c122b2d9f6224ead51f88bd302a6d",
+      "line_number": 6,
+      "hashed_secret": "fd400928492366aa3f1291f2def44bcae27d6112",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-064.json",
+      "file_sha256": "76899d493e3725466bf8d3c37df2f450666bdd5da6b29b6ec8ba4cca288104f3",
+      "line_number": 6,
+      "hashed_secret": "38746cc391b496ce408b5d58182c642a5d9ac5d7",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-065.json",
+      "file_sha256": "c84229212fae439fb947a89de78cfbfa1ec33342939fe3acc40bf85dc938fe58",
+      "line_number": 6,
+      "hashed_secret": "762d858c1a1cf786a38f7cc8fd27f82a5ad8b1f5",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-066.json",
+      "file_sha256": "0ac91d845ba9811e0abb5f4b892d74ef1fae332baa71c4530975d43303092e98",
+      "line_number": 6,
+      "hashed_secret": "d7e2fdba944bf6e81ad886458f240d88d15f39a7",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-067.json",
+      "file_sha256": "1f301e0fda33134b722a5940515d1e620725141e5e002f404d2080d1f0b0440a",
+      "line_number": 6,
+      "hashed_secret": "a0c2d2d2e54464e31892a99f4bdfd03a53d58dfe",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-068.json",
+      "file_sha256": "25851577d06830c96d61465ea26d184e66b1cd69844f3794d478a83babbadacd",
+      "line_number": 6,
+      "hashed_secret": "f9ae359b5cfb6f486fed86ae4f2cabc05e213fa6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-069.json",
+      "file_sha256": "23d7a53481db87f5a3c191b34ca8f4ee94f253a1793ea5be1c4b7509414ed860",
+      "line_number": 6,
+      "hashed_secret": "588845bc04678e7077b44e0512f692808e415ac9",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-070.json",
+      "file_sha256": "2b5fc2515ca3ebe5f1741b382d06d6046d93c3b2a0ea8df61b8700825bd3b7f2",
+      "line_number": 6,
+      "hashed_secret": "154af69b6b97b25288bdb3677dbe9c81596bae4b",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-071.json",
+      "file_sha256": "22abfe645ed0fabab09cfdc93c90fd6637b11b2a2109fb134c8a992bdcd04897",
+      "line_number": 6,
+      "hashed_secret": "322178e8a98ca0ecd0a0ad6b8bb1b8bbc72ff566",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-072.json",
+      "file_sha256": "43052db4920b852a602e2f38190adaf9295038ca55c9acc19c36e4afdab76a46",
+      "line_number": 6,
+      "hashed_secret": "54e7faecfb1ec14ae84dc20bc200990d55179461",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-073.json",
+      "file_sha256": "97313ae7eceac014fa60d4859218f195f5c4ec123186ac33d120759129efda44",
+      "line_number": 6,
+      "hashed_secret": "052fe690a75deddeba4558611609a5ff56ca02cb",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-074.json",
+      "file_sha256": "993c57a876ed334cd1ba62e65fab2678837978e7abebb5ebf0315d1077ce5493",
+      "line_number": 6,
+      "hashed_secret": "dfb1c9df5410be621b35ee142cf334eede3f3880",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-075.json",
+      "file_sha256": "420aa32cbb3404b1d4904001e5cc238f52f8de671cb5b5a739f30290f6b67bd3",
+      "line_number": 6,
+      "hashed_secret": "38746cc391b496ce408b5d58182c642a5d9ac5d7",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-076.json",
+      "file_sha256": "f46019e141074325fa3b314130eefb11deeb73fb6a6fe42c78ff5d31c6a4472e",
+      "line_number": 6,
+      "hashed_secret": "154af69b6b97b25288bdb3677dbe9c81596bae4b",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-077.json",
+      "file_sha256": "383e3757fdb12b7d7c54807051751337c9ee383290fc7f425461ddeb08d15951",
+      "line_number": 6,
+      "hashed_secret": "2cd71da1b885b82a0e8690af2d7c6d0be00f75d6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-078.json",
+      "file_sha256": "709c689c4662d33e07950b3b483dd8d010e7c340380ccfd88ae4baf4cbcbb29c",
+      "line_number": 6,
+      "hashed_secret": "bfbfda3b1d27088c9c040ec8e84d6f6258f0e3ed",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-079.json",
+      "file_sha256": "6555f44983730ff42e34832bb4b6ad8db11709dad63e7a37956cfd156f5fa174",
+      "line_number": 6,
+      "hashed_secret": "3a8a21517cec0888edf2917e51387b64e1c18a08",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-080.json",
+      "file_sha256": "2f94bc8bd7e9f42f0bddef9722466b7b206aea3dd36602e7f748266f8eaebc05",
+      "line_number": 6,
+      "hashed_secret": "322178e8a98ca0ecd0a0ad6b8bb1b8bbc72ff566",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-081.json",
+      "file_sha256": "48559737a303747c0449c0311a73f0cbae74b22791bab37e1877f6adc221dc96",
+      "line_number": 6,
+      "hashed_secret": "762d858c1a1cf786a38f7cc8fd27f82a5ad8b1f5",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-082.json",
+      "file_sha256": "cba78ee7977fe295a5390f42e32641f35356cc1808bbffff9724b3c34a0887f9",
+      "line_number": 6,
+      "hashed_secret": "d7e2fdba944bf6e81ad886458f240d88d15f39a7",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-083.json",
+      "file_sha256": "8714f43818ba0637b2c5cbe9ee081257063bb012edcfd8e37c80dae621d4c26d",
+      "line_number": 6,
+      "hashed_secret": "06a8f1a3b1ef61d0600197bafb5781d9246d12ec",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-084.json",
+      "file_sha256": "178483091989213ff08c75844859f0e0a5bcb24719b397777a95f1a1b7f51e57",
+      "line_number": 6,
+      "hashed_secret": "b19d98884bd1667b705867642381541d3747d9af",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-085.json",
+      "file_sha256": "3e96a7a010d60f158dcda00dd4dfc28befb924d4f81100e634a86db8ceff91c8",
+      "line_number": 6,
+      "hashed_secret": "588845bc04678e7077b44e0512f692808e415ac9",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-086.json",
+      "file_sha256": "66639b58c9c96dc3e502606a7fe6c86dfcde32cc748bc051c4fd4c52f165ed4d",
+      "line_number": 6,
+      "hashed_secret": "fd400928492366aa3f1291f2def44bcae27d6112",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-087.json",
+      "file_sha256": "5978e783e89625c979bf2cb3defffecfa259475b52686df02043618c6340be21",
+      "line_number": 6,
+      "hashed_secret": "322178e8a98ca0ecd0a0ad6b8bb1b8bbc72ff566",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-088.json",
+      "file_sha256": "7e82b20cac330a53182ffbba18eea671087e65314f9014f641815fbb6023ac8d",
+      "line_number": 6,
+      "hashed_secret": "588845bc04678e7077b44e0512f692808e415ac9",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-089.json",
+      "file_sha256": "3a38ebb70a542acefbcfe823d55daa72d5f401213bc94e57dc2d34d40cfde823",
+      "line_number": 6,
+      "hashed_secret": "5866572f5ba48b599e0bee43310940103bb50238",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-090.json",
+      "file_sha256": "c40caa7d8f852c8ac7f0489dbeea1367e14b02b58e471afb877aad26b9020167",
+      "line_number": 6,
+      "hashed_secret": "3174bf9c31128f8899a232d25b327348aa2eb96f",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-091.json",
+      "file_sha256": "4d6b71182d18310f891f6f167e3264d14a8e143bd1d7fce59861428c23288cea",
+      "line_number": 6,
+      "hashed_secret": "3a8a21517cec0888edf2917e51387b64e1c18a08",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-092.json",
+      "file_sha256": "435475b1cc5dd7cbdd0836d307e96aa68fca989069a236dccfb4043a7a2f4650",
+      "line_number": 6,
+      "hashed_secret": "660c2b6c654c22a42bfcd83f07dfbaa595db5bd2",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-093.json",
+      "file_sha256": "fb47b9a5848c1580967f987c918911e52be95f8d1bb2b1930024046616793347",
+      "line_number": 6,
+      "hashed_secret": "f9ae359b5cfb6f486fed86ae4f2cabc05e213fa6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-094.json",
+      "file_sha256": "87082066490578edf290deb2eecd1b02e7bfd5b74b7279a5ce95ca1ebe823159",
+      "line_number": 6,
+      "hashed_secret": "5866572f5ba48b599e0bee43310940103bb50238",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    },
+    {
+      "filename": "docs/evidence/rp1/2026-10-09/model-ability-ab/planning-96/row-095.json",
+      "file_sha256": "d3bc9f86e0405464bfb945d36ebbd1cc013d89620394f37b5735a59ab2400a75",
+      "line_number": 6,
+      "hashed_secret": "2cd71da1b885b82a0e8690af2d7c6d0be00f75d6",
+      "type": "Hex High Entropy String",
+      "json_key": "original_sha256",
+      "reason": "SHA256 of case question; producer research_ability_ab.py result.original_sha256 = sha(row.case.question)"
+    }
+  ],
+  "review_notes": "129 SHA256 values in explicit checksum/provenance fields plus four pinned Git identities recognized separately. Unmodified immutable evidence only; no arbitrary hash or directory exclusion. Manifest normalized LF for Windows/Git checkout compatibility; artifact bytes pinned exactly."
+}
