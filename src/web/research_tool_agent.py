@@ -169,7 +169,7 @@ def _prompt(question: str, observations: list[str],
             state: str = "",
             candidates: list[dict[str, str]] | None = None,
             pending_follows: list[str] | None = None,
-            actions: dict[str, list[dict[str, str]]] | None = None) -> list[dict[str, str]]:
+            actions: dict[str, Any] | None = None) -> list[dict[str, str]]:
     context: dict[str, Any] = {
         "question": question,
         "observations": observations[-6:],
