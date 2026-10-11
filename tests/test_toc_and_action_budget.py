@@ -13,6 +13,7 @@ from src.application.research_shadow_seam import (
     BSEARCH_SHADOW_MAX_SEARCHES,
     BUDGET_TIERS,
     DEFAULT_TIER,
+    escalation_chain,
     tier_budget,
 )
 from src.web.link_discovery import looks_like_navigation
@@ -164,6 +165,76 @@ def test_short_numbered_guides_are_not_navigation():
     assert looks_like_navigation(
         "第1步 打开设置 第2步 选择语言 第3步 保存 第4步 重启 第5步 完成") is False
     assert looks_like_navigation("步骤 1 2 3 4 5 6 7 8") is False
+
+
+def test_extended_tier_and_chain():
+    assert BUDGET_TIERS["extended"] == (20, 8, 14, 180.0)
+    assert escalation_chain() == ("deep", "extended")
+    assert escalation_chain("deep") == ()          # an explicitly deep run does not re-escalate
+
+
+def _read_action(url: str) -> dict:
+    return {"tool": "read_page", "url": url}
+
+
+def test_escalation_chain_applies_twice_and_records_it():
+    gateway = FakeGateway()
+    seen: list[dict] = []
+    actions = [{"tool": "search", "query": "s"}]
+    actions += [_read_action(f"https://example.org/{i}") for i in range(1, 6)]
+    actions += [{"tool": "finish"}]
+    gateway._results = [{"title": "t", "url": f"https://example.org/{i}", "snippet": "s"}
+                        for i in range(1, 6)]
+    completion = _completion(actions, seen)
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion, question="q",
+        budget=AgentBudget(max_rounds=2, max_searches=2, max_reads=8, hard_seconds=60.0),
+        escalation_budgets=(AgentBudget(max_rounds=4, max_searches=4, max_reads=8,
+                                        hard_seconds=60.0),
+                            AgentBudget(max_rounds=6, max_searches=6, max_reads=9,
+                                        hard_seconds=60.0)),
+        sub_goals=(("unfinished", ("topic",)),),
+    )
+    assert trace["escalations"] == [4, 6], trace["escalations"]
+
+
+def test_escalation_requires_recent_progress():
+    """A run that only searches (no body, no coverage) must not buy more budget."""
+    gateway = FakeGateway()
+    seen: list[dict] = []
+    completion = _completion([{"tool": "search", "query": f"q{i}"} for i in range(6)]
+                             + [{"tool": "finish"}], seen)
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion, question="q",
+        budget=AgentBudget(max_rounds=3, max_searches=9, max_reads=3, hard_seconds=60.0),
+        escalation_budgets=(AgentBudget(max_rounds=9, max_searches=9, max_reads=3,
+                                        hard_seconds=60.0),),
+        sub_goals=(("unfinished", ("topic",)),),
+    )
+    assert trace["escalations"] == []
+    assert trace["escalated"] is False
+
+
+def test_repeat_actions_are_counted():
+    gateway = FakeGateway()
+    completion = _completion([_read_action("https://example.org/a"),
+                              _read_action("https://example.org/a"),
+                              {"tool": "finish"}], [])
+    trace = run_tool_agent(gateway=gateway, completion=completion, question="q",
+                           budget=AgentBudget(), initial_urls=("https://example.org/a",))
+    assert trace["repeat_actions"]["read"] == 1
+
+
+def test_missing_goals_get_targeted_terms():
+    gateway = FakeGateway()
+    seen: list[dict] = []
+    completion = _completion([{"tool": "search", "query": "s"},
+                              {"tool": "finish"}], seen)
+    run_tool_agent(gateway=gateway, completion=completion, question="q",
+                   budget=AgentBudget(), sub_goals=(("主要代价", ("vacuum", "膨胀")),))
+    states = [ctx.get("budget_state") or "" for ctx in seen]
+    assert any("MISSING goals (search for these specifically)" in s and "vacuum" in s
+               for s in states), states[-1]
 
 
 def test_budget_tiers_and_default():

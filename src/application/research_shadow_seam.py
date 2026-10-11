@@ -58,15 +58,32 @@ BUDGET_TIERS: dict[str, tuple[int, int, int, float]] = {
     "quick": (4, 2, 2, 20.0),
     "standard": (8, 4, 5, 40.0),
     "deep": (12, 6, 8, 75.0),
+    "extended": (20, 8, 14, 180.0),
 }
 DEFAULT_TIER = "standard"
-ESCALATION_TIER = "deep"
+#: Escalation is a CHAIN, applied in order, once per step, inside the same run.
+ESCALATION_CHAIN: tuple[str, ...] = ("deep", "extended")
 
 
 def tier_budget(tier: str | None = None) -> tuple[int, int, int, float]:
     """(rounds, searches, page requests, seconds) for a tier name or the env default."""
     name = (tier or os.getenv("BSEARCH_SHADOW_TIER") or DEFAULT_TIER).strip().lower()
     return BUDGET_TIERS.get(name, BUDGET_TIERS[DEFAULT_TIER])
+
+
+def escalation_chain(tier: str | None = None) -> tuple[str, ...]:
+    """Tiers a run at ``tier`` may escalate through, in order.
+
+    The declared maximum is the last tier in the chain, so the shadow's recorded bound
+    matches what the run can actually consume (the earlier wiring let the default runner
+    escalate to a deeper tier while the record still claimed the base tier's seconds).
+    """
+    name = (tier or os.getenv("BSEARCH_SHADOW_TIER") or DEFAULT_TIER).strip().lower()
+    if name not in BUDGET_TIERS:
+        name = DEFAULT_TIER
+    if name not in (DEFAULT_TIER, "quick"):
+        return ()
+    return ESCALATION_CHAIN
 
 
 BSEARCH_SHADOW_MAX_ROUNDS, BSEARCH_SHADOW_MAX_SEARCHES, BSEARCH_SHADOW_MAX_READS, \
@@ -163,17 +180,24 @@ def _default_runner(query: str, budget_seconds: float) -> dict[str, Any]:
         max_reads=reads,
         hard_seconds=budget_seconds or seconds,
     )
-    esc_rounds, esc_searches, esc_reads, esc_seconds = tier_budget(ESCALATION_TIER)
-    escalation = AgentBudget(max_rounds=esc_rounds, max_searches=esc_searches,
-                             max_reads=esc_reads, hard_seconds=esc_seconds)
+    escalations = tuple(
+        AgentBudget(max_rounds=tier[0], max_searches=tier[1], max_reads=tier[2],
+                    hard_seconds=tier[3])
+        for tier in (tier_budget(name) for name in escalation_chain())
+    )
     trace = run_tool_agent(
         gateway=GeneralWebGateway(),
         completion=configured_completion,
         question=query,
         budget=budget,
-        escalation_budget=escalation,
+        escalation_budgets=escalations,
     )
-    return summarize_trace(trace, budget_seconds=budget_seconds)
+    record = summarize_trace(trace, budget_seconds=budget_seconds)
+    # Honest runtime accounting: the record names the whole escalation chain instead of
+    # claiming only the base tier's seconds.
+    record["escalation_seconds"] = [item.hard_seconds for item in escalations]
+    record["escalations"] = list(trace.get("escalations") or [])
+    return record
 
 
 @dataclass(frozen=True)

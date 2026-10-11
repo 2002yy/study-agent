@@ -179,6 +179,7 @@ def run_tool_agent(
     question: str,
     budget: AgentBudget | None = None,
     escalation_budget: AgentBudget | None = None,
+    escalation_budgets: tuple[AgentBudget, ...] = (),
     initial_urls: tuple[str, ...] = (),
     registry_sources: tuple[tuple[str, str], ...] = (),
     sub_goals: tuple[tuple[str, tuple[str, ...]], ...] = (),
@@ -194,6 +195,14 @@ def run_tool_agent(
     max_rounds, max_searches, max_reads = (
         budget.max_rounds, budget.max_searches, budget.max_reads)
     escalated = False
+    #: Ordered escalation chain (each entry is used at most once).
+    pending_escalations = [item for item in
+                           ((escalation_budget,) + tuple(escalation_budgets)) if item]
+    escalations_applied: list[int] = []
+    #: Per-round progress: did the previous round add a body or new coverage? Escalation
+    #: needs real progress, so a run that is merely looping does not buy more budget.
+    progress_history: list[bool] = []
+    last_marker = (0, 0)
     started = monotonic()
     deadline = started + budget.hard_seconds
     reset_dns_stats()  # per-run DoH cache + counters
@@ -250,21 +259,34 @@ def run_tool_agent(
     rnd = -1
     while True:
         if rnd + 1 >= max_rounds:
-            # Dynamic escalation: extend THIS run once (sources, bodies, goal state and
-            # action history stay in scope - nothing restarts and nothing is paid for
-            # twice) and only when goals are still unresolved AND the state is actionable.
-            if (escalation_budget is not None and not escalated
-                    and escalation_budget.max_rounds > max_rounds
+            # Dynamic escalation along an ordered chain, inside THIS run (sources, bodies,
+            # goal state and history stay in scope). It requires an unresolved goal, an
+            # actionable state, RECENT PROGRESS (looping must not buy budget) and time
+            # still available; otherwise the run stops.
+            nxt = pending_escalations[0] if pending_escalations else None
+            # Progress includes the round that just finished, and the recent window keeps a
+            # long loop from buying more budget.
+            recent_progress = ((len(bodies), len(covered_terms)) != last_marker
+                               or any(progress_history[-3:]))
+            if (nxt is not None and nxt.max_rounds > max_rounds
                     and any(st["status"] != "supported" for st in sub_goal_state.values())
-                    and (unread_candidates or pending_follows)):
+                    and (unread_candidates or pending_follows)
+                    and recent_progress
+                    and monotonic() < deadline):
+                pending_escalations.pop(0)
+                escalations_applied.append(nxt.max_rounds)
                 escalated = True
-                max_rounds = escalation_budget.max_rounds
-                max_searches = escalation_budget.max_searches
-                max_reads = escalation_budget.max_reads
-                deadline = started + escalation_budget.hard_seconds
+                max_rounds = nxt.max_rounds
+                max_searches = nxt.max_searches
+                max_reads = nxt.max_reads
+                deadline = started + nxt.hard_seconds
                 continue
             break
         rnd += 1
+        marker = (len(bodies), len(covered_terms))
+        if rnd > 0:
+            progress_history.append(marker != last_marker)
+        last_marker = marker
         if should_cancel():
             stop = "cancelled"
             break
@@ -296,6 +318,14 @@ def run_tool_agent(
                 " page, or guess an unconfirmed URL"
                 % (len(goal_specs) - len(pending), len(goal_specs),
                    ", ".join(pending) if pending else "(none)"))
+            # Missing-goal targeting: name each gap with its probe terms, so the next search
+            # is about the gap rather than a re-run of the whole question. "explored" is not
+            # SUPPORTED, so a goal that only produced a keyword hit stays in this list.
+            if pending:
+                hints = "; ".join(
+                    f"{label} -> {', '.join(list(goal_specs[label])[:4])}" for label in pending[:3])
+                budget_state += (
+                    f"\n  MISSING goals (search for these specifically): {hints}")
         # Conditional budget reserve: instruction, not a refusal. A refusal would spend the
         # very round it is trying to save (the round loop is fixed), so once searches are
         # half spent and readable candidates already exist, the guide tells the model the
@@ -790,6 +820,15 @@ def run_tool_agent(
         "calls": calls,
         "registry_sources": list(reliable_sources),
         "escalated": escalated,
+        "escalations": escalations_applied,
+        # Observability for the action-optimisation audit: wasted repeats are counted,
+        # not hidden, and each escalation records the round limit it moved to.
+        "repeat_actions": {
+            "search": sum(1 for c in calls
+                          if (c.get("result") or {}).get("status") == "duplicate_search"),
+            "read": sum(1 for c in calls
+                        if (c.get("result") or {}).get("status") == "already_read"),
+        },
         "source_chain": source_chain,
         "candidate_trace": candidate_trace,
         # What the model was actually told, kept for the action audit (review request).
