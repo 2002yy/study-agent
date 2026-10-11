@@ -104,6 +104,43 @@ _CLAUSE_SPLIT = re.compile(
 _CLAUSE_CONNECT = re.compile(r"(?:和|与|及|跟)")
 
 
+#: Mechanism/relation markers. SUPPORTED needs one, so a page that merely shares keywords
+#: with a goal can never settle it (keyword containment is not semantic support).
+_RELATION_MARKERS = (
+    "因为", "由于", "导致", "造成", "使得", "通过", "意味着", "从而", "以便", "为了",
+    "作用是", "用于", "取决于", "所以", "因此",
+    "because", "due to", "causes", "means", "so that", "requires", "leads to", "by ",
+)
+
+
+def verify_goal_evidence(terms: tuple[str, ...] | list[str], content: str, *,
+                         min_ratio: float = 0.6, min_chars: int = 120) -> tuple[str, dict]:
+    """Structural verification of ONE goal against ONE body: (status, evidence).
+
+    * ``missing``  - the body carries none of the goal's own terms;
+    * ``explored`` - it carries some, but not enough to claim the goal is answered;
+    * ``supported``- a majority of the goal's terms AND a relation/mechanism marker are
+      present in a body of real length, with the excerpt kept for audit.
+
+    This is an internal, auditable judgement: it grants no publication authority and the
+    formal Evidence Gate is untouched.
+    """
+    text = content or ""
+    lowered = text.lower()
+    hits = [term for term in terms if term and term.lower() in lowered]
+    if not hits:
+        return "missing", {"terms_hit": [], "relation": "", "excerpt": "", "ratio": 0.0}
+    ratio = len(hits) / len(terms) if terms else 0.0
+    marker = next((item for item in _RELATION_MARKERS if item in lowered), "")
+    evidence = {"terms_hit": hits, "relation": marker,
+                "ratio": round(ratio, 2), "excerpt": ""}
+    if ratio >= min_ratio and marker and len(text) >= min_chars:
+        index = min(lowered.find(item.lower()) for item in hits)
+        evidence["excerpt"] = text[max(0, index - 80):index + 220].replace("\n", " ")
+        return "supported", evidence
+    return "explored", evidence
+
+
 def derive_sub_goals(question: str, *, limit: int = 3) -> tuple[tuple[str, tuple[str, ...]], ...]:
     """Split a question into its own sub-goals when the caller supplies none.
 
