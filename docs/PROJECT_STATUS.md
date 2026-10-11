@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-11 多窗口整理 / 当前整合门：** 原 main 已从 28f2ce6a 同步至远端，六个未提交文件和26份头像/预览图完整保留到独立工作树，补丁与stash逐项一致；根目录四份散落日志移到 logs/archive-20261011。目录与远端保存引用见 [工作区索引](WORKSPACE_INDEX.md)，未删除任何旧worktree/分支/运行证据。#205 MCP固定配置已合并为 ecd2cf35；#208 默认未接线的平台契约已合并为 a6fafa98。本地组合候选平台影响集46 PASS、frontend457 PASS、tsc/Vite PASS、Ruff PASS、mypy122/128 NEW0；这些是隔离候选证据，不冒充远端main。#207已修正正文Markdown H1导致的全页唯一性断言，需新head CI和完整浏览器/真实栈；#214导航版本族展示修复待当前head CI。#203两条P1仍未关闭、L2–L6保持NOT CLOSED；#204 secrets误报待独立收尾。RP-1/Deep-4B及实验线资格边界不改。唯一下一整合门：通过当前head验证的独立结果expected-head合并，再核对最终exact-main CI；不得用历史分支覆盖main状态。
+
 **2026-10-09 本地MCP固定配置单独交付：** 用户授权提交远端尚无的本地完成成果。branch `codex/playwright-mcp-pin-delivery`、base origin/main `f35b13b7`，只迁移既有已验证本地playwright server配置至当前main，固定 `@playwright/mcp@0.0.83 --browser chrome --isolated`，其他server逐项未变；JSON/版本/差异核验通过。复用2026-10-05原真实JSON-RPC MCP smoke记录 `D:/study-agent-validation/mcp-migration-20261005/RESULT.md`，不宣称本次新增smoke；用户级配置与现有备份不动，不复制旧frontend锁文件（远端已有1.62.1）。仅开发工具配置与交接，无研究预算/Gate/UI实现/另一窗口代码改动，无生产部署；推送refs与一次CI观察由local-delivery-closeout恢复。A/B归档与B线生产接线在独立分支，RP-1仍NO-GO。
 
 **当前执行权：A 线 Learning State-1（L1 CLOSED；下一门 = L2–L6 验收收尾）。** Deep-4A implementation 已合并并 CLOSED；**Deep 阶段除 Deep-4B 外全部 CLOSED**。Deep-4B（automatic publication）= **NO-GO**（无 qualified semantic judge）。A 线：**Learning State-1 / L1 已 CLOSED**（authority `0de80751`），学习信息来源权威已封板；**L2–L6 仍未 CLOSED**，下一门 = **Learning State-1 L2–L6 验收收尾**（整理 T07–T18 的直接/间接证据，满足合同即关闭，不为制造增量而改实现）。B 线：**Intelligent UI × Lookup/Standard/Deep** —— UI 工作台 **#201 已合并**；**Research Presentation-1（RP-1）仍在 B 线施工**（原 `reading-notebook-ui` 分支，R6 未 CLOSED），只读 `learning_view` 接口**未启动**；A / B 两线各自独立 PR，不得混入同一 PR。
