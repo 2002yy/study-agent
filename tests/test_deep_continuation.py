@@ -732,3 +732,62 @@ def test_upstream_blocked_reasons_are_accepted(ctx):
         assert validate_recorded_terminal(
             terminal, parent_turn_id=parent.id, thread_id=parent.thread_id
         ) == (True, "")
+
+
+# --- M4-B real-path pairing: the Deep shadow observes only a genuinely-reached terminal ------
+
+
+def _spy_shadow(monkeypatch, service):
+    seen: list[str] = []
+    monkeypatch.setattr(
+        service, "_observe_deep_shadow", lambda *, query, handoff: seen.append(query)
+    )
+    return seen
+
+
+def test_shadow_fires_once_only_for_a_newly_terminal_child(ctx, monkeypatch):
+    service, repository, _runs, parent, prepared, _execution = ctx
+    monkeypatch.setenv("BSEARCH_DEEP_SHADOW", "on")
+    seen = _spy_shadow(monkeypatch, service)
+
+    class _Exec:
+        def execute(self, *, parent_turn_id, thread_id):
+            set_child_status(repository, prepared.child_run_id, "completed")
+            return Outcome("completed")
+
+    service.execution = _Exec()
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "completed"
+    assert len(seen) == 1  # observed exactly once, for the terminal this run reached
+
+
+def test_shadow_never_fires_for_a_replayed_terminal(ctx, monkeypatch):
+    service, repository, _runs, parent, prepared, _execution = ctx
+    monkeypatch.setenv("BSEARCH_DEEP_SHADOW", "on")
+    seen = _spy_shadow(monkeypatch, service)
+
+    set_child_status(repository, prepared.child_run_id, "completed")
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "completed"
+    assert seen == []  # a resumption/replay must not double-count the phase
+
+
+def test_shadow_never_fires_for_a_deferred_child(ctx, monkeypatch):
+    service, _repository, _runs, parent, _prepared, _execution = ctx
+    monkeypatch.setenv("BSEARCH_DEEP_SHADOW", "on")
+    seen = _spy_shadow(monkeypatch, service)
+
+    class _Exec:
+        def execute(self, *, parent_turn_id, thread_id):
+            return Outcome("deferred", "lease_busy")
+
+    service.execution = _Exec()
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "deferred"
+    assert seen == []  # a non-terminal run is not recorded as "observed after completion"
+
+
+def test_shadow_helper_is_inert_when_disabled(ctx, monkeypatch):
+    service, _repository, _runs, parent, _prepared, _execution = ctx
+    monkeypatch.delenv("BSEARCH_DEEP_SHADOW", raising=False)
+    assert service.shadow_telemetry is None  # OFF provisions nothing

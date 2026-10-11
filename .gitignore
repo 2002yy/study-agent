@@ -65,3 +65,6 @@ docs/research_quality/*.json
 # local test / scratch logs
 full_pytest_batch*.log
 stash_repro.txt
+
+# runtime shadow telemetry: appended at run time, never versioned
+/artifacts/shadow/

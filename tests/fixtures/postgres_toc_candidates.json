@@ -1,0 +1,483 @@
+{
+ "source_url": "https://www.postgresql.org/docs/current/mvcc.html",
+ "question": "PostgreSQL 的 MVCC 如何避免读写互相阻塞？它带来的主要代价是什么？",
+ "candidates": [
+  {
+   "url": "https://www.postgresql.org/",
+   "anchor": "",
+   "path": "/",
+   "context": "",
+   "type": "home",
+   "score": "-2.8",
+   "why": "home"
+  },
+  {
+   "url": "https://www.postgresql.org/about/",
+   "anchor": "About",
+   "path": "/about/",
+   "context": "",
+   "type": "category",
+   "score": "0.2",
+   "why": "category"
+  },
+  {
+   "url": "https://www.postgresql.org/download/",
+   "anchor": "Download",
+   "path": "/download/",
+   "context": "",
+   "type": "category",
+   "score": "0.2",
+   "why": "category"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/",
+   "anchor": "Documentation",
+   "path": "/docs/",
+   "context": "",
+   "type": "category",
+   "score": "0.2",
+   "why": "category"
+  },
+  {
+   "url": "https://www.postgresql.org/community/",
+   "anchor": "Community",
+   "path": "/community/",
+   "context": "",
+   "type": "category",
+   "score": "0.2",
+   "why": "category"
+  },
+  {
+   "url": "https://www.postgresql.org/developer/",
+   "anchor": "Developers",
+   "path": "/developer/",
+   "context": "",
+   "type": "category",
+   "score": "0.2",
+   "why": "category"
+  },
+  {
+   "url": "https://www.postgresql.org/support/",
+   "anchor": "Support",
+   "path": "/support/",
+   "context": "",
+   "type": "category",
+   "score": "0.2",
+   "why": "category"
+  },
+  {
+   "url": "https://www.postgresql.org/about/donate/",
+   "anchor": "Donate",
+   "path": "/about/donate/",
+   "context": "",
+   "type": "category",
+   "score": "-4.8",
+   "why": "category; noise:boilerplate"
+  },
+  {
+   "url": "https://www.postgresql.org/account/",
+   "anchor": "Your account",
+   "path": "/account/",
+   "context": "",
+   "type": "category",
+   "score": "0.2",
+   "why": "category"
+  },
+  {
+   "url": "https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/",
+   "anchor": "PostgreSQL 19 Beta 4 Released!",
+   "path": "/about/news/postgresql-19-beta-4-released-3386/",
+   "context": "",
+   "type": "article",
+   "score": "82.77",
+   "why": "matches postgresql; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/18/index.html",
+   "anchor": "PostgreSQL 18",
+   "path": "/docs/18/index.html",
+   "context": "",
+   "type": "category",
+   "score": "82.74",
+   "why": "matches postgresql; coverage 0.04; category"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/current/mvcc.html",
+   "anchor": "Current",
+   "path": "/docs/current/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/18/mvcc.html",
+   "anchor": "18",
+   "path": "/docs/18/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/17/mvcc.html",
+   "anchor": "17",
+   "path": "/docs/17/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/16/mvcc.html",
+   "anchor": "16",
+   "path": "/docs/16/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/15/mvcc.html",
+   "anchor": "15",
+   "path": "/docs/15/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/14/mvcc.html",
+   "anchor": "14",
+   "path": "/docs/14/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/19/mvcc.html",
+   "anchor": "19",
+   "path": "/docs/19/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/devel/mvcc.html",
+   "anchor": "devel",
+   "path": "/docs/devel/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/13/mvcc.html",
+   "anchor": "13",
+   "path": "/docs/13/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/12/mvcc.html",
+   "anchor": "12",
+   "path": "/docs/12/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/11/mvcc.html",
+   "anchor": "11",
+   "path": "/docs/11/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/10/mvcc.html",
+   "anchor": "10",
+   "path": "/docs/10/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/9.6/mvcc.html",
+   "anchor": "9.6",
+   "path": "/docs/9.6/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/9.5/mvcc.html",
+   "anchor": "9.5",
+   "path": "/docs/9.5/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/9.4/mvcc.html",
+   "anchor": "9.4",
+   "path": "/docs/9.4/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/9.3/mvcc.html",
+   "anchor": "9.3",
+   "path": "/docs/9.3/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/9.2/mvcc.html",
+   "anchor": "9.2",
+   "path": "/docs/9.2/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/9.1/mvcc.html",
+   "anchor": "9.1",
+   "path": "/docs/9.1/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/9.0/mvcc.html",
+   "anchor": "9.0",
+   "path": "/docs/9.0/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/8.4/mvcc.html",
+   "anchor": "8.4",
+   "path": "/docs/8.4/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/8.3/mvcc.html",
+   "anchor": "8.3",
+   "path": "/docs/8.3/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/8.2/mvcc.html",
+   "anchor": "8.2",
+   "path": "/docs/8.2/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/8.1/mvcc.html",
+   "anchor": "8.1",
+   "path": "/docs/8.1/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/8.0/mvcc.html",
+   "anchor": "8.0",
+   "path": "/docs/8.0/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/7.4/mvcc.html",
+   "anchor": "7.4",
+   "path": "/docs/7.4/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/7.3/mvcc.html",
+   "anchor": "7.3",
+   "path": "/docs/7.3/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/7.2/mvcc.html",
+   "anchor": "7.2",
+   "path": "/docs/7.2/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/7.1/mvcc.html",
+   "anchor": "7.1",
+   "path": "/docs/7.1/mvcc.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/current/textsearch-limitations.html",
+   "anchor": "Prev",
+   "path": "/docs/current/textsearch-limitations.html",
+   "context": "",
+   "type": "article",
+   "score": "0.2",
+   "why": "article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/current/sql.html",
+   "anchor": "Up",
+   "path": "/docs/current/sql.html",
+   "context": "",
+   "type": "article",
+   "score": "0.2",
+   "why": "article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/current/index.html",
+   "anchor": "Home",
+   "path": "/docs/current/index.html",
+   "context": "",
+   "type": "category",
+   "score": "0.2",
+   "why": "category"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/current/mvcc-intro.html",
+   "anchor": "Next",
+   "path": "/docs/current/mvcc-intro.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/current/transaction-iso.html",
+   "anchor": "13.2. Transaction Isolation",
+   "path": "/docs/current/transaction-iso.html",
+   "context": "",
+   "type": "article",
+   "score": "0.2",
+   "why": "article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/current/explicit-locking.html",
+   "anchor": "13.3. Explicit Locking",
+   "path": "/docs/current/explicit-locking.html",
+   "context": "",
+   "type": "article",
+   "score": "0.2",
+   "why": "article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/current/applevel-consistency.html",
+   "anchor": "13.4. Data Consistency Checks at the Application Level",
+   "path": "/docs/current/applevel-consistency.html",
+   "context": "",
+   "type": "article",
+   "score": "0.2",
+   "why": "article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html",
+   "anchor": "13.5. Serialization Failure Handling",
+   "path": "/docs/current/mvcc-serialization-failure-handling.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/current/mvcc-caveats.html",
+   "anchor": "13.6. Caveats",
+   "path": "/docs/current/mvcc-caveats.html",
+   "context": "",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/docs/current/locking-indexes.html",
+   "anchor": "13.7. Locking and Indexes",
+   "path": "/docs/current/locking-indexes.html",
+   "context": "",
+   "type": "article",
+   "score": "0.2",
+   "why": "article"
+  },
+  {
+   "url": "https://www.postgresql.org/account/comments/new/18/mvcc.html/",
+   "anchor": "this form",
+   "path": "/account/comments/new/18/mvcc.html/",
+   "context": "Submit correction",
+   "type": "article",
+   "score": "2.92",
+   "why": "matches mvcc; coverage 0.04; article"
+  },
+  {
+   "url": "https://www.postgresql.org/about/policies/",
+   "anchor": "Policies",
+   "path": "/about/policies/",
+   "context": "Chapter 13. Concurrency Control",
+   "type": "category",
+   "score": "0.2",
+   "why": "category"
+  },
+  {
+   "url": "https://www.postgresql.org/about/policies/coc/",
+   "anchor": "Code of Conduct",
+   "path": "/about/policies/coc/",
+   "context": "Chapter 13. Concurrency Control",
+   "type": "article",
+   "score": "0.2",
+   "why": "article"
+  },
+  {
+   "url": "https://www.postgresql.org/about/contact/",
+   "anchor": "Contact",
+   "path": "/about/contact/",
+   "context": "Chapter 13. Concurrency Control",
+   "type": "category",
+   "score": "-4.8",
+   "why": "category; noise:boilerplate"
+  }
+ ]
+}

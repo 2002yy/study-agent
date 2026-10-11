@@ -1,16 +1,18 @@
-> 2026-10-11 #203 P1 修复候选：真实 Lookup / Standard / Deep / 普通 UI SQLite 隔离与负控本地补证；L2–L6 尚待本候选精确 head CI 和最终审阅，以下历史 CLOSED 口径不构成本候选的远端收口。当前只收口现有 PR，不启动新功能。
-
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-08（Deep-4A CLOSED；Deep 阶段除 4B 外全部 CLOSED；Learning State-1 L1 CLOSED / L2–L6 待新 head CI 与审阅）
+> 更新：2026-10-08（Deep-4A CLOSED；Deep 阶段除 4B 外全部 CLOSED；Learning State-1 L1 CLOSED）
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前权威状态、可复核边界和唯一下一门。2026-10-06 本次收敛前的完整状态原样归档到 [`archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`](archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md)；更早历史继续由既有 archive 与 Git 历史持有。
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：A 线 Learning State-1 L1 已 CLOSED，L2–L6 待新 head CI 与审阅（L1 实现已交付，L2–L6 本地补证待远端收口）。** Deep-4A implementation 已合并并 CLOSED；**Deep 阶段除 Deep-4B 外全部 CLOSED**。Deep-4B（automatic publication）= **NO-GO**（无 qualified semantic judge）。A 线：**Learning State-1 L1 已 CLOSED，L2–L6 待新 head CI 与审阅**（L1 实现权威 `0de80751`；L2–L6 本地补证见 `docs/LEARNING_STATE_1_ACCEPTANCE.md`，尚未远端关闭，T01–T16/T18 直接证据 PASS，T17 实际 HTTP 持久化快照与写入负控本地 PASS）。**不自动开始只读 `learning_view`**；下一门为现有 PR 安全合并收口。B 线：**Intelligent UI × Lookup/Standard/Deep** —— UI 工作台 **#201 已合并**；**Research Presentation-1（RP-1）仍在 B 线施工**（原 `reading-notebook-ui` 分支，R6 未 CLOSED）；A / B 两线各自独立 PR，不得混入同一 PR。
+**2026-10-11 #203 L2–L6 本地补证 / 待远端收口：** [验收矩阵](LEARNING_STATE_1_ACCEPTANCE.md) 已补齐真实Lookup/Standard/Deep生产服务及普通UI HTTP动作的已填充SQLite durable全表快照；四个真实落库变异负控均检出，显式授权closure正控仍能写入。原两条P1已修复并resolve；299影响集+12相邻回归、Ruff和mypy122/128 NEW0通过。重新合入main `5155f107fae23fb19ce7d857745075b5b6a21bc2` 只解决交接文档冲突，不改变生产语义；等待新head CI与最终语义审阅后收口。L1权威仍`0de80751`，**L2–L6目前NOT CLOSED**；外部模型/recorded Deep terminal fixture不冒称自然研究或浏览器验收。**唯一下一slice为现有PR合并收口**，历史NEXT不授权新开发。
+
+**2026-10-09 本地MCP固定配置单独交付：** 用户授权提交远端尚无的本地完成成果。branch `codex/playwright-mcp-pin-delivery`、base origin/main `f35b13b7`，只迁移既有已验证本地playwright server配置至当前main，固定 `@playwright/mcp@0.0.83 --browser chrome --isolated`，其他server逐项未变；JSON/版本/差异核验通过。复用2026-10-05原真实JSON-RPC MCP smoke记录 `D:/study-agent-validation/mcp-migration-20261005/RESULT.md`，不宣称本次新增smoke；用户级配置与现有备份不动，不复制旧frontend锁文件（远端已有1.62.1）。仅开发工具配置与交接，无研究预算/Gate/UI实现/另一窗口代码改动，无生产部署；推送refs与一次CI观察由local-delivery-closeout恢复。A/B归档与B线生产接线在独立分支，RP-1仍NO-GO。
+
+**当前执行权：A 线 Learning State-1（L1 CLOSED；下一门 = L2–L6 验收收尾）。** Deep-4A implementation 已合并并 CLOSED；**Deep 阶段除 Deep-4B 外全部 CLOSED**。Deep-4B（automatic publication）= **NO-GO**（无 qualified semantic judge）。A 线：**Learning State-1 / L1 已 CLOSED**（authority `0de80751`），学习信息来源权威已封板；**L2–L6 仍未 CLOSED**，下一门 = **Learning State-1 L2–L6 验收收尾**（整理 T07–T18 的直接/间接证据，满足合同即关闭，不为制造增量而改实现）。B 线：**Intelligent UI × Lookup/Standard/Deep** —— UI 工作台 **#201 已合并**；**Research Presentation-1（RP-1）仍在 B 线施工**（原 `reading-notebook-ui` 分支，R6 未 CLOSED），只读 `learning_view` 接口**未启动**；A / B 两线各自独立 PR，不得混入同一 PR。
 
 **2026-10-08 B 线：UI 工作台已接入（#201 MERGED）：** [UI 接入 PR #201](https://github.com/2002yy/study-agent/pull/201) 已合并，merge commit `5f4e81e22ab85c0a27c3ad82214c0f1dc62b79eb`。独立 worktree `D:/study-agent-validation/ui-main-integration`、branch `codex/ui-main-integration`；包含阅读并排/对话居中、纸白蓝灰及设备字体偏好、四角色最新版头像、内部角色设置、框内紧凑自增高输入框、右上资料开关、可记忆拖动宽度、只读正文/PDF 与引用定位，以及已完成的教学交互组件。**Learning State-1 与 Research Presentation-1 均不混入此 PR**；研究协议 / 真实三层 R6 继续由原 `reading-notebook-ui` 分支负责（**RP-1 未 CLOSED**）。
 
@@ -22,8 +24,8 @@
 ```text
 Deep-4A is merged and CLOSED (authority ea73b855).
 Deep-4B automatic publication is NO-GO until a qualified semantic judge exists.
-Learning State-1 L1 is CLOSED; L2-L6 awaits exact-head CI and final review (L1 authority 0de80751; L2-L6 local evidence in docs/LEARNING_STATE_1_ACCEPTANCE.md; remote gate pending).
-Next gate = existing PR integration; read-only learning_view is not started.
+Learning State-1 L1 is CLOSED (authority 0de80751); L2-L6 remain NOT CLOSED.
+Next gate = Learning State-1 L2-L6 acceptance matrix closeout.
 B line = Intelligent UI x Lookup/Standard/Deep: UI workbench #201 MERGED (5f4e81e2); Research Presentation-1 still in progress; read-only learning_view not started.
 ```
 
@@ -65,29 +67,12 @@ validation  本地 impact set **280 passed**（含 policy / standard /
             package helper OK
 
 known boundary
+            L2–L6 **未 CLOSED**（下一门 = L2–L6 验收收尾）
             未改动 Socratic / durable 写入语义 / §164 仪器
             未新增自动 closure / 自动 Goal / 新存储
 ```
 
 > Learning State-1 L1 authority 永久为 merge commit `0de80751` / exact-head CI `37763976833`。此后 main 上的 docs-only 记录提交只是该记录的载体，**不表示新 SHA 跑过验证**。
-
-**Learning State-1 L2–L6 本地补证候选（待 CI / 审阅）（验收收尾）**
-
-```text
-evidence    docs/LEARNING_STATE_1_ACCEPTANCE.md（T01–T18 矩阵）
-baseline    历史 main f35b13b7；2026-10-11 修复影响集 299 + 相邻 12 passed；Ruff PASS；mypy 122/128（NEW 0）
-result      T01–T15 / T18 = 直接证据 PASS（多数经真实生产路径或真实 HTTP）
-            T16 = 真实 Lookup / Standard / Deep 服务边界 SQLite 快照本地 PASS
-            T17（UI 不写 mastery）= 实际 HTTP + SQLite 快照与写入负控本地 PASS
-            M6 = 隔离变异负控已资格化（test_learning_mastery_isolation.py，已实测检出）
-
-known limitations（如实登记，非阻断）
-            L-a  T09/T10/T11 由行为断言覆盖，未设独立变异负控
-            L-b  外部模型 fixture / recorded Deep terminal；不声称自然研究或浏览器 E2E
-
-completion  合同 §11 完成定义 1–10 项均有对应证据 → Learning State-1 L1 CLOSED / L2–L6 待新 head CI 与审阅
-not done    未改学习实现；保留结构守卫并新增实际服务/HTTP 隔离及落库负控；未启动只读 learning_view；未启动 RP-1
-```
 
 **Deep-3T authority（合同冻结基线）：**
 ```text
@@ -316,9 +301,9 @@ exact-main push CI 37512787764 success
 **冻结路线：**
 
 1. ~~Standard-2~~、~~Standard-3~~、~~Standard-4 implementation~~、~~activation~~：**全部 CLOSED**。
-2. **Deep（Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A 全部 CLOSED；Deep-4B NO-GO；Learning State-1 L1 CLOSED / L2–L6 待新 head CI 与审阅）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
+2. **Deep（Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A 全部 CLOSED；Deep-4B NO-GO；当前 = Learning State-1 L2–L6 验收收尾）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
 
-**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A = CLOSED ✅`；`Deep-4B = NO-GO`；`Learning State-1 L1 CLOSED / L2–L6 待 CI 与审阅`（L1 authority `0de80751`；L2–L6 见 `docs/LEARNING_STATE_1_ACCEPTANCE.md`）；`UI = #201 已合并（B 线 RP-1 施工中）`。
+**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A = CLOSED ✅`；`Deep-4B = NO-GO`；`Learning State-1 L1 = CLOSED ✅`（authority `0de80751`）；`Learning State-1 L2–L6 = 未 CLOSED`（下一门 = 验收收尾）；`UI = 后置`（独立交互合同另开一 PR）。
 
 ## 0A. 冻结研究路线
 
