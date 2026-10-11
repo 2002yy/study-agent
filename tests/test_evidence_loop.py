@@ -153,7 +153,7 @@ def _loop_run(quote: str) -> dict:
     return run_tool_agent(
         gateway=gateway, completion=_completion([
             {"tool": "read_page", "url": "https://example.org/a"},
-            {"claims": [{"goal_id": "g1", "source_id": "https://example.org/a",
+            {"claims": [{"goal_id": "g1", "source_id": "S1",
                          "claim": "MVCC 需要清理旧版本", "quote": quote}]},
             {"verdicts": [{"claim_id": "c0", "verdict": "supported", "reason": "states it"}]},
             {"tool": "finish"},

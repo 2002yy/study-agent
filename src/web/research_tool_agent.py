@@ -381,7 +381,7 @@ def run_tool_agent(
             loop_spent = True
             unfinished = {label: tuple(terms) for label, terms in goal_specs.items()
                           if sub_goal_state[label]["status"] != "supported"}
-            bodies_view = dict(notebook.bodies)
+            bodies_view = dict(notebook.by_source)
             def _count_call() -> None:
                 """Count a REAL model call, so cost never overstates what was spent."""
                 nonlocal model_calls
@@ -403,8 +403,14 @@ def run_tool_agent(
                 hit_body = bodies_view.get(verdict.source_id)
                 record: dict[str, Any] = {
                     "url": getattr(hit_body, "final_url", ""),
+                    "source_id": verdict.source_id,
+                    "requested_url": getattr(hit_body, "requested_url", ""),
                     "host": getattr(hit_body, "host", ""),
                     "digest": getattr(hit_body, "digest", ""),
+                    "content_hash": getattr(hit_body, "content_hash", ""),
+                    "span_start": verdict.span_start,
+                    "span_end": verdict.span_end,
+                    "quote": verdict.quote,
                     "status": "supported",
                     "verified_by": "claim_verifier",
                     "terms_hit": [], "relation": "",
@@ -974,6 +980,7 @@ def run_tool_agent(
                     # goal: a later round may still need to know this page was read.
                     cached_body = notebook.record(action["url"], final_url, content)
                     digest = cached_body.digest if cached_body else ""
+                    source_id = cached_body.source_id if cached_body else ""
                     touched: list[str] = []
                     for label, terms in goal_specs.items():
                         state = sub_goal_state[label]
@@ -989,6 +996,7 @@ def run_tool_agent(
                         touched.append(label)
                         goal_evidence.setdefault(label, []).append({
                             "url": final_url,
+                            "source_id": source_id,
                             "host": urlsplit(final_url).hostname or "",
                             "digest": digest,
                             "status": status,
@@ -1004,9 +1012,12 @@ def run_tool_agent(
                                           "excerpt": evidence["excerpt"] or ""})
                         # Eviction-safe map: the verifier may use this retained excerpt when
                         # the full body is no longer cached.
-                        adopted_evidence[final_url] = {
-                            "excerpt": evidence.get("excerpt") or "",
-                            "digest": digest}
+                        # Eviction-safe map keyed by CONTENT VERSION (source id), so the
+                        # verifier binds to the exact body this run registered, not a URL.
+                        if source_id:
+                            adopted_evidence[source_id] = {
+                                "excerpt": evidence.get("excerpt") or "",
+                                "digest": digest}
                     if touched:
                         notebook.record(action["url"], final_url, content, goals=touched)
                 source_chain.append({

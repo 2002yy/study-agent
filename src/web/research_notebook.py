@@ -39,11 +39,17 @@ class CachedBody:
     text: str
     goals: list[str] = field(default_factory=list)
     content_hash: str = ""
+    #: Stable id for this run's content version (`S1`, `S2`, ...). The model cites this, so a
+    #: citation always resolves to the exact body the run registered, never to a URL string.
+    source_id: str = ""
+    #: What was requested, so a redirect/rebrand is distinguishable from the final document.
+    requested_url: str = ""
 
     def to_view(self, *, verified: bool = False) -> dict[str, Any]:
-        return {"url": self.url, "host": self.host, "chars": self.chars,
-                "digest": self.digest, "content_hash": self.content_hash[:16],
-                "goals": self.goals,
+        return {"source_id": self.source_id, "url": self.url,
+                "requested_url": self.requested_url, "final_url": self.final_url,
+                "host": self.host, "chars": self.chars, "digest": self.digest,
+                "content_hash": self.content_hash[:16], "goals": self.goals,
                 # A body read after the last verification cycle stays visibly pending, so a
                 # finding it contains is never confused with a checked one.
                 "pending_verification": not verified}
@@ -54,12 +60,16 @@ class ResearchNotebook:
     """The run's own record. Populated on read; never written from model output."""
 
     bodies: dict[str, CachedBody] = field(default_factory=dict)
+    #: `S1`, `S2`, ... -> the body registered under that id, in read order.
+    by_source: dict[str, CachedBody] = field(default_factory=dict)
     #: Bodies already consumed by a verification cycle (their content version is bound).
     verified: set[str] = field(default_factory=set)
+    _next_source: int = 1
 
-    def mark_verified(self, urls: Iterable[str]) -> None:
-        for url in urls:
-            self.verified.add(url)
+    def mark_verified(self, source_ids: Iterable[str]) -> None:
+        for source_id in source_ids:
+            if source_id:
+                self.verified.add(source_id)
 
     def record(self, url: str, final_url: str, text: str,
                goals: list[str] | None = None) -> CachedBody | None:
@@ -74,12 +84,18 @@ class ResearchNotebook:
             return existing
         host = (final_url or url).split("/")[2] if "//" in (final_url or url) else ""
         full_hash = sha256(body.encode("utf-8", "ignore")).hexdigest()
+        source_id = f"S{self._next_source}"
+        self._next_source += 1
         cached = CachedBody(url=url, final_url=final_url or url, host=host,
                             digest=full_hash[:12], chars=len(body), text=body,
-                            goals=sorted(set(goals or [])), content_hash=full_hash)
+                            goals=sorted(set(goals or [])), content_hash=full_hash,
+                            source_id=source_id, requested_url=url)
         self.bodies[url] = cached
+        self.by_source[source_id] = cached
         while len(self.bodies) > MAX_BODIES:                # bound the cache, oldest first
-            self.bodies.pop(next(iter(self.bodies)))
+            dropped_url = next(iter(self.bodies))
+            evicted = self.bodies.pop(dropped_url)
+            self.by_source.pop(evicted.source_id, None)
         return cached
 
     def excerpt(self, url: str, terms: tuple[str, ...] | list[str],
@@ -136,7 +152,7 @@ class ResearchNotebook:
             })
         view = {
             "goals": goal_rows,
-            "read_sources": [body.to_view(verified=body.url in self.verified)
+            "read_sources": [body.to_view(verified=body.source_id in self.verified)
                              for body in list(self.bodies.values())[-MAX_READ_SOURCES:]],
             "invalid_actions": refused[-MAX_INVALID_ACTIONS:],
             "next_action": next_action or {},

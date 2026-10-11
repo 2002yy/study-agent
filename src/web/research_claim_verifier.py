@@ -23,6 +23,11 @@ from src.web.research_claims import Claim
 
 VERDICTS = ("supported", "contradicted", "insufficient", "unavailable")
 
+
+def _quote_of(claim: Claim) -> str:
+    """The exact passage the claim cited, so every verdict carries its own evidence."""
+    return str(getattr(claim, "quote", "") or "")[:200]
+
 _SYSTEM = (
     "You are an evidence verifier. Given a research goal, a candidate claim and the EXACT "
     "passage the claim cites, decide whether the passage genuinely supports it. Be strict: "
@@ -43,6 +48,8 @@ class ClaimVerdict:
     missing: str = ""
     span_start: int = -1
     span_end: int = -1
+    #: The exact passage the claim was checked against (locatable in the registered body).
+    quote: str = ""
 
     @property
     def internal_supported(self) -> bool:
@@ -117,15 +124,15 @@ def verify_claims(*, claims: list[Claim], goals: Mapping[str, tuple[str, ...]],
         verdict = str(row.get("verdict") or "")
         if not usable:
             out.append(ClaimVerdict(claim.goal_id, claim.claim, claim.source_id,
-                                    "unavailable", reason, "", claim.span_start, claim.span_end))
+                                    "unavailable", reason, "", claim.span_start, claim.span_end, _quote_of(claim)))
             continue
         if verdict not in VERDICTS or verdict == "unavailable":
             # No usable model verdict: abstain rather than silently accepting the claim.
             out.append(ClaimVerdict(claim.goal_id, claim.claim, claim.source_id,
                                     "insufficient", reason or "verifier_abstained", "",
-                                    claim.span_start, claim.span_end))
+                                    claim.span_start, claim.span_end, _quote_of(claim)))
             continue
         out.append(ClaimVerdict(claim.goal_id, claim.claim, claim.source_id, verdict,
                                 str(row.get("reason") or ""), str(row.get("missing") or ""),
-                                claim.span_start, claim.span_end))
+                                claim.span_start, claim.span_end, _quote_of(claim)))
     return out
