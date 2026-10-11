@@ -9,13 +9,26 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
-from src.web.link_discovery import question_terms
+from src.web.link_discovery import answer_items, question_terms
 from src.web.research_claim_verifier import ClaimVerdict
 
 MAX_FOLLOWUPS = 2
 QUERY_CHARS = 160
 
+def uncovered_items(goal_id: str,
+                    verdicts: Sequence[ClaimVerdict]) -> list[tuple[int, str]]:
+    """Which necessary answer items of a goal no supported claim has covered yet.
 
+    A goal with one correct claim is NOT finished: a PARTIAL answer is a legitimate state and
+    must still ask for what is missing.
+    """
+    items = answer_items(goal_id)
+    covered: set[int] = set()
+    for verdict in verdicts:
+        if verdict.goal_id != goal_id or not verdict.internal_supported:
+            continue
+        covered.update(index for index in verdict.covers if 0 <= index < len(items))
+    return [(index, item) for index, item in enumerate(items) if index not in covered]
 def _tokens(text: str) -> list[str]:
     return sorted(question_terms(text))
 
@@ -31,8 +44,9 @@ def plan_followups(*, verdicts: Sequence[ClaimVerdict],
 
     planned: list[dict[str, Any]] = []
     for goal_id, rows in by_goal.items():
-        if any(row.internal_supported for row in rows):
-            continue                                    # a settled goal is not re-searched
+        missing = uncovered_items(goal_id, rows)
+        if not missing:
+            continue                          # every necessary answer item is covered
         gap_words: list[str] = []
         contradicted = False
         for row in rows:
@@ -40,7 +54,10 @@ def plan_followups(*, verdicts: Sequence[ClaimVerdict],
                 contradicted = True
             if row.verdict in {"insufficient", "contradicted", "unavailable"}:
                 gap_words.extend(_tokens(row.missing))
-        base = [str(term) for term in goals.get(goal_id, ())[:4]]
+        # The query names the item that is still missing, not the whole goal again.
+        base = [item for _index, item in missing][:2]
+        base = [str(term) for item in base for term in _tokens(item)] or \
+            [str(term) for term in goals.get(goal_id, ())[:4]]
         words = list(dict.fromkeys(base + gap_words))[:8]
         query = " ".join(word for word in words if word)[:QUERY_CHARS]
         if not query or query in issued_set:

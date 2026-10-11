@@ -323,6 +323,8 @@ PROSE_BLOCK_MIN_CHARS = 60
 MIN_PROSE_CHARS = 80
 MIN_PROSE_CHARS_PER_UNIT = 12
 MIN_PROSE_SENTENCES = 2
+#: Below this prose share a list-like page is an item/category page, not an answer.
+LIST_PROSE_SHARE = 0.35
 _SENTENCE_PUNCT = re.compile(r"[.。！？!?;；:：]")
 #: Sentence units KEEP their terminator, so a unit is prose only if it ends like a sentence
 #: (or is a long unpunctuated line). A column of short link labels is therefore not prose.
@@ -351,6 +353,26 @@ def prose_units(text: str) -> list[str]:
         if _SENTENCE_PUNCT.search(unit) or len(unit) >= PROSE_BLOCK_MIN_CHARS:
             units.append(unit)
     return units
+
+
+#: Requirement boundaries inside one goal: punctuation and connectors only. Never a word
+#: list, and never a model call - a goal asking for two things needs two answers.
+_ITEM_SPLIT = re.compile(r"[，,、；;]|以及|并且|同时")
+
+
+def answer_items(label: str) -> tuple[str, ...]:
+    """The necessary requirements inside one goal, taken from its own wording.
+
+    "为什么不阻塞、主要代价是什么" requires two separate answers; "如何避免读写互相阻塞"
+    requires one. The split is deterministic (punctuation and connectors), so goal completion
+    is decided by which items the evidence covers, not by a keyword overlap ratio.
+    """
+    text = (label or "").strip()
+    if not text:
+        return ()
+    parts = [part.strip(" 。？！?.、，,") for part in _ITEM_SPLIT.split(text)]
+    items = tuple(part for part in parts if len(part) >= 2)
+    return items or (text,)
 
 
 def looks_like_list(text: str) -> bool:
@@ -392,6 +414,11 @@ def classify_body(text: str) -> tuple[str, dict[str, Any]]:
         "looks_like_navigation": navigation}
     if navigation:
         evidence["reason"] = "link_farm"
+        return "navigation", evidence
+    # An item/category page is a next hop, never a claim window - but only when prose is
+    # scarce. A real article that happens to contain a list keeps its substance.
+    if looks_like_list(body) and evidence["prose_share"] < LIST_PROSE_SHARE:
+        evidence["reason"] = "item_list"
         return "navigation", evidence
     if len(units) >= MIN_PROSE_SENTENCES and prose_chars >= MIN_PROSE_CHARS:
         evidence["reason"] = "prose_sentences"

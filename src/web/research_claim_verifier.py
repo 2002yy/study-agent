@@ -19,6 +19,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
+from src.web.link_discovery import answer_items
 from src.web.research_claims import Claim, locate_quote
 
 VERDICTS = ("supported", "contradicted", "insufficient", "unavailable")
@@ -29,12 +30,15 @@ def _quote_of(claim: Claim) -> str:
     return str(getattr(claim, "quote", "") or "")[:200]
 
 _SYSTEM = (
-    "You are an evidence verifier. Given a research goal, a candidate claim and the EXACT "
-    "passage the claim cites, decide whether the passage genuinely supports it. Be strict: "
-    "a passage that merely mentions related terms, describes how to use a tool, or answers a "
-    "different question is 'insufficient'. Use 'unavailable' if the passage is missing. "
+    "You are an evidence verifier. Given a research goal with its NECESSARY REQUIREMENTS, a "
+    "candidate claim and the EXACT passage it cites, decide whether the passage genuinely "
+    "supports it. Be strict: a passage that merely mentions related terms, describes how to "
+    "use a tool, or answers a different question is 'insufficient'. Use 'unavailable' if the "
+    "passage is missing. When the verdict is 'supported', also list which of the goal's "
+    "requirements (0-based indexes) this passage actually answers - and never list one you "
+    "cannot point to in the passage itself. "
     'Reply with JSON only: {"verdicts":[{"claim_id":"...","verdict":"supported|contradicted|'
-    'insufficient|unavailable","reason":"...","missing":"..."}]}'
+    'insufficient|unavailable","reason":"...","missing":"...","covers":[0]}]}'
 )
 
 
@@ -50,6 +54,9 @@ class ClaimVerdict:
     span_end: int = -1
     #: The exact passage the claim was checked against (locatable in the registered body).
     quote: str = ""
+    #: Indexes of the goal's necessary requirements this passage was found to answer. Only
+    #: meaningful for a `supported` verdict; deterministic code turns them into goal status.
+    covers: tuple[int, ...] = ()
 
     @property
     def internal_supported(self) -> bool:
@@ -100,6 +107,7 @@ def verify_claims(*, claims: list[Claim], goals: Mapping[str, tuple[str, ...]],
             excerpt = str(((adopted or {}).get(claim.source_id) or {}).get("excerpt") or "")
         forced[claim_id] = (usable, reason)
         prepared.append({"claim_id": claim_id, "goal": label_to_id.get(claim.goal_id, ""),
+                         "requirements": list(answer_items(label_to_id.get(claim.goal_id, ""))),
                          "claim": claim.claim, "excerpt": excerpt[:1200]})
     verdicts: dict[str, dict[str, Any]] = {}
     if any(usable for usable, _reason in forced.values()):
@@ -136,5 +144,26 @@ def verify_claims(*, claims: list[Claim], goals: Mapping[str, tuple[str, ...]],
             continue
         out.append(ClaimVerdict(claim.goal_id, claim.claim, claim.source_id, verdict,
                                 str(row.get("reason") or ""), str(row.get("missing") or ""),
-                                claim.span_start, claim.span_end, _quote_of(claim)))
+                                claim.span_start, claim.span_end, _quote_of(claim),
+                                _validated_covers(row, label_to_id.get(claim.goal_id, ""),
+                                                  verdict)))
     return out
+
+
+def _validated_covers(row: Mapping[str, Any], label: str, verdict: str) -> tuple[int, ...]:
+    """Requirement indexes a supported verdict claims to cover, bounded to real items."""
+    if verdict != "supported":
+        return ()                  # an unsupported verdict covers nothing by definition
+    items = answer_items(label)
+    raw = row.get("covers")
+    if not isinstance(raw, (list, tuple)):
+        return ()
+    out: list[int] = []
+    for value in raw:
+        try:
+            index = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= index < len(items) and index not in out:
+            out.append(index)
+    return tuple(out)

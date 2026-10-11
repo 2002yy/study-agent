@@ -14,6 +14,8 @@ from src.web.research_notebook import ResearchNotebook
 from src.web.research_tool_agent import AgentBudget, run_tool_agent
 from tests.test_research_tool_agent import FakeGateway
 
+#: A goal with TWO necessary requirements: punctuation splits it, nothing else.
+GOAL = "快照机制、清理代价"
 MECHANISM = ("多版本并发控制通过保留旧版本行来实现一致性：因为每个事务读取自己的快照，"
              "读操作不会阻塞写操作。代价是旧版本必须清理，否则会造成表膨胀。"
              "系统需要定期回收不再可见的行版本，否则查询会逐渐变慢。") * 3
@@ -157,34 +159,46 @@ def _loop_with(actions: list[dict], body: str = MECHANISM) -> dict:
         gateway=gateway, completion=_completion(actions, seen),
         question="PostgreSQL 的快照和代价", evidence_loop=True,
         budget=AgentBudget(max_rounds=4, max_searches=3, max_reads=2, hard_seconds=40.0),
-        sub_goals=(("g1", ("快照", "代价")),),
+        sub_goals=((GOAL, ("快照", "代价")),),
         initial_urls=("https://example.org/a",),
     )
 
 
-def _loop_run(quote: str) -> dict:
+def _loop_run(quote: str, covers: list[int] | None = None) -> dict:
     return _loop_with([
         {"tool": "read_page", "url": "https://example.org/a"},
-        {"claims": [{"goal_id": "g1", "source_id": "S1",
+        {"claims": [{"goal_id": GOAL, "source_id": "S1",
                      "claim": "MVCC 需要清理旧版本", "quote": quote}]},
-        {"verdicts": [{"claim_id": "c0", "verdict": "supported", "reason": "states it"}]},
+        {"verdicts": [{"claim_id": "c0", "verdict": "supported", "reason": "states it",
+                       "covers": covers if covers is not None else [0]}]},
         {"tool": "finish"},
     ])
 
 
 def test_partial_support_does_not_settle_a_goal():
-    """One verified claim answers PART of a goal; the goal must stay unsettled."""
-    trace = _loop_run("代价是旧版本必须清理")
+    """One claim answers ONE requirement; a goal needing two stays unsettled."""
+    trace = _loop_run("代价是旧版本必须清理", covers=[0])
     assert trace["claim_verdicts"] and trace["claim_verdicts"][0]["verdict"] == "supported"
-    assert trace["coverage_audit"]["sub_goals"]["g1"]["status"] == "explored"
-    assert any(row.get("partial") for row in trace["goal_evidence"].get("g1", []))
+    assert trace["coverage_audit"]["sub_goals"][GOAL]["status"] == "explored"
+    assert trace["goal_status"][GOAL] == "goal_partial"
+    assert any(row.get("partial") for row in trace["goal_evidence"].get(GOAL, []))
 
 
 def test_complete_coverage_settles_the_goal_and_counts_calls():
-    trace = _loop_run("每个事务读取自己的快照，读操作不会阻塞写操作。代价是旧版本必须清理")
-    assert trace["coverage_audit"]["sub_goals"]["g1"]["status"] == "supported"
+    """Both requirements covered: the goal is settled, and the loop costs two calls."""
+    trace = _loop_run("每个事务读取自己的快照，读操作不会阻塞写操作。代价是旧版本必须清理",
+                      covers=[0, 1])
+    assert trace["coverage_audit"]["sub_goals"][GOAL]["status"] == "supported"
+    assert trace["goal_status"][GOAL] == "goal_supported"
     assert trace["cost"]["model_calls"] == 4          # read decision + extract + verify + finish
     assert trace["evidence_outcome"] == "verified"
+
+
+def test_a_supported_claim_without_covered_items_is_not_completion():
+    """A verifier that says 'supported' but names no requirement cannot settle a goal."""
+    trace = _loop_run("代价是旧版本必须清理", covers=[])
+    assert trace["coverage_audit"]["sub_goals"][GOAL]["status"] == "explored"
+    assert trace["goal_status"][GOAL] == "goal_insufficient"
 
 
 def test_navigation_shell_never_spends_the_evidence_loop():
@@ -230,11 +244,11 @@ def test_empty_extraction_is_reported_as_such():
 def test_unsupported_verdict_is_reported_as_insufficient():
     trace = _loop_with([
         {"tool": "read_page", "url": "https://example.org/a"},
-        {"claims": [{"goal_id": "g1", "source_id": "S1", "claim": "MVCC 需要清理旧版本",
+        {"claims": [{"goal_id": GOAL, "source_id": "S1", "claim": "MVCC 需要清理旧版本",
                      "quote": "代价是旧版本必须清理"}]},
         {"verdicts": [{"claim_id": "c0", "verdict": "insufficient", "reason": "not stated"}]},
         {"tool": "finish"},
     ])
     assert trace["claim_verdicts"][0]["verdict"] == "insufficient"
-    assert trace["coverage_audit"]["sub_goals"]["g1"]["status"] != "supported"
+    assert trace["coverage_audit"]["sub_goals"][GOAL]["status"] != "supported"
     assert trace["evidence_outcome"] == "verification_insufficient"

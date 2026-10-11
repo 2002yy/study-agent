@@ -27,6 +27,7 @@ from src.web.link_discovery import (
 )
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
 from src.web.research_claim_verifier import verify_claims
+from src.web.link_discovery import answer_items
 from src.web.research_claims import candidate_windows, extract_claims
 from src.web.research_gap_planner import plan_followups
 from src.web.research_notebook import ResearchNotebook
@@ -154,8 +155,6 @@ MAX_CORRECTIONS = 2  # bounded free corrections for refused decisions
 #: open a second, larger allowance.
 HARD_MODEL_CALL_CAP = 22
 HARD_WALL_SECONDS = 180.0
-#: A goal is settled only when this share of its own terms is covered by supported excerpts.
-GOAL_COVERAGE_THRESHOLD = 0.8
 #: The evidence loop needs real time for its extraction call: spending the run's single
 #: chance with a second left on the clock would guarantee a truncated answer.
 MIN_LOOP_SECONDS = 8.0
@@ -363,7 +362,9 @@ def run_tool_agent(
                 max_rounds = nxt.max_rounds
                 max_searches = nxt.max_searches
                 max_reads = nxt.max_reads
-                deadline = started + nxt.hard_seconds
+                # An escalation extends the allowance but can NEVER reopen a bigger wall
+                # clock than the global cap: the hard limits are global, not per tier.
+                deadline = min(started + nxt.hard_seconds, started + HARD_WALL_SECONDS)
                 continue
             break
         rnd += 1
@@ -453,26 +454,23 @@ def run_tool_agent(
                             "excerpt": (getattr(hit_body, "text", "") or "")[
                                 verdict.span_start:verdict.span_end][:200]}
                         goal_evidence.setdefault(verdict.goal_id, []).append(record)
-                        # A verified claim answers PART of a goal. The goal is settled only
-                        # when the goal's own terms are covered by its supported excerpts;
-                        # otherwise the finding stays partial and the goal remains `explored`.
-                        supported_text = " ".join(
-                            str(row.get("excerpt") or "")
-                            for row in goal_evidence[verdict.goal_id]
-                            if row.get("status") == "supported")
-                        terms = goal_specs.get(verdict.goal_id, ())
-                        covered = [t for t in terms if str(t).lower() in supported_text.lower()]
-                        ratio = len(covered) / len(terms) if terms else 0.0
-                        record["coverage_ratio"] = round(ratio, 2)
-                        if ratio >= GOAL_COVERAGE_THRESHOLD:
-                            sub_goal_state[verdict.goal_id].update({
-                                "status": "supported", "url": record["url"],
-                                "excerpt": record["excerpt"]})
-                        else:
+                        # A supported claim answers specific NECESSARY REQUIREMENTS of its
+                        # goal. The goal is settled only when every requirement is covered by
+                        # a supported claim: one correct claim is a legitimate partial answer.
+                        items = answer_items(verdict.goal_id)
+                        covered_items: set[int] = set()
+                        for row in claim_verdicts:
+                            if row.goal_id == verdict.goal_id and row.internal_supported:
+                                covered_items.update(row.covers)
+                        record["covers"] = sorted(verdict.covers)
+                        partial = bool(covered_items) and len(covered_items) < len(items)
+                        if partial:
                             record["partial"] = True
-                            sub_goal_state[verdict.goal_id].update({
-                                "status": "explored", "url": record["url"],
-                                "excerpt": record["excerpt"]})
+                        sub_goal_state[verdict.goal_id].update({
+                            "status": "explored" if partial or not covered_items else "supported",
+                            "url": record["url"], "excerpt": record["excerpt"],
+                            "answer_items": len(items),
+                            "covered_items": sorted(covered_items)})
                     followups.extend(plan_followups(verdicts=verdicts, goals=goal_specs,
                                                     issued=sorted(searched_queries)))
                     # The bodies this cycle consumed have their content version bound;
@@ -548,6 +546,21 @@ def run_tool_agent(
                 " there is nothing a claim could be verified against yet. Follow a confirmed"
                 " ARTICLE link from one of those pages (or search for the specific article)"
                 " and read it; do not read another directory page.")
+        if goal_specs and notebook.bodies:
+            # Which goals no page read so far even mentions. Without this the run can keep
+            # reading hub pages whose prose is real but about another subject entirely.
+            unmentioned = [
+                label for label, terms in goal_specs.items()
+                if terms and not any(
+                    any(str(term).lower() in (body.text or "").lower() for term in terms)
+                    for body in notebook.by_source.values())]
+            if unmentioned:
+                budget_state += (
+                    "\n  SEARCH DIRECTION: no page read so far mentions "
+                    + "; ".join(f"{label} -> {', '.join(list(goal_specs[label])[:4])}"
+                                for label in unmentioned[:2])
+                    + ". Search for that mechanism article, or follow a link whose text"
+                      " contains those words, instead of reading another hub page.")
         if goal_specs:
             # Two different states, deliberately not merged: a goal with NO candidate needs
             # searching for, while a goal that was merely explored needs VERIFYING against a
@@ -1090,6 +1103,18 @@ def run_tool_agent(
             calls.append(call)
             continue
     elapsed = round(monotonic() - started, 3)
+
+    def _goal_status(label: str) -> str:
+        """Goal completion from the requirements supported claims actually covered."""
+        covered = {index for row in claim_verdicts
+                   if row.goal_id == label and row.internal_supported
+                   for index in row.covers}
+        if not covered:
+            return "goal_insufficient"
+        return ("goal_supported" if len(covered) >= len(answer_items(label))
+                else "goal_partial")
+
+    goal_status = {label: _goal_status(label) for label in goal_specs}
     # One honest label for where the evidence flow stopped: "the model proposed nothing" must
     # never be reported when the run never actually held an article.
     if not notebook.bodies:
@@ -1112,6 +1137,9 @@ def run_tool_agent(
         "searches": searches,
         "reads": reads,
         "elapsed_seconds": elapsed,
+        # The wall budget actually in force after any escalation: an escalation may extend
+        # the allowance but never past the global cap, and this is where that shows.
+        "wall_budget_seconds": round(deadline - started, 3),
         "dns_stats": get_dns_stats(),
         "coverage_audit": {
             "covered": sorted(covered_terms),
@@ -1151,6 +1179,9 @@ def run_tool_agent(
         "body_kinds": {body.source_id: body.kind for body in notebook.by_source.values()},
         "evidence_loop_skipped": evidence_loop_skipped,
         "evidence_outcome": evidence_outcome,
+        # Goal completion in the honest vocabulary: a claim can be supported while its goal is
+        # still only partially answered, and that is a legitimate resting state.
+        "goal_status": goal_status,
         "followups": followups,
         # Observability for the action-optimisation audit: wasted repeats are counted,
         # not hidden, and each escalation records the round limit it moved to.
