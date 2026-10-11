@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-11 统一方向复核与现有PR整合（覆盖以下历史NEXT）：** [工作线整合审计](WORKSTREAM_INTEGRATION_AUDIT_2026-10-11.md) 逐项核对main与B-Search/RP-1/Answer Reliability实际Git树。当前main `4486e600683003feee5777642d98d16cad50177c`：#215 exact-head CI `38119966073` SUCCESS、merge `0eed3a735588c9b79fcd69664d3bae4ea3074d17`；#203 exact-head CI `38119916006` SUCCESS、merge `4486e600683003feee5777642d98d16cad50177c`，两条P1最终语义复核通过。学习L2–L6验收候选已交付，当前等待exact-main观察；不称自然模型/研究质量GO。#204新修复候选 `bd7c42da5eb5c51c0047aae680c8a55c7ac0b3aa` 保持安全强制门，62定向PASS，提交后扫描199项均为固定可验证哈希；在清单加入合成AWS格式Key后保留一项并拒绝通过。原6文件/26图/11MCP与备份继续保留。**唯一下一门：#204新head CI及最终安全审阅、合并后mainCI；其后按M4-C冻结合同推进具体文章到达/有效阅读。** B自由子问题规划与Tavily/Answer Reliability仍为独立候选，不整条倒回main；Deep-4B/RP-1 NO-GO不改。
+
 **2026-10-11 多窗口整合 / 当前执行权（覆盖下方旧 NEXT）：** 主目录干净，原混合改动、26份图片及旧工作树继续保留；64工作树最终复核：12 dirty（保留混合工作树 + 11本地MCP覆盖），11配置另做逐文件SHA256备份于 `D:/study-agent-validation/consolidation-20261011-final-audit/local-config-backups.json`，见 [工作区索引](WORKSPACE_INDEX.md)。#205/#208已合并；#207/#214在各自exact-head CI成功、当前范围审阅无未解决finding后expected-head合并，当前main为 `5155f107fae23fb19ce7d857745075b5b6a21bc2`。本地隔离组合head `be03002084fd9d6ce6a130dc9d79489bc391036c` 全量 **4294 passed / 6 skipped / 1433.69s**；main与该候选的src/tests/tools/frontend/依赖/config/CI/infra树完全一致，属于同树回归证据，不称新main独立跑过L3。frontend457、browser77、真实栈14、平台46、导航51、build/Ruff/diff-check/mypy NEW0均PASS。专用L3预检脚本在全量启动后补核PASS，未冒称启动前调用。远端 exact-main push CI `38117936966` 对 `5155f107fae23fb19ce7d857745075b5b6a21bc2` 已 SUCCESS；当前已合并主线可以称 REMOTE GO，新待合并 PR 仍分别等待新 head CI。
 
 | 项目 | 完整候选 SHA / branch / worktree | 当前证据与结果 |
