@@ -1,0 +1,50 @@
+[
+  {
+    "foreground": "ink",
+    "background": "paper",
+    "ratio": 11.43,
+    "normal_text_pass": true
+  },
+  {
+    "foreground": "muted",
+    "background": "paper",
+    "ratio": 5.64,
+    "normal_text_pass": true
+  },
+  {
+    "foreground": "primary",
+    "background": "paper",
+    "ratio": 6.99,
+    "normal_text_pass": true
+  },
+  {
+    "foreground": "confirmed",
+    "background": "paper",
+    "ratio": 6.41,
+    "normal_text_pass": true
+  },
+  {
+    "foreground": "pending",
+    "background": "paper",
+    "ratio": 5.66,
+    "normal_text_pass": true
+  },
+  {
+    "foreground": "error",
+    "background": "paper",
+    "ratio": 6.74,
+    "normal_text_pass": true
+  },
+  {
+    "foreground": "ink",
+    "background": "highlight",
+    "ratio": 9.42,
+    "normal_text_pass": true
+  },
+  {
+    "foreground": "muted",
+    "background": "rail",
+    "ratio": 5.25,
+    "normal_text_pass": true
+  }
+]
