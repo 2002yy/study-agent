@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-11 当前授权搜索切片（覆盖下方历史NEXT）：** #203/#215已合并；#204 exact-head CI `38122180943` SUCCESS并expected-head合并，当前main `7a8b6d5573a202debb1051ecb743aedc5138cbc8`，exact-main push CI `38123399331` 首次观察IN_PROGRESS，未称新main REMOTE GO。#217修正实际候选阶段后head `dd9e4a4454a0ad414d75018ca4b85d404721132d`，CI `38123473546` 首次观察IN_PROGRESS。已启动独立M4-C诊断切片，见 [候选损失诊断](M4C_CANDIDATE_AUDIT_2026-10-11.md)：14份既有记录离线重放，影响集55 PASS/22.66s、Ruff/formatter/audit-tool mypy/diff-check PASS；无新增模型/网络成本；区分准入、尝试、成功及正文支持，缺失raw/filtered观测标unknown。PostgreSQL失败分别是重复泛页候选和已读目录后重复读取，未授予研究质量GO。原6混合文件、26图、11MCP及备份保持；4294/6既有L3复用，不重复全量。**唯一下一生产slice：导航型已读页面的合法子页发现/有效阅读，先用既有HTML/候选fixture证明相关子页存在再动机制；安全、6/4/3/20预算与遥测权威不变。**
+
 **2026-10-11 多窗口整合 / 当前执行权（覆盖下方旧 NEXT）：** 主目录干净，原混合改动、26份图片及旧工作树继续保留；64工作树最终复核：12 dirty（保留混合工作树 + 11本地MCP覆盖），11配置另做逐文件SHA256备份于 `D:/study-agent-validation/consolidation-20261011-final-audit/local-config-backups.json`，见 [工作区索引](WORKSPACE_INDEX.md)。#205/#208已合并；#207/#214在各自exact-head CI成功、当前范围审阅无未解决finding后expected-head合并，当前main为 `5155f107fae23fb19ce7d857745075b5b6a21bc2`。本地隔离组合head `be03002084fd9d6ce6a130dc9d79489bc391036c` 全量 **4294 passed / 6 skipped / 1433.69s**；main与该候选的src/tests/tools/frontend/依赖/config/CI/infra树完全一致，属于同树回归证据，不称新main独立跑过L3。frontend457、browser77、真实栈14、平台46、导航51、build/Ruff/diff-check/mypy NEW0均PASS。专用L3预检脚本在全量启动后补核PASS，未冒称启动前调用。远端 exact-main push CI `38117936966` 对 `5155f107fae23fb19ce7d857745075b5b6a21bc2` 已 SUCCESS；当前已合并主线可以称 REMOTE GO，新待合并 PR 仍分别等待新 head CI。
 
 | 项目 | 完整候选 SHA / branch / worktree | 当前证据与结果 |
