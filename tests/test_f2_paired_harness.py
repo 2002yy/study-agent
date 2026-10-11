@@ -207,7 +207,7 @@ def fixture_base():
             server.kill()
 
 
-def test_default_smoke_is_production_origin_and_recovers_units(fixture_base) -> None:
+def test_default_smoke_is_production_origin_and_recovers_units(fixture_base, monkeypatch) -> None:
     from tools.run_f2_paired import (
         CATEGORIES,
         _allow_local_fixture_reads,
@@ -215,7 +215,7 @@ def test_default_smoke_is_production_origin_and_recovers_units(fixture_base) -> 
         _units,
     )
 
-    _allow_local_fixture_reads()
+    _allow_local_fixture_reads(monkeypatch)
     spec = CATEGORIES[0]
     row = _run_default(f"{fixture_base}{spec['fixture']}", spec["category"])
 

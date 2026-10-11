@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "note": "Registered trusted ENTRY points for B-Search. Entries are INDEX / MAIN pages only. Listing a domain here authorises reading THAT entry URL; it does NOT authorise guessing deeper URLs under the same domain. Links discovered from an entry still go through the normal confirmation + safety checks.",
+  "sources": [
+    {
+      "source_id": "python-docs-whatsnew",
+      "title": "Python official docs: What's New index",
+      "categories": ["python", "release", "changelog", "whatsnew", "features", "版本", "特性"],
+      "languages": ["en"],
+      "entry_url": "https://docs.python.org/3/whatsnew/"
+    },
+    {
+      "source_id": "python-downloads",
+      "title": "Python downloads and release history",
+      "categories": ["python", "release", "download", "version", "版本", "兼容"],
+      "languages": ["en"],
+      "entry_url": "https://www.python.org/downloads/"
+    },
+    {
+      "source_id": "minecraft-wiki-zh",
+      "title": "Minecraft Wiki main page (zh)",
+      "categories": ["minecraft", "红石", "中继器", "wiki", "游戏", "信号"],
+      "languages": ["cn"],
+      "entry_url": "https://zh.minecraft.wiki/"
+    },
+    {
+      "source_id": "factorio-wiki-zh",
+      "title": "Factorio Wiki main page (zh)",
+      "categories": ["factorio", "列车", "中断", "调度", "wiki", "游戏"],
+      "languages": ["cn"],
+      "entry_url": "https://wiki.factorio.com/Main_Page/zh"
+    },
+    {
+      "source_id": "wikipedia-zh-go",
+      "title": "中文维基百科：围棋",
+      "categories": ["围棋", "打劫", "提子", "规则", "禁全同", "encyclopedia"],
+      "languages": ["cn"],
+      "entry_url": "https://zh.wikipedia.org/wiki/%E5%9B%B4%E6%A3%8B"
+    },
+    {
+      "source_id": "wikipedia-zh-main",
+      "title": "中文维基百科（通用入口）",
+      "categories": ["encyclopedia", "reference", "百科", "通用"],
+      "languages": ["cn"],
+      "entry_url": "https://zh.wikipedia.org/wiki/"
+    }
+  ]
+}
