@@ -142,15 +142,18 @@ def requested_versions(question: str) -> set[str]:
     (``17 与 18``). Calendar years never count.
     """
     text = (question or "").lower()
+    raw = question or ""
     found: set[str] = set()
     found |= set(re.findall(r"\b\d+\.\d+(?:\.\d+)?\b", text))
     found |= set(re.findall(r"\bv(\d+(?:\.\d+)*)\b", text))
     found |= set(re.findall(r"(?:版本|version|docs?)\s*(\d+(?:\.\d+)*)", text))
-    # A latin product name followed by a number ("PostgreSQL 17"), but ONLY when the
-    # number is not followed by another latin word: "Explain 3 reasons" or
-    # "Compare 3 methods" are counts, not versions.
+    # A product-like name (internal capital, e.g. PostgreSQL / Kubernetes) followed by a
+    # number is a version reference, regardless of what follows: "PostgreSQL 17
+    # performance" still names 17. Ordinary English words are not product names
+    # ("Explain 3 reasons" / "Compare 3 methods" / "Describe 3 PostgreSQL concepts"),
+    # and a dotted version is caught by the first rule ("Python 3.12 f-string changes").
     found |= set(re.findall(
-        r"[a-z][a-z0-9_-]{3,}\s+(\d+(?:\.\d+)*)\b(?!\s*[a-z])", text))
+        r"\b[A-Za-z][A-Za-z0-9_-]*[A-Z][A-Za-z0-9_-]*\s+(\d+(?:\.\d+)*)\b", raw))
     found |= set(re.findall(r"\b(\d+(?:\.\d+)*)\s*(?:与|和|vs\.?|versus)\s*\d", text))
     found |= set(re.findall(r"\d+\s*(?:与|和|vs\.?|versus)\s*(\d+(?:\.\d+)*)", text))
     return {token for token in found if not _YEAR_RE.match(token)}

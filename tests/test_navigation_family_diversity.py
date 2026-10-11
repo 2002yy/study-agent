@@ -150,3 +150,12 @@ def test_requested_versions_ignores_english_plain_counts():
     assert requested_versions("Describe 3 PostgreSQL concepts") == set()
     assert requested_versions("List 5 facts about PostgreSQL 17") == {"17"}
     assert requested_versions("upgrade to PostgreSQL 17") == {"17"}
+
+
+def test_requested_versions_keeps_english_version_questions():
+    """A version named in an English sentence must survive a trailing description."""
+    assert requested_versions("PostgreSQL 17 performance improvements") == {"17"}
+    assert requested_versions("PostgreSQL 17 MVCC behavior") == {"17"}
+    # a dotted version must not be split into an extra bare number
+    assert requested_versions("Python 3.12 f-string changes") == {"3.12"}
+    assert requested_versions("Kubernetes 1.29 probe behavior") == {"1.29"}
