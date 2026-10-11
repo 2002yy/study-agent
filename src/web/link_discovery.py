@@ -95,6 +95,51 @@ def question_terms(question: str) -> set[str]:
     return terms
 
 
+#: Clause boundaries a research question uses to state more than one goal. Purely
+#: structural: the split names what the question already asks, and injects no answer.
+#: The English connectors need word boundaries, otherwise "st-and-ard" or "s-or-ting"
+#: would be cut apart.
+_CLAUSE_SPLIT = re.compile(
+    r"[，,；;。？?！!、\n]+|(?:并且|而且|以及|同时|另外)|\band\b|\bor\b")
+_CLAUSE_CONNECT = re.compile(r"(?:和|与|及|跟)")
+
+
+def derive_sub_goals(question: str, *, limit: int = 3) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Split a question into its own sub-goals when the caller supplies none.
+
+    Deterministic and answer-free: each clause becomes a goal whose terms are the clause's
+    own tokens. A single-clause question returns nothing (the question IS the goal), so the
+    default entry can drive per-goal progress without hardcoded knowledge.
+    """
+    text = (question or "").strip()
+    if not text:
+        return ()
+    raw_clauses = [part.strip(" \t:：") for part in _CLAUSE_SPLIT.split(text)]
+    clauses = [part for part in raw_clauses if len(part) >= 4]
+    # A coordinated pair inside one clause ("A 与 B 的区别") is one goal, not two, unless the
+    # clause already carries its own question word.
+    if len(clauses) == 1 and "?" in text or len(clauses) == 1 and "？" in text:
+        parts = [part.strip() for part in _CLAUSE_CONNECT.split(clauses[0]) if len(part) >= 4]
+        if len(parts) > 1:
+            clauses = parts
+    goals: list[tuple[str, tuple[str, ...]]] = []
+    seen: list[set[str]] = []
+    for clause in clauses:
+        terms = question_terms(clause)
+        if not terms:
+            continue
+        # Drop a clause whose tokens add nothing over an earlier goal.
+        if any(terms <= earlier for earlier in seen):
+            continue
+        seen.append(terms)
+        goals.append((clause[:32], tuple(sorted(terms))))
+        if len(goals) >= limit:
+            break
+    if len(goals) < 2:
+        return ()
+    return tuple(goals)
+
+
 # --- navigation-family display diversity ---------------------------------------------
 
 _VERSION_SEGMENT = re.compile(

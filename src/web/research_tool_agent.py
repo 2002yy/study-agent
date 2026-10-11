@@ -18,6 +18,7 @@ from typing import Any, Callable, Mapping
 
 from src.web.link_discovery import (
     classify_page,
+    derive_sub_goals,
     extract_candidates,
     looks_like_navigation,
     question_terms,
@@ -224,6 +225,11 @@ def run_tool_agent(
     # Sub-goals are supplied (frozen per task) rather than auto-extracted, so the
     # state never invents meta-words like 什么/分别. Each entry is (label, terms).
     goal_specs = {label: tuple(terms) for label, terms in sub_goals}
+    # C3: the real entry often supplies no sub-goals (the shadow runner passes none), so
+    # the question's own clauses are split into goals. Deterministic and answer-free.
+    derived_goals = () if sub_goals else derive_sub_goals(question)
+    if derived_goals:
+        goal_specs = {label: tuple(terms) for label, terms in derived_goals}
     sub_goal_state: dict[str, dict[str, Any]] = {
         label: {"status": "missing", "url": "", "excerpt": ""} for label in goal_specs
     }
@@ -317,7 +323,10 @@ def run_tool_agent(
                            len(read_pages), len(unread_candidates),
                            ", ".join(missing_terms) if missing_terms else "(none)"))
         if goal_specs:
-            pending = [label for label, st in sub_goal_state.items() if st["status"] == "missing"]
+            # Anything not VERIFIED stays visible as still-to-verify: `explored` only means a
+            # related body was read, never that the goal is settled (explored != SUPPORTED).
+            pending = [label for label, st in sub_goal_state.items()
+                       if st["status"] != "supported"]
             budget_state += (
                 "\n  sub-goals explored %d/%d | still to verify: %s"
                 "\n  next step: target the missing sub-goals - search for their specific terms or"
@@ -370,7 +379,7 @@ def run_tool_agent(
             # no publication authority (Evidence Gate and RP-1 stay untouched).
             missing_terms = [term for term in sorted(goal_terms) if term not in covered_terms]
             pending_goals = [label for label, st in sub_goal_state.items()
-                             if st["status"] == "missing"]
+                             if st["status"] != "supported"]
             call["coverage_audit"] = {
                 "covered": sorted(covered_terms),
                 "missing": missing_terms,
@@ -823,9 +832,10 @@ def run_tool_agent(
                                   "excerpt": str(st["excerpt"])[:200]}
                           for label, st in sub_goal_state.items()},
             "pending_sub_goals": [label for label, st in sub_goal_state.items()
-                                  if st["status"] == "missing"],
+                                  if st["status"] != "supported"],
             "complete": bool(read_pages)
-            and not [label for label, st in sub_goal_state.items() if st["status"] == "missing"]
+            and not [label for label, st in sub_goal_state.items()
+                     if st["status"] != "supported"]
             and not [t for t in goal_terms if t not in covered_terms],
         },
         "coverage_log": coverage_log,
@@ -834,6 +844,9 @@ def run_tool_agent(
         "registry_sources": list(reliable_sources),
         "escalated": escalated,
         "escalations": escalations_applied,
+        # C3 provenance: which goals were derived from the question itself (empty when the
+        # caller supplied them explicitly).
+        "derived_sub_goals": [label for label, _terms in derived_goals],
         # Observability for the action-optimisation audit: wasted repeats are counted,
         # not hidden, and each escalation records the round limit it moved to.
         "repeat_actions": {

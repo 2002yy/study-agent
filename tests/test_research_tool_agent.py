@@ -474,7 +474,9 @@ def test_sub_goals_track_missing_and_block_a_false_finish(monkeypatch):
     assert audit["sub_goals"]["liberties and capture"]["status"] == "explored"
     assert audit["sub_goals"]["liberties and capture"]["url"].endswith("/a")
     assert audit["sub_goals"]["ko rule"]["status"] == "missing"
-    assert audit["pending_sub_goals"] == ["ko rule"]
+    # `explored` is NOT verified: a goal that only produced a keyword hit stays visible in
+    # the still-to-verify list (it must not look settled just because a body mentioned it).
+    assert audit["pending_sub_goals"] == ["liberties and capture", "ko rule"]
     assert trace["stop_reason"] == "finished_incomplete"
     assert audit["complete"] is False
 
