@@ -171,6 +171,8 @@ def test_extended_tier_and_chain():
     assert BUDGET_TIERS["extended"] == (20, 8, 14, 180.0)
     assert escalation_chain() == ("deep", "extended")
     assert escalation_chain("deep") == ()          # an explicitly deep run does not re-escalate
+    assert escalation_chain("quick") == ()         # quick must stay cheap
+    assert escalation_chain("extended") == ()
 
 
 def _read_action(url: str) -> dict:
@@ -187,7 +189,7 @@ def test_escalation_chain_applies_twice_and_records_it():
                         for i in range(1, 6)]
     completion = _completion(actions, seen)
     trace = run_tool_agent(
-        gateway=gateway, completion=completion, question="q",
+        gateway=gateway, completion=completion, question="topic",
         budget=AgentBudget(max_rounds=2, max_searches=2, max_reads=8, hard_seconds=60.0),
         escalation_budgets=(AgentBudget(max_rounds=4, max_searches=4, max_reads=8,
                                         hard_seconds=60.0),
@@ -237,6 +239,66 @@ def test_missing_goals_get_targeted_terms():
                for s in states), states[-1]
 
 
+def test_default_entry_escalates_without_sub_goals():
+    """The default shadow entry passes no sub-goals; escalation must still be reachable."""
+    gateway = FakeGateway()
+    completion = _completion([{"tool": "search", "query": "s"},
+                              {"tool": "read_page", "url": "https://example.org/a"},
+                              {"tool": "read_page", "url": "https://example.org/b"},
+                              {"tool": "finish"}], [])
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion, question="topic vacuum",
+        budget=AgentBudget(max_rounds=2, max_searches=2, max_reads=4, hard_seconds=60.0),
+        escalation_budgets=(AgentBudget(max_rounds=4, max_searches=4, max_reads=6,
+                                        hard_seconds=60.0),),
+    )
+    # "topic" is covered by the body, "vacuum" is not -> unresolved terms remain
+    assert trace["escalations"] == [4], (trace["escalations"], trace["coverage_audit"])
+
+
+def test_duplicate_reads_do_not_earn_escalation():
+    gateway = FakeGateway()
+    completion = _completion([{"tool": "read_page", "url": "https://example.org/a"},
+                              {"tool": "read_page", "url": "https://example.org/a"},
+                              {"tool": "finish"}], [])
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion, question="topic vacuum",
+        budget=AgentBudget(max_rounds=2, max_searches=2, max_reads=4, hard_seconds=60.0),
+        escalation_budgets=(AgentBudget(max_rounds=6, max_searches=6, max_reads=6,
+                                        hard_seconds=60.0),),
+        initial_urls=("https://example.org/a",),
+    )
+    assert trace["escalated"] is False
+    assert trace["repeat_actions"]["read"] == 1
+
+
+def test_exhausted_clock_blocks_escalation():
+    gateway = FakeGateway()
+    completion = _completion([{"tool": "search", "query": "s"},
+                              {"tool": "read_page", "url": "https://example.org/a"}], [])
+    clock = iter([0.0] + [999.0] * 50)
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion, question="topic vacuum",
+        budget=AgentBudget(max_rounds=1, max_searches=2, max_reads=3, hard_seconds=30.0),
+        escalation_budgets=(AgentBudget(max_rounds=7, max_searches=7, max_reads=7,
+                                        hard_seconds=30.0),),
+        monotonic=lambda: next(clock, 999.0),
+    )
+    assert trace["escalated"] is False
+
+
+def test_early_finish_does_not_escalate():
+    gateway = FakeGateway()
+    completion = _completion([{"tool": "finish"}], [])
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion, question="topic",
+        budget=AgentBudget(max_rounds=3, max_searches=3, max_reads=3, hard_seconds=60.0),
+        escalation_budgets=(AgentBudget(max_rounds=9, max_searches=9, max_reads=9,
+                                        hard_seconds=60.0),),
+    )
+    assert trace["escalated"] is False
+
+
 def test_budget_tiers_and_default():
     """The tier table is the configuration entry point; standard is the default."""
     assert BUDGET_TIERS["quick"] == (4, 2, 2, 20.0)
@@ -262,7 +324,7 @@ def test_escalation_extends_the_same_run_without_restarting():
         {"tool": "finish"},
     ], seen)
     trace = run_tool_agent(
-        gateway=gateway, completion=completion, question="q",
+        gateway=gateway, completion=completion, question="topic",
         budget=AgentBudget(max_rounds=2, max_searches=2, max_reads=3, hard_seconds=30.0),
         escalation_budget=AgentBudget(max_rounds=4, max_searches=4, max_reads=5,
                                       hard_seconds=30.0),

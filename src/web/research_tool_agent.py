@@ -199,10 +199,12 @@ def run_tool_agent(
     pending_escalations = [item for item in
                            ((escalation_budget,) + tuple(escalation_budgets)) if item]
     escalations_applied: list[int] = []
-    #: Per-round progress: did the previous round add a body or new coverage? Escalation
-    #: needs real progress, so a run that is merely looping does not buy more budget.
+    #: Per-round PROGRESS is measured in productive events, not in "a body arrived":
+    #: new coverage from a genuine body, a newly discovered navigation page, or a follow
+    #: that newly confirmed candidates. A duplicate or off-topic body counts for nothing.
     progress_history: list[bool] = []
-    last_marker = (0, 0)
+    productive_events = 0
+    last_productive = 0
     started = monotonic()
     deadline = started + budget.hard_seconds
     reset_dns_stats()  # per-run DoH cache + counters
@@ -264,12 +266,18 @@ def run_tool_agent(
             # actionable state, RECENT PROGRESS (looping must not buy budget) and time
             # still available; otherwise the run stops.
             nxt = pending_escalations[0] if pending_escalations else None
-            # Progress includes the round that just finished, and the recent window keeps a
-            # long loop from buying more budget.
-            recent_progress = ((len(bodies), len(covered_terms)) != last_marker
+            # "Unresolved" must not depend on explicit sub-goals: the default shadow entry
+            # passes none. Without them the question's own uncovered terms are the honest
+            # signal - a coverage gap, never a claim that keyword hits mean completion.
+            unresolved = (
+                any(st["status"] != "supported" for st in sub_goal_state.values())
+                if sub_goal_state
+                else bool([t for t in goal_terms if t not in covered_terms])
+            )
+            recent_progress = (productive_events != last_productive
                                or any(progress_history[-3:]))
             if (nxt is not None and nxt.max_rounds > max_rounds
-                    and any(st["status"] != "supported" for st in sub_goal_state.values())
+                    and unresolved
                     and (unread_candidates or pending_follows)
                     and recent_progress
                     and monotonic() < deadline):
@@ -283,10 +291,9 @@ def run_tool_agent(
                 continue
             break
         rnd += 1
-        marker = (len(bodies), len(covered_terms))
         if rnd > 0:
-            progress_history.append(marker != last_marker)
-        last_marker = marker
+            progress_history.append(productive_events != last_productive)
+        last_productive = productive_events
         if should_cancel():
             stop = "cancelled"
             break
@@ -579,14 +586,17 @@ def run_tool_agent(
             call["result"] = {"status": "ok", "n": len(links), "candidates": len(candidates),
                               "page_type": page_type}
             call["links"] = [link.as_dict() for link in links]
+            newly_confirmed = [link.url for link in links
+                               if _public_url(link.url) and link.url not in before_confirm]
+            if newly_confirmed:
+                productive_events += 1          # a follow that discovered something new
             candidate_trace.append({
                 "round": rnd, "tool": "follow", "page": url, "page_type": page_type,
                 "raw_candidates": len(candidates), "ranked": len(links),
                 "shown": [link.url for link in links],
                 "page_types": [link.page_type for link in links],
                 # truly NEW this call, not merely "a followed link seen before"
-                "newly_confirmed": [link.url for link in links
-                                    if _public_url(link.url) and link.url not in before_confirm],
+                "newly_confirmed": newly_confirmed,
             })
             brief = "\n".join(
                 f"- [{link.page_type} {link.score:g}] {link.anchor or '(no anchor text)'} | {link.url}"
@@ -710,6 +720,7 @@ def run_tool_agent(
                 call["page_kind"] = "navigation"
                 navigation_urls.add(action["url"])
                 read_row["page_kind"] = "navigation"
+                productive_events += 1           # navigation discovery is its own progress
                 observations.append(
                     f"round {rnd}: '{action['url']}' returned navigation/index content "
                     f"({len(content)} chars), not mechanism text - it is a list of links, not "
@@ -757,6 +768,8 @@ def run_tool_agent(
                 if not duplicate_body and call.get("page_kind") != "navigation":
                     contributed = [term for term in goal_terms if term in content.lower()]
                     covered_terms.update(contributed)
+                    if contributed:
+                        productive_events += 1   # a genuine body that extended coverage
                     coverage_log.append({"url": final_url, "chars": len(content),
                                          "contributed": sorted(contributed)})
                     # Targeted sub-goal tracking: a term hit is only a clue that this body

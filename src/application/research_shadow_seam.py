@@ -81,7 +81,10 @@ def escalation_chain(tier: str | None = None) -> tuple[str, ...]:
     name = (tier or os.getenv("BSEARCH_SHADOW_TIER") or DEFAULT_TIER).strip().lower()
     if name not in BUDGET_TIERS:
         name = DEFAULT_TIER
-    if name not in (DEFAULT_TIER, "quick"):
+    # Only the default tier escalates. `quick` promises a low-cost answer, and a caller on
+    # `deep`/`extended` already asked for the bigger budget, so neither may grow silently.
+    # A caller that really wants more passes an explicit escalation list.
+    if name != DEFAULT_TIER:
         return ()
     return ESCALATION_CHAIN
 
