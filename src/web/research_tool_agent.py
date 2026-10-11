@@ -245,6 +245,7 @@ def run_tool_agent(
     loop_spent = False
     claim_rows: list[Any] = []
     claim_verdicts: list[Any] = []
+    claim_rejections: dict[str, int] = {}
     followups: list[dict[str, Any]] = []
     adopted_evidence: dict[str, dict[str, Any]] = {}
     #: Ordered escalation chain (each entry is used at most once).
@@ -387,9 +388,14 @@ def run_tool_agent(
                 nonlocal model_calls
                 model_calls += 1
 
+            def _count_reject(reason: str) -> None:
+                """Audit why a candidate claim was refused (fabricated source, bad span...)."""
+                claim_rejections[reason] = claim_rejections.get(reason, 0) + 1
+
             claims = extract_claims(
                 goals=unfinished, bodies=bodies_view, completion=completion,
-                timeout=min(20.0, max(1.0, deadline - monotonic())), on_call=_count_call)
+                timeout=min(20.0, max(1.0, deadline - monotonic())), on_call=_count_call,
+                on_reject=_count_reject)
             verdicts = verify_claims(
                 claims=claims, goals=unfinished,
                 label_to_id={label: label for label in unfinished}, bodies=bodies_view,
@@ -1073,6 +1079,9 @@ def run_tool_agent(
         "goal_evidence": goal_evidence,
         "notebook_digests": {url: body.digest for url, body in notebook.bodies.items()},
         "claim_verdicts": [vars(item) for item in claim_verdicts],
+        # Why candidate claims were refused: an audit of the anti-fabrication rules, and the
+        # reason a run produced no verifiable claim at all.
+        "claim_rejections": dict(sorted(claim_rejections.items())),
         "followups": followups,
         # Observability for the action-optimisation audit: wasted repeats are counted,
         # not hidden, and each escalation records the round limit it moved to.

@@ -66,13 +66,45 @@ def candidate_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
     return windows
 
 
+def _locate_loose(text: str, quote: str) -> tuple[int, int]:
+    """Locate a quote that differs only by whitespace/width; spans are still raw offsets.
+
+    The model may reflow or re-space a passage it really did read. Matching on the
+    whitespace-stripped characters keeps the anti-fabrication property (every character
+    must appear, in order, contiguously) without failing on formatting alone.
+    """
+    index: list[int] = []
+    characters: list[str] = []
+    for position, char in enumerate(text):
+        if char.isspace():
+            continue
+        characters.append(char)
+        index.append(position)
+    needle = re.sub(r"\s+", "", quote)
+    if not needle or not characters:
+        return -1, -1
+    found = "".join(characters).find(needle)
+    if found < 0:
+        return -1, -1
+    return index[found], index[found + len(needle) - 1] + 1
+
+
 def _valid_claim(raw: Mapping[str, Any], *, goal_ids: set[str],
-                 bodies: Mapping[str, Any], goals: Mapping[str, tuple[str, ...]]) -> Claim | None:
+                 bodies: Mapping[str, Any], goals: Mapping[str, tuple[str, ...]],
+                 on_reject: Callable[[str], None] | None = None) -> Claim | None:
     """Accept only a claim that cites a registered source and a usable span."""
+    def reject(reason: str) -> None:
+        if on_reject is not None:
+            on_reject(reason)
+
     goal_id = str(raw.get("goal_id") or "")
     source_id = str(raw.get("source_id") or "")
     claim = str(raw.get("claim") or "").strip()
-    if goal_id not in goal_ids or source_id not in bodies or not claim:
+    if goal_id not in goal_ids or source_id not in bodies:
+        reject("unknown_goal_or_source")   # an invented source or goal can never be cited
+        return None
+    if not claim:
+        reject("empty_claim")
         return None
     body = bodies[source_id]
     text = body.text
@@ -80,16 +112,24 @@ def _valid_claim(raw: Mapping[str, Any], *, goal_ids: set[str],
     if not quote:
         # A claim without a locatable quote is not accepted: falling back to the keyword
         # window would let a phrase the model never quoted pass as its citation.
+        reject("quote_missing")
         return None
+    span_start, span_end = -1, -1
     position = text.find(quote)
-    if position < 0:
+    if position >= 0:
+        span_start, span_end = position, position + len(quote)
+    else:
+        span_start, span_end = _locate_loose(text, quote)
+    if span_start < 0:
+        reject("quote_not_found")
         return None
-    span_start, span_end = position, position + len(quote)
     if not (0 <= span_start < span_end <= len(text)):
+        reject("span_out_of_range")
         return None
     # the cited span must actually mention the goal's terms - otherwise it is not evidence
     span_text = text[span_start:span_end].lower()
     if not any(term and str(term).lower() in span_text for term in goals.get(goal_id, ())):
+        reject("span_misses_goal_terms")
         return None
     # a URL in the model's output is dropped: only registered sources are citable
     claim = re.sub(r"https?://\S+", "", claim).strip()
@@ -99,8 +139,13 @@ def _valid_claim(raw: Mapping[str, Any], *, goal_ids: set[str],
 
 def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str, Any],
                    completion: Callable[..., str], timeout: float = 20.0,
-                   on_call: Callable[[], None] | None = None) -> list[Claim]:
+                   on_call: Callable[[], None] | None = None,
+                   on_reject: Callable[[str], None] | None = None) -> list[Claim]:
     """One batched extraction over every unfinished goal. Never raises on bad model output."""
+    def reject(reason: str) -> None:
+        if on_reject is not None:
+            on_reject(reason)
+
     if not goals or not bodies:
         return []
     payload = {
@@ -117,17 +162,23 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
                       {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
             timeout=timeout, task_name="research_claims")
     except Exception:  # noqa: BLE001 - extraction failure must not break the run
+        reject("call_failed")
         return []
     try:
         data = json.loads(raw) if isinstance(raw, str) else raw
     except (ValueError, TypeError):
+        reject("unparseable_output")
         return []
     rows = (data or {}).get("claims") if isinstance(data, dict) else None
+    if not rows:
+        reject("no_claims_returned")
     claims: list[Claim] = []
     for row in (rows or [])[:MAX_CLAIMS]:
         if not isinstance(row, Mapping):
+            reject("malformed_row")
             continue
-        claim = _valid_claim(row, goal_ids=set(goals), bodies=bodies, goals=goals)
+        claim = _valid_claim(row, goal_ids=set(goals), bodies=bodies, goals=goals,
+                             on_reject=on_reject)
         if claim is not None:
             claims.append(claim)
     return claims
