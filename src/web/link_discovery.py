@@ -97,7 +97,10 @@ def question_terms(question: str) -> set[str]:
 
 #: Clause boundaries a research question uses to state more than one goal. Purely
 #: structural: the split names what the question already asks, and injects no answer.
-_CLAUSE_SPLIT = re.compile(r"[，,；;。？?！!、\n]+|(?:并且|而且|以及|同时|另外|and|or)")
+#: The English connectors need word boundaries, otherwise "st-and-ard" or "s-or-ting"
+#: would be cut apart.
+_CLAUSE_SPLIT = re.compile(
+    r"[，,；;。？?！!、\n]+|(?:并且|而且|以及|同时|另外)|\band\b|\bor\b")
 _CLAUSE_CONNECT = re.compile(r"(?:和|与|及|跟)")
 
 
