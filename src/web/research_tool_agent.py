@@ -23,8 +23,10 @@ from src.web.link_discovery import (
     looks_like_navigation,
     question_terms,
     rank_candidates,
+    verify_goal_evidence,
 )
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
+from src.web.research_notebook import ResearchNotebook
 from src.web.tool_evidence import _public_url
 
 
@@ -143,11 +145,33 @@ def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str]) -> lis
     return [{"url": url, "basis": basis.get(url, "")} for url in sorted(urls, key=key)]
 
 
+#: Outcomes that mean the action was refused without spending a network request.
+MAX_CORRECTIONS = 2  # bounded free corrections for refused decisions
+
+_REFUSED_OUTCOMES = frozenset({
+    "duplicate_search", "already_read", "already_visited", "pending_url_confirmation",
+    "quota_exceeded", "entry_not_eligible", "blocked_unsafe_target", "budget_reserved",
+})
+
+
+def _action_row(call: dict[str, Any]) -> dict[str, str]:
+    """One line of structured action state for the model (tool, target, outcome)."""
+    action = call.get("action", {})
+    result = call.get("result") or {}
+    outcome = str(result.get("status") or result.get("reason")
+                  or ("ok" if result.get("ok") else ""))
+    return {"tool": str(action.get("tool") or ""),
+            "target": str(action.get("query") or action.get("url") or "")[:80],
+            "outcome": outcome}
+
+
 def _prompt(question: str, observations: list[str],
             reliable_sources: tuple[str, ...] = (),
             state: str = "",
             candidates: list[dict[str, str]] | None = None,
-            pending_follows: list[str] | None = None) -> list[dict[str, str]]:
+            pending_follows: list[str] | None = None,
+            actions: dict[str, Any] | None = None,
+            notebook: dict[str, Any] | None = None) -> list[dict[str, str]]:
     context: dict[str, Any] = {
         "question": question,
         "observations": observations[-6:],
@@ -167,6 +191,14 @@ def _prompt(question: str, observations: list[str],
         # A navigation page that was read but never expanded: following it is the next
         # action, and it takes precedence over the generic "prefer an article" advice.
         context["next_follow"] = pending_follows[:3]
+    if actions:
+        # Structured action state (C1): what is already done, what was refused and why,
+        # and which concrete actions are legal next. The model still spends a decision on
+        # every attempt; only the network request is saved.
+        context["action_state"] = actions
+    if notebook:
+        # Bounded run-local notebook: goals, best verbatim evidence, gaps, next action.
+        context["research_notebook"] = notebook
     return [
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
@@ -196,6 +228,8 @@ def run_tool_agent(
     max_rounds, max_searches, max_reads = (
         budget.max_rounds, budget.max_searches, budget.max_reads)
     escalated = False
+    corrections = 0        # free corrections used, bounded by MAX_CORRECTIONS
+    model_calls = 0        # every completion call, corrections included
     #: Ordered escalation chain (each entry is used at most once).
     pending_escalations = [item for item in
                            ((escalation_budget,) + tuple(escalation_budgets)) if item]
@@ -216,6 +250,13 @@ def run_tool_agent(
     visited: set[str] = set()
     read_pages: dict[str, int] = {}
     body_fingerprints: dict[str, str] = {}
+    #: Per-goal evidence records: url, host, excerpt and how each verdict was reached.
+    #: One body may serve several goals, but every goal keeps its own record.
+    goal_evidence: dict[str, list[dict[str, Any]]] = {}
+    #: Run-local notebook: caches the bodies actually read so a 20-round run can still cite
+    #: its early evidence without re-fetching. Rebuilt from authoritative state each round.
+    notebook = ResearchNotebook()
+    #: Per-goal evidence records (url, host, excerpt, how it was verified).
     #: URLs whose read returned navigation/index content. Kept across rounds so the state
     #: can distinguish "already read, must not read again" from "not yet followed".
     navigation_urls: set[str] = set()
@@ -297,6 +338,17 @@ def run_tool_agent(
                 continue
             break
         rnd += 1
+        # Bounded immediate correction: a decision that was refused (duplicate or invalid)
+        # does not consume a research round, at most MAX_CORRECTIONS times. The absolute
+        # model-call cap still bounds the total, so repeated invalid actions cannot spiral.
+        if (calls and corrections < MAX_CORRECTIONS
+                and (calls[-1].get("result") or {}).get("status") in _REFUSED_OUTCOMES):
+            corrections += 1
+            rnd -= 1
+        model_calls += 1
+        if model_calls > max_rounds + MAX_CORRECTIONS:
+            stop = "model_call_limit"
+            break
         if rnd > 0:
             progress_history.append(productive_events != last_productive)
         last_productive = productive_events
@@ -313,6 +365,41 @@ def run_tool_agent(
         # it is NOT in the unread list (it was read) yet it must still be expanded.
         pending_follows = sorted(url for url in navigation_urls if url not in visited)
         unread_rows = _rank_unread(unread_candidates, goal_terms, confirmed_basis)[:6]
+        # C1: structured action state. The model still spends a decision on every attempt -
+        # the saving is the network request, never the hard round limit.
+        action_rows = [_action_row(call) for call in calls]
+        # Persistent readable evidence: what was already read, which goals it touched. A
+        # long run must never have to re-read a page just to remember it.
+        read_evidence = [
+            {"url": url, "chars": chars,
+             "goals": sorted(label for label, rows in goal_evidence.items()
+                             if any(row["url"] == url for row in rows))}
+            for url, chars in list(read_pages.items())[-5:]
+        ]
+        needs_evidence = [label for label, st in sub_goal_state.items()
+                          if st["status"] == "missing"]
+        action_state: dict[str, Any] = {
+            "completed": [row for row in action_rows
+                          if row["outcome"] not in _REFUSED_OUTCOMES][-6:],
+            "invalid": [row for row in action_rows
+                        if row["outcome"] in _REFUSED_OUTCOMES][-6:],
+            "read_evidence": read_evidence,
+            # Full legal choice set (read / follow / search / finish), not a page-only
+            # list: a goal with no candidate still needs a new search.
+            "legal_next": (
+                [{"tool": "read_page", "target": row["url"]} for row in unread_rows[:4]]
+                + [{"tool": "follow", "target": url} for url in pending_follows[:2]]
+                + ([{"tool": "search",
+                     "target": f"new query covering: {', '.join(needs_evidence[:2])}"}]
+                   if needs_evidence and searches < max_searches else [])
+                + [{"tool": "finish", "target": "only when every goal is settled"}]
+            ),
+        }
+        # Run-local notebook view: bounded, rebuilt from authoritative state, no model call.
+        notebook_view = notebook.build_view(
+            goals=goal_specs, goal_state=sub_goal_state, goal_evidence=goal_evidence,
+            refused=[row for row in action_rows if row["outcome"] in _REFUSED_OUTCOMES],
+            next_action=(action_state["legal_next"][0] if action_state["legal_next"] else None))
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
                         " | read pages: %d | unread candidates: %d"
                         " | still uncovered (term check, hint only): %s"
@@ -323,23 +410,28 @@ def run_tool_agent(
                            len(read_pages), len(unread_candidates),
                            ", ".join(missing_terms) if missing_terms else "(none)"))
         if goal_specs:
-            # Anything not VERIFIED stays visible as still-to-verify: `explored` only means a
-            # related body was read, never that the goal is settled (explored != SUPPORTED).
-            pending = [label for label, st in sub_goal_state.items()
-                       if st["status"] != "supported"]
+            # Two different states, deliberately not merged: a goal with NO candidate needs
+            # searching for, while a goal that was merely explored needs VERIFYING against a
+            # body already in hand. `explored` is never treated as settled.
+            need_evidence = [label for label, st in sub_goal_state.items()
+                             if st["status"] == "missing"]
+            needs_verification = [label for label, st in sub_goal_state.items()
+                                  if st["status"] == "explored"]
+            settled = len(goal_specs) - len(need_evidence) - len(needs_verification)
             budget_state += (
-                "\n  sub-goals explored %d/%d | still to verify: %s"
-                "\n  next step: target the missing sub-goals - search for their specific terms or"
-                " follow a confirmed category page; do not repeat the whole question, re-read a"
-                " page, or guess an unconfirmed URL"
-                % (len(goal_specs) - len(pending), len(goal_specs),
-                   ", ".join(pending) if pending else "(none)"))
-            # Missing-goal targeting: name each gap with its probe terms, so the next search
-            # is about the gap rather than a re-run of the whole question. "explored" is not
-            # SUPPORTED, so a goal that only produced a keyword hit stays in this list.
-            if pending:
+                "\n  goals supported %d/%d | needs evidence (no candidate yet): %s"
+                " | has candidates, needs verification: %s"
+                "\n  next step: verify the candidates you already hold before searching again;"
+                " for a goal with no candidate, search for its terms or follow a confirmed"
+                " category page; never repeat the whole question, re-read a page, or guess an"
+                " unconfirmed URL"
+                % (settled, len(goal_specs),
+                   ", ".join(need_evidence) if need_evidence else "(none)",
+                   ", ".join(needs_verification) if needs_verification else "(none)"))
+            if need_evidence:
                 hints = "; ".join(
-                    f"{label} -> {', '.join(list(goal_specs[label])[:4])}" for label in pending[:3])
+                    f"{label} -> {', '.join(list(goal_specs[label])[:4])}"
+                    for label in need_evidence[:3])
                 budget_state += (
                     f"\n  MISSING goals (search for these specifically): {hints}")
         # Conditional budget reserve: instruction, not a refusal. A refusal would spend the
@@ -359,7 +451,8 @@ def run_tool_agent(
             raw = completion(
                 messages=_prompt(question, observations, reliable_sources,
                                  state=budget_state, candidates=unread_rows,
-                                 pending_follows=pending_follows),
+                                 pending_follows=pending_follows, actions=action_state,
+                                 notebook=notebook_view),
                 timeout=min(20.0, max(1.0, deadline - monotonic())),
                 task_name="research_tool_agent",
             )
@@ -783,20 +876,36 @@ def run_tool_agent(
                                          "contributed": sorted(contributed)})
                     # Targeted sub-goal tracking: a term hit is only a clue that this body
                     # may address the sub-goal; status stays "explored (unverified)".
-                    low = content.lower()
+                    # Every successfully read body is registered, EVEN when it matches no
+                    # goal: a later round may still need to know this page was read.
+                    cached_body = notebook.record(action["url"], final_url, content)
+                    digest = cached_body.digest if cached_body else ""
+                    touched: list[str] = []
                     for label, terms in goal_specs.items():
                         state = sub_goal_state[label]
-                        if state["status"] == "explored":
-                            continue
-                        hit = next((term for term in terms if term in low), "")
-                        if not hit:
-                            continue
-                        idx = low.find(hit)
-                        state.update({
-                            "status": "explored",
+                        if state["status"] == "supported":
+                            continue          # a settled goal is not re-derived
+                        status, evidence = verify_goal_evidence(terms, content)
+                        if status == "missing":
+                            continue          # this body carries none of the goal's terms
+                        touched.append(label)
+                        goal_evidence.setdefault(label, []).append({
                             "url": final_url,
-                            "excerpt": content[max(0, idx - 80):idx + 160].replace("\n", " "),
+                            "host": urlsplit(final_url).hostname or "",
+                            "digest": digest,
+                            "status": status,
+                            "verified_by": "terms+relation" if status == "supported"
+                            else "terms_only",
+                            **evidence,
                         })
+                        if status == "supported":
+                            state.update({"status": "supported", "url": final_url,
+                                          "excerpt": evidence["excerpt"]})
+                        elif state["status"] != "explored":
+                            state.update({"status": "explored", "url": final_url,
+                                          "excerpt": evidence["excerpt"] or ""})
+                    if touched:
+                        notebook.record(action["url"], final_url, content, goals=touched)
                 source_chain.append({
                     "basis": confirmed_basis.get(action["url"], ""),
                     "feed_url": feed_links.get(action["url"], ""),
@@ -847,6 +956,8 @@ def run_tool_agent(
         # C3 provenance: which goals were derived from the question itself (empty when the
         # caller supplied them explicitly).
         "derived_sub_goals": [label for label, _terms in derived_goals],
+        "goal_evidence": goal_evidence,
+        "notebook_digests": {url: body.digest for url, body in notebook.bodies.items()},
         # Observability for the action-optimisation audit: wasted repeats are counted,
         # not hidden, and each escalation records the round limit it moved to.
         "repeat_actions": {
@@ -854,6 +965,21 @@ def run_tool_agent(
                           if (c.get("result") or {}).get("status") == "duplicate_search"),
             "read": sum(1 for c in calls
                         if (c.get("result") or {}).get("status") == "already_read"),
+        },
+        # C1 cost accounting: model calls vs research rounds vs free corrections vs real
+        # network requests vs wasted rounds. A refused decision is free only up to
+        # MAX_CORRECTIONS; the model-call cap bounds the total either way.
+        "cost": {
+            "model_calls": model_calls,
+            "research_decisions": rnd + 1,
+            "corrections": corrections,
+            "network_requests": sum(
+                1 for c in calls
+                if c["action"].get("tool") in {"search", "follow", "read_page"}
+                and (c.get("result") or {}).get("status") not in _REFUSED_OUTCOMES),
+            "invalid_actions": sum(
+                1 for c in calls
+                if (c.get("result") or {}).get("status") in _REFUSED_OUTCOMES),
         },
         "source_chain": source_chain,
         "candidate_trace": candidate_trace,

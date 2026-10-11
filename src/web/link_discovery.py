@@ -104,6 +104,58 @@ _CLAUSE_SPLIT = re.compile(
 _CLAUSE_CONNECT = re.compile(r"(?:和|与|及|跟)")
 
 
+#: Mechanism/relation markers. SUPPORTED needs one, so a page that merely shares keywords
+#: with a goal can never settle it (keyword containment is not semantic support).
+_RELATION_MARKERS = (
+    "因为", "由于", "导致", "造成", "使得", "通过", "意味着", "从而", "以便", "为了",
+    "作用是", "用于", "取决于", "所以", "因此",
+    "because", "due to", "causes", "means", "so that", "requires", "leads to", "by ",
+)
+
+#: Explicit contradiction near the goal terms: the body argues against the claim.
+_CONFLICT_MARKERS = ("并非", "不是", "错误", "不正确", "incorrect", "myth", "not true")
+
+
+def verify_goal_evidence(terms: tuple[str, ...] | list[str], content: str, *,
+                         min_ratio: float = 0.6, min_chars: int = 120,
+                         window: int = 240) -> tuple[str, dict]:
+    """Two-stage goal-level check: deterministic candidates, then window-scoped support.
+
+    Stage 1 (deterministic): the body's terms are matched; no terms means ``missing``.
+    Stage 2 (support): ``supported`` requires the goal's terms AND a relation/mechanism
+    marker inside the SAME window, so a marker sitting in an unrelated paragraph cannot
+    certify the goal. A conflict marker in that window yields ``conflict``. Everything
+    weaker stays ``explored`` (a candidate, never a verdict).
+
+    Internal, auditable judgement only: no publication authority, Evidence Gate untouched.
+    """
+    text = content or ""
+    lowered = text.lower()
+    hits = [term for term in terms if term and term.lower() in lowered]
+    if not hits:
+        return "missing", {"terms_hit": [], "relation": "", "excerpt": "",
+                           "ratio": 0.0, "conflict": ""}
+    base_ratio = round(len(hits) / len(terms), 2) if terms else 0.0
+    for term in hits:
+        position = lowered.find(term.lower())
+        while position >= 0:
+            start, end = max(0, position - window), position + window
+            chunk = lowered[start:end]
+            in_window = [item for item in terms if item.lower() in chunk]
+            ratio = len(in_window) / len(terms) if terms else 0.0
+            if len(text) >= min_chars and ratio >= min_ratio:
+                marker = next((item for item in _RELATION_MARKERS if item in chunk), "")
+                if marker:
+                    conflict = next((item for item in _CONFLICT_MARKERS if item in chunk), "")
+                    return ("conflict" if conflict else "supported"), {
+                        "terms_hit": in_window, "relation": marker, "conflict": conflict,
+                        "ratio": round(ratio, 2),
+                        "excerpt": text[start:end].replace("\n", " ")}
+            position = lowered.find(term.lower(), position + 1)
+    return "explored", {"terms_hit": hits, "relation": "", "excerpt": "",
+                        "ratio": base_ratio, "conflict": ""}
+
+
 def derive_sub_goals(question: str, *, limit: int = 3) -> tuple[tuple[str, tuple[str, ...]], ...]:
     """Split a question into its own sub-goals when the caller supplies none.
 
