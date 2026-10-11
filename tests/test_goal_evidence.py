@@ -14,6 +14,37 @@ MECHANISM = (
 KEYWORDS_ONLY = "漏斗 投掷器 传输 比较器 排序 漏斗" * 3   # a page that only shares words
 
 
+_FILLER = "这是一段与目标无关的背景说明文字。" * 20      # longer than the verifier window
+
+
+def test_relation_word_in_another_paragraph_is_not_support():
+    """A relation word far from the goal terms must not certify the goal."""
+    text = "快照 阻塞 一致性 的讨论。" + _FILLER + "因为天气很好，所以出门了。"
+    assert len(text) > 300          # longer than the verifier's window, so the marker is out of it
+    status, evidence = verify_goal_evidence(("快照", "阻塞", "一致性"), text)
+    assert status == "explored", evidence
+
+
+def test_conflicting_source_is_marked_conflict():
+    text = "有说法认为快照会阻塞，但这种说法是错误的：因为多版本并发控制恰恰避免了阻塞。" * 4
+    assert len(text) >= 120
+    status, evidence = verify_goal_evidence(("快照", "阻塞"), text)
+    assert status == "conflict" and evidence["conflict"], evidence
+
+
+def test_two_insufficient_sources_do_not_add_up():
+    first, _ = verify_goal_evidence(("快照", "阻塞", "代价"), "快照意味着一致性。" * 10)
+    second, _ = verify_goal_evidence(("快照", "阻塞", "代价"), "阻塞 代价 的问题。" * 10)
+    assert (first, second) == ("explored", "explored")
+
+
+def test_supported_excerpt_is_locatable_in_the_body():
+    status, evidence = verify_goal_evidence(("快照", "阻塞", "代价"), MECHANISM)
+    assert status == "supported"
+    assert evidence["excerpt"] and evidence["excerpt"] in MECHANISM.replace("\n", " ") or \
+        evidence["excerpt"] in MECHANISM
+
+
 def test_keyword_only_body_is_explored_not_supported():
     status, evidence = verify_goal_evidence(("漏斗", "投掷器", "排序"), KEYWORDS_ONLY)
     assert status == "explored"

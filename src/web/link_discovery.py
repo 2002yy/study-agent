@@ -112,33 +112,48 @@ _RELATION_MARKERS = (
     "because", "due to", "causes", "means", "so that", "requires", "leads to", "by ",
 )
 
+#: Explicit contradiction near the goal terms: the body argues against the claim.
+_CONFLICT_MARKERS = ("并非", "不是", "错误", "不正确", "incorrect", "myth", "not true")
+
 
 def verify_goal_evidence(terms: tuple[str, ...] | list[str], content: str, *,
-                         min_ratio: float = 0.6, min_chars: int = 120) -> tuple[str, dict]:
-    """Structural verification of ONE goal against ONE body: (status, evidence).
+                         min_ratio: float = 0.6, min_chars: int = 120,
+                         window: int = 240) -> tuple[str, dict]:
+    """Two-stage goal-level check: deterministic candidates, then window-scoped support.
 
-    * ``missing``  - the body carries none of the goal's own terms;
-    * ``explored`` - it carries some, but not enough to claim the goal is answered;
-    * ``supported``- a majority of the goal's terms AND a relation/mechanism marker are
-      present in a body of real length, with the excerpt kept for audit.
+    Stage 1 (deterministic): the body's terms are matched; no terms means ``missing``.
+    Stage 2 (support): ``supported`` requires the goal's terms AND a relation/mechanism
+    marker inside the SAME window, so a marker sitting in an unrelated paragraph cannot
+    certify the goal. A conflict marker in that window yields ``conflict``. Everything
+    weaker stays ``explored`` (a candidate, never a verdict).
 
-    This is an internal, auditable judgement: it grants no publication authority and the
-    formal Evidence Gate is untouched.
+    Internal, auditable judgement only: no publication authority, Evidence Gate untouched.
     """
     text = content or ""
     lowered = text.lower()
     hits = [term for term in terms if term and term.lower() in lowered]
     if not hits:
-        return "missing", {"terms_hit": [], "relation": "", "excerpt": "", "ratio": 0.0}
-    ratio = len(hits) / len(terms) if terms else 0.0
-    marker = next((item for item in _RELATION_MARKERS if item in lowered), "")
-    evidence = {"terms_hit": hits, "relation": marker,
-                "ratio": round(ratio, 2), "excerpt": ""}
-    if ratio >= min_ratio and marker and len(text) >= min_chars:
-        index = min(lowered.find(item.lower()) for item in hits)
-        evidence["excerpt"] = text[max(0, index - 80):index + 220].replace("\n", " ")
-        return "supported", evidence
-    return "explored", evidence
+        return "missing", {"terms_hit": [], "relation": "", "excerpt": "",
+                           "ratio": 0.0, "conflict": ""}
+    base_ratio = round(len(hits) / len(terms), 2) if terms else 0.0
+    for term in hits:
+        position = lowered.find(term.lower())
+        while position >= 0:
+            start, end = max(0, position - window), position + window
+            chunk = lowered[start:end]
+            in_window = [item for item in terms if item.lower() in chunk]
+            ratio = len(in_window) / len(terms) if terms else 0.0
+            if len(text) >= min_chars and ratio >= min_ratio:
+                marker = next((item for item in _RELATION_MARKERS if item in chunk), "")
+                if marker:
+                    conflict = next((item for item in _CONFLICT_MARKERS if item in chunk), "")
+                    return ("conflict" if conflict else "supported"), {
+                        "terms_hit": in_window, "relation": marker, "conflict": conflict,
+                        "ratio": round(ratio, 2),
+                        "excerpt": text[start:end].replace("\n", " ")}
+            position = lowered.find(term.lower(), position + 1)
+    return "explored", {"terms_hit": hits, "relation": "", "excerpt": "",
+                        "ratio": base_ratio, "conflict": ""}
 
 
 def derive_sub_goals(question: str, *, limit: int = 3) -> tuple[tuple[str, tuple[str, ...]], ...]:

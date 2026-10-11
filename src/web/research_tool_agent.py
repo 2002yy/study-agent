@@ -145,9 +145,11 @@ def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str]) -> lis
 
 
 #: Outcomes that mean the action was refused without spending a network request.
+MAX_CORRECTIONS = 2  # bounded free corrections for refused decisions
+
 _REFUSED_OUTCOMES = frozenset({
-    "duplicate_search", "already_read", "pending_url_confirmation", "quota_exceeded",
-    "entry_not_eligible", "blocked_unsafe_target", "budget_reserved",
+    "duplicate_search", "already_read", "already_visited", "pending_url_confirmation",
+    "quota_exceeded", "entry_not_eligible", "blocked_unsafe_target", "budget_reserved",
 })
 
 
@@ -221,6 +223,8 @@ def run_tool_agent(
     max_rounds, max_searches, max_reads = (
         budget.max_rounds, budget.max_searches, budget.max_reads)
     escalated = False
+    corrections = 0        # free corrections used, bounded by MAX_CORRECTIONS
+    model_calls = 0        # every completion call, corrections included
     #: Ordered escalation chain (each entry is used at most once).
     pending_escalations = [item for item in
                            ((escalation_budget,) + tuple(escalation_budgets)) if item]
@@ -326,6 +330,17 @@ def run_tool_agent(
                 continue
             break
         rnd += 1
+        # Bounded immediate correction: a decision that was refused (duplicate or invalid)
+        # does not consume a research round, at most MAX_CORRECTIONS times. The absolute
+        # model-call cap still bounds the total, so repeated invalid actions cannot spiral.
+        if (calls and corrections < MAX_CORRECTIONS
+                and (calls[-1].get("result") or {}).get("status") in _REFUSED_OUTCOMES):
+            corrections += 1
+            rnd -= 1
+        model_calls += 1
+        if model_calls > max_rounds + MAX_CORRECTIONS:
+            stop = "model_call_limit"
+            break
         if rnd > 0:
             progress_history.append(productive_events != last_productive)
         last_productive = productive_events
@@ -345,14 +360,32 @@ def run_tool_agent(
         # C1: structured action state. The model still spends a decision on every attempt -
         # the saving is the network request, never the hard round limit.
         action_rows = [_action_row(call) for call in calls]
+        # Persistent readable evidence: what was already read, which goals it touched. A
+        # long run must never have to re-read a page just to remember it.
+        read_evidence = [
+            {"url": url, "chars": chars,
+             "goals": sorted(label for label, rows in goal_evidence.items()
+                             if any(row["url"] == url for row in rows))}
+            for url, chars in list(read_pages.items())[-5:]
+        ]
+        needs_evidence = [label for label, st in sub_goal_state.items()
+                          if st["status"] == "missing"]
         action_state = {
             "completed": [row for row in action_rows
                           if row["outcome"] not in _REFUSED_OUTCOMES][-6:],
             "invalid": [row for row in action_rows
                         if row["outcome"] in _REFUSED_OUTCOMES][-6:],
-            "legal_next": ([{"tool": "follow", "target": url} for url in pending_follows[:2]]
-                           + [{"tool": "read_page", "target": row["url"]}
-                              for row in unread_rows[:4]]),
+            "read_evidence": read_evidence,
+            # Full legal choice set (read / follow / search / finish), not a page-only
+            # list: a goal with no candidate still needs a new search.
+            "legal_next": (
+                [{"tool": "read_page", "target": row["url"]} for row in unread_rows[:4]]
+                + [{"tool": "follow", "target": url} for url in pending_follows[:2]]
+                + ([{"tool": "search",
+                     "target": f"new query covering: {', '.join(needs_evidence[:2])}"}]
+                   if needs_evidence and searches < max_searches else [])
+                + [{"tool": "finish", "target": "only when every goal is settled"}]
+            ),
         }
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
                         " | read pages: %d | unread candidates: %d"
@@ -909,14 +942,18 @@ def run_tool_agent(
             "read": sum(1 for c in calls
                         if (c.get("result") or {}).get("status") == "already_read"),
         },
-        # C1 cost accounting: decisions vs real network requests vs wasted rounds.
+        # C1 cost accounting: model calls vs research rounds vs free corrections vs real
+        # network requests vs wasted rounds. A refused decision is free only up to
+        # MAX_CORRECTIONS; the model-call cap bounds the total either way.
         "cost": {
-            "decisions": len(calls),
+            "model_calls": model_calls,
+            "research_decisions": rnd + 1,
+            "corrections": corrections,
             "network_requests": sum(
                 1 for c in calls
                 if c["action"].get("tool") in {"search", "follow", "read_page"}
                 and (c.get("result") or {}).get("status") not in _REFUSED_OUTCOMES),
-            "wasted_rounds": sum(
+            "invalid_actions": sum(
                 1 for c in calls
                 if (c.get("result") or {}).get("status") in _REFUSED_OUTCOMES),
         },
