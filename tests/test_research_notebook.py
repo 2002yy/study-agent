@@ -99,3 +99,48 @@ def test_cached_excerpt_is_verbatim_and_locatable():
     excerpt = notebook.excerpt("https://example.org/a", ("快照",))
     assert excerpt and "快照" in excerpt
     assert excerpt.replace("\n", " ") in text.replace("\n", " ")
+
+
+def test_eviction_keeps_adopted_evidence_digest_and_marks_it():
+    """Late evidence survives full-text eviction: the adopted record keeps its digest."""
+    notebook = ResearchNotebook()
+    first = notebook.record("https://example.org/first", "https://example.org/first",
+                            ROUND_ONE_BODY, ["g1"])
+    assert first is not None
+    adopted = {"url": "https://example.org/first", "host": "example.org",
+               "digest": first.digest, "excerpt": "早读到的机制片段", "status": "explored"}
+    for index in range(12):                       # push the first body out of the cache
+        notebook.record(f"https://example.org/late{index}",
+                        f"https://example.org/late{index}", "无关正文" * 400, ["g1"])
+    assert "https://example.org/first" not in notebook.bodies        # evicted
+    view = notebook.build_view(goals={"g1": ("机制",)}, goal_state={"g1": {"status": "explored"}},
+                               goal_evidence={"g1": [adopted]}, refused=[], next_action=None)
+    row = view["goals"][0]["evidence"][0]
+    assert row["digest"] == first.digest            # audit trail intact
+    assert row["excerpt"] == "早读到的机制片段"
+    assert row["full_text_cached"] is False         # honest: full text is gone
+
+
+def test_body_with_no_goal_hit_is_still_registered():
+    gateway = FakeGateway()
+    gateway.read = lambda url, max_chars=6000, timeout=8: {
+        "ok": True, "url": url, "content": "完全无关的内容，不含任何目标词。" * 10}
+    seen: list[dict] = []
+    trace = run_tool_agent(
+        gateway=gateway, completion=_completion(
+            [{"tool": "read_page", "url": "https://example.org/a"}, {"tool": "finish"}], seen),
+        question="PostgreSQL 的代价是什么？",
+        budget=AgentBudget(max_rounds=2, max_searches=2, max_reads=2, hard_seconds=30.0),
+        initial_urls=("https://example.org/a",),
+    )
+    assert trace["notebook_digests"], trace            # the read is recorded even with no hit
+    assert trace["goal_evidence"] == {}                # but it is not adopted as evidence
+
+
+def test_same_page_for_two_goals_keeps_one_cache_entry():
+    notebook = ResearchNotebook()
+    notebook.record("https://example.org/a", "https://example.org/a", ROUND_ONE_BODY, ["g1"])
+    notebook.record("https://example.org/a", "https://example.org/a", ROUND_ONE_BODY, ["g2"])
+    assert len(notebook.bodies) == 1
+    assert notebook.bodies["https://example.org/a"].goals == ["g1", "g2"]
+

@@ -95,16 +95,19 @@ class ResearchNotebook:
             records = list(goal_evidence.get(label) or [])
             shown = []
             for record in records[:MAX_EVIDENCE_PER_GOAL]:
-                excerpt = record.get("excerpt") or self.excerpt(
-                    record.get("url", ""), tuple(terms))
+                url = record.get("url", "")
+                cached = self.bodies.get(url)
+                excerpt = record.get("excerpt") or self.excerpt(url, tuple(terms))
                 shown.append({
-                    "source": record.get("url", ""),
+                    "source": url,
                     "host": record.get("host", ""),
-                    "digest": (self.bodies.get(record.get("url", "")) or CachedBody(
-                        "", "", "", "", 0, "")).digest,
+                    # The adopted record keeps its own digest, so evicting the full text from
+                    # the cache cannot break the audit trail.
+                    "digest": record.get("digest") or (cached.digest if cached else ""),
                     "excerpt": str(excerpt)[:MAX_EXCERPT_CHARS],
                     "basis": "verbatim excerpt from this run",
                     "status": record.get("status", "explored"),
+                    "full_text_cached": cached is not None,
                     "verification": RULE_VERIFICATION if record.get("status") == "supported"
                     else "candidate only - no verification yet",
                 })

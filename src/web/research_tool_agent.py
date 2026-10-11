@@ -876,6 +876,11 @@ def run_tool_agent(
                                          "contributed": sorted(contributed)})
                     # Targeted sub-goal tracking: a term hit is only a clue that this body
                     # may address the sub-goal; status stays "explored (unverified)".
+                    # Every successfully read body is registered, EVEN when it matches no
+                    # goal: a later round may still need to know this page was read.
+                    cached_body = notebook.record(action["url"], final_url, content)
+                    digest = cached_body.digest if cached_body else ""
+                    touched: list[str] = []
                     for label, terms in goal_specs.items():
                         state = sub_goal_state[label]
                         if state["status"] == "supported":
@@ -883,9 +888,11 @@ def run_tool_agent(
                         status, evidence = verify_goal_evidence(terms, content)
                         if status == "missing":
                             continue          # this body carries none of the goal's terms
+                        touched.append(label)
                         goal_evidence.setdefault(label, []).append({
                             "url": final_url,
                             "host": urlsplit(final_url).hostname or "",
+                            "digest": digest,
                             "status": status,
                             "verified_by": "terms+relation" if status == "supported"
                             else "terms_only",
@@ -897,8 +904,8 @@ def run_tool_agent(
                         elif state["status"] != "explored":
                             state.update({"status": "explored", "url": final_url,
                                           "excerpt": evidence["excerpt"] or ""})
-                        notebook.record(action["url"], final_url, content,
-                                        goals=[label])
+                    if touched:
+                        notebook.record(action["url"], final_url, content, goals=touched)
                 source_chain.append({
                     "basis": confirmed_basis.get(action["url"], ""),
                     "feed_url": feed_links.get(action["url"], ""),
