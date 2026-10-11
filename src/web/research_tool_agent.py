@@ -16,7 +16,13 @@ from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Mapping
 
-from src.web.link_discovery import classify_page, extract_candidates, question_terms, rank_candidates
+from src.web.link_discovery import (
+    classify_page,
+    extract_candidates,
+    looks_like_navigation,
+    question_terms,
+    rank_candidates,
+)
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
 from src.web.tool_evidence import _public_url
 
@@ -254,6 +260,18 @@ def run_tool_agent(
                 " page, or guess an unconfirmed URL"
                 % (len(goal_specs) - len(pending), len(goal_specs),
                    ", ".join(pending) if pending else "(none)"))
+        # Conditional budget reserve: instruction, not a refusal. A refusal would spend the
+        # very round it is trying to save (the round loop is fixed), so once searches are
+        # half spent and readable candidates already exist, the guide tells the model the
+        # remaining rounds belong to follow/read. It never fires without candidates, so a
+        # topic that genuinely needs more searching is not cut short.
+        if searches >= 2 and unread_candidates and budget.max_rounds - rnd <= 3:
+            budget_state += (
+                "\n  BUDGET: %d round(s) left and %d confirmed, unread candidate(s) already "
+                "in hand - do NOT search again. Spend the remaining rounds on follow "
+                "(a chapter/index page) and read_page (the specific chapter), so the run "
+                "reaches mechanism text instead of another list of links."
+                % (budget.max_rounds - rnd, len(unread_candidates)))
         try:
             raw = completion(
                 messages=_prompt(question, observations, reliable_sources,
@@ -611,6 +629,17 @@ def run_tool_agent(
             if not body.get("ok"):
                 read_row["failure_reason"] = str(
                     body.get("error") or body.get("error_code") or "read_failed")
+            # Content-level index detection: a navigation-shaped page is not mechanism
+            # text, so say so instead of letting it pass as an answer.
+            if body.get("ok") and looks_like_navigation(content):
+                call["page_kind"] = "navigation"
+                observations.append(
+                    f"round {rnd}: '{action['url']}' returned navigation/index content "
+                    f"({len(content)} chars), not mechanism text - it is a list of links, not "
+                    f"an answer. NEXT ACTION: follow {action['url']} (a confirmed URL) to get "
+                    "its chapter links, then read_page the specific chapter. Do not read this "
+                    "page again."
+                )
             assessment: dict[str, Any] = {}
             if body.get("ok") and entry_selection:
                 from src.web.research.entry_selection import assess_body
