@@ -203,42 +203,106 @@ def _number_corroboration(quote: str, terms: tuple[str, ...],
     return "" if matched else "number_uncorroborated"
 
 
-def _awaits_second_source(relevant: Mapping[str, Any], confirmed: set[str],
-                          read_pages: Mapping[str, int], exclusions: Mapping[str, str],
-                          goals: Mapping[str, tuple[str, ...]], rnd: int, max_rounds: int,
-                          deadline: float, now: float,
-                          sides_by_goal: Mapping[str, tuple[str, ...]] | None = None) -> bool:
-    """Whether the loop should wait for a MISSING MATERIAL SIDE before spending its chance.
+def _has_cjk(text: str) -> bool:
+    """Whether a text is written with CJK characters, for script-based fallback decisions."""
+    return any("\u4e00" <= char <= "\u9fff" for char in text or "")
 
-    Counting pages is not enough: two pages that both explain the hopper say nothing about how
-    it differs from a dropper. The wait is decided by the question's own comparison structure -
-    every side named there needs material in hand - and it is bounded by the clock, the rounds
-    and the one-deferral rule, so it never becomes an early stop.
+
+#: Seconds one more acquisition step is assumed to cost before the verification can run.
+ACQUIRE_STEP_SECONDS = 12.0
+
+
+def _can_acquire(confirmed: set[str], read_pages: Mapping[str, int],
+                 exclusions: Mapping[str, str], goal_specs: Mapping[str, tuple[str, ...]],
+                 searches_left: int, reads_left: int) -> bool:
+    """Whether another acquisition step exists that the run is actually able to take.
+
+    Holding a URL is not enough: it must be unread, not excluded, plausibly relevant, and the
+    run must still have search or read quota to act on it.
     """
-    pairs = [pair for pair in (sides_by_goal or {}).values() if pair]
-    if not pairs:
-        return False                  # not a comparison: there is no "other side" to wait for
-    texts = [str(getattr(body, "text", "") or "") for body in relevant.values()]
-    missing_side = False
-    for pair in pairs:
-        for side in pair:
-            if side and not any(side in text for text in texts):
-                missing_side = True
-                break
-    if not missing_side:
-        return False                  # every comparison goal already holds both sides
-    unread_relevant = [url for url in confirmed
-                       if url not in read_pages and url not in exclusions
-                       and any(term and str(term).casefold() in unquote(url).casefold()
-                               for terms in goals.values() for term in terms)]
-    if not unread_relevant:
+    if searches_left <= 0 and reads_left <= 0:
         return False
-    rounds_left = (max_rounds - rnd) > 2
-    # A comfortable window only: deferring must never eat the reservation it protects.
-    reserve = min(MIN_LOOP_SECONDS, max(MIN_LOOP_FLOOR_SECONDS,
-                                        (deadline - now + (MIN_LOOP_SECONDS)) * LOOP_RESERVE_SHARE))
-    time_left = (deadline - now) > (reserve + 20.0)
-    return rounds_left and time_left
+    terms = [str(term).casefold() for values in goal_specs.values() for term in values if term]
+    for url in confirmed:
+        if url in read_pages or url in exclusions:
+            continue
+        if any(term in unquote(url).casefold() for term in terms):
+            return True
+    return searches_left > 0          # a search can still find one
+
+
+def _eligible_windows(terms: tuple[str, ...], bodies: Mapping[str, Any],
+                      sides: tuple[str, ...] | None) -> list[dict[str, Any]]:
+    """Windows that could actually carry a checkable statement for this goal.
+
+    A window qualifies when its OWN text states one of the goal's words, or when it is the
+    prose fallback for a body that never states them (the cross-language path). A window built
+    around a fragment that merely matches a generic page - "minecraft" on a franchise page -
+    is NOT material: a returned record must not by itself make a goal look ready.
+    """
+    rows: list[dict[str, Any]] = []
+    sides_text = " ".join(side for side in (sides or ()) if side)
+    for window in candidate_windows(terms, bodies, sides=sides):
+        excerpt = str(window.get("excerpt") or "")
+        lowered = excerpt.casefold()
+        if sides:
+            # For a comparison question only the COMPARED entities are the subject: a passage
+            # about the franchise in general is material for neither side.
+            stated = [side for side in sides if side and side.casefold() in lowered]
+        else:
+            stated = [term for term in terms
+                      if len(str(term)) >= 2 and str(term).casefold() in lowered]
+        prose_fallback = window.get("window_kind") == "prose"
+        if prose_fallback and sides_text:
+            # The prose fallback exists for a question asked in one script and answered in
+            # another (a Chinese question over an English article). A SAME-script page that
+            # simply never mentions the entity is about something else, not cross-language.
+            body_text = str(getattr(bodies.get(str(window.get("source_id"))), "text", "") or "")
+            prose_fallback = _has_cjk(body_text) != _has_cjk(sides_text)
+        if prose_fallback or stated:
+            rows.append({**window, "stated": stated})
+    return rows
+
+
+def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
+                     goal_sides: Mapping[str, tuple[str, ...]], relevant: Mapping[str, Any],
+                     confirmed: set[str], read_pages: Mapping[str, int],
+                     exclusions: Mapping[str, str], rnd: int, max_rounds: int, deadline: float,
+                     now: float, reserve: float, searches_left: int, reads_left: int,
+                     calls_left: int) -> tuple[str, str, dict[str, list[dict[str, Any]]]]:
+    """The single decision of WHEN the run's one extraction call may be spent.
+
+    ready        every unfinished goal holds eligible material (and every comparison goal has
+                 its sides covered) -> extract now
+    acquiring    material is incomplete but a real next step exists and the clock allows it ->
+                 keep reading; the chance is NOT spent
+    best_effort  material is incomplete and no step is left, or the verification edge is near ->
+                 extract only the goals that DO hold material
+    abstain      nothing checkable, or no room left to verify -> call nothing, say why
+    """
+    eligible = {label: _eligible_windows(terms, relevant, goal_sides.get(label))
+                for label, terms in unfinished.items()}
+    ready_goals = {label: rows for label, rows in eligible.items() if rows}
+    missing_side = False
+    for label, rows in ready_goals.items():
+        pair = goal_sides.get(label)
+        if not pair:
+            continue
+        text = " ".join(str(row.get("excerpt") or "").casefold() for row in rows)
+        if any(side and side.casefold() not in text for side in pair):
+            missing_side = True
+    if ready_goals and len(ready_goals) == len(unfinished) and not missing_side:
+        return "ready", "", ready_goals
+    can_acquire = _can_acquire(confirmed, read_pages, exclusions, unfinished,
+                               searches_left, reads_left)
+    room = (deadline - now) > (reserve + ACQUIRE_STEP_SECONDS)
+    if can_acquire and room and rnd < max_rounds - 1 and calls_left >= 2:
+        return "acquiring", "material_incomplete", {}
+    if ready_goals:
+        return "best_effort", ("resource_edge" if room else "no_acquisition_left"), ready_goals
+    if not can_acquire:
+        return "abstain", "no_acquisition_left", {}
+    return "abstain", "insufficient_time", {}
 
 
 def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str],
@@ -377,12 +441,11 @@ def run_tool_agent(
     #: Evidence loop state: run-once guard, verdicts, gap follow-ups, and the adopted
     #: evidence map used for eviction-safe deterministic checking.
     loop_spent = False
+    #: The four-state start decision for the one extraction call (state, reason, goals).
+    extraction_gate: dict[str, Any] = {}
     #: Immutable snapshot of what the ONE extraction call was actually shown, captured at the
     #: call itself: a view recomputed at the end is not the same evidence.
     extraction_input: dict[str, Any] = {}
-    #: True once the loop deferred for a second source: it never defers twice, so waiting for
-    #: breadth can never starve the verification it exists to protect.
-    loop_deferred = False
     #: True once the loop deferred for a second source: it never defers twice.
     claim_rows: list[Any] = []
     claim_verdicts: list[Any] = []
@@ -536,52 +599,43 @@ def run_tool_agent(
         if evidence_loop and not loop_spent and monotonic() < deadline:
             substantive = {sid: body for sid, body in notebook.by_source.items()
                            if body.kind == "substantive"}
-            # Material that can be CHECKED is a substantive body that actually mentions what
-            # the question asks about. An off-topic hub page is not material: spending the
-            # run's single extraction on it is what left a correct article unexamined.
             relevant = {sid: body for sid, body in substantive.items()
                         if any(term and str(term).casefold()
                                in unquote(body.text or "").casefold()
                                for terms in goal_specs.values() for term in terms)}
-            if not notebook.bodies:
-                evidence_loop_skipped = "acquisition_failure"
-            elif not substantive:
-                # We hold text, but only index/navigation shells: keep acquiring instead.
-                evidence_loop_skipped = "no_substantive_body"
-            elif not relevant:
-                evidence_loop_skipped = "no_relevant_body"
-            elif not goal_specs:
+            unfinished_all = {label: tuple(terms) for label, terms in goal_specs.items()
+                              if sub_goal_state[label]["status"] != "supported"}
+            if not goal_specs:
                 evidence_loop_skipped = "no_goals"
-            elif deadline - monotonic() < _loop_reserve_seconds(
-                    deadline - started, confirmed, read_pages, entry_exclusions, goal_specs):
-                # Reserve wall clock for extraction plus verification while there is still
-                # research left to do; with nothing relevant unread, a smaller floor is
-                # enough and the run's single chance is not wasted.
-                evidence_loop_skipped = "insufficient_time"
-            elif model_calls + 2 > min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP):
-                evidence_loop_skipped = "model_call_cap"
-            elif (not loop_deferred and _awaits_second_source(
-                    relevant, confirmed, read_pages, entry_exclusions, goal_specs, rnd,
-                    max_rounds, deadline, monotonic(), goal_sides)):
-                # A comparison question needs BOTH sides examined in the same batch. With one
-                # source in hand and time/rounds left, keep reading rather than spending the
-                # single chance on one-sided material; when the budget runs short the loop
-                # fires anyway and the goal is honestly reported as partial.
-                evidence_loop_skipped = "awaiting_second_source"
-                loop_deferred = True
+            elif not substantive or not relevant:
+                reason = "no_substantive_body" if not substantive else "no_relevant_body"
+                can_acquire = _can_acquire(
+                    confirmed, read_pages, entry_exclusions, goal_specs,
+                    max_searches - searches, max_reads - reads)
+                extraction_gate = {"state": "acquiring" if can_acquire else "abstain",
+                                   "reason": reason, "goals": [], "at_call": model_calls,
+                                   "reserve_seconds": 0.0}
+                evidence_loop_skipped = reason
             else:
-                planned = {label: candidate_windows(terms, relevant,
-                                                    sides=goal_sides.get(label))
-                           for label, terms in goal_specs.items()
-                           if sub_goal_state[label]["status"] != "supported"}
-                planned = {label: windows for label, windows in planned.items() if windows}
-                if not planned:
-                    evidence_loop_skipped = "candidate_window_gap"
+                reserve = _loop_reserve_seconds(deadline - started, confirmed, read_pages,
+                                                entry_exclusions, goal_specs)
+                gate_state, reason, ready_goals = _extraction_gate(
+                    unfinished=unfinished_all, goal_sides=goal_sides, relevant=relevant,
+                    confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
+                    rnd=rnd, max_rounds=max_rounds, deadline=deadline, now=monotonic(),
+                    reserve=reserve, searches_left=max_searches - searches,
+                    reads_left=max_reads - reads,
+                    calls_left=min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP) - model_calls)
+                extraction_gate = {"state": gate_state, "reason": reason,
+                                   "goals": sorted(ready_goals), "at_call": model_calls,
+                                   "reserve_seconds": reserve}
+                if not ready_goals:
+                    evidence_loop_skipped = reason or "no_eligible_window"
                 else:
                     evidence_loop_skipped = ""
                     loop_spent = True
-                    unfinished = {label: tuple(terms) for label, terms in goal_specs.items()
-                                  if sub_goal_state[label]["status"] != "supported"}
+                    unfinished = {label: terms for label, terms in unfinished_all.items()
+                                  if label in ready_goals}
                     bodies_view = dict(relevant)
                     def _count_call() -> None:
                         """Count a REAL model call, so cost never overstates what was spent."""
@@ -1274,7 +1328,7 @@ def run_tool_agent(
                         state = sub_goal_state[label]
                         if state["status"] == "supported":
                             continue          # a settled goal is not re-derived
-                        status, evidence = classify_goal_candidate(terms, content)
+                        status, match_evidence = classify_goal_candidate(terms, content)
                         if status == "missing":
                             continue          # this body carries none of the goal's terms
                         # The keyword/relation rule is CANDIDATE FILTERING only: it may mark a
@@ -1290,21 +1344,21 @@ def run_tool_agent(
                             "status": status,
                             "verified_by": "terms+relation" if status == "supported"
                             else "terms_only",
-                            **evidence,
+                            **match_evidence,
                         })
                         if status == "supported":
                             state.update({"status": "supported", "url": final_url,
-                                          "excerpt": evidence["excerpt"]})
+                                          "excerpt": match_evidence["excerpt"]})
                         elif state["status"] != "explored":
                             state.update({"status": "explored", "url": final_url,
-                                          "excerpt": evidence["excerpt"] or ""})
+                                          "excerpt": match_evidence["excerpt"] or ""})
                         # Eviction-safe map: the verifier may use this retained excerpt when
                         # the full body is no longer cached.
                         # Eviction-safe map keyed by CONTENT VERSION (source id), so the
                         # verifier binds to the exact body this run registered, not a URL.
                         if source_id:
                             adopted_evidence[source_id] = {
-                                "excerpt": evidence.get("excerpt") or "",
+                                "excerpt": match_evidence.get("excerpt") or "",
                                 "digest": digest}
                     if touched:
                         notebook.record(action["url"], final_url, content, goals=touched)
@@ -1405,6 +1459,7 @@ def run_tool_agent(
         "evidence_loop_skipped": evidence_loop_skipped,
         # AUTHORITATIVE: what the one extraction call was actually shown, and what it replied.
         "extraction_input": extraction_input,
+        "extraction_gate": extraction_gate,
         # Final candidate snapshot (recomputed at the end). It is NOT what the extractor saw:
         # `extraction_input` is the authoritative record of the call itself.
         "window_audit_note": "final candidate snapshot, not the extraction input",
@@ -1414,8 +1469,6 @@ def run_tool_agent(
                                             if body.kind == "substantive"},
                                      sides=goal_sides.get(label))
             for label, terms in goal_specs.items()},
-        # Whether the loop waited once for a second source before spending its chance.
-        "loop_deferred": loop_deferred,
         "evidence_outcome": evidence_outcome,
         # Goal completion in the honest vocabulary: a claim can be supported while its goal is
         # still only partially answered, and that is a legitimate resting state.
