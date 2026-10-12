@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import re
 import time
 from urllib.parse import unquote, urlsplit
 import xml.etree.ElementTree as ET
@@ -145,6 +146,32 @@ def _loop_reserve_seconds(confirmed: set[str], read_pages: Mapping[str, int],
         if any(term in text for term in terms):
             return MIN_LOOP_SECONDS
     return MIN_LOOP_FLOOR_SECONDS
+
+
+def _number_corroboration(quote: str, terms: tuple[str, ...],
+                          others: Mapping[str, str]) -> str:
+    """Mark a claim whose NUMBER no second page we read can corroborate.
+
+    A quantity is the cheapest thing for a source to get wrong: the real Minecraft audit
+    found a third-party page stating "1 个铁锭" where the recipe needs five, while the
+    authoritative wiki passage in the same run carried the count only inside a crafting
+    image. This is a MARK, not a rejection and not a second verification pass: the verdict is
+    unchanged, and the finding is flagged for review instead.
+    """
+    if not re.search(r"\d", quote or ""):
+        return ""
+    for text in others.values():
+        for term in terms:
+            if not term:
+                continue
+            position = (text or "").find(str(term))
+            if position < 0:
+                continue
+            window = text[max(0, position - 120):position + 200]
+            if re.search(r"\d", window):
+                return ""            # another page states a quantity for the same subject
+            return "number_uncorroborated"
+    return ""
 
 
 def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str],
@@ -284,6 +311,8 @@ def run_tool_agent(
     claim_rows: list[Any] = []
     claim_verdicts: list[Any] = []
     claim_rejections: dict[str, int] = {}
+    #: Supported findings whose quantity no second page we read corroborates.
+    needs_review: list[dict[str, Any]] = []
     #: Why the run's single evidence loop was NOT spent (empty once it is spent).
     evidence_loop_skipped: str = ""
     followups: list[dict[str, Any]] = []
@@ -512,6 +541,18 @@ def run_tool_agent(
                             if row.goal_id == verdict.goal_id and row.internal_supported:
                                 covered_items.update(row.covers)
                         record["covers"] = sorted(verdict.covers)
+                        # A number is the cheapest thing for a source to get wrong: mark it
+                        # when no other page we read states a quantity for the same subject.
+                        review = _number_corroboration(
+                            verdict.quote, goal_specs.get(verdict.goal_id, ()),
+                            {sid: body.text for sid, body in notebook.by_source.items()
+                             if sid != verdict.source_id})
+                        if review:
+                            record["needs_review"] = review
+                            needs_review.append({
+                                "goal_id": verdict.goal_id, "source_id": verdict.source_id,
+                                "quote": verdict.quote[:120], "reason": review,
+                                "url": record["url"]})
                         partial = bool(covered_items) and len(covered_items) < len(items)
                         if partial:
                             record["partial"] = True
@@ -1226,6 +1267,7 @@ def run_tool_agent(
         # Why candidate claims were refused: an audit of the anti-fabrication rules, and the
         # reason a run produced no verifiable claim at all.
         "claim_rejections": dict(sorted(claim_rejections.items())),
+        "needs_review": needs_review,
         # Body acquisition and the evidence loop, reported separately so "no support" is
         # never attributed to the model when the run simply never held a real article.
         "substantive_bodies": sorted(body.source_id for body in notebook.by_source.values()
