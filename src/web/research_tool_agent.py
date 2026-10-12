@@ -15,7 +15,7 @@ import re
 import time
 from urllib.parse import unquote, urlsplit
 import xml.etree.ElementTree as ET
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from src.web.link_discovery import (
     classify_goal_candidate,
@@ -336,24 +336,39 @@ def _entity_match(entity: str, url: str, anchor: str = "") -> bool:
     return segment == name or segment.endswith(":" + name)
 
 
-def _site_scoped_query(missing: list[str], confirmed: set[str],
-                       searched: set[str]) -> str:
-    """A query that pins the missing subject to a site the run is already allowed to read.
+def _site_scoped_query(missing: list[str], confirmed: set[str], searched: set[str],
+                       entry_urls: Iterable[str] = (),
+                       exclusions: Mapping[str, str] | None = None) -> str:
+    """A query that pins ONE missing subject to a site the run is already allowed to read.
 
     The real site graphs measured here do not LINK the mechanism article from their hub pages,
-    so the reliable discovery route is asking the index for it on that host. No glossary: the
-    subject comes from the goal and the host from a candidate the run already confirmed.
+    so the reliable discovery route is asking the index for it on that host. No glossary and no
+    site whitelist: the subject comes from the goal and the host from candidates the run already
+    confirmed. Host selection is deterministic and relevance-first - the host that already
+    produced the most usable entries wins (entry pages weigh more), ties broken by name - so a
+    replay picks the same host instead of whatever a set happened to iterate first.
     """
-    hosts: list[str] = []
-    for url in confirmed:
-        host = urlsplit(url or "").netloc.casefold()
-        if host and host not in hosts:
-            hosts.append(host)
-    if not hosts or not missing:
+    entities = [entity for entity in missing if entity]
+    if not entities:
         return ""
-    subject = " ".join(entity for entity in missing[:2] if entity)
-    for host in hosts:
-        candidate = f"{subject} site:{host}"
+    excluded = exclusions or {}
+    weights: dict[str, int] = {}
+    for url in sorted(confirmed):
+        host = urlsplit(url or "").netloc.casefold()
+        if not host or url in excluded:
+            continue
+        weights[host] = weights.get(host, 0) + 1
+    for url in sorted(entry_urls):
+        host = urlsplit(url or "").netloc.casefold()
+        if host and url not in excluded:
+            weights[host] = weights.get(host, 0) + 1
+    if not weights:
+        return ""
+    host = sorted(weights.items(), key=lambda item: (-item[1], item[0]))[0][0]
+    # One subject at a time: "漏斗 site:host" can match an article explaining the hopper, while
+    # requiring both compared entities in one query could match neither of the alternatives.
+    for entity in entities:
+        candidate = f"{entity} site:{host}"
         if candidate.casefold() not in {item.casefold() for item in searched}:
             return candidate
     return ""
@@ -554,7 +569,8 @@ def run_tool_agent(
     # What the LAST search actually returned. Discovery recovery may only act when the target
     # article was genuinely unavailable from the index - i.e. that search produced no [article]
     # but did produce a related site entry - never merely because a goal is still open.
-    search_signals: dict[str, Any] = {"no_article": False, "entry_urls": []}
+    search_signals: dict[str, Any] = {"no_article": False, "no_target_article": True,
+                                      "entry_urls": []}
     #: The four-state start decision for the one extraction call (state, reason, goals).
     extraction_gate: dict[str, Any] = {}
     #: Immutable snapshot of what the ONE extraction call was actually shown, captured at the
@@ -1006,9 +1022,23 @@ def run_tool_agent(
         # Discovery recovery is triggered by EVIDENCE OF FAILURE, not by an open goal: the last
         # search must have returned no [article] while returning a related site entry. A run whose
         # search already yielded article URLs (the PostgreSQL shape) is therefore never nudged.
-        entry_only_search = bool(search_signals["no_article"] and search_signals["entry_urls"])
-        # The agent must also have USED the failed results once (it read something): acting
-        # in the very round that follows a search would pre-empt the model's own attempt.
+        entry_only_search = bool(search_signals["no_target_article"]
+                                 and search_signals["entry_urls"])
+        missing_entities = [entity for pair in goal_sides.values() for entity in pair if entity] \
+            or [str(term) for terms in goal_specs.values() for term in terms
+                if len(str(term)) >= 2]
+        # SEARCH RESERVE: decided here, BEFORE the model can spend the last slot. Waiting until
+        # the results have been read would replay the measured failure of four homepage-only
+        # searches, which is exactly why this eligibility must not depend on reads >= 1.
+        recovery_query = ""
+        if (discovery_hops and not loop_spent and auto_hops == 0 and not material_now
+                and entry_only_search and searches < max_searches
+                and max_reads - reads >= 1):
+            recovery_query = _site_scoped_query(
+                missing_entities, confirmed, searched_queries,
+                search_signals["entry_urls"], entry_exclusions)
+        reserved_searches = 1 if recovery_query else 0
+        # Executing it stays gated on the agent having used the failed results once.
         discovery_needed = (not material_now) and entry_only_search and reads >= 1
         auto_hop = "" if (loop_spent or not discovery_hops or not discovery_needed) else \
             _auto_hop_target(
@@ -1017,22 +1047,30 @@ def run_tool_agent(
                 sides_by_goal=goal_sides, hops_used=auto_hops, hopped=hopped_entries,
                 searches=searches, reads_left=max_reads - reads,
                 remaining_seconds=deadline - monotonic(), has_material=material_now)
-        # With no entry worth following, the measured site graphs leave one reliable route:
-        # ask the index for the missing subject ON a host the run has already confirmed.
-        auto_query = ""
-        if (discovery_hops and not loop_spent and not auto_hop and discovery_needed
-                and searches < max_searches and max_reads - reads >= 2):
-            auto_query = _site_scoped_query(
-                [entity for pair in goal_sides.values() for entity in pair if entity]
-                or [str(term) for terms in goal_specs.values() for term in terms
-                    if len(str(term)) >= 2],
-                confirmed, searched_queries)
+        auto_query = recovery_query if (discovery_needed and not auto_hop) else ""
+        # Read reserve follows the PENDING path instead of a fixed two slots: a hop must download
+        # the navigation page and then the article (two), while a site-scoped search downloads
+        # nothing and only needs the article afterwards (one). Released once the first discovery
+        # action has fired - a second hop is already gated on reads_left >= 2 by itself.
+        if auto_hops:
+            discovery_reserve = 0
+        elif auto_hop:
+            discovery_reserve = 2
+        else:
+            discovery_reserve = 1 if recovery_query else 0
         if auto_hop:
             # One bounded navigation instead of a model decision: it costs read quota and a real
             # network request (both counted as usual), never a model call.
             auto_hops += 1
             hopped_entries.add(auto_hop)
             action = {"tool": "follow", "url": auto_hop, "reason": "auto_discovery_hop"}
+            error = ""
+        elif auto_query:
+            # The second route REALLY executes: the query is substituted as this round's action
+            # and goes through the ordinary search handling below (quota, dedup, real request).
+            auto_hops += 1
+            action = {"tool": "search", "query": auto_query,
+                      "reason": "auto_site_scoped_search"}
             error = ""
         else:
             # Counted here and nowhere else: a real request is a real call, while an
@@ -1055,6 +1093,13 @@ def run_tool_agent(
                 action = {"tool": "invalid", "reason": ""}
                 error = f"{type(exc).__name__}"
         call: dict[str, Any] = {"round": rnd, "action": action, "error": error}
+        # Observable scheduling: why a recovery action did or did not fire this round.
+        call["discovery_schedule"] = {
+            "reserve": reserved_searches, "recovery_query": recovery_query,
+            "auto_hop": auto_hop, "auto_query": auto_query,
+            "entry_only_search": entry_only_search, "has_material": material_now,
+            "hop_ready": discovery_needed, "searches": searches, "reads": reads,
+            "loop_spent": bool(loop_spent)}
         if (auto_hop or auto_query) and action.get("reason") in {
                 "auto_discovery_hop", "auto_site_scoped_search"}:
             call["agent_initiated"] = True
@@ -1100,9 +1145,20 @@ def run_tool_agent(
             calls.append(call)
             break
         if action["tool"] == "search":
-            if searches >= max_searches:
-                call["result"] = {"status": "quota_exceeded", "reason": "search_quota"}
-                observations.append(f"round {rnd}: search quota reached.")
+            # The reserve protects the LAST slot for the deterministic site-scoped recovery: an
+            # ordinary search may only use max_searches - reserved_searches, while the recovery
+            # search itself (already substituted above) may spend the slot it holds.
+            is_recovery = action.get("reason") == "auto_site_scoped_search"
+            if searches >= max_searches or (searches >= max_searches - reserved_searches
+                                            and not is_recovery):
+                reason = ("search_quota" if searches >= max_searches
+                          else "search_reserved_for_recovery")
+                call["result"] = {"status": "quota_exceeded", "reason": reason}
+                observations.append(
+                    "round %d: search quota reached." % rnd if reason == "search_quota"
+                    else ("round %d: this search would spend the slot kept for the site-scoped "
+                          "recovery of the missing subject; read what you have or let the "
+                          "recovery run." % rnd))
                 calls.append(call)
                 continue
             normalised_query = " ".join(action["query"].split()).casefold()
@@ -1153,6 +1209,18 @@ def run_tool_agent(
                 for r in rows
             ]
             search_signals["no_article"] = bool(rows) and "article" not in page_types
+            # "No suitable target article" means no result NAMING a missing entity - the measured
+            # index mixes irrelevant article pages (e.g. a game overview) among site entries, so
+            # requiring no [article] at all would disable recovery in exactly the case it exists.
+            _wanted = [entity for pair in goal_sides.values() for entity in pair if entity] \
+                or [str(term) for terms in goal_specs.values() for term in terms
+                    if len(str(term)) >= 2]
+            # Only an ARTICLE naming the entity can be the answer itself; a category page that
+            # names it is still just a navigation entry.
+            search_signals["no_target_article"] = not any(
+                ptype == "article"
+                and _entity_match(entity, str(r.get("url") or ""), str(r.get("title") or ""))
+                for ptype, r in zip(page_types, rows) for entity in _wanted)
             search_signals["entry_urls"] = [
                 u for ptype, u in zip(page_types, shown_urls)
                 if ptype in {"home", "category"}]
@@ -1400,6 +1468,16 @@ def run_tool_agent(
                 read_row["failure_reason"] = "read_quota"
                 call["result"] = {"status": "quota_exceeded", "reason": "read_quota"}
                 observations.append(f"round {rnd}: read quota reached.")
+                calls.append(call)
+                continue
+            if discovery_reserve and max_reads - reads <= discovery_reserve:
+                read_row["failure_reason"] = "read_reserved_for_discovery"
+                call["result"] = {"status": "quota_exceeded",
+                                  "reason": "read_reserved_for_discovery"}
+                observations.append(
+                    f"round {rnd}: this read would consume quota kept for automated discovery "
+                    "(navigate, then read the article it yields); read the confirmed article "
+                    "instead, or use the navigation page.")
                 calls.append(call)
                 continue
             if not host_resolves_public(urlsplit(action["url"]).hostname or ""):
