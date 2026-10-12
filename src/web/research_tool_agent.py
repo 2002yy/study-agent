@@ -220,6 +220,11 @@ def _can_acquire(confirmed: set[str], read_pages: Mapping[str, int],
     Holding a URL is not enough: it must be unread, not excluded, plausibly relevant, and the
     run must still have search or read quota to act on it.
     """
+    if reads_left <= 0:
+        # A body cannot be obtained without a read slot: searching for a link we are not
+        # allowed to open is not a real acquisition path, and treating it as one lets the gate
+        # keep choosing `acquiring` until the clock runs out.
+        return False
     if searches_left <= 0 and reads_left <= 0:
         return False
     terms = [str(term).casefold() for values in goal_specs.values() for term in values if term]
@@ -291,6 +296,11 @@ def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
         text = " ".join(str(row.get("excerpt") or "").casefold() for row in rows)
         if any(side and side.casefold() not in text for side in pair):
             missing_side = True
+    # HARD floor, checked before any state: two model calls (extraction + verification) and
+    # real time must be available, or the run abstains instead of starting a call it cannot
+    # finish. A `ready` state is never allowed to skip this.
+    if calls_left < 2 or (deadline - now) <= MIN_LOOP_FLOOR_SECONDS:
+        return "abstain", ("insufficient_calls" if calls_left < 2 else "insufficient_time"), {}
     if ready_goals and len(ready_goals) == len(unfinished) and not missing_side:
         return "ready", "", ready_goals
     can_acquire = _can_acquire(confirmed, read_pages, exclusions, unfinished,

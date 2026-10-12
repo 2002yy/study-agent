@@ -56,7 +56,10 @@ PHASE_SCHEMA: dict[str, tuple[str, bool]] = {
 #: holds an actionable candidate.
 BUDGET_TIERS: dict[str, tuple[int, int, int, float]] = {
     "quick": (4, 2, 2, 20.0),
-    "standard": (8, 4, 5, 40.0),
+    # Research that must find and compare two mechanism articles does not fit a
+    # 40-second allowance: the tier was measured to run out during acquisition, not
+    # during verification. 40s stays available as the `quick` tier.
+    "standard": (12, 4, 6, 90.0),
     "deep": (12, 6, 8, 75.0),
     "extended": (20, 8, 14, 180.0),
 }

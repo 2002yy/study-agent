@@ -43,7 +43,7 @@ def test_gate_does_best_effort_with_one_sided_material_at_the_resource_edge():
         unfinished={"漏斗": ("漏斗",), "投掷器": ("投掷器",)},
         goal_sides={"漏斗": SIDES, "投掷器": SIDES},
         relevant={"S2": Body(HOPPER)}, confirmed=set(), read_pages={}, exclusions={},
-        rnd=5, max_rounds=6, deadline=100.0, now=95.0, reserve=14.0,
+        rnd=5, max_rounds=6, deadline=100.0, now=90.0, reserve=14.0,
         searches_left=0, reads_left=0, calls_left=10)
     assert state == "best_effort"
     assert list(goals) == ["漏斗"]          # only the goal that holds material
@@ -84,3 +84,33 @@ def test_once_both_sides_are_in_hand_the_gate_says_ready():
         deadline=100.0, now=10.0, reserve=14.0, searches_left=1, reads_left=1, calls_left=10)
     assert (state, reason) == ("ready", "")
     assert goals
+
+
+def test_gate_refuses_to_start_without_the_two_calls():
+    """HARD floor: `ready` material is not enough when the two calls cannot be afforded."""
+    state, reason, goals = _extraction_gate(
+        unfinished={"漏斗": ("漏斗",)}, goal_sides={"漏斗": SIDES},
+        relevant={"S2": Body(HOPPER)}, confirmed=set(), read_pages={}, exclusions={},
+        rnd=2, max_rounds=12, deadline=200.0, now=20.0, reserve=14.0,
+        searches_left=0, reads_left=0, calls_left=1)
+    assert (state, reason, goals) == ("abstain", "insufficient_calls", {})
+
+
+def test_gate_refuses_to_start_without_time_even_when_ready():
+    """HARD floor: no room to verify means no call, however good the material is."""
+    state, reason, goals = _extraction_gate(
+        unfinished={"漏斗": ("漏斗",)}, goal_sides={"漏斗": SIDES},
+        relevant={"S2": Body(HOPPER)}, confirmed=set(), read_pages={}, exclusions={},
+        rnd=2, max_rounds=12, deadline=100.0, now=97.0, reserve=14.0,
+        searches_left=2, reads_left=2, calls_left=10)
+    assert (state, reason, goals) == ("abstain", "insufficient_time", {})
+
+
+def test_a_search_that_cannot_be_read_is_not_an_acquisition_path():
+    """P1: with no read quota left, the gate must not keep choosing `acquiring`."""
+    state, reason, _goals = _extraction_gate(
+        unfinished={"漏斗": ("漏斗",)}, goal_sides={"漏斗": SIDES},
+        relevant={"S1": Body(GENERIC)}, confirmed={"https://x/漏斗页"},
+        read_pages={}, exclusions={}, rnd=1, max_rounds=12, deadline=200.0, now=10.0,
+        reserve=14.0, searches_left=3, reads_left=0, calls_left=10)
+    assert (state, reason) == ("abstain", "no_acquisition_left")
