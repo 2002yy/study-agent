@@ -1098,6 +1098,10 @@ def run_tool_agent(
             "reserve": reserved_searches, "recovery_query": recovery_query,
             "auto_hop": auto_hop, "auto_query": auto_query,
             "entry_only_search": entry_only_search, "has_material": material_now,
+            "no_target_article": search_signals.get("no_target_article"),
+            "reserve_created": bool(reserved_searches),
+            "recovery_executed": bool(action.get("reason") in
+                                      {"auto_discovery_hop", "auto_site_scoped_search"}),
             "hop_ready": discovery_needed, "searches": searches, "reads": reads,
             "loop_spent": bool(loop_spent)}
         if (auto_hop or auto_query) and action.get("reason") in {
@@ -1198,9 +1202,10 @@ def run_tool_agent(
                                    ("status", "reason", "providers_attempted", "provider_errors")
                                    if k in result}
             shown_urls = [str(r.get("url") or "") for r in rows]
+            search_hosts = sorted({urlsplit(u).netloc.casefold() for u in shown_urls if u})
             candidate_trace.append({
                 "round": rnd, "tool": "search", "query": action.get("query"),
-                "results": len(rows), "shown": shown_urls[:10],
+                "results": len(rows), "shown": shown_urls[:10], "hosts": search_hosts,
                 "excluded": [u for u in shown_urls if u in entry_exclusions],
             })
             page_types = [

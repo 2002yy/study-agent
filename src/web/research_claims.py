@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from src.web.link_discovery import (PROSE_BLOCK_MIN_CHARS, _SENTENCE_PUNCT,
                                     looks_like_list, looks_like_navigation,
@@ -100,49 +100,164 @@ def _prose_window(text: str) -> dict[str, Any] | None:
     return None
 
 
+_GENERIC_SUBJECT_TOKENS = {"如何", "什么", "为什么", "区别", "代价", "机制", "原理", "是什么",
+                           "带来", "避免", "互相", "上的", "哪些", "怎么", "多少", "何时",
+                           "the", "and", "for", "with", "what", "why", "how"}
+_RELATION_MARKERS = ("因为", "因此", "所以", "由于", "导致", "从而", "使得", "相比", "不同",
+                     "区别", "而是", "并不", "不会", "需要", "通过", "依赖", "实现", "基于",
+                     "而非", "如果", "若", "除非", "无法", "不能", "只有当", "仅当", "则", "才",
+                     "是", "会", "可以", "可", "能", "用于", "使用", "由", "称为", "属于",
+                     "包括", "分为", "具有", "与其")
+_INHERIT_MARKERS = ("其", "该", "它", "此", "这", "上述", "同样")
+_LATIN_WORD = re.compile(r"[a-z][a-z0-9_\-]{2,}")
+
+
+def _goal_tokens(terms: Sequence[str], sides: tuple[str, ...] | None) -> list[str]:
+    """The tokens that name what the reader asked about: the goal terms and the compared sides.
+
+    No product glossary: whatever the goal itself names is the subject we must find.
+    """
+    tokens: list[str] = []
+    for token in list(terms) + [str(side) for side in (sides or ()) if side]:
+        token = str(token).strip()
+        if len(token) >= 2 and token.lower() not in _GENERIC_SUBJECT_TOKENS and token not in tokens:
+            tokens.append(token)
+    return tokens
+
+
+def _source_attribution(text: str, tokens: list[str]) -> str:
+    """What is this page mainly about? Lexicon-free: the page's own dominant subjects.
+
+    A page whose most repeated latin subject is not any subject of the question is about
+    something else (this is how a "MySQL" explainer stops pretending to answer a PostgreSQL
+    question); a page naming the question's subject alongside another product is comparative.
+    """
+    lowered = text.lower()
+    target_hits = sum(1 for token in tokens if token.lower() in lowered)
+    counts: dict[str, int] = {}
+    for match in _LATIN_WORD.finditer(lowered):
+        word = match.group(0)
+        if any(word in token.lower() for token in tokens):
+            continue
+        counts[word] = counts.get(word, 0) + 1
+    foreign = sorted((word for word, count in counts.items() if count >= 4),
+                     key=lambda word: (-counts[word], word))[:4]
+    if target_hits and foreign:
+        return "comparative"
+    if target_hits:
+        return "target_subject"
+    if foreign:
+        return "foreign_subject"
+    return "unclear"
+
+
+def _source_windows(text: str, terms: Sequence[str], tokens: list[str]) -> list[dict[str, Any]]:
+    """Bounded, de-duplicated candidates anchored at each subject occurrence.
+
+    The window starts at the sentence that carries the subject (so conditions and conclusions
+    are not cut off) and never exceeds WINDOW_CHARS. A passage whose subject is a pronoun
+    inherits the previous sentence's subject only when that subject is the question's own.
+    """
+    lowered = text.lower()
+    needles = sorted({str(term).lower() for term in terms if str(term)})
+    anchors: list[int] = []
+    for needle in needles:
+        position = lowered.find(needle)
+        while position >= 0:
+            anchors.append(position)
+            position = lowered.find(needle, position + 1)
+    seen: set[tuple[int, int]] = set()
+    rows: list[dict[str, Any]] = []
+    for anchor in sorted(set(anchors)):
+        sentence_start = text.rfind("。", 0, anchor) + 1
+        if anchor - sentence_start > WINDOW_CHARS // 2:
+            sentence_start = anchor
+        start = max(0, sentence_start)
+        end = min(len(text), start + WINDOW_CHARS)
+        if (start, end) in seen:
+            continue
+        seen.add((start, end))
+        excerpt = text[start:end]
+        window_low = excerpt.lower()
+        subject = any(token.lower() in window_low for token in tokens)
+        previous = text[max(0, start - 80):start]
+        inherited = (not subject) and any(marker in window_low[:6]
+                                          for marker in _INHERIT_MARKERS) \
+            and any(token.lower() in previous.lower() for token in tokens)
+        relations = [marker for marker in _RELATION_MARKERS if marker in excerpt]
+        co_subjects = sum(1 for token in tokens if token.lower() in window_low)
+        # A passage qualifies as evidence material only when it is about the question's subject
+        # AND states a relation (condition, cause, contrast, negation) rather than a bare mention.
+        concrete = (subject or inherited) and bool(relations or co_subjects >= 2)
+        rows.append({"span_start": start, "span_end": end, "excerpt": excerpt,
+                     "window_kind": "term", "subject": subject or inherited,
+                     "concrete": concrete, "relations": len(relations),
+                     "co_subjects": co_subjects,
+                     "not_coverable": end - start >= WINDOW_CHARS})
+    # Rank before the per-goal limit cuts: best passages of EVERY region of the page, so a long
+    # page cannot lose its later mechanism text to its earlier table of contents.
+    def rank_key(row: dict[str, Any]) -> tuple:
+        return (0 if row["concrete"] else 1, -row["relations"], -row["co_subjects"],
+                row["span_start"])
+
+    by_region: dict[int, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_region.setdefault(row["span_start"] // (WINDOW_CHARS * 4), []).append(row)
+    picked: list[dict[str, Any]] = []
+    for region in sorted(by_region):
+        picked.extend(sorted(by_region[region], key=rank_key)[:2])
+    chosen_keys = {(row["span_start"], row["span_end"]) for row in picked}
+    picked.extend(sorted((row for row in rows
+                          if (row["span_start"], row["span_end"]) not in chosen_keys),
+                         key=rank_key))
+    picked.sort(key=rank_key)
+    return picked
+
+
 def candidate_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
                       limit: int = MAX_WINDOWS_PER_GOAL,
                       sides: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
-    """Windows for the candidate prompt, best-first: goal-term hits, then prose.
+    """Windows for the candidate prompt, best-first, with source and passage qualification.
 
-    Order matters: with several bodies in hand the model must be shown the passages most
-    likely to answer THIS goal. Term windows (the goal's own words) outrank prose windows,
-    and among term windows the body mentioning more of the goal's terms comes first.
+    Two questions are answered before a passage is offered to extraction:
+      * is this PAGE about what the reader asked (its dominant subject is not another product)?
+      * is this PASSAGE about that subject and does it state a relation, not just a mention?
+    A page that is about something else contributes no window at all, and a passage that is only
+    about the subject in passing is ranked below one that states a mechanism, so the single
+    extraction is not spent on material that cannot answer the goal.
     """
     terms = [str(term).lower() for term in goal_terms if str(term)]
+    tokens = _goal_tokens(list(goal_terms), sides)
     candidates: list[dict[str, Any]] = []
     for source_id, body in bodies.items():
         text = body.text or ""
         quality = getattr(body, "quality", None) or {}
         prose = int(quality.get("prose_chars", 0) or 0)
         hits = sum(1 for term in terms if term in text.lower())
-        term_window = _window(text, goal_terms)
-        prose_window = _prose_window(text)
-        for rank, window in ((3, term_window), (2, prose_window)):
-            if window is None:
-                continue
+        attribution = _source_attribution(text, tokens)
+        if attribution == "foreign_subject":
+            continue
+        for window in _source_windows(text, goal_terms, tokens):
             excerpt = str(window.get("excerpt") or "")
             # An index or item-list passage is not material for a claim even when the goal's
-            # words appear in it: showing it invites an empty answer. Fall through to the
-            # body's prose window instead of dropping the body.
+            # words appear in it.
             if looks_like_navigation(excerpt) or looks_like_list(excerpt):
                 continue
-            if rank == 3 and not (_SENTENCE_PUNCT.search(excerpt) and len(excerpt) >= 60):
-                rank = 1     # a term that only occurs in a caption or a label
+            side_hits = [index for index, side in enumerate(sides or ())
+                         if side and str(side).lower() in excerpt.lower()]
             candidates.append({
-                "source_id": source_id, "window": window, "rank": rank, "hits": hits,
-                "prose": prose,
+                "source_id": source_id, "window": window,
+                "rank": 3 if window["concrete"] else 1, "hits": hits, "prose": prose,
                 "matched": [term for term in terms if term in excerpt.lower()],
-                "sides": [index for index, side in enumerate(sides or ())
-                          if side and str(side).lower() in excerpt.lower()],
-                "url": str(getattr(body, "url", "")) or source_id})
-            break
-    # Stable order: score first, then the page itself, so registering the same bodies in a
-    # different order cannot change which passage is shown.
-    # Same preference order as before - prose-ness, then goal-term hits, then page size -
-    # with the page URL only as a STABLE tie-break, so registration order cannot change it.
-    ordered = sorted(candidates, key=lambda row: (-row["rank"], -row["hits"], -row["prose"],
-                                                  row["url"]))
+                "sides": side_hits})
+    # Only material passages are offered at all (a bare mention may not consume the one
+    # extraction), then the best passage of each side of a comparison, then by score with the
+    # page URL only as a STABLE tie-break so registration order cannot change the choice.
+    eligible = [row for row in candidates if row["rank"] == 3]
+    ordered = sorted(eligible, key=lambda row: (-len(row["matched"]), -len(row["sides"]),
+                                                -row["hits"], -row["prose"],
+                                                row["source_id"],
+                                                row["window"]["span_start"]))
     if sides:
         # A comparison question needs BOTH sides examined: take the best candidate for each
         # side before filling any remaining slot by score.
