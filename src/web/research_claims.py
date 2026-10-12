@@ -307,7 +307,9 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
                    completion: Callable[..., str], timeout: float = 20.0,
                    on_call: Callable[[], None] | None = None,
                    on_reject: Callable[[str], None] | None = None,
-                   sides_by_goal: Mapping[str, tuple[str, ...]] | None = None) -> list[Claim]:
+                   sides_by_goal: Mapping[str, tuple[str, ...]] | None = None,
+                   on_input: Callable[[Mapping[str, Any]], None] | None = None,
+                   on_response: Callable[[str], None] | None = None) -> list[Claim]:
     """One batched extraction over every unfinished goal. Never raises on bad model output."""
     def reject(reason: str) -> None:
         if on_reject is not None:
@@ -326,14 +328,24 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
     }
     if on_call is not None:
         on_call()                      # the caller counts a REAL model call, never a guess
+    if on_input is not None:
+        # An immutable snapshot of what the extractor is about to be shown: a later,
+        # recomputed view is not the same evidence.
+        on_input({"goals": {goal_id: {"terms": list(terms),
+                                      "windows": windows_by_goal[goal_id]}
+                            for goal_id, terms in goals.items()}})
     try:
         raw = completion(
             messages=[{"role": "system", "content": _SYSTEM},
                       {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
             timeout=timeout, task_name="research_claims")
     except Exception:  # noqa: BLE001 - extraction failure must not break the run
+        if on_response is not None:
+            on_response("")
         reject("call_failed")
         return []
+    if on_response is not None:
+        on_response(raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False))
     try:
         data = json.loads(raw) if isinstance(raw, str) else raw
     except (ValueError, TypeError):

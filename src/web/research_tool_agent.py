@@ -377,6 +377,9 @@ def run_tool_agent(
     #: Evidence loop state: run-once guard, verdicts, gap follow-ups, and the adopted
     #: evidence map used for eviction-safe deterministic checking.
     loop_spent = False
+    #: Immutable snapshot of what the ONE extraction call was actually shown, captured at the
+    #: call itself: a view recomputed at the end is not the same evidence.
+    extraction_input: dict[str, Any] = {}
     #: True once the loop deferred for a second source: it never defers twice, so waiting for
     #: breadth can never starve the verification it exists to protect.
     loop_deferred = False
@@ -589,11 +592,44 @@ def run_tool_agent(
                         """Audit why a candidate claim was refused (invented source, bad span…)."""
                         claim_rejections[reason] = claim_rejections.get(reason, 0) + 1
 
+                    def _capture_input(snapshot: Mapping[str, Any]) -> None:
+                        """Freeze the extraction input as it is, not as it would be recomputed."""
+                        enriched: dict[str, Any] = {}
+                        for label, item in (snapshot.get("goals") or {}).items():
+                            windows = []
+                            for window in item.get("windows") or []:
+                                body = notebook.by_source.get(str(window.get("source_id")))
+                                windows.append({
+                                    "source_id": window.get("source_id"),
+                                    "final_url": getattr(body, "final_url", ""),
+                                    "content_hash": getattr(body, "content_hash", ""),
+                                    "span": [window.get("span_start"), window.get("span_end")],
+                                    "window_kind": window.get("window_kind"),
+                                    "sides": list(window.get("sides") or []),
+                                    "excerpt": str(window.get("excerpt") or "")[:300]})
+                            enriched[label] = {
+                                "goal_text": label,
+                                "terms": list(item.get("terms") or []),
+                                "answer_items": list(answer_items(label)),
+                                "sides": list(goal_sides.get(label) or ()),
+                                "windows": windows}
+                        extraction_input.update({
+                            "goals": enriched,
+                            "remaining_seconds": round(max(0.0, deadline - monotonic()), 2),
+                            "model_calls": model_calls,
+                            "rejections_before": dict(sorted(claim_rejections.items()))})
+
+                    def _capture_response(raw: str) -> None:
+                        extraction_input["raw_response"] = str(raw)[:2000]
+
                     claims = extract_claims(
                         goals=unfinished, bodies=bodies_view, completion=completion,
                         timeout=min(20.0, max(1.0, deadline - monotonic())),
                         on_call=_count_call, on_reject=_count_reject,
-                        sides_by_goal=goal_sides)
+                        sides_by_goal=goal_sides, on_input=_capture_input,
+                        on_response=_capture_response)
+                    extraction_input["rejections_after"] = dict(
+                        sorted(claim_rejections.items()))
                     verdicts = verify_claims(
                         claims=claims, goals=unfinished,
                         label_to_id={label: label for label in unfinished},
@@ -1367,7 +1403,11 @@ def run_tool_agent(
                                         if body.kind == "navigation"),
         "body_kinds": {body.source_id: body.kind for body in notebook.by_source.values()},
         "evidence_loop_skipped": evidence_loop_skipped,
-        # Which passage each goal was actually shown, with the material side it covers.
+        # AUTHORITATIVE: what the one extraction call was actually shown, and what it replied.
+        "extraction_input": extraction_input,
+        # Final candidate snapshot (recomputed at the end). It is NOT what the extractor saw:
+        # `extraction_input` is the authoritative record of the call itself.
+        "window_audit_note": "final candidate snapshot, not the extraction input",
         "window_audit": {
             label: candidate_windows(terms, {sid: body for sid, body in
                                             notebook.by_source.items()
