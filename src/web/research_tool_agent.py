@@ -319,6 +319,46 @@ def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
 MAX_AUTO_HOPS = 2
 
 
+def _entity_match(entity: str, url: str, anchor: str = "") -> bool:
+    """Whether a link names EXACTLY this entity, not merely a phrase containing it.
+
+    "漏斗矿车" is a different article from "漏斗", so substring containment is not precision -
+    the anchor or the URL's last path segment must BE the entity (a namespace qualifier such as
+    "Category:漏斗" or a bracketed qualifier is still that entity).
+    """
+    if not entity:
+        return False
+    name = entity.strip().casefold()
+    text = (anchor or "").strip().casefold()
+    if text == name or text.startswith(name + "（") or text.startswith(name + "("):
+        return True
+    segment = unquote(urlsplit(url or "").path).rstrip("/").split("/")[-1].casefold()
+    return segment == name or segment.endswith(":" + name)
+
+
+def _site_scoped_query(missing: list[str], confirmed: set[str],
+                       searched: set[str]) -> str:
+    """A query that pins the missing subject to a site the run is already allowed to read.
+
+    The real site graphs measured here do not LINK the mechanism article from their hub pages,
+    so the reliable discovery route is asking the index for it on that host. No glossary: the
+    subject comes from the goal and the host from a candidate the run already confirmed.
+    """
+    hosts: list[str] = []
+    for url in confirmed:
+        host = urlsplit(url or "").netloc.casefold()
+        if host and host not in hosts:
+            hosts.append(host)
+    if not hosts or not missing:
+        return ""
+    subject = " ".join(entity for entity in missing[:2] if entity)
+    for host in hosts:
+        candidate = f"{subject} site:{host}"
+        if candidate.casefold() not in {item.casefold() for item in searched}:
+            return candidate
+    return ""
+
+
 def _auto_hop_target(*, confirmed: set[str], read_pages: Mapping[str, int],
                      exclusions: Mapping[str, str], basis: Mapping[str, str],
                      labels: Mapping[str, str], goals: Mapping[str, tuple[str, ...]],
@@ -350,8 +390,7 @@ def _auto_hop_target(*, confirmed: set[str], read_pages: Mapping[str, int],
     missing = [entity for entity in dict.fromkeys(missing) if entity]
 
     def matches_missing(url: str, label: str) -> bool:
-        haystack = f"{unquote(url)} {label}".casefold()
-        return any(entity.casefold() in haystack for entity in missing)
+        return any(_entity_match(entity, url, label) for entity in missing)
 
     candidates = [url for url in confirmed
                   if url not in read_pages and url not in exclusions and url not in hopped]
@@ -512,6 +551,10 @@ def run_tool_agent(
     #: In-site navigations this run took by itself, and the entries already hopped.
     auto_hops = 0
     hopped_entries: set[str] = set()
+    # What the LAST search actually returned. Discovery recovery may only act when the target
+    # article was genuinely unavailable from the index - i.e. that search produced no [article]
+    # but did produce a related site entry - never merely because a goal is still open.
+    search_signals: dict[str, Any] = {"no_article": False, "entry_urls": []}
     #: The four-state start decision for the one extraction call (state, reason, goals).
     extraction_gate: dict[str, Any] = {}
     #: Immutable snapshot of what the ONE extraction call was actually shown, captured at the
@@ -960,12 +1003,30 @@ def run_tool_agent(
             _eligible_windows(terms, relevant_now, goal_sides.get(label))
             for label, terms in goal_specs.items()
             if sub_goal_state[label]["status"] != "supported")
-        auto_hop = "" if (loop_spent or not discovery_hops) else _auto_hop_target(
-            confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
-            basis=confirmed_basis, labels=link_labels, goals=goal_specs,
-            sides_by_goal=goal_sides, hops_used=auto_hops, hopped=hopped_entries,
-            searches=searches, reads_left=max_reads - reads,
-            remaining_seconds=deadline - monotonic(), has_material=material_now)
+        # Discovery recovery is triggered by EVIDENCE OF FAILURE, not by an open goal: the last
+        # search must have returned no [article] while returning a related site entry. A run whose
+        # search already yielded article URLs (the PostgreSQL shape) is therefore never nudged.
+        entry_only_search = bool(search_signals["no_article"] and search_signals["entry_urls"])
+        # The agent must also have USED the failed results once (it read something): acting
+        # in the very round that follows a search would pre-empt the model's own attempt.
+        discovery_needed = (not material_now) and entry_only_search and reads >= 1
+        auto_hop = "" if (loop_spent or not discovery_hops or not discovery_needed) else \
+            _auto_hop_target(
+                confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
+                basis=confirmed_basis, labels=link_labels, goals=goal_specs,
+                sides_by_goal=goal_sides, hops_used=auto_hops, hopped=hopped_entries,
+                searches=searches, reads_left=max_reads - reads,
+                remaining_seconds=deadline - monotonic(), has_material=material_now)
+        # With no entry worth following, the measured site graphs leave one reliable route:
+        # ask the index for the missing subject ON a host the run has already confirmed.
+        auto_query = ""
+        if (discovery_hops and not loop_spent and not auto_hop and discovery_needed
+                and searches < max_searches and max_reads - reads >= 2):
+            auto_query = _site_scoped_query(
+                [entity for pair in goal_sides.values() for entity in pair if entity]
+                or [str(term) for terms in goal_specs.values() for term in terms
+                    if len(str(term)) >= 2],
+                confirmed, searched_queries)
         if auto_hop:
             # One bounded navigation instead of a model decision: it costs read quota and a real
             # network request (both counted as usual), never a model call.
@@ -994,11 +1055,17 @@ def run_tool_agent(
                 action = {"tool": "invalid", "reason": ""}
                 error = f"{type(exc).__name__}"
         call: dict[str, Any] = {"round": rnd, "action": action, "error": error}
-        if auto_hop:
+        if (auto_hop or auto_query) and action.get("reason") in {
+                "auto_discovery_hop", "auto_site_scoped_search"}:
             call["agent_initiated"] = True
-            candidate_trace.append({"round": rnd, "tool": "follow", "page": auto_hop,
-                                    "agent_initiated": True, "hop": auto_hops,
-                                    "discovered": [], "confirmed_basis": "followed_link"})
+            if auto_hop:
+                candidate_trace.append({"round": rnd, "tool": "follow", "page": auto_hop,
+                                        "agent_initiated": True, "hop": auto_hops,
+                                        "discovered": [], "confirmed_basis": "followed_link"})
+            else:
+                candidate_trace.append({"round": rnd, "tool": "search", "query": auto_query,
+                                        "agent_initiated": True, "hop": auto_hops,
+                                        "kind": "site_scoped"})
         if error:
             observations.append(f"round {rnd}: your action was rejected ({error}); return valid JSON.")
             calls.append(call)
@@ -1085,6 +1152,10 @@ def run_tool_agent(
                               str(r.get("snippet") or ""))
                 for r in rows
             ]
+            search_signals["no_article"] = bool(rows) and "article" not in page_types
+            search_signals["entry_urls"] = [
+                u for ptype, u in zip(page_types, shown_urls)
+                if ptype in {"home", "category"}]
             brief = "\n".join(
                 f"- [{ptype}] {r.get('title')} | {r.get('url')} | {str(r.get('snippet'))[:160]}"
                 for ptype, r in zip(page_types, rows)

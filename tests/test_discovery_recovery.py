@@ -1,4 +1,4 @@
-"""Discovery Recovery: opt-in, strictly triggered, bounded, and accounted for."""
+"""Discovery Recovery: opt-in, triggered by search failure, bounded, and accounted for."""
 
 from __future__ import annotations
 
@@ -16,10 +16,16 @@ SIDES = ("漏斗", "投掷器")
 ARTICLE_BODY = ("漏斗是一种可以捕捉物品实体的方块，它会从上方吸收物品。"
                 "漏斗可以把物品送到它朝向的容器中，因此常用于自动化排序。")
 
+# The measured failure shape: the index answers with a site entry and no [article] at all.
+ENTRY_ONLY = [{"title": "分类：漏斗", "url": "https://example.org/Category:漏斗",
+               "snippet": "分类 导航 首页"}]
+ARTICLE_HIT = [{"title": "漏斗", "url": "https://example.org/w/漏斗",
+                "snippet": "漏斗是一种方块"}]
+
 
 def _run(actions: list[dict], *, hops: bool, initial: tuple[str, ...],
-         body: str = GENERIC, goal: str = GOAL) -> dict:
-    gateway = FakeGateway()
+         body: str = GENERIC, goal: str = GOAL, results: list[dict] | None = None) -> dict:
+    gateway = FakeGateway(results=results or ENTRY_ONLY)
     gateway.read = lambda url, max_chars=6000, timeout=8: {
         "ok": True, "url": url, "content": body}
     queue = list(actions)
@@ -34,30 +40,60 @@ def _run(actions: list[dict], *, hops: bool, initial: tuple[str, ...],
         discovery_hops=hops)
 
 
+def _agent_calls(trace: dict) -> list[dict]:
+    return [call for call in trace["calls"] if call.get("agent_initiated")]
+
+
 def test_hops_are_off_by_default():
     """The switch OFF must leave behaviour and cost exactly as they were."""
     trace = _run([
         {"tool": "search", "query": "漏斗"},
         {"tool": "search", "query": "投掷器"},
         {"tool": "finish"},
-    ], hops=False, initial=("https://漏斗.example.org/",))
+    ], hops=False, initial=("https://example.org/",))
     assert trace["auto_hops"] == 0
-    assert not any(call.get("agent_initiated") for call in trace["calls"])
+    assert not _agent_calls(trace)
 
 
 def test_a_relevant_site_entry_produces_one_bounded_hop():
     trace = _run([
         {"tool": "search", "query": "漏斗与投掷器"},
+        {"tool": "read_page", "url": "https://example.org/"},
         {"tool": "finish", "reason": "done"},
-    ], hops=True, initial=("https://漏斗.example.org/",))
-    hops = [call for call in trace["calls"] if call.get("agent_initiated")]
-    assert trace["auto_hops"] == 1 and len(hops) == 1
-    assert hops[0]["action"]["tool"] == "follow"
-    assert hops[0]["action"]["url"] == "https://漏斗.example.org/"
-    # A hop costs a real network request and read quota, and is visibly agent-initiated.
-    # (Model-call accounting is pinned in test_model_call_accounting.py.)
+    ], hops=True, initial=("https://example.org/",))
+    hops = _agent_calls(trace)
+    assert 1 <= trace["auto_hops"] <= MAX_AUTO_HOPS and hops
+    follow = [c for c in hops if c["action"]["tool"] == "follow"]
+    assert follow and follow[0]["action"]["url"] == ENTRY_ONLY[0]["url"]
+    # Whatever else it does stays agent-initiated and pre-declared, never a model decision.
+    for call in hops:
+        assert call["action"]["reason"] in {"auto_discovery_hop", "auto_site_scoped_search"}
     assert trace["cost"]["network_requests"] >= 1
-    assert hops[0]["error"] == ""
+    assert all(call["error"] == "" for call in follow)
+
+
+def test_an_article_search_never_triggers_discovery():
+    """The PostgreSQL shape: the index already returned an article, so nothing may be nudged.
+
+    This is the regression guard for the case that made an earlier revision detour a run whose
+    search results were perfectly usable.
+    """
+    trace = _run([
+        {"tool": "search", "query": "漏斗与投掷器"},
+        {"tool": "finish", "reason": "done"},
+    ], hops=True, initial=("https://example.org/",), results=ARTICLE_HIT)
+    assert trace["auto_hops"] == 0
+    assert not _agent_calls(trace)
+
+
+def test_an_open_goal_without_a_failed_search_is_not_enough():
+    """No search yet means no evidence of failure: discovery recovery stays silent."""
+    trace = _run([
+        {"tool": "read_page", "url": "https://example.org/"},
+        {"tool": "finish", "reason": "done"},
+    ], hops=True, initial=("https://example.org/",))
+    assert trace["auto_hops"] == 0
+    assert not _agent_calls(trace)
 
 
 def test_a_precise_article_is_read_instead_of_hopping():
@@ -70,9 +106,18 @@ def test_a_precise_article_is_read_instead_of_hopping():
     assert picked == ""            # the article is the thing to read, not a reason to wander
 
 
+def test_a_containing_name_is_not_the_entity():
+    """Precision: "漏斗矿车" is a different article, so it is never treated as the subject."""
+    assert _auto_hop_target(
+        confirmed={"https://example.org/w/漏斗矿车"}, read_pages={}, exclusions={}, basis={},
+        labels={"https://example.org/w/漏斗矿车": "漏斗矿车"},
+        goals={GOAL: ("漏斗",)}, sides_by_goal={GOAL: SIDES}, hops_used=0, hopped=set(),
+        searches=1, reads_left=4, remaining_seconds=90.0, has_material=False) == ""
+
+
 def test_the_hop_never_exceeds_its_bound_or_repeats_an_entry():
-    target = "https://漏斗.example.org/"
-    another = "https://投掷器.example.org/"
+    target = "https://example.org/Category:漏斗"
+    another = "https://example.org/Category:投掷器"
     first = _auto_hop_target(
         confirmed={target, another}, read_pages={}, exclusions={}, basis={}, labels={},
         goals={GOAL: ("漏斗",)}, sides_by_goal={GOAL: SIDES}, hops_used=0, hopped=set(),
@@ -100,9 +145,10 @@ def test_an_unrelated_site_entry_is_not_hopped():
 
 
 def test_a_run_that_already_holds_material_never_hops():
-    """The PostgreSQL control: with eligible material in hand, navigation would be a detour."""
+    """With eligible material in hand, navigation would be a detour - even after a bad search."""
     trace = _run([
-        {"tool": "read_page", "url": "https://漏斗.example.org/"},
+        {"tool": "search", "query": "漏斗与投掷器"},
+        {"tool": "read_page", "url": "https://example.org/Category:漏斗"},
         {"tool": "finish", "reason": "done"},
-    ], hops=True, initial=("https://漏斗.example.org/",), body=ARTICLE_BODY)
-    assert not any(call.get("agent_initiated") for call in trace["calls"])
+    ], hops=True, initial=("https://example.org/Category:漏斗",), body=ARTICLE_BODY)
+    assert not _agent_calls(trace)
