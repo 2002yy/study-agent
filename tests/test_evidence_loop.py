@@ -216,18 +216,31 @@ def test_navigation_shell_never_spends_the_evidence_loop():
     assert trace["cost"]["model_calls"] == 2          # read decision + finish, no extraction
 
 
-def test_short_prose_lines_without_a_passage_report_the_window_gap():
-    body = ("Readers never block writers in this design.\n"
-            "Every writer makes a fresh row version here.\n"
-            "Old versions are vacuumed away later on.")
+def test_windows_refuse_a_list_only_passage():
+    """A passage that is nothing but itemised names is not offered as a window."""
+    body = (" - 快照 - 代价 - 清理 - 版本 - 回收 - 膨胀 - 事务 - 并发 - 阻塞 - 读锁 - 写锁")
+    from src.web.research_claims import candidate_windows
+
+    assert candidate_windows(("快照",), {"S1": type("B", (), {"text": body})()}) == []
+
+
+def test_an_off_topic_body_never_spends_the_evidence_loop():
+    """A substantive page about something else is not material: keep acquiring, don't spend.
+
+    This is the Minecraft failure mode: the run read a real "item" article, spent its single
+    extraction on it, and never examined the mechanism article it read much later.
+    """
     trace = _loop_with([
         {"tool": "read_page", "url": "https://example.org/a"},
         {"tool": "finish"},
-    ], body=body)
+    ], body="Minecraft 的物品是出现在物品栏中的物体，它们有各种不同的行为与作用。"
+           "所有物品都有堆叠限制，大多数物品的最大堆叠数量为 64，但有些物品为 16。"
+           "物品实体可以使用它们所代表的物品，盔甲架可以展示盔甲并被玩家看见。")
     assert trace["body_kinds"] == {"S1": "substantive"}
-    assert trace["evidence_loop_skipped"] == "candidate_window_gap"
-    assert trace["evidence_outcome"] == "candidate_window_gap"
-    assert trace["cost"]["model_calls"] == 2          # nothing checkable: no extraction call
+    assert trace["evidence_loop_skipped"] == "no_relevant_body"
+    assert trace["evidence_outcome"] == "no_relevant_body"
+    assert trace["claim_rejections"] == {} and trace["claim_verdicts"] == []
+    assert trace["cost"]["model_calls"] == 2          # read decision + finish, no extraction
 
 
 def test_empty_extraction_is_reported_as_such():

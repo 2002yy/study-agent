@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import time
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Mapping
 
@@ -128,25 +128,57 @@ def parse_action(raw: Any) -> dict[str, str]:
     return {"tool": "finish", "reason": reason}
 
 
-def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str]) -> list[dict[str, str]]:
+def _loop_reserve_seconds(confirmed: set[str], read_pages: Mapping[str, int],
+                          exclusions: Mapping[str, str],
+                          goals: Mapping[str, tuple[str, ...]]) -> float:
+    """Wall clock to keep for the extraction + verification pair.
+
+    While a RELEVANT candidate is still unread, the run really is choosing between reading and
+    verifying, so the full reservation applies. Once nothing relevant is left unread, the
+    reservation would only starve the verification, so a smaller floor is enough.
+    """
+    terms = [str(term).casefold() for values in goals.values() for term in values if term]
+    for url in confirmed:
+        if url in read_pages or url in exclusions:
+            continue
+        text = unquote(url).casefold()
+        if any(term in text for term in terms):
+            return MIN_LOOP_SECONDS
+    return MIN_LOOP_FLOOR_SECONDS
+
+
+def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str],
+                 labels: Mapping[str, str] | None = None) -> list[dict[str, Any]]:
     """Order confirmed-but-unread URLs so the model can act on what it already has.
 
-    Deterministic and cheap: more question-term hits in the URL path win, deep pages
-    beat site roots, and stable bases beat exploratory ones. This only *orders* the
-    candidates the run has already legitimately discovered — it grants no new access.
+    Deterministic and cheap, and relevance comes from what a candidate SAYS, not from where
+    it sits: the link's own text (title/anchor) counts most, then the URL path - DECODED, so
+    a percent-encoded Chinese title such as ``/w/%E6%BC%8F%E6%96%97`` (漏斗) can match the
+    question. An `article` classification is a bonus and never a substitute for relevance.
+    This only *orders* the candidates the run has already legitimately discovered.
     """
+    labels = labels or {}
     basis_priority = {
         "followed_link": 0, "feed_entry": 1, "search_result": 2,
         "initial_urls": 3, "registry_seed": 4,
     }
 
-    def key(url: str) -> tuple[int, int, int, str]:
-        lowered = url.casefold()
-        hits = sum(1 for term in terms if term and term.casefold() in lowered)
-        depth = 0 if urlsplit(lowered).path.strip("/") else 1  # 0 = deep page
-        return (-hits, depth, basis_priority.get(basis.get(url, ""), 9), lowered)
+    def key(url: str) -> tuple[int, int, int, int, int, str]:
+        label = str(labels.get(url) or "").casefold()
+        path = unquote(url).casefold()
+        label_hits = sum(1 for term in terms if term and term.casefold() in label)
+        hits = sum(1 for term in terms if term and term.casefold() in path)
+        article = 1 if classify_page(url, str(labels.get(url) or "")) == "article" else 0
+        depth = 0 if urlsplit(path).path.strip("/") else 1  # 0 = deep page
+        return (-label_hits, -hits, -article, depth,
+                basis_priority.get(basis.get(url, ""), 9), path)
 
-    return [{"url": url, "basis": basis.get(url, "")} for url in sorted(urls, key=key)]
+    return [{"url": url, "basis": basis.get(url, ""),
+             "label": labels.get(url, ""),
+             "matched": sorted(term for term in terms
+                               if term and term.casefold() in
+                               f"{labels.get(url, '')} {unquote(url)}".casefold())}
+            for url in sorted(urls, key=key)]
 
 
 #: Outcomes that mean the action was refused without spending a network request.
@@ -155,9 +187,13 @@ MAX_CORRECTIONS = 2  # bounded free corrections for refused decisions
 #: open a second, larger allowance.
 HARD_MODEL_CALL_CAP = 22
 HARD_WALL_SECONDS = 180.0
-#: The evidence loop needs real time for its extraction call: spending the run's single
-#: chance with a second left on the clock would guarantee a truncated answer.
-MIN_LOOP_SECONDS = 8.0
+#: Extraction plus independent verification are two model calls: the run reserves this much
+#: of its wall clock for them instead of spending its single chance on a truncated call. It
+#: is a RESERVATION, not an early stop - it never shortens the research allowance itself.
+MIN_LOOP_SECONDS = 35.0
+#: Smaller floor used once nothing relevant is left unread: verifying what we hold beats
+#: reserving time for research that no longer exists.
+MIN_LOOP_FLOOR_SECONDS = 8.0
 
 _REFUSED_OUTCOMES = frozenset({
     "duplicate_search", "already_read", "already_visited", "pending_url_confirmation",
@@ -310,6 +346,8 @@ def run_tool_agent(
         url for _, url in registry_sources if _public_url(url)
     )
     confirmed: set[str] = set()
+    #: url -> the link text (search title / anchor) that discovered it, for relevance ranking.
+    link_labels: dict[str, str] = {}
     confirmed_basis: dict[str, str] = {}
     feed_links: dict[str, str] = {}
     # URL -> exclusion reason for the CURRENT question. ``confirmed`` proves a URL was
@@ -386,21 +424,32 @@ def run_tool_agent(
         if evidence_loop and not loop_spent and monotonic() < deadline:
             substantive = {sid: body for sid, body in notebook.by_source.items()
                            if body.kind == "substantive"}
+            # Material that can be CHECKED is a substantive body that actually mentions what
+            # the question asks about. An off-topic hub page is not material: spending the
+            # run's single extraction on it is what left a correct article unexamined.
+            relevant = {sid: body for sid, body in substantive.items()
+                        if any(term and str(term).casefold()
+                               in unquote(body.text or "").casefold()
+                               for terms in goal_specs.values() for term in terms)}
             if not notebook.bodies:
                 evidence_loop_skipped = "acquisition_failure"
             elif not substantive:
                 # We hold text, but only index/navigation shells: keep acquiring instead.
                 evidence_loop_skipped = "no_substantive_body"
+            elif not relevant:
+                evidence_loop_skipped = "no_relevant_body"
             elif not goal_specs:
                 evidence_loop_skipped = "no_goals"
-            elif deadline - monotonic() < MIN_LOOP_SECONDS:
-                # Material exists but the clock does not: wait for a round that still has
-                # time to run a real extraction instead of a truncated one.
+            elif deadline - monotonic() < _loop_reserve_seconds(
+                    confirmed, read_pages, entry_exclusions, goal_specs):
+                # Reserve wall clock for extraction plus verification while there is still
+                # research left to do; with nothing relevant unread, a smaller floor is
+                # enough and the run's single chance is not wasted.
                 evidence_loop_skipped = "insufficient_time"
             elif model_calls + 2 > min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP):
                 evidence_loop_skipped = "model_call_cap"
             else:
-                planned = {label: candidate_windows(terms, substantive)
+                planned = {label: candidate_windows(terms, relevant)
                            for label, terms in goal_specs.items()
                            if sub_goal_state[label]["status"] != "supported"}
                 planned = {label: windows for label, windows in planned.items() if windows}
@@ -411,7 +460,7 @@ def run_tool_agent(
                     loop_spent = True
                     unfinished = {label: tuple(terms) for label, terms in goal_specs.items()
                                   if sub_goal_state[label]["status"] != "supported"}
-                    bodies_view = dict(substantive)
+                    bodies_view = dict(relevant)
                     def _count_call() -> None:
                         """Count a REAL model call, so cost never overstates what was spent."""
                         nonlocal model_calls
@@ -491,7 +540,8 @@ def run_tool_agent(
         # A navigation page that was read but never followed is the clearest next action:
         # it is NOT in the unread list (it was read) yet it must still be expanded.
         pending_follows = sorted(url for url in navigation_urls if url not in visited)
-        unread_rows = _rank_unread(unread_candidates, goal_terms, confirmed_basis)[:6]
+        unread_rows = _rank_unread(unread_candidates, goal_terms, confirmed_basis,
+                                   link_labels)[:6]
         # C1: structured action state. The model still spends a decision on every attempt -
         # the saving is the network request, never the hard round limit.
         action_rows = [_action_row(call) for call in calls]
@@ -679,6 +729,8 @@ def run_tool_agent(
                 if _public_url(url):
                     confirmed.add(url)
                     confirmed_basis.setdefault(url, "search_result")
+                    if r.get("title"):
+                        link_labels.setdefault(url, str(r.get("title")))
                     if entry_selection:
                         from src.web.research.entry_selection import search_admission
 
@@ -841,6 +893,10 @@ def run_tool_agent(
                     confirmed.add(link.url)
                     confirmed_basis.setdefault(link.url, "followed_link")
                     follow_provenance.setdefault(link.url, url)
+                    # Keep the link's own text: a candidate whose TITLE names the goal must
+                    # outrank one that merely sits on the right site.
+                    if link.anchor:
+                        link_labels.setdefault(link.url, link.anchor)
             page_type = classify_page(url)
             call["result"] = {"status": "ok", "n": len(links), "candidates": len(candidates),
                               "page_type": page_type}
@@ -901,7 +957,7 @@ def run_tool_agent(
                     "failure_reason": "url_not_from_search_result"})
                 unread_now = _rank_unread(
                     [u for u in confirmed if u not in read_pages and u not in entry_exclusions],
-                    goal_terms, confirmed_basis)[:5]
+                    goal_terms, confirmed_basis, link_labels)[:5]
                 observations.append(
                     f"round {rnd}: read rejected: {action['url']} was never discovered by a search "
                     "result or a followed page; guessing a URL is not evidence. Read one of the "
@@ -1122,8 +1178,8 @@ def run_tool_agent(
     elif not any(body.kind == "substantive" for body in notebook.by_source.values()):
         evidence_outcome = "no_substantive_body"
     elif not claim_rows:
-        evidence_outcome = "candidate_window_gap" if evidence_loop_skipped \
-            else "extraction_no_claim"
+        # The loop either never ran (report WHY, verbatim) or ran and drew no claim.
+        evidence_outcome = evidence_loop_skipped or "extraction_no_claim"
     elif not any(item.internal_supported for item in claim_verdicts):
         evidence_outcome = "verification_insufficient"
     elif any(st["status"] == "supported" for st in sub_goal_state.values()):
@@ -1182,6 +1238,27 @@ def run_tool_agent(
         # Goal completion in the honest vocabulary: a claim can be supported while its goal is
         # still only partially answered, and that is a legitimate resting state.
         "goal_status": goal_status,
+        # Decision audit: what was discovered, why it ranked where it did, whether it was
+        # read - and, at the moment the run stopped, what was still unread and on the clock.
+        "candidate_audit": [
+            {"rank": index + 1, "url": row["url"], "source": row["basis"],
+             "label": row["label"], "matched": row["matched"],
+             "read": row["url"] in read_pages,
+             "not_read_reason": "" if row["url"] in read_pages
+             else ("excluded:" + entry_exclusions[row["url"]]
+                   if row["url"] in entry_exclusions else "never_selected")}
+            for index, row in enumerate(_rank_unread(
+                [item for item in confirmed if item not in read_pages], goal_terms,
+                confirmed_basis, link_labels)[:12])],
+        "stop_context": {
+            "remaining_seconds": round(max(0.0, deadline - monotonic()), 2),
+            "remaining_model_calls": max(
+                0, min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP) - model_calls),
+            "relevant_unread": [
+                row["url"] for row in _rank_unread(
+                    [item for item in confirmed if item not in read_pages], goal_terms,
+                    confirmed_basis, link_labels) if row["matched"]][:6],
+        },
         "followups": followups,
         # Observability for the action-optimisation audit: wasted repeats are counted,
         # not hidden, and each escalation records the round limit it moved to.

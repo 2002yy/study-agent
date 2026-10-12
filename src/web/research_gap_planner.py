@@ -43,7 +43,10 @@ def plan_followups(*, verdicts: Sequence[ClaimVerdict],
         by_goal.setdefault(verdict.goal_id, []).append(verdict)
 
     planned: list[dict[str, Any]] = []
-    for goal_id, rows in by_goal.items():
+    for goal_id in goals:
+        # Every goal is considered, including one the extractor produced no claim for at all:
+        # silence from the extractor is a gap, not a settled goal.
+        rows = by_goal.get(goal_id, [])
         missing = uncovered_items(goal_id, rows)
         if not missing:
             continue                          # every necessary answer item is covered

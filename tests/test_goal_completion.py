@@ -39,6 +39,13 @@ def test_followups_are_planned_for_a_partial_goal():
     assert planned[0]["query"]
 
 
+def test_a_goal_with_no_claim_at_all_still_gets_a_followup():
+    """Extractor silence is a gap: an unclaimed goal must still be asked for."""
+    goal = "为什么不阻塞、主要代价是什么"
+    planned = plan_followups(verdicts=[], goals={goal: ("mvcc", "快照"), "另一个目标": ("x",)})
+    assert {row["goal_id"] for row in planned} == {goal, "另一个目标"}
+
+
 def test_followups_stop_once_every_requirement_is_covered():
     goal = "为什么不阻塞、主要代价是什么"
     verdicts = [_verdict(goal, covers=(0, 1))]
