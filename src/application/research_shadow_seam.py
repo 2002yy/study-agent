@@ -60,7 +60,7 @@ BUDGET_TIERS: dict[str, tuple[int, int, int, float]] = {
     # 40-second allowance: the tier was measured to run out during acquisition, not
     # during verification. 40s stays available as the `quick` tier.
     "standard": (12, 4, 6, 90.0),
-    "deep": (12, 6, 8, 75.0),
+    "deep": (16, 6, 8, 120.0),
     "extended": (20, 8, 14, 180.0),
 }
 DEFAULT_TIER = "standard"

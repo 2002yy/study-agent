@@ -598,10 +598,12 @@ def run_tool_agent(
                 and (calls[-1].get("result") or {}).get("status") in _REFUSED_OUTCOMES):
             corrections += 1
             rnd -= 1
-        model_calls += 1
-        if model_calls > min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP):
+        # Count only REAL model requests. The allowance is checked BEFORE asking for another
+        # decision, so the stopping count is never one call the run did not make.
+        if model_calls >= min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP):
             stop = "model_call_limit"
             break
+        model_calls += 1
         # Evidence loop (opt-in, at most ONCE per run). It is spent ONLY when material that
         # can actually be checked is in hand: reading an index page must not burn the run's
         # single extraction chance. The calls are counted against the SAME hard cap, so this
