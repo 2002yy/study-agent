@@ -375,6 +375,54 @@ def answer_items(label: str) -> tuple[str, ...]:
     return items or (text,)
 
 
+#: Separators that make a question a COMPARISON of two things. Never a topic glossary: it
+#: reads the question's own wording.
+_COMPARE_SEP = re.compile(r"\s*(?:与|和|及|vs\.?|VS\.?|对比|相比)\s*")
+#: Particles that glue an entity to the rest of a phrase ("Minecraft 中漏斗" -> "漏斗").
+_PARTICLES = "中上下的里内外与和及对把将"
+#: CJK runs let a side be taken from either end: the LEFT side ends with its entity, the
+#: RIGHT side begins with it.
+_CJK_RUN = re.compile(r"[\u4e00-\u9fff]+")
+#: Characters that end the entity phrase on the right side ("投掷器有什么区别" -> "投掷器").
+_SIDE_STOP = "在的与和及对把将有多么几哪吗呢有为会是能可怎如何什"
+
+
+def _entity(chunk: str, *, leading: bool) -> str:
+    """The entity phrase a comparison side names, with its connective tail removed."""
+    text = (chunk or "").strip("　 ，,。？?！!：:；;")
+    if not text:
+        return ""
+    runs = _CJK_RUN.findall(text)
+    if not runs:
+        return text.split()[0] if text.split() else text       # "A 和 B"
+    run = runs[0] if leading else runs[-1]
+    if leading:
+        cut = len(run)
+        for index, char in enumerate(run):
+            if char in _SIDE_STOP:
+                cut = index
+                break
+        run = run[:cut]
+    return run.lstrip(_PARTICLES)
+
+
+def compare_sides(text: str) -> tuple[str, str] | None:
+    """The two things a question compares, or None when it compares nothing.
+
+    "Minecraft 中漏斗和投掷器在物品传输上的区别是什么" -> ("漏斗", "投掷器"). This plans
+    evidence only: two sources mentioning A and B still say nothing about how they differ, so
+    it never grants support on its own.
+    """
+    found = _COMPARE_SEP.search(text or "")
+    if found is None:
+        return None
+    left = _entity(text[:found.start()], leading=False)    # the entity ENDS the left chunk
+    right = _entity(text[found.end():], leading=True)      # the entity BEGINS the right one
+    if not left or not right or left == right:
+        return None
+    return left, right
+
+
 def looks_like_list(text: str) -> bool:
     """True when a passage is a list of names/links rather than prose sentences.
 

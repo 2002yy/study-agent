@@ -58,10 +58,19 @@ class Claim:
     goal_terms_present: bool = False
 
 
+def _prose_score(excerpt: str) -> int:
+    """How much a passage reads like an explanation rather than a label or a list."""
+    return len(excerpt) if _SENTENCE_PUNCT.search(excerpt) else 0
+
+
 def _window(text: str, terms: tuple[str, ...]) -> dict[str, Any] | None:
+    """The passage around the first goal term the body states."""
     lowered = text.lower()
     for term in terms:
-        position = lowered.find(str(term).lower())
+        needle = str(term).lower()
+        if not needle:
+            continue
+        position = lowered.find(needle)
         if position < 0:
             continue
         start = max(0, position - WINDOW_CHARS // 2)
@@ -92,7 +101,8 @@ def _prose_window(text: str) -> dict[str, Any] | None:
 
 
 def candidate_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
-                      limit: int = MAX_WINDOWS_PER_GOAL) -> list[dict[str, Any]]:
+                      limit: int = MAX_WINDOWS_PER_GOAL,
+                      sides: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
     """Windows for the candidate prompt, best-first: goal-term hits, then prose.
 
     Order matters: with several bodies in hand the model must be shown the passages most
@@ -100,13 +110,12 @@ def candidate_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
     and among term windows the body mentioning more of the goal's terms comes first.
     """
     terms = [str(term).lower() for term in goal_terms if str(term)]
-    ranked: list[tuple[int, int, int, str, dict[str, Any]]] = []
+    candidates: list[dict[str, Any]] = []
     for source_id, body in bodies.items():
         text = body.text or ""
-        lowered = text.lower()
-        hits = sum(1 for term in terms if term in lowered)
         quality = getattr(body, "quality", None) or {}
         prose = int(quality.get("prose_chars", 0) or 0)
+        hits = sum(1 for term in terms if term in text.lower())
         term_window = _window(text, goal_terms)
         prose_window = _prose_window(text)
         for rank, window in ((3, term_window), (2, prose_window)):
@@ -118,14 +127,39 @@ def candidate_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
             # body's prose window instead of dropping the body.
             if looks_like_navigation(excerpt) or looks_like_list(excerpt):
                 continue
-            if rank == 3 and not (bool(_SENTENCE_PUNCT.search(excerpt))
-                                  and len(excerpt) >= 60):
+            if rank == 3 and not (_SENTENCE_PUNCT.search(excerpt) and len(excerpt) >= 60):
                 rank = 1     # a term that only occurs in a caption or a label
-            ranked.append((rank, hits, prose, source_id, window))
+            candidates.append({
+                "source_id": source_id, "window": window, "rank": rank, "hits": hits,
+                "prose": prose,
+                "matched": [term for term in terms if term in excerpt.lower()],
+                "sides": [index for index, side in enumerate(sides or ())
+                          if side and str(side).lower() in excerpt.lower()],
+                "url": str(getattr(body, "url", "")) or source_id})
             break
-    ranked.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
-    return [{"source_id": source_id, **window}
-            for _rank, _hits, _prose, source_id, window in ranked[:limit]]
+    # Stable order: score first, then the page itself, so registering the same bodies in a
+    # different order cannot change which passage is shown.
+    # Same preference order as before - prose-ness, then goal-term hits, then page size -
+    # with the page URL only as a STABLE tie-break, so registration order cannot change it.
+    ordered = sorted(candidates, key=lambda row: (-row["rank"], -row["hits"], -row["prose"],
+                                                  row["url"]))
+    if sides:
+        # A comparison question needs BOTH sides examined: take the best candidate for each
+        # side before filling any remaining slot by score.
+        chosen: list[dict[str, Any]] = []
+        for index in range(len(sides)):
+            same = [row for row in ordered if index in row["sides"]]
+            if same and same[0] not in chosen:
+                chosen.append(same[0])
+        for row in ordered:
+            if len(chosen) >= limit:
+                break
+            if row not in chosen:
+                chosen.append(row)
+        ordered = chosen[:limit]
+    return [{"source_id": row["source_id"], **row["window"],
+             "sides": [sides[index] for index in row["sides"]] if sides else []}
+            for row in ordered[:limit]]
 
 
 def _find_from(text: str, fragment: str, cursor: int = 0) -> tuple[int, int]:
@@ -272,7 +306,8 @@ def _valid_claim(raw: Mapping[str, Any], *, goal_ids: set[str],
 def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str, Any],
                    completion: Callable[..., str], timeout: float = 20.0,
                    on_call: Callable[[], None] | None = None,
-                   on_reject: Callable[[str], None] | None = None) -> list[Claim]:
+                   on_reject: Callable[[str], None] | None = None,
+                   sides_by_goal: Mapping[str, tuple[str, ...]] | None = None) -> list[Claim]:
     """One batched extraction over every unfinished goal. Never raises on bad model output."""
     def reject(reason: str) -> None:
         if on_reject is not None:
@@ -281,7 +316,9 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
     if not goals or not bodies:
         return []
     windows_by_goal: dict[str, list[dict[str, Any]]] = {
-        goal_id: candidate_windows(terms, bodies) for goal_id, terms in goals.items()}
+        goal_id: candidate_windows(terms, bodies,
+                                    sides=(sides_by_goal or {}).get(goal_id))
+        for goal_id, terms in goals.items()}
     payload: dict[str, Any] = {
         "goals": [{"goal_id": goal_id, "goal": goal_id, "passages": windows_by_goal[goal_id]}
                   for goal_id in goals],

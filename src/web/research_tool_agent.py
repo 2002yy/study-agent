@@ -20,6 +20,7 @@ from typing import Any, Callable, Mapping
 from src.web.link_discovery import (
     classify_goal_candidate,
     classify_page,
+    compare_sides,
     derive_sub_goals,
     extract_candidates,
     looks_like_navigation,
@@ -205,16 +206,27 @@ def _number_corroboration(quote: str, terms: tuple[str, ...],
 def _awaits_second_source(relevant: Mapping[str, Any], confirmed: set[str],
                           read_pages: Mapping[str, int], exclusions: Mapping[str, str],
                           goals: Mapping[str, tuple[str, ...]], rnd: int, max_rounds: int,
-                          deadline: float, now: float) -> bool:
-    """Whether the loop should wait for a SECOND source before spending its single chance.
+                          deadline: float, now: float,
+                          sides_by_goal: Mapping[str, tuple[str, ...]] | None = None) -> bool:
+    """Whether the loop should wait for a MISSING MATERIAL SIDE before spending its chance.
 
-    A comparison question ("A and B differ how?") cannot be answered from one side: the
-    Minecraft run spent its extraction on hopper material alone and could only ever report a
-    partial goal. Waiting is bounded - it stops as soon as the clock runs low, the rounds run
-    out, or no unread relevant candidate remains - so this never turns into an early stop.
+    Counting pages is not enough: two pages that both explain the hopper say nothing about how
+    it differs from a dropper. The wait is decided by the question's own comparison structure -
+    every side named there needs material in hand - and it is bounded by the clock, the rounds
+    and the one-deferral rule, so it never becomes an early stop.
     """
-    if len(relevant) >= 2:
-        return False
+    pairs = [pair for pair in (sides_by_goal or {}).values() if pair]
+    if not pairs:
+        return False                  # not a comparison: there is no "other side" to wait for
+    texts = [str(getattr(body, "text", "") or "") for body in relevant.values()]
+    missing_side = False
+    for pair in pairs:
+        for side in pair:
+            if side and not any(side in text for text in texts):
+                missing_side = True
+                break
+    if not missing_side:
+        return False                  # every comparison goal already holds both sides
     unread_relevant = [url for url in confirmed
                        if url not in read_pages and url not in exclusions
                        and any(term and str(term).casefold() in unquote(url).casefold()
@@ -419,6 +431,13 @@ def run_tool_agent(
     derived_goals = () if sub_goals else derive_sub_goals(question)
     if derived_goals:
         goal_specs = {label: tuple(terms) for label, terms in derived_goals}
+    # The comparison structure is read from the goal's own wording (falling back to the
+    # question): it plans which sides need material, and never grants support by itself.
+    goal_sides: dict[str, tuple[str, ...]] = {}
+    for _label in goal_specs:
+        _pair = compare_sides(_label) or compare_sides(question)
+        if _pair:
+            goal_sides[_label] = _pair
     if not goal_specs:
         # A single-goal question must still enter the semantic loop: one implicit goal owns
         # the whole question, so nothing depends on derive_sub_goals splitting it.
@@ -540,7 +559,7 @@ def run_tool_agent(
                 evidence_loop_skipped = "model_call_cap"
             elif (not loop_deferred and _awaits_second_source(
                     relevant, confirmed, read_pages, entry_exclusions, goal_specs, rnd,
-                    max_rounds, deadline, monotonic())):
+                    max_rounds, deadline, monotonic(), goal_sides)):
                 # A comparison question needs BOTH sides examined in the same batch. With one
                 # source in hand and time/rounds left, keep reading rather than spending the
                 # single chance on one-sided material; when the budget runs short the loop
@@ -548,7 +567,8 @@ def run_tool_agent(
                 evidence_loop_skipped = "awaiting_second_source"
                 loop_deferred = True
             else:
-                planned = {label: candidate_windows(terms, relevant)
+                planned = {label: candidate_windows(terms, relevant,
+                                                    sides=goal_sides.get(label))
                            for label, terms in goal_specs.items()
                            if sub_goal_state[label]["status"] != "supported"}
                 planned = {label: windows for label, windows in planned.items() if windows}
@@ -572,7 +592,8 @@ def run_tool_agent(
                     claims = extract_claims(
                         goals=unfinished, bodies=bodies_view, completion=completion,
                         timeout=min(20.0, max(1.0, deadline - monotonic())),
-                        on_call=_count_call, on_reject=_count_reject)
+                        on_call=_count_call, on_reject=_count_reject,
+                        sides_by_goal=goal_sides)
                     verdicts = verify_claims(
                         claims=claims, goals=unfinished,
                         label_to_id={label: label for label in unfinished},
@@ -1346,6 +1367,13 @@ def run_tool_agent(
                                         if body.kind == "navigation"),
         "body_kinds": {body.source_id: body.kind for body in notebook.by_source.values()},
         "evidence_loop_skipped": evidence_loop_skipped,
+        # Which passage each goal was actually shown, with the material side it covers.
+        "window_audit": {
+            label: candidate_windows(terms, {sid: body for sid, body in
+                                            notebook.by_source.items()
+                                            if body.kind == "substantive"},
+                                     sides=goal_sides.get(label))
+            for label, terms in goal_specs.items()},
         # Whether the loop waited once for a second source before spending its chance.
         "loop_deferred": loop_deferred,
         "evidence_outcome": evidence_outcome,
