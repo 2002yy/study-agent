@@ -129,37 +129,58 @@ def parse_action(raw: Any) -> dict[str, str]:
     return {"tool": "finish", "reason": reason}
 
 
-def _loop_reserve_seconds(confirmed: set[str], read_pages: Mapping[str, int],
+def _loop_reserve_seconds(budget: float, confirmed: set[str], read_pages: Mapping[str, int],
                           exclusions: Mapping[str, str],
                           goals: Mapping[str, tuple[str, ...]]) -> float:
-    """Wall clock to keep for the extraction + verification pair.
+    """Wall clock to keep for the extraction + verification pair, scaled to the REAL budget.
 
-    While a RELEVANT candidate is still unread, the run really is choosing between reading and
-    verifying, so the full reservation applies. Once nothing relevant is left unread, the
-    reservation would only starve the verification, so a smaller floor is enough.
+    The reservation is a share of the clock actually in force, not a fixed 35s: a 40-second
+    tier cannot give away 35 of its seconds and still be a research run. While a RELEVANT
+    candidate is still unread the share applies (capped at MIN_LOOP_SECONDS); once nothing
+    relevant is left unread, only the small floor is held back.
     """
+    reserve = min(MIN_LOOP_SECONDS, max(MIN_LOOP_FLOOR_SECONDS, budget * LOOP_RESERVE_SHARE))
     terms = [str(term).casefold() for values in goals.values() for term in values if term]
     for url in confirmed:
         if url in read_pages or url in exclusions:
             continue
         text = unquote(url).casefold()
         if any(term in text for term in terms):
-            return MIN_LOOP_SECONDS
+            return reserve
     return MIN_LOOP_FLOOR_SECONDS
+
+
+#: A quantity together with the thing it counts: "1 个铁锭" -> (1, "铁锭"). The unit stops
+#: before connectors and digits, so "1个铁锭和1个箱子" is two quantities, not one.
+_QUANTITY = re.compile(r"(\d+)\s*(?:个|块|格|条|张|根|桶|组|颗|份|种)?\s*"
+                       r"([^0-9\s和或与及、，,。；;:：]{1,4})")
+
+
+def _quantities(text: str) -> set[tuple[str, str]]:
+    return {(number, unit) for number, unit in _QUANTITY.findall(text or "") if unit}
 
 
 def _number_corroboration(quote: str, terms: tuple[str, ...],
                           others: Mapping[str, str]) -> str:
-    """Mark a claim whose NUMBER no second page we read can corroborate.
+    """Classify a stated NUMBER against the other pages this run read.
 
-    A quantity is the cheapest thing for a source to get wrong: the real Minecraft audit
-    found a third-party page stating "1 个铁锭" where the recipe needs five, while the
-    authoritative wiki passage in the same run carried the count only inside a crafting
-    image. This is a MARK, not a rejection and not a second verification pass: the verdict is
-    unchanged, and the finding is flagged for review instead.
+    Three outcomes, deliberately conservative:
+      ""                       number_correlated  - another page states the SAME quantity for
+                                                   the same thing; nothing to flag
+      "number_conflict"        another page states a DIFFERENT quantity for the same thing
+      "number_uncorroborated"  no comparable quantity: it stays flagged for review
+
+    A page that merely contains some unrelated number NEVER clears the warning, which is what
+    the Minecraft audit showed: the third-party page said "1 个铁锭" while the recipe needs
+    five. The verdict is untouched and no model call is added.
     """
-    if not re.search(r"\d", quote or ""):
+    stated = _quantities(quote)
+    if not stated:
         return ""
+    units = {unit for _number, unit in stated}
+    numbers = {number for number, _unit in stated}
+    conflicted = False
+    matched = False
     for text in others.values():
         for term in terms:
             if not term:
@@ -168,10 +189,44 @@ def _number_corroboration(quote: str, terms: tuple[str, ...],
             if position < 0:
                 continue
             window = text[max(0, position - 120):position + 200]
-            if re.search(r"\d", window):
-                return ""            # another page states a quantity for the same subject
-            return "number_uncorroborated"
-    return ""
+            for other_number, other_unit in _quantities(window):
+                if other_unit not in units:
+                    continue          # a number about something else is NOT agreement
+                if other_number in numbers:
+                    matched = True    # same thing, same amount
+                else:
+                    conflicted = True  # same thing, different amount
+            break                     # one window per page is enough
+    if conflicted:
+        return "number_conflict"      # a disagreement outranks any agreement
+    return "" if matched else "number_uncorroborated"
+
+
+def _awaits_second_source(relevant: Mapping[str, Any], confirmed: set[str],
+                          read_pages: Mapping[str, int], exclusions: Mapping[str, str],
+                          goals: Mapping[str, tuple[str, ...]], rnd: int, max_rounds: int,
+                          deadline: float, now: float) -> bool:
+    """Whether the loop should wait for a SECOND source before spending its single chance.
+
+    A comparison question ("A and B differ how?") cannot be answered from one side: the
+    Minecraft run spent its extraction on hopper material alone and could only ever report a
+    partial goal. Waiting is bounded - it stops as soon as the clock runs low, the rounds run
+    out, or no unread relevant candidate remains - so this never turns into an early stop.
+    """
+    if len(relevant) >= 2:
+        return False
+    unread_relevant = [url for url in confirmed
+                       if url not in read_pages and url not in exclusions
+                       and any(term and str(term).casefold() in unquote(url).casefold()
+                               for terms in goals.values() for term in terms)]
+    if not unread_relevant:
+        return False
+    rounds_left = (max_rounds - rnd) > 2
+    # A comfortable window only: deferring must never eat the reservation it protects.
+    reserve = min(MIN_LOOP_SECONDS, max(MIN_LOOP_FLOOR_SECONDS,
+                                        (deadline - now + (MIN_LOOP_SECONDS)) * LOOP_RESERVE_SHARE))
+    time_left = (deadline - now) > (reserve + 20.0)
+    return rounds_left and time_left
 
 
 def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str],
@@ -221,6 +276,8 @@ MIN_LOOP_SECONDS = 35.0
 #: Smaller floor used once nothing relevant is left unread: verifying what we hold beats
 #: reserving time for research that no longer exists.
 MIN_LOOP_FLOOR_SECONDS = 8.0
+#: Share of the clock in force reserved for the extraction + verification pair.
+LOOP_RESERVE_SHARE = 0.35
 
 _REFUSED_OUTCOMES = frozenset({
     "duplicate_search", "already_read", "already_visited", "pending_url_confirmation",
@@ -308,6 +365,10 @@ def run_tool_agent(
     #: Evidence loop state: run-once guard, verdicts, gap follow-ups, and the adopted
     #: evidence map used for eviction-safe deterministic checking.
     loop_spent = False
+    #: True once the loop deferred for a second source: it never defers twice, so waiting for
+    #: breadth can never starve the verification it exists to protect.
+    loop_deferred = False
+    #: True once the loop deferred for a second source: it never defers twice.
     claim_rows: list[Any] = []
     claim_verdicts: list[Any] = []
     claim_rejections: dict[str, int] = {}
@@ -470,13 +531,22 @@ def run_tool_agent(
             elif not goal_specs:
                 evidence_loop_skipped = "no_goals"
             elif deadline - monotonic() < _loop_reserve_seconds(
-                    confirmed, read_pages, entry_exclusions, goal_specs):
+                    deadline - started, confirmed, read_pages, entry_exclusions, goal_specs):
                 # Reserve wall clock for extraction plus verification while there is still
                 # research left to do; with nothing relevant unread, a smaller floor is
                 # enough and the run's single chance is not wasted.
                 evidence_loop_skipped = "insufficient_time"
             elif model_calls + 2 > min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP):
                 evidence_loop_skipped = "model_call_cap"
+            elif (not loop_deferred and _awaits_second_source(
+                    relevant, confirmed, read_pages, entry_exclusions, goal_specs, rnd,
+                    max_rounds, deadline, monotonic())):
+                # A comparison question needs BOTH sides examined in the same batch. With one
+                # source in hand and time/rounds left, keep reading rather than spending the
+                # single chance on one-sided material; when the budget runs short the loop
+                # fires anyway and the goal is honestly reported as partial.
+                evidence_loop_skipped = "awaiting_second_source"
+                loop_deferred = True
             else:
                 planned = {label: candidate_windows(terms, relevant)
                            for label, terms in goal_specs.items()
@@ -1276,6 +1346,8 @@ def run_tool_agent(
                                         if body.kind == "navigation"),
         "body_kinds": {body.source_id: body.kind for body in notebook.by_source.values()},
         "evidence_loop_skipped": evidence_loop_skipped,
+        # Whether the loop waited once for a second source before spending its chance.
+        "loop_deferred": loop_deferred,
         "evidence_outcome": evidence_outcome,
         # Goal completion in the honest vocabulary: a claim can be supported while its goal is
         # still only partially answered, and that is a legitimate resting state.

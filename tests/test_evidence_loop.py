@@ -224,21 +224,24 @@ def test_windows_refuse_a_list_only_passage():
     assert candidate_windows(("快照",), {"S1": type("B", (), {"text": body})()}) == []
 
 
-def test_number_corroboration_marks_an_uncorroborated_quantity():
-    """The real audit case: a page said "1 个铁锭" and the wiki passage carried no number.
+def test_number_corroboration_keeps_three_conservative_states():
+    """A quantity is the cheapest thing for a source to get wrong, so this stays stingy.
 
-    A quantity is the cheapest thing for a source to get wrong, so a number no second page we
-    read can corroborate is MARKED for review - not rejected, and not turned into an expensive
-    multi-source verification for every fact.
+    An unrelated number NEVER clears the warning: only the same attribute with the same amount
+    counts as corroboration, and the same attribute with a different amount is a conflict.
     """
     from src.web.research_tool_agent import _number_corroboration
 
     quote = "漏斗可以用1个铁锭和1个箱子合成"
     assert _number_corroboration(quote, ("漏斗",), {
-        "S1": "漏斗是一种方块。| 材料 | 合成配方 | |---|---| | 铁锭 + 箱子 | 挖掘漏斗需要镐。"}
-    ) == "number_uncorroborated"
+        "S1": "漏斗可以用5个铁锭和1个箱子合成，这是标准配方。"}) == "number_conflict"
     assert _number_corroboration(quote, ("漏斗",), {
-        "S1": "漏斗可以用5个铁锭和1个箱子合成，这是标准配方。"}) == ""
+        "S1": "漏斗需要1个铁锭和1个箱子。"}) == ""
+    assert _number_corroboration(quote, ("漏斗",), {
+        "S1": "漏斗在 Java 1.5 快照中加入，合成需要铁锭。"}) == "number_uncorroborated"
+    assert _number_corroboration(quote, ("漏斗",), {
+        "S1": "| 材料 | 合成配方 | |---|---| | 铁锭 + 箱子 | 挖掘漏斗需要镐。"}
+    ) == "number_uncorroborated"
     assert _number_corroboration("漏斗是一种方块", ("漏斗",), {"S1": "漏斗是一种方块。"}) == ""
 
 
