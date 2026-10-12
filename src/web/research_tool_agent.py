@@ -618,6 +618,8 @@ def run_tool_agent(
     unread_candidates: list[str] = []
     pending_follows: list[str] = []
     rnd = -1
+    #: Real model decisions taken (an agent-initiated hop is not a decision).
+    decisions_made = 0
     while True:
         if rnd + 1 >= max_rounds:
             # Dynamic escalation along an ordered chain, inside THIS run (sources, bodies,
@@ -664,7 +666,6 @@ def run_tool_agent(
         if model_calls >= min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP):
             stop = "model_call_limit"
             break
-        model_calls += 1
         # Evidence loop (opt-in, at most ONCE per run). It is spent ONLY when material that
         # can actually be checked is in hand: reading an index page must not burn the run's
         # single extraction chance. The calls are counted against the SAME hard cap, so this
@@ -973,6 +974,11 @@ def run_tool_agent(
             action = {"tool": "follow", "url": auto_hop, "reason": "auto_discovery_hop"}
             error = ""
         else:
+            # Counted here and nowhere else: a real request is a real call, while an
+            # agent-initiated hop round asks the model nothing and must add neither a model
+            # call nor a research decision.
+            model_calls += 1
+            decisions_made += 1
             try:
                 raw = completion(
                     messages=_prompt(question, observations, reliable_sources,
@@ -1613,7 +1619,7 @@ def run_tool_agent(
         # MAX_CORRECTIONS; the model-call cap bounds the total either way.
         "cost": {
             "model_calls": model_calls,
-            "research_decisions": rnd + 1,
+            "research_decisions": decisions_made,
             "corrections": corrections,
             "network_requests": sum(
                 1 for c in calls
