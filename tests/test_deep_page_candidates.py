@@ -139,11 +139,13 @@ def test_excluded_candidate_is_not_recommended(monkeypatch):
     assert trace["calls"][1]["result"]["status"] == "entry_not_eligible"  # gate unchanged
 
 
-def test_budgets_are_unchanged_by_slice1():
+def test_budgets_are_unchanged_by_slice1():  # approved: standard expanded to 90s
     default = AgentBudget()
     assert (default.max_rounds, default.max_searches, default.max_reads) == (6, 4, 3)
     assert default.hard_seconds == 60.0
     # the shadow tier table is the configuration entry point (standard is the default)
+    # Approved expansion: research that must find and compare two mechanism articles does not
+    # fit 40 seconds; the global caps (180s / 22 calls) are unchanged.
     assert (BSEARCH_SHADOW_MAX_ROUNDS, BSEARCH_SHADOW_MAX_SEARCHES,
-            BSEARCH_SHADOW_MAX_READS) == (8, 4, 5)
-    assert BSEARCH_SHADOW_BUDGET_SECONDS == 40.0
+            BSEARCH_SHADOW_MAX_READS) == (12, 4, 6)
+    assert BSEARCH_SHADOW_BUDGET_SECONDS == 90.0
