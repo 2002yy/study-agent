@@ -315,6 +315,61 @@ def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
     return "abstain", "insufficient_time", {}
 
 
+#: Bounded in-site navigation the run may take by itself (Discovery Recovery).
+MAX_AUTO_HOPS = 2
+
+
+def _auto_hop_target(*, confirmed: set[str], read_pages: Mapping[str, int],
+                     exclusions: Mapping[str, str], basis: Mapping[str, str],
+                     labels: Mapping[str, str], goals: Mapping[str, tuple[str, ...]],
+                     sides_by_goal: Mapping[str, tuple[str, ...]], hops_used: int,
+                     hopped: set[str], searches: int, reads_left: int,
+                     remaining_seconds: float, has_material: bool) -> str:
+    """A navigation entry worth one bounded hop, or "" when the run must not hop.
+
+    Every condition is required, and none of them guesses from page type alone:
+
+    * the switch is on (checked by the caller), a search has run, and no goal holds material;
+    * no confirmed unread ARTICLE already matches a still-missing subject - that article is the
+      thing to read, not a reason to wander ("漏斗矿车" matches neither 漏斗 nor 投掷器);
+    * the entry is confirmed, un-read, un-excluded, not yet hopped, and classified as a site
+      home/category page that is relevant to the goal;
+    * read quota (2) and the verification reserve are both preserved.
+
+    Manual `follow` and this hop share the same execution path, so URL, redirect, provenance and
+    safety rules cannot diverge.
+    """
+    if hops_used >= MAX_AUTO_HOPS or searches < 1 or reads_left < 2 or has_material:
+        return ""
+    if remaining_seconds <= (MIN_LOOP_SECONDS + ACQUIRE_STEP_SECONDS):
+        return ""
+    missing: list[str] = []
+    for label, terms in goals.items():
+        pair = sides_by_goal.get(label)
+        missing.extend(pair if pair else [str(term) for term in terms if len(str(term)) >= 2])
+    missing = [entity for entity in dict.fromkeys(missing) if entity]
+
+    def matches_missing(url: str, label: str) -> bool:
+        haystack = f"{unquote(url)} {label}".casefold()
+        return any(entity.casefold() in haystack for entity in missing)
+
+    candidates = [url for url in confirmed
+                  if url not in read_pages and url not in exclusions and url not in hopped]
+    precise = [url for url in candidates
+               if classify_page(url, labels.get(url, "")) == "article"
+               and matches_missing(url, labels.get(url, ""))]
+    if precise:
+        return ""                      # read the article that answers the goal first
+    entries = [url for url in candidates
+               if classify_page(url, labels.get(url, "")) in {"home", "category"}
+               and matches_missing(url, labels.get(url, ""))]
+    if not entries:
+        return ""
+    ranked = _rank_unread(entries, {entity.casefold() for entity in missing},
+                          dict(basis), labels)
+    return str(ranked[0]["url"]) if ranked else ""
+
+
 def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str],
                  labels: Mapping[str, str] | None = None) -> list[dict[str, Any]]:
     """Order confirmed-but-unread URLs so the model can act on what it already has.
@@ -436,7 +491,10 @@ def run_tool_agent(
     sub_goals: tuple[tuple[str, tuple[str, ...]], ...] = (),
     entry_selection: bool = True,
     assessment_feedback: bool = True,
-    capture_full_text: bool = False,
+        capture_full_text: bool = False,
+        # Discovery Recovery is OPT-IN: default off keeps every existing caller's behaviour,
+        # cost and tests exactly as they were.
+        discovery_hops: bool = False,
     monotonic: Callable[[], float] = time.monotonic,
     should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict[str, Any]:
@@ -451,6 +509,9 @@ def run_tool_agent(
     #: Evidence loop state: run-once guard, verdicts, gap follow-ups, and the adopted
     #: evidence map used for eviction-safe deterministic checking.
     loop_spent = False
+    #: In-site navigations this run took by itself, and the entries already hopped.
+    auto_hops = 0
+    hopped_entries: set[str] = set()
     #: The four-state start decision for the one extraction call (state, reason, goals).
     extraction_gate: dict[str, Any] = {}
     #: Immutable snapshot of what the ONE extraction call was actually shown, captured at the
@@ -888,21 +949,50 @@ def run_tool_agent(
                 "navigation page to obtain its chapter links, then read_page the specific "
                 "chapter, so the run reaches mechanism text instead of another list of links."
                 % (max_rounds - rnd))
-        try:
-            raw = completion(
-                messages=_prompt(question, observations, reliable_sources,
-                                 state=budget_state, candidates=unread_rows,
-                                 pending_follows=pending_follows, actions=action_state,
-                                 notebook=notebook_view),
-                timeout=min(20.0, max(1.0, deadline - monotonic())),
-                task_name="research_tool_agent",
-            )
-            action = parse_action(raw)
+        substantive_now = {sid: body for sid, body in notebook.by_source.items()
+                           if body.kind == "substantive"}
+        relevant_now = {sid: body for sid, body in substantive_now.items()
+                        if any(term and str(term).casefold()
+                               in unquote(body.text or "").casefold()
+                               for terms in goal_specs.values() for term in terms)}
+        material_now = any(
+            _eligible_windows(terms, relevant_now, goal_sides.get(label))
+            for label, terms in goal_specs.items()
+            if sub_goal_state[label]["status"] != "supported")
+        auto_hop = "" if (loop_spent or not discovery_hops) else _auto_hop_target(
+            confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
+            basis=confirmed_basis, labels=link_labels, goals=goal_specs,
+            sides_by_goal=goal_sides, hops_used=auto_hops, hopped=hopped_entries,
+            searches=searches, reads_left=max_reads - reads,
+            remaining_seconds=deadline - monotonic(), has_material=material_now)
+        if auto_hop:
+            # One bounded navigation instead of a model decision: it costs read quota and a real
+            # network request (both counted as usual), never a model call.
+            auto_hops += 1
+            hopped_entries.add(auto_hop)
+            action = {"tool": "follow", "url": auto_hop, "reason": "auto_discovery_hop"}
             error = ""
-        except Exception as exc:  # noqa: BLE001 - a bad action is recorded, not fatal
-            action = {"tool": "invalid", "reason": ""}
-            error = f"{type(exc).__name__}"
+        else:
+            try:
+                raw = completion(
+                    messages=_prompt(question, observations, reliable_sources,
+                                     state=budget_state, candidates=unread_rows,
+                                     pending_follows=pending_follows, actions=action_state,
+                                     notebook=notebook_view),
+                    timeout=min(20.0, max(1.0, deadline - monotonic())),
+                    task_name="research_tool_agent",
+                )
+                action = parse_action(raw)
+                error = ""
+            except Exception as exc:  # noqa: BLE001 - a bad action is recorded, not fatal
+                action = {"tool": "invalid", "reason": ""}
+                error = f"{type(exc).__name__}"
         call: dict[str, Any] = {"round": rnd, "action": action, "error": error}
+        if auto_hop:
+            call["agent_initiated"] = True
+            candidate_trace.append({"round": rnd, "tool": "follow", "page": auto_hop,
+                                    "agent_initiated": True, "hop": auto_hops,
+                                    "discovered": [], "confirmed_basis": "followed_link"})
         if error:
             observations.append(f"round {rnd}: your action was rejected ({error}); return valid JSON.")
             calls.append(call)
@@ -1472,6 +1562,9 @@ def run_tool_agent(
         # AUTHORITATIVE: what the one extraction call was actually shown, and what it replied.
         "extraction_input": extraction_input,
         "extraction_gate": extraction_gate,
+        # Discovery Recovery accounting: hops taken by the run itself (never model calls).
+        "auto_hops": auto_hops,
+        "hopped_entries": sorted(hopped_entries),
         # Final candidate snapshot (recomputed at the end). It is NOT what the extractor saw:
         # `extraction_input` is the authoritative record of the call itself.
         "window_audit_note": "final candidate snapshot, not the extraction input",
