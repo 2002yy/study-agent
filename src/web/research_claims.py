@@ -119,6 +119,13 @@ _QUOTED_TERM = re.compile(
     r"|\"([^\"]{1,24})\"")                # plain ASCII double quotes
 
 
+def _delimited_in(term: str, excerpt: str) -> bool:
+    """Whether a short term appears as a word of its own (punctuation or quote delimited)."""
+    edge = r"[^0-9A-Za-z\u4e00-\u9fff]"
+    return bool(re.search(r"(?:^|" + edge + r")" + re.escape(term) + r"(?:$|" + edge + r")",
+                          excerpt or ""))
+
+
 def _quoted_terms(text: str) -> list[str]:
     """Terms the question marks as its own subject by quoting them."""
     out: list[str] = []
@@ -240,10 +247,23 @@ def _source_windows(text: str, terms: Sequence[str], tokens: list[str],
         # relation or a behaviour), never a bare mention with a copula.
         specific_hits = [token for token in tokens if token.lower() in window_low]
         if quoted:
-            # The question's own quoted terms are what it is about: a passage that
-            # never mentions one of them is not material, however often it repeats
-            # the topic's name.
-            specific_gate = any(str(term).lower() in window_low for term in quoted)
+            # The question's own quoted terms are what it is about. A single character term
+            # (\u300c\u6c14\u300d) must not match as a bare substring - it occurs inside unrelated
+            # words - so it counts only when delimited, and a window with several quoted terms
+            # counts when at least two appear.
+            hits = 0
+            strong = False
+            for raw_term in quoted:
+                text_term = str(raw_term)
+                if not text_term:
+                    continue
+                if len(text_term) >= 2:
+                    if text_term.lower() in window_low:
+                        hits += 1
+                        strong = True
+                elif _delimited_in(text_term, excerpt):
+                    hits += 1
+            specific_gate = strong or hits >= 2
         else:
             specific_gate = (len(specific_hits) >= 2
                              or (len(specific_hits) == 1 and bool(relations or behaviour)))
