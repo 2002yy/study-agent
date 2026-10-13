@@ -964,9 +964,13 @@ def run_tool_agent(
                                                      selector=evidence_windows, label=label)
                             for label, terms in unfinished.items()}
                     extraction_input["windows_by_goal"] = window_snapshot
+                    _calls_left_now = min(max_rounds + MAX_CORRECTIONS,
+                                          HARD_MODEL_CALL_CAP) - model_calls
+                    _retry_ok = (_calls_left_now >= 3
+                                 and (deadline - monotonic()) >= 20.0)
                     claims = extract_claims(
                         goals=unfinished, bodies=bodies_view, completion=completion,
-                        windows_by_goal=window_snapshot,
+                        windows_by_goal=window_snapshot, retry_empty=_retry_ok,
                         timeout=min(20.0, max(1.0, deadline - monotonic())),
                         on_call=_count_call, on_reject=_count_reject,
                         sides_by_goal=goal_sides, on_input=_capture_input,

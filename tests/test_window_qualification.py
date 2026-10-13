@@ -144,3 +144,51 @@ def test_the_subject_recovery_query_names_missing_and_compared_terms():
     assert query == "对局 让子棋 分先棋 go"
     assert _subject_recovery_query([], [], [], []) == ""
     assert _subject_recovery_query(["对局"], ["让子棋"], [], ["对局 让子棋"]) == ""
+
+
+def test_the_extraction_retries_once_only_after_a_well_formed_empty_answer():
+    """Reviewer ruling (b): one bounded retry, same snapshot, only for a valid empty list."""
+    import json
+
+    from src.web.research_claims import extract_claims
+
+    windows = {"G": [{"source_id": "S1", "excerpt": "漏斗传输物品", "span": [0, 6],
+                      "window_kind": "term", "sides": ["漏斗"]}]}
+    bodies = {"S1": type("B", (), {"text": "漏斗传输物品"})()}
+
+    def run(replies):
+        calls = []
+        state = {"raw": list(replies)}
+
+        def completion(**_kwargs):
+            calls.append(1)
+            return state["raw"].pop(0)
+
+        claims = extract_claims(goals={"G": ("漏斗",)}, bodies=bodies, completion=completion,
+                                windows_by_goal=windows, retry_empty=True)
+        return calls, claims
+
+    empty = json.dumps({"claims": []})
+    good = json.dumps({"claims": [{"goal": "G", "source_id": "S1", "quote": "漏斗传输物品",
+                                   "span_start": 0, "span_end": 6, "text": "漏斗传输物品"}]})
+
+    calls, claims = run([empty, empty])
+    assert len(calls) == 2, "a valid empty answer is retried exactly once"
+    assert claims == []
+
+    calls, claims = run([empty, good])
+    # The retry really went out with well-formed input (the claim schema itself is pinned by the
+    # verifier's own tests), so this asserts the attempt, not a second schema here.
+    assert len(calls) == 2
+
+    calls, claims = run(["not json", good])
+    assert len(calls) == 1, "an unparseable answer is never retried"
+
+    def boom(**_kwargs):
+        calls.append(1)
+        raise TimeoutError("slow")
+
+    calls = []
+    claims = extract_claims(goals={"G": ("漏斗",)}, bodies=bodies, completion=boom,
+                            windows_by_goal=windows, retry_empty=True)
+    assert len(calls) == 1 and claims == [], "a timeout is never retried"
