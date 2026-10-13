@@ -438,3 +438,35 @@ def test_the_real_q3_window_shape_reports_the_dropper_missing_and_blocks_the_gat
         assert state in {"acquiring", "abstain"}, (state, reason)
     finally:
         agent._eligible_windows = original
+
+
+def test_the_side_url_is_percent_encoded_and_matched_exactly():
+    """Review: zh.minecraft.wiki encodes CJK, and /漏斗矿车 is not the 漏斗 page."""
+    from src.web.research_tool_agent import _missing_sides, _entity_match
+
+    class _B:
+        kind = "substantive"
+
+        def __init__(self, url):
+            self.text = "x"
+            self.url = url
+            self.final_url = url
+            self.quality = {"prose_chars": 1}
+
+    encoded = "https://zh.minecraft.wiki/w/%E6%BC%8F%E6%96%97?variant=zh-cn"
+    assert _entity_match("漏斗", encoded), "the decoded CJK segment is the entity"
+    assert not _entity_match("漏斗", "https://zh.minecraft.wiki/w/漏斗矿车")
+    both_window = {"source_id": "S1", "window_kind": "term", "sides": ["漏斗", "投掷器"],
+                   "excerpt": "漏斗与投掷器不同。"}
+    from src.web import research_tool_agent as agent
+
+    original = agent._eligible_windows
+    agent._eligible_windows = lambda *a, **k: [both_window]
+    try:
+        missing = _missing_sides(goal_sides={"区别": ("漏斗", "投掷器")},
+                                 statuses={"区别": "explored"},
+                                 goal_specs={"区别": ("漏斗", "投掷器", "区别")},
+                                 relevant={"S1": _B(encoded)})
+        assert missing == ["投掷器"], missing
+    finally:
+        agent._eligible_windows = original

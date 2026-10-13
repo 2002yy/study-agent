@@ -355,8 +355,12 @@ def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
                 got |= names
                 continue
             body = relevant.get(str(row.get("source_id")))
-            url = str(getattr(body, "final_url", "") or getattr(body, "url", "") or "").casefold()
-            got |= {side for side in names if side.casefold() and side.casefold() in url}
+            url = str(getattr(body, "final_url", "") or getattr(body, "url", "") or "")
+            # The URL is percent-encoded for CJK (zh.minecraft.wiki/w/%E6%BC%8F%E6%96%97), so a
+            # substring test never matches, and "/漏斗矿车" would falsely match "漏斗". The
+            # repository already decodes URLs and matches an entity against a whole path segment,
+            # so that is what decides here.
+            got |= {side for side in names if _entity_match(side, unquote(url))}
         if not got:
             continue
         held.update(got)
