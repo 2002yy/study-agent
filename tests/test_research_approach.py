@@ -8,6 +8,7 @@ import pytest
 
 from src.web.research.research_approach import (
     APPROACH_SCHEMA,
+    MAX_SUMMARY_CHARS,
     approach_event,
     direction_update,
     fallback_approach,
@@ -16,6 +17,7 @@ from src.web.research.research_approach import (
     normalize_mode,
     project_from_plan,
     seed_approach,
+    summarize_plan,
     validate_approach,
 )
 
@@ -253,6 +255,40 @@ def test_approach_event_still_emits_valid_pending_seed() -> None:
     assert event is not None
     assert event["status"] == "pending"
     assert event["sequence"] == 0
+
+
+def test_summarize_plan_projects_fields_without_extra_call() -> None:
+    approach = summarize_plan(
+        mode="standard",
+        fields=["PSD 兼容", "脚本自动化", "维护状态"],
+    )
+    assert approach["origin"] == "model_plan"
+    assert approach["status"] == "ready"
+    assert approach["focus"] == ["PSD 兼容", "脚本自动化", "维护状态"]
+    assert "PSD 兼容" in approach["summary"]
+    assert "脚本自动化" in approach["summary"]
+
+
+def test_summarize_plan_phrasing_differs_by_mode() -> None:
+    lookup = summarize_plan(mode="lookup", fields=["该项目当前支持的功能"])
+    deep = summarize_plan(mode="deep", fields=["核心功能", "PSD 图层往返", "可编程接口"])
+    assert lookup["summary"] != deep["summary"]
+    assert lookup["mode"] == "lookup" and deep["mode"] == "deep"
+
+
+def test_summarize_plan_without_fields_degrades_to_fallback() -> None:
+    approach = summarize_plan(mode="standard", fields=[])
+    assert approach["origin"] == "fallback"
+    approach2 = summarize_plan(mode="standard", fields=["   ", ""])
+    assert approach2["origin"] == "fallback"
+
+
+def test_summarize_plan_stays_within_mode_length_budget() -> None:
+    long_fields = ["非常长的研究关注点名称" + str(i) for i in range(8)]
+    for mode in ("lookup", "standard", "deep"):
+        approach = summarize_plan(mode=mode, fields=long_fields)
+        assert approach["status"] == "ready"
+        assert len(approach["summary"]) <= MAX_SUMMARY_CHARS[mode]
 
 
 def test_fallback_is_honest_and_authority_free() -> None:

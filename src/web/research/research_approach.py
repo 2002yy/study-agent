@@ -230,6 +230,61 @@ def project_from_plan(
     )
 
 
+def _compose_summary(mode: str, names: list[str]) -> str:
+    joined = "、".join(names)
+    if mode == MODE_LOOKUP:
+        return f"我会先核对 {joined} 的官方说明。"
+    if mode == MODE_DEEP:
+        return (
+            f"我会先建立关于 {joined} 的候选清单，再分别验证并补全尚未明确的部分，"
+            "最后标明证据不足的地方。"
+        )
+    return f"我会分别核对 {joined}，并通过检索补全尚未解决的部分。"
+
+
+def summarize_plan(
+    *,
+    mode: Any,
+    fields: Any,
+    root_run_id: str = "",
+    turn_id: str = "",
+    sequence: int = 1,
+) -> dict[str, Any]:
+    """Preferred path when a model plan already exists.
+
+    Projects the plan's **own** unresolved field names into a short, honest
+    direction.  Deterministic: **no extra model call**, and the four-key plan
+    envelope is never touched.  Degrades to :func:`fallback_approach` when the
+    plan carries no usable field names (never invents facts).
+    """
+
+    resolved_mode = normalize_mode(mode)
+    names = _clean_focus(fields)
+    if not names:
+        return fallback_approach(
+            mode=resolved_mode, root_run_id=root_run_id, turn_id=turn_id, sequence=sequence
+        )
+    limit = MAX_SUMMARY_CHARS[resolved_mode]
+    summary = _compose_summary(resolved_mode, names)
+    # Deterministic length guard: drop trailing fields until it fits the mode
+    # budget, so validation can never reject a projection we ourselves produced.
+    while names and len(summary) > limit:
+        names = names[:-1]
+        summary = _compose_summary(resolved_mode, names) if names else ""
+    if not summary:
+        return fallback_approach(
+            mode=resolved_mode, root_run_id=root_run_id, turn_id=turn_id, sequence=sequence
+        )
+    return project_from_plan(
+        mode=resolved_mode,
+        summary=summary,
+        focus=names,
+        root_run_id=root_run_id,
+        turn_id=turn_id,
+        sequence=sequence,
+    )
+
+
 def fallback_approach(
     *,
     mode: Any,
