@@ -87,8 +87,11 @@ summary yet) — the UI shows the existing deterministic tool progress meanwhile
 
 ## Pending (next slices)
 
-- Project a ready summary from the Standard planner plan when it is saved
-  (preferred, no extra call), keeping the four-key plan envelope untouched.
+- **Plan projection (deterministic, implemented in the stacked slice):**
+  `summarize_plan(mode, fields)` projects the plan's own unresolved field names
+  into a short direction — **no extra call**, four-key envelope untouched,
+  degrades to `fallback` when the plan has no usable fields.  Remaining work:
+  wire it when the Standard plan is saved.
 - Only if plan data is insufficient **and** budget allows, wire the bounded
   DeepSeek generation (budget permission first, counted attempts; a late result
   must not overwrite a cancelled terminal state). Opening generation must **not**
