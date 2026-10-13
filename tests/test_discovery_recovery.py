@@ -146,6 +146,8 @@ def test_the_site_scoped_query_actually_executes():
     scoped = [call for call in _agent_calls(trace) if call["action"]["tool"] == "search"]
     assert scoped, "the site-scoped route never executed"
     query = scoped[0]["action"]["query"]
+    # Review: a MISSING side becomes the target only when the goal already holds qualified
+    # material for the other side. This fixture holds none, so the ordinary subject term is used.
     assert "site:example.org" in query and "漏斗" in query
     assert query in gateway.searches        # a real request was issued, not a suggestion
 
@@ -345,3 +347,26 @@ def test_the_recovery_executes_when_an_unrelated_result_set_leaves_no_other_path
     assert "pep" in scoped[0]["action"]["query"].casefold()
     assert scoped[0]["action"]["reason"] in {"auto_site_scoped_search"}
     assert len(gateway.searches) <= 3
+
+
+def test_the_missing_side_targets_the_scoped_query_in_both_directions():
+    """One search, one target: whichever side is missing is the one that gets asked for."""
+    from src.web.research_tool_agent import _site_scoped_query
+
+    confirmed = {"https://zh.minecraft.wiki/"}
+    dropper = _site_scoped_query(["投掷器"], confirmed, set(), [], set())
+    hopper = _site_scoped_query(["漏斗"], confirmed, set(), [], set())
+    assert dropper == "投掷器 site:zh.minecraft.wiki"
+    assert hopper == "漏斗 site:zh.minecraft.wiki"
+    assert dropper != hopper
+
+
+def test_the_scoped_query_is_not_sent_again_and_needs_a_confirmed_host():
+    from src.web.research_tool_agent import _site_scoped_query
+
+    confirmed = {"https://zh.minecraft.wiki/"}
+    issued = {"投掷器 site:zh.minecraft.wiki"}
+    assert _site_scoped_query(["投掷器"], confirmed, issued, [], set()) == ""
+    assert _site_scoped_query(["投掷器"], set(), set(), [], set()) == ""
+    limit = _site_scoped_query(["投掷器", "漏斗"], confirmed, set(), [], set())
+    assert limit.count("site:") == 1, "one target, one host"

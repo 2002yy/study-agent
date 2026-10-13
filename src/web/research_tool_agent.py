@@ -1146,23 +1146,36 @@ def run_tool_agent(
         # SEARCH RESERVE: decided here, BEFORE the model can spend the last slot. Waiting until
         # the results have been read would replay the measured failure of four homepage-only
         # searches, which is exactly why this eligibility must not depend on reads >= 1.
-        # A comparison holding one side while the other is missing is evidence of failure too
-        # (Q3: the hopper page read, the dropper refused by the confirmation rail). It may
-        # ESTABLISH the reserve; execution stays behind the no-ordinary-path-left guard below.
-        _relevant_text = " ".join(unquote(body.text or "").casefold()
-                                   for body in relevant_now.values())
-        sides_unbalanced = any(
-            pair and any(side and side.casefold() in _relevant_text for side in pair)
-            and any(side and side.casefold() not in _relevant_text for side in pair)
-            for label, pair in goal_sides.items()
-            if sub_goal_state[label]["status"] != "supported")
+        # TARGET CHOICE comes before the query is built. A comparison that holds one side in
+        # its QUALIFIED material and lacks the other must ask for the missing side alone:
+        # "one search, one target", and a single-target query is more likely to return pages
+        # about that target than a query holding both words. Availability is judged from the
+        # qualified windows, never from a bare word somewhere on a page - a hopper page that
+        # merely mentions the dropper in passing must not count as having found it.
+        available_sides: set[str] = set()
+        required_sides: set[str] = set()
+        for _label, _pair in goal_sides.items():
+            if not _pair or sub_goal_state[_label]["status"] == "supported":
+                continue
+            _rows = _eligible_windows(tuple(goal_specs.get(_label) or ()), relevant_now,
+                                      _pair, selector=evidence_windows, label=_label)
+            _text = " ".join(str(_row.get("excerpt") or "").casefold()
+                              for _row in _rows)
+            _held = {str(_side) for _side in _pair
+                     if str(_side) and str(_side).casefold() in _text}
+            if not _held:
+                # Nothing qualified yet: this is not an imbalance, so the ordinary
+                # subject terms stay the target.
+                continue
+            available_sides.update(_held)
+            required_sides.update(str(_side) for _side in _pair if str(_side))
+        missing_sides = sorted(required_sides - available_sides)
         recovery_query = ""
         if (discovery_hops and not loop_spent and auto_hops == 0 and not material_now
                 and searches < max_searches and max_reads - reads >= 1
-                and (entry_only_search or search_signals.get("no_relevant_host")
-                     or sides_unbalanced)):
+                and (entry_only_search or search_signals.get("no_relevant_host"))):
             recovery_query = _site_scoped_query(
-                missing_entities, confirmed, searched_queries,
+                missing_sides or missing_entities, confirmed, searched_queries,
                 search_signals["entry_urls"], entry_exclusions)
             if not recovery_query and search_signals.get("no_relevant_host"):
                 # No host worth pinning: ask again with the question's own subject words only,
@@ -1170,7 +1183,8 @@ def run_tool_agent(
                 side_words = [str(side) for pair in (goal_sides or {}).values()
                               for side in (pair or ()) if str(side)]
                 recovery_query = _subject_recovery_query(
-                    missing_entities, side_words, _question_words, searched_queries)
+                    missing_sides or missing_entities, side_words, _question_words,
+                    searched_queries)
         reserved_searches = 1 if recovery_query else 0
         # Execution: the agent used the failed results once (entry-only), OR the search returned
         # NOTHING worth reading at all - no related site entry exists, which is exactly Q1's
@@ -1178,8 +1192,7 @@ def run_tool_agent(
         # entry-only search keeps waiting for its read, so the reserve stays the LAST slot.
         discovery_needed = (not material_now) and (
             (entry_only_search and reads >= 1)
-            or (reads == 0 and not search_signals["entry_urls"])
-            or (sides_unbalanced and reads >= 1))
+            or (reads == 0 and not search_signals["entry_urls"]))
         auto_hop = "" if (loop_spent or not discovery_hops or not discovery_needed) else \
             _auto_hop_target(
                 confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
