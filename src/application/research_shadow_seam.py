@@ -161,6 +161,7 @@ def summarize_trace(trace: Mapping[str, Any], *, budget_seconds: float) -> dict[
         "authoritative": False,
         "evidence_completion": SHADOW_EVIDENCE_COMPLETION,
         "stop_reason": trace.get("stop_reason"),
+        "needs_review": trace.get("needs_review") or [],
         "rounds": trace.get("rounds"),
         "searches": trace.get("searches"),
         "reads": trace.get("reads"),

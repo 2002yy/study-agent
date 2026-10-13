@@ -31,6 +31,7 @@ from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_sta
 from src.web.research_claim_verifier import verify_claims
 from src.web.link_discovery import answer_items
 from src.web.research_claims import (attribution_of, candidate_windows, extract_claims,
+                                     question_tokens,
                                      evidence_windows)
 from src.web.research_gap_planner import plan_followups
 from src.web.research_notebook import ResearchNotebook
@@ -235,6 +236,28 @@ def _can_acquire(confirmed: set[str], read_pages: Mapping[str, int],
         if any(term in unquote(url).casefold() for term in terms):
             return True
     return searches_left > 0          # a search can still find one
+
+
+def support_eligible(goal_id: str, source_id: str, span_start: int,
+                     ineligible: set[tuple[str, str, int]]) -> bool:
+    """Whether a verified claim may count as THIS goal's coverage.
+
+    The verifier decides whether the text supports the claim; this decides whether the claim can
+    be attributed to the asked-about subject. A foreign-dominant source keeps its raw verdict but
+    never counts as coverage, so status, completion and gap planning cannot disagree.
+    """
+    return (goal_id, source_id, span_start) not in ineligible
+
+
+def covered_indexes(label: str, verdicts: Iterable[Any],
+                    ineligible: set[tuple[str, str, int]]) -> set[int]:
+    """Requirement indexes a goal may treat as covered: eligible supports only."""
+    covered: set[int] = set()
+    for row in verdicts:
+        if (row.goal_id == label and row.internal_supported
+                and support_eligible(row.goal_id, row.source_id, row.span_start, ineligible)):
+            covered.update(row.covers)
+    return covered
 
 
 def _eligible_windows(terms: tuple[str, ...], bodies: Mapping[str, Any],
@@ -581,6 +604,11 @@ def run_tool_agent(
     #: call itself: a view recomputed at the end is not the same evidence.
     extraction_input: dict[str, Any] = {}
     #: True once the loop deferred for a second source: it never defers twice.
+    # Goal-support eligibility: a verdict whose source is foreign-dominant may be a true
+    # statement about that other product, so its raw verdict is kept, but it may not count as
+    # this goal's coverage anywhere downstream (status, completion, gap planning, review).
+    ineligible_support: set[tuple[str, str, int]] = set()
+    _question_words = question_tokens(question)
     claim_rows: list[Any] = []
     claim_verdicts: list[Any] = []
     claim_rejections: dict[str, int] = {}
@@ -854,10 +882,8 @@ def run_tool_agent(
                         # goal. The goal is settled only when every requirement is covered by
                         # a supported claim: one correct claim is a legitimate partial answer.
                         items = answer_items(verdict.goal_id)
-                        covered_items: set[int] = set()
-                        for row in claim_verdicts:
-                            if row.goal_id == verdict.goal_id and row.internal_supported:
-                                covered_items.update(row.covers)
+                        covered_items = covered_indexes(
+                            verdict.goal_id, claim_verdicts, ineligible_support)
                         record["covers"] = sorted(verdict.covers)
                         # A number is the cheapest thing for a source to get wrong: mark it
                         # when no other page we read states a quantity for the same subject.
@@ -880,13 +906,16 @@ def run_tool_agent(
                         attribution = attribution_of(
                             getattr(hit_body, "text", "") or "",
                             goal_specs.get(verdict.goal_id, ()),
-                            (goal_sides or {}).get(verdict.goal_id, ()))
+                            (goal_sides or {}).get(verdict.goal_id, ()),
+                            question_words=_question_words)
                         record["attribution"] = attribution
                         # Only a FOREIGN-dominant page is disqualified: a neutral page is
                         # not evidence ABOUT another product, it is simply unattributed.
                         attributed = attribution != "foreign_subject"
                         if not attributed:
                             record["attribution_pending"] = True
+                            ineligible_support.add((verdict.goal_id, verdict.source_id,
+                                                    verdict.span_start))
                             # Surface it where the reader already looks for caveats, so the
                             # conclusion cannot pass a foreign page off as this product's
                             # mechanism without saying so.
@@ -903,7 +932,11 @@ def run_tool_agent(
                             "url": record["url"], "excerpt": record["excerpt"],
                             "answer_items": len(items),
                             "covered_items": sorted(covered_items)})
-                    followups.extend(plan_followups(verdicts=verdicts, goals=goal_specs,
+                    followups.extend(plan_followups(
+                verdicts=[row for row in verdicts
+                          if (row.goal_id, row.source_id, row.span_start)
+                          not in ineligible_support],
+                goals=goal_specs,
                                                     issued=sorted(searched_queries)))
                     # The bodies this cycle consumed have their content version bound;
                     # anything read later stays visibly `pending_verification`.
@@ -1675,9 +1708,7 @@ def run_tool_agent(
 
     def _goal_status(label: str) -> str:
         """Goal completion from the requirements supported claims actually covered."""
-        covered = {index for row in claim_verdicts
-                   if row.goal_id == label and row.internal_supported
-                   for index in row.covers}
+        covered = covered_indexes(label, claim_verdicts, ineligible_support)
         if not covered:
             return "goal_insufficient"
         return ("goal_supported" if len(covered) >= len(answer_items(label))

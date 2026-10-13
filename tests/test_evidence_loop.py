@@ -184,6 +184,51 @@ def test_partial_support_does_not_settle_a_goal():
     assert any(row.get("partial") for row in trace["goal_evidence"].get(GOAL, []))
 
 
+def test_ineligible_support_does_not_count_as_coverage():
+    """Unified eligibility: an unattributed support keeps its verdict but covers nothing."""
+    from src.web.research_tool_agent import covered_indexes, support_eligible
+
+    class V:
+        def __init__(self, goal_id, source_id, span_start, covers):
+            self.goal_id, self.source_id, self.span_start = goal_id, source_id, span_start
+            self.internal_supported, self.covers = True, covers
+
+    rows = [V("g", "S1", 10, [0, 1]), V("g", "S2", 5, [1])]
+    assert covered_indexes("g", rows, set()) == {0, 1}
+    ineligible = {("g", "S1", 10)}
+    assert covered_indexes("g", rows, ineligible) == {1}
+    assert support_eligible("g", "S2", 5, ineligible) is True
+    assert support_eligible("g", "S1", 10, ineligible) is False
+    assert covered_indexes("other", rows, set()) == set()
+
+
+def test_attribution_uses_the_question_to_avoid_false_rejection():
+    """The product named by the QUESTION must not be read as a foreign page's own subject."""
+    from src.web.research_claims import attribution_of, question_tokens
+
+    question = "PostgreSQL 的快照和代价"
+    foreign = ("MySQL 的快照读基于 undo log 实现 MVCC，MySQL 的代价是版本链与清理。"
+               "MySQL 的 read view 决定可见性，MySQL 的 innodb 性能很好，"
+               "MySQL 的用户很熟悉 mysql，mysql 的文档也讲了 innodb。")
+    legitimate = ("PostgreSQL 使用快照隔离实现 MVCC，因此读操作不会阻塞写操作。"
+                  "PostgreSQL 的快照让每个语句看到一致的数据视图，代价是旧版本需要清理。")
+    assert attribution_of(foreign, ("快照", "代价"), (),
+                          question_tokens(question)) == "foreign_subject"
+    assert attribution_of(legitimate, ("快照", "代价"), (),
+                          question_tokens(question)) != "foreign_subject"
+
+
+def test_the_attribution_caveat_reaches_the_authoritative_summary():
+    """The caveat must leave the trace: the shadow summary is the reader-facing surface here."""
+    from src.application.research_shadow_seam import summarize_trace
+
+    trace = {"stop_reason": "finished_incomplete", "bodies": [], "coverage_audit": {},
+             "needs_review": [{"reason": "attribution_unconfirmed", "goal_id": "g"}]}
+    summary = summarize_trace(trace, budget_seconds=40.0)
+    assert any(row.get("reason") == "attribution_unconfirmed"
+               for row in summary.get("needs_review") or [])
+
+
 def test_complete_coverage_settles_the_goal_and_counts_calls():
     """Both requirements covered: the goal is settled, and the loop costs two calls."""
     trace = _loop_run("每个事务读取自己的快照，读操作不会阻塞写操作。代价是旧版本必须清理",
