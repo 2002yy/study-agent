@@ -113,14 +113,17 @@ _BEHAVIOUR_MARKERS = ("会", "可以", "可", "能", "用于", "使用", "由", 
 _INHERIT_MARKERS = ("其", "该", "它", "此", "这", "上述", "同样")
 _LATIN_WORD = re.compile(r"[a-z][a-z0-9_\-]{2,}")
 _QUOTED_TERM = re.compile(
-    r"[\u300c\u300e\u201c]([^\u300d\u300f\u201d]{1,24})[\u300d\u300f\u201d]")
+    r"\u300c([^\u300d]{1,24})\u300d"       # \u300c\u300d
+    r"|\u300e([^\u300f]{1,24})\u300f"     # \u300e\u300f
+    r"|\u201c([^\u201d]{1,24})\u201d"     # curly double quotes
+    r"|\"([^\"]{1,24})\"")                # plain ASCII double quotes
 
 
 def _quoted_terms(text: str) -> list[str]:
     """Terms the question marks as its own subject by quoting them."""
     out: list[str] = []
     for match in _QUOTED_TERM.finditer(text or ""):
-        term = match.group(1).strip()
+        term = next((group.strip() for group in match.groups() if group), "")
         if term and term not in out:
             out.append(term)
     return out
@@ -552,6 +555,7 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
                    on_call: Callable[[], None] | None = None,
                    on_reject: Callable[[str], None] | None = None,
                    sides_by_goal: Mapping[str, tuple[str, ...]] | None = None,
+                   windows_by_goal: Mapping[str, list[dict[str, Any]]] | None = None,
                    on_input: Callable[[Mapping[str, Any]], None] | None = None,
                    on_response: Callable[[str], None] | None = None) -> list[Claim]:
     """One batched extraction over every unfinished goal. Never raises on bad model output."""
@@ -561,10 +565,13 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
 
     if not goals or not bodies:
         return []
-    windows_by_goal: dict[str, list[dict[str, Any]]] = {
-        goal_id: evidence_windows(terms, bodies,
-                                    sides=(sides_by_goal or {}).get(goal_id))
-        for goal_id, terms in goals.items()}
+    if windows_by_goal is None:
+        # Only the fallback re-selects; the agent passes the snapshot the gate already
+        # computed, so the scheduler and the extractor never disagree again.
+        windows_by_goal = {
+            goal_id: evidence_windows(terms, bodies,
+                                      sides=(sides_by_goal or {}).get(goal_id))
+            for goal_id, terms in goals.items()}
     payload: dict[str, Any] = {
         "goals": [{"goal_id": goal_id, "goal": goal_id, "passages": windows_by_goal[goal_id]}
                   for goal_id in goals],

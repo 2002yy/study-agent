@@ -845,8 +845,15 @@ def run_tool_agent(
                     def _capture_response(raw: str) -> None:
                         extraction_input["raw_response"] = str(raw)[:2000]
 
+                    window_snapshot = {
+                        label: _eligible_windows(terms, bodies_view,
+                                                 goal_sides.get(label),
+                                                 selector=evidence_windows, label=label)
+                        for label, terms in unfinished.items()}
+                    extraction_input["windows_by_goal"] = window_snapshot
                     claims = extract_claims(
                         goals=unfinished, bodies=bodies_view, completion=completion,
+                        windows_by_goal=window_snapshot,
                         timeout=min(20.0, max(1.0, deadline - monotonic())),
                         on_call=_count_call, on_reject=_count_reject,
                         sides_by_goal=goal_sides, on_input=_capture_input,
