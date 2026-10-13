@@ -1229,17 +1229,27 @@ def run_tool_agent(
         # The reserve DECISION had to be early (it protects the slot before the model can
         # spend it), but WHAT it asks for is settled here, with the material in hand at
         # execution time: the read this very round is what usually reveals the missing side.
+        # Observability for exactly this decision: which sides the run believes are still missing
+        # at execution time, and what the retarget produced (empty means the pre-computed query
+        # stood). Without these two fields the skip cannot be told from a failed query.
+        missing_sides_fresh: list[str] = []
+        retargeted = ""
         if recovery_query and discovery_needed and not auto_hop:
-            _fresh = _missing_sides(goal_sides=goal_sides,
-                                    statuses={label: state["status"]
-                                              for label, state in sub_goal_state.items()},
-                                    goal_specs=goal_specs, relevant=relevant_now)
-            if _fresh:
-                _retargeted = _site_scoped_query(
-                    _fresh, confirmed, searched_queries,
+            missing_sides_fresh = _missing_sides(
+                goal_sides=goal_sides,
+                statuses={label: state["status"] for label, state in sub_goal_state.items()},
+                goal_specs=goal_specs, relevant=relevant_now)
+            if missing_sides_fresh:
+                retargeted = _site_scoped_query(
+                    missing_sides_fresh, confirmed, searched_queries,
                     search_signals["entry_urls"], entry_exclusions)
-                if _retargeted:
-                    recovery_query = _retargeted
+                if not retargeted:
+                    # No host can be confirmed for the missing side: ask for the side itself
+                    # instead of keeping a query about the side the run already holds.
+                    retargeted = _subject_recovery_query(
+                        missing_sides_fresh, (), _question_words, searched_queries)
+                if retargeted:
+                    recovery_query = retargeted
         auto_query = recovery_query if (discovery_needed and not auto_hop) else ""
         # Read reserve follows the PENDING path instead of a fixed two slots: a hop must download
         # the navigation page and then the article (two), while a site-scoped search downloads
@@ -1289,6 +1299,7 @@ def run_tool_agent(
         # Observable scheduling: why a recovery action did or did not fire this round.
         call["discovery_schedule"] = {
             "reserve": reserved_searches, "recovery_query": recovery_query,
+            "missing_sides_fresh": list(missing_sides_fresh), "retargeted": retargeted,
             "auto_hop": auto_hop, "auto_query": auto_query,
             "entry_only_search": entry_only_search, "has_material": material_now,
             "no_target_article": search_signals.get("no_target_article"),
