@@ -51,6 +51,7 @@ def _bodies(trace: dict) -> dict[str, _Body]:
 
 def replay(product: Path) -> dict:
     rows = []
+    model_rows = []
     for index in range(1, 7):
         path = product / f"q{index}.json"
         if not path.exists():
@@ -69,6 +70,7 @@ def replay(product: Path) -> dict:
                      if goals and bodies else
                      "this trace recorded no goal/window input; the stage cannot be replayed"),
         }
+        model_rows.append(model_stage)
         for label, payload in goals.items():
             terms = tuple(str(term) for term in (payload or {}).get("terms") or [])
             sides = tuple(str(side) for side in (payload or {}).get("sides") or [])
@@ -93,7 +95,7 @@ def replay(product: Path) -> dict:
                                              if row["qualified"] < row["legacy"]],
             "unchanged": [row for row in rows if row["qualified"] == row["legacy"]],
         },
-        "model": [{"question": index} for index in range(1, 7)],
+        "model": model_rows,
     }
 
 
