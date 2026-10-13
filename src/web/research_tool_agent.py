@@ -1128,8 +1128,11 @@ def run_tool_agent(
             if not recovery_query and search_signals.get("no_relevant_host"):
                 # No host worth pinning: ask again with the question's own subject words only,
                 # which spends the slot the reserve already holds (no budget change).
+                side_words = [str(side) for pair in (goal_sides or {}).values()
+                              for side in (pair or ()) if str(side)]
                 subject_query = " ".join(dict.fromkeys(
                     [str(w) for w in missing_entities if str(w)]
+                    + side_words
                     + [str(w) for w in _question_words if str(w)]))
                 if subject_query and subject_query.casefold() not in {
                         item.casefold() for item in searched_queries}:
