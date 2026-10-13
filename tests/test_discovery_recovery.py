@@ -286,7 +286,12 @@ def test_a_run_that_already_holds_material_never_hops():
         {"tool": "read_page", "url": "https://example.org/Category:漏斗"},
         {"tool": "finish", "reason": "done"},
     ], hops=True, initial=("https://example.org/Category:漏斗",), body=ARTICLE_BODY)
-    assert not _agent_calls(trace)
+    # The review unified the material judgement: a comparison still lacking a side is NOT
+    # complete, so the run may recover that side even while holding the other one.
+    calls = _agent_calls(trace)
+    assert calls, "a missing comparison side must still be sought"
+    assert calls[0]["action"]["tool"] == "search"
+    assert "site:" in calls[0]["action"]["query"]
 
 
 def test_a_search_with_no_relevant_host_triggers_a_subject_keyed_recovery():

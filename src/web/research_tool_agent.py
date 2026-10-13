@@ -341,13 +341,22 @@ def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
         rows = _eligible_windows(tuple(goal_specs.get(label) or ()), relevant, pair,
                                  selector=evidence_windows, label=label)
         wanted = {str(side) for side in pair if str(side)}
-        # A side is available only when a window was selected FOR that side alone (the windows
-        # carry side NAMES). A page about the hopper that merely mentions the dropper carries both
-        # names and is therefore not material about the dropper: without this rule the run
-        # believes it already holds the side it is missing and never asks for it.
-        got = {next(iter(only)) for row in rows
-               if len(only := {str(side) for side in row.get("sides") or () if str(side)}) == 1
-               and next(iter(only)) in wanted}
+        # A side is available when the run holds material ABOUT that side, not when a page merely
+        # carries its name. Qualification is therefore: a window selected for that side alone, or
+        # a window whose backing page is about that side (its URL names it, e.g. .../漏斗). The
+        # live Q3 page is a hopper page that mentions the dropper in passing: with a word test it
+        # looked like both sides were in hand and the run never asked for the dropper.
+        got = set()
+        for row in rows:
+            names = {str(side) for side in row.get("sides") or () if str(side)} & wanted
+            if not names:
+                continue
+            if len(names) == 1:
+                got |= names
+                continue
+            body = relevant.get(str(row.get("source_id")))
+            url = str(getattr(body, "final_url", "") or getattr(body, "url", "") or "").casefold()
+            got |= {side for side in names if side.casefold() and side.casefold() in url}
         if not got:
             continue
         held.update(got)
@@ -1192,12 +1201,17 @@ def run_tool_agent(
                                        statuses={label: state["status"] for label, state
                                                  in sub_goal_state.items()},
                                        goal_specs=goal_specs, relevant=relevant_now)
-        material_now = any(
+        _has_windows = any(
             _eligible_windows(terms, relevant_now, goal_sides.get(label),
                               selector=evidence_windows if evidence_loop else None,
                               label=label)
             for label, terms in goal_specs.items()
-            if sub_goal_state[label]["status"] != "supported") and not missing_sides
+            if sub_goal_state[label]["status"] != "supported")
+        # Two questions, deliberately separate: is there anything to work with at all (the hop
+        # gate, unchanged), and is the comparison complete (the recovery entry, now shared with
+        # the side judgement and the extraction gate).
+        material_for_hop = _has_windows
+        material_now = _has_windows and not missing_sides
         # Discovery recovery is triggered by EVIDENCE OF FAILURE, not by an open goal: the last
         # search must have returned no [article] while returning a related site entry. A run whose
         # search already yielded article URLs (the PostgreSQL shape) is therefore never nudged.
@@ -1244,7 +1258,7 @@ def run_tool_agent(
                 basis=confirmed_basis, labels=link_labels, goals=goal_specs,
                 sides_by_goal=goal_sides, hops_used=auto_hops, hopped=hopped_entries,
                 searches=searches, reads_left=max_reads - reads,
-                remaining_seconds=deadline - monotonic(), has_material=material_now)
+                remaining_seconds=deadline - monotonic(), has_material=material_for_hop)
         # The reserve DECISION had to be early (it protects the slot before the model can
         # spend it), but WHAT it asks for is settled here, with the material in hand at
         # execution time: the read this very round is what usually reveals the missing side.
