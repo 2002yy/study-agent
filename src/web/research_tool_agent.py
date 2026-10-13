@@ -30,7 +30,8 @@ from src.web.link_discovery import (
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
 from src.web.research_claim_verifier import verify_claims
 from src.web.link_discovery import answer_items
-from src.web.research_claims import candidate_windows, evidence_windows, extract_claims
+from src.web.research_claims import (attribution_of, candidate_windows, extract_claims,
+                                     evidence_windows)
 from src.web.research_gap_planner import plan_followups
 from src.web.research_notebook import ResearchNotebook
 from src.web.tool_evidence import _public_url
@@ -873,8 +874,23 @@ def run_tool_agent(
                         partial = bool(covered_items) and len(covered_items) < len(items)
                         if partial:
                             record["partial"] = True
+                        # Evidence it cannot attribute is not evidence for THIS product: a page
+                        # whose dominant subject is another product may support a claim but must
+                        # not settle the question as the asked-about product's mechanism.
+                        attribution = attribution_of(
+                            getattr(hit_body, "text", "") or "",
+                            goal_specs.get(verdict.goal_id, ()),
+                            (goal_sides or {}).get(verdict.goal_id, ()))
+                        record["attribution"] = attribution
+                        # Only a FOREIGN-dominant page is disqualified: a neutral page is
+                        # not evidence ABOUT another product, it is simply unattributed.
+                        attributed = attribution != "foreign_subject"
+                        if not attributed:
+                            record["attribution_pending"] = True
                         sub_goal_state[verdict.goal_id].update({
-                            "status": "explored" if partial or not covered_items else "supported",
+                            "status": ("supported" if (covered_items and not partial
+                                                         and attributed)
+                                        else "explored"),
                             "url": record["url"], "excerpt": record["excerpt"],
                             "answer_items": len(items),
                             "covered_items": sorted(covered_items)})

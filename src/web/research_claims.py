@@ -158,6 +158,16 @@ def _source_attribution(text: str, tokens: list[str]) -> str:
     return "unclear"
 
 
+def attribution_of(text: str, goal_terms, sides: tuple[str, ...] = ()) -> str:
+    """Which product's mechanism does this page describe?
+
+    Public wrapper over the source-attribution rule: target_subject / comparative /
+    foreign_subject / unclear. Used to keep a support that rests on a foreign-dominant page
+    from being presented as the asked-about product's mechanism.
+    """
+    return _source_attribution(text or "", _goal_tokens(list(goal_terms), sides))
+
+
 def _source_windows(text: str, terms: Sequence[str], tokens: list[str]) -> list[dict[str, Any]]:
     """Bounded, de-duplicated candidates anchored at each subject occurrence.
 
