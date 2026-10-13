@@ -274,8 +274,10 @@ def _eligible_windows(terms: tuple[str, ...], bodies: Mapping[str, Any],
     rows: list[dict[str, Any]] = []
     sides_text = " ".join(side for side in (sides or ()) if side)
     choose = selector or candidate_windows
-    windows = (choose(terms, bodies, sides=sides, label=label)
-               if selector is evidence_windows else choose(terms, bodies, sides=sides))
+    if selector is evidence_windows:
+        windows = evidence_windows(terms, bodies, sides=sides, label=label)
+    else:
+        windows = choose(terms, bodies, sides=sides)
     for window in windows:
         excerpt = str(window.get("excerpt") or "")
         lowered = excerpt.casefold()
