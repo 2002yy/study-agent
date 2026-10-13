@@ -302,10 +302,11 @@ def test_early_finish_does_not_escalate():
 def test_budget_tiers_and_default():
     """The tier table is the configuration entry point; standard is the default."""
     assert BUDGET_TIERS["quick"] == (4, 2, 2, 20.0)
-    assert BUDGET_TIERS["standard"] == (8, 4, 5, 40.0)
-    assert BUDGET_TIERS["deep"] == (12, 6, 8, 75.0)
+    assert BUDGET_TIERS["standard"] == (12, 4, 6, 90.0)   # approved expansion
+    # `deep` must actually RAISE the decision allowance, or the chain blocks at `standard`.
+    assert BUDGET_TIERS["deep"] == (16, 6, 8, 120.0)
     assert DEFAULT_TIER == "standard"
-    assert tier_budget("deep") == (12, 6, 8, 75.0)
+    assert tier_budget("deep") == (16, 6, 8, 120.0)
     assert (BSEARCH_SHADOW_MAX_ROUNDS, BSEARCH_SHADOW_MAX_SEARCHES,
             BSEARCH_SHADOW_MAX_READS, BSEARCH_SHADOW_BUDGET_SECONDS) == BUDGET_TIERS["standard"]
     # the low-level tool default is separate and unchanged

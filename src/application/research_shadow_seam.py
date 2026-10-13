@@ -56,8 +56,11 @@ PHASE_SCHEMA: dict[str, tuple[str, bool]] = {
 #: holds an actionable candidate.
 BUDGET_TIERS: dict[str, tuple[int, int, int, float]] = {
     "quick": (4, 2, 2, 20.0),
-    "standard": (8, 4, 5, 40.0),
-    "deep": (12, 6, 8, 75.0),
+    # Research that must find and compare two mechanism articles does not fit a
+    # 40-second allowance: the tier was measured to run out during acquisition, not
+    # during verification. 40s stays available as the `quick` tier.
+    "standard": (12, 4, 6, 90.0),
+    "deep": (16, 6, 8, 120.0),
     "extended": (20, 8, 14, 180.0),
 }
 DEFAULT_TIER = "standard"
@@ -194,6 +197,9 @@ def _default_runner(query: str, budget_seconds: float) -> dict[str, Any]:
         question=query,
         budget=budget,
         escalation_budgets=escalations,
+        evidence_loop=True,
+        # Discovery Recovery, inside the shadow path only.
+        discovery_hops=True,
     )
     record = summarize_trace(trace, budget_seconds=budget_seconds)
     # Honest runtime accounting: the record names the whole escalation chain instead of

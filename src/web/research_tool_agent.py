@@ -11,21 +11,27 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import re
 import time
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 import xml.etree.ElementTree as ET
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from src.web.link_discovery import (
+    classify_goal_candidate,
     classify_page,
+    compare_sides,
     derive_sub_goals,
     extract_candidates,
     looks_like_navigation,
     question_terms,
     rank_candidates,
-    verify_goal_evidence,
 )
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
+from src.web.research_claim_verifier import verify_claims
+from src.web.link_discovery import answer_items
+from src.web.research_claims import candidate_windows, evidence_windows, extract_claims
+from src.web.research_gap_planner import plan_followups
 from src.web.research_notebook import ResearchNotebook
 from src.web.tool_evidence import _public_url
 
@@ -124,29 +130,352 @@ def parse_action(raw: Any) -> dict[str, str]:
     return {"tool": "finish", "reason": reason}
 
 
-def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str]) -> list[dict[str, str]]:
+def _loop_reserve_seconds(budget: float, confirmed: set[str], read_pages: Mapping[str, int],
+                          exclusions: Mapping[str, str],
+                          goals: Mapping[str, tuple[str, ...]]) -> float:
+    """Wall clock to keep for the extraction + verification pair, scaled to the REAL budget.
+
+    The reservation is a share of the clock actually in force, not a fixed 35s: a 40-second
+    tier cannot give away 35 of its seconds and still be a research run. While a RELEVANT
+    candidate is still unread the share applies (capped at MIN_LOOP_SECONDS); once nothing
+    relevant is left unread, only the small floor is held back.
+    """
+    reserve = min(MIN_LOOP_SECONDS, max(MIN_LOOP_FLOOR_SECONDS, budget * LOOP_RESERVE_SHARE))
+    terms = [str(term).casefold() for values in goals.values() for term in values if term]
+    for url in confirmed:
+        if url in read_pages or url in exclusions:
+            continue
+        text = unquote(url).casefold()
+        if any(term in text for term in terms):
+            return reserve
+    return MIN_LOOP_FLOOR_SECONDS
+
+
+#: A quantity together with the thing it counts: "1 个铁锭" -> (1, "铁锭"). The unit stops
+#: before connectors and digits, so "1个铁锭和1个箱子" is two quantities, not one.
+_QUANTITY = re.compile(r"(\d+)\s*(?:个|块|格|条|张|根|桶|组|颗|份|种)?\s*"
+                       r"([^0-9\s和或与及、，,。；;:：]{1,4})")
+
+
+def _quantities(text: str) -> set[tuple[str, str]]:
+    return {(number, unit) for number, unit in _QUANTITY.findall(text or "") if unit}
+
+
+def _number_corroboration(quote: str, terms: tuple[str, ...],
+                          others: Mapping[str, str]) -> str:
+    """Classify a stated NUMBER against the other pages this run read.
+
+    Three outcomes, deliberately conservative:
+      ""                       number_correlated  - another page states the SAME quantity for
+                                                   the same thing; nothing to flag
+      "number_conflict"        another page states a DIFFERENT quantity for the same thing
+      "number_uncorroborated"  no comparable quantity: it stays flagged for review
+
+    A page that merely contains some unrelated number NEVER clears the warning, which is what
+    the Minecraft audit showed: the third-party page said "1 个铁锭" while the recipe needs
+    five. The verdict is untouched and no model call is added.
+    """
+    stated = _quantities(quote)
+    if not stated:
+        return ""
+    units = {unit for _number, unit in stated}
+    numbers = {number for number, _unit in stated}
+    conflicted = False
+    matched = False
+    for text in others.values():
+        for term in terms:
+            if not term:
+                continue
+            position = (text or "").find(str(term))
+            if position < 0:
+                continue
+            window = text[max(0, position - 120):position + 200]
+            for other_number, other_unit in _quantities(window):
+                if other_unit not in units:
+                    continue          # a number about something else is NOT agreement
+                if other_number in numbers:
+                    matched = True    # same thing, same amount
+                else:
+                    conflicted = True  # same thing, different amount
+            break                     # one window per page is enough
+    if conflicted:
+        return "number_conflict"      # a disagreement outranks any agreement
+    return "" if matched else "number_uncorroborated"
+
+
+def _has_cjk(text: str) -> bool:
+    """Whether a text is written with CJK characters, for script-based fallback decisions."""
+    return any("\u4e00" <= char <= "\u9fff" for char in text or "")
+
+
+#: Seconds one more acquisition step is assumed to cost before the verification can run.
+ACQUIRE_STEP_SECONDS = 12.0
+
+
+def _can_acquire(confirmed: set[str], read_pages: Mapping[str, int],
+                 exclusions: Mapping[str, str], goal_specs: Mapping[str, tuple[str, ...]],
+                 searches_left: int, reads_left: int) -> bool:
+    """Whether another acquisition step exists that the run is actually able to take.
+
+    Holding a URL is not enough: it must be unread, not excluded, plausibly relevant, and the
+    run must still have search or read quota to act on it.
+    """
+    if reads_left <= 0:
+        # A body cannot be obtained without a read slot: searching for a link we are not
+        # allowed to open is not a real acquisition path, and treating it as one lets the gate
+        # keep choosing `acquiring` until the clock runs out.
+        return False
+    if searches_left <= 0 and reads_left <= 0:
+        return False
+    terms = [str(term).casefold() for values in goal_specs.values() for term in values if term]
+    for url in confirmed:
+        if url in read_pages or url in exclusions:
+            continue
+        if any(term in unquote(url).casefold() for term in terms):
+            return True
+    return searches_left > 0          # a search can still find one
+
+
+def _eligible_windows(terms: tuple[str, ...], bodies: Mapping[str, Any],
+                      sides: tuple[str, ...] | None,
+                      selector: Callable[..., list[dict[str, Any]]] | None = None
+                      ) -> list[dict[str, Any]]:
+    """Windows that could actually carry a checkable statement for this goal.
+
+    A window qualifies when its OWN text states one of the goal's words, or when it is the
+    prose fallback for a body that never states them (the cross-language path). A window built
+    around a fragment that merely matches a generic page - "minecraft" on a franchise page -
+    is NOT material: a returned record must not by itself make a goal look ready.
+    """
+    rows: list[dict[str, Any]] = []
+    sides_text = " ".join(side for side in (sides or ()) if side)
+    choose = selector or candidate_windows
+    for window in choose(terms, bodies, sides=sides):
+        excerpt = str(window.get("excerpt") or "")
+        lowered = excerpt.casefold()
+        if sides:
+            # For a comparison question only the COMPARED entities are the subject: a passage
+            # about the franchise in general is material for neither side.
+            stated = [side for side in sides if side and side.casefold() in lowered]
+        else:
+            stated = [term for term in terms
+                      if len(str(term)) >= 2 and str(term).casefold() in lowered]
+        prose_fallback = window.get("window_kind") == "prose"
+        if prose_fallback and sides_text:
+            # The prose fallback exists for a question asked in one script and answered in
+            # another (a Chinese question over an English article). A SAME-script page that
+            # simply never mentions the entity is about something else, not cross-language.
+            body_text = str(getattr(bodies.get(str(window.get("source_id"))), "text", "") or "")
+            prose_fallback = _has_cjk(body_text) != _has_cjk(sides_text)
+        if prose_fallback or stated:
+            rows.append({**window, "stated": stated})
+    return rows
+
+
+def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
+                     goal_sides: Mapping[str, tuple[str, ...]], relevant: Mapping[str, Any],
+                     confirmed: set[str], read_pages: Mapping[str, int],
+                     exclusions: Mapping[str, str], rnd: int, max_rounds: int, deadline: float,
+                     now: float, reserve: float, searches_left: int, reads_left: int,
+                     calls_left: int) -> tuple[str, str, dict[str, list[dict[str, Any]]]]:
+    """The single decision of WHEN the run's one extraction call may be spent.
+
+    ready        every unfinished goal holds eligible material (and every comparison goal has
+                 its sides covered) -> extract now
+    acquiring    material is incomplete but a real next step exists and the clock allows it ->
+                 keep reading; the chance is NOT spent
+    best_effort  material is incomplete and no step is left, or the verification edge is near ->
+                 extract only the goals that DO hold material
+    abstain      nothing checkable, or no room left to verify -> call nothing, say why
+    """
+    eligible = {label: _eligible_windows(terms, relevant, goal_sides.get(label), selector=evidence_windows)
+                for label, terms in unfinished.items()}
+    ready_goals = {label: rows for label, rows in eligible.items() if rows}
+    missing_side = False
+    for label, rows in ready_goals.items():
+        pair = goal_sides.get(label)
+        if not pair:
+            continue
+        text = " ".join(str(row.get("excerpt") or "").casefold() for row in rows)
+        if any(side and side.casefold() not in text for side in pair):
+            missing_side = True
+    # HARD floor, checked before any state: two model calls (extraction + verification) and
+    # real time must be available, or the run abstains instead of starting a call it cannot
+    # finish. A `ready` state is never allowed to skip this.
+    if calls_left < 2 or (deadline - now) <= MIN_LOOP_FLOOR_SECONDS:
+        return "abstain", ("insufficient_calls" if calls_left < 2 else "insufficient_time"), {}
+    if ready_goals and len(ready_goals) == len(unfinished) and not missing_side:
+        return "ready", "", ready_goals
+    can_acquire = _can_acquire(confirmed, read_pages, exclusions, unfinished,
+                               searches_left, reads_left)
+    room = (deadline - now) > (reserve + ACQUIRE_STEP_SECONDS)
+    if can_acquire and room and rnd < max_rounds - 1 and calls_left >= 2:
+        return "acquiring", "material_incomplete", {}
+    if ready_goals:
+        return "best_effort", ("resource_edge" if room else "no_acquisition_left"), ready_goals
+    if not can_acquire:
+        return "abstain", "no_acquisition_left", {}
+    return "abstain", "insufficient_time", {}
+
+
+#: Bounded in-site navigation the run may take by itself (Discovery Recovery).
+MAX_AUTO_HOPS = 2
+
+
+def _entity_match(entity: str, url: str, anchor: str = "") -> bool:
+    """Whether a link names EXACTLY this entity, not merely a phrase containing it.
+
+    "漏斗矿车" is a different article from "漏斗", so substring containment is not precision -
+    the anchor or the URL's last path segment must BE the entity (a namespace qualifier such as
+    "Category:漏斗" or a bracketed qualifier is still that entity).
+    """
+    if not entity:
+        return False
+    name = entity.strip().casefold()
+    text = (anchor or "").strip().casefold()
+    if text == name or text.startswith(name + "（") or text.startswith(name + "("):
+        return True
+    segment = unquote(urlsplit(url or "").path).rstrip("/").split("/")[-1].casefold()
+    return segment == name or segment.endswith(":" + name)
+
+
+def _site_scoped_query(missing: list[str], confirmed: set[str], searched: set[str],
+                       entry_urls: Iterable[str] = (),
+                       exclusions: Mapping[str, str] | None = None) -> str:
+    """A query that pins ONE missing subject to a site the run is already allowed to read.
+
+    The real site graphs measured here do not LINK the mechanism article from their hub pages,
+    so the reliable discovery route is asking the index for it on that host. No glossary and no
+    site whitelist: the subject comes from the goal and the host from candidates the run already
+    confirmed. Host selection is deterministic and relevance-first - the host that already
+    produced the most usable entries wins (entry pages weigh more), ties broken by name - so a
+    replay picks the same host instead of whatever a set happened to iterate first.
+    """
+    entities = [entity for entity in missing if entity]
+    if not entities:
+        return ""
+    excluded = exclusions or {}
+    weights: dict[str, int] = {}
+    for url in sorted(confirmed):
+        host = urlsplit(url or "").netloc.casefold()
+        if not host or url in excluded:
+            continue
+        weights[host] = weights.get(host, 0) + 1
+    for url in sorted(entry_urls):
+        host = urlsplit(url or "").netloc.casefold()
+        if host and url not in excluded:
+            weights[host] = weights.get(host, 0) + 1
+    if not weights:
+        return ""
+    host = sorted(weights.items(), key=lambda item: (-item[1], item[0]))[0][0]
+    # One subject at a time: "漏斗 site:host" can match an article explaining the hopper, while
+    # requiring both compared entities in one query could match neither of the alternatives.
+    for entity in entities:
+        candidate = f"{entity} site:{host}"
+        if candidate.casefold() not in {item.casefold() for item in searched}:
+            return candidate
+    return ""
+
+
+def _auto_hop_target(*, confirmed: set[str], read_pages: Mapping[str, int],
+                     exclusions: Mapping[str, str], basis: Mapping[str, str],
+                     labels: Mapping[str, str], goals: Mapping[str, tuple[str, ...]],
+                     sides_by_goal: Mapping[str, tuple[str, ...]], hops_used: int,
+                     hopped: set[str], searches: int, reads_left: int,
+                     remaining_seconds: float, has_material: bool) -> str:
+    """A navigation entry worth one bounded hop, or "" when the run must not hop.
+
+    Every condition is required, and none of them guesses from page type alone:
+
+    * the switch is on (checked by the caller), a search has run, and no goal holds material;
+    * no confirmed unread ARTICLE already matches a still-missing subject - that article is the
+      thing to read, not a reason to wander ("漏斗矿车" matches neither 漏斗 nor 投掷器);
+    * the entry is confirmed, un-read, un-excluded, not yet hopped, and classified as a site
+      home/category page that is relevant to the goal;
+    * read quota (2) and the verification reserve are both preserved.
+
+    Manual `follow` and this hop share the same execution path, so URL, redirect, provenance and
+    safety rules cannot diverge.
+    """
+    if hops_used >= MAX_AUTO_HOPS or searches < 1 or reads_left < 2 or has_material:
+        return ""
+    if remaining_seconds <= (MIN_LOOP_SECONDS + ACQUIRE_STEP_SECONDS):
+        return ""
+    missing: list[str] = []
+    for label, terms in goals.items():
+        pair = sides_by_goal.get(label)
+        missing.extend(pair if pair else [str(term) for term in terms if len(str(term)) >= 2])
+    missing = [entity for entity in dict.fromkeys(missing) if entity]
+
+    def matches_missing(url: str, label: str) -> bool:
+        return any(_entity_match(entity, url, label) for entity in missing)
+
+    candidates = [url for url in confirmed
+                  if url not in read_pages and url not in exclusions and url not in hopped]
+    precise = [url for url in candidates
+               if classify_page(url, labels.get(url, "")) == "article"
+               and matches_missing(url, labels.get(url, ""))]
+    if precise:
+        return ""                      # read the article that answers the goal first
+    entries = [url for url in candidates
+               if classify_page(url, labels.get(url, "")) in {"home", "category"}
+               and matches_missing(url, labels.get(url, ""))]
+    if not entries:
+        return ""
+    ranked = _rank_unread(entries, {entity.casefold() for entity in missing},
+                          dict(basis), labels)
+    return str(ranked[0]["url"]) if ranked else ""
+
+
+def _rank_unread(urls: list[str], terms: set[str], basis: dict[str, str],
+                 labels: Mapping[str, str] | None = None) -> list[dict[str, Any]]:
     """Order confirmed-but-unread URLs so the model can act on what it already has.
 
-    Deterministic and cheap: more question-term hits in the URL path win, deep pages
-    beat site roots, and stable bases beat exploratory ones. This only *orders* the
-    candidates the run has already legitimately discovered — it grants no new access.
+    Deterministic and cheap, and relevance comes from what a candidate SAYS, not from where
+    it sits: the link's own text (title/anchor) counts most, then the URL path - DECODED, so
+    a percent-encoded Chinese title such as ``/w/%E6%BC%8F%E6%96%97`` (漏斗) can match the
+    question. An `article` classification is a bonus and never a substitute for relevance.
+    This only *orders* the candidates the run has already legitimately discovered.
     """
+    labels = labels or {}
     basis_priority = {
         "followed_link": 0, "feed_entry": 1, "search_result": 2,
         "initial_urls": 3, "registry_seed": 4,
     }
 
-    def key(url: str) -> tuple[int, int, int, str]:
-        lowered = url.casefold()
-        hits = sum(1 for term in terms if term and term.casefold() in lowered)
-        depth = 0 if urlsplit(lowered).path.strip("/") else 1  # 0 = deep page
-        return (-hits, depth, basis_priority.get(basis.get(url, ""), 9), lowered)
+    def key(url: str) -> tuple[int, int, int, int, int, str]:
+        label = str(labels.get(url) or "").casefold()
+        path = unquote(url).casefold()
+        label_hits = sum(1 for term in terms if term and term.casefold() in label)
+        hits = sum(1 for term in terms if term and term.casefold() in path)
+        article = 1 if classify_page(url, str(labels.get(url) or "")) == "article" else 0
+        depth = 0 if urlsplit(path).path.strip("/") else 1  # 0 = deep page
+        return (-label_hits, -hits, -article, depth,
+                basis_priority.get(basis.get(url, ""), 9), path)
 
-    return [{"url": url, "basis": basis.get(url, "")} for url in sorted(urls, key=key)]
+    return [{"url": url, "basis": basis.get(url, ""),
+             "label": labels.get(url, ""),
+             "matched": sorted(term for term in terms
+                               if term and term.casefold() in
+                               f"{labels.get(url, '')} {unquote(url)}".casefold())}
+            for url in sorted(urls, key=key)]
 
 
 #: Outcomes that mean the action was refused without spending a network request.
 MAX_CORRECTIONS = 2  # bounded free corrections for refused decisions
+#: Global limits independent of any caller-supplied budget: the semantic loop can never
+#: open a second, larger allowance.
+HARD_MODEL_CALL_CAP = 22
+HARD_WALL_SECONDS = 180.0
+#: Extraction plus independent verification are two model calls: the run reserves this much
+#: of its wall clock for them instead of spending its single chance on a truncated call. It
+#: is a RESERVATION, not an early stop - it never shortens the research allowance itself.
+MIN_LOOP_SECONDS = 35.0
+#: Smaller floor used once nothing relevant is left unread: verifying what we hold beats
+#: reserving time for research that no longer exists.
+MIN_LOOP_FLOOR_SECONDS = 8.0
+#: Share of the clock in force reserved for the extraction + verification pair.
+LOOP_RESERVE_SHARE = 0.35
 
 _REFUSED_OUTCOMES = frozenset({
     "duplicate_search", "already_read", "already_visited", "pending_url_confirmation",
@@ -213,12 +542,16 @@ def run_tool_agent(
     budget: AgentBudget | None = None,
     escalation_budget: AgentBudget | None = None,
     escalation_budgets: tuple[AgentBudget, ...] = (),
+    evidence_loop: bool = False,
     initial_urls: tuple[str, ...] = (),
     registry_sources: tuple[tuple[str, str], ...] = (),
     sub_goals: tuple[tuple[str, tuple[str, ...]], ...] = (),
     entry_selection: bool = True,
     assessment_feedback: bool = True,
-    capture_full_text: bool = False,
+        capture_full_text: bool = False,
+        # Discovery Recovery is OPT-IN: default off keeps every existing caller's behaviour,
+        # cost and tests exactly as they were.
+        discovery_hops: bool = False,
     monotonic: Callable[[], float] = time.monotonic,
     should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict[str, Any]:
@@ -230,6 +563,32 @@ def run_tool_agent(
     escalated = False
     corrections = 0        # free corrections used, bounded by MAX_CORRECTIONS
     model_calls = 0        # every completion call, corrections included
+    #: Evidence loop state: run-once guard, verdicts, gap follow-ups, and the adopted
+    #: evidence map used for eviction-safe deterministic checking.
+    loop_spent = False
+    #: In-site navigations this run took by itself, and the entries already hopped.
+    auto_hops = 0
+    hopped_entries: set[str] = set()
+    # What the LAST search actually returned. Discovery recovery may only act when the target
+    # article was genuinely unavailable from the index - i.e. that search produced no [article]
+    # but did produce a related site entry - never merely because a goal is still open.
+    search_signals: dict[str, Any] = {"no_article": False, "no_target_article": True,
+                                      "entry_urls": []}
+    #: The four-state start decision for the one extraction call (state, reason, goals).
+    extraction_gate: dict[str, Any] = {}
+    #: Immutable snapshot of what the ONE extraction call was actually shown, captured at the
+    #: call itself: a view recomputed at the end is not the same evidence.
+    extraction_input: dict[str, Any] = {}
+    #: True once the loop deferred for a second source: it never defers twice.
+    claim_rows: list[Any] = []
+    claim_verdicts: list[Any] = []
+    claim_rejections: dict[str, int] = {}
+    #: Supported findings whose quantity no second page we read corroborates.
+    needs_review: list[dict[str, Any]] = []
+    #: Why the run's single evidence loop was NOT spent (empty once it is spent).
+    evidence_loop_skipped: str = ""
+    followups: list[dict[str, Any]] = []
+    adopted_evidence: dict[str, dict[str, Any]] = {}
     #: Ordered escalation chain (each entry is used at most once).
     pending_escalations = [item for item in
                            ((escalation_budget,) + tuple(escalation_budgets)) if item]
@@ -241,7 +600,7 @@ def run_tool_agent(
     productive_events = 0
     last_productive = 0
     started = monotonic()
-    deadline = started + budget.hard_seconds
+    deadline = min(started + budget.hard_seconds, started + HARD_WALL_SECONDS)
     reset_dns_stats()  # per-run DoH cache + counters
     calls: list[dict[str, Any]] = []
     observations: list[str] = []
@@ -271,6 +630,19 @@ def run_tool_agent(
     derived_goals = () if sub_goals else derive_sub_goals(question)
     if derived_goals:
         goal_specs = {label: tuple(terms) for label, terms in derived_goals}
+    # The comparison structure is read from the goal's own wording (falling back to the
+    # question): it plans which sides need material, and never grants support by itself.
+    goal_sides: dict[str, tuple[str, ...]] = {}
+    for _label in goal_specs:
+        _pair = compare_sides(_label) or compare_sides(question)
+        if _pair:
+            goal_sides[_label] = _pair
+    if not goal_specs:
+        # A single-goal question must still enter the semantic loop: one implicit goal owns
+        # the whole question, so nothing depends on derive_sub_goals splitting it.
+        implicit_terms = tuple(sorted(question_terms(question)))[:8]
+        if implicit_terms:
+            goal_specs = {(question or "goal").strip()[:48] or "goal": implicit_terms}
     sub_goal_state: dict[str, dict[str, Any]] = {
         label: {"status": "missing", "url": "", "excerpt": ""} for label in goal_specs
     }
@@ -282,6 +654,8 @@ def run_tool_agent(
         url for _, url in registry_sources if _public_url(url)
     )
     confirmed: set[str] = set()
+    #: url -> the link text (search title / anchor) that discovered it, for relevance ranking.
+    link_labels: dict[str, str] = {}
     confirmed_basis: dict[str, str] = {}
     feed_links: dict[str, str] = {}
     # URL -> exclusion reason for the CURRENT question. ``confirmed`` proves a URL was
@@ -306,6 +680,8 @@ def run_tool_agent(
     unread_candidates: list[str] = []
     pending_follows: list[str] = []
     rnd = -1
+    #: Real model decisions taken (an agent-initiated hop is not a decision).
+    decisions_made = 0
     while True:
         if rnd + 1 >= max_rounds:
             # Dynamic escalation along an ordered chain, inside THIS run (sources, bodies,
@@ -334,7 +710,9 @@ def run_tool_agent(
                 max_rounds = nxt.max_rounds
                 max_searches = nxt.max_searches
                 max_reads = nxt.max_reads
-                deadline = started + nxt.hard_seconds
+                # An escalation extends the allowance but can NEVER reopen a bigger wall
+                # clock than the global cap: the hard limits are global, not per tier.
+                deadline = min(started + nxt.hard_seconds, started + HARD_WALL_SECONDS)
                 continue
             break
         rnd += 1
@@ -345,10 +723,166 @@ def run_tool_agent(
                 and (calls[-1].get("result") or {}).get("status") in _REFUSED_OUTCOMES):
             corrections += 1
             rnd -= 1
-        model_calls += 1
-        if model_calls > max_rounds + MAX_CORRECTIONS:
+        # Count only REAL model requests. The allowance is checked BEFORE asking for another
+        # decision, so the stopping count is never one call the run did not make.
+        if model_calls >= min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP):
             stop = "model_call_limit"
             break
+        # Evidence loop (opt-in, at most ONCE per run). It is spent ONLY when material that
+        # can actually be checked is in hand: reading an index page must not burn the run's
+        # single extraction chance. The calls are counted against the SAME hard cap, so this
+        # never opens a second free budget.
+        if evidence_loop and not loop_spent and monotonic() < deadline:
+            substantive = {sid: body for sid, body in notebook.by_source.items()
+                           if body.kind == "substantive"}
+            relevant = {sid: body for sid, body in substantive.items()
+                        if any(term and str(term).casefold()
+                               in unquote(body.text or "").casefold()
+                               for terms in goal_specs.values() for term in terms)}
+            unfinished_all = {label: tuple(terms) for label, terms in goal_specs.items()
+                              if sub_goal_state[label]["status"] != "supported"}
+            if not goal_specs:
+                evidence_loop_skipped = "no_goals"
+            elif not substantive or not relevant:
+                reason = "no_substantive_body" if not substantive else "no_relevant_body"
+                can_acquire = _can_acquire(
+                    confirmed, read_pages, entry_exclusions, goal_specs,
+                    max_searches - searches, max_reads - reads)
+                extraction_gate = {"state": "acquiring" if can_acquire else "abstain",
+                                   "reason": reason, "goals": [], "at_call": model_calls,
+                                   "reserve_seconds": 0.0}
+                evidence_loop_skipped = reason
+            else:
+                reserve = _loop_reserve_seconds(deadline - started, confirmed, read_pages,
+                                                entry_exclusions, goal_specs)
+                gate_state, reason, ready_goals = _extraction_gate(
+                    unfinished=unfinished_all, goal_sides=goal_sides, relevant=relevant,
+                    confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
+                    rnd=rnd, max_rounds=max_rounds, deadline=deadline, now=monotonic(),
+                    reserve=reserve, searches_left=max_searches - searches,
+                    reads_left=max_reads - reads,
+                    calls_left=min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP) - model_calls)
+                extraction_gate = {"state": gate_state, "reason": reason,
+                                   "goals": sorted(ready_goals), "at_call": model_calls,
+                                   "reserve_seconds": reserve}
+                if not ready_goals:
+                    evidence_loop_skipped = reason or "no_eligible_window"
+                else:
+                    evidence_loop_skipped = ""
+                    loop_spent = True
+                    unfinished = {label: terms for label, terms in unfinished_all.items()
+                                  if label in ready_goals}
+                    bodies_view = dict(relevant)
+                    def _count_call() -> None:
+                        """Count a REAL model call, so cost never overstates what was spent."""
+                        nonlocal model_calls
+                        model_calls += 1
+
+                    def _count_reject(reason: str) -> None:
+                        """Audit why a candidate claim was refused (invented source, bad span…)."""
+                        claim_rejections[reason] = claim_rejections.get(reason, 0) + 1
+
+                    def _capture_input(snapshot: Mapping[str, Any]) -> None:
+                        """Freeze the extraction input as it is, not as it would be recomputed."""
+                        enriched: dict[str, Any] = {}
+                        for label, item in (snapshot.get("goals") or {}).items():
+                            windows = []
+                            for window in item.get("windows") or []:
+                                body = notebook.by_source.get(str(window.get("source_id")))
+                                windows.append({
+                                    "source_id": window.get("source_id"),
+                                    "final_url": getattr(body, "final_url", ""),
+                                    "content_hash": getattr(body, "content_hash", ""),
+                                    "span": [window.get("span_start"), window.get("span_end")],
+                                    "window_kind": window.get("window_kind"),
+                                    "sides": list(window.get("sides") or []),
+                                    "excerpt": str(window.get("excerpt") or "")[:300]})
+                            enriched[label] = {
+                                "goal_text": label,
+                                "terms": list(item.get("terms") or []),
+                                "answer_items": list(answer_items(label)),
+                                "sides": list(goal_sides.get(label) or ()),
+                                "windows": windows}
+                        extraction_input.update({
+                            "goals": enriched,
+                            "remaining_seconds": round(max(0.0, deadline - monotonic()), 2),
+                            "model_calls": model_calls,
+                            "rejections_before": dict(sorted(claim_rejections.items()))})
+
+                    def _capture_response(raw: str) -> None:
+                        extraction_input["raw_response"] = str(raw)[:2000]
+
+                    claims = extract_claims(
+                        goals=unfinished, bodies=bodies_view, completion=completion,
+                        timeout=min(20.0, max(1.0, deadline - monotonic())),
+                        on_call=_count_call, on_reject=_count_reject,
+                        sides_by_goal=goal_sides, on_input=_capture_input,
+                        on_response=_capture_response)
+                    extraction_input["rejections_after"] = dict(
+                        sorted(claim_rejections.items()))
+                    verdicts = verify_claims(
+                        claims=claims, goals=unfinished,
+                        label_to_id={label: label for label in unfinished},
+                        bodies=bodies_view, adopted=adopted_evidence, completion=completion,
+                        timeout=min(20.0, max(1.0, deadline - monotonic())),
+                        on_call=_count_call)
+                    claim_rows.extend(claims)
+                    claim_verdicts.extend(verdicts)
+                    for verdict in verdicts:
+                        if not verdict.internal_supported:
+                            continue
+                        hit_body = bodies_view.get(verdict.source_id)
+                        record: dict[str, Any] = {
+                            "url": getattr(hit_body, "final_url", ""),
+                            "source_id": verdict.source_id,
+                            "requested_url": getattr(hit_body, "requested_url", ""),
+                            "host": getattr(hit_body, "host", ""),
+                            "digest": getattr(hit_body, "digest", ""),
+                            "content_hash": getattr(hit_body, "content_hash", ""),
+                            "span_start": verdict.span_start,
+                            "span_end": verdict.span_end,
+                            "quote": verdict.quote,
+                            "status": "supported",
+                            "verified_by": "claim_verifier",
+                            "terms_hit": [], "relation": "",
+                            "ratio": 0.0, "conflict": "",
+                            "excerpt": (getattr(hit_body, "text", "") or "")[
+                                verdict.span_start:verdict.span_end][:200]}
+                        goal_evidence.setdefault(verdict.goal_id, []).append(record)
+                        # A supported claim answers specific NECESSARY REQUIREMENTS of its
+                        # goal. The goal is settled only when every requirement is covered by
+                        # a supported claim: one correct claim is a legitimate partial answer.
+                        items = answer_items(verdict.goal_id)
+                        covered_items: set[int] = set()
+                        for row in claim_verdicts:
+                            if row.goal_id == verdict.goal_id and row.internal_supported:
+                                covered_items.update(row.covers)
+                        record["covers"] = sorted(verdict.covers)
+                        # A number is the cheapest thing for a source to get wrong: mark it
+                        # when no other page we read states a quantity for the same subject.
+                        review = _number_corroboration(
+                            verdict.quote, goal_specs.get(verdict.goal_id, ()),
+                            {sid: body.text for sid, body in notebook.by_source.items()
+                             if sid != verdict.source_id})
+                        if review:
+                            record["needs_review"] = review
+                            needs_review.append({
+                                "goal_id": verdict.goal_id, "source_id": verdict.source_id,
+                                "quote": verdict.quote[:120], "reason": review,
+                                "url": record["url"]})
+                        partial = bool(covered_items) and len(covered_items) < len(items)
+                        if partial:
+                            record["partial"] = True
+                        sub_goal_state[verdict.goal_id].update({
+                            "status": "explored" if partial or not covered_items else "supported",
+                            "url": record["url"], "excerpt": record["excerpt"],
+                            "answer_items": len(items),
+                            "covered_items": sorted(covered_items)})
+                    followups.extend(plan_followups(verdicts=verdicts, goals=goal_specs,
+                                                    issued=sorted(searched_queries)))
+                    # The bodies this cycle consumed have their content version bound;
+                    # anything read later stays visibly `pending_verification`.
+                    notebook.mark_verified(list(bodies_view))
         if rnd > 0:
             progress_history.append(productive_events != last_productive)
         last_productive = productive_events
@@ -364,7 +898,8 @@ def run_tool_agent(
         # A navigation page that was read but never followed is the clearest next action:
         # it is NOT in the unread list (it was read) yet it must still be expanded.
         pending_follows = sorted(url for url in navigation_urls if url not in visited)
-        unread_rows = _rank_unread(unread_candidates, goal_terms, confirmed_basis)[:6]
+        unread_rows = _rank_unread(unread_candidates, goal_terms, confirmed_basis,
+                                   link_labels)[:6]
         # C1: structured action state. The model still spends a decision on every attempt -
         # the saving is the network request, never the hard round limit.
         action_rows = [_action_row(call) for call in calls]
@@ -399,7 +934,8 @@ def run_tool_agent(
         notebook_view = notebook.build_view(
             goals=goal_specs, goal_state=sub_goal_state, goal_evidence=goal_evidence,
             refused=[row for row in action_rows if row["outcome"] in _REFUSED_OUTCOMES],
-            next_action=(action_state["legal_next"][0] if action_state["legal_next"] else None))
+            next_action=(action_state["legal_next"][0] if action_state["legal_next"] else None),
+            claims=claim_rows, verdicts=claim_verdicts, followups=followups)
         budget_state = ("round %d/%d | searches %d/%d (left %d) | reads %d/%d (left %d) | %ds left"
                         " | read pages: %d | unread candidates: %d"
                         " | still uncovered (term check, hint only): %s"
@@ -409,6 +945,30 @@ def run_tool_agent(
                            max(0, int(deadline - monotonic())),
                            len(read_pages), len(unread_candidates),
                            ", ".join(missing_terms) if missing_terms else "(none)"))
+        if notebook.bodies and not any(body.kind == "substantive"
+                                       for body in notebook.by_source.values()):
+            # Acquisition gate: the run holds text but nothing checkable, so say what the
+            # next action has to be instead of letting another index page be read.
+            budget_state += (
+                "\n  BODY STATUS: every page read so far is an index/navigation shell, so"
+                " there is nothing a claim could be verified against yet. Follow a confirmed"
+                " ARTICLE link from one of those pages (or search for the specific article)"
+                " and read it; do not read another directory page.")
+        if goal_specs and notebook.bodies:
+            # Which goals no page read so far even mentions. Without this the run can keep
+            # reading hub pages whose prose is real but about another subject entirely.
+            unmentioned = [
+                label for label, terms in goal_specs.items()
+                if terms and not any(
+                    any(str(term).lower() in (body.text or "").lower() for term in terms)
+                    for body in notebook.by_source.values())]
+            if unmentioned:
+                budget_state += (
+                    "\n  SEARCH DIRECTION: no page read so far mentions "
+                    + "; ".join(f"{label} -> {', '.join(list(goal_specs[label])[:4])}"
+                                for label in unmentioned[:2])
+                    + ". Search for that mechanism article, or follow a link whose text"
+                      " contains those words, instead of reading another hub page.")
         if goal_specs:
             # Two different states, deliberately not merged: a goal with NO candidate needs
             # searching for, while a goal that was merely explored needs VERIFYING against a
@@ -434,6 +994,11 @@ def run_tool_agent(
                     for label in need_evidence[:3])
                 budget_state += (
                     f"\n  MISSING goals (search for these specifically): {hints}")
+            if followups:
+                budget_state += (
+                    "\n  TARGETED FOLLOW-UPS (from evidence gaps): "
+                    + "; ".join(f"{item['goal_id']} -> {item['query']}"
+                                for item in followups[:2]))
         # Conditional budget reserve: instruction, not a refusal. A refusal would spend the
         # very round it is trying to save (the round loop is fixed), so once searches are
         # half spent and readable candidates already exist, the guide tells the model the
@@ -447,21 +1012,113 @@ def run_tool_agent(
                 "navigation page to obtain its chapter links, then read_page the specific "
                 "chapter, so the run reaches mechanism text instead of another list of links."
                 % (max_rounds - rnd))
-        try:
-            raw = completion(
-                messages=_prompt(question, observations, reliable_sources,
-                                 state=budget_state, candidates=unread_rows,
-                                 pending_follows=pending_follows, actions=action_state,
-                                 notebook=notebook_view),
-                timeout=min(20.0, max(1.0, deadline - monotonic())),
-                task_name="research_tool_agent",
-            )
-            action = parse_action(raw)
+        substantive_now = {sid: body for sid, body in notebook.by_source.items()
+                           if body.kind == "substantive"}
+        relevant_now = {sid: body for sid, body in substantive_now.items()
+                        if any(term and str(term).casefold()
+                               in unquote(body.text or "").casefold()
+                               for terms in goal_specs.values() for term in terms)}
+        material_now = any(
+            _eligible_windows(terms, relevant_now, goal_sides.get(label),
+                              selector=evidence_windows if evidence_loop else None)
+            for label, terms in goal_specs.items()
+            if sub_goal_state[label]["status"] != "supported")
+        # Discovery recovery is triggered by EVIDENCE OF FAILURE, not by an open goal: the last
+        # search must have returned no [article] while returning a related site entry. A run whose
+        # search already yielded article URLs (the PostgreSQL shape) is therefore never nudged.
+        entry_only_search = bool(search_signals["no_target_article"]
+                                 and search_signals["entry_urls"])
+        missing_entities = [entity for pair in goal_sides.values() for entity in pair if entity] \
+            or [str(term) for terms in goal_specs.values() for term in terms
+                if len(str(term)) >= 2]
+        # SEARCH RESERVE: decided here, BEFORE the model can spend the last slot. Waiting until
+        # the results have been read would replay the measured failure of four homepage-only
+        # searches, which is exactly why this eligibility must not depend on reads >= 1.
+        recovery_query = ""
+        if (discovery_hops and not loop_spent and auto_hops == 0 and not material_now
+                and entry_only_search and searches < max_searches
+                and max_reads - reads >= 1):
+            recovery_query = _site_scoped_query(
+                missing_entities, confirmed, searched_queries,
+                search_signals["entry_urls"], entry_exclusions)
+        reserved_searches = 1 if recovery_query else 0
+        # Executing it stays gated on the agent having used the failed results once.
+        discovery_needed = (not material_now) and entry_only_search and reads >= 1
+        auto_hop = "" if (loop_spent or not discovery_hops or not discovery_needed) else \
+            _auto_hop_target(
+                confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
+                basis=confirmed_basis, labels=link_labels, goals=goal_specs,
+                sides_by_goal=goal_sides, hops_used=auto_hops, hopped=hopped_entries,
+                searches=searches, reads_left=max_reads - reads,
+                remaining_seconds=deadline - monotonic(), has_material=material_now)
+        auto_query = recovery_query if (discovery_needed and not auto_hop) else ""
+        # Read reserve follows the PENDING path instead of a fixed two slots: a hop must download
+        # the navigation page and then the article (two), while a site-scoped search downloads
+        # nothing and only needs the article afterwards (one). Released once the first discovery
+        # action has fired - a second hop is already gated on reads_left >= 2 by itself.
+        if auto_hops:
+            discovery_reserve = 0
+        elif auto_hop:
+            discovery_reserve = 2
+        else:
+            discovery_reserve = 1 if recovery_query else 0
+        if auto_hop:
+            # One bounded navigation instead of a model decision: it costs read quota and a real
+            # network request (both counted as usual), never a model call.
+            auto_hops += 1
+            hopped_entries.add(auto_hop)
+            action = {"tool": "follow", "url": auto_hop, "reason": "auto_discovery_hop"}
             error = ""
-        except Exception as exc:  # noqa: BLE001 - a bad action is recorded, not fatal
-            action = {"tool": "invalid", "reason": ""}
-            error = f"{type(exc).__name__}"
+        elif auto_query:
+            # The second route REALLY executes: the query is substituted as this round's action
+            # and goes through the ordinary search handling below (quota, dedup, real request).
+            auto_hops += 1
+            action = {"tool": "search", "query": auto_query,
+                      "reason": "auto_site_scoped_search"}
+            error = ""
+        else:
+            # Counted here and nowhere else: a real request is a real call, while an
+            # agent-initiated hop round asks the model nothing and must add neither a model
+            # call nor a research decision.
+            model_calls += 1
+            decisions_made += 1
+            try:
+                raw = completion(
+                    messages=_prompt(question, observations, reliable_sources,
+                                     state=budget_state, candidates=unread_rows,
+                                     pending_follows=pending_follows, actions=action_state,
+                                     notebook=notebook_view),
+                    timeout=min(20.0, max(1.0, deadline - monotonic())),
+                    task_name="research_tool_agent",
+                )
+                action = parse_action(raw)
+                error = ""
+            except Exception as exc:  # noqa: BLE001 - a bad action is recorded, not fatal
+                action = {"tool": "invalid", "reason": ""}
+                error = f"{type(exc).__name__}"
         call: dict[str, Any] = {"round": rnd, "action": action, "error": error}
+        # Observable scheduling: why a recovery action did or did not fire this round.
+        call["discovery_schedule"] = {
+            "reserve": reserved_searches, "recovery_query": recovery_query,
+            "auto_hop": auto_hop, "auto_query": auto_query,
+            "entry_only_search": entry_only_search, "has_material": material_now,
+            "no_target_article": search_signals.get("no_target_article"),
+            "reserve_created": bool(reserved_searches),
+            "recovery_executed": bool(action.get("reason") in
+                                      {"auto_discovery_hop", "auto_site_scoped_search"}),
+            "hop_ready": discovery_needed, "searches": searches, "reads": reads,
+            "loop_spent": bool(loop_spent)}
+        if (auto_hop or auto_query) and action.get("reason") in {
+                "auto_discovery_hop", "auto_site_scoped_search"}:
+            call["agent_initiated"] = True
+            if auto_hop:
+                candidate_trace.append({"round": rnd, "tool": "follow", "page": auto_hop,
+                                        "agent_initiated": True, "hop": auto_hops,
+                                        "discovered": [], "confirmed_basis": "followed_link"})
+            else:
+                candidate_trace.append({"round": rnd, "tool": "search", "query": auto_query,
+                                        "agent_initiated": True, "hop": auto_hops,
+                                        "kind": "site_scoped"})
         if error:
             observations.append(f"round {rnd}: your action was rejected ({error}); return valid JSON.")
             calls.append(call)
@@ -496,9 +1153,20 @@ def run_tool_agent(
             calls.append(call)
             break
         if action["tool"] == "search":
-            if searches >= max_searches:
-                call["result"] = {"status": "quota_exceeded", "reason": "search_quota"}
-                observations.append(f"round {rnd}: search quota reached.")
+            # The reserve protects the LAST slot for the deterministic site-scoped recovery: an
+            # ordinary search may only use max_searches - reserved_searches, while the recovery
+            # search itself (already substituted above) may spend the slot it holds.
+            is_recovery = action.get("reason") == "auto_site_scoped_search"
+            if searches >= max_searches or (searches >= max_searches - reserved_searches
+                                            and not is_recovery):
+                reason = ("search_quota" if searches >= max_searches
+                          else "search_reserved_for_recovery")
+                call["result"] = {"status": "quota_exceeded", "reason": reason}
+                observations.append(
+                    "round %d: search quota reached." % rnd if reason == "search_quota"
+                    else ("round %d: this search would spend the slot kept for the site-scoped "
+                          "recovery of the missing subject; read what you have or let the "
+                          "recovery run." % rnd))
                 calls.append(call)
                 continue
             normalised_query = " ".join(action["query"].split()).casefold()
@@ -522,6 +1190,8 @@ def run_tool_agent(
                 if _public_url(url):
                     confirmed.add(url)
                     confirmed_basis.setdefault(url, "search_result")
+                    if r.get("title"):
+                        link_labels.setdefault(url, str(r.get("title")))
                     if entry_selection:
                         from src.web.research.entry_selection import search_admission
 
@@ -536,9 +1206,10 @@ def run_tool_agent(
                                    ("status", "reason", "providers_attempted", "provider_errors")
                                    if k in result}
             shown_urls = [str(r.get("url") or "") for r in rows]
+            search_hosts = sorted({urlsplit(u).netloc.casefold() for u in shown_urls if u})
             candidate_trace.append({
                 "round": rnd, "tool": "search", "query": action.get("query"),
-                "results": len(rows), "shown": shown_urls[:10],
+                "results": len(rows), "shown": shown_urls[:10], "hosts": search_hosts,
                 "excluded": [u for u in shown_urls if u in entry_exclusions],
             })
             page_types = [
@@ -546,6 +1217,22 @@ def run_tool_agent(
                               str(r.get("snippet") or ""))
                 for r in rows
             ]
+            search_signals["no_article"] = bool(rows) and "article" not in page_types
+            # "No suitable target article" means no result NAMING a missing entity - the measured
+            # index mixes irrelevant article pages (e.g. a game overview) among site entries, so
+            # requiring no [article] at all would disable recovery in exactly the case it exists.
+            _wanted = [entity for pair in goal_sides.values() for entity in pair if entity] \
+                or [str(term) for terms in goal_specs.values() for term in terms
+                    if len(str(term)) >= 2]
+            # Only an ARTICLE naming the entity can be the answer itself; a category page that
+            # names it is still just a navigation entry.
+            search_signals["no_target_article"] = not any(
+                ptype == "article"
+                and _entity_match(entity, str(r.get("url") or ""), str(r.get("title") or ""))
+                for ptype, r in zip(page_types, rows) for entity in _wanted)
+            search_signals["entry_urls"] = [
+                u for ptype, u in zip(page_types, shown_urls)
+                if ptype in {"home", "category"}]
             brief = "\n".join(
                 f"- [{ptype}] {r.get('title')} | {r.get('url')} | {str(r.get('snippet'))[:160]}"
                 for ptype, r in zip(page_types, rows)
@@ -684,6 +1371,10 @@ def run_tool_agent(
                     confirmed.add(link.url)
                     confirmed_basis.setdefault(link.url, "followed_link")
                     follow_provenance.setdefault(link.url, url)
+                    # Keep the link's own text: a candidate whose TITLE names the goal must
+                    # outrank one that merely sits on the right site.
+                    if link.anchor:
+                        link_labels.setdefault(link.url, link.anchor)
             page_type = classify_page(url)
             call["result"] = {"status": "ok", "n": len(links), "candidates": len(candidates),
                               "page_type": page_type}
@@ -744,7 +1435,7 @@ def run_tool_agent(
                     "failure_reason": "url_not_from_search_result"})
                 unread_now = _rank_unread(
                     [u for u in confirmed if u not in read_pages and u not in entry_exclusions],
-                    goal_terms, confirmed_basis)[:5]
+                    goal_terms, confirmed_basis, link_labels)[:5]
                 observations.append(
                     f"round {rnd}: read rejected: {action['url']} was never discovered by a search "
                     "result or a followed page; guessing a URL is not evidence. Read one of the "
@@ -786,6 +1477,16 @@ def run_tool_agent(
                 read_row["failure_reason"] = "read_quota"
                 call["result"] = {"status": "quota_exceeded", "reason": "read_quota"}
                 observations.append(f"round {rnd}: read quota reached.")
+                calls.append(call)
+                continue
+            if discovery_reserve and max_reads - reads <= discovery_reserve:
+                read_row["failure_reason"] = "read_reserved_for_discovery"
+                call["result"] = {"status": "quota_exceeded",
+                                  "reason": "read_reserved_for_discovery"}
+                observations.append(
+                    f"round {rnd}: this read would consume quota kept for automated discovery "
+                    "(navigate, then read the article it yields); read the confirmed article "
+                    "instead, or use the navigation page.")
                 calls.append(call)
                 continue
             if not host_resolves_public(urlsplit(action["url"]).hostname or ""):
@@ -865,6 +1566,16 @@ def run_tool_agent(
                 read_pages[final_url] = len(content)
                 if action["url"] != final_url:
                     read_pages[action["url"]] = len(content)
+                cached_body = None
+                digest = ""
+                source_id = ""
+                if not duplicate_body:
+                    # EVERY distinct body this run read is registered, an index page
+                    # included: the notebook must record what was read and mark it
+                    # ineligible, never pretend the read did not happen.
+                    cached_body = notebook.record(action["url"], final_url, content)
+                    digest = cached_body.digest if cached_body else ""
+                    source_id = cached_body.source_id if cached_body else ""
                 # A navigation/index page must not contribute keyword coverage: its terms
                 # are links, not mechanism evidence (negative control from review).
                 if not duplicate_body and call.get("page_kind") != "navigation":
@@ -878,32 +1589,43 @@ def run_tool_agent(
                     # may address the sub-goal; status stays "explored (unverified)".
                     # Every successfully read body is registered, EVEN when it matches no
                     # goal: a later round may still need to know this page was read.
-                    cached_body = notebook.record(action["url"], final_url, content)
-                    digest = cached_body.digest if cached_body else ""
                     touched: list[str] = []
                     for label, terms in goal_specs.items():
                         state = sub_goal_state[label]
                         if state["status"] == "supported":
                             continue          # a settled goal is not re-derived
-                        status, evidence = verify_goal_evidence(terms, content)
+                        status, match_evidence = classify_goal_candidate(terms, content)
                         if status == "missing":
                             continue          # this body carries none of the goal's terms
+                        # The keyword/relation rule is CANDIDATE FILTERING only: it may mark a
+                        # goal `explored`, never `supported`. Only the claim verifier decides
+                        # that a goal is answered.
+                        status = "explored"
                         touched.append(label)
                         goal_evidence.setdefault(label, []).append({
                             "url": final_url,
+                            "source_id": source_id,
                             "host": urlsplit(final_url).hostname or "",
                             "digest": digest,
                             "status": status,
                             "verified_by": "terms+relation" if status == "supported"
                             else "terms_only",
-                            **evidence,
+                            **match_evidence,
                         })
                         if status == "supported":
                             state.update({"status": "supported", "url": final_url,
-                                          "excerpt": evidence["excerpt"]})
+                                          "excerpt": match_evidence["excerpt"]})
                         elif state["status"] != "explored":
                             state.update({"status": "explored", "url": final_url,
-                                          "excerpt": evidence["excerpt"] or ""})
+                                          "excerpt": match_evidence["excerpt"] or ""})
+                        # Eviction-safe map: the verifier may use this retained excerpt when
+                        # the full body is no longer cached.
+                        # Eviction-safe map keyed by CONTENT VERSION (source id), so the
+                        # verifier binds to the exact body this run registered, not a URL.
+                        if source_id:
+                            adopted_evidence[source_id] = {
+                                "excerpt": match_evidence.get("excerpt") or "",
+                                "digest": digest}
                     if touched:
                         notebook.record(action["url"], final_url, content, goals=touched)
                 source_chain.append({
@@ -925,6 +1647,33 @@ def run_tool_agent(
             calls.append(call)
             continue
     elapsed = round(monotonic() - started, 3)
+
+    def _goal_status(label: str) -> str:
+        """Goal completion from the requirements supported claims actually covered."""
+        covered = {index for row in claim_verdicts
+                   if row.goal_id == label and row.internal_supported
+                   for index in row.covers}
+        if not covered:
+            return "goal_insufficient"
+        return ("goal_supported" if len(covered) >= len(answer_items(label))
+                else "goal_partial")
+
+    goal_status = {label: _goal_status(label) for label in goal_specs}
+    # One honest label for where the evidence flow stopped: "the model proposed nothing" must
+    # never be reported when the run never actually held an article.
+    if not notebook.bodies:
+        evidence_outcome = "acquisition_failure"
+    elif not any(body.kind == "substantive" for body in notebook.by_source.values()):
+        evidence_outcome = "no_substantive_body"
+    elif not claim_rows:
+        # The loop either never ran (report WHY, verbatim) or ran and drew no claim.
+        evidence_outcome = evidence_loop_skipped or "extraction_no_claim"
+    elif not any(item.internal_supported for item in claim_verdicts):
+        evidence_outcome = "verification_insufficient"
+    elif any(st["status"] == "supported" for st in sub_goal_state.values()):
+        evidence_outcome = "verified"
+    else:
+        evidence_outcome = "partial_only"
     return {
         "question": question,
         "stop_reason": stop,
@@ -932,6 +1681,9 @@ def run_tool_agent(
         "searches": searches,
         "reads": reads,
         "elapsed_seconds": elapsed,
+        # The wall budget actually in force after any escalation: an escalation may extend
+        # the allowance but never past the global cap, and this is where that shows.
+        "wall_budget_seconds": round(deadline - started, 3),
         "dns_stats": get_dns_stats(),
         "coverage_audit": {
             "covered": sorted(covered_terms),
@@ -958,6 +1710,61 @@ def run_tool_agent(
         "derived_sub_goals": [label for label, _terms in derived_goals],
         "goal_evidence": goal_evidence,
         "notebook_digests": {url: body.digest for url, body in notebook.bodies.items()},
+        "claim_verdicts": [vars(item) for item in claim_verdicts],
+        # Why candidate claims were refused: an audit of the anti-fabrication rules, and the
+        # reason a run produced no verifiable claim at all.
+        "claim_rejections": dict(sorted(claim_rejections.items())),
+        "needs_review": needs_review,
+        # Body acquisition and the evidence loop, reported separately so "no support" is
+        # never attributed to the model when the run simply never held a real article.
+        "substantive_bodies": sorted(body.source_id for body in notebook.by_source.values()
+                                     if body.kind == "substantive"),
+        "navigation_only_reads": sorted(body.source_id for body in notebook.by_source.values()
+                                        if body.kind == "navigation"),
+        "body_kinds": {body.source_id: body.kind for body in notebook.by_source.values()},
+        "evidence_loop_skipped": evidence_loop_skipped,
+        # AUTHORITATIVE: what the one extraction call was actually shown, and what it replied.
+        "extraction_input": extraction_input,
+        "extraction_gate": extraction_gate,
+        # Discovery Recovery accounting: hops taken by the run itself (never model calls).
+        "auto_hops": auto_hops,
+        "hopped_entries": sorted(hopped_entries),
+        # Final candidate snapshot (recomputed at the end). It is NOT what the extractor saw:
+        # `extraction_input` is the authoritative record of the call itself.
+        "window_audit_note": "final candidate snapshot, not the extraction input",
+        "window_audit": {
+            label: (evidence_windows if evidence_loop else candidate_windows)(
+                terms, {sid: body for sid, body in
+                                            notebook.by_source.items()
+                                            if body.kind == "substantive"},
+                                     sides=goal_sides.get(label))
+            for label, terms in goal_specs.items()},
+        "evidence_outcome": evidence_outcome,
+        # Goal completion in the honest vocabulary: a claim can be supported while its goal is
+        # still only partially answered, and that is a legitimate resting state.
+        "goal_status": goal_status,
+        # Decision audit: what was discovered, why it ranked where it did, whether it was
+        # read - and, at the moment the run stopped, what was still unread and on the clock.
+        "candidate_audit": [
+            {"rank": index + 1, "url": row["url"], "source": row["basis"],
+             "label": row["label"], "matched": row["matched"],
+             "read": row["url"] in read_pages,
+             "not_read_reason": "" if row["url"] in read_pages
+             else ("excluded:" + entry_exclusions[row["url"]]
+                   if row["url"] in entry_exclusions else "never_selected")}
+            for index, row in enumerate(_rank_unread(
+                [item for item in confirmed if item not in read_pages], goal_terms,
+                confirmed_basis, link_labels)[:12])],
+        "stop_context": {
+            "remaining_seconds": round(max(0.0, deadline - monotonic()), 2),
+            "remaining_model_calls": max(
+                0, min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP) - model_calls),
+            "relevant_unread": [
+                row["url"] for row in _rank_unread(
+                    [item for item in confirmed if item not in read_pages], goal_terms,
+                    confirmed_basis, link_labels) if row["matched"]][:6],
+        },
+        "followups": followups,
         # Observability for the action-optimisation audit: wasted repeats are counted,
         # not hidden, and each escalation records the round limit it moved to.
         "repeat_actions": {
@@ -971,7 +1778,7 @@ def run_tool_agent(
         # MAX_CORRECTIONS; the model-call cap bounds the total either way.
         "cost": {
             "model_calls": model_calls,
-            "research_decisions": rnd + 1,
+            "research_decisions": decisions_made,
             "corrections": corrections,
             "network_requests": sum(
                 1 for c in calls

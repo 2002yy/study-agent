@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import unquote, urljoin, urlsplit
 
 from lxml import html as lxml_html  # type: ignore[import-untyped]
@@ -116,18 +117,14 @@ _RELATION_MARKERS = (
 _CONFLICT_MARKERS = ("并非", "不是", "错误", "不正确", "incorrect", "myth", "not true")
 
 
-def verify_goal_evidence(terms: tuple[str, ...] | list[str], content: str, *,
-                         min_ratio: float = 0.6, min_chars: int = 120,
-                         window: int = 240) -> tuple[str, dict]:
-    """Two-stage goal-level check: deterministic candidates, then window-scoped support.
+def classify_goal_candidate(terms: tuple[str, ...] | list[str], content: str, *,
+                            min_ratio: float = 0.6, min_chars: int = 120,
+                            window: int = 240) -> tuple[str, dict]:
+    """CANDIDATE-level signal for one goal against one body: missing | explored only.
 
-    Stage 1 (deterministic): the body's terms are matched; no terms means ``missing``.
-    Stage 2 (support): ``supported`` requires the goal's terms AND a relation/mechanism
-    marker inside the SAME window, so a marker sitting in an unrelated paragraph cannot
-    certify the goal. A conflict marker in that window yields ``conflict``. Everything
-    weaker stays ``explored`` (a candidate, never a verdict).
-
-    Internal, auditable judgement only: no publication authority, Evidence Gate untouched.
+    It can NEVER grant semantic support - that requires the independent claim verifier
+    (`research_claim_verifier`). The window rule only says "this body is worth checking",
+    so no caller can inherit evidence authority from a keyword pattern.
     """
     text = content or ""
     lowered = text.lower()
@@ -147,7 +144,9 @@ def verify_goal_evidence(terms: tuple[str, ...] | list[str], content: str, *,
                 marker = next((item for item in _RELATION_MARKERS if item in chunk), "")
                 if marker:
                     conflict = next((item for item in _CONFLICT_MARKERS if item in chunk), "")
-                    return ("conflict" if conflict else "supported"), {
+                    # A candidate signal, never a verdict: support must come from the
+                    # independent claim verifier.
+                    return "explored", {
                         "terms_hit": in_window, "relation": marker, "conflict": conflict,
                         "ratio": round(ratio, 2),
                         "excerpt": text[start:end].replace("\n", " ")}
@@ -311,6 +310,169 @@ def looks_like_navigation(text: str) -> bool:
     numbers = len(re.findall(r"\b\d+(?:\.\d+)*\b", body))
     separators = sum(body.count(char) for char in _NAV_SEPARATORS)
     return numbers >= _NAV_MIN_NUMBERS and separators >= _NAV_MIN_SEPARATORS
+
+
+#: Below this there is no body at all (empty, blocked, or a JS shell) - not a short page.
+#: Eligibility is decided by the prose measure below, never by page length.
+MIN_BODY_CHARS = 60
+#: A prose block is a run of text with sentence punctuation, not a nav item or a button.
+PROSE_BLOCK_MIN_CHARS = 60
+#: Two punctuated sentences of this total size is content a claim could be drawn from; a
+#: single-paragraph article counts. Sentence density — not line structure — decides, so a
+#: link list cannot inflate the measure and a short real answer is not thrown away.
+MIN_PROSE_CHARS = 80
+MIN_PROSE_CHARS_PER_UNIT = 12
+MIN_PROSE_SENTENCES = 2
+#: Below this prose share a list-like page is an item/category page, not an answer.
+LIST_PROSE_SHARE = 0.35
+_SENTENCE_PUNCT = re.compile(r"[.。！？!?;；:：]")
+#: Sentence units KEEP their terminator, so a unit is prose only if it ends like a sentence
+#: (or is a long unpunctuated line). A column of short link labels is therefore not prose.
+_UNIT_SPLIT = re.compile(r"(?<=[.。！？!?;；])\s*|\n+")
+_BLOCK_SPLIT = re.compile(r"\n\s*\n|\n")
+
+
+def prose_blocks(text: str) -> list[str]:
+    """Blocks that read as prose: long enough and carrying sentence punctuation.
+
+    A nav item, a button or a link label is short and unpunctuated, so it cannot inflate the
+    measure however many of them a page lists.
+    """
+    blocks = [block.strip() for block in _BLOCK_SPLIT.split(text or "") if block.strip()]
+    return [block for block in blocks
+            if len(block) >= PROSE_BLOCK_MIN_CHARS and _SENTENCE_PUNCT.search(block)]
+
+
+def prose_units(text: str) -> list[str]:
+    """Sentence-like units: punctuated sentences, or long unpunctuated lines."""
+    units: list[str] = []
+    for raw in _UNIT_SPLIT.split(text or ""):
+        unit = raw.strip()
+        if len(unit) < MIN_PROSE_CHARS_PER_UNIT:
+            continue
+        if _SENTENCE_PUNCT.search(unit) or len(unit) >= PROSE_BLOCK_MIN_CHARS:
+            units.append(unit)
+    return units
+
+
+#: Requirement boundaries inside one goal: punctuation and connectors only. Never a word
+#: list, and never a model call - a goal asking for two things needs two answers.
+_ITEM_SPLIT = re.compile(r"[，,、；;]|以及|并且|同时")
+
+
+def answer_items(label: str) -> tuple[str, ...]:
+    """The necessary requirements inside one goal, taken from its own wording.
+
+    "为什么不阻塞、主要代价是什么" requires two separate answers; "如何避免读写互相阻塞"
+    requires one. The split is deterministic (punctuation and connectors), so goal completion
+    is decided by which items the evidence covers, not by a keyword overlap ratio.
+    """
+    text = (label or "").strip()
+    if not text:
+        return ()
+    parts = [part.strip(" 。？！?.、，,") for part in _ITEM_SPLIT.split(text)]
+    items = tuple(part for part in parts if len(part) >= 2)
+    return items or (text,)
+
+
+#: Separators that make a question a COMPARISON of two things. Never a topic glossary: it
+#: reads the question's own wording.
+_COMPARE_SEP = re.compile(r"\s*(?:与|和|及|vs\.?|VS\.?|对比|相比)\s*")
+#: Particles that glue an entity to the rest of a phrase ("Minecraft 中漏斗" -> "漏斗").
+_PARTICLES = "中上下的里内外与和及对把将"
+#: CJK runs let a side be taken from either end: the LEFT side ends with its entity, the
+#: RIGHT side begins with it.
+_CJK_RUN = re.compile(r"[\u4e00-\u9fff]+")
+#: Characters that end the entity phrase on the right side ("投掷器有什么区别" -> "投掷器").
+_SIDE_STOP = "在的与和及对把将有多么几哪吗呢有为会是能可怎如何什"
+
+
+def _entity(chunk: str, *, leading: bool) -> str:
+    """The entity phrase a comparison side names, with its connective tail removed."""
+    text = (chunk or "").strip("　 ，,。？?！!：:；;")
+    if not text:
+        return ""
+    runs = _CJK_RUN.findall(text)
+    if not runs:
+        return text.split()[0] if text.split() else text       # "A 和 B"
+    run = runs[0] if leading else runs[-1]
+    if leading:
+        cut = len(run)
+        for index, char in enumerate(run):
+            if char in _SIDE_STOP:
+                cut = index
+                break
+        run = run[:cut]
+    return run.lstrip(_PARTICLES)
+
+
+def compare_sides(text: str) -> tuple[str, str] | None:
+    """The two things a question compares, or None when it compares nothing.
+
+    "Minecraft 中漏斗和投掷器在物品传输上的区别是什么" -> ("漏斗", "投掷器"). This plans
+    evidence only: two sources mentioning A and B still say nothing about how they differ, so
+    it never grants support on its own.
+    """
+    found = _COMPARE_SEP.search(text or "")
+    if found is None:
+        return None
+    left = _entity(text[:found.start()], leading=False)    # the entity ENDS the left chunk
+    right = _entity(text[found.end():], leading=True)      # the entity BEGINS the right one
+    if not left or not right or left == right:
+        return None
+    return left, right
+
+
+def looks_like_list(text: str) -> bool:
+    """True when a passage is a list of names/links rather than prose sentences.
+
+    ``looks_like_navigation`` needs numbers and separators, which an item list such as
+    " - 末影珍珠 - 末影之眼 - ..." has none of. A passage with many short separated segments
+    and almost no sentence punctuation is a list, whatever it lists.
+    """
+    body = (text or "").strip()
+    if not body:
+        return False
+    bullets = len(re.findall(r"(?:^|\s)[-•·|»]\s", body))
+    sentences = len(re.findall(r"[.。！？!?]", body))
+    segments = [segment for segment in re.split(r"\s[-•·|»]\s", body) if segment.strip()]
+    short = sum(1 for segment in segments if len(segment.strip()) <= 24)
+    return (bullets >= 4 and sentences <= 1) or len(segments) >= 6 and short >= len(segments) - 1
+
+
+def classify_body(text: str) -> tuple[str, dict[str, Any]]:
+    """Classify an extracted body as substantive / navigation / unusable.
+
+    Sentence density and page type decide this, not a length threshold: a 250-character
+    answer counts, and a 4,000-character link farm does not. Navigation detection is the
+    shared ``looks_like_navigation`` rule and wins outright, because a numbered index list
+    is prose-shaped without being prose.
+    """
+    body = (text or "").strip()
+    if len(body) < MIN_BODY_CHARS:
+        return "unusable", {"chars": len(body), "prose_chars": 0, "prose_blocks": 0,
+                            "prose_share": 0.0, "looks_like_navigation": False,
+                            "reason": "no_body"}
+    units = prose_units(body)
+    prose_chars = sum(len(unit) for unit in units)
+    navigation = looks_like_navigation(body)
+    evidence: dict[str, Any] = {
+        "chars": len(body), "prose_chars": prose_chars, "prose_blocks": len(units),
+        "prose_share": round(prose_chars / len(body), 2),
+        "looks_like_navigation": navigation}
+    if navigation:
+        evidence["reason"] = "link_farm"
+        return "navigation", evidence
+    # An item/category page is a next hop, never a claim window - but only when prose is
+    # scarce. A real article that happens to contain a list keeps its substance.
+    if looks_like_list(body) and evidence["prose_share"] < LIST_PROSE_SHARE:
+        evidence["reason"] = "item_list"
+        return "navigation", evidence
+    if len(units) >= MIN_PROSE_SENTENCES and prose_chars >= MIN_PROSE_CHARS:
+        evidence["reason"] = "prose_sentences"
+        return "substantive", evidence
+    evidence["reason"] = "no_prose"
+    return "unusable", evidence
 
 
 def _is_locale_segment(segment: str) -> bool:
