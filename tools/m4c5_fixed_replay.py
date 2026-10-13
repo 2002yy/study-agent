@@ -49,7 +49,7 @@ def _bodies(trace: dict) -> dict[str, _Body]:
     return bodies
 
 
-def _stages(trace: dict) -> dict:
+def _stages(trace: dict, bodies: dict) -> dict:
     """What the recorded run reached: windows per side, and the extraction outcome."""
     goals = (trace.get("extraction_input") or {}).get("goals") or {}
     gate = trace.get("extraction_gate") or {}
@@ -65,7 +65,22 @@ def _stages(trace: dict) -> dict:
                          "both_sides_covered": all(count for count in by_side.values())
                          if by_side else False})
     verdicts = [v for v in (trace.get("claim_verdicts") or []) if isinstance(v, dict)]
+    selection = []
+    for label, item in goals.items():
+        sides = [str(side) for side in (item or {}).get("sides") or ()]
+        if not sides:
+            continue
+        terms = tuple(str(term) for term in (item or {}).get("terms") or ()) or tuple(sides)
+        rows = evidence_windows(terms, bodies, sides=tuple(sides), label=str(label))
+        selection.append({
+            "goal": str(label)[:24],
+            "windows_now": len(rows),
+            "sides_now": [[str(name) for name in row.get("sides") or ()] for row in rows],
+            "both_side_first": bool(rows) and len({str(name) for name in rows[0].get("sides") or ()}) >= 2,
+            "both_side_windows": sum(1 for row in rows
+                                     if len({str(name) for name in row.get("sides") or ()}) >= 2)})
     return {"gate_state": gate.get("state", ""), "gate_reason": gate.get("reason", ""),
+            "selection_now": selection,
             "goals": per_goal,
             "claims": len(verdicts),
             "rejections": dict(trace.get("claim_rejections") or {}),
@@ -96,7 +111,7 @@ def replay(product: Path) -> dict:
                      "this trace recorded no goal/window input; the stage cannot be replayed"),
         }
         model_rows.append(model_stage)
-        stages[index] = _stages(trace)
+        stages[index] = _stages(trace, bodies)
         for label, payload in goals.items():
             terms = tuple(str(term) for term in (payload or {}).get("terms") or [])
             sides = tuple(str(side) for side in (payload or {}).get("sides") or [])
