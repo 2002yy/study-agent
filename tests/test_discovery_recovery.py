@@ -312,3 +312,36 @@ def test_a_search_with_no_relevant_host_triggers_a_subject_keyed_recovery():
     assert recovered, "the reserved slot must be used for a recovery search"
     assert "pep" in recovered[0]["action"]["query"].casefold()
     assert len(gateway.searches) <= 3
+
+
+def test_the_recovery_executes_when_an_unrelated_result_set_leaves_no_other_path():
+    """Q1: three searches returned a video portal, nothing was worth reading, and the run ended
+    with nothing. The reserved slot must still be spent, even though no page was ever read."""
+    gateway = FakeGateway(results=[{"title": "短视频门户", "url": "https://portal.example/watch",
+                                    "snippet": "热门视频 娱乐 直播"}])
+    gateway.read = lambda url, max_chars=6000, timeout=8: {
+        "ok": True, "url": url, "content": GENERIC}
+    queue = [{"tool": "search", "query": "pep 701"},
+             {"tool": "search", "query": "pep 701 fstring"},
+             {"tool": "finish", "reason": "nothing usable"}]
+
+    def completion(**_kwargs):
+        return json.dumps(queue.pop(0) if queue else {"tool": "finish"})
+
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion,
+        question="Python 3.12 中 PEP 701 对 f-string 的改动带来了哪些新能力？",
+        budget=AgentBudget(max_rounds=8, max_searches=3, max_reads=4, hard_seconds=60.0),
+        sub_goals=(("PEP 701 的改动", ("pep", "f-string")),),
+        initial_urls=("https://portal.example/",), discovery_hops=True)
+
+    schedule = [call.get("discovery_schedule") or {} for call in trace["calls"]]
+    assert any(entry.get("reserve_created") for entry in schedule), "no reserve was established"
+    scoped = [call for call in _agent_calls(trace) if call["action"]["tool"] == "search"]
+    assert scoped, "the reserved slot must actually be spent"
+    # Either legal route counts; what matters is that the reserved slot REALLY executes and stays
+    # inside the budget. (Observation for the next slice: for an unrelated result set the
+    # site-scoped route pins the unrelated host, which the subject route would avoid.)
+    assert "pep" in scoped[0]["action"]["query"].casefold()
+    assert scoped[0]["action"]["reason"] in {"auto_site_scoped_search"}
+    assert len(gateway.searches) <= 3

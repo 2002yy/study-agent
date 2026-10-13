@@ -1146,14 +1146,21 @@ def run_tool_agent(
         # SEARCH RESERVE: decided here, BEFORE the model can spend the last slot. Waiting until
         # the results have been read would replay the measured failure of four homepage-only
         # searches, which is exactly why this eligibility must not depend on reads >= 1.
-        # NOTE (reviewer P1-1): a comparison that holds one side while the other is missing is
-        # real evidence of failure, but enabling that trigger here changed the pinned MC reserve
-        # semantics, so it is NOT enabled in this slice. Q3's dropper side stays for a dedicated
-        # design; the recovery query already names both sides when it does run.
+        # A comparison holding one side while the other is missing is evidence of failure too
+        # (Q3: the hopper page read, the dropper refused by the confirmation rail). It may
+        # ESTABLISH the reserve; execution stays behind the no-ordinary-path-left guard below.
+        _relevant_text = " ".join(unquote(body.text or "").casefold()
+                                   for body in relevant_now.values())
+        sides_unbalanced = any(
+            pair and any(side and side.casefold() in _relevant_text for side in pair)
+            and any(side and side.casefold() not in _relevant_text for side in pair)
+            for label, pair in goal_sides.items()
+            if sub_goal_state[label]["status"] != "supported")
         recovery_query = ""
         if (discovery_hops and not loop_spent and auto_hops == 0 and not material_now
                 and searches < max_searches and max_reads - reads >= 1
-                and (entry_only_search or search_signals.get("no_relevant_host"))):
+                and (entry_only_search or search_signals.get("no_relevant_host")
+                     or sides_unbalanced)):
             recovery_query = _site_scoped_query(
                 missing_entities, confirmed, searched_queries,
                 search_signals["entry_urls"], entry_exclusions)
@@ -1165,13 +1172,14 @@ def run_tool_agent(
                 recovery_query = _subject_recovery_query(
                     missing_entities, side_words, _question_words, searched_queries)
         reserved_searches = 1 if recovery_query else 0
-        # NOTE (reviewer P0-2): an unrelated result set has nothing worth reading, so requiring a
-        # read there is what made Q1's original shape unrecoverable. The pinned reserve tests show
-        # why firing it at once is wrong (it would spend the slot before the model's own searches
-        # and break the "reserve is the last slot" contract), so the fix must make the reserve
-        # EXECUTE when the ordinary searches are exhausted. That design is not landed in this
-        # slice; the condition below keeps the previously pinned semantics.
-        discovery_needed = (not material_now) and entry_only_search and reads >= 1
+        # Execution: the agent used the failed results once (entry-only), OR the search returned
+        # NOTHING worth reading at all - no related site entry exists, which is exactly Q1's
+        # shape, where demanding a read was a deadlock because there was nothing to read. An
+        # entry-only search keeps waiting for its read, so the reserve stays the LAST slot.
+        discovery_needed = (not material_now) and (
+            (entry_only_search and reads >= 1)
+            or (reads == 0 and not search_signals["entry_urls"])
+            or (sides_unbalanced and reads >= 1))
         auto_hop = "" if (loop_spent or not discovery_hops or not discovery_needed) else \
             _auto_hop_target(
                 confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
