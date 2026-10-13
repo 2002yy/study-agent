@@ -422,7 +422,12 @@ def evidence_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
                 chosen.append(_row)
                 break
         for index in range(len(sides)):
-            same = [row for row in ordered if index in row["sides"]]
+            # Prefer a window DEDICATED to this side: the co-occurrence window may live on the
+            # other side's page and merely mention this one, so relying on it here would drop the
+            # only real mechanism material for the missing side (review finding).
+            same = [row for row in ordered
+                    if index in row["sides"] and len(row["sides"]) == 1]
+            same = same or [row for row in ordered if index in row["sides"]]
             if same and same[0] not in chosen:
                 chosen.append(same[0])
         for row in ordered:

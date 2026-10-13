@@ -217,3 +217,28 @@ def test_a_comparison_goal_gets_a_window_where_both_names_appear():
     assert both, "a window where both names appear must be selected"
     assert rows[0] is both[0], "it is taken first, not last"
     assert _B is not None
+
+
+def test_a_both_side_window_never_squeezes_out_the_missing_side_page():
+    """Review: the co-occurrence window may live on the other side's page and only mention this one."""
+    from src.web.research_claims import evidence_windows
+
+    class _B:
+        kind = "substantive"
+
+        def __init__(self, text, url):
+            self.text = text
+            self.url = url
+            self.quality = {"prose_chars": len(text)}
+
+    hopper = ("漏斗能吸取上方的物品并传输到容器中。漏斗与投掷器不同，投掷器用于把物品发射出去。"
+              "漏斗在接收到红石信号时会停止工作。")
+    dropper = ("投掷器可以储存物品。投掷器在被红石信号激活时会发射物品，投掷器拥有九格储存空间。"
+               "漏斗与投掷器不同，投掷器用于把物品发射出去，而不是把物品传入容器。")
+    bodies = {"S1": _B(hopper, "https://zh.minecraft.wiki/w/漏斗"),
+              "S4": _B(dropper, "https://zh.minecraft.wiki/w/投掷器")}
+    rows = evidence_windows(("漏斗", "投掷器"), bodies, sides=("漏斗", "投掷器"), label="区别")
+    sources = {str(row.get("source_id")) for row in rows}
+    assert "S4" in sources, "the dropper page must stay represented"
+    assert "S1" in sources or any(
+        len({str(s) for s in row.get("sides") or ()}) >= 2 for row in rows), "the hopper side stays"
