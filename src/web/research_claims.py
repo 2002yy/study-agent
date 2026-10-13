@@ -112,6 +112,18 @@ _BEHAVIOUR_MARKERS = ("会", "可以", "可", "能", "用于", "使用", "由", 
                       "包括", "分为", "具有")
 _INHERIT_MARKERS = ("其", "该", "它", "此", "这", "上述", "同样")
 _LATIN_WORD = re.compile(r"[a-z][a-z0-9_\-]{2,}")
+_QUOTED_TERM = re.compile(
+    r"[\u300c\u300e\u201c]([^\u300d\u300f\u201d]{1,24})[\u300d\u300f\u201d]")
+
+
+def _quoted_terms(text: str) -> list[str]:
+    """Terms the question marks as its own subject by quoting them."""
+    out: list[str] = []
+    for match in _QUOTED_TERM.finditer(text or ""):
+        term = match.group(1).strip()
+        if term and term not in out:
+            out.append(term)
+    return out
 
 
 def _goal_tokens(terms: Sequence[str], sides: tuple[str, ...] | None) -> list[str]:
@@ -182,7 +194,8 @@ def attribution_of(text: str, goal_terms, sides: tuple[str, ...] = (),
     return _source_attribution(text or "", tokens)
 
 
-def _source_windows(text: str, terms: Sequence[str], tokens: list[str]) -> list[dict[str, Any]]:
+def _source_windows(text: str, terms: Sequence[str], tokens: list[str],
+                    quoted: Sequence[str] = ()) -> list[dict[str, Any]]:
     """Bounded, de-duplicated candidates anchored at each subject occurrence.
 
     The window starts at the sentence that carries the subject (so conditions and conclusions
@@ -222,7 +235,16 @@ def _source_windows(text: str, terms: Sequence[str], tokens: list[str]) -> list[
         # that the passage supports a fact. Support is decided by extraction plus the independent
         # verifier. The passage must be about the question's subject and say something (a
         # relation or a behaviour), never a bare mention with a copula.
-        relevant = (subject or inherited) and bool(relations or behaviour)
+        specific_hits = [token for token in tokens if token.lower() in window_low]
+        if quoted:
+            # The question's own quoted terms are what it is about: a passage that
+            # never mentions one of them is not material, however often it repeats
+            # the topic's name.
+            specific_gate = any(str(term).lower() in window_low for term in quoted)
+        else:
+            specific_gate = (len(specific_hits) >= 2
+                             or (len(specific_hits) == 1 and bool(relations or behaviour)))
+        relevant = (subject or inherited) and bool(relations or behaviour) and specific_gate
         rows.append({"span_start": start, "span_end": end, "excerpt": excerpt,
                      "window_kind": "term", "subject": subject or inherited,
                      "candidate_relevant": relevant, "relations": len(relations),
@@ -301,7 +323,8 @@ def candidate_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
 
 def evidence_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
                       limit: int = MAX_WINDOWS_PER_GOAL,
-                      sides: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
+                      sides: tuple[str, ...] | None = None,
+                      label: str = "") -> list[dict[str, Any]]:
     """Qualified windows for the EVIDENCE LOOP only (B OFF never calls this).
 
     Two questions are answered before a passage is offered to extraction:
@@ -313,6 +336,12 @@ def evidence_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
     """
     terms = [str(term).lower() for term in goal_terms if str(term)]
     tokens = _goal_tokens(list(goal_terms), sides)
+    # Terms the question itself quotes ("\u300c\u6c14\u300d", "snapshot") name what it
+    # asks about; they join the subject set and gate what counts as material.
+    quoted = _quoted_terms(label)
+    for term in quoted:
+        if term not in tokens:
+            tokens.append(term)
     candidates: list[dict[str, Any]] = []
     for source_id, body in bodies.items():
         text = body.text or ""
@@ -322,7 +351,7 @@ def evidence_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
         attribution = _source_attribution(text, tokens)
         if attribution == "foreign_subject":
             continue
-        for window in _source_windows(text, goal_terms, tokens):
+        for window in _source_windows(text, goal_terms, tokens, quoted):
             excerpt = str(window.get("excerpt") or "")
             # An index or item-list passage is not material for a claim even when the goal's
             # words appear in it.

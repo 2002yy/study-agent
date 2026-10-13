@@ -262,8 +262,8 @@ def covered_indexes(label: str, verdicts: Iterable[Any],
 
 def _eligible_windows(terms: tuple[str, ...], bodies: Mapping[str, Any],
                       sides: tuple[str, ...] | None,
-                      selector: Callable[..., list[dict[str, Any]]] | None = None
-                      ) -> list[dict[str, Any]]:
+                      selector: Callable[..., list[dict[str, Any]]] | None = None,
+                      label: str = "") -> list[dict[str, Any]]:
     """Windows that could actually carry a checkable statement for this goal.
 
     A window qualifies when its OWN text states one of the goal's words, or when it is the
@@ -274,7 +274,9 @@ def _eligible_windows(terms: tuple[str, ...], bodies: Mapping[str, Any],
     rows: list[dict[str, Any]] = []
     sides_text = " ".join(side for side in (sides or ()) if side)
     choose = selector or candidate_windows
-    for window in choose(terms, bodies, sides=sides):
+    windows = (choose(terms, bodies, sides=sides, label=label)
+               if selector is evidence_windows else choose(terms, bodies, sides=sides))
+    for window in windows:
         excerpt = str(window.get("excerpt") or "")
         lowered = excerpt.casefold()
         if sides:
@@ -312,7 +314,7 @@ def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
                  extract only the goals that DO hold material
     abstain      nothing checkable, or no room left to verify -> call nothing, say why
     """
-    eligible = {label: _eligible_windows(terms, relevant, goal_sides.get(label), selector=evidence_windows)
+    eligible = {label: _eligible_windows(terms, relevant, goal_sides.get(label), selector=evidence_windows, label=label)
                 for label, terms in unfinished.items()}
     ready_goals = {label: rows for label, rows in eligible.items() if rows}
     missing_side = False
