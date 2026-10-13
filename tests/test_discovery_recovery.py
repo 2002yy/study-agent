@@ -399,3 +399,37 @@ def test_the_missing_side_is_read_from_qualified_windows_not_from_page_text():
     dropper_page = {"S2": _B("投掷器用于把物品发射出去，投掷器被红石信号激活时会工作。")}
     assert _missing_sides(**args, relevant=dropper_page) == ["漏斗"]
     assert evidence_windows is not None
+
+
+def test_the_real_q3_window_shape_reports_the_dropper_missing_and_blocks_the_gate():
+    """Review: built from the REAL Q3 windows, and it demands the missing side (no [] allowed).
+
+    The recorded corpus holds S1 with sides=['漏斗'] and S0 with sides=['漏斗','投掷器']. The
+    dropper is therefore still missing, so the recovery entry must open and the extraction gate
+    must not treat the goal as ready (which is what would spend the run's only extraction chance).
+    """
+    from src.web import research_tool_agent as agent
+    from src.web.research_tool_agent import _extraction_gate, _missing_sides
+
+    side_window = {"source_id": "S1", "window_kind": "term", "sides": ["漏斗"],
+                   "excerpt": "漏斗总是尝试拉取或吸收物品到最左边的可用物品槽里。"}
+    both_window = {"source_id": "S0", "window_kind": "term", "sides": ["漏斗", "投掷器"],
+                   "excerpt": "漏斗与投掷器不同，投掷器用于发射物品。"}
+    relevant = {"S1": object(), "S0": object()}
+    original = agent._eligible_windows
+    agent._eligible_windows = lambda *a, **k: [side_window, both_window]
+    try:
+        goal_terms = ("漏斗", "投掷器", "区别")
+        sides = ("漏斗", "投掷器")
+        missing = _missing_sides(goal_sides={"区别": sides}, statuses={"区别": "explored"},
+                                 goal_specs={"区别": goal_terms}, relevant=relevant)
+        assert missing == ["投掷器"], missing
+        state, reason, ready = _extraction_gate(
+            unfinished={"区别": goal_terms}, goal_sides={"区别": sides}, relevant=relevant,
+            confirmed={"https://zh.minecraft.wiki/"}, read_pages={}, exclusions={}, rnd=2,
+            max_rounds=8, deadline=10_000.0, now=0.0, reserve=0.0, searches_left=1, reads_left=3,
+            calls_left=6, sides_missing={"区别": ("投掷器",)})
+        assert "区别" not in ready, "a goal missing a side must not be extracted yet"
+        assert state in {"acquiring", "abstain"}, (state, reason)
+    finally:
+        agent._eligible_windows = original

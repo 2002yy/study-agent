@@ -320,13 +320,13 @@ def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
         rows = _eligible_windows(tuple(goal_specs.get(label) or ()), relevant, pair,
                                  selector=evidence_windows, label=label)
         wanted = {str(side) for side in pair if str(side)}
-        # A side is available only when a window was selected FOR that side alone. A page
-        # about the hopper that merely mentions the dropper in passing carries both names
-        # and is therefore not material about the dropper: without this rule the run thinks
-        # it already holds the side it is missing and never asks for it.
+        # A side is available only when a window was selected FOR that side alone (the windows
+        # carry side NAMES). A page about the hopper that merely mentions the dropper carries both
+        # names and is therefore not material about the dropper: without this rule the run
+        # believes it already holds the side it is missing and never asks for it.
         got = {next(iter(only)) for row in rows
-               if len(only := {str(side) for side in row.get("sides") or () if str(side)})
-               == 1 and next(iter(only)) in wanted}
+               if len(only := {str(side) for side in row.get("sides") or () if str(side)}) == 1
+               and next(iter(only)) in wanted}
         if not got:
             continue
         held.update(got)
@@ -336,6 +336,7 @@ def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
 
 def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
                      goal_sides: Mapping[str, tuple[str, ...]], relevant: Mapping[str, Any],
+                     sides_missing: Mapping[str, tuple[str, ...]] | None = None,
                      confirmed: set[str], read_pages: Mapping[str, int],
                      exclusions: Mapping[str, str], rnd: int, max_rounds: int, deadline: float,
                      now: float, reserve: float, searches_left: int, reads_left: int,
@@ -352,15 +353,12 @@ def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
     """
     eligible = {label: _eligible_windows(terms, relevant, goal_sides.get(label), selector=evidence_windows, label=label)
                 for label, terms in unfinished.items()}
-    ready_goals = {label: rows for label, rows in eligible.items() if rows}
-    missing_side = False
-    for label, rows in ready_goals.items():
-        pair = goal_sides.get(label)
-        if not pair:
-            continue
-        text = " ".join(str(row.get("excerpt") or "").casefold() for row in rows)
-        if any(side and side.casefold() not in text for side in pair):
-            missing_side = True
+    # One shared judgement: a goal whose comparison side is still missing has NOT got its
+    # material, no matter how many words its windows happen to contain.
+    _missing = sides_missing or {}
+    ready_goals = {label: rows for label, rows in eligible.items()
+                   if rows and not _missing.get(label)}
+    missing_side = any(_missing.get(label) for label in eligible)
     # HARD floor, checked before any state: two model calls (extraction + verification) and
     # real time must be available, or the run abstains instead of starting a call it cannot
     # finish. A `ready` state is never allowed to skip this.
@@ -841,8 +839,14 @@ def run_tool_agent(
             else:
                 reserve = _loop_reserve_seconds(deadline - started, confirmed, read_pages,
                                                 entry_exclusions, goal_specs)
+                _sides_missing = {label: tuple(_missing_sides(
+                    goal_sides={label: goal_sides.get(label) or ()},
+                    statuses={label: sub_goal_state[label]["status"]},
+                    goal_specs={label: tuple(goal_specs.get(label) or ())},
+                    relevant=relevant)) for label in unfinished_all}
                 gate_state, reason, ready_goals = _extraction_gate(
                     unfinished=unfinished_all, goal_sides=goal_sides, relevant=relevant,
+                    sides_missing=_sides_missing,
                     confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
                     rnd=rnd, max_rounds=max_rounds, deadline=deadline, now=monotonic(),
                     reserve=reserve, searches_left=max_searches - searches,
@@ -1163,12 +1167,18 @@ def run_tool_agent(
                         if any(term and str(term).casefold()
                                in unquote(body.text or "").casefold()
                                for terms in goal_specs.values() for term in terms)}
+        # One shared judgement of comparison completeness, used by material_now, the recovery
+        # entry and the extraction gate, so the three cannot contradict each other.
+        missing_sides = _missing_sides(goal_sides=goal_sides,
+                                       statuses={label: state["status"] for label, state
+                                                 in sub_goal_state.items()},
+                                       goal_specs=goal_specs, relevant=relevant_now)
         material_now = any(
             _eligible_windows(terms, relevant_now, goal_sides.get(label),
                               selector=evidence_windows if evidence_loop else None,
                               label=label)
             for label, terms in goal_specs.items()
-            if sub_goal_state[label]["status"] != "supported")
+            if sub_goal_state[label]["status"] != "supported") and not missing_sides
         # Discovery recovery is triggered by EVIDENCE OF FAILURE, not by an open goal: the last
         # search must have returned no [article] while returning a related site entry. A run whose
         # search already yielded article URLs (the PostgreSQL shape) is therefore never nudged.
@@ -1186,10 +1196,6 @@ def run_tool_agent(
         # about that target than a query holding both words. Availability is judged from the
         # qualified windows, never from a bare word somewhere on a page - a hopper page that
         # merely mentions the dropper in passing must not count as having found it.
-        missing_sides = _missing_sides(goal_sides=goal_sides,
-                                       statuses={label: state["status"] for label, state
-                                                 in sub_goal_state.items()},
-                                       goal_specs=goal_specs, relevant=relevant_now)
         recovery_query = ""
         if (discovery_hops and not loop_spent and auto_hops == 0 and not material_now
                 and searches < max_searches and max_reads - reads >= 1
