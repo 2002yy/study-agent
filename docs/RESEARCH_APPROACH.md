@@ -1,6 +1,7 @@
 # Research Approach — "研究开场 + 过程播报" contract
 
-Status: **Slice A (backend contract) implemented; frontend + model-generation wiring pending.**
+Status: **Slice A (backend contract) + Slice B (frontend rendering) implemented (PR #225);
+plan projection + model generation still pending.**
 
 ## Purpose
 
@@ -68,21 +69,32 @@ summary yet) — the UI shows the existing deterministic tool progress meanwhile
 - `validate_approach(approach, previous=…, allow_progress_claims=…)`.
 - `approach_event(approach, root_run_id, turn_id)` — wire payload.
 
-## Wiring (Slice A)
+## Wiring
 
-- `WebLookupService.create()` seeds `context["approach"]`.
-- `chat_routes._research_progress()` emits `approach` (run identity bound at
-  emit time).
+- `WebLookupService.create()` and `create_follow_up()` seed `context["approach"]`
+  (every run starts initialised).
+- `chat_routes._research_progress()` emits `approach`; `root_run_id` is bound to
+  the true lineage root for child runs (isolation keys on the current run id).
 
-## Pending (Slice B and beyond)
+## Client isolation rules
 
-- Project a ready summary from the Standard planner plan when it is saved.
-- Wire the bounded model generation (with budget accounting) at research start.
-- Frontend: `ChatResearchProgress.approach` type, controller dedupe/recovery by
-  `(run, turn, sequence)`, `AnswerProgress` rendering, `ChatPanel` placement,
-  copy = answer only, cancel shows stopped (not "completed"), session isolation.
-- Real DeepSeek latency calibration for the "~1s deterministic / few-seconds
-  meaningful" targets.
+- **Run isolation**: a new `run_id` never inherits another run's opening.
+- **Session isolation**: switching/restoring a session clears local progress.
+- **Ordering**: within one run, a stale (lower-`sequence`) approach never
+  overwrites a newer one; `direction_update` advances the sequence.
+- **Robustness**: a corrupted persisted approach only suppresses display; it can
+  never raise into the progress or answer path.
+
+## Pending (next slices)
+
+- Project a ready summary from the Standard planner plan when it is saved
+  (preferred, no extra call), keeping the four-key plan envelope untouched.
+- Only if plan data is insufficient **and** budget allows, wire the bounded
+  DeepSeek generation (budget permission first, counted attempts; a late result
+  must not overwrite a cancelled terminal state). Opening generation must **not**
+  be a synchronous prerequisite for the main research.
+- Real DeepSeek end-to-end acceptance (plain question, complex comparison, Go
+  rules, mid-run added conditions) measuring opening **arrival time and quality**.
 
 ## Explicitly out of scope (frozen)
 

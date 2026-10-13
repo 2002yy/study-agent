@@ -20,7 +20,8 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
         ? "回答正在补充，可以先阅读"
         : "正在组织回答";
   return <div className="answer-progress" role="status" aria-live="polite">
-    <Loader2 className="spin" size={14} />
+    {/* Terminal states must not keep spinning. */}
+    {researching ? <Loader2 className="spin" size={14} /> : null}
     {/* Research opening: display-only, never part of the answer text. */}
     {summary ? <span className="answer-progress-approach">{summary}</span> : null}
     {focus.length ? <span className="answer-progress-focus">{focus.join(" · ")}</span> : null}

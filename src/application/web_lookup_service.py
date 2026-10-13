@@ -679,6 +679,13 @@ class WebLookupService:
                 },
             }
         )
+        # Follow-up children get the same display-only opening seed so every run
+        # has a uniform initialised approach.
+        from src.web.research.research_approach import seed_approach
+
+        context["approach"] = seed_approach(
+            mode="standard", turn_id=owner_turn_id or ""
+        )
         return self.repository.create_child(
             WebLookupRun(
                 query=query,

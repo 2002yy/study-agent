@@ -203,6 +203,38 @@ def test_approach_event_none_for_invalid_input() -> None:
     assert approach_event({"schema": "wrong"}) is None
 
 
+def test_direction_update_allows_consecutive_progress_claims() -> None:
+    first = direction_update(
+        previous=project_from_plan(mode="standard", summary="我会比较各方案。"),
+        summary="标准研究已经确认了部分功能，我会继续核对自动化接口。",
+        mode="deep",
+    )
+    # The *next* update must not be rejected because the previous update
+    # legitimately contained a progress claim.
+    second = direction_update(
+        previous=first,
+        summary="自动化接口已核验，我会继续补查 PSD 往返兼容。",
+    )
+    assert second["origin"] == "direction_update"
+    assert second["sequence"] == first["sequence"] + 1
+
+
+def test_approach_event_tolerates_corrupt_sequence() -> None:
+    corrupt = {
+        "schema": APPROACH_SCHEMA,
+        "mode": "standard",
+        "status": "ready",
+        "summary": "我会比较各方案。",
+        "focus": [],
+        "origin": "model_plan",
+        "sequence": "not-an-int",
+    }
+    # Corrupt persistence must only suppress/neutralise display, never raise.
+    event = approach_event(corrupt, root_run_id="research_1")
+    assert event is not None
+    assert event["sequence"] == 0
+
+
 def test_fallback_is_honest_and_authority_free() -> None:
     approach = fallback_approach(mode="lookup")
     assert approach["origin"] == "fallback"

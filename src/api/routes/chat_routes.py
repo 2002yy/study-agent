@@ -388,9 +388,15 @@ def _research_progress(run: Any) -> dict[str, Any]:
     last_step = steps[-1] if steps else None
     owner = context.get("owner") if isinstance(context, dict) else None
     turn_id = str(owner.get("turn_id") or "") if isinstance(owner, dict) else ""
+    lineage = context.get("lineage") if isinstance(context, dict) else None
+    # Bind the true lineage root for a child run; isolation still keys on the
+    # current run identity client-side.
+    root_run_id = (
+        str(lineage.get("root_run_id") or "") if isinstance(lineage, dict) else ""
+    ) or run.id
     approach = approach_event(
         context.get("approach") if isinstance(context, dict) else None,
-        root_run_id=run.id,
+        root_run_id=root_run_id,
         turn_id=turn_id,
     )
     return {

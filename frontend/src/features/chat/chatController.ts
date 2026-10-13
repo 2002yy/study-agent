@@ -185,14 +185,18 @@ export function useChatController(options: ControllerOptions) {
       messages: ChatMessage[],
       lastChat: ChatResponse | null,
       streamRecovery: StreamRecoveryState | null = null
-    ) =>
-      dispatch({
+    ) => {
+      // Switching / restoring a session must not leak another run's research
+      // opening into the new one.
+      setResearchProgress(null);
+      return dispatch({
         type: "TRANSITION_CHAT_SESSION",
         threadId,
         messages,
         lastChat,
         streamRecovery,
-      }),
+      });
+    },
     [dispatch]
   );
 

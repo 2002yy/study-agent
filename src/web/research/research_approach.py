@@ -268,7 +268,7 @@ def direction_update(
     the sequence so clients can order it.
     """
 
-    prior = validate_approach(previous) if previous else None
+    prior = validate_approach(previous, allow_progress_claims=True) if previous else None
     resolved_mode = normalize_mode(mode if mode is not None else (prior or {}).get("mode"))
     next_sequence = (
         int(sequence)
@@ -433,12 +433,18 @@ def approach_event(
 
     if not isinstance(approach, dict) or approach.get("schema") != APPROACH_SCHEMA:
         return None
+    try:
+        sequence = max(0, int(approach.get("sequence") or 0))
+    except (TypeError, ValueError):
+        # Corrupted persisted data must only suppress the opening, never raise
+        # into the research progress path.
+        sequence = 0
     return {
         "status": str(approach.get("status") or STATUS_PENDING),
         "summary": _clean_text(approach.get("summary")),
         "focus": _clean_focus(approach.get("focus")),
         "origin": str(approach.get("origin") or ""),
-        "sequence": int(approach.get("sequence") or 0),
+        "sequence": sequence,
         "mode": normalize_mode(approach.get("mode")),
         "root_run_id": _clean_text(root_run_id) or _clean_text(approach.get("root_run_id")),
         "turn_id": _clean_text(turn_id) or _clean_text(approach.get("turn_id")),

@@ -66,6 +66,22 @@ describe("researchApproach merge", () => {
   it("does not erase a known opening when incoming has none and previous is null", () => {
     expect(mergeApproach(null, undefined)).toBeNull();
   });
+
+  it("does not inherit another run's opening (run isolation)", () => {
+    const previous = progress({ run_id: "run_A", approach: approach({ sequence: 3, summary: "A 的方向。" }) });
+    const merged = mergeResearchProgress(previous, progress({ run_id: "run_B", version: 1 }));
+    expect(merged?.run_id).toBe("run_B");
+    expect(merged?.approach).toBeNull();
+  });
+
+  it("does not let a stale out-of-order event in another run overwrite", () => {
+    const previous = progress({ run_id: "run_A", approach: approach({ sequence: 5, summary: "A 的方向。" }) });
+    const merged = mergeResearchProgress(
+      previous,
+      progress({ run_id: "run_B", approach: approach({ sequence: 0, summary: "B 的旧种子。" }) }),
+    );
+    expect(merged?.approach?.summary).toBe("B 的旧种子。");
+  });
 });
 
 describe("researchApproach view", () => {

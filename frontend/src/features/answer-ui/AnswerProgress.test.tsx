@@ -57,7 +57,7 @@ describe("AnswerProgress research opening", () => {
   });
 
   it("renders a cancelled run as stopped, never as a completed opening", () => {
-    render(
+    const { container } = render(
       <AnswerProgress
         hasContent={false}
         progress={progress({
@@ -74,5 +74,7 @@ describe("AnswerProgress research opening", () => {
       />,
     );
     expect(screen.getByText("研究已停止")).toBeTruthy();
+    // Terminal state must not keep a spinner alive.
+    expect(container.querySelector(".spin")).toBeNull();
   });
 });

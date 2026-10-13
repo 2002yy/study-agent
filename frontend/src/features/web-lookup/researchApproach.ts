@@ -23,7 +23,13 @@ export function mergeResearchProgress(
   incoming: ChatResearchProgress | null | undefined,
 ): ChatResearchProgress | null {
   if (!incoming) return previous ?? null;
-  return { ...incoming, approach: mergeApproach(previous?.approach, incoming.approach) };
+  // A different research run (or a session switch) must never inherit another
+  // run's opening: isolation is keyed on the *current* run identity, not on the
+  // lineage root (which a child may legitimately share with its parent).
+  if (!previous || previous.run_id !== incoming.run_id) {
+    return { ...incoming, approach: incoming.approach ?? null };
+  }
+  return { ...incoming, approach: mergeApproach(previous.approach, incoming.approach) };
 }
 
 /** The user-visible opening sentence, or null when there is nothing honest to show yet. */
