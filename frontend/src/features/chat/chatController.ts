@@ -12,6 +12,7 @@ import {
   steerResearchRun,
 } from "../../api";
 import { operationRegistry } from "../../app/operationRegistry";
+import { mergeResearchProgress } from "../web-lookup/researchApproach";
 import { useWorkspace } from "../../app/WorkspaceProvider";
 import type { StreamRecoveryState } from "../../app/workspaceReducer";
 import type {
@@ -410,7 +411,10 @@ export function useChatController(options: ControllerOptions) {
           },
           onResearch: (progress) => {
             if (!isCurrent()) return;
-            setResearchProgress(progress);
+            // Carry the research opening ("研究开场") forward: a progress event
+            // without it (legacy server) or with a stale sequence must not erase
+            // a known summary.
+            setResearchProgress((previous) => mergeResearchProgress(previous, progress));
             // G18: a deep run (round field present) opens the steering
             // channel while it runs; terminal states close it.
             if (progress.round != null) {
