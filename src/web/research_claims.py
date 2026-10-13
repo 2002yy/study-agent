@@ -578,7 +578,11 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
                    windows_by_goal: Mapping[str, list[dict[str, Any]]] | None = None,
                    on_input: Callable[[Mapping[str, Any]], None] | None = None,
                    on_response: Callable[[str], None] | None = None,
-                   retry_empty: bool = False) -> list[Claim]:
+                   retry_empty: bool = False,
+                   time_left: Callable[[], float] | None = None,
+                   min_retry_seconds: float = 12.0,
+                   on_retry_response: Callable[[str], None] | None = None,
+                   on_retry_fired: Callable[[], None] | None = None) -> list[Claim]:
     """One batched extraction over every unfinished goal. Never raises on bad model output."""
     def reject(reason: str) -> None:
         if on_reject is not None:
@@ -635,7 +639,12 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
     # prompt, no new search, no material change. A timeout, an unparseable answer, a bad
     # citation or a verification rejection never reaches this branch. The caller enables it
     # only with room left for the retry AND the verification, and it counts as a real call.
-    if isinstance(rows, list) and not rows and retry_empty:
+    _room = time_left is None or time_left() >= min_retry_seconds
+    if isinstance(rows, list) and not rows and retry_empty and _room:
+        # The check happens HERE, not only before the first attempt: an empty answer can
+        # arrive late, and starting the retry then would eat the verification's time.
+        if on_retry_fired is not None:
+            on_retry_fired()
         if on_call is not None:
             on_call()
         try:
@@ -647,9 +656,9 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
         except Exception:  # noqa: BLE001 - a failed retry is not a crash
             rows = None
         else:
-            if on_response is not None:
-                on_response(raw if isinstance(raw, str)
-                            else json.dumps(raw, ensure_ascii=False))
+            if on_retry_response is not None:
+                on_retry_response(raw if isinstance(raw, str)
+                                  else json.dumps(raw, ensure_ascii=False))
             try:
                 data = json.loads(raw) if isinstance(raw, str) else raw
             except (ValueError, TypeError):

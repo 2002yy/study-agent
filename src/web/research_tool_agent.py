@@ -671,6 +671,7 @@ def run_tool_agent(
     escalation_budget: AgentBudget | None = None,
     escalation_budgets: tuple[AgentBudget, ...] = (),
     evidence_loop: bool = False,
+    retry_empty_claims: bool = False,
     initial_urls: tuple[str, ...] = (),
     registry_sources: tuple[tuple[str, str], ...] = (),
     sub_goals: tuple[tuple[str, tuple[str, ...]], ...] = (),
@@ -952,6 +953,12 @@ def run_tool_agent(
                     def _capture_response(raw: str) -> None:
                         extraction_input["raw_response"] = str(raw)[:2000]
 
+                    def _capture_retry(raw: str) -> None:
+                        extraction_input["raw_response_retry"] = str(raw)[:2000]
+
+                    def _mark_retry() -> None:
+                        extraction_input["retry_fired"] = True
+
                     # G3: the run uses the windows the gate already qualified, so a later
                     # parameter change cannot make scheduler and extractor disagree.
                     window_snapshot = {label: list(rows) for label, rows in
@@ -964,9 +971,12 @@ def run_tool_agent(
                                                      selector=evidence_windows, label=label)
                             for label, terms in unfinished.items()}
                     extraction_input["windows_by_goal"] = window_snapshot
+                    # Independent switch, default OFF: satisfying the quota is not the same as
+                    # approving the experiment. Only an explicit opt-in enables the retry.
                     _calls_left_now = min(max_rounds + MAX_CORRECTIONS,
                                           HARD_MODEL_CALL_CAP) - model_calls
-                    _retry_ok = (_calls_left_now >= 3
+                    _retry_ok = (bool(retry_empty_claims)
+                                 and _calls_left_now >= 3
                                  and (deadline - monotonic()) >= 20.0)
                     claims = extract_claims(
                         goals=unfinished, bodies=bodies_view, completion=completion,
@@ -974,7 +984,9 @@ def run_tool_agent(
                         timeout=min(20.0, max(1.0, deadline - monotonic())),
                         on_call=_count_call, on_reject=_count_reject,
                         sides_by_goal=goal_sides, on_input=_capture_input,
-                        on_response=_capture_response)
+                        on_response=_capture_response,
+                        time_left=lambda: deadline - monotonic(),
+                        on_retry_response=_capture_retry, on_retry_fired=_mark_retry)
                     extraction_input["rejections_after"] = dict(
                         sorted(claim_rejections.items()))
                     verdicts = verify_claims(

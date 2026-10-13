@@ -152,8 +152,8 @@ def test_the_extraction_retries_once_only_after_a_well_formed_empty_answer():
 
     from src.web.research_claims import extract_claims
 
-    windows = {"G": [{"source_id": "S1", "excerpt": "漏斗传输物品", "span": [0, 6],
-                      "window_kind": "term", "sides": ["漏斗"]}]}
+    windows = {"G": [{"source_id": "S1", "excerpt": "漏斗传输物品", "span_start": 0,
+                      "span_end": 6, "window_kind": "term", "sides": ["漏斗"]}]}
     bodies = {"S1": type("B", (), {"text": "漏斗传输物品"})()}
 
     def run(replies):
@@ -169,17 +169,16 @@ def test_the_extraction_retries_once_only_after_a_well_formed_empty_answer():
         return calls, claims
 
     empty = json.dumps({"claims": []})
-    good = json.dumps({"claims": [{"goal": "G", "source_id": "S1", "quote": "漏斗传输物品",
-                                   "span_start": 0, "span_end": 6, "text": "漏斗传输物品"}]})
+    good = json.dumps({"claims": [{"goal_id": "G", "source_id": "S1",
+                                   "claim": "漏斗传输物品", "quote": "漏斗传输物品"}]})
 
     calls, claims = run([empty, empty])
     assert len(calls) == 2, "a valid empty answer is retried exactly once"
     assert claims == []
 
     calls, claims = run([empty, good])
-    # The retry really went out with well-formed input (the claim schema itself is pinned by the
-    # verifier's own tests), so this asserts the attempt, not a second schema here.
-    assert len(calls) == 2
+    assert len(calls) == 2 and claims, "the retried answer must actually be accepted"
+    assert claims[0].source_id == "S1"
 
     calls, claims = run(["not json", good])
     assert len(calls) == 1, "an unparseable answer is never retried"
