@@ -1281,6 +1281,15 @@ def run_tool_agent(
                 recovery_query = _subject_recovery_query(
                     missing_sides or missing_entities, side_words, _question_words,
                     searched_queries)
+        # A comparison may only reveal its missing side AFTER the first recovery was spent (Q3:
+        # the first read was empty, the useful pages arrived later). Within the SAME search quota
+        # one more side-targeted recovery is allowed - no budget is added anywhere.
+        sides_late = bool(missing_sides) and searches < max_searches and max_reads - reads >= 1
+        if sides_late and not recovery_query and discovery_hops and not loop_spent:
+            recovery_query = _site_scoped_query(
+                missing_sides, confirmed, searched_queries,
+                search_signals["entry_urls"], entry_exclusions) \
+                or _subject_recovery_query(missing_sides, (), _question_words, searched_queries)
         reserved_searches = 1 if recovery_query else 0
         # Execution: the agent used the failed results once (entry-only), OR the search returned
         # NOTHING worth reading at all - no related site entry exists, which is exactly Q1's
@@ -1288,7 +1297,8 @@ def run_tool_agent(
         # entry-only search keeps waiting for its read, so the reserve stays the LAST slot.
         discovery_needed = (not material_now) and (
             (entry_only_search and reads >= 1)
-            or (reads == 0 and not search_signals["entry_urls"]))
+            or (reads == 0 and not search_signals["entry_urls"])) or (
+            sides_late and recovery_query != "")
         auto_hop = "" if (loop_spent or not discovery_hops or not discovery_needed) else \
             _auto_hop_target(
                 confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
