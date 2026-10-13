@@ -10,6 +10,7 @@ stay outside this loop.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import json
 import re
 import time
@@ -671,7 +672,7 @@ def run_tool_agent(
     escalation_budget: AgentBudget | None = None,
     escalation_budgets: tuple[AgentBudget, ...] = (),
     evidence_loop: bool = False,
-    retry_empty_claims: bool = False,
+    retry_empty_claims: bool | None = None,
     initial_urls: tuple[str, ...] = (),
     registry_sources: tuple[tuple[str, str], ...] = (),
     sub_goals: tuple[tuple[str, tuple[str, ...]], ...] = (),
@@ -956,6 +957,9 @@ def run_tool_agent(
                     def _capture_retry(raw: str) -> None:
                         extraction_input["raw_response_retry"] = str(raw)[:2000]
 
+                    def _mark_retry_skipped() -> None:
+                        extraction_input["retry_skipped_budget"] = True
+
                     def _mark_retry() -> None:
                         extraction_input["retry_fired"] = True
 
@@ -975,7 +979,12 @@ def run_tool_agent(
                     # approving the experiment. Only an explicit opt-in enables the retry.
                     _calls_left_now = min(max_rounds + MAX_CORRECTIONS,
                                           HARD_MODEL_CALL_CAP) - model_calls
-                    _retry_ok = (bool(retry_empty_claims)
+                    # Explicit opt-in only (environment switch, default OFF): the experiment never
+                    # enables itself just because the quota would allow it.
+                    _retry_flag = retry_empty_claims if retry_empty_claims is not None else (
+                        str(os.environ.get("BSEARCH_RETRY_EMPTY_CLAIMS", "")).strip().lower()
+                        in {"1", "true", "yes"})
+                    _retry_ok = (bool(_retry_flag)
                                  and _calls_left_now >= 3
                                  and (deadline - monotonic()) >= 20.0)
                     claims = extract_claims(
@@ -986,7 +995,8 @@ def run_tool_agent(
                         sides_by_goal=goal_sides, on_input=_capture_input,
                         on_response=_capture_response,
                         time_left=lambda: deadline - monotonic(),
-                        on_retry_response=_capture_retry, on_retry_fired=_mark_retry)
+                        on_retry_response=_capture_retry, on_retry_fired=_mark_retry,
+                        on_retry_skipped=_mark_retry_skipped)
                     extraction_input["rejections_after"] = dict(
                         sorted(claim_rejections.items()))
                     verdicts = verify_claims(

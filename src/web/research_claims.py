@@ -594,7 +594,8 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
                    time_left: Callable[[], float] | None = None,
                    min_retry_seconds: float = 12.0,
                    on_retry_response: Callable[[str], None] | None = None,
-                   on_retry_fired: Callable[[], None] | None = None) -> list[Claim]:
+                   on_retry_fired: Callable[[], None] | None = None,
+                   on_retry_skipped: Callable[[], None] | None = None) -> list[Claim]:
     """One batched extraction over every unfinished goal. Never raises on bad model output."""
     def reject(reason: str) -> None:
         if on_reject is not None:
@@ -651,7 +652,15 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
     # prompt, no new search, no material change. A timeout, an unparseable answer, a bad
     # citation or a verification rejection never reaches this branch. The caller enables it
     # only with room left for the retry AND the verification, and it counts as a real call.
-    _room = time_left is None or time_left() >= min_retry_seconds
+    _left = None if time_left is None else time_left()
+    # The retry must FIT: its own timeout is clamped so it can never outlast the time left minus
+    # the verification reserve. "Twelve seconds remaining" is not enough if the call itself may
+    # run for twenty.
+    _retry_timeout = timeout if _left is None else min(timeout, max(0.0, _left - min_retry_seconds))
+    _room = _left is None or _retry_timeout >= 4.0
+    if (isinstance(rows, list) and not rows and retry_empty and not _room
+            and on_retry_skipped is not None):
+        on_retry_skipped()
     if isinstance(rows, list) and not rows and retry_empty and _room:
         # The check happens HERE, not only before the first attempt: an empty answer can
         # arrive late, and starting the retry then would eat the verification's time.
@@ -664,7 +673,7 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
                 messages=[{"role": "system", "content": _SYSTEM},
                           {"role": "user", "content": json.dumps(payload,
                                                                   ensure_ascii=False)}],
-                timeout=timeout, task_name="research_claims")
+                timeout=_retry_timeout, task_name="research_claims")
         except Exception:  # noqa: BLE001 - a failed retry is not a crash
             rows = None
         else:

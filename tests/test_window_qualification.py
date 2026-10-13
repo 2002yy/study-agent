@@ -242,3 +242,36 @@ def test_a_both_side_window_never_squeezes_out_the_missing_side_page():
     assert "S4" in sources, "the dropper page must stay represented"
     assert "S1" in sources or any(
         len({str(s) for s in row.get("sides") or ()}) >= 2 for row in rows), "the hopper side stays"
+
+
+def test_the_retry_is_clamped_to_the_time_that_is_left():
+    """Review precondition: a retry must not start if it could outlast the verification."""
+    import json as _json
+
+    from src.web.research_claims import extract_claims
+
+    windows = {"G": [{"source_id": "S1", "excerpt": "漏斗传输物品", "span_start": 0,
+                      "span_end": 6, "window_kind": "term", "sides": ["漏斗"]}]}
+    bodies = {"S1": type("B", (), {"text": "漏斗传输物品"})()}
+    empty = _json.dumps({"claims": []})
+    seen = []
+
+    def completion(**_kwargs):
+        seen.append(_kwargs.get("timeout"))
+        return empty
+
+    skipped = []
+    extract_claims(goals={"G": ("漏斗",)}, bodies=bodies, completion=completion,
+                   windows_by_goal=windows, retry_empty=True,
+                   time_left=lambda: 20.0, on_retry_skipped=lambda: skipped.append(1))
+    assert len(seen) == 2, "with room for a short retry it proceeds"
+    assert seen[1] <= 8.0, "the retry timeout is clamped to the room left after the reserve"
+    assert skipped == []
+
+    seen.clear()
+    skipped.clear()
+    extract_claims(goals={"G": ("漏斗",)}, bodies=bodies, completion=completion,
+                   windows_by_goal=windows, retry_empty=True,
+                   time_left=lambda: 11.0, on_retry_skipped=lambda: skipped.append(1))
+    assert len(seen) == 1, "no room means no retry"
+    assert skipped == [1], "and the skip is recorded, not silent"
