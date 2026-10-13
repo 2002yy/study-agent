@@ -158,6 +158,30 @@ def _source_attribution(text: str, tokens: list[str]) -> str:
     return "unclear"
 
 
+def question_tokens(text: str) -> list[str]:
+    """Product/subject words named by the QUESTION itself (latin words, no glossary).
+
+    The goal's own terms can be Chinese-only (snapshot, cost) while the question names the
+    product; without these tokens a legitimate page would look like another product's page.
+    """
+    return sorted({match.group(0) for match in _LATIN_WORD.finditer((text or "").lower())})
+
+
+def attribution_of(text: str, goal_terms, sides: tuple[str, ...] = (),
+                   question_words: list[str] | None = None) -> str:
+    """Which product's mechanism does this page describe?
+
+    Public wrapper over the source-attribution rule: target_subject / comparative /
+    foreign_subject / unclear. Used to keep a support that rests on a foreign-dominant page
+    from being presented as the asked-about product's mechanism.
+    """
+    tokens = _goal_tokens(list(goal_terms), sides)
+    for word in question_words or []:
+        if word and word not in tokens:
+            tokens.append(word)
+    return _source_attribution(text or "", tokens)
+
+
 def _source_windows(text: str, terms: Sequence[str], tokens: list[str]) -> list[dict[str, Any]]:
     """Bounded, de-duplicated candidates anchored at each subject occurrence.
 
