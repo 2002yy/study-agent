@@ -433,14 +433,19 @@ def approach_event(
 
     if not isinstance(approach, dict) or approach.get("schema") != APPROACH_SCHEMA:
         return None
-    try:
-        sequence = max(0, int(approach.get("sequence") or 0))
-    except (TypeError, ValueError):
-        # Corrupted persisted data must only suppress the opening, never raise
-        # into the research progress path.
-        sequence = 0
+    status = str(approach.get("status") or "").strip()
+    if status not in _STATUSES:
+        # Corrupted persisted data suppresses the whole opening; it must never
+        # raise into, or partially leak through, the research progress path.
+        return None
+    raw_sequence = approach.get("sequence")
+    if not isinstance(raw_sequence, int) or isinstance(raw_sequence, bool):
+        return None
+    if raw_sequence < 0:
+        return None
+    sequence = raw_sequence
     return {
-        "status": str(approach.get("status") or STATUS_PENDING),
+        "status": status,
         "summary": _clean_text(approach.get("summary")),
         "focus": _clean_focus(approach.get("focus")),
         "origin": str(approach.get("origin") or ""),

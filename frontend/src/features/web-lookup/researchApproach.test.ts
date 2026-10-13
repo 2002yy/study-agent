@@ -67,20 +67,25 @@ describe("researchApproach merge", () => {
     expect(mergeApproach(null, undefined)).toBeNull();
   });
 
-  it("does not inherit another run's opening (run isolation)", () => {
+  it("does not inherit a previous run's opening when a new run arrives (forward isolation)", () => {
     const previous = progress({ run_id: "run_A", approach: approach({ sequence: 3, summary: "A 的方向。" }) });
     const merged = mergeResearchProgress(previous, progress({ run_id: "run_B", version: 1 }));
     expect(merged?.run_id).toBe("run_B");
     expect(merged?.approach).toBeNull();
   });
 
-  it("does not let a stale out-of-order event in another run overwrite", () => {
-    const previous = progress({ run_id: "run_A", approach: approach({ sequence: 5, summary: "A 的方向。" }) });
+  it("documents the reverse out-of-order boundary (late old-run event)", () => {
+    // The pure helper cannot know which run is *currently active*: given a
+    // later-arriving event it adopts that event's run. Run-level protection for
+    // a stale cross-run event therefore lives in the controller's `isCurrent()`
+    // operation guard, not here. This test pins the boundary honestly rather
+    // than claiming protection the helper does not provide.
+    const previous = progress({ run_id: "run_B", approach: approach({ sequence: 1, summary: "B 的方向。" }) });
     const merged = mergeResearchProgress(
       previous,
-      progress({ run_id: "run_B", approach: approach({ sequence: 0, summary: "B 的旧种子。" }) }),
+      progress({ run_id: "run_A", approach: approach({ sequence: 9, summary: "A 的迟到方向。" }) }),
     );
-    expect(merged?.approach?.summary).toBe("B 的旧种子。");
+    expect(merged?.run_id).toBe("run_A");
   });
 });
 

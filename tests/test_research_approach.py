@@ -219,7 +219,7 @@ def test_direction_update_allows_consecutive_progress_claims() -> None:
     assert second["sequence"] == first["sequence"] + 1
 
 
-def test_approach_event_tolerates_corrupt_sequence() -> None:
+def test_approach_event_suppresses_corrupt_sequence() -> None:
     corrupt = {
         "schema": APPROACH_SCHEMA,
         "mode": "standard",
@@ -229,9 +229,29 @@ def test_approach_event_tolerates_corrupt_sequence() -> None:
         "origin": "model_plan",
         "sequence": "not-an-int",
     }
-    # Corrupt persistence must only suppress/neutralise display, never raise.
-    event = approach_event(corrupt, root_run_id="research_1")
+    # Corrupt persistence must suppress the opening entirely (not raise, not
+    # partially display).
+    assert approach_event(corrupt, root_run_id="research_1") is None
+
+
+def test_approach_event_suppresses_unknown_status() -> None:
+    corrupt = {
+        "schema": APPROACH_SCHEMA,
+        "mode": "standard",
+        "status": "bogus",
+        "summary": "我会比较各方案。",
+        "focus": [],
+        "origin": "model_plan",
+        "sequence": 1,
+    }
+    assert approach_event(corrupt) is None
+
+
+def test_approach_event_still_emits_valid_pending_seed() -> None:
+    seed = seed_approach(mode="standard", turn_id="turn_1")
+    event = approach_event(seed, root_run_id="research_1")
     assert event is not None
+    assert event["status"] == "pending"
     assert event["sequence"] == 0
 
 
