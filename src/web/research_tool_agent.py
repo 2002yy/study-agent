@@ -1154,21 +1154,21 @@ def run_tool_agent(
         # merely mentions the dropper in passing must not count as having found it.
         available_sides: set[str] = set()
         required_sides: set[str] = set()
-        for _label, _pair in goal_sides.items():
-            if not _pair or sub_goal_state[_label]["status"] == "supported":
+        for _label, _sides_pair in goal_sides.items():
+            if not _sides_pair or sub_goal_state[_label]["status"] == "supported":
                 continue
             _rows = _eligible_windows(tuple(goal_specs.get(_label) or ()), relevant_now,
-                                      _pair, selector=evidence_windows, label=_label)
+                                      _sides_pair, selector=evidence_windows, label=_label)
             _text = " ".join(str(_row.get("excerpt") or "").casefold()
                               for _row in _rows)
-            _held = {str(_side) for _side in _pair
+            _held = {str(_side) for _side in _sides_pair
                      if str(_side) and str(_side).casefold() in _text}
             if not _held:
                 # Nothing qualified yet: this is not an imbalance, so the ordinary
                 # subject terms stay the target.
                 continue
             available_sides.update(_held)
-            required_sides.update(str(_side) for _side in _pair if str(_side))
+            required_sides.update(str(_side) for _side in _sides_pair if str(_side))
         missing_sides = sorted(required_sides - available_sides)
         recovery_query = ""
         if (discovery_hops and not loop_spent and auto_hops == 0 and not material_now
