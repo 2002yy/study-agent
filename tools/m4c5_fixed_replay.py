@@ -49,9 +49,34 @@ def _bodies(trace: dict) -> dict[str, _Body]:
     return bodies
 
 
+def _stages(trace: dict) -> dict:
+    """What the recorded run reached: windows per side, and the extraction outcome."""
+    goals = (trace.get("extraction_input") or {}).get("goals") or {}
+    gate = trace.get("extraction_gate") or {}
+    per_goal = []
+    for label, item in goals.items():
+        sides = [str(side) for side in (item or {}).get("sides") or ()]
+        windows = (item or {}).get("windows") or []
+        by_side = {side: sum(1 for window in windows
+                             if side in [str(name) for name in window.get("sides") or ()])
+                   for side in sides}
+        per_goal.append({"goal": str(label)[:24], "sides": sides,
+                         "windows": len(windows), "windows_by_side": by_side,
+                         "both_sides_covered": all(count for count in by_side.values())
+                         if by_side else False})
+    verdicts = [v for v in (trace.get("claim_verdicts") or []) if isinstance(v, dict)]
+    return {"gate_state": gate.get("state", ""), "gate_reason": gate.get("reason", ""),
+            "goals": per_goal,
+            "claims": len(verdicts),
+            "rejections": dict(trace.get("claim_rejections") or {}),
+            "outcome": str(((trace.get("coverage_audit") or {}).get("complete"))),
+            "stop": str(trace.get("stop") or "")}
+
+
 def replay(product: Path) -> dict:
     rows = []
     model_rows = []
+    stages = {}
     for index in range(1, 7):
         path = product / f"q{index}.json"
         if not path.exists():
@@ -71,6 +96,7 @@ def replay(product: Path) -> dict:
                      "this trace recorded no goal/window input; the stage cannot be replayed"),
         }
         model_rows.append(model_stage)
+        stages[index] = _stages(trace)
         for label, payload in goals.items():
             terms = tuple(str(term) for term in (payload or {}).get("terms") or [])
             sides = tuple(str(side) for side in (payload or {}).get("sides") or [])
@@ -96,6 +122,7 @@ def replay(product: Path) -> dict:
             "unchanged": [row for row in rows if row["qualified"] == row["legacy"]],
         },
         "model": model_rows,
+        "stages": stages,
     }
 
 
@@ -108,6 +135,9 @@ def main() -> int:
     report = replay(Path(args.product))
     for row in report["rows"]:
         print(json.dumps(row, ensure_ascii=False))
+    print("\n== STAGES ==")
+    for index in sorted(report["stages"]):
+        print(index, json.dumps(report["stages"][index], ensure_ascii=False))
     print("\n== CRITERIA STABILITY ==")
     print(json.dumps(report["criteria"], ensure_ascii=False, indent=1))
     if args.json:
