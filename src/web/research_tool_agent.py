@@ -1109,11 +1109,20 @@ def run_tool_agent(
         # searches, which is exactly why this eligibility must not depend on reads >= 1.
         recovery_query = ""
         if (discovery_hops and not loop_spent and auto_hops == 0 and not material_now
-                and entry_only_search and searches < max_searches
-                and max_reads - reads >= 1):
+                and searches < max_searches and max_reads - reads >= 1
+                and (entry_only_search or search_signals.get("no_relevant_host"))):
             recovery_query = _site_scoped_query(
                 missing_entities, confirmed, searched_queries,
                 search_signals["entry_urls"], entry_exclusions)
+            if not recovery_query and search_signals.get("no_relevant_host"):
+                # No host worth pinning: ask again with the question's own subject words only,
+                # which spends the slot the reserve already holds (no budget change).
+                subject_query = " ".join(dict.fromkeys(
+                    [str(w) for w in missing_entities if str(w)]
+                    + [str(w) for w in _question_words if str(w)]))
+                if subject_query and subject_query.casefold() not in {
+                        item.casefold() for item in searched_queries}:
+                    recovery_query = subject_query
         reserved_searches = 1 if recovery_query else 0
         # Executing it stays gated on the agent having used the failed results once.
         discovery_needed = (not material_now) and entry_only_search and reads >= 1
@@ -1306,6 +1315,21 @@ def run_tool_agent(
             search_signals["entry_urls"] = [
                 u for ptype, u in zip(page_types, shown_urls)
                 if ptype in {"home", "category"}]
+            # A result set whose hosts and titles never mention the subject is a search
+            # FAILURE, not evidence about the question (this is how an unrelated portal can
+            # fill the whole page and leave the run with nothing to read).
+            subject_words = [str(word).lower() for word in
+                             (list(_wanted) + _question_words) if str(word)]
+            relevant_hosts = []
+            for row, ptype in zip(rows, page_types):
+                host = urlsplit(str(row.get("url") or "")).netloc.casefold()
+                blob = (str(row.get("title") or "") + " "
+                        + str(row.get("snippet") or "")).casefold()
+                if any(word and (word in host or word in blob) for word in subject_words):
+                    relevant_hosts.append(host)
+            search_signals["relevant_hosts"] = sorted({h for h in relevant_hosts if h})
+            search_signals["no_relevant_host"] = bool(rows) and not search_signals[
+                "relevant_hosts"]
             brief = "\n".join(
                 f"- [{ptype}] {r.get('title')} | {r.get('url')} | {str(r.get('snippet'))[:160]}"
                 for ptype, r in zip(page_types, rows)

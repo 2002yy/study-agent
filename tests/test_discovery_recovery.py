@@ -285,3 +285,30 @@ def test_a_run_that_already_holds_material_never_hops():
         {"tool": "finish", "reason": "done"},
     ], hops=True, initial=("https://example.org/Category:漏斗",), body=ARTICLE_BODY)
     assert not _agent_calls(trace)
+
+
+def test_a_search_with_no_relevant_host_triggers_a_subject_keyed_recovery():
+    """An unrelated result set is a SEARCH FAILURE: recover using the question's own words."""
+    gateway = FakeGateway(results=[{"title": "抖音", "url": "https://www.douyin.com/",
+                                    "snippet": "短视频平台"}])
+    gateway.read = lambda url, max_chars=6000, timeout=8: {
+        "ok": True, "url": url, "content": GENERIC}
+    queue = [{"tool": "search", "query": "PEP 701 python 3.12"},
+             {"tool": "read_page", "url": "https://www.douyin.com/"},
+             {"tool": "finish", "reason": "done"}]
+
+    def completion(**_kwargs):
+        return json.dumps(queue.pop(0) if queue else {"tool": "finish"})
+
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion,
+        question="Python 3.12 的 PEP 701 f-string 有什么不兼容风险？",
+        budget=AgentBudget(max_rounds=8, max_searches=3, max_reads=4, hard_seconds=60.0),
+        sub_goals=(("PEP 701 的不兼容风险", ("PEP", "兼容")),),
+        initial_urls=("https://www.douyin.com/",), discovery_hops=True)
+
+    recovered = [call for call in _agent_calls(trace)
+                 if call["action"]["tool"] == "search"]
+    assert recovered, "the reserved slot must be used for a recovery search"
+    assert "pep" in recovered[0]["action"]["query"].casefold()
+    assert len(gateway.searches) <= 3
