@@ -319,8 +319,14 @@ def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
             continue
         rows = _eligible_windows(tuple(goal_specs.get(label) or ()), relevant, pair,
                                  selector=evidence_windows, label=label)
-        text = " ".join(str(row.get("excerpt") or "").casefold() for row in rows)
-        got = {str(side) for side in pair if str(side) and str(side).casefold() in text}
+        wanted = {str(side) for side in pair if str(side)}
+        # A side is available only when a window was selected FOR that side alone. A page
+        # about the hopper that merely mentions the dropper in passing carries both names
+        # and is therefore not material about the dropper: without this rule the run thinks
+        # it already holds the side it is missing and never asks for it.
+        got = {next(iter(only)) for row in rows
+               if len(only := {str(side) for side in row.get("sides") or () if str(side)})
+               == 1 and next(iter(only)) in wanted}
         if not got:
             continue
         held.update(got)

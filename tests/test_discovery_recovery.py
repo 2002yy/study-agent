@@ -391,6 +391,10 @@ def test_the_missing_side_is_read_from_qualified_windows_not_from_page_text():
             "goal_specs": {"区别": ("漏斗", "投掷器", "区别")}}
 
     assert _missing_sides(**args, relevant=hopper_only) == ["投掷器"]
-    got = _missing_sides(**args, relevant=mention)
-    assert got == ["投掷器"] or got == [], "the qualified-window path decides, not the page text"
+    # A page whose window carries BOTH names offers no dedicated side, so the imbalance is not
+    # detected yet: recorded as a known limitation (the live Q3 page has exactly this shape),
+    # not claimed as fixed. The dedicated-window cases below are the ones this rule settles.
+    assert _missing_sides(**args, relevant=mention) in ([], ["投掷器"])
+    dropper_page = {"S2": _B("投掷器用于把物品发射出去，投掷器被红石信号激活时会工作。")}
+    assert _missing_sides(**args, relevant=dropper_page) == ["漏斗"]
     assert evidence_windows is not None
