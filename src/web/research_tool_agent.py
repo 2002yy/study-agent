@@ -887,6 +887,15 @@ def run_tool_agent(
                         attributed = attribution != "foreign_subject"
                         if not attributed:
                             record["attribution_pending"] = True
+                            # Surface it where the reader already looks for caveats, so the
+                            # conclusion cannot pass a foreign page off as this product's
+                            # mechanism without saying so.
+                            needs_review.append({
+                                "goal_id": verdict.goal_id,
+                                "source_id": verdict.source_id,
+                                "quote": str(verdict.quote)[:120],
+                                "reason": "attribution_unconfirmed",
+                                "url": record["url"]})
                         sub_goal_state[verdict.goal_id].update({
                             "status": ("supported" if (covered_items and not partial
                                                          and attributed)

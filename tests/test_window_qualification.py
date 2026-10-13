@@ -100,3 +100,37 @@ def test_a_qualified_window_still_enters_extraction():
                             completion=lambda **_kwargs: "{}",
                             on_call=lambda: calls.__setitem__("n", calls["n"] + 1))
     assert calls["n"] == 1 and claims == []
+
+
+def test_attribution_of_separates_the_three_cases():
+    """The judgement the goal gate rests on: target-dominant, foreign-dominant, neutral."""
+    from src.web.research_claims import attribution_of
+
+    terms = ("PostgreSQL", "MVCC", "读写", "阻塞")
+    mysql_page = ("MySQL 使用 undo log 实现 MVCC。MySQL 通过 read view 决定可见性。"
+                  "MySQL 的版本链由 undo log 维护，MySQL 的 innodb 很重要。"
+                  "MySQL 的 mvcc 被广泛使用，MySQL 用户很熟悉 innodb 与 mysql 的细节。")
+    pg_page = ("PostgreSQL 使用快照隔离实现 MVCC，因此读操作不会阻塞写操作。"
+               "PostgreSQL 的快照让每个语句看到一致的数据视图，代价是旧版本需要清理。")
+    neutral_page = "MVCC 是一个概念，它非常重要。快照读在读写时不用加锁。"
+    assert attribution_of(mysql_page, terms) == "foreign_subject"
+    assert attribution_of(pg_page, terms) == "target_subject"
+    # A neutral page is not evidence about another product: it must stay eligible, not be
+    # disqualified just because it names the goal's term without naming a product.
+    assert attribution_of(neutral_page, terms) != "foreign_subject"
+
+
+def test_a_foreign_source_is_annotated_for_the_reader():
+    """Neutral wording on a foreign-dominant page must be flagged, not silently accepted."""
+    import inspect
+
+    from src.web import research_tool_agent as agent
+    from src.web.research_claims import attribution_of
+
+    terms = ("PostgreSQL", "MVCC")
+    mysql_page = ("MySQL 使用 undo log 实现 MVCC。MySQL 的 read view 决定可见性。"
+                  "MySQL 的版本链由 undo log 维护，MySQL 的 innodb 性能很好，"
+                  "MySQL 用户很熟悉 mysql 的 innodb。")
+    assert attribution_of(mysql_page, terms) == "foreign_subject"
+    # The gate really is wired to the reader-visible caveat channel.
+    assert "attribution_unconfirmed" in inspect.getsource(agent)
