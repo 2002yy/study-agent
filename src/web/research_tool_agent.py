@@ -1382,6 +1382,9 @@ def run_tool_agent(
             "reserve": reserved_searches, "recovery_query": recovery_query,
             "missing_sides_fresh": list(missing_sides_fresh), "retargeted": retargeted,
             "sides_diag": sides_diag, "fresh_diag": fresh_diag, "rel_diag": rel_diag,
+            "notebook": {sid: {"kind": str(getattr(b, "kind", "")),
+                               "len": len(getattr(b, "text", "") or "")}
+                         for sid, b in notebook.by_source.items()},
             "auto_hop": auto_hop, "auto_query": auto_query,
             "entry_only_search": entry_only_search, "has_material": material_now,
             "no_target_article": search_signals.get("no_target_article"),
