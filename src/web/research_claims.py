@@ -517,6 +517,12 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
                   for goal_id in goals],
         "rules": "cite only the given source_id; a claim without a passage is not allowed",
     }
+    if not any(windows_by_goal.values()):
+        # G3: no goal has a qualified window, so the single extraction opportunity is not
+        # consumed and no model call is made. The run keeps collecting under its own budget.
+        if on_input is not None:
+            on_input({"goals": {g: {"windows": []} for g in goals}, "skipped": True})
+        return []
     if on_call is not None:
         on_call()                      # the caller counts a REAL model call, never a guess
     if on_input is not None:

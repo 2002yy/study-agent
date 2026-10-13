@@ -66,3 +66,37 @@ def test_a_verified_quote_is_covered_by_the_selected_windows():
     windows = _windows(text, ("漏斗",), sides=("漏斗",))
     assert windows
     assert any(quote in str(w.get("excerpt") or "") for w in windows)
+
+
+def test_no_qualified_window_never_spends_the_extraction_call():
+    """G3: the legacy selector offers this page, the qualified one refuses it - no model call."""
+    from src.web.research_claims import evidence_windows, extract_claims
+    from src.web.research_tool_agent import _eligible_windows
+
+    bodies = {"S1": Body(FOREIGN_PRIMARY, "https://h.example/x")}
+    terms = ("PostgreSQL", "MVCC")
+    assert _eligible_windows(terms, bodies, ())                     # legacy: looks usable
+    assert _eligible_windows(terms, bodies, (), selector=evidence_windows) == []
+    calls = {"n": 0}
+
+    def completion(**_kwargs):  # pragma: no cover - must never run
+        raise AssertionError("the single extraction opportunity must not be spent")
+
+    claims = extract_claims(goals={"g": terms}, bodies=bodies, completion=completion,
+                            on_call=lambda: calls.__setitem__("n", calls["n"] + 1))
+    assert claims == [] and calls["n"] == 0
+
+
+def test_a_qualified_window_still_enters_extraction():
+    """Positive control: with a qualified window the extractor does run, once."""
+    from src.web.research_claims import evidence_windows, extract_claims
+    from src.web.research_tool_agent import _eligible_windows
+
+    bodies = {"S1": Body(LONG_PAGE_HEAD + LONG_PAGE_TAIL, "https://h.example/x")}
+    terms = ("漏斗",)
+    assert _eligible_windows(terms, bodies, ("漏斗",), selector=evidence_windows)
+    calls = {"n": 0}
+    claims = extract_claims(goals={"g": terms}, bodies=bodies,
+                            completion=lambda **_kwargs: "{}",
+                            on_call=lambda: calls.__setitem__("n", calls["n"] + 1))
+    assert calls["n"] == 1 and claims == []
