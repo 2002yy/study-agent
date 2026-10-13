@@ -414,6 +414,13 @@ def evidence_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
         # A comparison question needs BOTH sides examined: take the best candidate for each
         # side before filling any remaining slot by score.
         chosen: list[dict[str, Any]] = []
+        # A difference can only be stated where both names appear, so such a window is taken FIRST:
+        # the per-side choice below otherwise fills every slot with single-side windows, which is
+        # exactly why the measured Q3 run produced claims that described each side separately.
+        for _row in ordered:
+            if len({sides[_index] for _index in _row["sides"]}) >= 2:
+                chosen.append(_row)
+                break
         for index in range(len(sides)):
             same = [row for row in ordered if index in row["sides"]]
             if same and same[0] not in chosen:

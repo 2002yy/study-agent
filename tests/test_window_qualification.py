@@ -191,3 +191,29 @@ def test_the_extraction_retries_once_only_after_a_well_formed_empty_answer():
     claims = extract_claims(goals={"G": ("漏斗",)}, bodies=bodies, completion=boom,
                             windows_by_goal=windows, retry_empty=True)
     assert len(calls) == 1 and claims == [], "a timeout is never retried"
+
+
+def test_a_comparison_goal_gets_a_window_where_both_names_appear():
+    """Audited Q3 cause: two single-side windows, so no difference could be stated."""
+    from src.web.research_claims import evidence_windows
+
+    class _B:
+        kind = "substantive"
+
+        def __init__(self, text):
+            self.text = text
+            self.url = "https://zh.minecraft.wiki/w/漏斗"
+            self.quality = {"prose_chars": len(text)}
+
+    bodies = {
+        "S1": _B("漏斗能吸取上方的物品并传输到容器中，漏斗在接收到红石信号时会停止工作。"),
+        "S2": _B("投掷器可以储存物品，投掷器在被红石信号激活时会发射物品。"),
+        "S3": _B("漏斗与投掷器的区别在于：漏斗把物品传入容器，而投掷器把物品发射出去。"),
+    }
+    rows = evidence_windows(("漏斗", "投掷器"), bodies, sides=("漏斗", "投掷器"), label="区别")
+    assert rows, "the comparison must produce windows"
+    both = [row for row in rows
+            if len({str(side) for side in row.get("sides") or ()}) >= 2]
+    assert both, "a window where both names appear must be selected"
+    assert rows[0] is both[0], "it is taken first, not last"
+    assert _B is not None
