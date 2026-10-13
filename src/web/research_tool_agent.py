@@ -324,7 +324,8 @@ def _relevant_bodies(substantive: Mapping[str, Any], *,
 def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
                    statuses: Mapping[str, str],
                    goal_specs: Mapping[str, tuple[str, ...]],
-                   relevant: Mapping[str, Any]) -> list[str]:
+                   relevant: Mapping[str, Any],
+                   diagnostics: dict[str, dict[str, Any]] | None = None) -> list[str]:
     """The compared sides an unfinished goal's QUALIFIED material does not hold yet.
 
     Availability is read from the goal's own qualified windows, never from a bare word
@@ -338,6 +339,7 @@ def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
     for label, pair in goal_sides.items():
         if not pair or statuses.get(label) == "supported":
             continue
+        _diag: dict[str, Any] = {"rows": 0, "held": [], "missing": [], "reason": ""}
         rows = _eligible_windows(tuple(goal_specs.get(label) or ()), relevant, pair,
                                  selector=evidence_windows, label=label)
         wanted = {str(side) for side in pair if str(side)}
@@ -346,6 +348,9 @@ def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
         # a window whose backing page is about that side (its URL names it, e.g. .../漏斗). The
         # live Q3 page is a hopper page that mentions the dropper in passing: with a word test it
         # looked like both sides were in hand and the run never asked for the dropper.
+        _diag["rows"] = len(rows)
+        if not rows:
+            _diag["reason"] = "no_qualified_window"
         got = set()
         for row in rows:
             names = {str(side) for side in row.get("sides") or () if str(side)} & wanted
@@ -361,11 +366,21 @@ def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
             # repository already decodes URLs and matches an entity against a whole path segment,
             # so that is what decides here.
             got |= {side for side in names if _entity_match(side, unquote(url))}
+        _diag["held"] = sorted(got)
+        if not got:
+            _diag["reason"] = "no_side_available"
+        if diagnostics is not None:
+            diagnostics[label] = _diag
         if not got:
             continue
         held.update(got)
         required.update(str(side) for side in pair if str(side))
-    return sorted(required - held)
+    missing = sorted(required - held)
+    if diagnostics is not None:
+        for label in list(diagnostics):
+            diagnostics[label]["missing"] = [side for side in missing]
+            diagnostics[label]["final_missing"] = missing
+    return missing
 
 
 def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
@@ -1201,10 +1216,12 @@ def run_tool_agent(
             selector=evidence_windows if evidence_loop else candidate_windows)
         # One shared judgement of comparison completeness, used by material_now, the recovery
         # entry and the extraction gate, so the three cannot contradict each other.
+        sides_diag: dict[str, dict[str, Any]] = {}
         missing_sides = _missing_sides(goal_sides=goal_sides,
                                        statuses={label: state["status"] for label, state
                                                  in sub_goal_state.items()},
-                                       goal_specs=goal_specs, relevant=relevant_now)
+                                       goal_specs=goal_specs, relevant=relevant_now,
+                                       diagnostics=sides_diag)
         _has_windows = any(
             _eligible_windows(terms, relevant_now, goal_sides.get(label),
                               selector=evidence_windows if evidence_loop else None,
@@ -1270,12 +1287,13 @@ def run_tool_agent(
         # at execution time, and what the retarget produced (empty means the pre-computed query
         # stood). Without these two fields the skip cannot be told from a failed query.
         missing_sides_fresh: list[str] = []
+        fresh_diag: dict[str, dict[str, Any]] = {}
         retargeted = ""
         if recovery_query and discovery_needed and not auto_hop:
             missing_sides_fresh = _missing_sides(
                 goal_sides=goal_sides,
                 statuses={label: state["status"] for label, state in sub_goal_state.items()},
-                goal_specs=goal_specs, relevant=relevant_now)
+                goal_specs=goal_specs, relevant=relevant_now, diagnostics=fresh_diag)
             if missing_sides_fresh:
                 retargeted = _site_scoped_query(
                     missing_sides_fresh, confirmed, searched_queries,
@@ -1337,6 +1355,7 @@ def run_tool_agent(
         call["discovery_schedule"] = {
             "reserve": reserved_searches, "recovery_query": recovery_query,
             "missing_sides_fresh": list(missing_sides_fresh), "retargeted": retargeted,
+            "sides_diag": sides_diag, "fresh_diag": fresh_diag,
             "auto_hop": auto_hop, "auto_query": auto_query,
             "entry_only_search": entry_only_search, "has_material": material_now,
             "no_target_article": search_signals.get("no_target_article"),
