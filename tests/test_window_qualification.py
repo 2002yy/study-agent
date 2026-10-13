@@ -134,3 +134,13 @@ def test_a_foreign_source_is_annotated_for_the_reader():
     assert attribution_of(mysql_page, terms) == "foreign_subject"
     # The gate really is wired to the reader-visible caveat channel.
     assert "attribution_unconfirmed" in inspect.getsource(agent)
+
+
+def test_the_subject_recovery_query_names_missing_and_compared_terms():
+    """Q3: the legal route to the lost side must actually name that side."""
+    from src.web.research_tool_agent import _subject_recovery_query
+
+    query = _subject_recovery_query(["对局"], ["让子棋", "分先棋"], ["go"], [])
+    assert query == "对局 让子棋 分先棋 go"
+    assert _subject_recovery_query([], [], [], []) == ""
+    assert _subject_recovery_query(["对局"], ["让子棋"], [], ["对局 让子棋"]) == ""

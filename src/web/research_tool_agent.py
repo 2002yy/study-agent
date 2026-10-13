@@ -405,6 +405,25 @@ def _site_scoped_query(missing: list[str], confirmed: set[str], searched: set[st
     return ""
 
 
+def _subject_recovery_query(missing: Iterable[str], sides: Iterable[str],
+                            question_words: Iterable[str],
+                            searched: Iterable[str]) -> str:
+    """The recovery query used when no host is worth pinning.
+
+    Built from the question's own subject words and the compared sides, so a
+    comparison that lost one side can legally ask for it. Empty when nothing is left
+    to ask or the query was already issued.
+    """
+    words = [str(word) for word in list(missing) + list(sides) + list(question_words)
+             if str(word)]
+    query = " ".join(dict.fromkeys(words))
+    if not query:
+        return ""
+    if query.casefold() in {str(item).casefold() for item in searched}:
+        return ""
+    return query
+
+
 def _auto_hop_target(*, confirmed: set[str], read_pages: Mapping[str, int],
                      exclusions: Mapping[str, str], basis: Mapping[str, str],
                      labels: Mapping[str, str], goals: Mapping[str, tuple[str, ...]],
@@ -1130,13 +1149,8 @@ def run_tool_agent(
                 # which spends the slot the reserve already holds (no budget change).
                 side_words = [str(side) for pair in (goal_sides or {}).values()
                               for side in (pair or ()) if str(side)]
-                subject_query = " ".join(dict.fromkeys(
-                    [str(w) for w in missing_entities if str(w)]
-                    + side_words
-                    + [str(w) for w in _question_words if str(w)]))
-                if subject_query and subject_query.casefold() not in {
-                        item.casefold() for item in searched_queries}:
-                    recovery_query = subject_query
+                recovery_query = _subject_recovery_query(
+                    missing_entities, side_words, _question_words, searched_queries)
         reserved_searches = 1 if recovery_query else 0
         # Executing it stays gated on the agent having used the failed results once.
         discovery_needed = (not material_now) and entry_only_search and reads >= 1
