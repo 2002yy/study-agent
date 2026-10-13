@@ -1214,6 +1214,22 @@ def run_tool_agent(
         relevant_now = _relevant_bodies(
             substantive_now, goal_specs=goal_specs, goal_sides=goal_sides,
             selector=evidence_windows if evidence_loop else candidate_windows)
+        # Read-only: which layer actually blocks the side judgement (relevance filter vs the
+        # selector applied to a single body). No filter or selector behaviour is changed here.
+        rel_diag: dict[str, Any] = {
+            "substantive": len(substantive_now), "relevant": len(relevant_now),
+            "kinds": sorted({str(getattr(b, "kind", "")) for b in substantive_now.values()}),
+            "terms_sample": [], "single_body_windows": 0}
+        _first_label = next(iter(goal_specs), "")
+        if _first_label:
+            rel_diag["terms_sample"] = [str(t) for t in list(goal_specs[_first_label])[:3]]
+            _first_sid = next(iter(relevant_now), "")
+            if _first_sid:
+                rel_diag["single_body_windows"] = len(_eligible_windows(
+                    tuple(goal_specs[_first_label]), {_first_sid: relevant_now[_first_sid]},
+                    goal_sides.get(_first_label),
+                    selector=evidence_windows if evidence_loop else candidate_windows,
+                    label=_first_label))
         # One shared judgement of comparison completeness, used by material_now, the recovery
         # entry and the extraction gate, so the three cannot contradict each other.
         sides_diag: dict[str, dict[str, Any]] = {}
@@ -1355,7 +1371,7 @@ def run_tool_agent(
         call["discovery_schedule"] = {
             "reserve": reserved_searches, "recovery_query": recovery_query,
             "missing_sides_fresh": list(missing_sides_fresh), "retargeted": retargeted,
-            "sides_diag": sides_diag, "fresh_diag": fresh_diag,
+            "sides_diag": sides_diag, "fresh_diag": fresh_diag, "rel_diag": rel_diag,
             "auto_hop": auto_hop, "auto_query": auto_query,
             "entry_only_search": entry_only_search, "has_material": material_now,
             "no_target_article": search_signals.get("no_target_article"),
