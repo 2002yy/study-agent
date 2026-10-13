@@ -294,7 +294,7 @@ def test_a_search_with_no_relevant_host_triggers_a_subject_keyed_recovery():
     gateway = FakeGateway(results=[{"title": "抖音", "url": "https://www.douyin.com/",
                                     "snippet": "短视频平台"}])
     gateway.read = lambda url, max_chars=6000, timeout=8: {
-        "ok": True, "url": url, "content": GENERIC}
+        "ok": True, "url": url, "content": "本页只介绍本站的公告与联系方式，未涉及任何检索主题。"}
     queue = [{"tool": "search", "query": "PEP 701 python 3.12"},
              {"tool": "read_page", "url": "https://www.douyin.com/"},
              {"tool": "finish", "reason": "done"}]

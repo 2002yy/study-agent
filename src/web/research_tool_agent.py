@@ -300,6 +300,27 @@ def _eligible_windows(terms: tuple[str, ...], bodies: Mapping[str, Any],
     return rows
 
 
+def _relevant_bodies(substantive: Mapping[str, Any], *,
+                     goal_specs: Mapping[str, tuple[str, ...]],
+                     goal_sides: Mapping[str, tuple[str, ...]],
+                     selector: Callable[..., list[dict[str, Any]]]) -> dict[str, Any]:
+    """Bodies that hold a QUALIFIED window for some goal.
+
+    The old test - a goal term appearing literally in the page text - fails on real pages whose
+    goal terms are n-gram fragments (上的, 与投), which silently made material_now, the side
+    judgement and the extraction gate all see no material at all. Relevance now shares the
+    selector's own notion of a usable window, so one judgement feeds every downstream decision.
+    """
+    out: dict[str, Any] = {}
+    for sid, body in substantive.items():
+        for label, terms in goal_specs.items():
+            if _eligible_windows(tuple(terms), {sid: body}, goal_sides.get(label),
+                                 selector=selector, label=label):
+                out[sid] = body
+                break
+    return out
+
+
 def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
                    statuses: Mapping[str, str],
                    goal_specs: Mapping[str, tuple[str, ...]],
@@ -819,10 +840,9 @@ def run_tool_agent(
         if evidence_loop and not loop_spent and monotonic() < deadline:
             substantive = {sid: body for sid, body in notebook.by_source.items()
                            if body.kind == "substantive"}
-            relevant = {sid: body for sid, body in substantive.items()
-                        if any(term and str(term).casefold()
-                               in unquote(body.text or "").casefold()
-                               for terms in goal_specs.values() for term in terms)}
+            relevant = _relevant_bodies(
+                substantive, goal_specs=goal_specs, goal_sides=goal_sides,
+                selector=evidence_windows)
             unfinished_all = {label: tuple(terms) for label, terms in goal_specs.items()
                               if sub_goal_state[label]["status"] != "supported"}
             if not goal_specs:
@@ -1163,10 +1183,9 @@ def run_tool_agent(
                 % (max_rounds - rnd))
         substantive_now = {sid: body for sid, body in notebook.by_source.items()
                            if body.kind == "substantive"}
-        relevant_now = {sid: body for sid, body in substantive_now.items()
-                        if any(term and str(term).casefold()
-                               in unquote(body.text or "").casefold()
-                               for terms in goal_specs.values() for term in terms)}
+        relevant_now = _relevant_bodies(
+            substantive_now, goal_specs=goal_specs, goal_sides=goal_sides,
+            selector=evidence_windows if evidence_loop else candidate_windows)
         # One shared judgement of comparison completeness, used by material_now, the recovery
         # entry and the extraction gate, so the three cannot contradict each other.
         missing_sides = _missing_sides(goal_sides=goal_sides,
