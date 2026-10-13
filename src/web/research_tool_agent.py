@@ -30,7 +30,7 @@ from src.web.link_discovery import (
 from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
 from src.web.research_claim_verifier import verify_claims
 from src.web.link_discovery import answer_items
-from src.web.research_claims import candidate_windows, extract_claims
+from src.web.research_claims import candidate_windows, evidence_windows, extract_claims
 from src.web.research_gap_planner import plan_followups
 from src.web.research_notebook import ResearchNotebook
 from src.web.tool_evidence import _public_url
@@ -1729,7 +1729,8 @@ def run_tool_agent(
         # `extraction_input` is the authoritative record of the call itself.
         "window_audit_note": "final candidate snapshot, not the extraction input",
         "window_audit": {
-            label: candidate_windows(terms, {sid: body for sid, body in
+            label: (evidence_windows if evidence_loop else candidate_windows)(
+                terms, {sid: body for sid, body in
                                             notebook.by_source.items()
                                             if body.kind == "substantive"},
                                      sides=goal_sides.get(label))

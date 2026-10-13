@@ -105,9 +105,11 @@ _GENERIC_SUBJECT_TOKENS = {"如何", "什么", "为什么", "区别", "代价", 
                            "the", "and", "for", "with", "what", "why", "how"}
 _RELATION_MARKERS = ("因为", "因此", "所以", "由于", "导致", "从而", "使得", "相比", "不同",
                      "区别", "而是", "并不", "不会", "需要", "通过", "依赖", "实现", "基于",
-                     "而非", "如果", "若", "除非", "无法", "不能", "只有当", "仅当", "则", "才",
-                     "是", "会", "可以", "可", "能", "用于", "使用", "由", "称为", "属于",
-                     "包括", "分为", "具有", "与其")
+                     "而非", "如果", "若", "除非", "无法", "不能", "只有当", "仅当", "则", "才")
+# Behavioural verbs: what a subject DOES. A sole copula ("是") is deliberately absent, so an
+# abstract statement such as "MVCC 是一个概念，很重要" cannot pass the candidate filter.
+_BEHAVIOUR_MARKERS = ("会", "可以", "可", "能", "用于", "使用", "由", "称为", "属于",
+                      "包括", "分为", "具有")
 _INHERIT_MARKERS = ("其", "该", "它", "此", "这", "上述", "同样")
 _LATIN_WORD = re.compile(r"[a-z][a-z0-9_\-]{2,}")
 
@@ -133,20 +135,25 @@ def _source_attribution(text: str, tokens: list[str]) -> str:
     question); a page naming the question's subject alongside another product is comparative.
     """
     lowered = text.lower()
-    target_hits = sum(1 for token in tokens if token.lower() in lowered)
+    target_mass = sum(lowered.count(token.lower()) for token in tokens)
     counts: dict[str, int] = {}
     for match in _LATIN_WORD.finditer(lowered):
         word = match.group(0)
         if any(word in token.lower() for token in tokens):
             continue
         counts[word] = counts.get(word, 0) + 1
-    foreign = sorted((word for word, count in counts.items() if count >= 4),
-                     key=lambda word: (-counts[word], word))[:4]
-    if target_hits and foreign:
+    foreign = sorted(((word, count) for word, count in counts.items() if count >= 3),
+                     key=lambda item: (-item[1], item[0]))[:4]
+    foreign_mass = sum(count for _word, count in foreign)
+    # A page that merely MENTIONS the question's subject while its own subject dominates is
+    # about something else - mentioning it once may not earn extraction rights.
+    if foreign_mass >= 2 * max(1, target_mass):
+        return "foreign_subject"
+    if target_mass and foreign_mass:
         return "comparative"
-    if target_hits:
+    if target_mass:
         return "target_subject"
-    if foreign:
+    if foreign_mass:
         return "foreign_subject"
     return "unclear"
 
@@ -185,20 +192,23 @@ def _source_windows(text: str, terms: Sequence[str], tokens: list[str]) -> list[
                                           for marker in _INHERIT_MARKERS) \
             and any(token.lower() in previous.lower() for token in tokens)
         relations = [marker for marker in _RELATION_MARKERS if marker in excerpt]
+        behaviour = [marker for marker in _BEHAVIOUR_MARKERS if marker in excerpt]
         co_subjects = sum(1 for token in tokens if token.lower() in window_low)
-        # A passage qualifies as evidence material only when it is about the question's subject
-        # AND states a relation (condition, cause, contrast, negation) rather than a bare mention.
-        concrete = (subject or inherited) and bool(relations or co_subjects >= 2)
+        # candidate_relevant is a CHEAP FILTER for what extraction is shown - it is not a claim
+        # that the passage supports a fact. Support is decided by extraction plus the independent
+        # verifier. The passage must be about the question's subject and say something (a
+        # relation or a behaviour), never a bare mention with a copula.
+        relevant = (subject or inherited) and bool(relations or behaviour)
         rows.append({"span_start": start, "span_end": end, "excerpt": excerpt,
                      "window_kind": "term", "subject": subject or inherited,
-                     "concrete": concrete, "relations": len(relations),
-                     "co_subjects": co_subjects,
+                     "candidate_relevant": relevant, "relations": len(relations),
+                     "behaviour": len(behaviour), "co_subjects": co_subjects,
                      "not_coverable": end - start >= WINDOW_CHARS})
     # Rank before the per-goal limit cuts: best passages of EVERY region of the page, so a long
     # page cannot lose its later mechanism text to its earlier table of contents.
     def rank_key(row: dict[str, Any]) -> tuple:
-        return (0 if row["concrete"] else 1, -row["relations"], -row["co_subjects"],
-                row["span_start"])
+        return (0 if row["candidate_relevant"] else 1, -row["relations"], -row["behaviour"],
+                -row["co_subjects"], row["span_start"])
 
     by_region: dict[int, list[dict[str, Any]]] = {}
     for row in rows:
@@ -217,7 +227,58 @@ def _source_windows(text: str, terms: Sequence[str], tokens: list[str]) -> list[
 def candidate_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
                       limit: int = MAX_WINDOWS_PER_GOAL,
                       sides: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
-    """Windows for the candidate prompt, best-first, with source and passage qualification.
+    """Windows for the candidate prompt, best-first: goal-term hits, then prose.
+
+    This is the UNCHANGED selector used outside the evidence loop, so turning the loop off
+    keeps behaviour identical to before.
+    """
+    terms = [str(term).lower() for term in goal_terms if str(term)]
+    candidates: list[dict[str, Any]] = []
+    for source_id, body in bodies.items():
+        text = body.text or ""
+        quality = getattr(body, "quality", None) or {}
+        prose = int(quality.get("prose_chars", 0) or 0)
+        hits = sum(1 for term in terms if term in text.lower())
+        term_window = _window(text, goal_terms)
+        prose_window = _prose_window(text)
+        for rank, window in ((3, term_window), (2, prose_window)):
+            if window is None:
+                continue
+            excerpt = str(window.get("excerpt") or "")
+            if looks_like_navigation(excerpt) or looks_like_list(excerpt):
+                continue
+            if rank == 3 and not (_SENTENCE_PUNCT.search(excerpt) and len(excerpt) >= 60):
+                rank = 1
+            candidates.append({
+                "source_id": source_id, "window": window, "rank": rank, "hits": hits,
+                "prose": prose,
+                "matched": [term for term in terms if term in excerpt.lower()],
+                "sides": [index for index, side in enumerate(sides or ())
+                          if side and str(side).lower() in excerpt.lower()],
+                "url": str(getattr(body, "url", "")) or source_id})
+            break
+    ordered = sorted(candidates, key=lambda row: (-row["rank"], -row["hits"], -row["prose"],
+                                                  row["url"]))
+    if sides:
+        chosen: list[dict[str, Any]] = []
+        for index in range(len(sides)):
+            same = [row for row in ordered if index in row["sides"]]
+            if same and same[0] not in chosen:
+                chosen.append(same[0])
+        for row in ordered:
+            if len(chosen) >= limit:
+                break
+            if row not in chosen:
+                chosen.append(row)
+        ordered = chosen[:limit]
+    return [{"source_id": row["source_id"], **row["window"],
+             "url": row["url"], "sides": row["sides"]} for row in ordered]
+
+
+def evidence_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
+                      limit: int = MAX_WINDOWS_PER_GOAL,
+                      sides: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
+    """Qualified windows for the EVIDENCE LOOP only (B OFF never calls this).
 
     Two questions are answered before a passage is offered to extraction:
       * is this PAGE about what the reader asked (its dominant subject is not another product)?
@@ -247,7 +308,8 @@ def candidate_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
                          if side and str(side).lower() in excerpt.lower()]
             candidates.append({
                 "source_id": source_id, "window": window,
-                "rank": 3 if window["concrete"] else 1, "hits": hits, "prose": prose,
+                "rank": 3 if window["candidate_relevant"] else 1, "hits": hits,
+                "prose": prose,
                 "matched": [term for term in terms if term in excerpt.lower()],
                 "sides": side_hits})
     # Only material passages are offered at all (a bare mention may not consume the one
@@ -258,6 +320,20 @@ def candidate_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
                                                 -row["hits"], -row["prose"],
                                                 row["source_id"],
                                                 row["window"]["span_start"]))
+    # Region diversity must survive the final cut: with a per-goal limit of two, a global sort
+    # would otherwise return two passages from the same opening section and lose the mechanism
+    # text that a long page keeps further down.
+    by_region: dict[int, list[dict[str, Any]]] = {}
+    for row in ordered:
+        region = row["window"]["span_start"] // (WINDOW_CHARS * 4)
+        by_region.setdefault(region, []).append(row)
+    diverse: list[dict[str, Any]] = []
+    for region in sorted(by_region):
+        diverse.append(by_region[region][0])
+    for row in ordered:
+        if row not in diverse:
+            diverse.append(row)
+    ordered = diverse
     if sides:
         # A comparison question needs BOTH sides examined: take the best candidate for each
         # side before filling any remaining slot by score.
@@ -433,7 +509,7 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
     if not goals or not bodies:
         return []
     windows_by_goal: dict[str, list[dict[str, Any]]] = {
-        goal_id: candidate_windows(terms, bodies,
+        goal_id: evidence_windows(terms, bodies,
                                     sides=(sides_by_goal or {}).get(goal_id))
         for goal_id, terms in goals.items()}
     payload: dict[str, Any] = {
