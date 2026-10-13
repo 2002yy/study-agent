@@ -300,6 +300,34 @@ def _eligible_windows(terms: tuple[str, ...], bodies: Mapping[str, Any],
     return rows
 
 
+def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
+                   statuses: Mapping[str, str],
+                   goal_specs: Mapping[str, tuple[str, ...]],
+                   relevant: Mapping[str, Any]) -> list[str]:
+    """The compared sides an unfinished goal's QUALIFIED material does not hold yet.
+
+    Availability is read from the goal's own qualified windows, never from a bare word
+    somewhere on a page: a hopper page that merely mentions the dropper in passing must
+    not count as having found it. A side is reported only when the goal already holds
+    qualified material for the other side (a true imbalance), so an untouched goal keeps
+    the ordinary subject terms as its target.
+    """
+    held: set[str] = set()
+    required: set[str] = set()
+    for label, pair in goal_sides.items():
+        if not pair or statuses.get(label) == "supported":
+            continue
+        rows = _eligible_windows(tuple(goal_specs.get(label) or ()), relevant, pair,
+                                 selector=evidence_windows, label=label)
+        text = " ".join(str(row.get("excerpt") or "").casefold() for row in rows)
+        got = {str(side) for side in pair if str(side) and str(side).casefold() in text}
+        if not got:
+            continue
+        held.update(got)
+        required.update(str(side) for side in pair if str(side))
+    return sorted(required - held)
+
+
 def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
                      goal_sides: Mapping[str, tuple[str, ...]], relevant: Mapping[str, Any],
                      confirmed: set[str], read_pages: Mapping[str, int],
@@ -1152,24 +1180,10 @@ def run_tool_agent(
         # about that target than a query holding both words. Availability is judged from the
         # qualified windows, never from a bare word somewhere on a page - a hopper page that
         # merely mentions the dropper in passing must not count as having found it.
-        available_sides: set[str] = set()
-        required_sides: set[str] = set()
-        for _label, _sides_pair in goal_sides.items():
-            if not _sides_pair or sub_goal_state[_label]["status"] == "supported":
-                continue
-            _rows = _eligible_windows(tuple(goal_specs.get(_label) or ()), relevant_now,
-                                      _sides_pair, selector=evidence_windows, label=_label)
-            _text = " ".join(str(_row.get("excerpt") or "").casefold()
-                              for _row in _rows)
-            _held = {str(_side) for _side in _sides_pair
-                     if str(_side) and str(_side).casefold() in _text}
-            if not _held:
-                # Nothing qualified yet: this is not an imbalance, so the ordinary
-                # subject terms stay the target.
-                continue
-            available_sides.update(_held)
-            required_sides.update(str(_side) for _side in _sides_pair if str(_side))
-        missing_sides = sorted(required_sides - available_sides)
+        missing_sides = _missing_sides(goal_sides=goal_sides,
+                                       statuses={label: state["status"] for label, state
+                                                 in sub_goal_state.items()},
+                                       goal_specs=goal_specs, relevant=relevant_now)
         recovery_query = ""
         if (discovery_hops and not loop_spent and auto_hops == 0 and not material_now
                 and searches < max_searches and max_reads - reads >= 1
@@ -1200,6 +1214,20 @@ def run_tool_agent(
                 sides_by_goal=goal_sides, hops_used=auto_hops, hopped=hopped_entries,
                 searches=searches, reads_left=max_reads - reads,
                 remaining_seconds=deadline - monotonic(), has_material=material_now)
+        # The reserve DECISION had to be early (it protects the slot before the model can
+        # spend it), but WHAT it asks for is settled here, with the material in hand at
+        # execution time: the read this very round is what usually reveals the missing side.
+        if recovery_query and discovery_needed and not auto_hop:
+            _fresh = _missing_sides(goal_sides=goal_sides,
+                                    statuses={label: state["status"]
+                                              for label, state in sub_goal_state.items()},
+                                    goal_specs=goal_specs, relevant=relevant_now)
+            if _fresh:
+                _retargeted = _site_scoped_query(
+                    _fresh, confirmed, searched_queries,
+                    search_signals["entry_urls"], entry_exclusions)
+                if _retargeted:
+                    recovery_query = _retargeted
         auto_query = recovery_query if (discovery_needed and not auto_hop) else ""
         # Read reserve follows the PENDING path instead of a fixed two slots: a hop must download
         # the navigation page and then the article (two), while a site-scoped search downloads

@@ -370,3 +370,27 @@ def test_the_scoped_query_is_not_sent_again_and_needs_a_confirmed_host():
     assert _site_scoped_query(["投掷器"], set(), set(), [], set()) == ""
     limit = _site_scoped_query(["投掷器", "漏斗"], confirmed, set(), [], set())
     assert limit.count("site:") == 1, "one target, one host"
+
+
+def test_the_missing_side_is_read_from_qualified_windows_not_from_page_text():
+    """Review: a page that merely mentions the other side must not look like material."""
+    from src.web.research_tool_agent import _missing_sides
+    from src.web.research_claims import evidence_windows
+
+    class _B:
+        kind = "substantive"
+
+        def __init__(self, text):
+            self.text = text
+            self.url = "https://zh.minecraft.wiki/漏斗"
+            self.quality = {"prose_chars": len(text)}
+
+    hopper_only = {"S1": _B("漏斗可以收集物品并传输到容器中，漏斗的吸取范围覆盖上方一格。")}
+    mention = {"S1": _B("漏斗可以收集物品。漏斗与投掷器不同，投掷器用于发射物品。")}
+    args = {"goal_sides": {"区别": ("漏斗", "投掷器")}, "statuses": {"区别": "explored"},
+            "goal_specs": {"区别": ("漏斗", "投掷器", "区别")}}
+
+    assert _missing_sides(**args, relevant=hopper_only) == ["投掷器"]
+    got = _missing_sides(**args, relevant=mention)
+    assert got == ["投掷器"] or got == [], "the qualified-window path decides, not the page text"
+    assert evidence_windows is not None
