@@ -229,6 +229,35 @@ def test_the_attribution_caveat_reaches_the_authoritative_summary():
                for row in summary.get("needs_review") or [])
 
 
+def test_mixed_evidence_status_ignores_verdict_order():
+    """A legitimate support must survive a later ineligible one - and vice versa."""
+    from src.web.research_tool_agent import covered_indexes
+
+    class V:
+        def __init__(self, source_id, span_start, covers):
+            self.goal_id, self.source_id, self.span_start = "g", source_id, span_start
+            self.internal_supported, self.covers = True, covers
+
+    legitimate = V("S1", 10, [0, 1])
+    foreign = V("S2", 20, [0, 1])
+    ineligible = {("g", "S2", 20)}
+    for order in ([legitimate, foreign], [foreign, legitimate]):
+        assert covered_indexes("g", order, ineligible) == {0, 1}
+
+
+def test_only_foreign_support_covers_nothing():
+    """Foreign-only evidence leaves the requirement unfilled, whatever the verdict says."""
+    from src.web.research_tool_agent import covered_indexes
+
+    class V:
+        def __init__(self, source_id, span_start, covers):
+            self.goal_id, self.source_id, self.span_start = "g", source_id, span_start
+            self.internal_supported, self.covers = True, covers
+
+    foreign = V("S2", 20, [0, 1])
+    assert covered_indexes("g", [foreign], {("g", "S2", 20)}) == set()
+
+
 def test_complete_coverage_settles_the_goal_and_counts_calls():
     """Both requirements covered: the goal is settled, and the loop costs two calls."""
     trace = _loop_run("每个事务读取自己的快照，读操作不会阻塞写操作。代价是旧版本必须清理",

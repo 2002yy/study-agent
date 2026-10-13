@@ -925,13 +925,28 @@ def run_tool_agent(
                                 "quote": str(verdict.quote)[:120],
                                 "reason": "attribution_unconfirmed",
                                 "url": record["url"]})
-                        sub_goal_state[verdict.goal_id].update({
-                            "status": ("supported" if (covered_items and not partial
-                                                         and attributed)
-                                        else "explored"),
-                            "url": record["url"], "excerpt": record["excerpt"],
-                            "answer_items": len(items),
-                            "covered_items": sorted(covered_items)})
+                    # Goal state is NOT updated per verdict: the order in which verdicts arrive
+                    # must not matter (a later ineligible support may not erase an earlier
+                    # legitimate one). It is derived from the final eligible coverage below.
+                    for label in goal_specs:
+                        if sub_goal_state[label]["status"] == "supported":
+                            continue
+                        final_items = answer_items(label)
+                        final_covered = covered_indexes(label, claim_verdicts,
+                                                        ineligible_support)
+                        if not final_covered:
+                            continue
+                        best = next((row for row in goal_evidence.get(label, [])
+                                     if row.get("status") == "supported"
+                                     and not row.get("attribution_pending")), None)
+                        sub_goal_state[label].update({
+                            "status": ("supported" if len(final_covered) >= len(final_items)
+                                       else "explored"),
+                            "url": (best or {}).get("url", sub_goal_state[label].get("url", "")),
+                            "excerpt": (best or {}).get(
+                                "excerpt", sub_goal_state[label].get("excerpt", "")),
+                            "answer_items": len(final_items),
+                            "covered_items": sorted(final_covered)})
                     followups.extend(plan_followups(
                 verdicts=[row for row in verdicts
                           if (row.goal_id, row.source_id, row.span_start)
