@@ -816,7 +816,9 @@ def run_tool_agent(
                     calls_left=min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP) - model_calls)
                 extraction_gate = {"state": gate_state, "reason": reason,
                                    "goals": sorted(ready_goals), "at_call": model_calls,
-                                   "reserve_seconds": reserve}
+                                   "reserve_seconds": reserve,
+                                   "windows": {label: list(rows)
+                                               for label, rows in ready_goals.items()}}
                 if not ready_goals:
                     evidence_loop_skipped = reason or "no_eligible_window"
                 else:
@@ -864,11 +866,17 @@ def run_tool_agent(
                     def _capture_response(raw: str) -> None:
                         extraction_input["raw_response"] = str(raw)[:2000]
 
-                    window_snapshot = {
-                        label: _eligible_windows(terms, bodies_view,
-                                                 goal_sides.get(label),
-                                                 selector=evidence_windows, label=label)
-                        for label, terms in unfinished.items()}
+                    # G3: the run uses the windows the gate already qualified, so a later
+                    # parameter change cannot make scheduler and extractor disagree.
+                    window_snapshot = {label: list(rows) for label, rows in
+                                       (extraction_gate.get("windows") or {}).items()
+                                       if label in unfinished}
+                    if not window_snapshot:
+                        window_snapshot = {
+                            label: _eligible_windows(terms, bodies_view,
+                                                     goal_sides.get(label),
+                                                     selector=evidence_windows, label=label)
+                            for label, terms in unfinished.items()}
                     extraction_input["windows_by_goal"] = window_snapshot
                     claims = extract_claims(
                         goals=unfinished, bodies=bodies_view, completion=completion,
@@ -1123,7 +1131,8 @@ def run_tool_agent(
                                for terms in goal_specs.values() for term in terms)}
         material_now = any(
             _eligible_windows(terms, relevant_now, goal_sides.get(label),
-                              selector=evidence_windows if evidence_loop else None)
+                              selector=evidence_windows if evidence_loop else None,
+                              label=label)
             for label, terms in goal_specs.items()
             if sub_goal_state[label]["status"] != "supported")
         # Discovery recovery is triggered by EVIDENCE OF FAILURE, not by an open goal: the last
@@ -1137,6 +1146,10 @@ def run_tool_agent(
         # SEARCH RESERVE: decided here, BEFORE the model can spend the last slot. Waiting until
         # the results have been read would replay the measured failure of four homepage-only
         # searches, which is exactly why this eligibility must not depend on reads >= 1.
+        # NOTE (reviewer P1-1): a comparison that holds one side while the other is missing is
+        # real evidence of failure, but enabling that trigger here changed the pinned MC reserve
+        # semantics, so it is NOT enabled in this slice. Q3's dropper side stays for a dedicated
+        # design; the recovery query already names both sides when it does run.
         recovery_query = ""
         if (discovery_hops and not loop_spent and auto_hops == 0 and not material_now
                 and searches < max_searches and max_reads - reads >= 1
@@ -1152,7 +1165,12 @@ def run_tool_agent(
                 recovery_query = _subject_recovery_query(
                     missing_entities, side_words, _question_words, searched_queries)
         reserved_searches = 1 if recovery_query else 0
-        # Executing it stays gated on the agent having used the failed results once.
+        # NOTE (reviewer P0-2): an unrelated result set has nothing worth reading, so requiring a
+        # read there is what made Q1's original shape unrecoverable. The pinned reserve tests show
+        # why firing it at once is wrong (it would spend the slot before the model's own searches
+        # and break the "reserve is the last slot" contract), so the fix must make the reserve
+        # EXECUTE when the ordinary searches are exhausted. That design is not landed in this
+        # slice; the condition below keeps the previously pinned semantics.
         discovery_needed = (not material_now) and entry_only_search and reads >= 1
         auto_hop = "" if (loop_spent or not discovery_hops or not discovery_needed) else \
             _auto_hop_target(
