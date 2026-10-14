@@ -254,3 +254,64 @@ def test_write_allowed_rejects_cross_run_and_terminal() -> None:
     )
     assert write_allowed(current=current, candidate=candidate, run_id="run_A", terminal=False) is False
     assert write_allowed(current=current, candidate=candidate, run_id="run_A", terminal=True) is False
+
+
+def test_generated_opening_advances_persisted_fallback_sequence() -> None:
+    from src.web.research.research_approach import fallback_approach
+
+    current = fallback_approach(mode="standard", root_run_id="r1", sequence=1)
+    saved = {"approach": current}
+
+    def write(run_id, approach):
+        if not write_allowed(
+            current=saved["approach"], candidate=approach, run_id=run_id,
+            terminal=False,
+        ):
+            return False
+        saved["approach"] = approach
+        return True
+
+    outcome = _coordinator(write=write, completion=_ok_completion).attempt(
+        run_id="r1", operation_id="op1", mode="standard", query="q",
+        current=current, is_terminal=lambda: False,
+    )
+    assert outcome.spent is True and outcome.written is True
+    assert saved["approach"]["origin"] == "model_generated"
+    assert saved["approach"]["sequence"] == 2
+
+
+def test_generated_opening_preserves_higher_requested_sequence() -> None:
+    from src.web.research.research_approach import fallback_approach
+
+    current = fallback_approach(mode="standard", root_run_id="r1", sequence=1)
+    outcome = _coordinator(completion=_ok_completion).attempt(
+        run_id="r1", operation_id="op1", mode="standard", query="q",
+        current=current, is_terminal=lambda: False, sequence=7,
+    )
+    assert outcome.written is True
+    assert outcome.approach is not None
+    assert outcome.approach["sequence"] == 7
+
+
+def test_newer_saved_plan_rejects_generated_result_despite_advanced_sequence() -> None:
+    from src.web.research.research_approach import fallback_approach
+
+    current = fallback_approach(mode="standard", root_run_id="r1", sequence=1)
+    latest = project_from_plan(
+        mode="standard", summary="先检查当前计划。", root_run_id="r1",
+        sequence=2,
+    )
+
+    def write(run_id, approach):
+        # Simulates the repository re-reading durable state inside its
+        # atomic transaction after the asynchronous completion finishes.
+        return write_allowed(
+            current=latest, candidate=approach, run_id=run_id, terminal=False,
+        )
+
+    outcome = _coordinator(write=write, completion=_ok_completion).attempt(
+        run_id="r1", operation_id="op1", mode="standard", query="q",
+        current=current, is_terminal=lambda: False,
+    )
+    assert outcome.spent is True
+    assert outcome.written is False and outcome.reason == "write_failed"
