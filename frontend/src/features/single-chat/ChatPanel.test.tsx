@@ -168,6 +168,17 @@ describe("continuous conversation input", () => {
     expect(container.textContent).not.toContain("条待执行");
   });
 
+  it("renders a bound computation result inside the conversation", () => {
+    renderPanel({ messages: [{
+      role: "assistant", content: "结果如下",
+      computation: {
+        schema_version: "1", run_id: "r", tool_run_id: "t", status: "succeeded", input_revision: 1,
+        source_refs: ["s1"], engine: "deterministic", result: { columns: ["方案", "耗时"], rows: [["A", 1]], unit: "s" },
+      },
+    }] });
+    expect(screen.getByRole("figure", { name: "计算结果" })).toBeVisible();
+  });
+
   it("distinguishes a plan-applied supplement from one that is really executing", () => {
     renderPanel({ isSending: true, messages: [
       { role: "user", content: "已进入计划", transient: true, researchSteering: { runId: "r", id: "a", status: "applied" } },

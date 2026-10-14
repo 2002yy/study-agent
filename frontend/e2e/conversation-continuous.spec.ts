@@ -47,6 +47,12 @@ test("two supplements and one queued task stay in one continuous research conver
       response.end(JSON.stringify({ id: "run-live", research_context: { deep: { steering } } }));
       emit("research", progress(steering.length + 1));
       emit("token", { text: "研究继续进行，正在核对新增的维度。" });
+      // Slice B: a server-validated, evidence-bound computation result.
+      emit("computation", {
+        schema_version: "1", run_id: "run-live", tool_run_id: "tool-1", status: "succeeded",
+        input_revision: 1, source_refs: ["source-1"], engine: "deterministic",
+        result: { columns: ["方案", "耗时"], rows: [["A", 12.5], ["B", 9.8]], unit: "seconds" },
+      });
       return;
     }
     if (request.url?.endsWith("/queue")) queue.push({ id: input.request_id, content: input.content, status: "pending" });
@@ -83,6 +89,13 @@ test("two supplements and one queued task stay in one continuous research conver
     await input.fill("并补查脚本接口与图层控制");
     await page.getByRole("button", { name: "追加要求", exact: true }).click();
     await expect(page.getByText("正在按补充要求执行研究")).toHaveCount(2);
+
+    // Slice B: the bound computation renders in the same conversation, with
+    // unit/source/version provenance, and is switchable to a data table.
+    await expect(page.getByRole("figure", { name: "计算结果" })).toBeVisible();
+    await expect(page.getByText(/确定性计算 · 版本 v1/)).toBeVisible();
+    await page.getByRole("button", { name: "数据表" }).click();
+    await expect(page.getByRole("cell", { name: "12.5" })).toBeVisible();
 
     // Queued task: a separate timeline card that never changes the search.
     await page.getByRole("button", { name: "完成后再做", exact: true }).click();

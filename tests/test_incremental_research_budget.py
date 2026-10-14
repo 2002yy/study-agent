@@ -63,3 +63,15 @@ def test_invalid_policy_fails_closed(monkeypatch, value):
     monkeypatch.setenv("WEB_RESEARCH_STEERING_BUDGET_POLICY", json.dumps(invalid))
     with pytest.raises(ValueError):
         load_incremental_policy()
+
+
+def test_python_grants_require_a_real_isolation_runtime(monkeypatch):
+    with_python = copy.deepcopy(policy())
+    for section in ("initial", "per_goal", "limits"):
+        with_python[section]["python_runs"] = 2
+    monkeypatch.setenv("WEB_RESEARCH_STEERING_BUDGET_POLICY", json.dumps(with_python))
+    # Fail closed while isolation is unavailable...
+    with pytest.raises(ValueError):
+        load_incremental_policy()
+    # ...and only open the axis once a real isolated executor exists.
+    assert load_incremental_policy(python_isolation_available=True)["limits"]["python_runs"] == 2

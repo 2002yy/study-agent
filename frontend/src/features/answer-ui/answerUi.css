@@ -91,3 +91,27 @@
 .research-queue-count { margin-left: auto; padding: 1px 8px; border-radius: 999px; background: #eef2f4; }
 .research-queue-body { margin: 0; overflow-wrap: anywhere; }
 .research-queue-note { margin: 0; color: var(--muted); font-size: 12px; }
+
+/* Slice B: server-validated interactive computation result. */
+.computation-card { display: grid; gap: 12px; margin: 12px 0 0; min-width: 0; }
+.computation-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.computation-view-toggle { display: inline-flex; gap: 4px; }
+.computation-view-toggle button { min-height: 32px; padding: 4px 10px; border: 1px solid #dce4ea; border-radius: 8px; background: #fff; color: var(--text); font-size: 12px; cursor: pointer; }
+.computation-view-toggle button[aria-pressed="true"] { background: #eaf1f6; border-color: #b9ccd9; }
+.computation-stale { margin-left: auto; color: #8a5a12; font-size: 12px; }
+.computation-bars { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.computation-bars li { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 12px; }
+.computation-bar-label { color: var(--muted); overflow-wrap: anywhere; }
+.computation-bar { height: 12px; border-radius: 6px; background: #527896; min-width: 2px; }
+.computation-bar-value { font-variant-numeric: tabular-nums; }
+.computation-line { display: block; width: 100%; height: 120px; color: #527896; }
+.computation-line polyline { stroke: currentColor; stroke-width: 2; }
+.computation-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.computation-table :is(th, td) { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e1e8ed; }
+.computation-parameters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.computation-parameters label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.computation-parameters input { width: 120px; min-height: 32px; padding: 4px 8px; border: 1px solid #dce4ea; border-radius: 8px; }
+.computation-parameters button { min-height: 34px; padding: 6px 10px; border: 1px solid #cad9e3; border-radius: 8px; background: #fff; cursor: pointer; }
+.computation-provenance { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.computation-note { color: var(--muted); font-size: 12px; }
+.computation-invalid { color: #8a1d1d; }

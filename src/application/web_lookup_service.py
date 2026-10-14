@@ -35,6 +35,7 @@ from src.web.research.incremental_budget import (
     authorize_goal, consume as consume_incremental_budget, initialize_budget,
     load_incremental_policy, remaining as incremental_remaining, total_authorized,
 )
+from src.tools.python_isolation import isolated_python_available
 
 
 class WebLookupGateway(Protocol):
@@ -1636,7 +1637,7 @@ class WebLookupService:
             ensure_active()
 
             # ---- planning -------------------------------------------------
-            initialize_budget(deep, None if "incremental_budget" in deep else load_incremental_policy())
+            initialize_budget(deep, None if "incremental_budget" in deep else load_incremental_policy(python_isolation_available=isolated_python_available()))
             set_stage("planning")
             if not plan:
                 if callable(getattr(self.planner, "plan", None)):

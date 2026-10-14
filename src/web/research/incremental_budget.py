@@ -14,7 +14,9 @@ from typing import Any
 AXES = ("model_calls", "searches", "reads", "python_runs", "wall_seconds")
 
 
-def load_incremental_policy() -> dict[str, dict[str, float]] | None:
+def load_incremental_policy(
+    *, python_isolation_available: bool = False
+) -> dict[str, dict[str, float]] | None:
     raw = os.getenv("WEB_RESEARCH_STEERING_BUDGET_POLICY", "").strip()
     if not raw:
         return None
@@ -40,9 +42,11 @@ def load_incremental_policy() -> dict[str, dict[str, float]] | None:
                 )
     if any(policy["initial"][axis] > policy["limits"][axis] for axis in AXES):
         raise ValueError("Initial budget cannot exceed its global limit")
-    if policy["initial"]["python_runs"] or policy["per_goal"]["python_runs"]:
+    if (
+        policy["initial"]["python_runs"] or policy["per_goal"]["python_runs"]
+    ) and not python_isolation_available:
         raise ValueError(
-            "This Deep executor has no Python tool; compute grants cannot be issued"
+            "Isolated Python is unavailable; compute grants cannot be issued"
         )
     return policy
 

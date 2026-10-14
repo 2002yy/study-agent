@@ -23,6 +23,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { AnswerProgress } from "../answer-ui/AnswerProgress";
+import { InteractiveComputation } from "../answer-ui/InteractiveComputation";
 import { answerCopyText } from "../answer-ui/answerUiProtocol";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { useReadingWorkspace } from "../reading/ReadingContext";
@@ -415,6 +416,7 @@ export function ChatPanel(props: ChatPanelProps) {
                           setInput(input.trim() ? `${input}\n\n${prompt}` : prompt);
                           composerRef.current?.focus();
                         }} />
+                      {message.computation ? <InteractiveComputation payload={message.computation} /> : null}
                       {message.researchSteering ? (
                         <span className="research-steering-receipt" role="status">
                           {steeringReceiptCopy[message.researchSteering.status] ?? steeringReceiptCopy.pending}

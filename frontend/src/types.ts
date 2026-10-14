@@ -173,6 +173,30 @@ export type ChatMessage = {
   researchProgress?: ChatResearchProgress;
   researchSteering?: { runId: string; id: string; status: "pending" | "applied" | "executing" | "late" };
   researchQueued?: { runId: string; id: string; status: "pending" | "executing" | "completed" };
+  // Server-validated, evidence-bound computation result (Slice B). Never a
+  // model-authored chart payload; rendering is refused unless it validates.
+  computation?: ComputationPayload;
+};
+
+export type ComputationStatus = "succeeded" | "failed" | "blocked" | "cancelled" | "superseded";
+
+export type ComputationTable = {
+  columns: string[];
+  rows: (string | number | boolean | null)[][];
+  unit?: string;
+};
+
+export type ComputationPayload = {
+  schema_version: string;
+  run_id: string;
+  tool_run_id: string;
+  status: ComputationStatus;
+  input_revision: number;
+  source_refs: string[];
+  engine: "deterministic" | "isolated_python";
+  reason?: string;
+  result: ComputationTable | Record<string, never>;
+  superseded_by_revision?: number;
 };
 
 export type ChatSettings = {

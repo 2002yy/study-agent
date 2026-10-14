@@ -4,6 +4,7 @@ import type {
   ChatResponse,
   ChatResearchProgress,
   ChatSettings,
+  ComputationPayload,
   HealthResponse,
   MemoryCommitResponse,
   MemoryPreviewResponse,
@@ -100,6 +101,8 @@ type ChatStreamHandlers = {
   onRoute?: (route: Record<string, unknown>) => void;
   onRag?: (rag: ChatResponse["rag"]) => void;
   onResearch?: (progress: ChatResearchProgress) => void;
+  // Slice B: a server-validated, evidence-bound computation result.
+  onComputation?: (payload: ComputationPayload) => void;
   onToken?: (token: string) => void;
   onUsage?: (usage: Record<string, unknown>) => void;
   onDone?: (done: Record<string, unknown>) => void;
@@ -991,6 +994,10 @@ export async function sendChatStream(
     }
     if (message.event === "research") {
       handlers.onResearch?.(message.data as ChatResearchProgress);
+      return;
+    }
+    if (message.event === "computation") {
+      handlers.onComputation?.(message.data as ComputationPayload);
       return;
     }
     if (message.event === "token") {

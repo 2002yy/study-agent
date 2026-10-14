@@ -507,6 +507,14 @@ export function useChatController(options: ControllerOptions) {
               ["completed", "partial", "failed", "cancelled"].includes(progress.status),
             );
           },
+          onComputation: (payload) => {
+            // A server-validated computation result is bound to the owning
+            // assistant message; the renderer refuses anything unvalidated.
+            if (!isCurrent()) return;
+            setMessages(current => current.map((message, index) =>
+              index === assistantIndex ? { ...message, computation: payload } : message,
+            ));
+          },
           onCancelled: (data) => {
             if (!isCurrent()) return;
             const partial = typeof data.partial === "string" ? data.partial : "";
