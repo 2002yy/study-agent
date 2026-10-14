@@ -1594,16 +1594,9 @@ class WebLookupService:
                 stop_reason=reason,
                 answer_confidence=answer_confidence,
             )
-            # The checkpoint merges steering appended concurrently; re-read the
-            # persisted row (the checkpoint returns the pre-update snapshot) and
-            # refresh this executor's local view.  NOTE: consumption at the next
-            # round boundary is still a known gap (see the xfail test).
-            persisted = self.repository.get(run_id)
-            merged_deep = (
-                persisted.research_context.get("deep")
-                if persisted is not None
-                else None
-            )
+            # The checkpoint merges steering appended concurrently and returns the
+            # post-write row; refresh this executor's local view from it.
+            merged_deep = saved.research_context.get("deep")
             if isinstance(merged_deep, dict) and isinstance(
                 merged_deep.get("steering"), list
             ):

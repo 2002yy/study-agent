@@ -335,6 +335,59 @@ def test_running_cancel_freezes_the_opening(tmp_path):
     assert after.get("sequence") == state["at_cancel"].get("sequence")
 
 
+def test_running_cancel_rejects_a_new_opening_checkpoint(tmp_path):
+    """Inside the running+cancel window, a new approach must not be written."""
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    state = {"run_id": "", "done": False}
+    gateway = ScriptedGateway({"area": [_result("https://c.test/1", "Focus Source")]})
+    base_search = gateway.search
+
+    def race_search(query, *, max_items: int = 10):
+        if not state["done"] and state["run_id"]:
+            state["done"] = True
+            repository.request_cancel(state["run_id"])
+            current = repository.get(state["run_id"])
+            assert current.status == "running"  # running window, cancel recorded
+            before = dict(current.research_context.get("approach") or {})
+            operation_id = str(
+                ((current.research_context.get("operation") or {}).get("active_operation_id")) or ""
+            )
+            stale = dict(before)
+            stale["summary"] = "取消后不应出现的更新"
+            stale["sequence"] = int(before.get("sequence") or 0) + 1
+            stale["origin"] = "direction_update"
+            stale["status"] = "ready"
+            context = dict(current.research_context)
+            context["approach"] = stale
+            repository.checkpoint(
+                state["run_id"],
+                operation_id=operation_id,
+                research_context=context,
+                query_attempts=[],
+                selected_sources=[],
+                rejected_sources=[],
+                items=[],
+                warnings=[],
+            )
+            after = dict(repository.get(state["run_id"]).research_context.get("approach") or {})
+            assert after.get("summary") == before.get("summary")
+            assert after.get("sequence") == before.get("sequence")
+        return base_search(query, max_items=max_items)
+
+    gateway.search = race_search
+    service = WebLookupService(
+        repository,
+        gateway,
+        planner=ScriptedPlanner(
+            initial=["focus area", "second area", "third area"],
+            revisions=[{"done": False, "additional": []}, {"done": True, "additional": []}],
+        ),
+    )
+    run = service.create("cancel race topic", research_mode="deep")
+    state["run_id"] = run.id
+    service.execute(run.id)
+
+
 def test_standard_mode_unchanged(tmp_path):
     gateway = ScriptedGateway({"standard": [_result("https://s.test/5", "Std")]})
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))

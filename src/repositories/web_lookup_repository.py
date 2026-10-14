@@ -672,6 +672,14 @@ class WebLookupRepository:
                 checkpoint_context,
                 run.research_context,
             )
+            if run.cancel_requested_at:
+                # A persisted cancel freezes the opening: keep the durable one.
+                # Legitimate cleanup/diagnostic writes still proceed.
+                durable_approach = run.research_context.get("approach")
+                if durable_approach is None:
+                    checkpoint_context.pop("approach", None)
+                else:
+                    checkpoint_context["approach"] = durable_approach
             context = _with_operation(
                 checkpoint_context,
                 **_operation_state(run.research_context),
