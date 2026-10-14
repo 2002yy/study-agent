@@ -296,6 +296,38 @@ def _ready_approach(
 # Deterministic comparison cues in the user's own words (never invented facts).
 _COMPARE_MARKERS = ("比较", "对比", "区别", "差异", "哪个", "vs", "versus")
 
+# Trailing request clauses to drop so the opening names the subject, not the
+# instruction.  Purely cosmetic: no dimension or fact is added.
+_REQUEST_TAILS = (
+    "请给出", "请说明", "请列出", "请按", "请提供", "并给出", "并说明", "并列出",
+    "给出", "请问", "请",
+)
+_INTERROGATIVE_TAILS = (
+    "是什么", "有哪些", "是多少", "怎么样", "怎么", "如何", "为什么", "哪些", "哪个",
+)
+
+
+def _dequestion(text: Any) -> str:
+    """Turn a question into a plain subject phrase, deterministically.
+
+    Only strips punctuation, trailing request clauses and trailing
+    interrogatives.  Never adds information; if nothing useful remains the
+    caller keeps the cleaned canonical query.
+    """
+
+    value = _clean_text(text).strip("？?。.!！，,；;：: ")
+    for marker in _REQUEST_TAILS:
+        index = value.find(marker)
+        if index > 0:
+            value = value[:index]
+            break
+    value = value.strip("？?。.!！，,；;：: ")
+    for marker in _INTERROGATIVE_TAILS:
+        if value.endswith(marker) and len(value) > len(marker):
+            value = value[: -len(marker)]
+            break
+    return _clean_text(value).strip("？?。.!！，,；;：: ")
+
 
 def summarize_lookup_query(
     *,
@@ -328,17 +360,22 @@ def summarize_lookup_query(
 
     lowered = raw.lower()
     is_compare = any(marker in lowered for marker in _COMPARE_MARKERS) or len(entities) >= 2
+    fallback_subject = _dequestion(canonical) or canonical
 
     def compose(names: list[str]) -> str:
         if names:
             subject = "、".join(names)
             base = (
-                f"我会分别查找 {subject} 的相关资料，再比较问题涉及的方面有哪些区别。"
+                f"我会分别查找{subject}的相关资料，再比较问题涉及的方面有哪些区别。"
                 if is_compare
-                else f"我会围绕 {subject} 查找相关资料，核对关键信息是否一致。"
+                else f"我会围绕{subject}查找相关资料，核对关键信息是否一致。"
             )
         else:
-            base = f"我会围绕「{canonical}」查找相关资料并核对来源。"
+            base = (
+                f"我会分别查找与{fallback_subject}相关的资料，再比较问题涉及的方面有哪些区别。"
+                if is_compare
+                else f"我会围绕{fallback_subject}查找相关资料，并核对来源是否一致。"
+            )
         if freshness_requested:
             base = base[:-1] + "，并优先核对最新信息。" if base.endswith("。") else base
         return base
@@ -355,7 +392,7 @@ def summarize_lookup_query(
     return _ready_approach(
         mode=mode,
         summary=summary,
-        focus=names or [canonical],
+        focus=names or [fallback_subject],
         origin=ORIGIN_QUERY_PLAN,
         root_run_id=root_run_id,
         turn_id=turn_id,

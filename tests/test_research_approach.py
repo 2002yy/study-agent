@@ -357,6 +357,31 @@ def test_summarize_lookup_query_stays_within_lookup_budget() -> None:
     assert len(approach["summary"]) <= MAX_SUMMARY_CHARS["lookup"]
 
 
+def test_summarize_lookup_query_dequestions_when_no_entities() -> None:
+    approach = summarize_lookup_query(
+        query="Python 3.14 的正式发布日期是什么？请给出官方来源。",
+        canonical_query="Python 3.14 的正式发布日期是什么？请给出官方来源。",
+        entity_aliases=[],
+    )
+    summary = approach["summary"]
+    assert approach["origin"] == "query_plan"
+    assert "？" not in summary and "?" not in summary
+    assert "请给出" not in summary
+    assert "Python 3.14" in summary
+    assert "发布日期" in summary
+
+
+def test_summarize_lookup_query_dequestions_comparison() -> None:
+    approach = summarize_lookup_query(
+        query="比较 PostgreSQL 与 MySQL 在 MVCC 实现上的差异与代价。",
+        canonical_query="比较 PostgreSQL 与 MySQL 在 MVCC 实现上的差异与代价。",
+        entity_aliases=[],
+    )
+    summary = approach["summary"]
+    assert "比较" in summary  # comparison cue preserved from the user's own words
+    assert "PostgreSQL" in summary and "MySQL" in summary
+
+
 def test_fallback_is_honest_and_authority_free() -> None:
     approach = fallback_approach(mode="lookup")
     assert approach["origin"] == "fallback"
