@@ -103,8 +103,14 @@ summary yet) — the UI shows the existing deterministic tool progress meanwhile
   overwrite after cancel/end/newer direction, and failure that never
   propagates.  The budget gate (`authorize`) is injected from the existing
   budget authority; this feature does not own the model-call ceiling.
-  **Remaining:** connect `authorize`/`write` to the live run and run it off the
-  research path.
+  **Live binding:** `standard_execution_bindings(execution, clock=…)` binds the
+  coordinator to the Standard journal.  `authorize` → `authorize_approach_attempt`
+  (persisted reservation, authoritative idempotency) and `write` →
+  `record_approach` (**check + write in one transaction**, so a cancel or newer
+  direction landing between generation and write cannot be overwritten).  The
+  budget ceiling is passed in by the existing budget owner.
+  **Remaining:** run the attempt off the research path (background), and cover
+  the Lookup/Deep run kinds.
 - **Field display:** `translate_field` maps known plan field names to natural
   labels (`release_date → 发布日期`); unknown names are shown unchanged, so a
   projection can never invent a research dimension.

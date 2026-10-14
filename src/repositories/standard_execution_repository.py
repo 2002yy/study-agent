@@ -19,6 +19,7 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research_recovery import STANDARD_BUDGET
 from src.web.research.lookup_terminal import load_standard_handoff
+from src.web.research.approach_generation import write_allowed
 from src.web.research.research_approach import summarize_plan
 from src.web.research.standard_plan import (
     action,
@@ -518,6 +519,69 @@ class StandardExecutionRepository:
                 )
             except Exception:
                 pass
+
+    def authorize_approach_attempt(
+        self,
+        run_id: str,
+        thread_id: str,
+        operation_id: str,
+        now: datetime,
+        *,
+        max_calls: int = 1,
+    ) -> bool:
+        """Atomically reserve one research-opening generation attempt.
+
+        The Standard journal is the **authoritative** store: the reservation is
+        persisted inside the same transaction that re-checks owner, operation
+        identity, cancellation, terminal state and deadline, so two threads or
+        processes cannot spend the same authorization.  ``max_calls`` (the
+        ceiling) is supplied by the caller — the existing budget owner — never
+        invented here.
+        """
+
+        with self._transaction(run_id, thread_id, now, operation_id=operation_id) as (
+            connection,
+            context,
+            ledger,
+        ):
+            research = ledger.get("research")
+            if not isinstance(research, dict):
+                return False
+            used = research.get("approach_generation_calls")
+            used = used if isinstance(used, int) and not isinstance(used, bool) else 0
+            if used >= max(0, int(max_calls)):
+                return False
+            research["approach_generation_calls"] = used + 1
+            return True
+
+    def record_approach(
+        self,
+        run_id: str,
+        thread_id: str,
+        operation_id: str,
+        now: datetime,
+        approach: Any,
+    ) -> bool:
+        """Atomically check identity/terminal/origin and persist the opening.
+
+        The check and the write share one transaction, so a cancel or a newer
+        direction landing between generation and write cannot be overwritten.
+        """
+
+        with self._transaction(run_id, thread_id, now, operation_id=operation_id) as (
+            connection,
+            context,
+            ledger,
+        ):
+            # Reaching the body already means: owner + operation match, lease
+            # valid, not cancelled, not terminal, deadline not exhausted.
+            current = context.get("approach")
+            if not write_allowed(
+                current=current, candidate=approach, run_id=run_id, terminal=False
+            ):
+                return False
+            context["approach"] = approach
+            return True
 
     def claim_research_step(
         self, run_id: str, thread_id: str, operation_id: str, now: datetime

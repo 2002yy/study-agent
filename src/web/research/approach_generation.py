@@ -210,3 +210,30 @@ class ApproachGenerationCoordinator:
             turn_id=turn_id,
             sequence=sequence,
         )
+
+
+def standard_execution_bindings(
+    execution: Any, *, clock: Callable[[], Any], max_calls: int = 1
+) -> tuple[Callable[[str, str], bool], Callable[[str, dict[str, Any]], bool]]:
+    """Bind the coordinator to a Standard execution's authoritative journal.
+
+    Both callbacks run through the same transactional repository methods, so
+    budget reservation, identity/terminal checks and the write share the
+    database's atomicity — not an in-process lock.  ``max_calls`` is the
+    existing budget owner's ceiling.
+    """
+
+    journal = execution.journal
+    run_id = execution.run_id
+    thread_id = execution.thread_id
+    operation_id = execution.operation_id
+
+    def authorize(_run_id: str, _operation_id: str) -> bool:
+        return journal.authorize_approach_attempt(
+            run_id, thread_id, operation_id, clock(), max_calls=max_calls
+        )
+
+    def write(_run_id: str, approach: dict[str, Any]) -> bool:
+        return journal.record_approach(run_id, thread_id, operation_id, clock(), approach)
+
+    return authorize, write

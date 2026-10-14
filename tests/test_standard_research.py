@@ -96,6 +96,104 @@ def test_saved_handoff_to_plan_search_read_and_nonpublishing_result(running):
     assert "发布日期" in approach["summary"]
 
 
+def _generated_approach(run_id: str) -> dict:
+    return {
+        "schema": "research-approach-v1",
+        "root_run_id": run_id,
+        "turn_id": "",
+        "mode": "standard",
+        "status": "ready",
+        "summary": "我会先核对发布日期，再核对许可证。",
+        "focus": ["发布日期", "许可证"],
+        "origin": "model_generated",
+        "sequence": 1,
+    }
+
+
+def test_approach_attempt_authorization_is_persisted_and_idempotent(running):
+    execution, clock, _, runs, _ = running
+    # Authorization is only meaningful once the plan phase exists.
+    StandardResearchLoop(execution, Planner()).advance(Gateway(), max_steps=1)
+    args = (execution.run_id, execution.thread_id, execution.operation_id, clock[0])
+    assert execution.journal.authorize_approach_attempt(*args) is True
+    # The reservation is authoritative: a second attempt cannot spend it again.
+    assert execution.journal.authorize_approach_attempt(*args) is False
+    stored = runs.get(execution.run_id).research_context["standard"]["research"]
+    assert stored["approach_generation_calls"] == 1
+
+
+def test_record_approach_writes_atomically_and_rejects_stale(running):
+    execution, clock, _, runs, _ = running
+    args = (execution.run_id, execution.thread_id, execution.operation_id, clock[0])
+    approach = _generated_approach(execution.run_id)
+    assert execution.journal.record_approach(*args, approach) is True
+    assert (
+        runs.get(execution.run_id).research_context["approach"]["origin"]
+        == "model_generated"
+    )
+    # Same/lower sequence must not overwrite.
+    assert execution.journal.record_approach(*args, approach) is False
+
+
+def test_record_approach_rejected_after_cancel(running):
+    execution, clock, _, _, _ = running
+    execution.interrupt()
+    with pytest.raises(ValueError):
+        execution.journal.record_approach(
+            execution.run_id,
+            execution.thread_id,
+            execution.operation_id,
+            clock[0],
+            _generated_approach(execution.run_id),
+        )
+
+
+def test_record_approach_rejected_when_projection_already_ready(running):
+    execution, clock, _, _, _ = running
+    # Saving a plan persists a model_plan projection; a generated summary must
+    # not replace it.
+    StandardResearchLoop(execution, Planner()).advance(Gateway(), max_steps=1)
+    written = execution.journal.record_approach(
+        execution.run_id,
+        execution.thread_id,
+        execution.operation_id,
+        clock[0],
+        _generated_approach(execution.run_id),
+    )
+    assert written is False
+
+
+def test_standard_binding_costs_zero_calls_when_projection_ready(running):
+    from src.web.research.approach_generation import (
+        ApproachGenerationCoordinator,
+        standard_execution_bindings,
+    )
+
+    execution, clock, _, runs, _ = running
+    StandardResearchLoop(execution, Planner()).advance(Gateway(), max_steps=1)
+    authorize, write = standard_execution_bindings(execution, clock=lambda: clock[0])
+    calls = {"completion": 0}
+
+    def completion(messages, **kwargs):  # noqa: ANN001
+        calls["completion"] += 1
+        return "{}"
+
+    coordinator = ApproachGenerationCoordinator(
+        authorize=authorize, write=write, completion=completion
+    )
+    current = runs.get(execution.run_id).research_context["approach"]
+    outcome = coordinator.attempt(
+        run_id=execution.run_id,
+        operation_id=execution.operation_id,
+        mode="standard",
+        query="q",
+        current=current,
+        is_terminal=lambda: False,
+    )
+    assert outcome.reason == "not_needed"
+    assert calls["completion"] == 0
+
+
 def test_resume_uses_saved_plan_and_next_action_without_model_reentry(running):
     execution, _, _, _, _ = running
     planner, gateway = Planner(), Gateway()
