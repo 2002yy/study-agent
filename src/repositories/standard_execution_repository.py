@@ -19,6 +19,7 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research_recovery import STANDARD_BUDGET
 from src.web.research.lookup_terminal import load_standard_handoff
+from src.web.research.research_approach import summarize_plan
 from src.web.research.standard_plan import (
     action,
     build_result,
@@ -485,7 +486,7 @@ class StandardExecutionRepository:
     ) -> None:
         with self._transaction(run_id, thread_id, now, operation_id=operation_id) as (
             connection,
-            _,
+            context,
             ledger,
         ):
             research = ledger["research"]
@@ -504,6 +505,19 @@ class StandardExecutionRepository:
                     json.dumps(plan, sort_keys=True).encode()
                 ).hexdigest(),
             )
+            # Research opening ("研究开场"): project the model's own plan field
+            # names into a short, honest direction.  Deterministic, no extra
+            # model call, plan envelope untouched; a failure here must never
+            # block the research loop.
+            try:
+                context["approach"] = summarize_plan(
+                    mode=context.get("research_mode") or "standard",
+                    fields=[gap["field"] for gap in plan["gaps"]],
+                    turn_id=str((context.get("owner") or {}).get("turn_id") or ""),
+                    sequence=1,
+                )
+            except Exception:
+                pass
 
     def claim_research_step(
         self, run_id: str, thread_id: str, operation_id: str, now: datetime
