@@ -36,6 +36,14 @@ function progress(overrides: Partial<ChatResearchProgress> = {}): ChatResearchPr
 }
 
 describe("researchApproach merge", () => {
+  it("rejects stale progress and retains process blocks across checkpoints", () => {
+    const previous = progress({ version: 3, narration: [{ block_id: "first", text: "first read" }] });
+    const merged = mergeResearchProgress(previous, progress({ version: 4, narration: [{ block_id: "next", text: "additional search" }] }));
+    expect(merged?.narration?.map(block => block.block_id)).toEqual(["first", "next"]);
+    expect(mergeResearchProgress(merged, progress({ version: 2 }))).toEqual(merged);
+    expect(mergeResearchProgress(merged, progress({ version: 5, narration: [{ block_id: "next", text: "additional search" }] }))?.narration).toHaveLength(2);
+    expect(mergeResearchProgress(merged, progress({ run_id: "other" }))?.narration).toBeUndefined();
+  });
   it("carries the opening forward when an event omits it", () => {
     const previous = progress({ approach: approach() });
     const merged = mergeResearchProgress(previous, progress({ version: 4 }));

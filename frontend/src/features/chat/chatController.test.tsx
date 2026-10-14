@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { operationRegistry } from "../../app/operationRegistry";
 import { WorkspaceProvider } from "../../app/WorkspaceProvider";
-import type { ChatSettings, RagSettings } from "../../types";
+import type { ChatSettings, RagSettings, ChatResearchProgress } from "../../types";
 import { useChatController } from "./chatController";
 
 const apiMocks = vi.hoisted(() => ({
@@ -18,6 +18,10 @@ const apiMocks = vi.hoisted(() => ({
   createNewSession: vi.fn(),
   loadSessionDetail: vi.fn(),
   sendChatStream: vi.fn(),
+  steerResearchRun: vi.fn(),
+  queueResearchFollowup: vi.fn(),
+  completeResearchFollowup: vi.fn(),
+  loadResearchQueue: vi.fn().mockResolvedValue({ messages: [] }),
 }));
 
 vi.mock("../../api", () => apiMocks);
@@ -86,6 +90,106 @@ function controllerHarness(
   );
   return { result, onResearchRunDiscovered, setUseWebLookup };
 }
+
+describe("continuous research conversation", () => {
+  let callbacks: NonNullable<Parameters<typeof import("../../api").sendChatStream>[3]>;
+  let finish: () => void;
+  let signal: AbortSignal | undefined;
+  const progress = (overrides: Partial<ChatResearchProgress> = {}): ChatResearchProgress => ({
+    run_id: "run-live", status: "running", stage: "searching", provider_status: "",
+    stop_reason: "", error: "", query_attempt_count: 1, selected_source_count: 0,
+    version: 1, steering_supported: true, ...overrides,
+  });
+  beforeEach(() => {
+    operationRegistry.cancelAll();
+    vi.resetAllMocks();
+    apiMocks.loadResearchQueue.mockResolvedValue({ messages: [] });
+    apiMocks.sendChatStream.mockImplementation((_q, _h, _o, cb, request) => {
+      callbacks = cb;
+      signal = request.signal;
+      cb.onSession("chat-live", { turnId: "turn-live" });
+      cb.onResearch(progress());
+      return new Promise(resolve => { finish = () => resolve({
+        reply: "final answer", session_id: "chat-live", turn_id: "turn-live", route: {}, rag: {},
+      }); });
+    });
+    apiMocks.steerResearchRun.mockImplementation((_run, _question, request) => Promise.resolve({
+      id: "run-live", research_context: { claim_engine_steering: [{
+        id: "steer-1", request_id: request.requestId, content: "add omega", status: "pending",
+      }] },
+    }));
+  });
+
+  it("submits into the same run, keeps streaming to the assistant, and reflects application", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    let stream: Promise<void>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    expect(result.current.canSteer).toBe(true);
+    await act(async () => { await result.current.send("add omega"); });
+    expect(apiMocks.steerResearchRun).toHaveBeenCalledWith("run-live", "add omega", { requestId: expect.stringMatching(/^steer_/) });
+    expect(apiMocks.sendChatStream).toHaveBeenCalledTimes(1);
+    expect(apiMocks.cancelChatTurn).not.toHaveBeenCalled();
+    expect(signal?.aborted).toBe(false);
+    expect(result.current.messages[result.current.messages.length - 1].researchSteering?.status).toBe("pending");
+    await act(async () => {
+      callbacks.onToken?.("continued output");
+      callbacks.onResearch?.(progress({ version: 2, steering: [{ id: "steer-1", content: "add omega", status: "applied" }] }));
+    });
+    expect(result.current.messages.find(message => message.role === "assistant" && message.content === "continued output")).toBeTruthy();
+    expect(result.current.messages[result.current.messages.length - 1].researchSteering?.status).toBe("applied");
+    await act(async () => { finish(); await stream!; });
+    expect(result.current.canSteer).toBe(false);
+  });
+
+  it("guards duplicate submits and discards receipts after a session transition", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    let stream: Promise<void>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    let receive: (value: unknown) => void = () => {};
+    apiMocks.steerResearchRun.mockImplementation(() => new Promise(resolve => { receive = resolve; }));
+    let supplement: Promise<void>;
+    await act(async () => {
+      supplement = result.current.send("add omega");
+      await result.current.send("duplicate");
+    });
+    expect(apiMocks.steerResearchRun).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      result.current.transitionSession("chat-other", [{ role: "user", content: "other session" }], null);
+      receive({ research_context: { deep: { steering: [{ id: "steer-1", content: "add omega" }] } } });
+      await supplement!;
+    });
+    expect(result.current.messages).toEqual([{ role: "user", content: "other session" }]);
+    expect(result.current.researchProgress).toBeNull();
+    await act(async () => { finish(); await stream!; });
+    expect(result.current.messages).toEqual([{ role: "user", content: "other session" }]);
+  });
+
+  it("never sends a new chat turn when the current executor cannot steer", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    let stream: Promise<void>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    await act(async () => { callbacks.onResearch?.(progress({ version: 2, steering_supported: false })); });
+    expect(result.current.canSteer).toBe(false);
+    await act(async () => { await result.current.send("add omega"); });
+    expect(apiMocks.steerResearchRun).not.toHaveBeenCalled();
+    expect(apiMocks.sendChatStream).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(); await stream!; });
+  });
+
+  it("persists a queued next question without touching the active stream", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    apiMocks.queueResearchFollowup.mockResolvedValue({ id: "run-live" });
+    let stream: Promise<void>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    await act(async () => { await result.current.queue("next question"); });
+    expect(apiMocks.queueResearchFollowup).toHaveBeenCalledWith("run-live", "next question", expect.stringMatching(/^queue_/));
+    expect(apiMocks.steerResearchRun).not.toHaveBeenCalled();
+    expect(apiMocks.sendChatStream).toHaveBeenCalledTimes(1);
+    expect(signal?.aborted).toBe(false);
+    expect(result.current.messages[result.current.messages.length - 1].researchQueued?.status).toBe("pending");
+    await act(async () => { finish(); await stream!; });
+  });
+});
 
 describe("useChatController stop behavior", () => {
   beforeEach(() => {

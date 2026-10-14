@@ -170,6 +170,9 @@ export type ChatMessage = {
   cancelNotice?: string;
   parentTurnId?: string | null;
   evidence?: TurnEvidence;
+  researchProgress?: ChatResearchProgress;
+  researchSteering?: { runId: string; id: string; status: "pending" | "applied" | "executing" | "late" };
+  researchQueued?: { runId: string; id: string; status: "pending" | "executing" | "completed" };
 };
 
 export type ChatSettings = {
@@ -550,6 +553,7 @@ export type KnowledgeDocumentListResponse = {
 };
 
 export type WebLookupRunResponse = {
+  research_context?: Record<string, unknown>;
   id: string;
   query: string;
   status: "running" | "completed" | "failed";
@@ -591,6 +595,10 @@ export type ChatResearchProgress = {
   gate_status?: string | null;
   version: number;
   // Research opening ("研究开场"): display-only, optional; legacy servers omit it.
+  steering_supported?: boolean;
+  steering?: Array<{ id: string; content: string; status: "pending" | "applied" | "executing" | "late" }>;
+  narration?: Array<{ block_id: string; text: string }>;
+  budget_extension?: "configured" | "not_configured";
   approach?: ChatResearchApproach | null;
   // G18 deep-research journey fields (present only for deep runs).
   round?: number | null;

@@ -70,3 +70,24 @@
 @media (max-width: 600px) {
   .answer-external-image-consent > button { min-height: 44px; }
 }
+.research-narration { width: 100%; line-height: 1.7; }
+.research-narration summary { cursor: pointer; padding: 4px 0; color: var(--muted); }
+.research-narration ol { margin: 8px 0; padding-left: 20px; }
+.research-narration li + li { margin-top: 8px; }
+.answer-progress-status { font-weight: 500; }
+.answer-progress-counts { color: var(--muted); }
+.answer-progress-note { width: 100%; color: var(--muted); }
+.research-steering-receipt { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.research-composer-hint { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+/* A queued follow-up is its own timeline card; it never reads as the running
+   research and never implies the current search was changed. */
+.research-queue-card {
+  display: grid; gap: 6px; max-width: min(680px, 100%); padding: 12px 14px;
+  border: 1px solid #dbe4ea; border-radius: 14px; background: #f8fafb;
+  color: var(--text); font-size: 13px; line-height: 1.6;
+}
+.research-queue-head { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.research-queue-title { font-weight: 600; color: var(--text); }
+.research-queue-count { margin-left: auto; padding: 1px 8px; border-radius: 999px; background: #eef2f4; }
+.research-queue-body { margin: 0; overflow-wrap: anywhere; }
+.research-queue-note { margin: 0; color: var(--muted); font-size: 12px; }

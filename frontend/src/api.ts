@@ -842,17 +842,34 @@ export async function cancelChatResearchRuns(turnId: string): Promise<WebLookupR
 export async function steerResearchRun(
   runId: string,
   content: string,
-  requestOptions: { signal?: AbortSignal } = {}
+  requestOptions: { signal?: AbortSignal; requestId?: string } = {}
 ): Promise<WebLookupRunResponse> {
   return requestJson<WebLookupRunResponse>(
     `/research-runs/${encodeURIComponent(runId)}/steer`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, request_id: requestOptions.requestId }),
       signal: requestOptions.signal
     }
   );
+}
+
+export async function queueResearchFollowup(runId: string, content: string, requestId: string): Promise<WebLookupRunResponse> {
+  return requestJson<WebLookupRunResponse>(`/research-runs/${encodeURIComponent(runId)}/queue`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, request_id: requestId }),
+  });
+}
+
+export async function loadResearchQueue(threadId: string): Promise<{ messages: Array<{ run_id: string; id: string; content: string; status: "pending" }>; progress?: Array<ChatResearchProgress & { turn_id: string }> }> {
+  return requestJson(`/sessions/${encodeURIComponent(threadId)}/research-queue`);
+}
+
+export async function completeResearchFollowup(runId: string, requestId: string, turnId: string): Promise<WebLookupRunResponse> {
+  return requestJson<WebLookupRunResponse>(`/research-runs/${encodeURIComponent(runId)}/queue/${encodeURIComponent(requestId)}/complete`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ turn_id: turnId }),
+  });
 }
 
 export type ChatTurnCancelOutcome =

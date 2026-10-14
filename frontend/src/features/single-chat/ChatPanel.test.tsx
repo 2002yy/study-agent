@@ -4,10 +4,10 @@ import "@testing-library/jest-dom/vitest";
 if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function scrollIntoView() {};
 }
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { ChatResponse } from "../../types";
+import type { ChatResponse, ChatMessage, ChatResearchProgress } from "../../types";
 import {
   clearPendingTaskIntentOverride,
   consumePendingTaskIntentOverride,
@@ -22,6 +22,11 @@ type RenderOptions = {
   selectedRole?: string;
   onSelectRole?: ReturnType<typeof vi.fn>;
   isSending?: boolean;
+  canSteer?: boolean;
+  canQueue?: boolean;
+  onQueue?: ReturnType<typeof vi.fn>;
+  messages?: ChatMessage[];
+  researchProgress?: ChatResearchProgress;
   taskIntent?: string;
   closureEligibility?: string;
   onOpenDrawer?: ReturnType<typeof vi.fn>;
@@ -40,7 +45,7 @@ type RenderOptions = {
 function renderPanel(options: RenderOptions = {}) {
   return render(
     <ChatPanel
-      messages={[]}
+      messages={options.messages ?? []}
       sessionId="session-secret-raw-id"
       sessionNavigation={null}
       input={options.input ?? ""}
@@ -48,6 +53,10 @@ function renderPanel(options: RenderOptions = {}) {
       selectedRole={options.selectedRole}
       onSelectRole={options.onSelectRole}
       isSending={options.isSending ?? false}
+      canSteer={options.canSteer}
+      canQueue={options.canQueue}
+      onQueue={options.onQueue}
+      researchProgress={options.researchProgress}
       onSubmit={options.onSubmit ?? vi.fn()}
       onStop={vi.fn()}
       streamRecovery={options.streamRecovery ?? null}
@@ -104,6 +113,45 @@ function findByRoleAndText(container: HTMLElement, role: string, text: string) {
     (el.textContent ?? "").includes(text),
   );
 }
+
+describe("continuous conversation input", () => {
+  it("accepts an in-flight supplement while keeping stop independently available", () => {
+    const submit = vi.fn();
+    renderPanel({ isSending: true, canSteer: true, input: "add another comparison", onSubmit: submit });
+    fireEvent.click(screen.getByRole("button", { name: "追加要求", exact: true }));
+    expect(submit).toHaveBeenCalledWith(expect.anything(), "add another comparison");
+    expect(screen.getByRole("button", { name: "停止", exact: true })).toBeEnabled();
+  });
+
+  it("queues without steering or stopping the current research", () => {
+    const submit = vi.fn();
+    const queue = vi.fn();
+    renderPanel({ isSending: true, canSteer: true, canQueue: true, input: "next question", onSubmit: submit, onQueue: queue });
+    fireEvent.click(screen.getByRole("button", { name: "完成后再做", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "加入下一轮", exact: true }));
+    expect(queue).toHaveBeenCalledWith("next question");
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("keeps the composer editable and blocks IME candidate confirmation", () => {
+    const submit = vi.fn();
+    renderPanel({ isSending: true, canSteer: true, input: "中文候选", onSubmit: submit });
+    const input = screen.getByRole("textbox", { name: "输入学习问题" });
+    expect(input).toBeEnabled();
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("keeps streaming progress on the assistant after a user supplement is appended", () => {
+    renderPanel({ isSending: true, canSteer: true, messages: [
+      { role: "assistant", content: "partial answer" },
+      { role: "user", content: "supplement", transient: true, researchSteering: { runId: "r", id: "s", status: "pending" } },
+    ] });
+    expect(screen.getByText("回答正在补充，可以先阅读")).toBeVisible();
+    expect(screen.getByText("已纳入研究计划 · 等待相关搜索")).toBeVisible();
+  });
+});
 
 describe("ChatPanel learning product boundary", () => {
   it("renders a single contextual level-one heading in normal chat", () => {
@@ -187,10 +235,19 @@ describe("ChatPanel learning product boundary", () => {
     fireEvent.click(container.querySelector('.chat-role-settings-heading button')!);
     expect(select).toHaveBeenCalledWith("auto");
   });
-  it("keeps active-turn role settings immutable and hides them in search mode",()=>{
-    const select=vi.fn();const {container}=renderPanel({selectedRole:"march7",onSelectRole:select,isSending:true});
+  it("keeps the active turn immutable: no role switching, only adjust/after semantics",()=>{
+    const select=vi.fn();const {container}=renderPanel({selectedRole:"march7",onSelectRole:select,isSending:true,canSteer:true,canQueue:true});
+    // The role is fixed while a turn is running.
+    expect(container.querySelector('[aria-label="对话设置"]')).toBeNull();
+    expect(container.querySelector('.chat-role-settings')).toBeNull();
+    // The composer only offers the two continuous-conversation semantics.
+    expect(Array.from(container.querySelectorAll('.composer-modes button')).map(button=>button.textContent))
+      .toEqual(["调整当前研究","完成后再做"]);
+    expect(select).not.toHaveBeenCalled();
+  });
+  it("hides role settings when switching to search mode",()=>{
+    const select=vi.fn();const {container}=renderPanel({selectedRole:"march7",onSelectRole:select});
     fireEvent.click(container.querySelector('[aria-label="对话设置"]')!);
-    for(const button of container.querySelectorAll('.chat-role-settings button'))expect(button).toBeDisabled();
     fireEvent.click(container.querySelectorAll('.composer-modes button')[1]);
     expect(container.querySelector('.chat-role-settings')).toBeNull();
     expect(container.querySelector('[aria-label="对话设置"]')).toBeNull();expect(select).not.toHaveBeenCalled();
