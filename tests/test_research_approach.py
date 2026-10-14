@@ -18,6 +18,7 @@ from src.web.research.research_approach import (
     project_from_plan,
     seed_approach,
     summarize_lookup_query,
+    summarize_deep_plan,
     summarize_plan,
     translate_field,
     validate_approach,
@@ -380,6 +381,75 @@ def test_summarize_lookup_query_dequestions_comparison() -> None:
     summary = approach["summary"]
     assert "比较" in summary  # comparison cue preserved from the user's own words
     assert "PostgreSQL" in summary and "MySQL" in summary
+
+
+def test_summarize_deep_plan_updates_from_real_subquestions() -> None:
+    previous = summarize_lookup_query(
+        query="比较 PostgreSQL 与 MySQL 的 MVCC",
+        canonical_query="比较 PostgreSQL 与 MySQL 的 MVCC",
+        entity_aliases=["PostgreSQL", "MySQL"],
+        mode="deep",
+    )
+    updated = summarize_deep_plan(
+        query="比较 PostgreSQL 与 MySQL 的 MVCC",
+        sub_questions=["PostgreSQL 的 MVCC 实现", "MySQL 的 MVCC 实现", "两者并发代价对比"],
+        previous=previous,
+    )
+    assert updated is not None
+    assert updated["origin"] == "direction_update"
+    assert updated["sequence"] == previous["sequence"] + 1
+    assert "PostgreSQL 的 MVCC 实现" in updated["summary"]
+
+
+def test_summarize_deep_plan_skips_default_plan_equal_to_query() -> None:
+    previous = summarize_lookup_query(
+        query="围棋提子与打劫规则", canonical_query="围棋提子与打劫规则", entity_aliases=["围棋"], mode="deep"
+    )
+    assert (
+        summarize_deep_plan(
+            query="围棋提子与打劫规则",
+            sub_questions=["围棋提子与打劫规则"],
+            previous=previous,
+        )
+        is None
+    )
+
+
+def test_summarize_deep_plan_skips_unchanged_plan() -> None:
+    previous = summarize_lookup_query(
+        query="MVCC 差异", canonical_query="MVCC 差异", entity_aliases=["MVCC"], mode="deep"
+    )
+    first = summarize_deep_plan(
+        query="MVCC 差异",
+        sub_questions=["PostgreSQL MVCC", "MySQL MVCC"],
+        previous=previous,
+    )
+    assert first is not None
+    # The same plan must not republish the same direction.
+    assert (
+        summarize_deep_plan(
+            query="MVCC 差异",
+            sub_questions=["PostgreSQL MVCC", "MySQL MVCC"],
+            previous=first,
+        )
+        is None
+    )
+
+
+def test_summarize_deep_plan_advances_on_accepted_addition() -> None:
+    previous = summarize_lookup_query(
+        query="MVCC 差异", canonical_query="MVCC 差异", entity_aliases=["MVCC"], mode="deep"
+    )
+    first = summarize_deep_plan(
+        query="MVCC 差异", sub_questions=["PostgreSQL MVCC", "MySQL MVCC"], previous=previous
+    )
+    second = summarize_deep_plan(
+        query="MVCC 差异",
+        sub_questions=["PostgreSQL MVCC", "MySQL MVCC", "两者锁粒度对比"],
+        previous=first,
+    )
+    assert second is not None
+    assert second["sequence"] == first["sequence"] + 1
 
 
 def test_fallback_is_honest_and_authority_free() -> None:

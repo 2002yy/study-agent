@@ -372,7 +372,7 @@ def summarize_lookup_query(
             )
         else:
             base = (
-                f"我会分别查找与{fallback_subject}相关的资料，再比较问题涉及的方面有哪些区别。"
+                f"我会查找{_strip_compare_prefix(fallback_subject)}的资料，再比较两者的差异。"
                 if is_compare
                 else f"我会围绕{fallback_subject}查找相关资料，并核对来源是否一致。"
             )
@@ -453,6 +453,76 @@ def summarize_plan(
         root_run_id=root_run_id,
         turn_id=turn_id,
         sequence=sequence,
+    )
+
+
+def _strip_compare_prefix(text: str) -> str:
+    value = _clean_text(text)
+    for marker in ("比较", "对比"):
+        if value.startswith(marker):
+            return _clean_text(value[len(marker):])
+    return value
+
+
+def summarize_deep_plan(
+    *,
+    query: Any,
+    sub_questions: Any,
+    previous: Any = None,
+    mode: Any = MODE_DEEP,
+    root_run_id: str = "",
+    turn_id: str = "",
+) -> dict[str, Any] | None:
+    """Project Deep's **real** plan sub-questions into a direction update.
+
+    Deterministic, no model call.  Returns ``None`` when the plan adds no new
+    direction (e.g. a default plan that is just the original query, or an
+    unchanged plan), so the same opening is never republished.  Only plans the
+    runtime actually holds are projected — never a claimed-but-unaccepted
+    steering request.
+    """
+
+    raw_subjects = sub_questions if isinstance(sub_questions, (list, tuple)) else []
+    subjects = _clean_focus([_dequestion(item) for item in raw_subjects])
+    if not subjects:
+        return None
+    canonical = _dequestion(query)
+    if len(subjects) == 1 and subjects[0] == canonical:
+        return None  # default plan == original query: no new direction
+    prior = (
+        previous
+        if isinstance(previous, dict) and previous.get("schema") == APPROACH_SCHEMA
+        else None
+    )
+    if prior is not None and list(prior.get("focus") or []) == subjects:
+        return None  # plan unchanged since the last published direction
+
+    limit = MAX_SUMMARY_CHARS[normalize_mode(mode)]
+    names = subjects[:4]
+
+    def compose(items: list[str]) -> str:
+        return f"我会按研究计划分别核对：{'、'.join(items)}。"
+
+    summary = compose(names)
+    while len(names) > 1 and len(summary) > limit:
+        names = names[:-1]
+        summary = compose(names)
+    if len(summary) > limit:
+        summary = summary[: limit - 1] + "。"
+
+    sequence = int((prior or {}).get("sequence") or 0) + 1
+    if prior is None:
+        return _ready_approach(
+            mode=mode,
+            summary=summary,
+            focus=names,
+            origin=ORIGIN_DIRECTION_UPDATE,
+            root_run_id=root_run_id,
+            turn_id=turn_id,
+            sequence=max(2, sequence),
+        )
+    return direction_update(
+        previous=prior, summary=summary, focus=names, mode=mode, sequence=sequence
     )
 
 

@@ -1545,6 +1545,27 @@ class WebLookupService:
             deep["round_index"] = round_index
             deep["plan"] = plan
             context["deep"] = deep
+            # Research opening ("研究开场"): project the *real* plan sub-questions
+            # into a direction update, persisted inside this same checkpoint so no
+            # steering/observation data is lost and a terminal state cannot be
+            # overwritten by a late update.
+            try:
+                from src.web.research.research_approach import summarize_deep_plan
+
+                updated = summarize_deep_plan(
+                    query=run.query,
+                    sub_questions=[
+                        task.get("sub_question")
+                        for task in plan
+                        if isinstance(task, dict)
+                    ],
+                    previous=context.get("approach"),
+                    turn_id=str((context.get("owner") or {}).get("turn_id") or ""),
+                )
+                if updated is not None:
+                    context["approach"] = updated
+            except Exception:
+                pass
             return self.repository.checkpoint(
                 run_id,
                 operation_id=operation_id,
