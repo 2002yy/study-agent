@@ -87,11 +87,17 @@ summary yet) — the UI shows the existing deterministic tool progress meanwhile
 
 ## Pending (next slices)
 
-- **Plan projection (deterministic, implemented in the stacked slice):**
+- **Plan projection (deterministic, implemented + wired in the stacked slice):**
   `summarize_plan(mode, fields)` projects the plan's own unresolved field names
   into a short direction — **no extra call**, four-key envelope untouched,
-  degrades to `fallback` when the plan has no usable fields.  Remaining work:
-  wire it when the Standard plan is saved.
+  degrades to `fallback` when the plan has no usable fields.  Wired in
+  `StandardExecutionRepository.save_research_plan`: on a saved plan the approach
+  is persisted as `origin=model_plan, status=ready, sequence=1`; a projection
+  failure never blocks the loop.
+- **Bounded generation (next):** only when plan data is insufficient **and**
+  budget allows — budget permission first, counted attempts, a late result must
+  not overwrite a cancelled terminal state, and it must not be a synchronous
+  prerequisite for the main research.
 - Only if plan data is insufficient **and** budget allows, wire the bounded
   DeepSeek generation (budget permission first, counted attempts; a late result
   must not overwrite a cancelled terminal state). Opening generation must **not**

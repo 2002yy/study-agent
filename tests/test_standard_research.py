@@ -85,6 +85,15 @@ def test_saved_handoff_to_plan_search_read_and_nonpublishing_result(running):
         runs.get(execution.run_id).research_context["standard"]["research"]["result"]
         == result
     )
+    # Research opening ("研究开场"): projected from the model's own plan fields,
+    # deterministically, with no extra call and no evidence authority.
+    approach = runs.get(execution.run_id).research_context["approach"]
+    assert approach["schema"] == "research-approach-v1"
+    assert approach["origin"] == "model_plan"
+    assert approach["status"] == "ready"
+    assert approach["sequence"] == 1
+    assert approach["focus"] == ["release_date"]
+    assert "release_date" in approach["summary"]
 
 
 def test_resume_uses_saved_plan_and_next_action_without_model_reentry(running):
