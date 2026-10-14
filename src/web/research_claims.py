@@ -112,6 +112,28 @@ _BEHAVIOUR_MARKERS = ("会", "可以", "可", "能", "用于", "使用", "由", 
                       "包括", "分为", "具有")
 _INHERIT_MARKERS = ("其", "该", "它", "此", "这", "上述", "同样")
 _LATIN_WORD = re.compile(r"[a-z][a-z0-9_\-]{2,}")
+_QUOTED_TERM = re.compile(
+    r"\u300c([^\u300d]{1,24})\u300d"       # \u300c\u300d
+    r"|\u300e([^\u300f]{1,24})\u300f"     # \u300e\u300f
+    r"|\u201c([^\u201d]{1,24})\u201d"     # curly double quotes
+    r"|\"([^\"]{1,24})\"")                # plain ASCII double quotes
+
+
+def _delimited_in(term: str, excerpt: str) -> bool:
+    """Whether a short term appears as a word of its own (punctuation or quote delimited)."""
+    edge = r"[^0-9A-Za-z\u4e00-\u9fff]"
+    return bool(re.search(r"(?:^|" + edge + r")" + re.escape(term) + r"(?:$|" + edge + r")",
+                          excerpt or ""))
+
+
+def _quoted_terms(text: str) -> list[str]:
+    """Terms the question marks as its own subject by quoting them."""
+    out: list[str] = []
+    for match in _QUOTED_TERM.finditer(text or ""):
+        term = next((group.strip() for group in match.groups() if group), "")
+        if term and term not in out:
+            out.append(term)
+    return out
 
 
 def _goal_tokens(terms: Sequence[str], sides: tuple[str, ...] | None) -> list[str]:
@@ -182,7 +204,8 @@ def attribution_of(text: str, goal_terms, sides: tuple[str, ...] = (),
     return _source_attribution(text or "", tokens)
 
 
-def _source_windows(text: str, terms: Sequence[str], tokens: list[str]) -> list[dict[str, Any]]:
+def _source_windows(text: str, terms: Sequence[str], tokens: list[str],
+                    quoted: Sequence[str] = ()) -> list[dict[str, Any]]:
     """Bounded, de-duplicated candidates anchored at each subject occurrence.
 
     The window starts at the sentence that carries the subject (so conditions and conclusions
@@ -222,7 +245,29 @@ def _source_windows(text: str, terms: Sequence[str], tokens: list[str]) -> list[
         # that the passage supports a fact. Support is decided by extraction plus the independent
         # verifier. The passage must be about the question's subject and say something (a
         # relation or a behaviour), never a bare mention with a copula.
-        relevant = (subject or inherited) and bool(relations or behaviour)
+        specific_hits = [token for token in tokens if token.lower() in window_low]
+        if quoted:
+            # The question's own quoted terms are what it is about. A single character term
+            # (\u300c\u6c14\u300d) must not match as a bare substring - it occurs inside unrelated
+            # words - so it counts only when delimited, and a window with several quoted terms
+            # counts when at least two appear.
+            hits = 0
+            strong = False
+            for raw_term in quoted:
+                text_term = str(raw_term)
+                if not text_term:
+                    continue
+                if len(text_term) >= 2:
+                    if text_term.lower() in window_low:
+                        hits += 1
+                        strong = True
+                elif _delimited_in(text_term, excerpt):
+                    hits += 1
+            specific_gate = strong or hits >= 2
+        else:
+            specific_gate = (len(specific_hits) >= 2
+                             or (len(specific_hits) == 1 and bool(relations or behaviour)))
+        relevant = (subject or inherited) and bool(relations or behaviour) and specific_gate
         rows.append({"span_start": start, "span_end": end, "excerpt": excerpt,
                      "window_kind": "term", "subject": subject or inherited,
                      "candidate_relevant": relevant, "relations": len(relations),
@@ -301,7 +346,8 @@ def candidate_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
 
 def evidence_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
                       limit: int = MAX_WINDOWS_PER_GOAL,
-                      sides: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
+                      sides: tuple[str, ...] | None = None,
+                      label: str = "") -> list[dict[str, Any]]:
     """Qualified windows for the EVIDENCE LOOP only (B OFF never calls this).
 
     Two questions are answered before a passage is offered to extraction:
@@ -313,6 +359,12 @@ def evidence_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
     """
     terms = [str(term).lower() for term in goal_terms if str(term)]
     tokens = _goal_tokens(list(goal_terms), sides)
+    # Terms the question itself quotes ("\u300c\u6c14\u300d", "snapshot") name what it
+    # asks about; they join the subject set and gate what counts as material.
+    quoted = _quoted_terms(label)
+    for term in quoted:
+        if term not in tokens:
+            tokens.append(term)
     candidates: list[dict[str, Any]] = []
     for source_id, body in bodies.items():
         text = body.text or ""
@@ -322,7 +374,7 @@ def evidence_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
         attribution = _source_attribution(text, tokens)
         if attribution == "foreign_subject":
             continue
-        for window in _source_windows(text, goal_terms, tokens):
+        for window in _source_windows(text, goal_terms, tokens, quoted):
             excerpt = str(window.get("excerpt") or "")
             # An index or item-list passage is not material for a claim even when the goal's
             # words appear in it.
@@ -362,8 +414,20 @@ def evidence_windows(goal_terms: tuple[str, ...], bodies: Mapping[str, Any], *,
         # A comparison question needs BOTH sides examined: take the best candidate for each
         # side before filling any remaining slot by score.
         chosen: list[dict[str, Any]] = []
+        # A difference can only be stated where both names appear, so such a window is taken FIRST:
+        # the per-side choice below otherwise fills every slot with single-side windows, which is
+        # exactly why the measured Q3 run produced claims that described each side separately.
+        for _row in ordered:
+            if len({sides[_index] for _index in _row["sides"]}) >= 2:
+                chosen.append(_row)
+                break
         for index in range(len(sides)):
-            same = [row for row in ordered if index in row["sides"]]
+            # Prefer a window DEDICATED to this side: the co-occurrence window may live on the
+            # other side's page and merely mention this one, so relying on it here would drop the
+            # only real mechanism material for the missing side (review finding).
+            same = [row for row in ordered
+                    if index in row["sides"] and len(row["sides"]) == 1]
+            same = same or [row for row in ordered if index in row["sides"]]
             if same and same[0] not in chosen:
                 chosen.append(same[0])
         for row in ordered:
@@ -523,8 +587,15 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
                    on_call: Callable[[], None] | None = None,
                    on_reject: Callable[[str], None] | None = None,
                    sides_by_goal: Mapping[str, tuple[str, ...]] | None = None,
+                   windows_by_goal: Mapping[str, list[dict[str, Any]]] | None = None,
                    on_input: Callable[[Mapping[str, Any]], None] | None = None,
-                   on_response: Callable[[str], None] | None = None) -> list[Claim]:
+                   on_response: Callable[[str], None] | None = None,
+                   retry_empty: bool = False,
+                   time_left: Callable[[], float] | None = None,
+                   min_retry_seconds: float = 12.0,
+                   on_retry_response: Callable[[str], None] | None = None,
+                   on_retry_fired: Callable[[], None] | None = None,
+                   on_retry_skipped: Callable[[], None] | None = None) -> list[Claim]:
     """One batched extraction over every unfinished goal. Never raises on bad model output."""
     def reject(reason: str) -> None:
         if on_reject is not None:
@@ -532,10 +603,13 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
 
     if not goals or not bodies:
         return []
-    windows_by_goal: dict[str, list[dict[str, Any]]] = {
-        goal_id: evidence_windows(terms, bodies,
-                                    sides=(sides_by_goal or {}).get(goal_id))
-        for goal_id, terms in goals.items()}
+    if windows_by_goal is None:
+        # Only the fallback re-selects; the agent passes the snapshot the gate already
+        # computed, so the scheduler and the extractor never disagree again.
+        windows_by_goal = {
+            goal_id: evidence_windows(terms, bodies,
+                                      sides=(sides_by_goal or {}).get(goal_id))
+            for goal_id, terms in goals.items()}
     payload: dict[str, Any] = {
         "goals": [{"goal_id": goal_id, "goal": goal_id, "passages": windows_by_goal[goal_id]}
                   for goal_id in goals],
@@ -573,6 +647,44 @@ def extract_claims(*, goals: Mapping[str, tuple[str, ...]], bodies: Mapping[str,
         reject("unparseable_output")
         return []
     rows = (data or {}).get("claims") if isinstance(data, dict) else None
+    # Experimental (reviewer ruling b): a WELL-FORMED empty list is the one answer that
+    # may be asked once more, on the identical snapshot - same windows, sources, spans and
+    # prompt, no new search, no material change. A timeout, an unparseable answer, a bad
+    # citation or a verification rejection never reaches this branch. The caller enables it
+    # only with room left for the retry AND the verification, and it counts as a real call.
+    _left = None if time_left is None else time_left()
+    # The retry must FIT: its own timeout is clamped so it can never outlast the time left minus
+    # the verification reserve. "Twelve seconds remaining" is not enough if the call itself may
+    # run for twenty.
+    _retry_timeout = timeout if _left is None else min(timeout, max(0.0, _left - min_retry_seconds))
+    _room = _left is None or _retry_timeout >= 4.0
+    if (isinstance(rows, list) and not rows and retry_empty and not _room
+            and on_retry_skipped is not None):
+        on_retry_skipped()
+    if isinstance(rows, list) and not rows and retry_empty and _room:
+        # The check happens HERE, not only before the first attempt: an empty answer can
+        # arrive late, and starting the retry then would eat the verification's time.
+        if on_retry_fired is not None:
+            on_retry_fired()
+        if on_call is not None:
+            on_call()
+        try:
+            raw = completion(
+                messages=[{"role": "system", "content": _SYSTEM},
+                          {"role": "user", "content": json.dumps(payload,
+                                                                  ensure_ascii=False)}],
+                timeout=_retry_timeout, task_name="research_claims")
+        except Exception:  # noqa: BLE001 - a failed retry is not a crash
+            rows = None
+        else:
+            if on_retry_response is not None:
+                on_retry_response(raw if isinstance(raw, str)
+                                  else json.dumps(raw, ensure_ascii=False))
+            try:
+                data = json.loads(raw) if isinstance(raw, str) else raw
+            except (ValueError, TypeError):
+                data = None
+            rows = (data or {}).get("claims") if isinstance(data, dict) else None
     if not rows:
         reject("no_claims_returned")
     windows_by_source: dict[str, list[dict[str, Any]]] = {}
