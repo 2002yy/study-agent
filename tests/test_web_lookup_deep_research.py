@@ -297,6 +297,44 @@ def test_checkpoint_does_not_update_approach_after_cancel(tmp_path):
     assert after["summary"] == before["summary"], "a cancelled run must not change its opening"
 
 
+def test_running_cancel_freezes_the_opening(tmp_path):
+    """Once a cancel is persisted mid-run, the opening must stop changing."""
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    state = {"run_id": "", "cancelled": False, "at_cancel": None}
+    gateway = ScriptedGateway({"area": [_result("https://c.test/1", "Focus Source")]})
+    base_search = gateway.search
+
+    def cancel_search(query, *, max_items: int = 10):
+        if not state["cancelled"] and state["run_id"]:
+            state["cancelled"] = True
+            repository.request_cancel(state["run_id"])
+            current = repository.get(state["run_id"])
+            assert current.status == "running"  # cancel requested, not yet terminal
+            state["at_cancel"] = dict(current.research_context.get("approach") or {})
+        return base_search(query, max_items=max_items)
+
+    gateway.search = cancel_search
+    service = WebLookupService(
+        repository,
+        gateway,
+        planner=ScriptedPlanner(
+            initial=["focus area", "second area", "third area"],
+            revisions=[{"done": False, "additional": []}, {"done": True, "additional": []}],
+        ),
+    )
+    run = service.create("cancel topic", research_mode="deep")
+    state["run_id"] = run.id
+
+    completed = service.execute(run.id)
+    after = dict(completed.research_context.get("approach") or {})
+    assert state["at_cancel"] is not None
+    # An update must already have happened before the cancel, otherwise this
+    # control would pass trivially.
+    assert state["at_cancel"].get("origin") == "direction_update"
+    assert after.get("summary") == state["at_cancel"].get("summary")
+    assert after.get("sequence") == state["at_cancel"].get("sequence")
+
+
 def test_standard_mode_unchanged(tmp_path):
     gateway = ScriptedGateway({"standard": [_result("https://s.test/5", "Std")]})
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
