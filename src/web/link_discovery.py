@@ -413,14 +413,15 @@ def compare_sides(text: str) -> tuple[str, str] | None:
     evidence only: two sources mentioning A and B still say nothing about how they differ, so
     it never grants support on its own.
     """
-    found = _COMPARE_SEP.search(text or "")
-    if found is None:
-        return None
-    left = _entity(text[:found.start()], leading=False)    # the entity ENDS the left chunk
-    right = _entity(text[found.end():], leading=True)      # the entity BEGINS the right one
-    if not left or not right or left == right:
-        return None
-    return left, right
+    # A question may contain more than one "与" ("围棋让子棋的贴目与对局规则与分先棋有何不同？"),
+    # and only one of those splits resolves two entities. Try each separator in order and take the
+    # first pair that works, so a comparison is not missed because the wording had two of them.
+    for found in _COMPARE_SEP.finditer(text or ""):
+        left = _entity(text[:found.start()], leading=False)   # the entity ENDS the left chunk
+        right = _entity(text[found.end():], leading=True)     # the entity BEGINS the right one
+        if left and right and left != right:
+            return left, right
+    return None
 
 
 def looks_like_list(text: str) -> bool:
