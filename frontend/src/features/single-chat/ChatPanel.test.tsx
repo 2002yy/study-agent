@@ -151,6 +151,26 @@ describe("continuous conversation input", () => {
     expect(screen.getByText("回答正在补充，可以先阅读")).toBeVisible();
     expect(screen.getByText("已纳入研究计划 · 等待相关搜索")).toBeVisible();
   });
+
+  it("labels a queued task as saved-pending-send, never as auto-executing", () => {
+    const { container } = renderPanel({ messages: [
+      { role: "user", content: "回答完再解释得简单一点", researchQueued: { runId: "r", id: "q1", status: "pending" } },
+    ] });
+    expect(screen.getByText("下一轮任务")).toBeVisible();
+    expect(screen.getByText("已保存，待发送")).toBeVisible();
+    expect(container.textContent).not.toContain("条待执行");
+  });
+
+  it("distinguishes a plan-applied supplement from one that is really executing", () => {
+    renderPanel({ isSending: true, messages: [
+      { role: "user", content: "已进入计划", transient: true, researchSteering: { runId: "r", id: "a", status: "applied" } },
+      { role: "user", content: "正在执行", transient: true, researchSteering: { runId: "r", id: "b", status: "executing" } },
+      { role: "user", content: "迟到", transient: true, researchSteering: { runId: "r", id: "c", status: "late" } },
+    ] });
+    expect(screen.getByText("已应用到后续研究")).toBeVisible();
+    expect(screen.getByText("正在按补充要求执行研究")).toBeVisible();
+    expect(screen.getByText("本轮未应用这条补充，请在下一轮继续")).toBeVisible();
+  });
 });
 
 describe("ChatPanel learning product boundary", () => {

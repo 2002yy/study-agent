@@ -43,11 +43,31 @@ def steering_answer_instruction(calls: Any, original: str) -> str:
     return f"{original}\n\n用户在本轮研究期间更新了任务要求（不是事实证据）：\n当前问题：{metadata.get('effective_query', '')}\n{text}\n回答必须遵守更新后的问题；资料不足的新增范围必须明确说明。".strip()
 
 
+def deep_steering_status(item: Mapping[str, Any], *, active: bool) -> str:
+    """Map one durable receipt to its honest user-visible state.
+
+    ``applied`` means the constraint entered the authoritative plan (the plan
+    was revised), while ``executing`` additionally requires a real search/read
+    action to have happened.  A terminal run whose constraint was incorporated
+    but never executed is still ``applied`` — the run-level partial warning, not
+    the receipt, carries the "not executed" fact.
+    """
+
+    executed = item.get("executed_in_round") is not None
+    incorporated = item.get("incorporated_in_round") is not None
+    if executed and active:
+        return "executing"
+    if executed or incorporated:
+        return "applied"
+    return "pending" if active else "late"
+
+
 def interaction_event(run: Any) -> dict[str, Any]:
     context = run.research_context if isinstance(run.research_context, dict) else {}
     deep = context.get("deep") or {}
     if not isinstance(deep, dict):
         deep = {}
+    active = run.status in {"pending", "running"}
     receipts = [
         {"id": item["id"], "content": item.get("content", ""), "status": item["status"]}
         for item in active_steering_entries(context)
@@ -60,18 +80,7 @@ def interaction_event(run: Any) -> dict[str, Any]:
                 "id": item.get("id")
                 or f"{item.get('received_at', '')}:{item.get('content', '')}",
                 "content": item.get("content", ""),
-                "status": (
-                    "executing"
-                    if item.get("executed_in_round") is not None
-                    and run.status in {"pending", "running"}
-                    else "applied"
-                    if item.get("executed_in_round") is not None
-                    else "late"
-                    if run.status not in {"pending", "running"}
-                    else "applied"
-                    if item.get("incorporated_in_round") is not None
-                    else "pending"
-                ),
+                "status": deep_steering_status(item, active=active),
             }
         )
     blocks: list[dict[str, str]] = []

@@ -49,6 +49,21 @@ def test_receipts_distinguish_waiting_applied_and_terminal_unapplied():
     assert [item["status"] for item in terminal["steering"]] == ["late", "applied"]
 
 
+def test_incorporated_but_unexecuted_receipt_is_applied_not_late_or_executing():
+    context = {
+        "research_mode": "deep",
+        "deep": {
+            "steering": [
+                {"id": "s1", "content": "new scope", "incorporated_in_round": 2, "executed_in_round": None},
+            ]
+        },
+    }
+    # Entered the authoritative plan but never ran: applied, never "executing".
+    assert [item["status"] for item in interaction_event(run(research_context=context))["steering"]] == ["applied"]
+    terminal = interaction_event(run(research_context=context, status="partial"))
+    assert [item["status"] for item in terminal["steering"]] == ["applied"]
+
+
 def test_narration_ids_survive_repeated_polling_and_never_declare_support():
     projected = interaction_event(run())
     assert interaction_event(run()) == projected

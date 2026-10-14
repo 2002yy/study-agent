@@ -377,10 +377,10 @@ export function ChatPanel(props: ChatPanelProps) {
                       <header className="research-queue-head">
                         <Clock aria-hidden size={14} />
                         <span className="research-queue-title">下一轮任务</span>
-                        <span className="research-queue-count">1 条待执行</span>
+                        <span className="research-queue-count">已保存，待发送</span>
                       </header>
                       <p className="research-queue-body">{message.content}</p>
-                      <p className="research-queue-note">不会修改当前研究的搜索条件。</p>
+                      <p className="research-queue-note">不会修改当前研究的搜索条件；研究完成后需手动发送。</p>
                       {!isSending && props.onSendQueued ? (
                         <button
                           className="ghost-action compact"

@@ -89,7 +89,9 @@ test("two supplements and one queued task stay in one continuous research conver
     await input.fill("回答完再解释得简单一点");
     await page.getByRole("button", { name: "加入下一轮", exact: true }).click();
     await expect(page.getByText("下一轮任务")).toBeVisible();
-    await expect(page.getByText("不会修改当前研究的搜索条件。")).toBeVisible();
+    // A queued task needs a manual send; the card must not imply auto-continue.
+    await expect(page.getByText("已保存，待发送")).toBeVisible();
+    await expect(page.getByText("不会修改当前研究的搜索条件；研究完成后需手动发送。")).toBeVisible();
 
     expect(streams).toBe(1);
     expect(queue).toHaveLength(1);
