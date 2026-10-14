@@ -694,13 +694,28 @@ class WebLookupService:
                 },
             }
         )
-        # Follow-up children get the same display-only opening seed so every run
-        # has a uniform initialised approach.
-        from src.web.research.research_approach import seed_approach
-
-        context["approach"] = seed_approach(
-            mode="standard", turn_id=owner_turn_id or ""
+        # Follow-up children project their **own** query plan into an opening
+        # (never the parent's possibly-stale text) so the child run is
+        # self-describing; failure keeps the pending seed.
+        from src.web.research.research_approach import (
+            seed_approach,
+            summarize_lookup_query,
         )
+
+        try:
+            context["approach"] = summarize_lookup_query(
+                query=query,
+                canonical_query=context.get("canonical_query", ""),
+                query_variants=context.get("query_variants") or (),
+                entity_aliases=context.get("entity_aliases") or (),
+                freshness_requested=bool(context.get("freshness_requested")),
+                mode="standard",
+                turn_id=owner_turn_id or "",
+            )
+        except Exception:
+            context["approach"] = seed_approach(
+                mode="standard", turn_id=owner_turn_id or ""
+            )
         return self.repository.create_child(
             WebLookupRun(
                 query=query,
@@ -1566,7 +1581,7 @@ class WebLookupService:
                     context["approach"] = updated
             except Exception:
                 pass
-            return self.repository.checkpoint(
+            saved = self.repository.checkpoint(
                 run_id,
                 operation_id=operation_id,
                 research_context=context,
@@ -1579,6 +1594,17 @@ class WebLookupService:
                 stop_reason=reason,
                 answer_confidence=answer_confidence,
             )
+            # The checkpoint merges steering appended concurrently; re-read the
+            # persisted row (the checkpoint returns the pre-update snapshot) and
+            # refresh this executor's local view.  NOTE: consumption at the next
+            # round boundary is still a known gap (see the xfail test).
+            merged_deep = self.repository.get(run_id).research_context.get("deep")
+            if isinstance(merged_deep, dict) and isinstance(
+                merged_deep.get("steering"), list
+            ):
+                deep["steering"] = merged_deep["steering"]
+                context["deep"] = deep
+            return saved
 
         def set_stage(next_stage: str) -> None:
             nonlocal stage

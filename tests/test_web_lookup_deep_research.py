@@ -194,6 +194,107 @@ def test_retry_once_then_skip_on_empty_results(tmp_path):
     assert len(hopeless_queries) == 2
 
 
+@pytest.mark.xfail(
+    reason="known gap: concurrently-appended deep steering is persisted but not yet "
+    "consumed by the running executor (next round boundary / terminal write)",
+    strict=False,
+)
+def test_concurrent_steering_is_persisted_and_consumed(tmp_path):
+    """A steering appended between two checkpoints must survive AND be consumed."""
+    state = {"steered": False, "run_id": ""}
+    gateway = ScriptedGateway({"area": [_result("https://c.test/1", "Focus Source")]})
+    base_search = gateway.search
+
+    def steering_search(query, *, max_items: int = 10):
+        if not state["steered"] and state["run_id"]:
+            state["steered"] = True
+            service.steer(state["run_id"], content="并发追加：补充对比维度")
+        return base_search(query, max_items=max_items)
+
+    gateway.search = steering_search
+    # Three sub-questions force a second round so the appended condition can be
+    # consumed at the next round boundary.
+    service = _service(
+        tmp_path,
+        gateway,
+        ScriptedPlanner(initial=["focus area", "second area", "third area"]),
+    )
+    run = service.create("concurrent steering topic", research_mode="deep")
+    state["run_id"] = run.id
+
+    completed = service.execute(run.id)
+    deep = completed.research_context["deep"]
+    entry = next(
+        (s for s in deep.get("steering", []) if "并发追加" in str(s.get("content") or "")),
+        None,
+    )
+    assert entry is not None, "concurrent steering must survive the checkpoint"
+    assert entry["incorporated_in_round"] is not None, "the executor must consume it"
+
+
+def test_follow_up_child_has_its_own_opening(tmp_path):
+    from src.application.runtime_repository import RuntimeRepository
+
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    service = WebLookupService(
+        repository, ScriptedGateway({"parent": [_result("https://p.test/1", "P")]})
+    )
+    RuntimeRepository(repository.database).ensure_chat_thread("thread-1")
+    parent = service.create(
+        "parent topic about PostgreSQL",
+        owner_thread_id="thread-1",
+        owner_turn_id="turn-1",
+    )
+    service.execute(parent.id)  # a follow-up child requires a terminal parent
+    child = service.create_follow_up(
+        "child topic about MySQL MVCC",
+        max_items=8,
+        owner_thread_id="thread-1",
+        owner_turn_id="turn-2",
+        parent_run_id=parent.id,
+        create_request_id="req-1",
+    )
+    child_approach = child.research_context["approach"]
+    parent_approach = parent.research_context["approach"]
+    assert child_approach["origin"] == "query_plan"
+    assert child_approach["turn_id"] == "turn-2"
+    assert child_approach["summary"] != parent_approach["summary"]
+
+
+def test_checkpoint_does_not_update_approach_after_cancel(tmp_path):
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    service = WebLookupService(repository, ScriptedGateway({}), planner=ScriptedPlanner(initial=["a"]))
+    run = service.create("cancel topic", research_mode="deep")
+    before = dict(run.research_context["approach"])
+    operation_id = str(
+        ((run.research_context.get("operation") or {}).get("active_operation_id")) or ""
+    )
+    repository.request_cancel(run.id)
+
+    stale = dict(before)
+    stale["summary"] = "取消后不应出现的更新"
+    stale["sequence"] = int(before.get("sequence") or 0) + 1
+    stale["origin"] = "direction_update"
+    stale["status"] = "ready"
+    context = dict(run.research_context)
+    context["approach"] = stale
+    try:
+        updated = repository.checkpoint(
+            run.id,
+            operation_id=operation_id,
+            research_context=context,
+            query_attempts=[],
+            selected_sources=[],
+            rejected_sources=[],
+            items=[],
+            warnings=[],
+        )
+    except ValueError:
+        updated = None
+    after = (updated or repository.get(run.id)).research_context["approach"]
+    assert after["summary"] == before["summary"], "a cancelled run must not change its opening"
+
+
 def test_standard_mode_unchanged(tmp_path):
     gateway = ScriptedGateway({"standard": [_result("https://s.test/5", "Std")]})
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
