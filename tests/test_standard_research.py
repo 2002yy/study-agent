@@ -3,6 +3,7 @@
 from copy import deepcopy
 from datetime import timedelta
 import json
+import threading
 
 import pytest
 
@@ -238,6 +239,105 @@ def test_standard_loop_schedules_off_path_without_extra_calls(running):
         scheduler.shutdown(wait=True)
     # A plan projection already exists, so the off-path task makes zero calls.
     assert calls["completion"] == 0
+
+
+def test_record_approach_rejected_after_lease_expiry(running):
+    execution, clock, _, _, _ = running
+    clock[0] += timedelta(seconds=16)  # past the 15s lease
+    with pytest.raises(ValueError):
+        execution.journal.record_approach(
+            execution.run_id,
+            execution.thread_id,
+            execution.operation_id,
+            clock[0],
+            _generated_approach(execution.run_id),
+        )
+
+
+def test_restart_does_not_double_charge_approach_budget(running):
+    from src.application.standard_execution import StandardExecution
+    from src.repositories.runtime_repository import RuntimeRepository
+
+    execution, clock, repository, _, parent = running
+    StandardResearchLoop(execution, Planner()).advance(Gateway(), max_steps=1)
+    args = (execution.run_id, execution.thread_id, execution.operation_id, clock[0])
+    assert execution.journal.authorize_approach_attempt(*args, model_call_ceiling=2) is True
+    # A restart reconstructs the service with no in-memory counter surviving; the
+    # previous lease must first expire, as it would after a real process restart.
+    clock[0] += timedelta(seconds=16)
+    after = StandardExecution.resume(
+        RuntimeRepository(repository.database),
+        run_id=execution.run_id,
+        thread_id=parent.thread_id,
+        clock=lambda: clock[0],
+    )
+    assert (
+        after.journal.authorize_approach_attempt(
+            after.run_id,
+            after.thread_id,
+            after.operation_id,
+            clock[0],
+            model_call_ceiling=2,
+        )
+        is False
+    )
+
+
+def test_slow_generation_does_not_block_research_and_late_write_is_rejected(running):
+    from src.web.research.approach_generation import ApproachGenerationCoordinator
+
+    execution, clock, _, runs, _ = running
+    started = threading.Event()
+    release = threading.Event()
+    outcome_box: dict = {}
+
+    def completion(messages, **kwargs):  # noqa: ANN001
+        started.set()
+        release.wait(5.0)
+        return json.dumps(
+            {"summary": "我会先核对发布日期。", "focus": ["发布日期"]}, ensure_ascii=False
+        )
+
+    def write(run_id, approach):
+        return execution.journal.record_approach(
+            execution.run_id,
+            execution.thread_id,
+            execution.operation_id,
+            clock[0],
+            approach,
+        )
+
+    coordinator = ApproachGenerationCoordinator(
+        authorize=lambda run_id, operation_id: True,
+        write=write,
+        completion=completion,
+    )
+
+    def run_generation() -> None:
+        outcome_box["r"] = coordinator.attempt(
+            run_id=execution.run_id,
+            operation_id=execution.operation_id,
+            mode="standard",
+            query="q",
+            current=None,
+            is_terminal=lambda: False,
+        )
+
+    thread = threading.Thread(target=run_generation)
+    thread.start()
+    assert started.wait(5.0)  # the model is in flight
+
+    # Research must continue while the model is slow (barrier-ordered, no sleep).
+    result = StandardResearchLoop(execution, Planner()).advance(Gateway())
+    assert result is not None
+
+    release.set()
+    thread.join(5.0)
+    outcome = outcome_box["r"]
+    assert outcome.written is False  # the plan projection won
+    assert (
+        runs.get(execution.run_id).research_context["approach"]["origin"] == "model_plan"
+    )
 
 
 def test_resume_uses_saved_plan_and_next_action_without_model_reentry(running):
