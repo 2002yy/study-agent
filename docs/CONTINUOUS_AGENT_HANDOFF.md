@@ -55,6 +55,8 @@ Rev 3（UI 整合）与 Slice A（连续研究运行时接线）只覆盖其中�
   - `src/tools/deterministic_compute.py`：受控算术/统计解释器（AST 白名单，**不使用 `eval/exec`**，禁属性/下标/导入/语句/推导式），可离线确定性计算。
   - `src/tools/compute_tools.py`：在既有 `ToolRegistry` 上注册 `deterministic_compute` 与 `isolated_python`；两者都返回绑定身份的协议信封，由既有 `ToolService` 持久化与审计。
   - 预算接线：`incremental_budget.load_incremental_policy(python_isolation_available=...)`；`python_runs` 仅在真实隔离运行时可用时开放，**未删除原有保护条件**。
+  - **研究路径接线（有界工具决策）**：`src/web/research/computation_step.py` 只接受声明式计算请求（拒绝自由代码）；Deep 执行器在每轮 `revise` 的 `compute` 判定处调用 `_deep_apply_computation`，绑定 `run_id/tool_run_id/input_revision/source_refs`（来源取自本轮实际使用的笔记），结果落 `deep["computations"]`（上限 20）；请求 `isolated_python` 而隔离不可用时记为 `blocked`，**绝不降级为确定性计算**。
+  - **`computation` SSE 发射**：`chat_routes._latest_computation` 只透出已绑定的权威信封（不泄露内部 `round/at`），研究进度循环按 `tool_run_id` 去重后发出 `computation` 事件。
 - **Slice B 前端**：`types.ts` 的 `ComputationPayload`、`features/answer-ui/computation.ts`（客户端镜像校验）、`InteractiveComputation.tsx`（柱状/折线/数据表切换，保留单位/来源/版本，参数变更触发**服务端**重算，过期结果标记 stale 不回写）；`api.ts`/`chatController.ts` 新增 `computation` SSE 事件通道；`ChatPanel` 在消息内渲染。不执行任何模型提供的 HTML/JS/回调。
 
 ## 4. 验证事实（离线，命令可复现）
@@ -71,7 +73,7 @@ Rev 3（UI 整合）与 Slice A（连续研究运行时接线）只覆盖其中�
 | 连续对话 E2E | `npx playwright test --config=playwright.conversation.config.ts` | **2 passed × 2 视口**（含 Slice B 计算卡片、数据表切换、来源/版本） |
 | 全量 fixture E2E | `npx playwright test` | **79 passed**（chromium/mobile/narrow + firefox + webkit） |
 | 手工断言 | E2E 内含 `streams==1`、`queue==1`、`steering==[两条]`、无横向溢出、无重复全局状态条 | PASS |
-| Slice B 后端 | `pytest tests/test_computation_protocol.py tests/test_deterministic_compute.py tests/test_python_isolation.py tests/test_compute_tools.py tests/test_workflow_tool_registry.py tests/test_tool_service.py tests/test_incremental_research_budget.py tests/test_research_interaction.py tests/test_web_lookup_deep_research.py -q` | **82 passed, 4 skipped**（4 项为真实容器负控，无隔离运行时自动 skip） |
+| Slice B 后端 | `pytest tests/test_computation_protocol.py tests/test_deterministic_compute.py tests/test_python_isolation.py tests/test_compute_tools.py tests/test_computation_step.py tests/test_research_computation_event.py tests/test_workflow_tool_registry.py tests/test_tool_service.py tests/test_incremental_research_budget.py tests/test_research_interaction.py tests/test_web_lookup_deep_research.py tests/test_web_lookup_run.py tests/test_web_lookup_research_contract.py tests/test_research_answer_streaming.py tests/test_chat_research_run_owner.py tests/test_persistent_web_agent.py tests/test_chat_service.py tests/test_research_follow_up.py tests/test_research_recovery.py tests/test_active_research_runtime.py tests/test_standard_research.py tests/test_chat_routes_pedagogy.py -q` | **310 passed, 4 skipped**（4 项为真实容器负控，无隔离运行时自动 skip） |
 
 > 隔离运行时的真实负控（宿主文件/网络/内存/无限循环/输出上限）只有在可用 Docker/WSL2 时才会执行；当前本机 Docker 守护进程未运行，故**未通过**，且未用宿主进程凑数。
 
@@ -85,7 +87,7 @@ Rev 3（UI 整合）与 Slice A（连续研究运行时接线）只覆盖其中�
 - **状态一致性**：UI、SQLite、实际执行轨迹三者吻合。
 - **真实模型自主工具选择**与研究质量（需额度恢复后）。
 - **连续输出**：开场、工具过程、研究结果在同一对话的真实链路（当前为桩件）。
-- **Slice B 隔离执行**：真实容器负控未通过（本机无运行中的隔离运行时）；Agent 自主选择计算工具、研究路径接线（Deep executor 在证据充分时调用计算工具）与后端 `computation` SSE 事件发射**尚未接线**；当前 `computation` 事件仅为前端通道 + 模拟验收。
+- **Slice B 隔离执行**：真实容器负控未通过（本机无运行中的隔离运行时，Docker 守护进程未启动）；建议的**计算工具接线已通**（Deep 执行器按 planner 有界 `compute` 判定调用，结果落库并经由 `computation` SSE 透出），但“Agent 自主选择何时计算”目前仍由脚本化 planner 在离线测试中驱动，真实模型决策留待额度恢复。
 
 ## 6. 兼容性债务
 

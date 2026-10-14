@@ -74,6 +74,7 @@ class ScriptedPlanner:
             return {
                 "done": verdict.get("done", False),
                 "additional": verdict.get("additional", []),
+                "compute": verdict.get("compute"),
             }
         return {"done": True, "additional": []}
 
@@ -173,6 +174,41 @@ def test_budget_grant_allows_extra_work_after_initial_round_limit(tmp_path, monk
     assert len(ledger["grants"]) == 1
     assert ledger["consumed"]["searches"] == len(gateway.search_calls)
     assert ledger["consumed"]["reads"] == len(gateway.read_calls)
+
+
+def test_planner_compute_decision_runs_bound_tool_without_restarting(tmp_path):
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(
+        ["alpha"], revisions=[{"done": True, "additional": [], "compute": {
+            "engine": "deterministic", "mode": "expression", "expression": "2 + 2",
+        }}],
+    ))
+    created = service.create("compare alpha", research_mode="deep")
+    completed = service.execute(created.id)
+
+    [entry] = completed.research_context["deep"]["computations"]
+    assert entry["status"] == "succeeded"
+    assert entry["engine"] == "deterministic"
+    assert entry["input_revision"] == 1
+    assert entry["source_refs"] == ["https://example.org/alpha"]
+    assert entry["result"]["rows"] == [[4]]
+    assert gateway.read_calls.count("https://example.org/alpha") == 1
+
+
+def test_isolated_compute_decision_fails_closed_without_isolation(tmp_path):
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(
+        ["alpha"], revisions=[{"done": True, "additional": [], "compute": {
+            "engine": "isolated_python", "mode": "expression", "expression": "2 + 2",
+        }}],
+    ))
+    created = service.create("compare alpha", research_mode="deep")
+    completed = service.execute(created.id)
+
+    [entry] = completed.research_context["deep"]["computations"]
+    assert entry["status"] == "blocked"
+    assert entry["reason"] == "isolation_unavailable"
+    assert entry["engine"] == "isolated_python"
 
 
 def _service(

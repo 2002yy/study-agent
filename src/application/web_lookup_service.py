@@ -450,15 +450,27 @@ class WebLookupService:
         repository: WebLookupRepository,
         gateway: WebLookupGateway | None = None,
         planner: Any = None,
+        compute_registry: Any = None,
     ):
         self.repository = repository
         self.gateway = gateway or ResearchWebGateway()
+        # Slice B: compute tools reuse the shared tool registry; built lazily so
+        # a service without computation never pays for it.
+        self._compute_registry = compute_registry
         # G18: optional deep-research planner. Two callables are expected on
         # the object: ``plan(query, context) -> [sub_question]`` for initial
         # decomposition and ``revise(memo, notes, remaining) ->
         # {"done": bool, "additional": [sub_question]}`` for per-round gap
         # analysis. When absent, deterministic fallbacks are used.
         self.planner = planner
+
+    @property
+    def compute_registry(self) -> Any:
+        if self._compute_registry is None:
+            from src.tools.registry import create_default_tool_registry
+
+            self._compute_registry = create_default_tool_registry()
+        return self._compute_registry
 
     def create(
         self,
@@ -1456,6 +1468,50 @@ class WebLookupService:
         steps.append({"at": utc_now(), "kind": kind, "text": text[:300]})
         deep["steps"] = steps[-self._DEEP_STEPS_CAP :]
 
+    def _deep_apply_computation(
+        self,
+        deep: dict[str, Any],
+        *,
+        run_id: str,
+        round_index: int,
+        compute_raw: Any,
+        notes: list[dict[str, Any]],
+    ) -> None:
+        """Run one bounded planner compute decision and bind its result."""
+
+        from src.web.research.computation_step import (
+            MAX_COMPUTATIONS,
+            ComputeRequestError,
+            bind_source_refs,
+            execute_compute,
+            parse_compute_request,
+        )
+
+        try:
+            parsed = parse_compute_request(compute_raw)
+        except ComputeRequestError as exc:
+            self._deep_log(deep, "compute", f"计算请求被拒绝：{exc}")
+            return
+        if parsed is None:
+            return
+        if parsed["engine"] == "isolated_python" and incremental_remaining(deep, "python_runs") == 0:
+            self._deep_log(deep, "compute", "计算预算不足，隔离 Python 未执行。")
+            return
+        payload = execute_compute(
+            parsed,
+            registry=self.compute_registry,
+            run_id=run_id,
+            tool_run_id=new_id("tool"),
+            input_revision=round_index,
+            source_refs=bind_source_refs(notes),
+        )
+        if parsed["engine"] == "isolated_python" and payload.get("status") == "succeeded":
+            consume_incremental_budget(deep, "python_runs")
+        entries = [item for item in deep.get("computations", []) if isinstance(item, dict)]
+        entries.append({**payload, "round": round_index, "at": utc_now()})
+        deep["computations"] = entries[-MAX_COMPUTATIONS:]
+        self._deep_log(deep, "compute", f"已执行计算（{payload.get('engine')}）：{payload.get('status')}")
+
     def _deep_consume_steering(self, deep: dict[str, Any], round_index: int) -> bool:
         """Mark pending steering as incorporated; True when anything consumed."""
         consumed = False
@@ -1922,6 +1978,16 @@ class WebLookupService:
                         )
                         self._deep_log(
                             deep, "revise", f"新增子问题：{sub_question[:80]}"
+                        )
+                    # Slice B: a bounded compute decision from the planner. Only a
+                    # declarative request is accepted; never free-form code.
+                    if verdict.get("compute"):
+                        self._deep_apply_computation(
+                            deep,
+                            run_id=run_id,
+                            round_index=round_index,
+                            compute_raw=verdict["compute"],
+                            notes=notes,
                         )
                     pending_steering = any(
                         isinstance(entry, dict) and entry.get("incorporated_in_round") is None

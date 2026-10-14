@@ -148,6 +148,7 @@ async def chat_stream_endpoint(
             asyncio.to_thread(service.start_turn, command)
         )
         observed_research_version: tuple[str, int] | None = None
+        observed_computation: str | None = None
         # Bind progress strictly to *this* turn's identity: the previous turn's
         # run can never be surfaced as the current question's opening, and two
         # concurrent requests cannot cross-attribute.
@@ -168,6 +169,10 @@ async def chat_stream_endpoint(
             if run is not None and observed_research_version != (run.id, run.version):
                 observed_research_version = (run.id, run.version)
                 yield sse_event("research", _research_progress(run))
+                computation = _latest_computation(run)
+                if computation and computation["tool_run_id"] != observed_computation:
+                    observed_computation = str(computation["tool_run_id"])
+                    yield sse_event("computation", computation)
             await asyncio.wait({prepare_task}, timeout=0.05)
 
         try:
@@ -195,6 +200,10 @@ async def chat_stream_endpoint(
         )
         if run is not None and observed_research_version != (run.id, run.version):
             yield sse_event("research", _research_progress(run))
+            computation = _latest_computation(run)
+            if computation and computation["tool_run_id"] != observed_computation:
+                observed_computation = str(computation["tool_run_id"])
+                yield sse_event("computation", computation)
 
         reply_parts: list[str] = []
         stream = service.stream_async(prepared)
@@ -437,6 +446,27 @@ def _research_progress(run: Any) -> dict[str, Any]:
         "last_step_kind": (last_step or {}).get("kind"),
         "last_step_text": (last_step or {}).get("text"),
         **interaction_event(run),
+    }
+
+
+def _latest_computation(run: Any) -> dict[str, Any] | None:
+    """The newest authoritative computation on a run, if it is bound/valid."""
+
+    context = getattr(run, "research_context", None)
+    deep = context.get("deep") if isinstance(context, dict) else None
+    entries = deep.get("computations") if isinstance(deep, dict) else None
+    if not isinstance(entries, list) or not entries:
+        return None
+    latest = entries[-1]
+    if not isinstance(latest, dict) or not latest.get("schema_version"):
+        return None
+    return {
+        key: latest[key]
+        for key in (
+            "schema_version", "run_id", "tool_run_id", "status",
+            "input_revision", "source_refs", "engine", "reason", "result",
+        )
+        if key in latest
     }
 
 
