@@ -149,6 +149,7 @@ export function ChatPanel(props: ChatPanelProps) {
 
   const conversationRef = useRef<HTMLElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const composingRef = useRef(false);
   useLayoutEffect(() => {
     const textarea = composerRef.current;
     if (!textarea) return;
@@ -243,7 +244,11 @@ export function ChatPanel(props: ChatPanelProps) {
   };
 
   const handleComposerKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+    if (event.key !== "Enter") return;
+    // Some Chinese/Japanese IMEs report isComposing=false on the confirming
+    // Enter keydown; keyCode=229 and the composition lifecycle are additional
+    // guards against accidentally submitting an unfinished draft.
+    if (composingRef.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
     // G17: configurable send key. Default Enter sends / Shift+Enter newline;
     // when enterToSend is off, Enter newlines and Ctrl/Cmd+Enter sends.
     const sendRequested = enterToSend
@@ -285,6 +290,9 @@ export function ChatPanel(props: ChatPanelProps) {
   }, [messages, streamRecovery, isAtBottom]);
 
   useEffect(() => {
+    // A previous session may have been scrolled up. A newly opened session
+    // should display its newest turn rather than inherit that scroll lock.
+    setIsAtBottom(true);
     clearPendingTaskIntentOverride();
     setComposerMode("chat");
     setRoleSettingsOpen(false);
@@ -374,7 +382,7 @@ export function ChatPanel(props: ChatPanelProps) {
         {!isAtBottom ? (
           <button className="back-to-latest" onClick={scrollToLatest} type="button">
             <ArrowDown size={14} />
-            回到最新
+            {isSending ? "正在生成 · 回到最新" : "回到最新"}
           </button>
         ) : null}
       </div>
@@ -427,6 +435,8 @@ export function ChatPanel(props: ChatPanelProps) {
             aria-label="输入学习问题"
             autoFocus
             onChange={(event) => setInput(event.target.value)}
+            onCompositionStart={() => { composingRef.current = true; }}
+            onCompositionEnd={() => { composingRef.current = false; }}
             onKeyDown={handleComposerKeyDown}
             placeholder={composerMode === "search" ? "搜索你想了解的问题…" : "输入问题，或继续对话…"}
             title={

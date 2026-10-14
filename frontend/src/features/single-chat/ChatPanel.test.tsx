@@ -7,7 +7,7 @@ if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { ChatResponse } from "../../types";
+import type { ChatMessage, ChatResponse } from "../../types";
 import {
   clearPendingTaskIntentOverride,
   consumePendingTaskIntentOverride,
@@ -19,6 +19,8 @@ afterEach(cleanup);
 
 type RenderOptions = {
   input?: string;
+  sessionId?: string;
+  messages?: ChatMessage[];
   selectedRole?: string;
   onSelectRole?: ReturnType<typeof vi.fn>;
   isSending?: boolean;
@@ -37,11 +39,11 @@ type RenderOptions = {
   } | null;
 };
 
-function renderPanel(options: RenderOptions = {}) {
-  return render(
+function panelElement(options: RenderOptions = {}) {
+  return (
     <ChatPanel
-      messages={[]}
-      sessionId="session-secret-raw-id"
+      messages={options.messages ?? []}
+      sessionId={options.sessionId ?? "session-secret-raw-id"}
       sessionNavigation={null}
       input={options.input ?? ""}
       setInput={vi.fn()}
@@ -95,8 +97,12 @@ function renderPanel(options: RenderOptions = {}) {
       useResearchInChat={false}
       onRetryResearch={vi.fn()}
       onResumeResearch={vi.fn()}
-    />,
+    />
   );
+}
+
+function renderPanel(options: RenderOptions = {}) {
+  return render(panelElement(options));
 }
 
 function findByRoleAndText(container: HTMLElement, role: string, text: string) {
@@ -206,5 +212,71 @@ describe("ChatPanel learning product boundary", () => {
     for (const button of iconButtons) {
       expect(button.getAttribute("aria-label")).toBeTruthy();
     }
+  });
+});
+
+
+describe("ChatPanel conversation interaction safety", () => {
+  it("does not send the message when Enter confirms Chinese IME composition", async () => {
+    const onSubmit = vi.fn();
+    const { container } = renderPanel({ input: "待输入的中文", onSubmit });
+    const textarea = container.querySelector("textarea")!;
+    const form = container.querySelector("form.composer")! as HTMLFormElement;
+    const requestSubmit = vi.spyOn(form, "requestSubmit")
+      .mockImplementation(() => fireEvent.submit(form));
+
+    fireEvent.compositionStart(textarea);
+    fireEvent.keyDown(textarea, { key: "Enter", keyCode: 13 });
+    expect(requestSubmit).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(textarea);
+    fireEvent.keyDown(textarea, { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: true });
+    expect(requestSubmit).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.keyDown(textarea, { key: "Enter", keyCode: 13 });
+    });
+    expect(requestSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith(expect.anything(), "待输入的中文");
+  });
+
+  it("respects manual reading scroll, but resets the lock on session switch", () => {
+    const oldMessage: ChatMessage = { role: "assistant", content: "旧会话" };
+    const { container, rerender } = renderPanel({
+      sessionId: "old", messages: [oldMessage],
+    });
+    const viewport = container.querySelector(".conversation")! as HTMLElement;
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 900 });
+    Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 200 });
+    viewport.scrollTop = 50;
+    fireEvent.scroll(viewport);
+    expect(container.querySelector(".back-to-latest")).not.toBeNull();
+
+    rerender(panelElement({
+      sessionId: "old",
+      messages: [oldMessage, { role: "user", content: "下一条消息" }],
+    }));
+    expect(viewport.scrollTop).toBe(50); // streaming/history must not yank the reader
+
+    rerender(panelElement({
+      sessionId: "new",
+      messages: [{ role: "assistant", content: "新会话内容" }],
+    }));
+    expect(viewport.scrollTop).toBe(900);
+    expect(container.querySelector(".back-to-latest")).toBeNull();
+  });
+
+  it("labels live updates when the user scrolls away during generation", () => {
+    const { container } = renderPanel({
+      isSending: true,
+      messages: [{ role: "assistant", content: "正在补全的内容" }],
+    });
+    const viewport = container.querySelector(".conversation")! as HTMLElement;
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 1000 });
+    Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 200 });
+    viewport.scrollTop = 10;
+    fireEvent.scroll(viewport);
+    expect(container.querySelector(".back-to-latest")).toHaveTextContent("正在生成 · 回到最新");
   });
 });
