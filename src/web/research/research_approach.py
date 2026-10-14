@@ -116,6 +116,46 @@ def _clean_focus(focus: Any) -> list[str]:
     return out
 
 
+# Deterministic display labels for known plan field names.  Unknown fields keep
+# their original meaning — the model must never invent a research dimension.
+_FIELD_LABELS = {
+    "release_date": "发布日期",
+    "release": "发布",
+    "released": "发布时间",
+    "version": "版本",
+    "license": "许可证",
+    "author": "作者",
+    "maintainer": "维护者",
+    "maintenance": "维护状态",
+    "compatibility": "兼容性",
+    "psd": "PSD 兼容",
+    "api": "API 支持",
+    "performance": "性能",
+    "price": "价格",
+    "pricing": "价格",
+    "support": "支持情况",
+    "requirements": "环境要求",
+    "installation": "安装方式",
+    "documentation": "文档",
+    "dependencies": "依赖",
+    "security": "安全性",
+}
+
+
+def translate_field(name: Any) -> str:
+    """Map a known plan field name to a natural display label.
+
+    Unknown field names are returned unchanged (cleaned), so the projection can
+    only ever surface dimensions the plan actually contained.
+    """
+
+    raw = _clean_text(name)
+    if not raw:
+        return ""
+    key = raw.strip().lower().replace("-", "_").replace(" ", "_")
+    return _FIELD_LABELS.get(key, raw)
+
+
 def validate_approach(
     approach: Any,
     *,
@@ -259,7 +299,8 @@ def summarize_plan(
     """
 
     resolved_mode = normalize_mode(mode)
-    names = _clean_focus(fields)
+    raw_fields = fields if isinstance(fields, (list, tuple)) else []
+    names = _clean_focus([translate_field(item) for item in raw_fields])
     if not names:
         return fallback_approach(
             mode=resolved_mode, root_run_id=root_run_id, turn_id=turn_id, sequence=sequence
