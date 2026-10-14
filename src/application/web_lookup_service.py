@@ -1505,7 +1505,10 @@ class WebLookupService:
             input_revision=round_index,
             source_refs=bind_source_refs(notes),
         )
-        if parsed["engine"] == "isolated_python" and payload.get("status") == "succeeded":
+        # An execution attempt occupies the compute quota even when it fails or
+        # times out; a request that never started (isolation unavailable) does
+        # not count as an execution.
+        if parsed["engine"] == "isolated_python" and payload.get("status") in {"succeeded", "failed"}:
             consume_incremental_budget(deep, "python_runs")
         entries = [item for item in deep.get("computations", []) if isinstance(item, dict)]
         entries.append({**payload, "round": round_index, "at": utc_now()})

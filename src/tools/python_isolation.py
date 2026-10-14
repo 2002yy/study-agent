@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -72,10 +73,12 @@ class DockerPythonRunner:
         *,
         docker: str = "docker",
         runner: Any = subprocess.run,
+        popen: Any = subprocess.Popen,
     ) -> None:
         self.spec = spec
         self.docker = docker
         self._run = runner
+        self._popen = popen
 
     def available(self) -> bool:
         if shutil.which(self.docker) is None:
@@ -116,26 +119,62 @@ class DockerPythonRunner:
         name = f"study-agent-py-{uuid.uuid4().hex[:12]}"
         started = time.perf_counter()
         try:
-            completed = self._run(
+            process = self._popen(
                 self._command(name, timeout),
-                input=code,
-                capture_output=True,
-                text=True,
-                timeout=timeout + 5,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
-        except subprocess.TimeoutExpired:
-            self._kill(name)
-            return self._result("timeout", "", "", None, started,
-                                reason="execution exceeded the time limit")
         except OSError as exc:
             raise IsolationUnavailable(str(exc)) from exc
-        return self._result(
-            "succeeded" if completed.returncode == 0 else "failed",
-            completed.stdout or "",
-            completed.stderr or "",
-            completed.returncode,
-            started,
+
+        # Output is bounded *while reading*: a runaway program can no longer
+        # exhaust host memory by printing forever before we truncate.
+        limit = self.spec.max_output_bytes
+        state = {"truncated": False}
+        stdout: list[bytes] = []
+        stderr: list[bytes] = []
+        readers = [
+            threading.Thread(target=_drain, args=(process.stdout, stdout, state, limit), daemon=True),
+            threading.Thread(target=_drain, args=(process.stderr, stderr, state, limit), daemon=True),
+        ]
+        for reader in readers:
+            reader.start()
+        try:
+            process.stdin.write(code.encode("utf-8"))
+            process.stdin.close()
+        except (BrokenPipeError, OSError, ValueError):
+            pass
+
+        timed_out = False
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+        if timed_out or state["truncated"]:
+            self._kill(name)
+            try:
+                process.kill()
+            except OSError:
+                pass
+        for reader in readers:
+            reader.join(timeout=5)
+
+        status = "timeout" if timed_out else (
+            "succeeded" if getattr(process, "returncode", 1) == 0 else "failed"
         )
+        reason = "execution exceeded the time limit" if timed_out else (
+            "output limit exceeded" if state["truncated"] else ""
+        )
+        return {
+            "status": status,
+            "exit_code": getattr(process, "returncode", None),
+            "stdout": b"".join(stdout).decode("utf-8", "replace"),
+            "stderr": b"".join(stderr).decode("utf-8", "replace"),
+            "truncated": state["truncated"],
+            "elapsed_ms": int((time.perf_counter() - started) * 1000),
+            "reason": reason,
+        }
 
     def _kill(self, name: str) -> None:
         try:
@@ -143,33 +182,29 @@ class DockerPythonRunner:
         except (OSError, subprocess.SubprocessError):
             pass
 
-    def _result(
-        self,
-        status: str,
-        stdout: str,
-        stderr: str,
-        exit_code: int | None,
-        started: float,
-        reason: str = "",
-    ) -> dict[str, Any]:
-        limit = self.spec.max_output_bytes
-        stdout, truncated = _bounded(stdout, limit)
-        stderr, _ = _bounded(stderr, limit)
-        return {
-            "status": status,
-            "exit_code": exit_code,
-            "stdout": stdout,
-            "stderr": stderr,
-            "truncated": truncated,
-            "elapsed_ms": int((time.perf_counter() - started) * 1000),
-            "reason": reason,
-        }
 
+def _drain(stream: Any, sink: list[bytes], state: dict[str, bool], limit: int) -> None:
+    """Read a pipe incrementally, stopping (and flagging) at the byte cap."""
 
-def _bounded(text: str, limit: int) -> tuple[str, bool]:
-    if len(text) <= limit:
-        return text, False
-    return text[:limit], True
+    if stream is None:
+        return
+    total = 0
+    try:
+        while total < limit:
+            chunk = stream.read(min(4096, limit - total))
+            if not chunk:
+                break
+            sink.append(chunk)
+            total += len(chunk)
+        else:
+            state["truncated"] = True
+    except (OSError, ValueError):
+        return
+    finally:
+        try:
+            stream.close()
+        except (OSError, ValueError):
+            pass
 
 
 def get_default_runner(*, docker: str = "docker") -> IsolatedPythonRunner:

@@ -73,7 +73,14 @@ Rev 3（UI 整合）与 Slice A（连续研究运行时接线）只覆盖其中�
 | 连续对话 E2E | `npx playwright test --config=playwright.conversation.config.ts` | **2 passed × 2 视口**（含 Slice B 计算卡片、数据表切换、来源/版本） |
 | 全量 fixture E2E | `npx playwright test` | **79 passed**（chromium/mobile/narrow + firefox + webkit） |
 | 手工断言 | E2E 内含 `streams==1`、`queue==1`、`steering==[两条]`、无横向溢出、无重复全局状态条 | PASS |
-| Slice B 后端 | `pytest tests/test_computation_protocol.py tests/test_deterministic_compute.py tests/test_python_isolation.py tests/test_compute_tools.py tests/test_computation_step.py tests/test_research_computation_event.py tests/test_workflow_tool_registry.py tests/test_tool_service.py tests/test_incremental_research_budget.py tests/test_research_interaction.py tests/test_web_lookup_deep_research.py tests/test_web_lookup_run.py tests/test_web_lookup_research_contract.py tests/test_research_answer_streaming.py tests/test_chat_research_run_owner.py tests/test_persistent_web_agent.py tests/test_chat_service.py tests/test_research_follow_up.py tests/test_research_recovery.py tests/test_active_research_runtime.py tests/test_standard_research.py tests/test_chat_routes_pedagogy.py -q` | **310 passed, 4 skipped**（4 项为真实容器负控，无隔离运行时自动 skip） |
+| Slice B 后端 | `pytest <见上> -q` | **320 passed, 0 skipped**（隔离运行时可用时；含 6 项真实容器负控与 2 项 Deep→真实隔离 Python 端到端） |
+
+### Slice B 真实隔离安全验收（2026-10-15，本机 Docker Desktop / Linux 容器）
+
+- 镜像固定：`python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de`（本地已存在，未静默拉取），经 `STUDY_AGENT_PYTHON_IMAGE` 指定。
+- 命令：`pytest tests/test_python_isolation.py -q -rs` → **11 passed（0 skipped）**；`pytest tests/test_web_lookup_deep_research.py -q -rs` → **18 passed（0 skipped）**。
+- 覆盖并通过：正常隔离计算；宿主专有文件不可读且宿主环境变量未继承；外部网络请求失败；无限循环超时被杀；无限内存被 `--memory` 限制；无限输出被读时限流并可截断。
+- 修复项（本轮）：① 宿主隔离负控改用宿主专有标记（不再用容器自带的 `/etc/passwd`）；② 运行输出改为**读时限流**并终止越界写入单元，不再先整体缓冲；③ 生产接线默认使用环境解析的 runner（非 `NullRunner`），且 `isolated_python` 的代码由**服务端从声明式请求生成**（模型不提供代码）；④ `python_runs` 改为**执行尝试**即占用（失败/超时计入，隔离不可用而未启动不计）。
 
 > 隔离运行时的真实负控（宿主文件/网络/内存/无限循环/输出上限）只有在可用 Docker/WSL2 时才会执行；当前本机 Docker 守护进程未运行，故**未通过**，且未用宿主进程凑数。
 
@@ -87,7 +94,7 @@ Rev 3（UI 整合）与 Slice A（连续研究运行时接线）只覆盖其中�
 - **状态一致性**：UI、SQLite、实际执行轨迹三者吻合。
 - **真实模型自主工具选择**与研究质量（需额度恢复后）。
 - **连续输出**：开场、工具过程、研究结果在同一对话的真实链路（当前为桩件）。
-- **Slice B 隔离执行**：真实容器负控未通过（本机无运行中的隔离运行时，Docker 守护进程未启动）；建议的**计算工具接线已通**（Deep 执行器按 planner 有界 `compute` 判定调用，结果落库并经由 `computation` SSE 透出），但“Agent 自主选择何时计算”目前仍由脚本化 planner 在离线测试中驱动，真实模型决策留待额度恢复。
+- **Slice B 隔离执行**：真实容器负控**已通过**（见 §4 安全验收）。计算工具接线已通（Deep 执行器按 planner 有界 `compute` 判定调用，服务端生成隔离程序，结果落库并经由 `computation` SSE 透出）。仍是脚本化 planner 驱动“Agent 何时计算”的决策，真实模型自主决策质量留待额度恢复。
 
 ## 6. 兼容性债务
 

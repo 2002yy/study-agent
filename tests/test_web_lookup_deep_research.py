@@ -14,6 +14,7 @@ import pytest
 from src.application.web_lookup_service import WebLookupService
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.web_lookup_repository import WebLookupRepository
+from src.tools.python_isolation import isolated_python_available
 
 
 class ScriptedGateway:
@@ -195,7 +196,9 @@ def test_planner_compute_decision_runs_bound_tool_without_restarting(tmp_path):
     assert gateway.read_calls.count("https://example.org/alpha") == 1
 
 
-def test_isolated_compute_decision_fails_closed_without_isolation(tmp_path):
+def test_isolated_expression_decision_never_falls_back_to_deterministic(tmp_path):
+    """An isolated-engine expression is refused; it is never quietly recomputed."""
+
     gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
     service = _service(tmp_path, gateway, ScriptedPlanner(
         ["alpha"], revisions=[{"done": True, "additional": [], "compute": {
@@ -206,9 +209,39 @@ def test_isolated_compute_decision_fails_closed_without_isolation(tmp_path):
     completed = service.execute(created.id)
 
     [entry] = completed.research_context["deep"]["computations"]
-    assert entry["status"] == "blocked"
-    assert entry["reason"] == "isolation_unavailable"
     assert entry["engine"] == "isolated_python"
+    assert entry["status"] != "succeeded"
+    assert entry["result"] == {}
+    assert entry["reason"] == "isolation_unavailable" or "deterministic" in entry["reason"]
+
+
+@pytest.mark.skipif(
+    not isolated_python_available(),
+    reason="No usable OS-level isolation runtime for the real Python compute path",
+)
+def test_deep_isolated_python_decision_returns_bound_structured_result(tmp_path):
+    """Deep -> real isolated Python -> validated table -> stream payload."""
+
+    from src.api.routes.chat_routes import _latest_computation
+
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(
+        ["alpha"], revisions=[{"done": True, "additional": [], "compute": {
+            "engine": "isolated_python", "mode": "table", "statistic": "mean",
+            "series": {"A": [1, 3], "B": [2, 2]}, "unit": "s",
+        }}],
+    ))
+    created = service.create("compare alpha", research_mode="deep")
+    completed = service.execute(created.id)
+
+    [entry] = completed.research_context["deep"]["computations"]
+    assert entry["status"] == "succeeded", entry.get("reason")
+    assert entry["engine"] == "isolated_python"
+    assert entry["source_refs"] == ["https://example.org/alpha"]
+    assert entry["result"]["columns"] == ["方案", "mean"]
+    assert entry["result"]["rows"] == [["A", 2.0], ["B", 2.0]]
+    assert entry["result"]["unit"] == "s"
+    assert _latest_computation(completed)["tool_run_id"] == entry["tool_run_id"]
 
 
 def _service(

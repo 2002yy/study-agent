@@ -10,6 +10,7 @@ isolation runtime is unavailable; the request is recorded as blocked instead.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from src.tools import computation
@@ -21,6 +22,11 @@ ISOLATED_TOOL = "isolated_python"
 MAX_COMPUTATIONS = 20
 
 _REQUEST_KEYS = ("mode", "expression", "variables", "values", "series", "statistic", "unit")
+
+# Server-authored statistics kernels for the isolated engine.  The model never
+# supplies code: it supplies a declarative request and the server generates a
+# fixed program from a whitelisted statistic set.
+_ISOLATED_STATS = ("sum", "mean", "median", "min", "max", "stdev", "variance", "count")
 
 
 class ComputeRequestError(ValueError):
@@ -45,6 +51,43 @@ def parse_compute_request(raw: Any) -> dict[str, Any] | None:
     return {"engine": engine, "request": request}
 
 
+def build_isolated_program(request: dict[str, Any]) -> str:
+    """Generate the fixed program the isolated engine runs.
+
+    Only declarative, already-validated inputs are embedded; the model's text is
+    never executed.  Expression evaluation deliberately stays in the
+    deterministic engine so no model-authored logic reaches the container.
+    """
+
+    mode = str(request.get("mode") or "")
+    if mode == "expression":
+        raise ComputeRequestError("expression stays deterministic; isolated Python runs data processing")
+    if mode not in {"summarize", "table"}:
+        raise ComputeRequestError(f"isolated Python does not support mode: {mode}")
+    statistic = str(request.get("statistic") or "mean")
+    if statistic not in _ISOLATED_STATS:
+        raise ComputeRequestError(f"unsupported statistic: {statistic}")
+    payload = json.dumps({**request, "statistic": statistic})
+    return (
+        "import json, statistics\n"
+        f"DATA = json.loads({json.dumps(payload)})\n"
+        "STAT = DATA.get('statistic') or 'mean'\n"
+        "UNIT = DATA.get('unit') or ''\n"
+        "def stat(values):\n"
+        "    values = [float(v) for v in values]\n"
+        "    return {'sum': sum, 'mean': statistics.fmean, 'median': statistics.median,\n"
+        "            'min': min, 'max': max, 'stdev': statistics.pstdev,\n"
+        "            'variance': statistics.pvariance, 'count': len}[STAT](values)\n"
+        "if DATA.get('mode') == 'summarize':\n"
+        "    table = {'columns': ['指标', '数值'], 'rows': [[STAT, float(stat(DATA.get('values') or []))]], 'unit': UNIT}\n"
+        "else:\n"
+        "    table = {'columns': ['方案', STAT],\n"
+        "             'rows': [[str(label), float(stat(values))] for label, values in (DATA.get('series') or {}).items()],\n"
+        "             'unit': UNIT}\n"
+        "print(json.dumps(table))\n"
+    )
+
+
 def execute_compute(
     parsed: dict[str, Any],
     *,
@@ -59,49 +102,45 @@ def execute_compute(
 
     engine = str(parsed["engine"])
     ready = isolated_python_available() if isolation_ready is None else isolation_ready
-    if engine == "isolated_python" and not ready:
-        return computation.build_result(
-            run_id=run_id,
-            tool_run_id=tool_run_id,
-            status="blocked",
-            input_revision=input_revision,
-            source_refs=source_refs,
-            engine="isolated_python",
-            reason="isolation_unavailable",
-        ).to_payload()
-    tool = ISOLATED_TOOL if engine == "isolated_python" else DETERMINISTIC_TOOL
-    args = {
-        **parsed["request"],
+    identity = {
         "run_id": run_id,
         "tool_run_id": tool_run_id,
         "input_revision": input_revision,
         "source_refs": list(source_refs),
     }
+    if engine == "isolated_python":
+        if not ready:
+            return _blocked(isolation_unavailable=True, **identity)
+        try:
+            program = build_isolated_program(parsed["request"])
+        except ComputeRequestError as exc:
+            return _failed(str(exc), engine=engine, **identity)
+        tool, args = ISOLATED_TOOL, {**identity, "code": program}
+    else:
+        tool, args = DETERMINISTIC_TOOL, {**identity, **parsed["request"]}
     result = registry.call(tool, args)
     payload = result.output if isinstance(result.output, dict) else {}
     if not payload.get("schema_version"):
-        return computation.build_result(
-            run_id=run_id,
-            tool_run_id=tool_run_id,
-            status="failed",
-            input_revision=input_revision,
-            source_refs=source_refs,
-            engine=engine,
-            reason=result.reason or "computation produced no bound result",
-        ).to_payload()
+        return _failed(result.reason or "computation produced no bound result", engine=engine, **identity)
     if payload.get("status") == "succeeded":
         problems = computation.validate_table(payload.get("result"))
         if problems:
-            return computation.build_result(
-                run_id=run_id,
-                tool_run_id=tool_run_id,
-                status="failed",
-                input_revision=input_revision,
-                source_refs=source_refs,
-                engine=engine,
-                reason="; ".join(problems),
-            ).to_payload()
+            return _failed("; ".join(problems), engine=engine, **identity)
     return payload
+
+
+def _blocked(*, isolation_unavailable: bool, **identity: Any) -> dict[str, Any]:
+    return computation.build_result(
+        status="blocked", engine="isolated_python",
+        reason="isolation_unavailable" if isolation_unavailable else "blocked",
+        **identity,
+    ).to_payload()
+
+
+def _failed(reason: str, *, engine: str, **identity: Any) -> dict[str, Any]:
+    return computation.build_result(
+        status="failed", engine=engine, reason=reason, **identity
+    ).to_payload()
 
 
 def bind_source_refs(notes: list[dict[str, Any]], *, limit: int = 8) -> list[str]:
