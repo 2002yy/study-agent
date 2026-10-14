@@ -18,6 +18,7 @@ from src.web.research.research_approach import (
     project_from_plan,
     seed_approach,
     summarize_plan,
+    translate_field,
     validate_approach,
 )
 
@@ -289,6 +290,21 @@ def test_summarize_plan_stays_within_mode_length_budget() -> None:
         approach = summarize_plan(mode=mode, fields=long_fields)
         assert approach["status"] == "ready"
         assert len(approach["summary"]) <= MAX_SUMMARY_CHARS[mode]
+
+
+def test_summarize_plan_translates_known_fields_only() -> None:
+    approach = summarize_plan(mode="standard", fields=["release_date", "自定义维度"])
+    assert approach["focus"] == ["发布日期", "自定义维度"]
+    assert "发布日期" in approach["summary"]
+    # Unknown fields keep their original meaning; nothing is invented.
+    assert "自定义维度" in approach["summary"]
+
+
+def test_translate_field_known_and_unknown() -> None:
+    assert translate_field("release_date") == "发布日期"
+    assert translate_field("PSD-Compatibility") == "PSD-Compatibility"
+    assert translate_field("unknown_thing") == "unknown_thing"
+    assert translate_field("") == ""
 
 
 def test_fallback_is_honest_and_authority_free() -> None:

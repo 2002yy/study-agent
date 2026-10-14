@@ -94,10 +94,20 @@ summary yet) — the UI shows the existing deterministic tool progress meanwhile
   `StandardExecutionRepository.save_research_plan`: on a saved plan the approach
   is persisted as `origin=model_plan, status=ready, sequence=1`; a projection
   failure never blocks the loop.
-- **Bounded generation (next):** only when plan data is insufficient **and**
-  budget allows — budget permission first, counted attempts, a late result must
-  not overwrite a cancelled terminal state, and it must not be a synchronous
-  prerequisite for the main research.
+- **Bounded generation (implemented in the stacked slice, `approach_generation.py`):**
+  `ApproachGenerationCoordinator` enforces the frozen contract — trigger
+  priority (`model_plan` wins, zero extra calls), **budget permission before the
+  request** with every real attempt counted, one generation per authorization
+  (same `(run_id, operation_id)` cannot double-spend), identity/terminal/
+  authoritative-origin checked writes (never `sequence` alone), no late
+  overwrite after cancel/end/newer direction, and failure that never
+  propagates.  The budget gate (`authorize`) is injected from the existing
+  budget authority; this feature does not own the model-call ceiling.
+  **Remaining:** connect `authorize`/`write` to the live run and run it off the
+  research path.
+- **Field display:** `translate_field` maps known plan field names to natural
+  labels (`release_date → 发布日期`); unknown names are shown unchanged, so a
+  projection can never invent a research dimension.
 - Only if plan data is insufficient **and** budget allows, wire the bounded
   DeepSeek generation (budget permission first, counted attempts; a late result
   must not overwrite a cancelled terminal state). Opening generation must **not**
