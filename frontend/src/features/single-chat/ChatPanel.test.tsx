@@ -159,6 +159,11 @@ describe("continuous conversation input", () => {
     expect(screen.getByText("已纳入研究计划 · 等待相关搜索")).toBeVisible();
   });
 
+  it("offers a multimodal attachment input in the composer", () => {
+    renderPanel({ sessionId: "session-1" });
+    expect(screen.getByRole("button", { name: "添加附件" })).toBeInTheDocument();
+  });
+
   it("labels a queued task as saved-pending-send, never as auto-executing", () => {
     const { container } = renderPanel({ messages: [
       { role: "user", content: "回答完再解释得简单一点", researchQueued: { runId: "r", id: "q1", status: "pending" } },

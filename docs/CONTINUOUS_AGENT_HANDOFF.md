@@ -35,6 +35,8 @@ Rev 3（UI 整合）与 Slice A（连续研究运行时接线）只覆盖其中�
 | 提交 3 | `20af1d99742b9ab6d800445afd11d1f494368dd2` fix(research): separate applied from executing and label queued tasks as pending-send |
 | 提交 4 | `184ab1782ebe997bbaf35c87e24d35853d89d5b8` feat(ui): integrate #229 IME and scroll safety; add continuous-agent handoff |
 | 提交 5 | Slice B（隔离执行器 + 计算协议 + 交互图表）；SHA 见该提交本身 |
+| 提交 6 | Slice B 安全加固 + 真实容器验收；`d95dddfe0c687d0fb4c9b280019ee52718795bcb` |
+| 提交 7 | Slice C（多模态输入统一到写作区）；SHA 见该提交本身 |
 | 远端 | `origin/codex/conversation-continuous-p0p1`；**无 PR** |
 | 工作树状态 | 见写入本文件时的 `git status`；本文件随下一次实质开发提交一起推送 |
 
@@ -58,6 +60,7 @@ Rev 3（UI 整合）与 Slice A（连续研究运行时接线）只覆盖其中�
   - **研究路径接线（有界工具决策）**：`src/web/research/computation_step.py` 只接受声明式计算请求（拒绝自由代码）；Deep 执行器在每轮 `revise` 的 `compute` 判定处调用 `_deep_apply_computation`，绑定 `run_id/tool_run_id/input_revision/source_refs`（来源取自本轮实际使用的笔记），结果落 `deep["computations"]`（上限 20）；请求 `isolated_python` 而隔离不可用时记为 `blocked`，**绝不降级为确定性计算**。
   - **`computation` SSE 发射**：`chat_routes._latest_computation` 只透出已绑定的权威信封（不泄露内部 `round/at`），研究进度循环按 `tool_run_id` 去重后发出 `computation` 事件。
 - **Slice B 前端**：`types.ts` 的 `ComputationPayload`、`features/answer-ui/computation.ts`（客户端镜像校验）、`InteractiveComputation.tsx`（柱状/折线/数据表切换，保留单位/来源/版本，参数变更触发**服务端**重算，过期结果标记 stale 不回写）；`api.ts`/`chatController.ts` 新增 `computation` SSE 事件通道；`ChatPanel` 在消息内渲染。不执行任何模型提供的 HTML/JS/回调。
+- **Slice C 多模态输入（统一到聊天输入区）**：`features/rag/attachmentRules.ts`（共享接受类型/大小上限/状态文案，`SessionAttachments` 改为复用）；`features/single-chat/ComposerAttachments.tsx` 在写作区提供附件入口与 chips（上传/移除/超限/无会话禁用/失败提示），复用既有 `sessions/{id}/attachments` API，解析/索引/转正流程不变；`ChatPanel` 在输入区渲染；样式加入 `chatAppearance.css`。
 
 ## 4. 验证事实（离线，命令可复现）
 
@@ -68,7 +71,7 @@ Rev 3（UI 整合）与 Slice A（连续研究运行时接线）只覆盖其中�
 | Ruff | `python -m ruff check <changed files>` | PASS |
 | mypy baseline | `python -m mypy --explicit-package-bases src/` + `python tools/check_mypy_baseline.py --log <log> --baseline config/mypy_baseline.json --outcome failure` | current=122, baseline=128, **NEW=0**（resolved 6） |
 | 后端影响集 | `pytest tests/test_research_steering.py tests/test_research_interaction.py tests/test_incremental_research_budget.py tests/test_web_lookup_deep_research.py tests/test_web_lookup_run.py tests/test_web_lookup_research_contract.py tests/test_research_answer_streaming.py tests/test_chat_research_run_owner.py tests/test_persistent_web_agent.py tests/test_chat_service.py tests/test_research_follow_up.py tests/test_research_recovery.py tests/test_active_research_runtime.py tests/test_standard_research.py -q` | **259 passed**（~4m15s） |
-| 前端单测 | `frontend: npx vitest run src` | **494 passed / 112 files** |
+| 前端单测 | `frontend: npx vitest run src` | **500 passed / 113 files** |
 | 前端类型/构建 | `npx tsc -b`；`npm run build` | PASS |
 | 连续对话 E2E | `npx playwright test --config=playwright.conversation.config.ts` | **2 passed × 2 视口**（含 Slice B 计算卡片、数据表切换、来源/版本） |
 | 全量 fixture E2E | `npx playwright test` | **79 passed**（chromium/mobile/narrow + firefox + webkit） |
@@ -105,7 +108,7 @@ Rev 3（UI 整合）与 Slice A（连续研究运行时接线）只覆盖其中�
 ## 7. 下一阶段
 
 - **Slice B 收尾**：把 `deterministic_compute`/`isolated_python` 接入 Deep 研究工具路径（Agent 在有界决策中选择计算工具）、后端发射 `computation` SSE、并用真实容器跑通负控。
-- **Slice C — 统一多模态输入**：附件基础设施统一到聊天输入区。
+- **Slice C 收尾**：把附件纳入“六项能力整体真实任务验收”（真实模型在回答中使用图片/文档、转正长期资料的真实链路尚未做端到端验收）。
 - 之后进行**六项能力一起工作的完整真实任务验收**。
 - 无需等额度重置：工具协议、结构化图表、前端渲染、模拟流程均可先离线实现；真实模型自主工具选择、研究质量与真实容器执行留待环境/额度就绪后验收。
 

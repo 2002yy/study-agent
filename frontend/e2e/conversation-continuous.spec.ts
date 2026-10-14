@@ -66,6 +66,23 @@ test("two supplements and one queued task stay in one continuous research conver
   if (!address || typeof address === "string") throw new Error("Test server did not bind");
   try {
     await installApiFixture(page);
+    const attachment = {
+      id: "att1", thread_id: "chat-live", filename: "notes.txt", content_hash: "h",
+      mime_type: "text/plain", size_bytes: 8, status: "ready", stage_error: "",
+      stage_history: [], retry_count: 0, promoted_rag_run_id: "", external_calls: [],
+      created_at: "", updated_at: "",
+    };
+    let attached = false;
+    await page.route(/\/sessions\/[^/]+\/attachments$/, route => {
+      if (route.request().method() === "POST") {
+        attached = true;
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(attachment) });
+      }
+      return route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ attachments: attached ? [attachment] : [], max_files_per_thread: 5, total_bytes: 8 }),
+      });
+    });
     await page.route(/\/(?:chat\/stream|research-runs\/run-live(?:\/(?:steer|queue))?)$/, route =>
       route.continue({ url: `http://127.0.0.1:${address.port}${new URL(route.request().url()).pathname}` }));
     await page.goto("/");
@@ -74,6 +91,11 @@ test("two supplements and one queued task stay in one continuous research conver
     await input.press("Enter");
     // The research plan opening lives in the conversation, not a floating bar.
     await expect(page.getByText("我会先比较功能与 PSD 兼容性，再核对哪些操作能由 Agent 完成。")).toBeVisible();
+    // Slice C: multimodal input lives in the composer once a session exists.
+    await page.locator('.composer-attachments input[type="file"]').setInputFiles(
+      { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("evidence") },
+    );
+    await expect(page.locator(".composer-attachment-chips").getByText("notes.txt")).toBeVisible();
     // No duplicated global status surface while the run is live.
     await expect(page.getByText(/已发起 \d+ 次查询/)).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath("research-opening.png"), fullPage: true });

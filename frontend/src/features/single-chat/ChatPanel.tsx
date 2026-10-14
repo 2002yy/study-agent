@@ -47,6 +47,7 @@ import { ChatResearchRecovery } from "../web-lookup/ChatResearchRecovery";
 import type { ResearchLookupResponse } from "../web-lookup/researchApi";
 import { RestoreCard } from "./RestoreCard";
 import { ChatRoleSettings } from "./ChatRoleSettings";
+import { ComposerAttachments } from "./ComposerAttachments";
 
 // A search is an explicit chat request; no separate retrieval or task override.
 export function searchMessage(input: string): string {
@@ -486,6 +487,7 @@ export function ChatPanel(props: ChatPanelProps) {
             onSelect={role=>{props.onSelectRole?.(role);setRoleSettingsOpen(false);composerRef.current?.focus();}}
             onClose={()=>{setRoleSettingsOpen(false);roleSettingsButtonRef.current?.focus();}}
           /> : null}
+          <ComposerAttachments sessionId={sessionId} />
           <textarea
             ref={composerRef}
             rows={1}

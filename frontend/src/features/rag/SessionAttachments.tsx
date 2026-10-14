@@ -11,35 +11,12 @@ import {
   type SessionAttachmentInfo,
   type SessionAttachmentListResponse,
 } from "../../api";
-
-const ACCEPTED_EXTENSIONS = [
-  ".md",
-  ".markdown",
-  ".txt",
-  ".pdf",
-  ".docx",
-  ".jpg",
-  ".jpeg",
-  ".png",
-  ".gif",
-  ".webp",
-];
-
-const MAX_FILE_BYTES = 20 * 1024 * 1024;
-
-function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${bytes} B`;
-}
-
-function statusLabel(status: SessionAttachmentInfo["status"]): string {
-  if (status === "parsing") return "解析中";
-  if (status === "chunking") return "分块中";
-  if (status === "indexing") return "索引中";
-  if (status === "ready") return "已就绪";
-  return "失败";
-}
+import {
+  ACCEPTED_EXTENSIONS,
+  MAX_FILE_BYTES,
+  attachmentStatusLabel as statusLabel,
+  formatBytes,
+} from "./attachmentRules";
 
 function stageLine(entry: SessionAttachmentInfo["stage_history"][number]): string {
   const parts = [entry.stage, entry.status];

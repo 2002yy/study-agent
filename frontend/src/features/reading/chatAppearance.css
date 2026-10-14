@@ -90,3 +90,17 @@
 @media (min-width: 901px) and (max-width: 1100px) {
   .app-shell:has(.reading-layout.has-document) { padding: 12px; background: #f0f4f3; }
 }
+
+/* Slice C: multimodal input unified into the conversation composer. */
+.reading-layout .composer-attachments { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.reading-layout .composer-attach-button { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; min-height: 34px; padding: 0; border: 1px solid #dce4ea; border-radius: 10px; background: #fff; color: var(--muted); cursor: pointer; }
+.reading-layout .composer-attach-button:disabled { opacity: .5; cursor: default; }
+.reading-layout .composer-attachment-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.reading-layout .composer-attachment-chips li { display: inline-flex; align-items: center; gap: 6px; max-width: 260px; padding: 3px 6px 3px 10px; border: 1px solid #dbe4ea; border-radius: 999px; background: #f8fafb; font-size: 12px; }
+.reading-layout .composer-attachment-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reading-layout .composer-attachment-chips button { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.reading-layout .composer-attachment-chips button:hover { background: #e8eef2; }
+.reading-layout .composer-attachment-error { flex: 1 1 100%; color: #8a1d1d; font-size: 12px; }
+@media (max-width: 600px) {
+  .reading-layout .composer-attach-button { width: 44px; height: 44px; min-height: 44px; }
+}
