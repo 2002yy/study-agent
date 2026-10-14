@@ -32,6 +32,7 @@ from src.application.research_evidence import (
     research_sources_snapshot,
 )
 from src.web.research.research_approach import approach_event
+from src.web.research.research_interaction import interaction_event
 from src.application.runtime_repository import (
     get_chat_service,
     get_session_service,
@@ -435,6 +436,7 @@ def _research_progress(run: Any) -> dict[str, Any]:
         "notes_count": len(notes),
         "last_step_kind": (last_step or {}).get("kind"),
         "last_step_text": (last_step or {}).get("text"),
+        **interaction_event(run),
     }
 
 

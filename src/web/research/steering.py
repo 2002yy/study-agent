@@ -136,3 +136,17 @@ def merge_deep_steering_context(
     )
     updated["deep"] = deep
     return updated
+
+
+def merge_queued_followups(incoming: Mapping[str, Any], durable: Mapping[str, Any]) -> dict[str, Any]:
+    """A concurrent queued message or completed delivery cannot be overwritten."""
+    updated = dict(incoming)
+    merged = {str(item["id"]): dict(item) for item in incoming.get("conversation_queue", []) if isinstance(item, dict) and item.get("id")}
+    for item in durable.get("conversation_queue", []):
+        if isinstance(item, dict) and item.get("id"):
+            key = str(item["id"])
+            if key not in merged or item.get("status") == "completed":
+                merged[key] = dict(item)
+    if merged:
+        updated["conversation_queue"] = list(merged.values())
+    return updated

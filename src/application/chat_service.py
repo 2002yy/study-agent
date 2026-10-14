@@ -649,6 +649,9 @@ class ChatService:
                 owner_turn_id=turn_id,
             )
             rag["web_tools"] = web_tools.to_dict()
+            from src.web.research.research_interaction import steering_answer_instruction
+
+            effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
             web_tool_error = str(rag["web_tools"].get("error") or "")
             rag["web_context"] = _web_context_provenance(
                 command.web_context,
@@ -691,7 +694,7 @@ class ChatService:
                 context_mode=context_mode,
                 rag_context="\n\n".join(context_blocks),
                 scene=command.scene,
-                conversation_instruction=command.conversation_instruction,
+                conversation_instruction=effective_instruction,
                 pedagogy_plan=pedagogy_plan,
                 learning_state=learning_state,
             )
@@ -724,7 +727,7 @@ class ChatService:
                 pedagogy_snapshot=pedagogy_snapshot,
                 parent_turn_id=retry_parent.id if retry_parent else None,
                 operation_id=operation_id,
-                conversation_instruction=command.conversation_instruction,
+                conversation_instruction=effective_instruction,
             )
             # --- 164-C1b-1 shadow read: DEAD END, telemetry only (docs 164.15) ---
             # Decision-input hashes are computed *before* the shadow call and passed

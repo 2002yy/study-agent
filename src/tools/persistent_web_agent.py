@@ -399,6 +399,15 @@ class PersistentWebToolAgent(WebToolAgent):
             )
             completed = research_service.execute(run.id)
             deep = completed.research_context.get("deep") or {}
+            calls.append({"name": "research_steering", "arguments": {}, "result": {
+                "run_id": completed.id,
+                "effective_query": str(deep.get("effective_query") or query),
+                "entries": [
+                    {"content": entry.get("content", ""), "executed": entry.get("executed_in_round") is not None}
+                    for entry in deep.get("steering", []) if isinstance(entry, dict)
+                ],
+                "authority": "user_task_requirements_not_evidence",
+            }})
             for attempt in completed.query_attempts:
                 calls.append(
                     {

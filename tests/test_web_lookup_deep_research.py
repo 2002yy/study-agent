@@ -78,6 +78,103 @@ class ScriptedPlanner:
         return {"done": True, "additional": []}
 
 
+def test_mid_round_supplement_changes_future_queries_without_restarting(tmp_path):
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(["alpha"]))
+    created = service.create("compare alpha", research_mode="deep")
+    original_search = gateway.search
+    injected = False
+
+    def search(query, *, max_items=10):
+        nonlocal injected
+        if not injected:
+            injected = True
+            service.steer(created.id, content="add omega to comparison")
+        return original_search(query, max_items=max_items)
+
+    gateway.search = search
+    completed = service.execute(created.id)
+    assert completed.id == created.id
+    assert any("omega" in query for query in gateway.search_calls)
+    assert gateway.read_calls.count("https://example.org/alpha") == 1
+    receipt = completed.research_context["deep"]["steering"][0]
+    assert receipt["incorporated_in_round"] == 2
+
+
+def test_last_round_supplement_remains_unapplied(tmp_path, monkeypatch):
+    monkeypatch.setenv("WEB_RESEARCH_MAX_DEEP_ROUNDS", "1")
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(["alpha"]))
+    created = service.create("alpha", research_mode="deep")
+    original_search = gateway.search
+
+    def search(query, *, max_items=10):
+        service.steer(created.id, content="add omega")
+        return original_search(query, max_items=max_items)
+
+    gateway.search = search
+    completed = service.execute(created.id)
+    from src.web.research.research_interaction import interaction_event
+
+    assert not any("omega" in query for query in gateway.search_calls)
+    assert interaction_event(completed)["steering"][0]["status"] == "late"
+
+
+def test_explicit_keyword_correction_updates_search_and_archives_affected_evidence(tmp_path):
+    gateway = ScriptedGateway({
+        "4060": [_result("https://example.org/4060", "4060")],
+        "5060": [_result("https://example.org/5060", "5060")],
+    })
+    service = _service(tmp_path, gateway, ScriptedPlanner(["RTX 4060 memory"]))
+    created = service.create("RTX 4060 memory", research_mode="deep")
+    original_read = gateway.read
+    injected = False
+
+    def read(url, *, max_chars=6000):
+        nonlocal injected
+        if not injected:
+            injected = True
+            service.steer(created.id, content="不是 4060，是 5060")
+        return original_read(url, max_chars=max_chars)
+
+    gateway.read = read
+    completed = service.execute(created.id)
+    assert any("5060" in query and "4060" not in query for query in gateway.search_calls)
+    deep = completed.research_context["deep"]
+    assert deep["superseded_notes"]
+    assert deep["consumed_reads"] == 2
+    assert all("4060" not in note["url"] for note in deep["notes"])
+    assert "https://example.org/4060" not in completed.source_block
+
+
+def test_budget_grant_allows_extra_work_after_initial_round_limit(tmp_path, monkeypatch):
+    import json
+    from test_incremental_research_budget import policy
+
+    monkeypatch.setenv("WEB_RESEARCH_MAX_DEEP_ROUNDS", "1")
+    monkeypatch.setenv("WEB_RESEARCH_STEERING_BUDGET_POLICY", json.dumps(policy()))
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(["alpha"]))
+    created = service.create("compare alpha", research_mode="deep")
+    original_search = gateway.search
+    injected = False
+
+    def search(query, *, max_items=10):
+        nonlocal injected
+        if not injected:
+            injected = True
+            service.steer(created.id, content="add omega")
+        return original_search(query, max_items=max_items)
+
+    gateway.search = search
+    completed = service.execute(created.id)
+    assert any("omega" in query for query in gateway.search_calls)
+    ledger = completed.research_context["deep"]["incremental_budget"]
+    assert len(ledger["grants"]) == 1
+    assert ledger["consumed"]["searches"] == len(gateway.search_calls)
+    assert ledger["consumed"]["reads"] == len(gateway.read_calls)
+
+
 def _service(
     tmp_path: Path,
     gateway: ScriptedGateway,

@@ -87,6 +87,15 @@ class ResearchFollowUpCandidateResponse(BaseModel):
 
 class ResearchSteerRequest(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
+    request_id: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")
+
+
+class ResearchQueueRequest(ResearchSteerRequest):
+    request_id: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")
+
+
+class ResearchQueueCompleteRequest(BaseModel):
+    turn_id: str = Field(min_length=1, max_length=200)
 
 
 class NewsLookupResponse(BaseModel):

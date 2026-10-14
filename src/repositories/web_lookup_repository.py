@@ -18,6 +18,7 @@ from src.web.research.steering import (
     is_active_claim_engine_context,
     merge_active_steering_context,
     merge_deep_steering_context,
+    merge_queued_followups,
 )
 from src.web.source_assessment import assess_sources
 
@@ -556,7 +557,7 @@ class WebLookupRepository:
             raise ValueError(f"WebLookupRun stage write conflicted: {run_id}")
         return self._required(run_id)
 
-    def append_steering(self, run_id: str, *, content: str) -> WebLookupRun | None:
+    def append_steering(self, run_id: str, *, content: str, request_id: str | None = None) -> WebLookupRun | None:
         """G18 decision 12: inject a mid-run steering message into a running run.
 
         The message is metadata attached to the active run (never a new
@@ -578,6 +579,25 @@ class WebLookupRepository:
                     return None
                 current = _from_row(row)
                 context = dict(current.research_context)
+                if request_id:
+                    entries = context.get("claim_engine_steering", []) if is_active_claim_engine_context(context) else (context.get("deep") or {}).get("steering", [])
+                    prior = next((entry for entry in entries if entry.get("request_id") == request_id), None)
+                    if prior:
+                        if prior.get("content") != normalized[:2000]:
+                            raise ValueError("Steering request identity already belongs to another message")
+                        return current
+                # Do not acknowledge a queue that the owning executor cannot consume.
+                from src.web.research.research_interaction import steering_supported
+
+                if not steering_supported(context):
+                    raise ValueError("This research executor does not support mid-run steering")
+                from src.web.research.steering_plan import steering_intent
+
+                intent = steering_intent(normalized)
+                if intent["kind"] == "correction" and is_active_claim_engine_context(context):
+                    raise ValueError("当前 active 执行器尚不支持约束替换，请排队下一轮")
+                if current.cancel_requested_at:
+                    raise ValueError("Research cancellation is pending; steering was not accepted")
                 if is_active_claim_engine_context(context):
                     context = append_active_steering(
                         context,
@@ -585,6 +605,8 @@ class WebLookupRepository:
                         content=normalized[:2000],
                         received_at=received_at,
                     )
+                    if request_id:
+                        context["claim_engine_steering"][-1]["request_id"] = request_id
                 else:
                     # Preserve the delivered legacy deep-research envelope.
                     deep = dict(context.get("deep") or {})
@@ -596,6 +618,8 @@ class WebLookupRepository:
                     steering.append(
                         {
                             "content": normalized[:2000],
+                            "id": entry_id,
+                            "request_id": request_id,
                             "received_at": received_at,
                             "incorporated_in_round": None,
                         }
@@ -613,6 +637,74 @@ class WebLookupRepository:
             if cursor.rowcount == 1:
                 return self._required(run_id)
         return None
+
+    def pending_followups(self, thread_id: str) -> builtins.list[dict[str, Any]]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT r.id AS run_id, j.value AS entry
+                FROM web_lookup_runs r, json_each(r.research_context, '$.conversation_queue') j
+                WHERE r.owner_thread_id = ? AND json_extract(j.value, '$.status') = 'pending'
+                AND NOT EXISTS (
+                    SELECT 1 FROM chat_turns t WHERE t.thread_id = r.owner_thread_id
+                    AND t.status = 'completed'
+                    AND (t.id = 'turn_' || json_extract(j.value, '$.id') OR t.parent_turn_id = 'turn_' || json_extract(j.value, '$.id'))
+                    AND trim(t.user_message) = json_extract(j.value, '$.content')
+                )
+                ORDER BY r.created_at, r.id, j.key
+                """, (thread_id,),
+            ).fetchall()
+        return [{**json.loads(row["entry"]), "run_id": row["run_id"]} for row in rows]
+
+    def queue_followup(self, run_id: str, *, content: str, request_id: str) -> WebLookupRun:
+        if not content.strip():
+            raise ValueError("Follow-up content is required")
+        for _attempt in range(4):
+            run = self._required(run_id)
+            if run.cancel_requested_at or run.status in {"failed", "cancelled"}:
+                raise ValueError("Research is stopping; follow-up was not queued")
+            context = dict(run.research_context)
+            queue = [dict(item) for item in context.get("conversation_queue", []) if isinstance(item, dict)]
+            prior = next((item for item in queue if item.get("id") == request_id), None)
+            if prior:
+                if prior.get("content") != content.strip():
+                    raise ValueError("Queue request identity already belongs to another message")
+                return run
+            if len(queue) >= 32:
+                raise ValueError("Follow-up queue is full")
+            queue.append({"id": request_id, "content": content.strip(), "status": "pending", "received_at": utc_now()})
+            context["conversation_queue"] = queue
+            with self.database.connect() as connection:
+                cursor = connection.execute(
+                    "UPDATE web_lookup_runs SET research_context = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?",
+                    (_dump(context), utc_now(), run_id, run.version),
+                )
+            if cursor.rowcount == 1:
+                return self._required(run_id)
+        raise ValueError("Follow-up queue conflicted")
+
+    def complete_followup(self, run_id: str, *, request_id: str, turn_id: str) -> WebLookupRun:
+        for _attempt in range(4):
+            run = self._required(run_id)
+            context = dict(run.research_context)
+            queue = [dict(item) for item in context.get("conversation_queue", []) if isinstance(item, dict)]
+            entry = next((item for item in queue if item.get("id") == request_id), None)
+            if entry is None:
+                raise ValueError("Queued follow-up not found")
+            with self.database.connect() as connection:
+                turn = connection.execute("SELECT * FROM chat_turns WHERE id = ?", (turn_id,)).fetchone()
+                if turn is None or turn["status"] != "completed" or turn["thread_id"] != run.owner_thread_id or turn["user_message"].strip() != entry["content"]:
+                    raise ValueError("Follow-up delivery requires a completed matching turn")
+                entry["status"] = "completed"
+                entry["turn_id"] = turn_id
+                context["conversation_queue"] = queue
+                cursor = connection.execute(
+                    "UPDATE web_lookup_runs SET research_context = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?",
+                    (_dump(context), utc_now(), run_id, run.version),
+                )
+            if cursor.rowcount == 1:
+                return self._required(run_id)
+        raise ValueError("Follow-up completion conflicted")
 
     def checkpoint(
         self,
@@ -672,6 +764,7 @@ class WebLookupRepository:
                 checkpoint_context,
                 run.research_context,
             )
+            checkpoint_context = merge_queued_followups(checkpoint_context, run.research_context)
             if run.cancel_requested_at:
                 # A persisted cancel freezes the opening: keep the durable one.
                 # Legitimate cleanup/diagnostic writes still proceed.
@@ -863,7 +956,7 @@ class WebLookupRepository:
         elif run.status != "running":
             raise ValueError(f"WebLookupRun is not completable: {run_id}")
 
-        raw_context = research_context or run.research_context
+        raw_context = merge_queued_followups(research_context or run.research_context, run.research_context)
         attempts = query_attempts if query_attempts is not None else run.query_attempts
         current_attempt = int(raw_context.get("run_attempt") or 0)
         current_provider_failure = any(

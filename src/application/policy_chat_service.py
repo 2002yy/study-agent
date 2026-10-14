@@ -533,6 +533,9 @@ class ExternalDataPolicyChatService(ChatService):
             web_tool_error = str(rag["web_tools"].get("error") or "")
             continuation_instruction = _continuation_instruction(command)
             context_blocks: list[str] = []
+            from src.web.research.research_interaction import steering_answer_instruction
+
+            effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
             web_context = "\n\n".join(
                 part
                 for part in (
@@ -682,7 +685,7 @@ class ExternalDataPolicyChatService(ChatService):
                 context_mode=context_mode,
                 rag_context="\n\n".join(context_blocks),
                 scene=command.scene,
-                conversation_instruction=command.conversation_instruction,
+                conversation_instruction=effective_instruction,
                 pedagogy_plan=model_pedagogy_plan,
                 learning_state=model_learning_state,
             )
@@ -716,7 +719,7 @@ class ExternalDataPolicyChatService(ChatService):
                 pedagogy_snapshot=pedagogy_snapshot,
                 parent_turn_id=retry_parent.id if retry_parent else None,
                 operation_id=operation_id,
-                conversation_instruction=command.conversation_instruction,
+                conversation_instruction=effective_instruction,
             )
             expected = "pending" if reserved_existing is None or reserved_existing.status == "pending" else "interrupted"
             streaming = self.repository.update_chat_turn(

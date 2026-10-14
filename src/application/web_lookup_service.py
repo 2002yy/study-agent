@@ -31,6 +31,10 @@ from src.web.tool_evidence import (
 )
 from src.web.research_recovery import recovery_summary
 from src.web.research.candidate_funnel import candidate_funnel
+from src.web.research.incremental_budget import (
+    authorize_goal, consume as consume_incremental_budget, initialize_budget,
+    load_incremental_policy, remaining as incremental_remaining, total_authorized,
+)
 
 
 class WebLookupGateway(Protocol):
@@ -1435,9 +1439,9 @@ class WebLookupService:
     _DEEP_STEPS_CAP = 200
     _DEEP_NOTE_FACTS_CHARS = 1_200
 
-    def steer(self, run_id: str, *, content: str) -> WebLookupRun:
+    def steer(self, run_id: str, *, content: str, request_id: str | None = None) -> WebLookupRun:
         """G18 decision 12: inject a mid-run steering message."""
-        steered = self.repository.append_steering(run_id, content=content)
+        steered = self.repository.append_steering(run_id, content=content, request_id=request_id)
         if steered is None:
             raise ValueError(
                 f"WebLookupRun cannot be steered (not running): {run_id}"
@@ -1456,6 +1460,13 @@ class WebLookupService:
         consumed = False
         for entry in deep.get("steering", []):
             if isinstance(entry, dict) and entry.get("incorporated_in_round") is None:
+                # A receipt is applied only when it changes actual future work.
+                # Keep existing sources/notes and use the same round/read budgets.
+                from src.web.research.steering_plan import revise_deep_plan
+
+                if not revise_deep_plan(deep, entry, query=str(deep.get("original_query") or ""), cap=self._DEEP_PLAN_CAP):
+                    continue
+                entry["budget_grant"] = authorize_goal(deep, steering_id=str(entry.get("id") or entry.get("received_at")), task_id=entry["task_id"])
                 entry["incorporated_in_round"] = round_index
                 consumed = True
                 self._deep_log(
@@ -1546,6 +1557,9 @@ class WebLookupService:
         )
         budget = ResearchReadBudget.from_env()
         deep = dict(context.get("deep") or {})
+        deep["original_query"] = run.query
+        context["deep"] = deep
+        budget_clock = time.monotonic()
         plan = [dict(task) for task in deep.get("plan", []) if isinstance(task, dict)]
         notes = [dict(n) for n in deep.get("notes", []) if isinstance(n, dict)]
         memo = str(deep.get("memo") or "")
@@ -1611,6 +1625,10 @@ class WebLookupService:
             ).stage
 
         def ensure_active() -> None:
+            nonlocal budget_clock
+            now = time.monotonic()
+            consume_incremental_budget(deep, "wall_seconds", max(0.0, now - budget_clock))
+            budget_clock = now
             if self.repository.cancel_requested(run_id, operation_id=operation_id):
                 raise ResearchCancelled("Research cancelled by user")
 
@@ -1618,8 +1636,13 @@ class WebLookupService:
             ensure_active()
 
             # ---- planning -------------------------------------------------
+            initialize_budget(deep, None if "incremental_budget" in deep else load_incremental_policy())
             set_stage("planning")
             if not plan:
+                if callable(getattr(self.planner, "plan", None)):
+                    if incremental_remaining(deep, "model_calls") == 0:
+                        raise ValueError("Initial planning budget is exhausted")
+                    consume_incremental_budget(deep, "model_calls")
                 planned = self._deep_planner_plan(run.query, context)
                 plan = planned or self._deep_default_plan(run.query, context)
                 deep["plan"] = plan
@@ -1629,11 +1652,39 @@ class WebLookupService:
             search_method = getattr(self.gateway, "search", None)
             read_method = getattr(self.gateway, "read", None)
 
-            while round_index < max_rounds:
+            while round_index < max_rounds or (
+                isinstance(deep.get("incremental_budget"), dict) and round_index < 5
+                and any(isinstance(entry, dict) and entry.get("incorporated_in_round") is None for entry in deep.get("steering", []))
+            ):
                 ensure_active()
                 steered_this_round = self._deep_consume_steering(
                     deep, round_index + 1
                 )
+                ledger = deep.get("incremental_budget")
+                if isinstance(ledger, dict):
+                    deep_reads = min(40, int(total_authorized(ledger, "reads")))
+                    deep_total_chars = min(400_000, deep_reads * budget.max_chars_per_source)
+                    # Extensions buy only the next task batches, within the
+                    # existing global five-round ceiling. No round is reset.
+                    max_rounds = min(5, max(max_rounds, round_index + (sum(task.get("status") == "pending" for task in plan) + self._DEEP_TASKS_PER_ROUND - 1) // self._DEEP_TASKS_PER_ROUND))
+                    if incremental_remaining(deep, "wall_seconds") == 0:
+                        self._deep_log(deep, "budget", "本轮时间预算不足，新增要求尚未执行；可排队到下一轮。")
+                        break
+                # A correction invalidates only affected evidence. Retain its
+                # body in the archive, but do not publish it under the new scope.
+                corrections = deep.get("corrections", [])
+                affected = [note for note in notes if any(
+                    str(change["old"]).casefold() in str(note.get("sub_question", "")).casefold()
+                    for change in corrections
+                )]
+                if affected:
+                    affected_urls = {str(note.get("url", "")) for note in affected}
+                    deep.setdefault("superseded_notes", []).extend(affected)
+                    notes = [note for note in notes if note not in affected]
+                    superseded = [record for record in selected_sources if _source_url(record) in affected_urls]
+                    deep.setdefault("superseded_sources", []).extend(superseded)
+                    selected_sources = [record for record in selected_sources if _source_url(record) not in affected_urls]
+                    memo = "\n\n".join(f"[R{note['round']}] {note['title']}: {str(note['facts'])[:300]}" for note in notes)
                 pending_tasks = [
                     task
                     for task in plan
@@ -1655,12 +1706,13 @@ class WebLookupService:
                 persist()
 
                 read_state = _read_summary(selected_sources, budget)
-                used_chars = int(read_state.get("used_chars") or 0)
-                attempted_reads = int(read_state.get("attempted") or 0)
+                used_chars = max(int(read_state.get("used_chars") or 0), int(deep.get("consumed_chars") or 0))
+                attempted_reads = max(int(read_state.get("attempted") or 0), int(deep.get("consumed_reads") or 0))
 
                 for task in batch:
                     ensure_active()
                     sub_question = str(task.get("sub_question", ""))
+                    influenced = bool(task.get("steering_ids"))
                     queries = [sub_question]
                     rewritten = self._deep_rewrite_query(sub_question)
                     # Decision 15: always retry once, even when the rewrite is
@@ -1670,9 +1722,16 @@ class WebLookupService:
                     found_any = False
                     for candidate_query in queries:
                         ensure_active()
+                        if incremental_remaining(deep, "searches") == 0 or incremental_remaining(deep, "wall_seconds") == 0:
+                            self._deep_log(deep, "budget", "检索预算不足，这个研究目标未完成。")
+                            break
                         if not callable(search_method):
                             break
                         try:
+                            consume_incremental_budget(deep, "searches")
+                            for entry in deep.get("steering", []):
+                                if str(entry.get("id") or entry.get("received_at")) in task.get("steering_ids", []):
+                                    entry["executed_in_round"] = round_index
                             results = search_method(
                                 candidate_query, max_items=run.max_items
                             )
@@ -1689,7 +1748,8 @@ class WebLookupService:
                                 "run_attempt": context["run_attempt"],
                                 "operation_id": operation_id,
                                 "round": round_index,
-                                "influenced_by_steering": steered_this_round,
+                                "influenced_by_steering": influenced,
+                                "steering_ids": list(task.get("steering_ids", [])),
                             }
                         )
                         query_attempts.append(payload)
@@ -1698,8 +1758,9 @@ class WebLookupService:
                             for item in results:
                                 candidate = dict(item)
                                 candidate["round"] = round_index
-                                if steered_this_round:
+                                if influenced:
                                     candidate["influenced_by_steering"] = True
+                                    candidate["steering_ids"] = list(task.get("steering_ids", []))
                                 context.setdefault("candidate_items", []).append(
                                     candidate
                                 )
@@ -1726,9 +1787,7 @@ class WebLookupService:
                     ]
                     task_selected, task_rejected = assess_sources(
                         task_candidates,
-                        canonical_query=str(
-                            context.get("canonical_query") or run.query
-                        ),
+                        canonical_query=str(deep.get("effective_query") or context.get("canonical_query") or run.query),
                     )
                     known_urls = {_source_url(record) for record in selected_sources}
                     fresh = [
@@ -1746,6 +1805,8 @@ class WebLookupService:
                         set_stage("reading")
                         for record in fresh:
                             ensure_active()
+                            if incremental_remaining(deep, "reads") == 0 or incremental_remaining(deep, "wall_seconds") == 0:
+                                break
                             url = _source_url(record)
                             if (
                                 attempted_reads >= deep_reads
@@ -1760,6 +1821,7 @@ class WebLookupService:
                                 deep_total_chars - used_chars,
                             )
                             try:
+                                consume_incremental_budget(deep, "reads")
                                 raw_result = read_method(url, max_chars=source_limit)
                                 read_result, _ = _bounded_read_result(
                                     dict(raw_result or {}), max_chars=source_limit
@@ -1775,6 +1837,7 @@ class WebLookupService:
                                     "error": f"{type(exc).__name__}: {exc}",
                                 }
                             attempted_reads += 1
+                            deep["consumed_reads"] = attempted_reads
                             facts = str(read_result.get("content") or "")[
                                 : self._DEEP_NOTE_FACTS_CHARS
                             ]
@@ -1789,12 +1852,14 @@ class WebLookupService:
                                 "facts": facts,
                                 "influenced_by_steering": bool(
                                     record.get("influenced_by_steering")
-                                    or steered_this_round
+                                    or influenced
                                 ),
                             }
+                            note["steering_ids"] = list(task.get("steering_ids", []))
                             if read_result.get("status") == "read":
                                 notes.append(note)
                                 used_chars += len(facts)
+                                deep["consumed_chars"] = used_chars
                                 memo = (
                                     (memo + "\n\n" if memo else "")
                                     + f"[R{round_index}] {title}: "
@@ -1829,6 +1894,10 @@ class WebLookupService:
                 # ---- gap analysis / plan revision (decision 9) ----------
                 revise = getattr(self.planner, "revise", None)
                 if callable(revise):
+                    if incremental_remaining(deep, "model_calls") == 0:
+                        self._deep_log(deep, "budget", "规划调用预算不足，保留未完成的研究目标。")
+                        break
+                    consume_incremental_budget(deep, "model_calls")
                     verdict = revise(memo, notes, [
                         str(task.get("sub_question", ""))
                         for task in plan
@@ -1853,14 +1922,22 @@ class WebLookupService:
                         self._deep_log(
                             deep, "revise", f"新增子问题：{sub_question[:80]}"
                         )
-                    if verdict.get("done"):
+                    pending_steering = any(
+                        isinstance(entry, dict) and entry.get("incorporated_in_round") is None
+                        for entry in deep.get("steering", [])
+                    )
+                    if verdict.get("done") and not pending_steering:
                         break
                 remaining_pending = any(
                     task.get("status") == "pending"
                     for task in plan
                     if isinstance(task, dict)
                 )
-                if not remaining_pending:
+                pending_steering = any(
+                    isinstance(entry, dict) and entry.get("incorporated_in_round") is None
+                    for entry in deep.get("steering", [])
+                )
+                if not remaining_pending and not pending_steering:
                     break
 
             # ---- synthesizing ---------------------------------------------
@@ -1918,6 +1995,13 @@ class WebLookupService:
             )
             source_block = f"{memo_block}{notes_block}{base_block}"
 
+            unapplied = any(
+                isinstance(entry, dict) and entry.get("executed_in_round") is None
+                for entry in deep.get("steering", [])
+            )
+            if unapplied:
+                warnings.append("部分追加要求未能在本轮执行，当前研究范围不完整；请排队下一轮继续。")
+
             persist()
             return self.repository.complete(
                 run_id,
@@ -1932,6 +2016,7 @@ class WebLookupService:
                 provider_status=provider_status,
                 stop_reason=reason,
                 answer_confidence=answer_confidence,
+                final_status="partial" if unapplied else None,
             )
         except ResearchCancelled:
             return self.repository.finish_cancel(run_id, operation_id=operation_id)
