@@ -30,6 +30,7 @@ from src.application.research_evidence import (
     research_run_provenance,
     research_sources_snapshot,
 )
+from src.web.research.research_approach import approach_event
 from src.application.runtime_repository import (
     get_chat_service,
     get_session_service,
@@ -385,6 +386,19 @@ def _research_progress(run: Any) -> dict[str, Any]:
     ]
     notes = [note for note in deep.get("notes", []) if isinstance(note, dict)]
     last_step = steps[-1] if steps else None
+    owner = context.get("owner") if isinstance(context, dict) else None
+    turn_id = str(owner.get("turn_id") or "") if isinstance(owner, dict) else ""
+    lineage = context.get("lineage") if isinstance(context, dict) else None
+    # Bind the true lineage root for a child run; isolation still keys on the
+    # current run identity client-side.
+    root_run_id = (
+        str(lineage.get("root_run_id") or "") if isinstance(lineage, dict) else ""
+    ) or run.id
+    approach = approach_event(
+        context.get("approach") if isinstance(context, dict) else None,
+        root_run_id=root_run_id,
+        turn_id=turn_id,
+    )
     return {
         "run_id": run.id,
         "status": run.status,
@@ -401,6 +415,8 @@ def _research_progress(run: Any) -> dict[str, Any]:
         "active_phase": str(active_metrics.get("phase") or "") or None,
         "gate_status": str(active_brief.get("gate_status") or "") or None,
         "version": run.version,
+        # Research opening ("研究开场"): optional; legacy clients ignore it.
+        "approach": approach,
         # G18 deep-research journey fields.
         "round": int(deep.get("round_index") or 0) or None,
         "notes_count": len(notes),

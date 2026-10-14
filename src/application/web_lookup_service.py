@@ -505,6 +505,15 @@ class WebLookupService:
         if research_mode not in {"standard", "deep"}:
             raise ValueError(f"Unsupported research_mode: {research_mode}")
         context["research_mode"] = research_mode
+        # Research opening ("研究开场"): a display-only seed persisted with the run
+        # so it survives refresh.  It carries no evidence authority and is filled
+        # in later (plan projection / bounded generation); failure never blocks
+        # research.  See src/web/research/research_approach.py.
+        from src.web.research.research_approach import seed_approach
+
+        context["approach"] = seed_approach(
+            mode=research_mode, turn_id=owner_turn_id or ""
+        )
         # §143-P1 transport: express explicit reader-capability intent on the run
         # context. The read site owns routing authority; this layer only records
         # the canonical, adapter-validated declaration (never infers it).
@@ -669,6 +678,13 @@ class WebLookupService:
                     },
                 },
             }
+        )
+        # Follow-up children get the same display-only opening seed so every run
+        # has a uniform initialised approach.
+        from src.web.research.research_approach import seed_approach
+
+        context["approach"] = seed_approach(
+            mode="standard", turn_id=owner_turn_id or ""
         )
         return self.repository.create_child(
             WebLookupRun(
