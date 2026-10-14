@@ -194,11 +194,6 @@ def test_retry_once_then_skip_on_empty_results(tmp_path):
     assert len(hopeless_queries) == 2
 
 
-@pytest.mark.xfail(
-    reason="known gap: concurrently-appended deep steering is persisted but not yet "
-    "consumed by the running executor (next round boundary / terminal write)",
-    strict=False,
-)
 def test_concurrent_steering_is_persisted_and_consumed(tmp_path):
     """A steering appended between two checkpoints must survive AND be consumed."""
     state = {"steered": False, "run_id": ""}
@@ -212,24 +207,31 @@ def test_concurrent_steering_is_persisted_and_consumed(tmp_path):
         return base_search(query, max_items=max_items)
 
     gateway.search = steering_search
-    # Three sub-questions force a second round so the appended condition can be
-    # consumed at the next round boundary.
+    # Force a real second round: revise() must not report done after round 1,
+    # otherwise the round-2 steering boundary never runs.
     service = _service(
         tmp_path,
         gateway,
-        ScriptedPlanner(initial=["focus area", "second area", "third area"]),
+        ScriptedPlanner(
+            initial=["focus area", "second area", "third area"],
+            revisions=[
+                {"done": False, "additional": []},
+                {"done": True, "additional": []},
+            ],
+        ),
     )
     run = service.create("concurrent steering topic", research_mode="deep")
     state["run_id"] = run.id
 
     completed = service.execute(run.id)
     deep = completed.research_context["deep"]
+    assert deep["round_index"] >= 2, "the test must actually reach round 2"
     entry = next(
         (s for s in deep.get("steering", []) if "并发追加" in str(s.get("content") or "")),
         None,
     )
     assert entry is not None, "concurrent steering must survive the checkpoint"
-    assert entry["incorporated_in_round"] is not None, "the executor must consume it"
+    assert entry["incorporated_in_round"] == 2, "the executor must consume it in round 2"
 
 
 def test_follow_up_child_has_its_own_opening(tmp_path):
