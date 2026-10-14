@@ -1598,7 +1598,12 @@ class WebLookupService:
             # persisted row (the checkpoint returns the pre-update snapshot) and
             # refresh this executor's local view.  NOTE: consumption at the next
             # round boundary is still a known gap (see the xfail test).
-            merged_deep = self.repository.get(run_id).research_context.get("deep")
+            persisted = self.repository.get(run_id)
+            merged_deep = (
+                persisted.research_context.get("deep")
+                if persisted is not None
+                else None
+            )
             if isinstance(merged_deep, dict) and isinstance(
                 merged_deep.get("steering"), list
             ):

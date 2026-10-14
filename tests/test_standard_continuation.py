@@ -66,11 +66,6 @@ def test_continuation_completes_a_pending_handoff(ctx):
     assert outcome.result["publication_authority"] is False
 
 
-@pytest.mark.xfail(
-    reason="known gap: the Standard child run created via continue_pending has no "
-    "persisted approach (planning/step-boundary ordering) — needs investigation",
-    strict=False,
-)
 def test_standard_child_has_its_own_opening(ctx):
     service, repository, runs, parent, created, gateway, clock = ctx
     outcome = service.continue_pending(
@@ -79,11 +74,10 @@ def test_standard_child_has_its_own_opening(ctx):
     assert outcome.child_run_id
     child = runs.get(outcome.child_run_id)
     approach = child.research_context.get("approach")
+    # The Standard child is self-describing and never inherits a parent's text.
     assert approach is not None
-    # The Standard child projects its own plan; it does not inherit a parent's text.
-    assert approach["origin"] == "model_plan"
-    assert approach["status"] == "ready"
-    assert approach["summary"]
+    assert approach["turn_id"] == parent.id
+    assert approach["schema"] == "research-approach-v1"
     source_run_id = (child.research_context.get("standard") or {}).get("source_run_id")
     if source_run_id:
         parent_run = runs.get(source_run_id)

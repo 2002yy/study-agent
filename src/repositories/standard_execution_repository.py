@@ -20,7 +20,7 @@ from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research_recovery import STANDARD_BUDGET
 from src.web.research.lookup_terminal import load_standard_handoff
 from src.web.research.approach_generation import write_allowed
-from src.web.research.research_approach import summarize_plan
+from src.web.research.research_approach import seed_approach, summarize_plan
 from src.web.research.standard_plan import (
     action,
     build_result,
@@ -117,6 +117,12 @@ class StandardExecutionRepository:
                         "thread_id": admission.thread_id,
                         "turn_id": admission.parent_turn_id,
                     },
+                    # A Standard child is self-describing from birth: seed its own
+                    # opening (never the parent's text); save_research_plan
+                    # upgrades it to the plan projection.
+                    "approach": seed_approach(
+                        mode="standard", turn_id=admission.parent_turn_id
+                    ),
                     "standard": ledger,
                 },
             )
