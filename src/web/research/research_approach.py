@@ -40,11 +40,13 @@ _STATUSES = (STATUS_PENDING, STATUS_READY, STATUS_FAILED)
 
 ORIGIN_MODEL_PLAN = "model_plan"
 ORIGIN_MODEL_GENERATED = "model_generated"
+ORIGIN_QUERY_PLAN = "query_plan"
 ORIGIN_FALLBACK = "fallback"
 ORIGIN_DIRECTION_UPDATE = "direction_update"
 _ORIGINS = (
     ORIGIN_MODEL_PLAN,
     ORIGIN_MODEL_GENERATED,
+    ORIGIN_QUERY_PLAN,
     ORIGIN_FALLBACK,
     ORIGIN_DIRECTION_UPDATE,
 )
@@ -114,6 +116,46 @@ def _clean_focus(focus: Any) -> list[str]:
         if len(out) >= MAX_FOCUS:
             break
     return out
+
+
+# Deterministic display labels for known plan field names.  Unknown fields keep
+# their original meaning — the model must never invent a research dimension.
+_FIELD_LABELS = {
+    "release_date": "发布日期",
+    "release": "发布",
+    "released": "发布时间",
+    "version": "版本",
+    "license": "许可证",
+    "author": "作者",
+    "maintainer": "维护者",
+    "maintenance": "维护状态",
+    "compatibility": "兼容性",
+    "psd": "PSD 兼容",
+    "api": "API 支持",
+    "performance": "性能",
+    "price": "价格",
+    "pricing": "价格",
+    "support": "支持情况",
+    "requirements": "环境要求",
+    "installation": "安装方式",
+    "documentation": "文档",
+    "dependencies": "依赖",
+    "security": "安全性",
+}
+
+
+def translate_field(name: Any) -> str:
+    """Map a known plan field name to a natural display label.
+
+    Unknown field names are returned unchanged (cleaned), so the projection can
+    only ever surface dimensions the plan actually contained.
+    """
+
+    raw = _clean_text(name)
+    if not raw:
+        return ""
+    key = raw.strip().lower().replace("-", "_").replace(" ", "_")
+    return _FIELD_LABELS.get(key, raw)
 
 
 def validate_approach(
@@ -215,6 +257,27 @@ def project_from_plan(
 ) -> dict[str, Any]:
     """Preferred path: reuse natural language the model already produced."""
 
+    return _ready_approach(
+        mode=mode,
+        summary=summary,
+        focus=focus,
+        origin=ORIGIN_MODEL_PLAN,
+        root_run_id=root_run_id,
+        turn_id=turn_id,
+        sequence=sequence,
+    )
+
+
+def _ready_approach(
+    *,
+    mode: Any,
+    summary: Any,
+    focus: Any,
+    origin: str,
+    root_run_id: str = "",
+    turn_id: str = "",
+    sequence: int = 1,
+) -> dict[str, Any]:
     return validate_approach(
         {
             "schema": APPROACH_SCHEMA,
@@ -224,9 +287,247 @@ def project_from_plan(
             "status": STATUS_READY,
             "summary": summary,
             "focus": focus,
-            "origin": ORIGIN_MODEL_PLAN,
+            "origin": origin,
             "sequence": sequence,
         }
+    )
+
+
+# Deterministic comparison cues in the user's own words (never invented facts).
+_COMPARE_MARKERS = ("比较", "对比", "区别", "差异", "哪个", "vs", "versus")
+
+# Trailing request clauses to drop so the opening names the subject, not the
+# instruction.  Purely cosmetic: no dimension or fact is added.
+_REQUEST_TAILS = (
+    "请给出", "请说明", "请列出", "请按", "请提供", "并给出", "并说明", "并列出",
+    "给出", "请问", "请",
+)
+_INTERROGATIVE_TAILS = (
+    "是什么", "有哪些", "是多少", "怎么样", "怎么", "如何", "为什么", "哪些", "哪个",
+)
+
+
+def _dequestion(text: Any) -> str:
+    """Turn a question into a plain subject phrase, deterministically.
+
+    Only strips punctuation, trailing request clauses and trailing
+    interrogatives.  Never adds information; if nothing useful remains the
+    caller keeps the cleaned canonical query.
+    """
+
+    value = _clean_text(text).strip("？?。.!！，,；;：: ")
+    for marker in _REQUEST_TAILS:
+        index = value.find(marker)
+        if index > 0:
+            value = value[:index]
+            break
+    value = value.strip("？?。.!！，,；;：: ")
+    for marker in _INTERROGATIVE_TAILS:
+        if value.endswith(marker) and len(value) > len(marker):
+            value = value[: -len(marker)]
+            break
+    return _clean_text(value).strip("？?。.!！，,；;：: ")
+
+
+def summarize_lookup_query(
+    *,
+    query: Any,
+    canonical_query: Any = "",
+    query_variants: Any = (),
+    entity_aliases: Any = (),
+    freshness_requested: bool = False,
+    mode: Any = "lookup",
+    root_run_id: str = "",
+    turn_id: str = "",
+    sequence: int = 1,
+) -> dict[str, Any]:
+    """Deterministic opening from the **lookup query plan** (no model call).
+
+    Uses only the user's question, the canonical query, the entity aliases and
+    the real query variants.  Never invents comparison dimensions, facts or
+    completed steps.  ``origin=query_plan`` (distinct from Standard's
+    ``model_plan``).  Degrades to :func:`fallback_approach` when there is nothing
+    honest to say.
+    """
+
+    raw = _clean_text(query)
+    canonical = _clean_text(canonical_query) or raw
+    entities = _clean_focus(entity_aliases)
+    if not canonical and not entities:
+        return fallback_approach(
+            mode=mode, root_run_id=root_run_id, turn_id=turn_id, sequence=sequence
+        )
+
+    lowered = raw.lower()
+    is_compare = any(marker in lowered for marker in _COMPARE_MARKERS) or len(entities) >= 2
+    fallback_subject = _dequestion(canonical) or canonical
+
+    def compose(names: list[str]) -> str:
+        if names:
+            subject = "、".join(names)
+            base = (
+                f"我会分别查找{subject}的相关资料，再比较问题涉及的方面有哪些区别。"
+                if is_compare
+                else f"我会围绕{subject}查找相关资料，核对关键信息是否一致。"
+            )
+        else:
+            base = (
+                f"我会查找{_strip_compare_prefix(fallback_subject)}的资料，再比较两者的差异。"
+                if is_compare
+                else f"我会围绕{fallback_subject}查找相关资料，并核对来源是否一致。"
+            )
+        if freshness_requested:
+            base = base[:-1] + "，并优先核对最新信息。" if base.endswith("。") else base
+        return base
+
+    limit = MAX_SUMMARY_CHARS[normalize_mode(mode)]
+    names = entities
+    summary = compose(names)
+    while names and len(summary) > limit:
+        names = names[:-1]
+        summary = compose(names)
+    if len(summary) > limit:
+        summary = summary[: limit - 1] + "。"
+
+    return _ready_approach(
+        mode=mode,
+        summary=summary,
+        focus=names or [fallback_subject],
+        origin=ORIGIN_QUERY_PLAN,
+        root_run_id=root_run_id,
+        turn_id=turn_id,
+        sequence=sequence,
+    )
+
+
+def _compose_summary(mode: str, names: list[str]) -> str:
+    joined = "、".join(names)
+    if mode == MODE_LOOKUP:
+        return f"我会先核对 {joined} 的官方说明。"
+    if mode == MODE_DEEP:
+        return (
+            f"我会先建立关于 {joined} 的候选清单，再分别验证并补全尚未明确的部分，"
+            "最后标明证据不足的地方。"
+        )
+    return f"我会分别核对 {joined}，并通过检索补全尚未解决的部分。"
+
+
+def summarize_plan(
+    *,
+    mode: Any,
+    fields: Any,
+    root_run_id: str = "",
+    turn_id: str = "",
+    sequence: int = 1,
+) -> dict[str, Any]:
+    """Preferred path when a model plan already exists.
+
+    Projects the plan's **own** unresolved field names into a short, honest
+    direction.  Deterministic: **no extra model call**, and the four-key plan
+    envelope is never touched.  Degrades to :func:`fallback_approach` when the
+    plan carries no usable field names (never invents facts).
+    """
+
+    resolved_mode = normalize_mode(mode)
+    raw_fields = fields if isinstance(fields, (list, tuple)) else []
+    names = _clean_focus([translate_field(item) for item in raw_fields])
+    if not names:
+        return fallback_approach(
+            mode=resolved_mode, root_run_id=root_run_id, turn_id=turn_id, sequence=sequence
+        )
+    limit = MAX_SUMMARY_CHARS[resolved_mode]
+    summary = _compose_summary(resolved_mode, names)
+    # Deterministic length guard: drop trailing fields until it fits the mode
+    # budget, so validation can never reject a projection we ourselves produced.
+    while names and len(summary) > limit:
+        names = names[:-1]
+        summary = _compose_summary(resolved_mode, names) if names else ""
+    if not summary:
+        return fallback_approach(
+            mode=resolved_mode, root_run_id=root_run_id, turn_id=turn_id, sequence=sequence
+        )
+    return project_from_plan(
+        mode=resolved_mode,
+        summary=summary,
+        focus=names,
+        root_run_id=root_run_id,
+        turn_id=turn_id,
+        sequence=sequence,
+    )
+
+
+def _strip_compare_prefix(text: str) -> str:
+    value = _clean_text(text)
+    for marker in ("比较", "对比"):
+        if value.startswith(marker):
+            return _clean_text(value[len(marker):])
+    return value
+
+
+def summarize_deep_plan(
+    *,
+    query: Any,
+    sub_questions: Any,
+    previous: Any = None,
+    mode: Any = MODE_DEEP,
+    root_run_id: str = "",
+    turn_id: str = "",
+) -> dict[str, Any] | None:
+    """Project Deep's **real** plan sub-questions into a direction update.
+
+    Deterministic, no model call.  Returns ``None`` when the plan adds no new
+    direction (e.g. a default plan that is just the original query, or an
+    unchanged plan), so the same opening is never republished.  Only plans the
+    runtime actually holds are projected — never a claimed-but-unaccepted
+    steering request.
+    """
+
+    raw_subjects = sub_questions if isinstance(sub_questions, (list, tuple)) else []
+    subjects = _clean_focus([_dequestion(item) for item in raw_subjects])
+    if not subjects:
+        return None
+    canonical = _dequestion(query)
+    if len(subjects) == 1 and subjects[0] == canonical:
+        return None  # default plan == original query: no new direction
+    prior = (
+        previous
+        if isinstance(previous, dict) and previous.get("schema") == APPROACH_SCHEMA
+        else None
+    )
+    if prior is not None and list(prior.get("focus") or []) == subjects:
+        return None  # plan unchanged since the last published direction
+
+    limit = MAX_SUMMARY_CHARS[normalize_mode(mode)]
+    names = subjects[:4]
+
+    def compose(items: list[str]) -> str:
+        return f"我会按研究计划分别核对：{'、'.join(items)}。"
+
+    summary = compose(names)
+    while len(names) > 1 and len(summary) > limit:
+        names = names[:-1]
+        summary = compose(names)
+    if len(summary) > limit:
+        summary = summary[: limit - 1] + "。"
+
+    # Compare the *displayed* direction (not the full list) so a plan with more
+    # than four sub-questions does not re-enter the update path every checkpoint.
+    if prior is not None and list(prior.get("focus") or []) == names:
+        return None
+
+    sequence = int((prior or {}).get("sequence") or 0) + 1
+    if prior is None:
+        return _ready_approach(
+            mode=mode,
+            summary=summary,
+            focus=names,
+            origin=ORIGIN_DIRECTION_UPDATE,
+            root_run_id=root_run_id,
+            turn_id=turn_id,
+            sequence=max(2, sequence),
+        )
+    return direction_update(
+        previous=prior, summary=summary, focus=names, mode=mode, sequence=sequence
     )
 
 

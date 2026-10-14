@@ -17,6 +17,7 @@ from src.web.research.steering import (
     append_active_steering,
     is_active_claim_engine_context,
     merge_active_steering_context,
+    merge_deep_steering_context,
 )
 from src.web.source_assessment import assess_sources
 
@@ -665,6 +666,20 @@ class WebLookupRepository:
                 checkpoint_context,
                 run.research_context,
             )
+            # Deep (legacy) steering lives in ``deep["steering"]``; a concurrent
+            # append must survive this checkpoint too.
+            checkpoint_context = merge_deep_steering_context(
+                checkpoint_context,
+                run.research_context,
+            )
+            if run.cancel_requested_at:
+                # A persisted cancel freezes the opening: keep the durable one.
+                # Legitimate cleanup/diagnostic writes still proceed.
+                durable_approach = run.research_context.get("approach")
+                if durable_approach is None:
+                    checkpoint_context.pop("approach", None)
+                else:
+                    checkpoint_context["approach"] = durable_approach
             context = _with_operation(
                 checkpoint_context,
                 **_operation_state(run.research_context),

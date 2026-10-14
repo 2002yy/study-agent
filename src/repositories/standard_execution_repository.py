@@ -19,6 +19,8 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research_recovery import STANDARD_BUDGET
 from src.web.research.lookup_terminal import load_standard_handoff
+from src.web.research.approach_generation import write_allowed
+from src.web.research.research_approach import seed_approach, summarize_plan
 from src.web.research.standard_plan import (
     action,
     build_result,
@@ -115,6 +117,12 @@ class StandardExecutionRepository:
                         "thread_id": admission.thread_id,
                         "turn_id": admission.parent_turn_id,
                     },
+                    # A Standard child is self-describing from birth: seed its own
+                    # opening (never the parent's text); save_research_plan
+                    # upgrades it to the plan projection.
+                    "approach": seed_approach(
+                        mode="standard", turn_id=admission.parent_turn_id
+                    ),
                     "standard": ledger,
                 },
             )
@@ -485,7 +493,7 @@ class StandardExecutionRepository:
     ) -> None:
         with self._transaction(run_id, thread_id, now, operation_id=operation_id) as (
             connection,
-            _,
+            context,
             ledger,
         ):
             research = ledger["research"]
@@ -504,6 +512,97 @@ class StandardExecutionRepository:
                     json.dumps(plan, sort_keys=True).encode()
                 ).hexdigest(),
             )
+            # Research opening ("研究开场"): project the model's own plan field
+            # names into a short, honest direction.  Deterministic, no extra
+            # model call, plan envelope untouched; a failure here must never
+            # block the research loop.
+            try:
+                context["approach"] = summarize_plan(
+                    mode=context.get("research_mode") or "standard",
+                    fields=[gap["field"] for gap in plan["gaps"]],
+                    turn_id=str((context.get("owner") or {}).get("turn_id") or ""),
+                    sequence=1,
+                )
+            except Exception:
+                pass
+
+    def approach_snapshot(
+        self, run_id: str, thread_id: str, operation_id: str, now: datetime
+    ) -> Any:
+        """Read-only view of the persisted research opening (outer context)."""
+
+        with self._transaction(
+            run_id, thread_id, now, operation_id=operation_id, write=False
+        ) as (connection, context, ledger):
+            return deepcopy(context.get("approach"))
+
+    def authorize_approach_attempt(
+        self,
+        run_id: str,
+        thread_id: str,
+        operation_id: str,
+        now: datetime,
+        *,
+        model_call_ceiling: int,
+    ) -> bool:
+        """Atomically reserve one research-opening generation attempt.
+
+        The reservation shares the **existing** model-call ceiling with planning:
+        ``planner_calls + approach_generation_calls`` must stay below
+        ``model_call_ceiling``, so the opening can never be granted a call beyond
+        the budget owner's allowance.  The reservation is persisted inside the
+        same transaction that re-checks owner, operation identity, cancellation,
+        terminal state and deadline, so two threads or processes cannot spend the
+        same authorization.
+        """
+
+        with self._transaction(run_id, thread_id, now, operation_id=operation_id) as (
+            connection,
+            context,
+            ledger,
+        ):
+            research = ledger.get("research")
+            if not isinstance(research, dict):
+                return False
+            planning = research.get("planner_calls")
+            planning = (
+                planning if isinstance(planning, int) and not isinstance(planning, bool) else 0
+            )
+            used = research.get("approach_generation_calls")
+            used = used if isinstance(used, int) and not isinstance(used, bool) else 0
+            if planning + used >= max(0, int(model_call_ceiling)):
+                return False
+            research["approach_generation_calls"] = used + 1
+            return True
+
+    def record_approach(
+        self,
+        run_id: str,
+        thread_id: str,
+        operation_id: str,
+        now: datetime,
+        approach: Any,
+    ) -> bool:
+        """Atomically check identity/terminal/origin and persist the opening.
+
+        The check and the write share one transaction, so a cancel or a newer
+        direction landing between generation and write cannot be overwritten.
+        """
+
+        with self._transaction(run_id, thread_id, now, operation_id=operation_id) as (
+            connection,
+            context,
+            ledger,
+        ):
+            # Reaching the body already means: owner + operation match, lease
+            # valid, not cancelled, not terminal, deadline not exhausted.
+            current = context.get("approach")
+            if not write_allowed(
+                current=current, candidate=approach, run_id=run_id, terminal=False
+            ):
+                return False
+            context["approach"] = approach
+            return True
 
     def claim_research_step(
         self, run_id: str, thread_id: str, operation_id: str, now: datetime

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import suppress
 from typing import Annotated, Any, AsyncIterator
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -122,8 +123,21 @@ async def chat_stream_endpoint(
     research_service: WebLookupServiceDependency,
     session_service: SessionServiceDependency,
 ) -> StreamingResponse:
+    # Establish the turn identity *before* preparation starts so a brand-new
+    # session (no session_id) can still have its opening streamed during
+    # research.  A continuation reuses its existing turn identity; only a
+    # genuinely new turn gets a pre-generated id, and retries still create a new
+    # turn because they carry neither a turn_id nor a continuation id.
+    effective_turn_id = chat_request.turn_id or chat_request.continuation_of_turn_id
+    command_request = chat_request
+    if effective_turn_id is None:
+        # Brand-new turn: pre-generate the identity so its research opening can be
+        # streamed during preparation.  The request object itself is left
+        # untouched so disconnect/cancel semantics for a new turn are unchanged.
+        effective_turn_id = f"turn_{uuid.uuid4().hex}"
+        command_request = chat_request.model_copy(update={"turn_id": effective_turn_id})
     try:
-        command = _chat_command(chat_request, research_service)
+        command = _chat_command(command_request, research_service)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -133,6 +147,9 @@ async def chat_stream_endpoint(
             asyncio.to_thread(service.start_turn, command)
         )
         observed_research_version: tuple[str, int] | None = None
+        # Bind progress strictly to *this* turn's identity: the previous turn's
+        # run can never be surfaced as the current question's opening, and two
+        # concurrent requests cannot cross-attribute.
 
         while not prepare_task.done():
             if chat_request.turn_id and await http_request.is_disconnected():
@@ -143,13 +160,9 @@ async def chat_stream_endpoint(
                 )
                 _settle_disconnected_preparation(prepare_task, service)
                 return
-            run = (
-                await asyncio.to_thread(
-                    research_service.latest_owned_by_turn,
-                    chat_request.turn_id,
-                )
-                if chat_request.turn_id
-                else None
+            run = await asyncio.to_thread(
+                research_service.latest_owned_by_turn,
+                effective_turn_id,
             )
             if run is not None and observed_research_version != (run.id, run.version):
                 observed_research_version = (run.id, run.version)

@@ -8,6 +8,7 @@ import pytest
 
 from src.web.research.research_approach import (
     APPROACH_SCHEMA,
+    MAX_SUMMARY_CHARS,
     approach_event,
     direction_update,
     fallback_approach,
@@ -16,6 +17,10 @@ from src.web.research.research_approach import (
     normalize_mode,
     project_from_plan,
     seed_approach,
+    summarize_lookup_query,
+    summarize_deep_plan,
+    summarize_plan,
+    translate_field,
     validate_approach,
 )
 
@@ -253,6 +258,237 @@ def test_approach_event_still_emits_valid_pending_seed() -> None:
     assert event is not None
     assert event["status"] == "pending"
     assert event["sequence"] == 0
+
+
+def test_summarize_plan_projects_fields_without_extra_call() -> None:
+    approach = summarize_plan(
+        mode="standard",
+        fields=["PSD 兼容", "脚本自动化", "维护状态"],
+    )
+    assert approach["origin"] == "model_plan"
+    assert approach["status"] == "ready"
+    assert approach["focus"] == ["PSD 兼容", "脚本自动化", "维护状态"]
+    assert "PSD 兼容" in approach["summary"]
+    assert "脚本自动化" in approach["summary"]
+
+
+def test_summarize_plan_phrasing_differs_by_mode() -> None:
+    lookup = summarize_plan(mode="lookup", fields=["该项目当前支持的功能"])
+    deep = summarize_plan(mode="deep", fields=["核心功能", "PSD 图层往返", "可编程接口"])
+    assert lookup["summary"] != deep["summary"]
+    assert lookup["mode"] == "lookup" and deep["mode"] == "deep"
+
+
+def test_summarize_plan_without_fields_degrades_to_fallback() -> None:
+    approach = summarize_plan(mode="standard", fields=[])
+    assert approach["origin"] == "fallback"
+    approach2 = summarize_plan(mode="standard", fields=["   ", ""])
+    assert approach2["origin"] == "fallback"
+
+
+def test_summarize_plan_stays_within_mode_length_budget() -> None:
+    long_fields = ["非常长的研究关注点名称" + str(i) for i in range(8)]
+    for mode in ("lookup", "standard", "deep"):
+        approach = summarize_plan(mode=mode, fields=long_fields)
+        assert approach["status"] == "ready"
+        assert len(approach["summary"]) <= MAX_SUMMARY_CHARS[mode]
+
+
+def test_summarize_plan_translates_known_fields_only() -> None:
+    approach = summarize_plan(mode="standard", fields=["release_date", "自定义维度"])
+    assert approach["focus"] == ["发布日期", "自定义维度"]
+    assert "发布日期" in approach["summary"]
+    # Unknown fields keep their original meaning; nothing is invented.
+    assert "自定义维度" in approach["summary"]
+
+
+def test_translate_field_known_and_unknown() -> None:
+    assert translate_field("release_date") == "发布日期"
+    assert translate_field("PSD-Compatibility") == "PSD-Compatibility"
+    assert translate_field("unknown_thing") == "unknown_thing"
+    assert translate_field("") == ""
+
+
+def test_summarize_lookup_query_projects_real_query_plan() -> None:
+    approach = summarize_lookup_query(
+        query="比较 PostgreSQL 与 MySQL 的 MVCC 差异",
+        canonical_query="PostgreSQL MySQL MVCC 差异",
+        entity_aliases=["PostgreSQL", "MySQL"],
+    )
+    assert approach["origin"] == "query_plan"
+    assert approach["status"] == "ready"
+    assert "PostgreSQL" in approach["summary"] and "MySQL" in approach["summary"]
+    assert "比较" in approach["summary"]
+    _assert_no_authority(approach)
+
+
+def test_summarize_lookup_query_single_entity_is_not_a_comparison() -> None:
+    approach = summarize_lookup_query(
+        query="Python 3.14 的发布日期",
+        canonical_query="Python 3.14 发布日期",
+        entity_aliases=["Python 3.14"],
+    )
+    assert approach["origin"] == "query_plan"
+    assert "比较" not in approach["summary"]
+
+
+def test_summarize_lookup_query_freshness_is_honest() -> None:
+    approach = summarize_lookup_query(
+        query="最新版本",
+        canonical_query="最新版本",
+        entity_aliases=["某项目"],
+        freshness_requested=True,
+    )
+    assert "最新" in approach["summary"]
+
+
+def test_summarize_lookup_query_without_plan_degrades_to_fallback() -> None:
+    approach = summarize_lookup_query(query="", canonical_query="", entity_aliases=[])
+    assert approach["origin"] == "fallback"
+
+
+def test_summarize_lookup_query_stays_within_lookup_budget() -> None:
+    approach = summarize_lookup_query(
+        query="比较 " + "很长的实体名称" * 10,
+        canonical_query="x" * 200,
+        entity_aliases=["很长的实体名称" + str(i) for i in range(8)],
+        mode="lookup",
+    )
+    assert approach["status"] == "ready"
+    assert len(approach["summary"]) <= MAX_SUMMARY_CHARS["lookup"]
+
+
+def test_summarize_lookup_query_dequestions_when_no_entities() -> None:
+    approach = summarize_lookup_query(
+        query="Python 3.14 的正式发布日期是什么？请给出官方来源。",
+        canonical_query="Python 3.14 的正式发布日期是什么？请给出官方来源。",
+        entity_aliases=[],
+    )
+    summary = approach["summary"]
+    assert approach["origin"] == "query_plan"
+    assert "？" not in summary and "?" not in summary
+    assert "请给出" not in summary
+    assert "Python 3.14" in summary
+    assert "发布日期" in summary
+
+
+def test_summarize_lookup_query_dequestions_comparison() -> None:
+    approach = summarize_lookup_query(
+        query="比较 PostgreSQL 与 MySQL 在 MVCC 实现上的差异与代价。",
+        canonical_query="比较 PostgreSQL 与 MySQL 在 MVCC 实现上的差异与代价。",
+        entity_aliases=[],
+    )
+    summary = approach["summary"]
+    assert "比较" in summary  # comparison cue preserved from the user's own words
+    assert "PostgreSQL" in summary and "MySQL" in summary
+
+
+def test_summarize_deep_plan_updates_from_real_subquestions() -> None:
+    previous = summarize_lookup_query(
+        query="比较 PostgreSQL 与 MySQL 的 MVCC",
+        canonical_query="比较 PostgreSQL 与 MySQL 的 MVCC",
+        entity_aliases=["PostgreSQL", "MySQL"],
+        mode="deep",
+    )
+    updated = summarize_deep_plan(
+        query="比较 PostgreSQL 与 MySQL 的 MVCC",
+        sub_questions=["PostgreSQL 的 MVCC 实现", "MySQL 的 MVCC 实现", "两者并发代价对比"],
+        previous=previous,
+    )
+    assert updated is not None
+    assert updated["origin"] == "direction_update"
+    assert updated["sequence"] == previous["sequence"] + 1
+    assert "PostgreSQL 的 MVCC 实现" in updated["summary"]
+
+
+def test_summarize_deep_plan_skips_default_plan_equal_to_query() -> None:
+    previous = summarize_lookup_query(
+        query="围棋提子与打劫规则", canonical_query="围棋提子与打劫规则", entity_aliases=["围棋"], mode="deep"
+    )
+    assert (
+        summarize_deep_plan(
+            query="围棋提子与打劫规则",
+            sub_questions=["围棋提子与打劫规则"],
+            previous=previous,
+        )
+        is None
+    )
+
+
+def test_summarize_deep_plan_skips_unchanged_plan() -> None:
+    previous = summarize_lookup_query(
+        query="MVCC 差异", canonical_query="MVCC 差异", entity_aliases=["MVCC"], mode="deep"
+    )
+    first = summarize_deep_plan(
+        query="MVCC 差异",
+        sub_questions=["PostgreSQL MVCC", "MySQL MVCC"],
+        previous=previous,
+    )
+    assert first is not None
+    # The same plan must not republish the same direction.
+    assert (
+        summarize_deep_plan(
+            query="MVCC 差异",
+            sub_questions=["PostgreSQL MVCC", "MySQL MVCC"],
+            previous=first,
+        )
+        is None
+    )
+
+
+def test_summarize_deep_plan_advances_on_accepted_addition() -> None:
+    previous = summarize_lookup_query(
+        query="MVCC 差异", canonical_query="MVCC 差异", entity_aliases=["MVCC"], mode="deep"
+    )
+    first = summarize_deep_plan(
+        query="MVCC 差异", sub_questions=["PostgreSQL MVCC", "MySQL MVCC"], previous=previous
+    )
+    second = summarize_deep_plan(
+        query="MVCC 差异",
+        sub_questions=["PostgreSQL MVCC", "MySQL MVCC", "两者锁粒度对比"],
+        previous=first,
+    )
+    assert second is not None
+    assert second["sequence"] == first["sequence"] + 1
+
+
+def test_summarize_deep_plan_ignores_changes_beyond_display_window() -> None:
+    previous = summarize_lookup_query(
+        query="MVCC 差异", canonical_query="MVCC 差异", entity_aliases=["MVCC"], mode="deep"
+    )
+    first = summarize_deep_plan(
+        query="MVCC 差异",
+        sub_questions=["a", "b", "c", "d", "e"],
+        previous=previous,
+    )
+    assert first is not None
+    # A 5th sub-question that does not change the displayed window must not
+    # republish an identical summary (which validation would reject).
+    assert (
+        summarize_deep_plan(
+            query="MVCC 差异",
+            sub_questions=["a", "b", "c", "d", "f"],
+            previous=first,
+        )
+        is None
+    )
+
+
+def test_merge_deep_steering_context_keeps_concurrent_append() -> None:
+    from src.web.research.steering import merge_deep_steering_context
+
+    incoming = {"deep": {"steering": [{"content": "旧条件", "received_at": "t1", "incorporated_in_round": 1}]}}
+    durable = {
+        "deep": {
+            "steering": [
+                {"content": "旧条件", "received_at": "t1", "incorporated_in_round": 1},
+                {"content": "并发追加条件", "received_at": "t2", "incorporated_in_round": None},
+            ]
+        }
+    }
+    merged = merge_deep_steering_context(incoming, durable)
+    contents = [item["content"] for item in merged["deep"]["steering"]]
+    assert contents == ["旧条件", "并发追加条件"]
 
 
 def test_fallback_is_honest_and_authority_free() -> None:
