@@ -567,7 +567,7 @@ export type ChatResearchApproach = {
   status: "pending" | "ready" | "failed";
   summary: string;
   focus: string[];
-  origin: "model_plan" | "model_generated" | "fallback" | "direction_update" | string;
+  origin: "model_plan" | "model_generated" | "query_plan" | "fallback" | "direction_update" | string;
   sequence: number;
   mode: "lookup" | "standard" | "deep" | string;
   root_run_id?: string;

@@ -505,15 +505,30 @@ class WebLookupService:
         if research_mode not in {"standard", "deep"}:
             raise ValueError(f"Unsupported research_mode: {research_mode}")
         context["research_mode"] = research_mode
-        # Research opening ("研究开场"): a display-only seed persisted with the run
-        # so it survives refresh.  It carries no evidence authority and is filled
-        # in later (plan projection / bounded generation); failure never blocks
+        # Research opening ("研究开场"): project the *lookup query plan* into a
+        # short, honest direction and persist it with the run so the everyday
+        # Lookup path actually shows an opening.  Deterministic, no model call,
+        # display-only; a failure keeps the pending seed and never blocks
         # research.  See src/web/research/research_approach.py.
-        from src.web.research.research_approach import seed_approach
-
-        context["approach"] = seed_approach(
-            mode=research_mode, turn_id=owner_turn_id or ""
+        from src.web.research.research_approach import (
+            seed_approach,
+            summarize_lookup_query,
         )
+
+        try:
+            context["approach"] = summarize_lookup_query(
+                query=normalized,
+                canonical_query=context.get("canonical_query", ""),
+                query_variants=context.get("query_variants") or (),
+                entity_aliases=context.get("entity_aliases") or (),
+                freshness_requested=bool(context.get("freshness_requested")),
+                mode=research_mode,
+                turn_id=owner_turn_id or "",
+            )
+        except Exception:
+            context["approach"] = seed_approach(
+                mode=research_mode, turn_id=owner_turn_id or ""
+            )
         # §143-P1 transport: express explicit reader-capability intent on the run
         # context. The read site owns routing authority; this layer only records
         # the canonical, adapter-validated declaration (never infers it).
@@ -912,6 +927,19 @@ class WebLookupService:
         if not normalized:
             raise ValueError("Owner turn ID is required")
         runs = self.repository.list_by_owner_turn(normalized, limit=1)
+        return runs[0] if runs else None
+
+    def latest_owned_by_thread(self, thread_id: str) -> WebLookupRun | None:
+        """Newest run for a thread.
+
+        Lets the chat stream surface an opening during preparation (before the
+        turn id is known to the client) instead of only after the research ends.
+        """
+
+        normalized = thread_id.strip()
+        if not normalized:
+            return None
+        runs = self.repository.list_by_owner_thread(normalized, limit=1)
         return runs[0] if runs else None
 
     def lookup(self, query: str, *, max_items: int) -> WebLookupRun:

@@ -17,6 +17,7 @@ from src.web.research.research_approach import (
     normalize_mode,
     project_from_plan,
     seed_approach,
+    summarize_lookup_query,
     summarize_plan,
     translate_field,
     validate_approach,
@@ -305,6 +306,55 @@ def test_translate_field_known_and_unknown() -> None:
     assert translate_field("PSD-Compatibility") == "PSD-Compatibility"
     assert translate_field("unknown_thing") == "unknown_thing"
     assert translate_field("") == ""
+
+
+def test_summarize_lookup_query_projects_real_query_plan() -> None:
+    approach = summarize_lookup_query(
+        query="比较 PostgreSQL 与 MySQL 的 MVCC 差异",
+        canonical_query="PostgreSQL MySQL MVCC 差异",
+        entity_aliases=["PostgreSQL", "MySQL"],
+    )
+    assert approach["origin"] == "query_plan"
+    assert approach["status"] == "ready"
+    assert "PostgreSQL" in approach["summary"] and "MySQL" in approach["summary"]
+    assert "比较" in approach["summary"]
+    _assert_no_authority(approach)
+
+
+def test_summarize_lookup_query_single_entity_is_not_a_comparison() -> None:
+    approach = summarize_lookup_query(
+        query="Python 3.14 的发布日期",
+        canonical_query="Python 3.14 发布日期",
+        entity_aliases=["Python 3.14"],
+    )
+    assert approach["origin"] == "query_plan"
+    assert "比较" not in approach["summary"]
+
+
+def test_summarize_lookup_query_freshness_is_honest() -> None:
+    approach = summarize_lookup_query(
+        query="最新版本",
+        canonical_query="最新版本",
+        entity_aliases=["某项目"],
+        freshness_requested=True,
+    )
+    assert "最新" in approach["summary"]
+
+
+def test_summarize_lookup_query_without_plan_degrades_to_fallback() -> None:
+    approach = summarize_lookup_query(query="", canonical_query="", entity_aliases=[])
+    assert approach["origin"] == "fallback"
+
+
+def test_summarize_lookup_query_stays_within_lookup_budget() -> None:
+    approach = summarize_lookup_query(
+        query="比较 " + "很长的实体名称" * 10,
+        canonical_query="x" * 200,
+        entity_aliases=["很长的实体名称" + str(i) for i in range(8)],
+        mode="lookup",
+    )
+    assert approach["status"] == "ready"
+    assert len(approach["summary"]) <= MAX_SUMMARY_CHARS["lookup"]
 
 
 def test_fallback_is_honest_and_authority_free() -> None:

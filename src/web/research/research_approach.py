@@ -40,11 +40,13 @@ _STATUSES = (STATUS_PENDING, STATUS_READY, STATUS_FAILED)
 
 ORIGIN_MODEL_PLAN = "model_plan"
 ORIGIN_MODEL_GENERATED = "model_generated"
+ORIGIN_QUERY_PLAN = "query_plan"
 ORIGIN_FALLBACK = "fallback"
 ORIGIN_DIRECTION_UPDATE = "direction_update"
 _ORIGINS = (
     ORIGIN_MODEL_PLAN,
     ORIGIN_MODEL_GENERATED,
+    ORIGIN_QUERY_PLAN,
     ORIGIN_FALLBACK,
     ORIGIN_DIRECTION_UPDATE,
 )
@@ -255,6 +257,27 @@ def project_from_plan(
 ) -> dict[str, Any]:
     """Preferred path: reuse natural language the model already produced."""
 
+    return _ready_approach(
+        mode=mode,
+        summary=summary,
+        focus=focus,
+        origin=ORIGIN_MODEL_PLAN,
+        root_run_id=root_run_id,
+        turn_id=turn_id,
+        sequence=sequence,
+    )
+
+
+def _ready_approach(
+    *,
+    mode: Any,
+    summary: Any,
+    focus: Any,
+    origin: str,
+    root_run_id: str = "",
+    turn_id: str = "",
+    sequence: int = 1,
+) -> dict[str, Any]:
     return validate_approach(
         {
             "schema": APPROACH_SCHEMA,
@@ -264,9 +287,79 @@ def project_from_plan(
             "status": STATUS_READY,
             "summary": summary,
             "focus": focus,
-            "origin": ORIGIN_MODEL_PLAN,
+            "origin": origin,
             "sequence": sequence,
         }
+    )
+
+
+# Deterministic comparison cues in the user's own words (never invented facts).
+_COMPARE_MARKERS = ("比较", "对比", "区别", "差异", "哪个", "vs", "versus")
+
+
+def summarize_lookup_query(
+    *,
+    query: Any,
+    canonical_query: Any = "",
+    query_variants: Any = (),
+    entity_aliases: Any = (),
+    freshness_requested: bool = False,
+    mode: Any = "lookup",
+    root_run_id: str = "",
+    turn_id: str = "",
+    sequence: int = 1,
+) -> dict[str, Any]:
+    """Deterministic opening from the **lookup query plan** (no model call).
+
+    Uses only the user's question, the canonical query, the entity aliases and
+    the real query variants.  Never invents comparison dimensions, facts or
+    completed steps.  ``origin=query_plan`` (distinct from Standard's
+    ``model_plan``).  Degrades to :func:`fallback_approach` when there is nothing
+    honest to say.
+    """
+
+    raw = _clean_text(query)
+    canonical = _clean_text(canonical_query) or raw
+    entities = _clean_focus(entity_aliases)
+    if not canonical and not entities:
+        return fallback_approach(
+            mode=mode, root_run_id=root_run_id, turn_id=turn_id, sequence=sequence
+        )
+
+    lowered = raw.lower()
+    is_compare = any(marker in lowered for marker in _COMPARE_MARKERS) or len(entities) >= 2
+
+    def compose(names: list[str]) -> str:
+        if names:
+            subject = "、".join(names)
+            base = (
+                f"我会分别查找 {subject} 的相关资料，再比较问题涉及的方面有哪些区别。"
+                if is_compare
+                else f"我会围绕 {subject} 查找相关资料，核对关键信息是否一致。"
+            )
+        else:
+            base = f"我会围绕「{canonical}」查找相关资料并核对来源。"
+        if freshness_requested:
+            base = base[:-1] + "，并优先核对最新信息。" if base.endswith("。") else base
+        return base
+
+    limit = MAX_SUMMARY_CHARS[normalize_mode(mode)]
+    names = entities
+    summary = compose(names)
+    while names and len(summary) > limit:
+        names = names[:-1]
+        summary = compose(names)
+    if len(summary) > limit:
+        summary = summary[: limit - 1] + "。"
+
+    return _ready_approach(
+        mode=mode,
+        summary=summary,
+        focus=names or [canonical],
+        origin=ORIGIN_QUERY_PLAN,
+        root_run_id=root_run_id,
+        turn_id=turn_id,
+        sequence=sequence,
     )
 
 

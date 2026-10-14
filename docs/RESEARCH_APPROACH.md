@@ -36,6 +36,7 @@ exact four-key envelope (`schema`, `query`, `handoff_sha256`, `gaps`).  Adding a
 
 | origin | meaning | cost |
 | --- | --- | --- |
+| `query_plan` | projected from the lookup query plan (`canonical_query` / entity aliases) | none |
 | `model_plan` | projected from a plan the model already produced | none |
 | `model_generated` | one bounded completion produced the opening | counted |
 | `direction_update` | mode upgrade / steering continuation | none extra |
@@ -71,10 +72,16 @@ summary yet) — the UI shows the existing deterministic tool progress meanwhile
 
 ## Wiring
 
-- `WebLookupService.create()` and `create_follow_up()` seed `context["approach"]`
-  (every run starts initialised).
-- `chat_routes._research_progress()` emits `approach`; `root_run_id` is bound to
-  the true lineage root for child runs (isolation keys on the current run id).
+- `WebLookupService.create()` **and** `create_follow_up()` seed `context["approach"]`.
+- **Everyday Lookup path:** `summarize_lookup_query` projects the deterministic
+  lookup query plan (`canonical_query`, entity aliases, freshness) into a
+  ready `origin=query_plan` opening persisted with the run — so the common path
+  shows an opening with **zero extra model calls**; failure keeps the pending
+  seed.  (Standard's `save_research_plan` writes `origin=model_plan`.)
+- `chat_routes` emits `approach`; during preparation it polls by **turn id**
+  (resumed turns) or by **session/thread id** (new turns) so the opening can
+  reach the client while research is still running.  `root_run_id` binds the
+  lineage root for child runs.
 
 ## Client isolation rules
 

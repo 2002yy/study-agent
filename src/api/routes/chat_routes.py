@@ -143,14 +143,21 @@ async def chat_stream_endpoint(
                 )
                 _settle_disconnected_preparation(prepare_task, service)
                 return
-            run = (
-                await asyncio.to_thread(
+            if chat_request.turn_id:
+                run = await asyncio.to_thread(
                     research_service.latest_owned_by_turn,
                     chat_request.turn_id,
                 )
-                if chat_request.turn_id
-                else None
-            )
+            elif chat_request.session_id:
+                # A new turn: the run may already exist for this thread while
+                # preparation continues.  Surfacing it here means the opening can
+                # reach the client *during* research, not only at the end.
+                run = await asyncio.to_thread(
+                    research_service.latest_owned_by_thread,
+                    chat_request.session_id,
+                )
+            else:
+                run = None
             if run is not None and observed_research_version != (run.id, run.version):
                 observed_research_version = (run.id, run.version)
                 yield sse_event("research", _research_progress(run))
