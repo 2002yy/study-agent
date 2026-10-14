@@ -510,6 +510,11 @@ def summarize_deep_plan(
     if len(summary) > limit:
         summary = summary[: limit - 1] + "。"
 
+    # Compare the *displayed* direction (not the full list) so a plan with more
+    # than four sub-questions does not re-enter the update path every checkpoint.
+    if prior is not None and list(prior.get("focus") or []) == names:
+        return None
+
     sequence = int((prior or {}).get("sequence") or 0) + 1
     if prior is None:
         return _ready_approach(

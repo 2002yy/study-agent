@@ -93,3 +93,46 @@ def merge_active_steering_context(
         key=lambda item: (str(item.get("received_at") or ""), str(item["id"])),
     )
     return updated
+
+
+def merge_deep_steering_context(
+    incoming: Mapping[str, Any],
+    durable: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Merge the legacy deep-research ``deep["steering"]`` list by identity.
+
+    A concurrent ``append_steering`` writes into ``deep["steering"]`` while the
+    Deep executor checkpoints a stale snapshot; without this merge the new
+    condition is silently lost.  Entries are identified by
+    ``(received_at, content)`` because the legacy envelope carries no id.
+    Incoming wins for an existing key (it may have advanced
+    ``incorporated_in_round``); durable-only entries survive.
+    """
+
+    updated = dict(incoming)
+    incoming_deep = incoming.get("deep")
+    durable_deep = durable.get("deep")
+    if not isinstance(incoming_deep, dict) or not isinstance(durable_deep, dict):
+        return updated
+    durable_entries = [
+        item for item in (durable_deep.get("steering") or []) if isinstance(item, dict)
+    ]
+    if not durable_entries:
+        return updated
+    incoming_entries = [
+        item for item in (incoming_deep.get("steering") or []) if isinstance(item, dict)
+    ]
+
+    def key(item: dict[str, Any]) -> tuple[str, str]:
+        return (str(item.get("received_at") or ""), str(item.get("content") or ""))
+
+    merged: dict[tuple[str, str], dict[str, Any]] = {key(item): item for item in durable_entries}
+    for item in incoming_entries:
+        merged[key(item)] = item
+    deep = dict(incoming_deep)
+    deep["steering"] = sorted(
+        merged.values(),
+        key=lambda item: (str(item.get("received_at") or ""), str(item.get("content") or "")),
+    )
+    updated["deep"] = deep
+    return updated

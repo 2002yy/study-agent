@@ -17,6 +17,7 @@ from src.web.research.steering import (
     append_active_steering,
     is_active_claim_engine_context,
     merge_active_steering_context,
+    merge_deep_steering_context,
 )
 from src.web.source_assessment import assess_sources
 
@@ -662,6 +663,12 @@ class WebLookupRepository:
             load_ms += (_monotonic() - load_started) * 1000.0
             self._assert_running_owner(run, operation_id)
             checkpoint_context = merge_active_steering_context(
+                checkpoint_context,
+                run.research_context,
+            )
+            # Deep (legacy) steering lives in ``deep["steering"]``; a concurrent
+            # append must survive this checkpoint too.
+            checkpoint_context = merge_deep_steering_context(
                 checkpoint_context,
                 run.research_context,
             )

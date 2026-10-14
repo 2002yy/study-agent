@@ -452,6 +452,45 @@ def test_summarize_deep_plan_advances_on_accepted_addition() -> None:
     assert second["sequence"] == first["sequence"] + 1
 
 
+def test_summarize_deep_plan_ignores_changes_beyond_display_window() -> None:
+    previous = summarize_lookup_query(
+        query="MVCC 差异", canonical_query="MVCC 差异", entity_aliases=["MVCC"], mode="deep"
+    )
+    first = summarize_deep_plan(
+        query="MVCC 差异",
+        sub_questions=["a", "b", "c", "d", "e"],
+        previous=previous,
+    )
+    assert first is not None
+    # A 5th sub-question that does not change the displayed window must not
+    # republish an identical summary (which validation would reject).
+    assert (
+        summarize_deep_plan(
+            query="MVCC 差异",
+            sub_questions=["a", "b", "c", "d", "f"],
+            previous=first,
+        )
+        is None
+    )
+
+
+def test_merge_deep_steering_context_keeps_concurrent_append() -> None:
+    from src.web.research.steering import merge_deep_steering_context
+
+    incoming = {"deep": {"steering": [{"content": "旧条件", "received_at": "t1", "incorporated_in_round": 1}]}}
+    durable = {
+        "deep": {
+            "steering": [
+                {"content": "旧条件", "received_at": "t1", "incorporated_in_round": 1},
+                {"content": "并发追加条件", "received_at": "t2", "incorporated_in_round": None},
+            ]
+        }
+    }
+    merged = merge_deep_steering_context(incoming, durable)
+    contents = [item["content"] for item in merged["deep"]["steering"]]
+    assert contents == ["旧条件", "并发追加条件"]
+
+
 def test_fallback_is_honest_and_authority_free() -> None:
     approach = fallback_approach(mode="lookup")
     assert approach["origin"] == "fallback"
