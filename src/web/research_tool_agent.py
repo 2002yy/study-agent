@@ -322,6 +322,20 @@ def _relevant_bodies(substantive: Mapping[str, Any], *,
     return out
 
 
+def _comparison_intent(query: str, sides: tuple[str, ...], dims: tuple[str, ...]) -> dict:
+    """Whether an ordinary search already asks the comparison the question asked for.
+
+    Ruling (乙): the released recovery reserve is never re-armed, so a comparison has to ride on
+    ordinary searching. This measures whether that happened; it plans nothing and changes no quota.
+    """
+    text = str(query or "").casefold()
+    wanted = [str(side) for side in sides if str(side)]
+    return {"sides": wanted,
+            "has_all_sides": bool(wanted) and all(str(side).casefold() in text
+                                                  for side in wanted),
+            "has_dimension": any(str(dim).casefold() in text for dim in dims if str(dim))}
+
+
 def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
                    statuses: Mapping[str, str],
                    goal_specs: Mapping[str, tuple[str, ...]],

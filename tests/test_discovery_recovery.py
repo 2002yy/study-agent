@@ -470,3 +470,15 @@ def test_the_side_url_is_percent_encoded_and_matched_exactly():
         assert missing == ["投掷器"], missing
     finally:
         agent._eligible_windows = original
+
+
+def test_the_comparison_intent_of_an_ordinary_search_is_measurable():
+    """Ruling 乙: measure the ordinary-search comparison intent; the reserve stays untouched."""
+    from src.web.research_tool_agent import _comparison_intent
+
+    sides = ("漏斗", "投掷器")
+    dims = ("物品传输", "自动分类")
+    full = _comparison_intent("Minecraft 漏斗 投掷器 区别 物品传输 自动分类", sides, dims)
+    assert full == {"sides": ["漏斗", "投掷器"], "has_all_sides": True, "has_dimension": True}
+    assert _comparison_intent("漏斗 site:zh.minecraft.wiki", sides, dims)["has_all_sides"] is False
+    assert _comparison_intent("漏斗与投掷器的区别", sides, ())["has_dimension"] is False
