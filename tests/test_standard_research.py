@@ -340,6 +340,46 @@ def test_slow_generation_does_not_block_research_and_late_write_is_rejected(runn
     )
 
 
+def test_real_bindings_persist_model_generated_approach(running):
+    from src.web.research.approach_generation import (
+        ApproachGenerationCoordinator,
+        standard_execution_bindings,
+    )
+
+    execution, clock, _, runs, _ = running
+    # Begin (but do not finish) planning: the run has no projection yet, which is
+    # the legitimate window in which a generated opening may be persisted.
+    execution.journal.begin_research_plan(
+        execution.run_id, execution.thread_id, execution.operation_id, clock[0]
+    )
+
+    def completion(messages, **kwargs):  # noqa: ANN001
+        return json.dumps(
+            {"summary": "我会先核对发布日期，再核对许可证。", "focus": ["发布日期", "许可证"]},
+            ensure_ascii=False,
+        )
+
+    authorize, write = standard_execution_bindings(
+        execution, clock=lambda: clock[0], model_call_ceiling=2
+    )
+    coordinator = ApproachGenerationCoordinator(
+        authorize=authorize, write=write, completion=completion
+    )
+    outcome = coordinator.attempt(
+        run_id=execution.run_id,
+        operation_id=execution.operation_id,
+        mode="standard",
+        query="q",
+        current=None,
+        is_terminal=lambda: False,
+    )
+    assert outcome.written is True
+    assert (
+        runs.get(execution.run_id).research_context["approach"]["origin"]
+        == "model_generated"
+    )
+
+
 def test_resume_uses_saved_plan_and_next_action_without_model_reentry(running):
     execution, _, _, _, _ = running
     planner, gateway = Planner(), Gateway()

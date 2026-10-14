@@ -265,7 +265,9 @@ def standard_execution_bindings(
         )
 
     def write(run_id: str, approach: dict[str, Any]) -> bool:
-        if not _identity_matches(run_id, ""):
+        # The coordinator only passes the run id; the operation id is captured
+        # from the bound execution and re-checked inside the transaction.
+        if str(run_id) != bound_run_id:
             return False
         return journal.record_approach(
             bound_run_id, bound_thread_id, bound_operation_id, clock(), approach
@@ -289,6 +291,7 @@ class ApproachTaskScheduler:
         coordinator: ApproachGenerationCoordinator,
         enabled: bool,
         max_workers: int = 1,
+        max_pending: int = 2,
     ) -> None:
         self._coordinator = coordinator
         self._enabled = bool(enabled)
@@ -301,6 +304,9 @@ class ApproachTaskScheduler:
         )
         self._futures: set[Future] = set()
         self._lock = threading.Lock()
+        # Bound the *queue* as well as concurrency: a display feature must never
+        # accumulate an unbounded backlog.
+        self._max_pending = max(1, int(max_pending))
 
     @property
     def enabled(self) -> bool:
@@ -321,20 +327,22 @@ class ApproachTaskScheduler:
 
         if not self._enabled or self._executor is None:
             return False
-        try:
-            future = self._executor.submit(
-                self._coordinator.attempt,
-                run_id=run_id,
-                operation_id=operation_id,
-                mode=mode,
-                query=query,
-                current=current,
-                is_terminal=is_terminal,
-                sequence=sequence,
-            )
-        except Exception:
-            return False
         with self._lock:
+            if len(self._futures) >= self._max_pending:
+                return False
+            try:
+                future = self._executor.submit(
+                    self._coordinator.attempt,
+                    run_id=run_id,
+                    operation_id=operation_id,
+                    mode=mode,
+                    query=query,
+                    current=current,
+                    is_terminal=is_terminal,
+                    sequence=sequence,
+                )
+            except Exception:
+                return False
             self._futures.add(future)
         future.add_done_callback(self._discard)
         return True

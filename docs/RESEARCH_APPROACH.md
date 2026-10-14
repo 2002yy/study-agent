@@ -115,8 +115,14 @@ summary yet) — the UI shows the existing deterministic tool progress meanwhile
   never waiting for a display task; the Standard loop schedules after planning
   (`StandardResearchLoop(..., approach_scheduler=…)`), so a ready projection
   yields `not_needed` and zero extra calls.
-  **Remaining:** Lookup/Deep run-kind adapters (interface only for now), and the
-  real DeepSeek end-to-end acceptance.
+  **Production wiring:** `StandardContinuationService` builds the scheduler per
+  run (flag + model callback required), passes it to `StandardResearchLoop`, and
+  shuts it down (`wait=False`) once research ends — never waiting for display.
+  The queue is bounded (`max_pending`), not just concurrency.
+  **Budget:** the ceiling is **supplied by the budget owner**
+  (`approach_model_call_ceiling`, default `0` = no extra call); the feature does
+  **not** invent a ceiling and does not raise planning's allowance.
+  **Remaining:** Lookup/Deep run-kind adapters, and the real DeepSeek acceptance.
 - **Field display:** `translate_field` maps known plan field names to natural
   labels (`release_date → 发布日期`); unknown names are shown unchanged, so a
   projection can never invent a research dimension.

@@ -110,6 +110,8 @@ class StandardContinuationService:
         planner_factory: Callable[[], Callable[[dict], dict]] = ModelStandardPlanner,
         shadow_telemetry: BestEffortTelemetry | None = None,
         shadow_runner: Callable[[str, float], dict[str, Any]] | None = None,
+        approach_completion: Callable[..., str] | None = None,
+        approach_model_call_ceiling: int = 0,
     ):
         self.repository = repository
         self.runs = runs
@@ -122,7 +124,32 @@ class StandardContinuationService:
             else (_shared_shadow_telemetry() if standard_shadow_enabled() else None)
         )
         self.shadow_runner = shadow_runner
+        # Optional, off-path research-opening generation.  Disabled by default:
+        # requires both the feature flag and a model callback, and the ceiling
+        # (0 by default) grants no extra call beyond the existing budget.
+        self.approach_completion = approach_completion
+        self.approach_model_call_ceiling = int(approach_model_call_ceiling)
         self.journal = StandardExecutionRepository(repository.database)
+
+    def _build_approach_scheduler(self, execution: StandardExecution) -> Any:
+        from src.web.research.approach_generation import (
+            ApproachGenerationCoordinator,
+            ApproachTaskScheduler,
+            generation_enabled,
+            standard_execution_bindings,
+        )
+
+        if not generation_enabled() or self.approach_completion is None:
+            return None
+        authorize, write = standard_execution_bindings(
+            execution,
+            clock=self.clock,
+            model_call_ceiling=self.approach_model_call_ceiling,
+        )
+        coordinator = ApproachGenerationCoordinator(
+            authorize=authorize, write=write, completion=self.approach_completion
+        )
+        return ApproachTaskScheduler(coordinator=coordinator, enabled=True)
 
     def continue_pending(
         self, *, parent_turn_id: str, thread_id: str
@@ -184,12 +211,16 @@ class StandardContinuationService:
         except ValueError as exc:
             return self._blocked(parent_turn_id, thread_id, blocked_reason(exc))
 
-        loop = StandardResearchLoop(execution, self.planner_factory())
+        scheduler = self._build_approach_scheduler(execution)
+        loop = StandardResearchLoop(execution, self.planner_factory(), approach_scheduler=scheduler)
         result: dict | None = None
         for _ in range(MAX_ADVANCES):
             result = loop.advance(self.gateway, max_steps=48)
             if result is not None:
                 break
+        if scheduler is not None:
+            # Research is done/abandoned: never wait for a display task.
+            scheduler.shutdown(wait=False)
         if result is None:
             # Paused at a durable step boundary: not a failure, and the parent stays pending.
             return StandardContinuationOutcome(

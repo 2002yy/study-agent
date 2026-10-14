@@ -46,11 +46,6 @@ class RecoveryBudget:
 LOOKUP_BUDGET = RecoveryBudget("lookup", 30, 10, 2, 1, 2, 6000, 16000)
 STANDARD_BUDGET = RecoveryBudget("standard", 60, 12, 3, 2, 4, 6000, 24000)
 
-# Shared model-call ceiling for the Standard path: planning plus the optional
-# research-opening generation must never exceed this total.  Kept with the other
-# budgets so the research-opening feature does not own a second call counter.
-STANDARD_MODEL_CALL_CEILING = 2
-
 
 def recovery_summary(calls: list[dict[str, Any]]) -> dict[str, Any] | None:
     return next(
