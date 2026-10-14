@@ -133,6 +133,17 @@ async def chat_stream_endpoint(
             asyncio.to_thread(service.start_turn, command)
         )
         observed_research_version: tuple[str, int] | None = None
+        # A new turn has no turn id yet, so we may only surface a run that was
+        # created *for this request*.  Record the newest pre-existing run for the
+        # thread and never emit it: otherwise the previous turn's opening would be
+        # shown as if it belonged to the current question.
+        baseline_run_id = ""
+        if not chat_request.turn_id and chat_request.session_id:
+            prior = await asyncio.to_thread(
+                research_service.latest_owned_by_thread,
+                chat_request.session_id,
+            )
+            baseline_run_id = prior.id if prior is not None else ""
 
         while not prepare_task.done():
             if chat_request.turn_id and await http_request.is_disconnected():
@@ -151,11 +162,14 @@ async def chat_stream_endpoint(
             elif chat_request.session_id:
                 # A new turn: the run may already exist for this thread while
                 # preparation continues.  Surfacing it here means the opening can
-                # reach the client *during* research, not only at the end.
+                # reach the client *during* research, not only at the end.  Only a
+                # run created for this request is eligible.
                 run = await asyncio.to_thread(
                     research_service.latest_owned_by_thread,
                     chat_request.session_id,
                 )
+                if run is not None and run.id == baseline_run_id:
+                    run = None
             else:
                 run = None
             if run is not None and observed_research_version != (run.id, run.version):
