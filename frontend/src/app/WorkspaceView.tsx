@@ -284,6 +284,7 @@ export function WorkspaceView({
           onQueue={chatController.queue}
           onSendQueued={chatController.sendQueued}
           isSteering={chatController.isSteering}
+          onEnsureSession={chatController.ensureSession}
           isResearchBusy={webLookupController.isBusy}
           canRetryResearch={webLookupController.canRetry}
           canResumeResearch={webLookupController.canResume}

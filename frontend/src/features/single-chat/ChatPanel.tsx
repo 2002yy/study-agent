@@ -126,6 +126,7 @@ type ChatPanelProps = {
   onResumeResearch: () => void;
   firstUseNotice?: ReactNode;
   enterToSend?: boolean;
+  onEnsureSession?: () => Promise<string | undefined>;
 };
 
 type CopyState = "idle" | "success" | "error";
@@ -487,7 +488,7 @@ export function ChatPanel(props: ChatPanelProps) {
             onSelect={role=>{props.onSelectRole?.(role);setRoleSettingsOpen(false);composerRef.current?.focus();}}
             onClose={()=>{setRoleSettingsOpen(false);roleSettingsButtonRef.current?.focus();}}
           /> : null}
-          <ComposerAttachments sessionId={sessionId} />
+          <ComposerAttachments sessionId={sessionId} onEnsureSession={props.onEnsureSession} />
           <textarea
             ref={composerRef}
             rows={1}

@@ -955,6 +955,23 @@ export function useChatController(options: ControllerOptions) {
     }
   };
 
+  // Slice C: a first multimodal question must not require sending an empty
+  // message first; the composer can create the session on demand.
+  const ensureSession = async (): Promise<string | undefined> => {
+    const existing = state.activeChatThreadId;
+    if (existing) return existing;
+    try {
+      const created = await createNewSession();
+      transitionSession(created.session_id, seedMessages, null);
+      return created.session_id;
+    } catch (error) {
+      options.setOperationError(
+        `无法创建会话：${error instanceof Error ? error.message : "未知错误"}`
+      );
+      return undefined;
+    }
+  };
+
   const startNewSession = async () => {
     options.setOperationError("");
     cancelWorkspaceRuns();
@@ -1087,6 +1104,7 @@ export function useChatController(options: ControllerOptions) {
     hydrateSession,
     archiveCurrentSession,
     startNewSession,
+    ensureSession,
     cancelWorkspaceRuns,
   };
 }

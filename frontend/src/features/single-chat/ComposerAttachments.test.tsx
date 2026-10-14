@@ -44,6 +44,29 @@ describe("ComposerAttachments", () => {
     expect(listSessionAttachments).not.toHaveBeenCalled();
   });
 
+  it("creates the session on demand so a first multimodal question needs no empty send", async () => {
+    const ensureSession = vi.fn().mockResolvedValue("new-session");
+    uploadSessionAttachment.mockResolvedValue(attachment());
+    listSessionAttachments.mockResolvedValue({ attachments: [attachment()], max_files_per_thread: 5, total_bytes: 2048 });
+    render(<ComposerAttachments onEnsureSession={ensureSession} />);
+    expect(screen.getByRole("button", { name: "添加附件" })).toBeEnabled();
+
+    const file = new File(["x"], "shot.png", { type: "image/png" });
+    selectFiles(document.querySelector('input[type="file"]') as HTMLInputElement, [file]);
+
+    await waitFor(() => expect(ensureSession).toHaveBeenCalled());
+    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalledWith("new-session", file));
+  });
+
+  it("reports when no session could be created for the attachment", async () => {
+    const ensureSession = vi.fn().mockResolvedValue(undefined);
+    render(<ComposerAttachments onEnsureSession={ensureSession} />);
+    const file = new File(["x"], "shot.png", { type: "image/png" });
+    selectFiles(document.querySelector('input[type="file"]') as HTMLInputElement, [file]);
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法创建会话");
+    expect(uploadSessionAttachment).not.toHaveBeenCalled();
+  });
+
   it("uploads a selected file to the current session and shows a chip", async () => {
     uploadSessionAttachment.mockResolvedValue(attachment());
     listSessionAttachments

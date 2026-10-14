@@ -16,39 +16,63 @@ import { ACCEPTED_EXTENSIONS, MAX_FILE_BYTES, attachmentStatusLabel, formatBytes
  * Attachments reuse the existing session-attachment API (`sessions/{id}/
  * attachments`); nothing about parsing, indexing or promotion changes here.
  */
-export function ComposerAttachments({ sessionId }: { sessionId?: string }) {
+export function ComposerAttachments({
+  sessionId,
+  onEnsureSession,
+}: {
+  sessionId?: string;
+  /** Create the session on demand so a first multimodal question needs no empty send. */
+  onEnsureSession?: () => Promise<string | undefined>;
+}) {
   const [attachments, setAttachments] = useState<SessionAttachmentInfo[]>([]);
   const [maxFiles, setMaxFiles] = useState(0);
+  const [resolvedSession, setResolvedSession] = useState(sessionId ?? "");
   const [isUploading, setIsUploading] = useState(false);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    setResolvedSession(sessionId ?? "");
+  }, [sessionId]);
+
+  const activeSession = resolvedSession || sessionId || "";
+
   const refresh = useCallback(async () => {
-    if (!sessionId) {
+    if (!activeSession) {
       setAttachments([]);
       setMaxFiles(0);
       return;
     }
     try {
-      const listing = await listSessionAttachments(sessionId);
+      const listing = await listSessionAttachments(activeSession);
       setAttachments(listing.attachments);
       setMaxFiles(listing.max_files_per_thread);
       setError("");
     } catch {
       // The sources panel surfaces detailed load errors; the composer stays quiet.
     }
-  }, [sessionId]);
+  }, [activeSession]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const overLimit = maxFiles > 0 && attachments.length >= maxFiles;
-  const disabled = !sessionId || isUploading || overLimit;
+  const canAttach = Boolean(activeSession) || Boolean(onEnsureSession);
+  const disabled = !canAttach || isUploading || overLimit;
 
   const handleFiles = async (files: FileList | null) => {
-    if (!sessionId || !files?.length) return;
+    if (!files?.length) return;
+    let session = activeSession;
+    if (!session && onEnsureSession) {
+      session = (await onEnsureSession()) ?? "";
+      if (session) setResolvedSession(session);
+    }
+    if (!session) {
+      setError("无法创建会话，附件未上传");
+      return;
+    }
     setIsUploading(true);
     setError("");
     try {
@@ -57,7 +81,7 @@ export function ComposerAttachments({ sessionId }: { sessionId?: string }) {
           setError(`${file.name} 超过 ${formatBytes(MAX_FILE_BYTES)} 上限`);
           continue;
         }
-        await uploadSessionAttachment(sessionId, file);
+        await uploadSessionAttachment(session, file);
       }
       await refresh();
     } catch (cause) {
@@ -95,7 +119,7 @@ export function ComposerAttachments({ sessionId }: { sessionId?: string }) {
         className="composer-attach-button"
         disabled={disabled}
         onClick={() => inputRef.current?.click()}
-        title={!sessionId ? "开始会话后可添加附件" : overLimit ? "附件数已达上限" : "添加附件"}
+        title={!canAttach ? "开始会话后可添加附件" : overLimit ? "附件数已达上限" : "添加附件"}
         type="button"
       >
         {isUploading ? <Loader2 className="spin" size={16} /> : <Paperclip size={16} />}
