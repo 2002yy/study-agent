@@ -520,6 +520,16 @@ class StandardExecutionRepository:
             except Exception:
                 pass
 
+    def approach_snapshot(
+        self, run_id: str, thread_id: str, operation_id: str, now: datetime
+    ) -> Any:
+        """Read-only view of the persisted research opening (outer context)."""
+
+        with self._transaction(
+            run_id, thread_id, now, operation_id=operation_id, write=False
+        ) as (connection, context, ledger):
+            return deepcopy(context.get("approach"))
+
     def authorize_approach_attempt(
         self,
         run_id: str,
@@ -527,16 +537,17 @@ class StandardExecutionRepository:
         operation_id: str,
         now: datetime,
         *,
-        max_calls: int = 1,
+        model_call_ceiling: int,
     ) -> bool:
         """Atomically reserve one research-opening generation attempt.
 
-        The Standard journal is the **authoritative** store: the reservation is
-        persisted inside the same transaction that re-checks owner, operation
-        identity, cancellation, terminal state and deadline, so two threads or
-        processes cannot spend the same authorization.  ``max_calls`` (the
-        ceiling) is supplied by the caller — the existing budget owner — never
-        invented here.
+        The reservation shares the **existing** model-call ceiling with planning:
+        ``planner_calls + approach_generation_calls`` must stay below
+        ``model_call_ceiling``, so the opening can never be granted a call beyond
+        the budget owner's allowance.  The reservation is persisted inside the
+        same transaction that re-checks owner, operation identity, cancellation,
+        terminal state and deadline, so two threads or processes cannot spend the
+        same authorization.
         """
 
         with self._transaction(run_id, thread_id, now, operation_id=operation_id) as (
@@ -547,9 +558,13 @@ class StandardExecutionRepository:
             research = ledger.get("research")
             if not isinstance(research, dict):
                 return False
+            planning = research.get("planner_calls")
+            planning = (
+                planning if isinstance(planning, int) and not isinstance(planning, bool) else 0
+            )
             used = research.get("approach_generation_calls")
             used = used if isinstance(used, int) and not isinstance(used, bool) else 0
-            if used >= max(0, int(max_calls)):
+            if planning + used >= max(0, int(model_call_ceiling)):
                 return False
             research["approach_generation_calls"] = used + 1
             return True

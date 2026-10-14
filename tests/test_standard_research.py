@@ -115,11 +115,22 @@ def test_approach_attempt_authorization_is_persisted_and_idempotent(running):
     # Authorization is only meaningful once the plan phase exists.
     StandardResearchLoop(execution, Planner()).advance(Gateway(), max_steps=1)
     args = (execution.run_id, execution.thread_id, execution.operation_id, clock[0])
-    assert execution.journal.authorize_approach_attempt(*args) is True
+    assert execution.journal.authorize_approach_attempt(*args, model_call_ceiling=2) is True
     # The reservation is authoritative: a second attempt cannot spend it again.
-    assert execution.journal.authorize_approach_attempt(*args) is False
+    assert execution.journal.authorize_approach_attempt(*args, model_call_ceiling=2) is False
     stored = runs.get(execution.run_id).research_context["standard"]["research"]
     assert stored["approach_generation_calls"] == 1
+
+
+def test_approach_attempt_shares_the_planning_ceiling(running):
+    execution, clock, _, _, _ = running
+    StandardResearchLoop(execution, Planner()).advance(Gateway(), max_steps=1)
+    args = (execution.run_id, execution.thread_id, execution.operation_id, clock[0])
+    # planner_calls == 1 after planning, so a ceiling of 1 leaves no room.
+    assert execution.journal.authorize_approach_attempt(*args, model_call_ceiling=1) is False
+    # A ceiling of 2 shares the single remaining slot with the opening.
+    assert execution.journal.authorize_approach_attempt(*args, model_call_ceiling=2) is True
+    assert execution.journal.authorize_approach_attempt(*args, model_call_ceiling=2) is False
 
 
 def test_record_approach_writes_atomically_and_rejects_stale(running):
@@ -171,7 +182,12 @@ def test_standard_binding_costs_zero_calls_when_projection_ready(running):
 
     execution, clock, _, runs, _ = running
     StandardResearchLoop(execution, Planner()).advance(Gateway(), max_steps=1)
-    authorize, write = standard_execution_bindings(execution, clock=lambda: clock[0])
+    authorize, write = standard_execution_bindings(
+        execution, clock=lambda: clock[0], model_call_ceiling=2
+    )
+    # Identity mismatch is refused before any journal work.
+    assert authorize("other-run", execution.operation_id) is False
+    assert write("other-run", _generated_approach(execution.run_id)) is False
     calls = {"completion": 0}
 
     def completion(messages, **kwargs):  # noqa: ANN001
@@ -191,6 +207,36 @@ def test_standard_binding_costs_zero_calls_when_projection_ready(running):
         is_terminal=lambda: False,
     )
     assert outcome.reason == "not_needed"
+    assert calls["completion"] == 0
+
+
+def test_standard_loop_schedules_off_path_without_extra_calls(running):
+    from src.web.research.approach_generation import (
+        ApproachGenerationCoordinator,
+        ApproachTaskScheduler,
+        standard_execution_bindings,
+    )
+
+    execution, clock, _, _, _ = running
+    calls = {"completion": 0}
+
+    def completion(messages, **kwargs):  # noqa: ANN001
+        calls["completion"] += 1
+        return "{}"
+
+    authorize, write = standard_execution_bindings(
+        execution, clock=lambda: clock[0], model_call_ceiling=2
+    )
+    coordinator = ApproachGenerationCoordinator(
+        authorize=authorize, write=write, completion=completion
+    )
+    scheduler = ApproachTaskScheduler(coordinator=coordinator, enabled=True)
+    try:
+        loop = StandardResearchLoop(execution, Planner(), approach_scheduler=scheduler)
+        assert loop.advance(Gateway(), max_steps=1) is None  # paused, never blocked
+    finally:
+        scheduler.shutdown(wait=True)
+    # A plan projection already exists, so the off-path task makes zero calls.
     assert calls["completion"] == 0
 
 

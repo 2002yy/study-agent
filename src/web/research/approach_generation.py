@@ -26,7 +26,9 @@ budget ceiling, or the answer/citation rules.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import threading
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, Callable
 
 from src.web.research.research_approach import (
@@ -43,6 +45,20 @@ from src.web.research.research_approach import (
 # A ready projection or an explicit direction update already answers "what are
 # we doing"; a generated summary must never replace them.
 _AUTHORITATIVE_ORIGINS = (ORIGIN_MODEL_PLAN, ORIGIN_DIRECTION_UPDATE)
+
+# Feature flag: when unset/false no background task is created and no model call
+# is ever made.
+FEATURE_FLAG = "RESEARCH_APPROACH_GENERATION"
+_TRUTHY = {"1", "true", "on", "yes"}
+
+
+def generation_enabled(env: Any = None) -> bool:
+    source = env if env is not None else os.environ
+    try:
+        raw = source.get(FEATURE_FLAG, "")
+    except AttributeError:
+        return False
+    return str(raw).strip().lower() in _TRUTHY
 
 
 @dataclass(frozen=True)
@@ -145,6 +161,10 @@ class ApproachGenerationCoordinator:
         if not generation_needed(current):
             return GenerationOutcome(current, spent=False, written=False, reason="not_needed")
 
+        if self._completion is None:
+            # No model callback: degrade without reserving any budget.
+            return GenerationOutcome(current, spent=False, written=False, reason="no_model")
+
         key = (str(run_id), str(operation_id))
         with self._lock:
             if key in self._inflight:
@@ -213,27 +233,120 @@ class ApproachGenerationCoordinator:
 
 
 def standard_execution_bindings(
-    execution: Any, *, clock: Callable[[], Any], max_calls: int = 1
+    execution: Any, *, clock: Callable[[], Any], model_call_ceiling: int
 ) -> tuple[Callable[[str, str], bool], Callable[[str, dict[str, Any]], bool]]:
     """Bind the coordinator to a Standard execution's authoritative journal.
 
-    Both callbacks run through the same transactional repository methods, so
-    budget reservation, identity/terminal checks and the write share the
-    database's atomicity — not an in-process lock.  ``max_calls`` is the
-    existing budget owner's ceiling.
+    Both callbacks verify the passed run/operation identity against the captured
+    execution before doing anything, then run through the same transactional
+    repository methods — so budget reservation, identity/terminal checks and the
+    write share the database's atomicity, not an in-process lock.
+    ``model_call_ceiling`` is the existing budget owner's shared allowance
+    (planning + opening).
     """
 
     journal = execution.journal
-    run_id = execution.run_id
-    thread_id = execution.thread_id
-    operation_id = execution.operation_id
+    bound_run_id = str(execution.run_id)
+    bound_thread_id = execution.thread_id
+    bound_operation_id = str(execution.operation_id)
 
-    def authorize(_run_id: str, _operation_id: str) -> bool:
+    def _identity_matches(run_id: str, operation_id: str) -> bool:
+        return str(run_id) == bound_run_id and str(operation_id) == bound_operation_id
+
+    def authorize(run_id: str, operation_id: str) -> bool:
+        if not _identity_matches(run_id, operation_id):
+            return False
         return journal.authorize_approach_attempt(
-            run_id, thread_id, operation_id, clock(), max_calls=max_calls
+            bound_run_id,
+            bound_thread_id,
+            bound_operation_id,
+            clock(),
+            model_call_ceiling=model_call_ceiling,
         )
 
-    def write(_run_id: str, approach: dict[str, Any]) -> bool:
-        return journal.record_approach(run_id, thread_id, operation_id, clock(), approach)
+    def write(run_id: str, approach: dict[str, Any]) -> bool:
+        if not _identity_matches(run_id, ""):
+            return False
+        return journal.record_approach(
+            bound_run_id, bound_thread_id, bound_operation_id, clock(), approach
+        )
 
     return authorize, write
+
+
+class ApproachTaskScheduler:
+    """Bounded, lifecycle-managed executor for optional opening generation.
+
+    Uses an application-owned thread pool (not unbounded raw threads), never
+    waits for a display task, and abandons late results: the atomic write gate
+    rejects anything that lost its identity/terminal race.  Research lifecycle is
+    never extended for display.
+    """
+
+    def __init__(
+        self,
+        *,
+        coordinator: ApproachGenerationCoordinator,
+        enabled: bool,
+        max_workers: int = 1,
+    ) -> None:
+        self._coordinator = coordinator
+        self._enabled = bool(enabled)
+        self._executor: ThreadPoolExecutor | None = (
+            ThreadPoolExecutor(
+                max_workers=max(1, int(max_workers)), thread_name_prefix="approach"
+            )
+            if self._enabled
+            else None
+        )
+        self._futures: set[Future] = set()
+        self._lock = threading.Lock()
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def schedule(
+        self,
+        *,
+        run_id: str,
+        operation_id: str,
+        mode: Any,
+        query: str,
+        current: Any,
+        is_terminal: Callable[[], bool],
+        sequence: int = 1,
+    ) -> bool:
+        """Submit one attempt off the research path.  Returns whether it ran."""
+
+        if not self._enabled or self._executor is None:
+            return False
+        try:
+            future = self._executor.submit(
+                self._coordinator.attempt,
+                run_id=run_id,
+                operation_id=operation_id,
+                mode=mode,
+                query=query,
+                current=current,
+                is_terminal=is_terminal,
+                sequence=sequence,
+            )
+        except Exception:
+            return False
+        with self._lock:
+            self._futures.add(future)
+        future.add_done_callback(self._discard)
+        return True
+
+    def _discard(self, future: Future) -> None:
+        with self._lock:
+            self._futures.discard(future)
+
+    def shutdown(self, wait: bool = False) -> None:
+        """Abandon pending display tasks; never block research teardown."""
+
+        if self._executor is not None:
+            self._executor.shutdown(wait=wait)
+            self._executor = None
+        self._enabled = False

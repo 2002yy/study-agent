@@ -8,7 +8,9 @@ import time
 
 from src.web.research.approach_generation import (
     ApproachGenerationCoordinator,
+    ApproachTaskScheduler,
     GenerationOutcome,
+    generation_enabled,
     generation_needed,
     write_allowed,
 )
@@ -186,6 +188,61 @@ def test_concurrent_same_authorization_spends_once() -> None:
     assert len(results) == 2
     assert sum(1 for r in results if r.spent) == 1
     assert sum(1 for r in results if r.reason == "duplicate_authorization") == 1
+
+
+def test_no_model_callback_does_not_reserve() -> None:
+    reserved = {"n": 0}
+
+    def authorize(run_id, operation_id):
+        reserved["n"] += 1
+        return True
+
+    outcome = _coordinator(authorize=authorize, completion=None).attempt(
+        run_id="r1", operation_id="op1", mode="standard", query="q",
+        current=_pending(), is_terminal=lambda: False,
+    )
+    assert outcome.reason == "no_model" and outcome.spent is False
+    assert reserved["n"] == 0
+
+
+def test_feature_flag_gating() -> None:
+    assert generation_enabled({}) is False
+    assert generation_enabled({"RESEARCH_APPROACH_GENERATION": "on"}) is True
+    assert generation_enabled({"RESEARCH_APPROACH_GENERATION": "0"}) is False
+
+
+def test_scheduler_flag_off_creates_no_task_and_no_call() -> None:
+    calls = {"completion": 0}
+
+    def completion(messages, **kwargs):  # noqa: ANN001
+        calls["completion"] += 1
+        return _ok_completion(messages, **kwargs)
+
+    coordinator = _coordinator(completion=completion)
+    scheduler = ApproachTaskScheduler(coordinator=coordinator, enabled=False)
+    assert scheduler.schedule(
+        run_id="r1", operation_id="op1", mode="standard", query="q",
+        current=_pending(), is_terminal=lambda: False,
+    ) is False
+    scheduler.shutdown()
+    assert calls["completion"] == 0
+
+
+def test_scheduler_runs_off_path_when_enabled() -> None:
+    done = threading.Event()
+
+    def write(run_id, approach):
+        done.set()
+        return True
+
+    coordinator = _coordinator(write=write, completion=_ok_completion)
+    scheduler = ApproachTaskScheduler(coordinator=coordinator, enabled=True)
+    assert scheduler.schedule(
+        run_id="r1", operation_id="op1", mode="standard", query="q",
+        current=_pending(), is_terminal=lambda: False,
+    ) is True
+    assert done.wait(2.0) is True
+    scheduler.shutdown()
 
 
 def test_write_allowed_rejects_cross_run_and_terminal() -> None:
