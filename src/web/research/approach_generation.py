@@ -192,7 +192,14 @@ class ApproachGenerationCoordinator:
                 context=None,
                 root_run_id=str(run_id),
                 previous=current if isinstance(current, dict) else None,
-                sequence=sequence,
+                # A persisted fallback may already be sequence=1. Advancing
+                # the candidate lets the atomic writer replace it; the writer
+                # still rejects later plan updates, cancellation and stale runs.
+                sequence=max(
+                    sequence,
+                    _sequence(current.get("sequence")) + 1
+                    if isinstance(current, dict) else 1,
+                ),
                 timeout=self._timeout,
                 max_tokens=self._max_tokens,
             )
