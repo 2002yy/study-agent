@@ -1466,9 +1466,28 @@ class WebLookupService:
     _DEEP_STEPS_CAP = 200
     _DEEP_NOTE_FACTS_CHARS = 1_200
 
-    def steer(self, run_id: str, *, content: str, request_id: str | None = None) -> WebLookupRun:
-        """G18 decision 12: inject a mid-run steering message."""
-        steered = self.repository.append_steering(run_id, content=content, request_id=request_id)
+    def steer(
+        self,
+        run_id: str,
+        *,
+        content: str,
+        request_id: str | None = None,
+        attachment_refs: list[dict[str, Any]] | None = None,
+        attachment_material: list[dict[str, Any]] | None = None,
+    ) -> WebLookupRun:
+        """G18 decision 12: inject a mid-run steering message.
+
+        Text and attachments share one ``request_id`` so a retry is idempotent
+        and the attachment can never arrive on an unrelated path.
+        """
+
+        steered = self.repository.append_steering(
+            run_id,
+            content=content,
+            request_id=request_id,
+            attachment_refs=attachment_refs,
+            attachment_material=attachment_material,
+        )
         if steered is None:
             raise ValueError(
                 f"WebLookupRun cannot be steered (not running): {run_id}"
@@ -1529,9 +1548,12 @@ class WebLookupService:
         deep["computations"] = entries[-MAX_COMPUTATIONS:]
         self._deep_log(deep, "compute", f"已执行计算（{payload.get('engine')}）：{payload.get('status')}")
 
-    def _deep_consume_steering(self, deep: dict[str, Any], round_index: int) -> bool:
+    def _deep_consume_steering(
+        self, context: dict[str, Any], deep: dict[str, Any], round_index: int
+    ) -> bool:
         """Mark pending steering as incorporated; True when anything consumed."""
         consumed = False
+        merged_attachments = False
         for entry in deep.get("steering", []):
             if isinstance(entry, dict) and entry.get("incorporated_in_round") is None:
                 # A receipt is applied only when it changes actual future work.
@@ -1543,11 +1565,26 @@ class WebLookupService:
                 entry["budget_grant"] = authorize_goal(deep, steering_id=str(entry.get("id") or entry.get("received_at")), task_id=entry["task_id"])
                 entry["incorporated_in_round"] = round_index
                 consumed = True
+                # Mid-run attachments become task material for the same round,
+                # deduped by identity; they never become web evidence.
+                material = [
+                    item for item in (entry.get("attachment_material") or []) if isinstance(item, dict)
+                ]
+                if material:
+                    existing = context.setdefault("attachments", [])
+                    known = {str(item.get("attachment_id") or "") for item in existing}
+                    for item in material:
+                        if str(item.get("attachment_id") or "") not in known:
+                            existing.append(item)
+                            known.add(str(item.get("attachment_id") or ""))
+                    merged_attachments = True
                 self._deep_log(
                     deep,
                     "steering",
                     f"研究方向已更新：{str(entry.get('content', ''))[:120]}",
                 )
+        if merged_attachments:
+            self._deep_log(deep, "attachment", "补充消息中的附件已并入本轮任务材料")
         return consumed
 
     def _deep_default_plan(
@@ -1744,7 +1781,7 @@ class WebLookupService:
             ):
                 ensure_active()
                 steered_this_round = self._deep_consume_steering(
-                    deep, round_index + 1
+                    context, deep, round_index + 1
                 )
                 ledger = deep.get("incremental_budget")
                 if isinstance(ledger, dict):

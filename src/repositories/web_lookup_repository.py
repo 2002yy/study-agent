@@ -557,7 +557,15 @@ class WebLookupRepository:
             raise ValueError(f"WebLookupRun stage write conflicted: {run_id}")
         return self._required(run_id)
 
-    def append_steering(self, run_id: str, *, content: str, request_id: str | None = None) -> WebLookupRun | None:
+    def append_steering(
+        self,
+        run_id: str,
+        *,
+        content: str,
+        request_id: str | None = None,
+        attachment_refs: list[dict[str, Any]] | None = None,
+        attachment_material: list[dict[str, Any]] | None = None,
+    ) -> WebLookupRun | None:
         """G18 decision 12: inject a mid-run steering message into a running run.
 
         The message is metadata attached to the active run (never a new
@@ -607,6 +615,9 @@ class WebLookupRepository:
                     )
                     if request_id:
                         context["claim_engine_steering"][-1]["request_id"] = request_id
+                    if attachment_refs or attachment_material:
+                        context["claim_engine_steering"][-1]["attachment_refs"] = list(attachment_refs or [])
+                        context["claim_engine_steering"][-1]["attachment_material"] = list(attachment_material or [])
                 else:
                     # Preserve the delivered legacy deep-research envelope.
                     deep = dict(context.get("deep") or {})
@@ -622,6 +633,8 @@ class WebLookupRepository:
                             "request_id": request_id,
                             "received_at": received_at,
                             "incorporated_in_round": None,
+                            "attachment_refs": list(attachment_refs or []),
+                            "attachment_material": list(attachment_material or []),
                         }
                     )
                     deep["steering"] = steering

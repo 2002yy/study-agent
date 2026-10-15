@@ -65,7 +65,7 @@ Rev 3（UI 整合）、Slice A（研究运行时接线）、Slice B（计算工�
 | --- | --- | --- |
 | A. 协议与身份 | ✅ 完成 | `ChatRequest.attachment_ids`（默认空、≤8，纯文字调用不变）；`_chat_command` 校验（本会话 + ready）并对非法选择**在研究前拒绝**；`chat_turns.attachment_refs` 迁移（schema 25）持久化服务端身份 `attachment_id + content_hash + filename`；重试/继续不覆盖已存绑定（`bind_turn_attachments` 为唯一显式写入）。测试：`tests/test_chat_attachment_binding.py` 7 例（纯文字不变、身份绑定、跨会话/未知/未就绪拒绝、无会话拒绝、持久化恢复、重试不替换）+ `test_session_attachments.py` 3 例（所有权校验、仅选中材料、跨线程为空）；相邻 107 passed；mypy baseline NEW=0。 |
 | B. 研究消费 | ✅ 完成 | `WebLookupService.create(attachment_material=...)` 把绑定材料写入 `research_context["attachments"]`（≤4 条、每条 ≤4000 字）；`_deep_run` 在启动时**读取并叙述**（step `attachment`），材料只提供给规划器（`plan(query, context)` 可见），**不进入 memo/source_block**，不参与 Evidence Gate。`chat_service._turn_attachment_material` 从**持久 turn 绑定**取材料（重试/继续复用同绑定），经 `resolve_web_tools(attachment_material=...)` 透传；纯文字路径调用形状逐字不变。测试：Deep 消费且不冒充证据（`test_deep_research_consumes_attachment_material_without_making_it_evidence`）、绑定材料读取（`test_turn_material_reads_the_stored_binding`）；影响集 199 passed。 |
-| C. 中途追加 | ✗ 未开始 | `/steer` 需接受附件 ID + `request_id` 并持久化到 steering entry。 |
+| C. 中途追加 | ✅ 完成 | `ResearchSteerRequest.attachment_ids`；`POST /research-runs/{run_id}/steer` 先校验（本会话 + ready）并把 `attachment_refs`（服务端身份）与 `attachment_material`（有界文本）随**同一** `request_id` 写入 steering entry；重复 `request_id` 不重复追加；安全检查点 `_deep_consume_steering` 把该轮补充附件按身份去重并入 `context["attachments"]` 并叙述（step `attachment`），**不进 source_block**。测试：绑定+幂等+检查点合并（`test_mid_run_attachment_binds_to_the_supplement_and_merges_at_checkpoint`）；影响集 90 passed。 |
 | D. 输入区 | ✗ 未开始 | “本次选中” vs “会话已有”语义、切会话重置、发送后清除。 |
 | E. 联动验收 | ✗ 未开始 | 五面证据 + 七项负控；**必须证明新参数驱动了新的计算结果**，不能只凭 `superseded` 通过。 |
 

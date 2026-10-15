@@ -221,7 +221,26 @@ def steer_research_run(
 ) -> WebLookupRunResponse:
     """G18 decision 12: inject mid-run steering into an active deep-research run."""
     try:
-        return _response(service.steer(run_id, content=request.content, request_id=request.request_id))
+        attachment_refs: list[dict] = []
+        attachment_material: list[dict] = []
+        if request.attachment_ids:
+            run = service.get(run_id)
+            from src.application.runtime_repository import get_session_attachment_service
+
+            attachment_service = get_session_attachment_service()
+            thread_id = run.owner_thread_id or ""
+            _, problems = attachment_service.validate_selection(thread_id, request.attachment_ids)
+            if problems:
+                raise ValueError("附件不可用：" + "、".join(problems[:3]))
+            attachment_refs = attachment_service.selection_refs(thread_id, request.attachment_ids)
+            attachment_material = attachment_service.attachment_material(thread_id, request.attachment_ids)
+        return _response(service.steer(
+            run_id,
+            content=request.content,
+            request_id=request.request_id,
+            attachment_refs=attachment_refs,
+            attachment_material=attachment_material,
+        ))
     except ValueError as exc:
         raise _not_found_or_conflict(exc) from exc
 

@@ -314,6 +314,44 @@ def test_deep_research_consumes_attachment_material_without_making_it_evidence(t
     assert all("流萤" not in str(item) for item in completed.query_attempts)
 
 
+def test_mid_run_attachment_binds_to_the_supplement_and_merges_at_checkpoint(tmp_path):
+    """A mid-run attachment shares the supplement's request identity."""
+
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(["alpha"]))
+    created = service.create("compare alpha", research_mode="deep")
+    original_search = gateway.search
+    injected = False
+    refs = [{"attachment_id": "att9", "content_hash": "h9", "filename": "shot.png"}]
+    material = [{"attachment_id": "att9", "filename": "shot.png", "content_hash": "h9",
+                 "text": "流萤：2 魂，光锥叠影 5"}]
+
+    def search(query, *, max_items=10):
+        nonlocal injected
+        if not injected:
+            injected = True
+            service.steer(created.id, content="按新配置重算", request_id="req-1",
+                          attachment_refs=refs, attachment_material=material)
+            # A retry of the same request must not duplicate the supplement.
+            service.steer(created.id, content="按新配置重算", request_id="req-1",
+                          attachment_refs=refs, attachment_material=material)
+        return original_search(query, max_items=max_items)
+
+    gateway.search = search
+    completed = service.execute(created.id)
+
+    context = completed.research_context
+    steering = context["deep"]["steering"]
+    assert len(steering) == 1
+    assert steering[0]["request_id"] == "req-1"
+    assert steering[0]["attachment_refs"][0]["attachment_id"] == "att9"
+    # The bound attachment is merged as task material, never as web evidence.
+    assert [item["attachment_id"] for item in context["attachments"]] == ["att9"]
+    assert "流萤" not in completed.source_block
+    kinds = [step["kind"] for step in context["deep"]["steps"]]
+    assert "attachment" in kinds
+
+
 def _service(
     tmp_path: Path,
     gateway: ScriptedGateway,
