@@ -244,6 +244,47 @@ def test_deep_isolated_python_decision_returns_bound_structured_result(tmp_path)
     assert _latest_computation(completed)["tool_run_id"] == entry["tool_run_id"]
 
 
+def test_recompute_supplement_supersedes_results_without_restarting(tmp_path):
+    """A "按新配置重算" supplement retires old results and adds no search task."""
+
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(
+        ["alpha"], revisions=[
+            {"done": False, "additional": [], "compute": {
+                "engine": "deterministic", "mode": "expression", "expression": "2 + 2"}},
+            {"done": True, "additional": []},
+        ],
+    ))
+    created = service.create("compare alpha", research_mode="deep")
+    original_search = gateway.search
+    injected = False
+
+    def search(query, *, max_items=10):
+        nonlocal injected
+        if not injected:
+            injected = True
+            service.steer(created.id, content="按新配置重算")
+        return original_search(query, max_items=max_items)
+
+    gateway.search = search
+    completed = service.execute(created.id)
+
+    deep = completed.research_context["deep"]
+    statuses = [item["status"] for item in deep["computations"]]
+    assert "superseded" in statuses          # old result retires, history kept
+    assert deep["computations"][0]["result"]["rows"] == [[4]]
+    receipt = deep["steering"][0]
+    assert receipt["kind"] == "recompute"
+    assert receipt["incorporated_in_round"] is not None
+    # The recompute must not fabricate a research task for the phrase itself.
+    assert not any(
+        "重算" in str(task.get("sub_question", ""))
+        for task in deep["plan"]
+        if isinstance(task, dict)
+    )
+    assert gateway.read_calls.count("https://example.org/alpha") == 1
+
+
 def _service(
     tmp_path: Path,
     gateway: ScriptedGateway,

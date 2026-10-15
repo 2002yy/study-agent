@@ -15,8 +15,14 @@ def steering_intent(content: str) -> dict[str, str]:
         r"只[看用查].*官方|仅.*官方|official.only|别再搜|不要搜", content, re.I
     ):
         raise ValueError("来源限制尚未接入当前执行器，请停止后按新范围提问或排队下一轮")
-    if re.search(r"python|重新计算|重算|重新画|重画", content, re.I):
-        raise ValueError("当前研究执行器尚不支持计算工具，请排队下一轮")
+    if re.search(r"python|代码|脚本", content, re.I):
+        # Arbitrary code execution stays closed; only the bounded compute tools
+        # run, and only through the isolated executor.
+        raise ValueError("当前不支持提交可执行代码；如需计算请给出参数并说“按新配置重算”")
+    if re.search(r"重新计算|重算|重新画|重画|recompute", content, re.I):
+        # A recompute is now a legal supplement target: it supersedes prior
+        # results and lets the bounded compute decision run again.
+        return {"kind": "recompute"}
     if re.search(r"先放下|换个问题|换一个|停止研究|取消研究|回答完再", content):
         raise ValueError("请使用停止或排队下一轮，任务替换不属于增量转向")
     if re.search(r"解释.*简单|简短一点|简洁一点|少写一点", content):
@@ -70,6 +76,24 @@ def revise_deep_plan(
                     flags=re.I,
                 )
                 task["steering_ids"] = [*task.get("steering_ids", []), entry_id]
+    if intent["kind"] == "recompute":
+        # A recompute is a legal supplement target now that the bounded compute
+        # tools exist: keep the execution history but retire the old results so
+        # the next compute decision publishes a new revision.
+        entry["kind"] = "recompute"
+        entry["task_id"] = f"recompute_{entry_id}"
+        deep["recompute_requested"] = entry_id
+        revision = int(deep.get("recompute_epoch") or 0) + 1
+        deep["recompute_epoch"] = revision
+        computations = deep.get("computations")
+        if isinstance(computations, list):
+            deep["computations"] = [
+                {**item, "status": "superseded", "superseded_by_revision": revision}
+                if isinstance(item, dict) and item.get("status") == "succeeded"
+                else item
+                for item in computations
+            ]
+        return True
     question = (
         effective
         if intent["kind"] == "correction"

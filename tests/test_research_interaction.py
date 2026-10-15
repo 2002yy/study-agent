@@ -186,6 +186,9 @@ def test_source_scope_and_compute_are_not_silently_treated_as_keywords():
         "old": "4060",
         "new": "5060",
     }
+    # A configuration-driven recompute is a legal supplement target now that the
+    # bounded compute tools exist; arbitrary code stays refused.
+    assert steering_intent("按新配置重算") == {"kind": "recompute"}
 
 
 def test_steering_request_retries_do_not_duplicate_work_or_accept_other_content(tmp_path):
