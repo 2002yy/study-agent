@@ -51,6 +51,13 @@ export default defineConfig({
         STUDY_AGENT_ARCHIVE_EXPORT_DIR:
           "frontend/test-results/real-acceptance/runtime/archive",
         RAG_VECTOR_BACKEND: "local",
+        // P2: explicit, bounded steering budget for the acceptance run only.
+        // Kept out of `.env` so it can never leak into the test suite.
+        WEB_RESEARCH_STEERING_BUDGET_POLICY: JSON.stringify({
+          initial: { model_calls: 5, searches: 5, reads: 8, python_runs: 0, wall_seconds: 150 },
+          per_goal: { model_calls: 2, searches: 3, reads: 4, python_runs: 0, wall_seconds: 45 },
+          limits: { model_calls: 9, searches: 11, reads: 16, python_runs: 0, wall_seconds: 300 },
+        }),
       },
     },
     {

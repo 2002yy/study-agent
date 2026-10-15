@@ -1546,7 +1546,111 @@ class WebLookupService:
         entries = [item for item in deep.get("computations", []) if isinstance(item, dict)]
         entries.append({**payload, "round": round_index, "at": utc_now()})
         deep["computations"] = entries[-MAX_COMPUTATIONS:]
+        # A recompute supplement is executed *by* the successful computation, so
+        # record that execution fact here instead of leaving a false "incorporated
+        # but never executed" receipt.
+        if payload.get("status") == "succeeded":
+            for entry in deep.get("steering", []):
+                if (
+                    isinstance(entry, dict)
+                    and entry.get("kind") == "recompute"
+                    and entry.get("incorporated_in_round") == round_index
+                    and entry.get("executed_in_round") is None
+                ):
+                    entry["executed_in_round"] = round_index
         self._deep_log(deep, "compute", f"已执行计算（{payload.get('engine')}）：{payload.get('status')}")
+
+    def _deep_unexecuted_steering(self, deep: dict[str, Any]) -> bool:
+        """True when an accepted supplement still has no executed work."""
+
+        return any(
+            isinstance(entry, dict)
+            and entry.get("incorporated_in_round") is not None
+            and entry.get("executed_in_round") is None
+            for entry in deep.get("steering", [])
+        )
+
+    def _deep_revise_context(
+        self, deep: dict[str, Any], context: dict[str, Any], round_index: int
+    ) -> dict[str, Any]:
+        """Bounded, identity-only context for one revise decision.
+
+        The planner must be able to recognise an accepted supplement (e.g. the
+        E1/S1 -> E2/S5 correction) and its material, and see which computation
+        versions already exist, without being handed page bodies or answer text.
+        """
+
+        steering = []
+        for entry in (deep.get("steering") or [])[-3:]:
+            if not isinstance(entry, dict):
+                continue
+            steering.append(
+                {
+                    "content": str(entry.get("content", ""))[:300],
+                    "kind": entry.get("kind"),
+                    "task_id": entry.get("task_id"),
+                    "incorporated_in_round": entry.get("incorporated_in_round"),
+                    "executed_in_round": entry.get("executed_in_round"),
+                    "attachment_ids": [
+                        str(item.get("attachment_id"))
+                        for item in (entry.get("attachment_material") or [])
+                        if isinstance(item, dict) and item.get("attachment_id")
+                    ][:4],
+                }
+            )
+        attachments = [
+            {
+                "attachment_id": str(item.get("attachment_id")),
+                "filename": str(item.get("filename"))[:120],
+                "content_hash": str(item.get("content_hash"))[:80],
+            }
+            for item in (context.get("attachments") or [])[:4]
+            if isinstance(item, dict) and item.get("attachment_id")
+        ]
+        computations = [
+            {
+                "engine": item.get("engine"),
+                "status": item.get("status"),
+                "input_revision": item.get("input_revision"),
+                "tool_run_id": item.get("tool_run_id"),
+                "superseded_by_revision": item.get("superseded_by_revision"),
+            }
+            for item in (deep.get("computations") or [])[-4:]
+            if isinstance(item, dict)
+        ]
+        return {
+            "round": round_index,
+            "original_query": str(deep.get("original_query") or "")[:400],
+            "effective_query": str(deep.get("effective_query") or "")[:400],
+            "steering": steering,
+            "attachments": attachments,
+            "computations": computations,
+        }
+
+    def _deep_call_revise(
+        self,
+        revise: Any,
+        memo: str,
+        notes: list[dict[str, Any]],
+        remaining: list[str],
+        revise_context: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Call revise with the bounded context when the planner accepts it."""
+
+        import inspect
+
+        parameters: dict[str, Any]
+        try:
+            parameters = dict(inspect.signature(revise).parameters)
+        except (TypeError, ValueError):
+            parameters = {}
+        accepts_context = "context" in parameters or any(
+            parameter.kind is inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters.values()
+        )
+        if accepts_context:
+            return revise(memo, notes, remaining, context=revise_context) or {}
+        return revise(memo, notes, remaining) or {}
 
     def _deep_consume_steering(
         self, context: dict[str, Any], deep: dict[str, Any], round_index: int
@@ -2024,11 +2128,17 @@ class WebLookupService:
                         self._deep_log(deep, "budget", "规划调用预算不足，保留未完成的研究目标。")
                         break
                     consume_incremental_budget(deep, "model_calls")
-                    verdict = revise(memo, notes, [
-                        str(task.get("sub_question", ""))
-                        for task in plan
-                        if isinstance(task, dict) and task.get("status") == "pending"
-                    ]) or {}
+                    verdict = self._deep_call_revise(
+                        revise,
+                        memo,
+                        notes,
+                        [
+                            str(task.get("sub_question", ""))
+                            for task in plan
+                            if isinstance(task, dict) and task.get("status") == "pending"
+                        ],
+                        self._deep_revise_context(deep, context, round_index),
+                    )
                     additional = [
                         str(item).strip()
                         for item in verdict.get("additional", [])
@@ -2062,7 +2172,14 @@ class WebLookupService:
                         isinstance(entry, dict) and entry.get("incorporated_in_round") is None
                         for entry in deep.get("steering", [])
                     )
-                    if verdict.get("done") and not pending_steering:
+                    # An accepted supplement that has not been executed yet keeps
+                    # the run alive: the model's "done" must not override work the
+                    # user already had accepted.
+                    if (
+                        verdict.get("done")
+                        and not pending_steering
+                        and not self._deep_unexecuted_steering(deep)
+                    ):
                         break
                 remaining_pending = any(
                     task.get("status") == "pending"
@@ -2073,7 +2190,11 @@ class WebLookupService:
                     isinstance(entry, dict) and entry.get("incorporated_in_round") is None
                     for entry in deep.get("steering", [])
                 )
-                if not remaining_pending and not pending_steering:
+                if (
+                    not remaining_pending
+                    and not pending_steering
+                    and not self._deep_unexecuted_steering(deep)
+                ):
                     break
 
             # ---- synthesizing ---------------------------------------------

@@ -165,3 +165,26 @@ did not bind: worst-case reservation for the observed call count stayed well und
 
 **Verdict: A/B/C not passed; merge gate stays closed.** No re-run, no tuning. Fixing P1/P2 is
 functional work and needs the operator's decision.
+
+## 9. P1 / P1b / P2 fix status (2026-10-15, approved bounded slice)
+
+| Item | Status | Change |
+| --- | --- | --- |
+| **P1** real Deep planner | ✅ wired | `src/web/research/deep_planner.py::ModelDeepPlanner` (model-driven `plan`/`revise`, strict JSON validation, bounded counts; **no hardcoded answers**), injected by the production factory `get_web_lookup_service()` (`WEB_DEEP_MODEL_PLANNER=0` opts out). All calls go through `src.llm_client`, so the ¥10 pre-request cap, timeouts and bounded retries apply. |
+| **P1b** supplement context | ✅ wired | `revise` now receives a bounded, identity-only `context` (accepted steering incl. kind/rounds/attachment ids, attachment identity, existing computation versions). The call is signature-aware, so planners without `context` keep working. |
+| **P2** incremental budget | ✅ configured | Explicit `initial/per_goal/limits` supplied **only** by the acceptance harness (kept out of `.env` so it cannot leak into the test suite); `incremental_budget.py` defaults are unchanged (no “unlimited by default”). |
+| **Execution-state fix** | ✅ | A **recompute** supplement is marked `executed_in_round` only when its computation actually succeeds; the loop no longer exits on the model's `done` while an accepted supplement is still unexecuted; unexecuted work is reported (warning + `partial`), never as success. |
+
+Offline production-path regression `tests/test_deep_planner_production.py` (production factory +
+simulated model provider + scripted gateway + **real SQLite**): model planning produced focused
+queries, real reads happened, the mid-run E1/S1 → E2/S5 supplement was accepted **and executed**,
+the recompute produced a new computation (`superseded` + `succeeded`, rows from the new parameters),
+the budget ledger recorded idempotent grants, and receipt/SQLite/narration agreed.
+Negative controls green: malformed model output (honest, no fabrication), no compute proposed
+(no computation), exhausted budget (supplement reported unexecuted), duplicate steering (idempotent).
+
+Adjacent impact set: 260 passed / 1 skipped; `ruff` clean; `mypy` baseline NEW=0. Test hermeticity
+added: a deployment `.env` can no longer change test behaviour (`WEB_RESEARCH_STEERING_BUDGET_POLICY`
+and `WEB_DEEP_MODEL_PLANNER` are cleared per test).
+
+**Still required**: a paid A/B/C round on the new head. Not authorised yet.
