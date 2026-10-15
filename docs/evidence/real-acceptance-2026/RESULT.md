@@ -53,8 +53,25 @@ No spend anomaly observed; this does **not** constitute a verified hard cap.
 
 ## 5. Recommended next slice (needs operator approval — feature/bugfix work)
 
-1. D1: pass `attachment_refs` into the `ChatTurn` created by `ExternalDataChataService`
+1. D1: pass `attachment_refs` into the `ChatTurn` created by `ExternalDataPolicyChatService`
    (mirror the `chat_service` change) and add a regression test on the **policy** path.
 2. D2: make `semantic_recovery` degrade (bounded reason + partial research) instead of aborting the
    run when `decision_fields` are missing; keep the failure visible in the run record.
 3. Re-run A/B/C once after both fixes, on the new exact head.
+
+## 6. Fix status (2026-10-15, approved bounded bugfix)
+
+| Item | Status | Change |
+| --- | --- | --- |
+| **D1** | ✅ fixed | `ExternalDataPolicyChatService.start_turn` now persists `attachment_refs` on the `ChatTurn` (the production path that was missed). |
+| **R0** | ✅ fixed | `deep_requested` is forwarded from the chat services (`context_mode`/`performance_mode == "deep"`) and `PersistentWebToolAgent.resolve` gives an explicit deep selection a **real Deep run identity**, ahead of the heuristic/semantic default. |
+| **D2** | ✅ fixed (controlled) | A malformed decision payload now degrades to the deterministic planning/reading chain **only** for a turn the router already authorised as external research, and **only** for payload-shape reasons (`decision_fields` / `decision_binding` / `query_binding`). Cancel, permission and security-validation failures still block, never guess a subject, and the original reason is recorded in `research_semantic_fallback.detail`. |
+
+Regression: `tests/test_d1_r0_d2_fixes.py` exercises the **production** policy service and the
+persistent agent (D1 policy path, R0 deep identity, D2 degrade + still-blocks). Adjacent impact set
+green (131 passed, 1 skipped), `ruff` clean, `mypy` baseline NEW=0.
+
+**A’s original cause is now removed, but the gate is still open**: 0 real web reads happened in the
+failed round, so a re-run must also show real reading, source reuse, steering execution and a new
+computation — not merely “no error”. A new round needs a fresh provider/budget confirmation
+(§ PRECHECK.md; the ¥10 hard cap remains unverified).

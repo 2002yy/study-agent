@@ -155,10 +155,21 @@ class PersistentWebToolAgent(WebToolAgent):
         research_intent: bool = False,
         history_allowed: bool = False,
         attachment_material: list[dict[str, Any]] | None = None,
+        deep_requested: bool = False,
     ) -> WebToolTrace:
         if not _env_flag("WEB_TOOL_ENABLED", default=True):
             return WebToolTrace(enabled=False)
         from src.web.research.official_resolver import official_plan
+
+        # R0: an explicit deep selection is the user's own instruction, so it
+        # outranks the heuristic escalation and the semantic-recovery default.
+        if deep_requested and self.research_service is not None:
+            return self._resolve_deep_research(
+                user_input,
+                owner_thread_id=owner_thread_id,
+                owner_turn_id=owner_turn_id,
+                attachment_material=attachment_material,
+            )
 
         known_source = (getattr(self.gateway, "supports_official_metadata", False) is True
                         and official_plan(user_input) is not None)
@@ -174,6 +185,7 @@ class PersistentWebToolAgent(WebToolAgent):
                 owner_thread_id=owner_thread_id, owner_turn_id=owner_turn_id,
                 history_allowed=history_allowed,
                 attachment_material=attachment_material,
+                research_intent=research_intent,
             )
         if _requires_deep_research(user_input) and self.research_service is not None:
             return self._resolve_deep_research(
@@ -483,6 +495,7 @@ class PersistentWebToolAgent(WebToolAgent):
         owner_thread_id: str | None, owner_turn_id: str | None,
         history_allowed: bool,
         attachment_material: list[dict[str, Any]] | None = None,
+        research_intent: bool = False,
     ) -> WebToolTrace:
         service = self.research_service
         assert service is not None
@@ -558,13 +571,26 @@ class PersistentWebToolAgent(WebToolAgent):
             # the old deterministic path. Unknown follow-ups never become queries.
             from src.web.conversation_query import is_research_resume
 
+            # D2: only a malformed *decision payload* may fall back to the
+            # deterministic planning/reading chain, and only for a turn the
+            # router already authorised as external research.  Cancellation,
+            # permission and security-validation failures never become a
+            # guessed subject.
+            payload_shape_failure = str(exc) in {
+                "decision_fields",
+                "decision_binding",
+                "query_binding",
+            }
             if service.tool_trace_cancel_requested(run.id, operation_id):
                 service.finish_tool_trace_cancel(run.id, operation_id)
                 return WebToolTrace(calls=tuple(calls), error="ResearchCancelled: Research cancelled by user", run_id=run.id)
             if prior and is_research_resume(user_input):
                 focused = prior.original_question
                 episode = prior
-            elif research_topic(user_input) and len(user_input.strip()) <= 4096:
+            elif (
+                research_topic(user_input)
+                or (research_intent and payload_shape_failure)
+            ) and len(user_input.strip()) <= 4096:
                 focused = user_input.strip()
                 episode = ResearchEpisode(
                     task_id=run.id, thread_id=owner_thread_id or "", original_question=focused,
@@ -575,7 +601,10 @@ class PersistentWebToolAgent(WebToolAgent):
             else:
                 error = f"SemanticRecovery blocked: {type(exc).__name__}: {exc}"
             calls.append({"name": "research_semantic_fallback", "arguments": {},
-                          "result": {"reason": type(exc).__name__, "known_subject": bool(focused)}})
+                          "result": {"reason": type(exc).__name__,
+                                     "detail": str(exc)[:200],
+                                     "known_subject": bool(focused),
+                                     "degraded_to_deterministic": bool(focused)}})
         if focused:
             # A newly interpreted topic cannot extend the deadline inherited from
             # the current run. A short new topic may reduce it to Lookup.

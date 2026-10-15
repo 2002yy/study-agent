@@ -223,3 +223,5 @@ Rev 3（UI 整合）、Slice A（研究运行时接线）、Slice B（计算工�
 | 真实验收材料 | ✅ 已冻结（**未运行**） | `docs/evidence/real-acceptance-2026/`（截图 + PDF + 场景 + 评分 + 预算上限 + sha256） |
 | **真实模型资格验收** | ❌ **已跑一轮，未通过（A 失败 / B、C 通过）** | 2026-10-15 于 `4cb28374`（真实 DeepSeek + 真实搜索 + 视觉开启）：A 失败于两处真实缺陷 **D1**（生产 `ExternalDataPolicyChatService` 建 turn 时未写 `attachment_refs`，消息级绑定不落库）与 **D2**（真实模型决策负载缺字段触发 `src/web/semantic_recovery.py:126` raise → 研究 run 终态失败）；B 通过（视觉读图 + PDF 原文引用）、C 通过（如实拒绝编造）。详见 `docs/evidence/real-acceptance-2026/RESULT.md`。用量：3 次搜索 / 0 次读取 / 2 次视觉，远低于上限。 |
 | PR 收口与 exact-head CI | ⏳ 未开始 | 需真实验收通过后，开一个整合 Draft PR 并跑精确 head required CI |
+| D1/R0/D2 定向修复 | ✅ 已修（离线回归过） | D1 生产 policy 路径补 `attachment_refs`；R0 显式 deep 选择获得真实 Deep run 身份；D2 仅在“已授权研究 + 负载形状错误”时受控降级（取消/权限/安全校验仍阻断）。回归 `tests/test_d1_r0_d2_fixes.py`（走生产服务），影响集 131 passed；mypy NEW=0 |
+| 真实验收复跑 | ⏳ 待新的预算确认 | 必须在**新 HEAD** 上重跑 A/B/C，并额外证明**真实读取、来源复用、转向执行、新计算**（上一轮 0 次读取） |

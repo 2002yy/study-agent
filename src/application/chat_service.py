@@ -681,6 +681,10 @@ class ChatService:
                 owner_thread_id=thread.id,
                 owner_turn_id=turn_id,
                 attachment_material=_turn_attachment_material(self.repository, turn_id),
+                research_intent=bool(
+                    (route.get("task_contract") or {}).get("task_intent") == "research"
+                ),
+                deep_requested=(context_mode == "deep") or (command.performance_mode == "deep"),
             )
             rag["web_tools"] = web_tools.to_dict()
             from src.web.research.research_interaction import steering_answer_instruction

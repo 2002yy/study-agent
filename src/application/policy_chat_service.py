@@ -360,6 +360,9 @@ class ExternalDataPolicyChatService(ChatService):
                     parent_turn_id=retry_parent.id if retry_parent else None,
                     operation_id=operation_id,
                     conversation_instruction=command.conversation_instruction,
+                    # D1: the production path must persist the same message-level
+                    # attachment identity the base service binds.
+                    attachment_refs=tuple(command.attachment_refs),
                     created_at=utc_now(),
                     updated_at=utc_now(),
                 )
@@ -525,6 +528,7 @@ class ExternalDataPolicyChatService(ChatService):
                     attachment_material=_turn_attachment_material(self.repository, turn_id),
                     research_intent=task_contract.task_intent == "research",
                     history_allowed=decision.history_allowed,
+                    deep_requested=(context_mode == "deep") or (command.performance_mode == "deep"),
                 )
             else:
                 web_tools = WebToolTrace(enabled=False)
