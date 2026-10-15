@@ -83,19 +83,29 @@ test("two supplements and one queued task stay in one continuous research conver
         body: JSON.stringify({ attachments: attached ? [attachment] : [], max_files_per_thread: 5, total_bytes: 8 }),
       });
     });
-    await page.route(/\/(?:chat\/stream|research-runs\/run-live(?:\/(?:steer|queue))?)$/, route =>
-      route.continue({ url: `http://127.0.0.1:${address.port}${new URL(route.request().url()).pathname}` }));
+    let firstChatBody: Record<string, unknown> | null = null;
+    await page.route(/\/(?:chat\/stream|research-runs\/run-live(?:\/(?:steer|queue))?)$/, route => {
+      firstChatBody ??= route.request().postDataJSON() as Record<string, unknown>;
+      return route.continue({ url: `http://127.0.0.1:${address.port}${new URL(route.request().url()).pathname}` });
+    });
     await page.goto("/");
     const input = page.getByRole("textbox", { name: "输入学习问题" });
-    await input.fill("比较 Photoshop 和开源替代品，重点考虑自动化编辑");
-    await input.press("Enter");
-    // The research plan opening lives in the conversation, not a floating bar.
-    await expect(page.getByText("我会先比较功能与 PSD 兼容性，再核对哪些操作能由 Agent 完成。")).toBeVisible();
-    // Slice C: multimodal input lives in the composer once a session exists.
+    // Slice C/D: a first multimodal question attaches before any empty send;
+    // the composer creates the session on demand.
     await page.locator('.composer-attachments input[type="file"]').setInputFiles(
       { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("evidence") },
     );
     await expect(page.locator(".composer-attachment-chips").getByText("notes.txt")).toBeVisible();
+    await expect(page.getByText("本次选中 1 个")).toBeVisible();
+
+    await input.fill("比较 Photoshop 和开源替代品，重点考虑自动化编辑");
+    await input.press("Enter");
+    // The research plan opening lives in the conversation, not a floating bar.
+    await expect(page.getByText("我会先比较功能与 PSD 兼容性，再核对哪些操作能由 Agent 完成。")).toBeVisible();
+    // Only this message's selection travels with the request...
+    expect(firstChatBody?.attachment_ids).toEqual(["att1"]);
+    // ...and it is cleared once the message was sent.
+    await expect(page.getByText("本次选中 1 个")).toHaveCount(0);
     // No duplicated global status surface while the run is live.
     await expect(page.getByText(/已发起 \d+ 次查询/)).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath("research-opening.png"), fullPage: true });

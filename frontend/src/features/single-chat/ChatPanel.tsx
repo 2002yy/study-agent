@@ -127,6 +127,9 @@ type ChatPanelProps = {
   firstUseNotice?: ReactNode;
   enterToSend?: boolean;
   onEnsureSession?: () => Promise<string | undefined>;
+  /** This message's attachment selection (ids), owned by the workspace. */
+  attachmentSelection?: string[];
+  onAttachmentSelectionChange?: (ids: string[]) => void;
 };
 
 type CopyState = "idle" | "success" | "error";
@@ -488,7 +491,12 @@ export function ChatPanel(props: ChatPanelProps) {
             onSelect={role=>{props.onSelectRole?.(role);setRoleSettingsOpen(false);composerRef.current?.focus();}}
             onClose={()=>{setRoleSettingsOpen(false);roleSettingsButtonRef.current?.focus();}}
           /> : null}
-          <ComposerAttachments sessionId={sessionId} onEnsureSession={props.onEnsureSession} />
+          <ComposerAttachments
+            sessionId={sessionId}
+            onEnsureSession={props.onEnsureSession}
+            selectedIds={props.attachmentSelection ?? []}
+            onSelectionChange={props.onAttachmentSelectionChange}
+          />
           <textarea
             ref={composerRef}
             rows={1}

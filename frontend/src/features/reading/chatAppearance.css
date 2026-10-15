@@ -97,6 +97,11 @@
 .reading-layout .composer-attach-button:disabled { opacity: .5; cursor: default; }
 .reading-layout .composer-attachment-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; min-width: 0; }
 .reading-layout .composer-attachment-chips li { display: inline-flex; align-items: center; gap: 6px; max-width: 260px; padding: 3px 6px 3px 10px; border: 1px solid #dbe4ea; border-radius: 999px; background: #f8fafb; font-size: 12px; }
+/* Selected-for-this-message vs merely kept in the session. */
+.reading-layout .composer-attachment-chips li.is-selected { border-color: #7d9db8; background: #e9f1f7; }
+.reading-layout .composer-attachment-pick { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.reading-layout .composer-attachment-pick:disabled { cursor: default; opacity: .6; }
+.reading-layout .composer-attachment-count { color: var(--muted); font-size: 12px; }
 .reading-layout .composer-attachment-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reading-layout .composer-attachment-chips button { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
 .reading-layout .composer-attachment-chips button:hover { background: #e8eef2; }

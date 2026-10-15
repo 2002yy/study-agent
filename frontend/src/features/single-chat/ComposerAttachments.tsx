@@ -19,10 +19,15 @@ import { ACCEPTED_EXTENSIONS, MAX_FILE_BYTES, attachmentStatusLabel, formatBytes
 export function ComposerAttachments({
   sessionId,
   onEnsureSession,
+  selectedIds = [],
+  onSelectionChange,
 }: {
   sessionId?: string;
   /** Create the session on demand so a first multimodal question needs no empty send. */
   onEnsureSession?: () => Promise<string | undefined>;
+  /** Ids selected for *this* message (distinct from attachments the session keeps). */
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
 }) {
   const [attachments, setAttachments] = useState<SessionAttachmentInfo[]>([]);
   const [maxFiles, setMaxFiles] = useState(0);
@@ -76,20 +81,35 @@ export function ComposerAttachments({
     setIsUploading(true);
     setError("");
     try {
+      const uploaded: string[] = [];
       for (const file of Array.from(files)) {
         if (file.size > MAX_FILE_BYTES) {
           setError(`${file.name} 超过 ${formatBytes(MAX_FILE_BYTES)} 上限`);
           continue;
         }
-        await uploadSessionAttachment(session, file);
+        const created = await uploadSessionAttachment(session, file);
+        uploaded.push(created.id);
       }
       await refresh();
+      // A freshly uploaded file is part of this message by default.
+      if (uploaded.length && onSelectionChange) {
+        onSelectionChange(Array.from(new Set([...selectedIds, ...uploaded])));
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "附件上传失败");
     } finally {
       setIsUploading(false);
       if (inputRef.current) inputRef.current.value = "";
     }
+  };
+
+  const toggleSelection = (attachmentId: string) => {
+    if (!onSelectionChange) return;
+    onSelectionChange(
+      selectedIds.includes(attachmentId)
+        ? selectedIds.filter(item => item !== attachmentId)
+        : [...selectedIds, attachmentId],
+    );
   };
 
   const handleRemove = async (attachmentId: string) => {
@@ -127,23 +147,39 @@ export function ComposerAttachments({
       </button>
       {attachments.length ? (
         <ul className="composer-attachment-chips">
-          {attachments.map((attachment) => (
-            <li key={attachment.id}>
-              <span className="composer-attachment-name">{attachment.filename}</span>
-              <span className={`attachment-status attachment-status-${attachment.status}`}>
-                {attachmentStatusLabel(attachment.status)}
-              </span>
-              <button
-                aria-label={`移除附件 ${attachment.filename}`}
-                disabled={busyId === attachment.id}
-                onClick={() => void handleRemove(attachment.id)}
-                type="button"
-              >
-                <X size={12} />
-              </button>
-            </li>
-          ))}
+          {attachments.map((attachment) => {
+            const selected = selectedIds.includes(attachment.id);
+            return (
+              <li key={attachment.id} className={selected ? "is-selected" : undefined}>
+                <button
+                  aria-label={`${selected ? "取消选择" : "选择"}附件 ${attachment.filename}`}
+                  aria-pressed={selected}
+                  className="composer-attachment-pick"
+                  disabled={attachment.status !== "ready" || !onSelectionChange}
+                  onClick={() => toggleSelection(attachment.id)}
+                  title={attachment.status !== "ready" ? "附件尚未就绪" : selected ? "取消本次选择" : "加入本条消息"}
+                  type="button"
+                >
+                  <span className="composer-attachment-name">{attachment.filename}</span>
+                  <span className={`attachment-status attachment-status-${attachment.status}`}>
+                    {attachmentStatusLabel(attachment.status)}
+                  </span>
+                </button>
+                <button
+                  aria-label={`移除附件 ${attachment.filename}`}
+                  disabled={busyId === attachment.id}
+                  onClick={() => void handleRemove(attachment.id)}
+                  type="button"
+                >
+                  <X size={12} />
+                </button>
+              </li>
+            );
+          })}
         </ul>
+      ) : null}
+      {selectedIds.length ? (
+        <span className="composer-attachment-count" role="status">本次选中 {selectedIds.length} 个</span>
       ) : null}
       {error ? <span className="composer-attachment-error" role="alert">{error}</span> : null}
     </div>

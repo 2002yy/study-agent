@@ -89,6 +89,8 @@ type ChatRequestOptions = {
   partialReply?: string;
   turnId?: string;
   operationId?: string;
+  /** This message's attachment selection (validated server-side). */
+  attachmentIds?: string[];
   // G16 decision 6: frontend confirm-dialog consent for cross-session
   // memory (ask policy). Persisted server-side as a session-level grant.
   memoryConsent?: boolean;
@@ -155,7 +157,9 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     retry_of_turn_id: options.retryOfTurnId ?? null,
     partial_reply: options.partialReply ?? "",
     turn_id: options.turnId ?? null,
-    operation_id: options.operationId ?? null
+    operation_id: options.operationId ?? null,
+    // Message-level attachment identity: only this message's selection.
+    attachment_ids: options.attachmentIds ?? []
   };
 }
 

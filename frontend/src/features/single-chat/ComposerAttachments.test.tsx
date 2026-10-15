@@ -109,4 +109,47 @@ describe("ComposerAttachments", () => {
     await screen.findByText("notes.pdf");
     expect(screen.getByRole("button", { name: "添加附件" })).toBeDisabled();
   });
+
+  it("toggles this message's selection without touching the session list", async () => {
+    listSessionAttachments.mockResolvedValue({
+      attachments: [attachment()], max_files_per_thread: 5, total_bytes: 2048,
+    });
+    const onSelectionChange = vi.fn();
+    render(<ComposerAttachments sessionId="s1" selectedIds={[]} onSelectionChange={onSelectionChange} />);
+    await screen.findByText("notes.pdf");
+
+    fireEvent.click(screen.getByRole("button", { name: "选择附件 notes.pdf" }));
+    expect(onSelectionChange).toHaveBeenCalledWith(["a1"]);
+    expect(deleteSessionAttachment).not.toHaveBeenCalled();
+  });
+
+  it("shows which attachments are selected for the message", async () => {
+    listSessionAttachments.mockResolvedValue({
+      attachments: [attachment()], max_files_per_thread: 5, total_bytes: 2048,
+    });
+    render(<ComposerAttachments sessionId="s1" selectedIds={["a1"]} onSelectionChange={vi.fn()} />);
+    await screen.findByText("notes.pdf");
+    expect(screen.getByText("本次选中 1 个")).toBeVisible();
+    expect(screen.getByRole("button", { name: "取消选择附件 notes.pdf" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("auto-selects a freshly uploaded attachment and cannot select a not-ready one", async () => {
+    uploadSessionAttachment.mockResolvedValue(attachment({ id: "a3", filename: "new.png", status: "ready" }));
+    listSessionAttachments
+      .mockResolvedValueOnce({ attachments: [], max_files_per_thread: 5, total_bytes: 0 })
+      .mockResolvedValue({
+        attachments: [
+          attachment({ id: "a3", filename: "new.png", status: "ready" }),
+          attachment({ id: "a4", filename: "pending.pdf", status: "parsing" }),
+        ],
+        max_files_per_thread: 5, total_bytes: 4096,
+      });
+    const onSelectionChange = vi.fn();
+    render(<ComposerAttachments sessionId="s1" selectedIds={[]} onSelectionChange={onSelectionChange} />);
+    selectFiles(document.querySelector('input[type="file"]') as HTMLInputElement, [
+      new File(["x"], "new.png", { type: "image/png" }),
+    ]);
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith(["a3"]));
+    expect(await screen.findByRole("button", { name: "选择附件 pending.pdf" })).toBeDisabled();
+  });
 });

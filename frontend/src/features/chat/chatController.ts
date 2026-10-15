@@ -74,6 +74,7 @@ type SendOptions = {
   retryOfTurnId?: string;
   partialReply?: string;
   turnId?: string;
+  attachmentIds?: string[];
 };
 
 export function createEmptyRag(): ChatResponse["rag"] {
@@ -428,7 +429,8 @@ export function useChatController(options: ControllerOptions) {
           retryOfTurnId: extraOpts.retryOfTurnId,
           partialReply: extraOpts.partialReply ?? "",
           turnId: activeTurnId,
-          operationId: clientOperationId
+          operationId: clientOperationId,
+          attachmentIds: extraOpts.attachmentIds ?? []
         },
         {
           onSession: (sessionId, meta) => {

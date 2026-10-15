@@ -1,5 +1,5 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import AppShell from "../AppShell";
 import { SlideOver } from "../components/SlideOver";
@@ -76,6 +76,13 @@ export function WorkspaceView({
   const typography = useTypographyPreference();
   const [readingNavigationKey, setReadingNavigationKey] = useState(0);
   const [sourcesInitialTab, setSourcesInitialTab] = useState<"answer" | "library">("answer");
+  // Slice C/D: only the explicitly selected attachments travel with this message.
+  const [attachmentSelection, setAttachmentSelection] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Switching sessions must never carry a previous selection into the new one.
+    setAttachmentSelection([]);
+  }, [learningView.sessionId]);
   const openDrawer = (drawer: DrawerId) => {
     if (drawer === "sources") setSourcesInitialTab("answer");
     dispatch({ type: "OPEN_DRAWER", drawer });
@@ -92,7 +99,10 @@ export function WorkspaceView({
 
   const submit = async (event: React.FormEvent, question?: string) => {
     event.preventDefault();
-    await chatController.send(question ?? ui.input.trim());
+    const attachmentIds = attachmentSelection;
+    await chatController.send(question ?? ui.input.trim(), undefined, { attachmentIds });
+    // The selection belongs to the message that was just sent.
+    setAttachmentSelection([]);
   };
 
   const requestUpload = (mode: "upload" | "rebuild" = "upload") => {
@@ -285,6 +295,8 @@ export function WorkspaceView({
           onSendQueued={chatController.sendQueued}
           isSteering={chatController.isSteering}
           onEnsureSession={chatController.ensureSession}
+          attachmentSelection={attachmentSelection}
+          onAttachmentSelectionChange={setAttachmentSelection}
           isResearchBusy={webLookupController.isBusy}
           canRetryResearch={webLookupController.canRetry}
           canResumeResearch={webLookupController.canResume}
