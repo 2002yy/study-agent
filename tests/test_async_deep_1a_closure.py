@@ -74,7 +74,12 @@ def test_reauthorization_carries_the_run_usage_forward(stack):
     second = _grant(auth, run_id="run-1", spend_cny=10)
     assert second.reserved_micros == CNY(3), "the new grant must not restart from zero"
     assert second.executed_seconds == pytest.approx(60.0)
-    assert auth.run_usage("run-1")["reserved_micros"] == CNY(6)  # both grants kept
+    # F4: carried forward, so the newest grant is the authoritative cumulative
+    # (summing every grant would double-count the inherited amount).
+    usage = auth.run_usage("run-1")
+    assert usage["reserved_micros"] == CNY(3)
+    assert usage["executed_seconds"] == pytest.approx(60.0)
+    assert usage["grants"] == 2
 
 
 # --- F1: the durable ledger is the authority for scoped calls ------------
@@ -121,7 +126,7 @@ def test_production_call_path_uses_the_durable_ledger_across_restart(tmp_path, m
     restarted_auth = ResearchAuthorizationRepository(RuntimeDatabase(tmp_path / "runtime.db"))
     # The reservation survived the restart, so the allowance is NOT re-granted.
     assert restarted_auth.remaining_micros(grant.id) == grant.max_spend_micros - reserved
-    assert [row for row in [restarted_ledger.state("closure-1")]] == ["reserved"]
+    assert [row for row in [restarted_ledger.state("closure-1")]] == ["sent"]
 
 
 def test_paid_entry_points_route_through_the_guard(monkeypatch):

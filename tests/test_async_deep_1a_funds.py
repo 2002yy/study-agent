@@ -111,8 +111,22 @@ def test_vision_reservation_can_precede_the_run_and_is_bound_later(repos):
     ledger.reserve(call_id="vision-1", authorization_id=pre.id, scope_id="thread-1",
                    purpose="vision:image_description", model="deepseek-flash",
                    estimated_micros=CNY(0.2))
+    # The run must exist in the grant's own conversation before binding.
+    with auth.database.connect() as connection:
+        connection.execute(
+            "INSERT INTO web_lookup_runs(id, query, status, stage, created_at, updated_at, owner_thread_id, research_context, query_attempts, selected_sources, rejected_sources, items, warnings, version) "
+            "VALUES ('run-9', 'vision topic', 'pending', 'created', 'now', 'now', 'thread-1', '{}', '[]', '[]', '[]', '[]', '[]', 1)"
+        )
     bound = auth.bind_run(pre.id, "run-9")
     assert bound.run_id == "run-9"
+    # A grant from one conversation may not be bound to another conversation's run.
+    with auth.database.connect() as connection:
+        connection.execute(
+            "INSERT INTO web_lookup_runs(id, query, status, stage, created_at, updated_at, owner_thread_id, research_context, query_attempts, selected_sources, rejected_sources, items, warnings, version) "
+            "VALUES ('run-other', 'other', 'pending', 'created', 'now', 'now', 'thread-2', '{}', '[]', '[]', '[]', '[]', '[]', 1)"
+        )
+    with pytest.raises(Exception, match="already bound|different conversations"):
+        auth.bind_run(pre.id, "run-other")
     # The vision reservation is counted against the same authorization.
     assert auth.remaining_micros(pre.id) == CNY(9.8)
 

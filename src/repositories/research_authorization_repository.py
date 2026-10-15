@@ -180,38 +180,67 @@ class ResearchAuthorizationRepository:
         return self.get(grant.id) or grant
 
     def run_usage(self, run_id: str) -> dict[str, float]:
-        """Cumulative run usage across every grant (authoritative, never reset)."""
+        """Cumulative run usage; carried forward, so the newest grant holds it.
+
+        F4: the new grant already inherits the prior reserved/settled/seconds, so
+        summing every grant would double-count.  The authoritative cumulative is
+        the newest grant's carried values.
+        """
 
         with self.database.connect() as connection:
             row = connection.execute(
                 """
-                SELECT COUNT(*) AS grants,
-                       COALESCE(SUM(reserved_micros), 0) AS reserved,
-                       COALESCE(SUM(settled_micros), 0) AS settled,
-                       COALESCE(SUM(executed_seconds), 0) AS seconds
+                SELECT (SELECT COUNT(*) FROM research_authorizations WHERE run_id = ?) AS grants,
+                       reserved_micros, settled_micros, executed_seconds
                 FROM research_authorizations WHERE run_id = ?
+                ORDER BY authorization_version DESC, created_at DESC LIMIT 1
                 """,
-                (run_id,),
+                (run_id, run_id),
             ).fetchone()
+        if row is None or not int(row["grants"]):
+            return {"grants": 0.0, "reserved_micros": 0.0, "settled_micros": 0.0,
+                    "executed_seconds": 0.0}
         return {
             "grants": float(row["grants"]),
-            "reserved_micros": float(row["reserved"]),
-            "settled_micros": float(row["settled"]),
-            "executed_seconds": float(row["seconds"]),
+            "reserved_micros": float(row["reserved_micros"]),
+            "settled_micros": float(row["settled_micros"]),
+            "executed_seconds": float(row["executed_seconds"]),
         }
 
     def bind_run(self, authorization_id: str, run_id: str) -> ResearchAuthorization:
-        """Bind a (possibly pre-existing) grant to its run."""
+        """Bind a (possibly pre-existing) grant to its run.
+
+        A pre-bound vision authorization belongs to one conversation only: the
+        run must live in the grant's own thread, otherwise the binding is refused.
+        """
 
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            cursor = connection.execute(
+            grant_row = connection.execute(
+                "SELECT owner_thread_id, run_id FROM research_authorizations WHERE id = ?",
+                (authorization_id,),
+            ).fetchone()
+            if grant_row is None:
+                connection.rollback()
+                raise AuthorizationError(f"authorization not found: {authorization_id}")
+            if grant_row["run_id"] is not None and str(grant_row["run_id"]) != run_id:
+                connection.rollback()
+                raise AuthorizationError("authorization is already bound to another run")
+            run_row = connection.execute(
+                "SELECT owner_thread_id FROM web_lookup_runs WHERE id = ?", (run_id,)
+            ).fetchone()
+            if run_row is None:
+                connection.rollback()
+                raise AuthorizationError(f"run not found: {run_id}")
+            if str(run_row["owner_thread_id"] or "") != str(grant_row["owner_thread_id"]):
+                connection.rollback()
+                raise AuthorizationError(
+                    "authorization and run belong to different conversations"
+                )
+            connection.execute(
                 "UPDATE research_authorizations SET run_id = ?, updated_at = ? WHERE id = ?",
                 (run_id, utc_now(), authorization_id),
             )
-            if cursor.rowcount != 1:
-                connection.rollback()
-                raise AuthorizationError(f"authorization not found: {authorization_id}")
             connection.commit()
         grant = self.get(authorization_id)
         if grant is None:

@@ -163,7 +163,12 @@ def reserve_call(
     """
 
     scope = _scope.get()
-    if _ledger is not None and scope is not None:
+    if scope is not None:
+        if _ledger is None:
+            # F3: an authorized scope must never fall back to the memory ledger.
+            raise SpendConfigurationError(
+                "a bound authorization scope requires the durable spend ledger"
+            )
         from src.repositories.llm_spend_ledger_repository import (
             SpendIdentityConflict,
             SpendLimitExceeded as LedgerLimitExceeded,
@@ -173,18 +178,24 @@ def reserve_call(
             prompt_chars=prompt_chars, max_tokens=max_tokens, attempts=attempts
         )
         authorization_id, scope_id = scope
+        resolved_call_id = call_id or f"{scope_id}:{purpose}:{uuid.uuid4().hex}"
         try:
             reservation = _ledger.reserve(  # type: ignore[attr-defined]
-                call_id=call_id or f"{scope_id}:{purpose}:{uuid.uuid4().hex}",
+                call_id=resolved_call_id,
                 authorization_id=authorization_id,
                 scope_id=scope_id,
                 purpose=purpose,
                 model=model,
                 estimated_micros=math.ceil(estimate_cny * 1_000_000),
+                extra={"prompt_chars": int(prompt_chars), "max_tokens": max_tokens,
+                       "attempts": int(attempts)},
                 account_id=_account_id,
             )
         except (LedgerLimitExceeded, SpendIdentityConflict) as exc:
             raise SpendLimitExceeded(str(exc)) from exc
+        if reservation.created:
+            # F5: persist the send intent before the request leaves the process.
+            _ledger.mark_sent(resolved_call_id)  # type: ignore[attr-defined]
         return reservation.reserved_micros / 1_000_000
 
     cap = spend_cap_cny()

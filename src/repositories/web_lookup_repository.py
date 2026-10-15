@@ -469,6 +469,17 @@ class WebLookupRepository:
             if run.status == "cancelled" and not allow_cancelled_resume:
                 connection.rollback()
                 raise ValueError(f"WebLookupRun was cancelled by the user: {run_id}")
+            # L2: a legacy entry point must respect another executor's live lease.
+            lease_expiry = _parse_timestamp(_row_get(row, "lease_expires_at"))
+            if (
+                _row_get(row, "lease_holder")
+                and lease_expiry
+                and lease_expiry > datetime.now(timezone.utc)
+            ):
+                connection.rollback()
+                raise LeaseHeld(
+                    f"WebLookupRun is leased by {_row_get(row, 'lease_holder')}: {run_id}"
+                )
             resumable_completed = run.status == "completed" and run.provider_status in {
                 "empty",
                 "partial",
