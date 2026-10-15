@@ -223,3 +223,63 @@ not model tuning. Searches (2/20) and reads (6/30) were nowhere near their caps.
 
 **Stopped here**: per the frozen rules an A failure means keep the evidence and diagnose narrowly —
 no automatic re-run and no tuning. The re-sizing decision belongs to the operator.
+
+## 11. Zero-cost timing audit (before any further paid round) — 2026-10-15
+
+Source: the saved round-4 run `web_lookup_c3750a1c…` (head `01e154c2`), read from SQLite; plus two
+new offline regressions. **No model or paid call was made.**
+
+### 11.1 Where the 198.8 s actually went
+
+| offset | Δ | step |
+| --- | --- | --- |
+| 14:36:50 | — | attachment material ready |
+| 14:36:55 | **+5.2 s** | model planning (3 sub-questions) |
+| 14:38:09 | **+73.5 s** | read #1 succeeded |
+| 14:38:41 | **+32.5 s** | read #2 succeeded |
+| 14:39:34 | **+52.4 s** | search/assess + failed reads, then the budget stop |
+| 14:39:34 | +0.0 s | gap analysis |
+| 14:39:38 | **+4.5 s** | model `revise` (3 new sub-questions) |
+| 14:39:38 | +0.0 s | **steering accepted (168 s into the run)** |
+| 14:39:38 | +0.0 s | round 2 starts (with the user turn) |
+| 14:40:06 | **+27.5 s** | read (round 2) |
+| 14:40:09 | +3.1 s | `revise`, then *time budget insufficient — supplement not executed* |
+
+| bucket | seconds | share |
+| --- | --- | --- |
+| successful page reads (3) | ≈133.5 | **67 %** |
+| search + assess + 3 failed reads (`all_backends_failed` ×2, `unsafe_or_empty_url` ×1) | ≈52.4 | 26 % |
+| all model calls (plan + revise ×2) | ≈12.8 | **6 %** |
+
+Findings:
+* **Model time is negligible (6 %); network reading dominates.** Raising the cap without fixing read
+  cost will just move the wall.
+* **≈44 s per successful read** — that is what makes a 300 s budget tight, not the number of rounds.
+* The supplement arrived at **168 s**, i.e. *after* the initial 150 s had already been spent; the
+  `min(per_goal, limits-initial)` formula then granted only 45 s.
+
+### 11.2 Client timeout really does stop the paid work (verified, offline)
+
+`tests/test_stream_disconnect_cancels_research.py` drives the real endpoint with a disconnected
+request and asserts `cancel_owned_by_turn(<turn>)` is called during preparation (polled every 50 ms)
+and no `done` event follows; a connected client never triggers it. **Boundary:** the branch requires
+the request to carry `turn_id` — the frontend always generates one (confirmed in the captured body),
+so a Playwright timeout does cancel the run. A brand-new turn with no `turn_id` keeps the older
+no-cancel semantics.
+
+### 11.3 Time-stop safety regression (offline)
+
+`tests/test_deep_time_boundary.py`: a scripted slow gateway with a tiny wall/read budget shows the
+run **returns instead of hanging**, **respects the authorized reads**, **keeps its plan/steps for a
+resume**, records an accepted-but-unexecuted supplement **honestly**, and never fabricates a
+computation.
+
+### 11.4 Decision input (not a change)
+
+* Do **not** silently relax the frozen 300 s.
+* Candidate allocation (pending the operator): `initial 210 / per_goal 60 / limits 300` gives an
+  actual grant of `min(60, 300-210)=60` (total 270) — unlike the earlier `240/60/270` suggestion,
+  which could only grant 30.
+* If a future round still exceeds 300 s, the choice is between (a) raising research throughput
+  (source priority, per-page read timeout, evidence reuse) and (b) making Deep a **resumable,
+  non-blocking task** with its own acceptance standard — not a larger number.
