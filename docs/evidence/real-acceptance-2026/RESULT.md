@@ -120,3 +120,48 @@ The cap stayed enforced during the round (`LLM_SPEND_CAP_CNY=10`; no spend-stop 
 **Status: A/B/C has not passed.** A corrected round (real reading, evidence reuse, mid-run steering,
 new computation, same run identity) is required — and it is a **paid** round, so it needs the
 operator's go-ahead beyond the one already used.
+
+## 8. Round 3 (DoH configured; authorised corrected round) — 2026-10-15
+
+Executed head: `73470267`. Zero-cost pre-flight first: `https://dns.google/resolve` DoH resolves
+real public IPs and `safe_fetch_result()` returned real bodies (`example.com` 200/577 B,
+`en.wikipedia.org/wiki/Honkai:_Star_Rail` 200/452 KB).
+
+Playwright result: **3 passed (8.3 min)**. Substantive check, however, is **A = FAIL**:
+
+| A condition | Result | Evidence |
+| --- | --- | --- |
+| 1. real page text read, sources traceable | ✅ | 5 successful read steps; `selected_sources` populated; run `stop_reason=sources_partially_read` |
+| 2. original run not restarted | ✅ | one run per turn; supplements land on the **same** run |
+| 2b. supplement actually executed | ❌ | steering entry `incorporated_in_round=2` but **`executed_in_round=None`** — accepted, never carried out |
+| 3. evidence reuse + necessary re-check | ◐ | existing sources retained; **no re-check** happened (the steering task never searched) |
+| 4. E2/S5 params trigger a new computation | ❌ | `deep.computations == []` — **no computation at all** |
+| 5. chart/SQLite/SSE/search/computation consistent | n/a | not assessable without a computation |
+
+B and C passed again (B: vision + PDF; C: honest refusal), but per the frozen rules they do **not**
+substitute for A.
+
+### 8.1 Root causes (production wiring gaps, not model behaviour)
+
+**P1 — production Deep has no planner.** `get_web_lookup_service()` builds
+`ClaimEngineDispatchWebLookupService(repository)` with `planner=None`. Therefore:
+* `_deep_planner_plan` returns `None` → `_deep_default_plan` uses the **raw user sentence** as the
+  query; DuckDuckGo returned unrelated pages (dictionary/OCS pages), so nothing relevant could be
+  admitted;
+* the `revise`-based **compute decision is unreachable** → `deep["computations"]` can never be
+  populated on the Deep path, i.e. capability 6 (autonomous calculation + chart) is dead in
+  production regardless of the compute tools being registered.
+
+**P2 — no incremental steering budget policy is configured.** The round loop only extends past
+`max_rounds` when an `incremental_budget` ledger exists; with no policy the run cannot gain a round,
+so a mid-run supplement is recorded as incorporated (`inc=2`) but never executed (`exec=None`) —
+capability 4's "keep researching and re-check" does not happen in production.
+
+### 8.2 Budget used in this round
+
+3 queries / 24 source reads / 2 vision calls; `LLM_SPEND_CAP_CNY=10` was active for the whole run
+(one process, shared ledger) and **never tripped** (no `spend cap reached`, 0 error events). The cap
+did not bind: worst-case reservation for the observed call count stayed well under ¥10.
+
+**Verdict: A/B/C not passed; merge gate stays closed.** No re-run, no tuning. Fixing P1/P2 is
+functional work and needs the operator's decision.
