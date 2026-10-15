@@ -75,3 +75,48 @@ green (131 passed, 1 skipped), `ruff` clean, `mypy` baseline NEW=0.
 failed round, so a re-run must also show real reading, source reuse, steering execution and a new
 computation — not merely “no error”. A new round needs a fresh provider/budget confirmation
 (§ PRECHECK.md; the ¥10 hard cap remains unverified).
+
+## 7. Round 2 (after the D1/R0/D2 fixes and the spend cap) — 2026-10-15
+
+Executed head: `a1112861` (spend cap live-verified at zero cost before the round).
+Outcome: **A FAILED, B PASS, C PASS** — and the round surfaced the environment blocker.
+
+| Surface | Round-2 evidence |
+| --- | --- |
+| SQLite | **D1 verified end-to-end**: A's turn carries `attachment_refs` (screenshot), B's carries screenshot + PDF, C's is empty; the runs' `research_context.attachments` are now 1 / 2 / 0 (previously all 0). |
+| HTTP/SSE | A reached a **real Deep run** (`round 1/4` steps, attachment + planning + round) — **R0 verified**. |
+| Search trace | 1 query per run; all three runs ended `stop_reason=source_reading_failed` with **0 reads**. |
+| Computation | 0 computations (nothing was read, so no compute decision produced a result). |
+
+### 7.1 Root cause of "0 real reads" — environment, not code
+
+Every candidate read was rejected as `unsafe_or_empty_url`. Traced to the fail-closed reader:
+
+```
+resolve_public_ips('example.com')   -> ValueError('unsafe_target')
+getaddrinfo('example.com')          -> 2606:4700:10::6814:179a (global),
+                                       2606:4700:10::ac42:93f3 (global),
+                                       198.18.0.110  (NOT global)
+```
+
+This host's DNS (TUN/fake-IP proxy) appends a `198.18.0.0/15` fake-IP next to the real answers, and
+`src/web/safe_http.py` deliberately requires **every** resolved address to be global. The reader is
+behaving as specified; the environment is incompatible with it. Consequently **no real page can be
+read on this machine**, so A cannot pass regardless of D1/R0/D2.
+
+### 7.2 Fix applied (configuration only, no code change)
+
+`SAFE_HTTP_DOH_URL=https://dns.google/resolve` in the local (gitignored) `.env` — the supported DoH
+escape hatch that resolves the real public IPs the transport will pin. Verified through the
+production path:
+
+```
+resolve_public_ips('example.com')  -> ['104.20.23.154', '172.66.147.243']   host_resolves_public=True
+_is_fetchable_article_url('https://baike.baidu.com/item/x') -> True
+```
+
+The cap stayed enforced during the round (`LLM_SPEND_CAP_CNY=10`; no spend-stop was hit).
+
+**Status: A/B/C has not passed.** A corrected round (real reading, evidence reuse, mid-run steering,
+new computation, same run identity) is required — and it is a **paid** round, so it needs the
+operator's go-ahead beyond the one already used.
