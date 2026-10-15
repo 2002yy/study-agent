@@ -225,4 +225,4 @@ Rev 3（UI 整合）、Slice A（研究运行时接线）、Slice B（计算工�
 | PR 收口与 exact-head CI | ⏳ 未开始 | 需真实验收通过后，开一个整合 Draft PR 并跑精确 head required CI |
 | D1/R0/D2 定向修复 | ✅ 已修（离线回归过） | D1 生产 policy 路径补 `attachment_refs`；R0 显式 deep 选择获得真实 Deep run 身份；D2 仅在“已授权研究 + 负载形状错误”时受控降级（取消/权限/安全校验仍阻断）。回归 `tests/test_d1_r0_d2_fixes.py`（走生产服务），影响集 131 passed；mypy NEW=0 |
 | 真实验收复跑 | ⏳ 待新的预算确认 | 必须在**新 HEAD** 上重跑 A/B/C，并额外证明**真实读取、来源复用、转向执行、新计算**（上一轮 0 次读取） |
-| Async Deep-1 设计 | 📄 已产出待评审 | [`ASYNC_DEEP_1_CONTRACT.md`](ASYNC_DEEP_1_CONTRACT.md)：可恢复异步 Deep Research 的冻结设计（复用 Deep-3T 触发器/续跑/检查点，不重造框架），含持久费用账本、断线≠取消≠无限授权、最小影响文件与负控矩阵、两层验收标准。**原 A/B/C 门继续保持 FAILED**；仅设计，未改生产代码 |
+| Async Deep-1 设计 | 📄 已修订待实施放行 | [`ASYNC_DEEP_1_CONTRACT.md`](ASYNC_DEEP_1_CONTRACT.md)（修订版）：补齐三项边界（触发器非通用研究队列 G7、执行身份≠长任务租约 G4、检查点≠恰好一次 G8/G12）、五项裁定（长任务默认关闭/15 分钟绝对期限、新增持久 `paused`、费用 run+全局两层、异步验收 15 分钟/¥10 由用户批准、性能优先级）、负控 N11–N14、费用公式更正（`剩余 = 授权 − Σ唯一调用预留`）、Async-1A/1B/1C 分段实施。**原 A/B/C 门继续 FAILED**；仅文档，未改生产代码 |
