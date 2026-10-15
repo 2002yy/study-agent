@@ -133,6 +133,19 @@ Rev 3（UI 整合）、Slice A（研究运行时接线）、Slice B（计算工�
 | 全量 fixture E2E | `npx playwright test` | **79 passed**（chromium/mobile/narrow + firefox + webkit） |
 | 手工断言 | E2E 内含 `streams==1`、`queue==1`、`steering==[两条]`、无横向溢出、无重复全局状态条 | PASS |
 | Slice B 后端 | `pytest <见上> -q` | **320 passed, 0 skipped**（隔离运行时可用时；含 6 项真实容器负控与 2 项 Deep→真实隔离 Python 端到端） |
+| **完整 L3（聚合门）** | `pytest tests -q -p no:cacheprovider`（干净 tracked checkout，精确 HEAD） | **4602 passed, 13 skipped**（32m00s） |
+
+### 与 main 的兼容性（合并门前置）
+
+- `origin/main` 仍为 `335fc9b7875b848f202122362f2e0f8b5a9db0ee`，与本分支基线**完全一致**（零漂移）。
+- 分支线性领先 main，无冲突、无迁移编号碰撞（当前唯一 `schema 25`）。
+- 因此“与 main 兼容”在当前时点成立；若 main 之后前进，需重新核对迁移编号与契约测试。
+
+### L3 暴露并修复的既有断言（`868717bc`）
+
+- `tests/test_api.py` 工具面断言改为精确列表（新增两个计算工具）。
+- `tests/test_research_memory.py` schema 版本断言 24→25，并在 v23 升级用例中补断言 `chat_turns.attachment_refs` 列存在。
+- 另有两个 `test_rq1c_protocol_probes.py` 用例要求**干净 tracked checkout**；未提交测试改动时失败，提交后恢复（这正是 AGENTS.md §14 记录的“脏工作树假失败”）。
 
 ### Slice B 真实隔离安全验收（2026-10-15，本机 Docker Desktop / Linux 容器）
 
