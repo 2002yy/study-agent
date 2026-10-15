@@ -1814,7 +1814,10 @@ class WebLookupService:
                     if isinstance(task, dict) and task.get("status") == "pending"
                 ]
                 batch = pending_tasks[: self._DEEP_TASKS_PER_ROUND]
-                if not batch:
+                # A steering round must still reach the gap-analysis/compute step
+                # even when the supplement adds no new search task (e.g. a pure
+                # recompute); otherwise the correction could never take effect.
+                if not batch and not steered_this_round:
                     break
 
                 round_index += 1

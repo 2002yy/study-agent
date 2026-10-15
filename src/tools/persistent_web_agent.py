@@ -188,14 +188,21 @@ class PersistentWebToolAgent(WebToolAgent):
         persistence_error = ""
         if self.research_service is not None:
             try:
-                run = self.research_service.create(
-                    focused_query or user_input,
-                    owner_thread_id=owner_thread_id,
-                    owner_turn_id=owner_turn_id,
-                    run_kind="chat_tool_loop",
-                    # Plain-text turns keep the exact original call shape.
-                    **({"attachment_material": attachment_material} if attachment_material else {}),
-                )
+                if attachment_material:
+                    run = self.research_service.create(
+                        focused_query or user_input,
+                        owner_thread_id=owner_thread_id,
+                        owner_turn_id=owner_turn_id,
+                        run_kind="chat_tool_loop",
+                        attachment_material=attachment_material,
+                    )
+                else:
+                    run = self.research_service.create(
+                        focused_query or user_input,
+                        owner_thread_id=owner_thread_id,
+                        owner_turn_id=owner_turn_id,
+                        run_kind="chat_tool_loop",
+                    )
                 operation_id = self.research_service.begin_tool_trace(run.id)
             except Exception as exc:
                 persistence_error = (
@@ -396,14 +403,23 @@ class PersistentWebToolAgent(WebToolAgent):
         assert self.research_service is not None
         research_service = self.research_service
         try:
-            run = research_service.create(
-                query,
-                owner_thread_id=owner_thread_id,
-                owner_turn_id=owner_turn_id,
-                run_kind="deep_research",
-                research_mode="deep",
-                **({"attachment_material": attachment_material} if attachment_material else {}),
-            )
+            if attachment_material:
+                run = research_service.create(
+                    query,
+                    owner_thread_id=owner_thread_id,
+                    owner_turn_id=owner_turn_id,
+                    run_kind="deep_research",
+                    research_mode="deep",
+                    attachment_material=attachment_material,
+                )
+            else:
+                run = research_service.create(
+                    query,
+                    owner_thread_id=owner_thread_id,
+                    owner_turn_id=owner_turn_id,
+                    run_kind="deep_research",
+                    research_mode="deep",
+                )
             completed = research_service.execute(run.id)
             deep = completed.research_context.get("deep") or {}
             calls.append({"name": "research_steering", "arguments": {}, "result": {
@@ -474,9 +490,13 @@ class PersistentWebToolAgent(WebToolAgent):
             return WebToolTrace(error="ResearchCancelled: Research cancelled by user")
         prior = service.active_semantic_episode(owner_thread_id or "") if history_allowed else None
         # No stored/assistant-generated evidence is imported into a new run.
-        run = service.create(user_input, owner_thread_id=owner_thread_id,
-                             owner_turn_id=owner_turn_id, run_kind="chat_tool_loop",
-                             **({"attachment_material": attachment_material} if attachment_material else {}))
+        if attachment_material:
+            run = service.create(user_input, owner_thread_id=owner_thread_id,
+                                 owner_turn_id=owner_turn_id, run_kind="chat_tool_loop",
+                                 attachment_material=attachment_material)
+        else:
+            run = service.create(user_input, owner_thread_id=owner_thread_id,
+                                 owner_turn_id=owner_turn_id, run_kind="chat_tool_loop")
         operation_id = service.begin_tool_trace(run.id)
         episode = prior or ResearchEpisode(
             task_id=run.id, thread_id=owner_thread_id or "",

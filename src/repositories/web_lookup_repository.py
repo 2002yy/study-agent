@@ -563,8 +563,8 @@ class WebLookupRepository:
         *,
         content: str,
         request_id: str | None = None,
-        attachment_refs: list[dict[str, Any]] | None = None,
-        attachment_material: list[dict[str, Any]] | None = None,
+        attachment_refs: builtins.list[dict[str, Any]] | None = None,
+        attachment_material: builtins.list[dict[str, Any]] | None = None,
     ) -> WebLookupRun | None:
         """G18 decision 12: inject a mid-run steering message into a running run.
 
