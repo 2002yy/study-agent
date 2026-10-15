@@ -173,6 +173,35 @@ class TurnCancelled(Exception):
         self.operation_id = operation_id
 
 
+def _turn_attachment_material(
+    repository: Any, turn_id: str | None
+) -> list[dict[str, Any]]:
+    """Material for the attachments bound to this turn.
+
+    The durable turn binding is the single source of truth, so a retry or
+    continuation reuses exactly the attachments the original turn was given.
+    """
+
+    if not turn_id:
+        return []
+    try:
+        turn = repository.get_chat_turn(turn_id)
+    except Exception:
+        return []
+    refs = list(getattr(turn, "attachment_refs", ()) or ())
+    if not refs:
+        return []
+    try:
+        from src.application.runtime_repository import get_session_attachment_service
+
+        return get_session_attachment_service().attachment_material(
+            str(getattr(turn, "thread_id", "") or ""),
+            [str(ref.get("attachment_id", "")) for ref in refs],
+        )
+    except Exception:
+        return []
+
+
 @dataclass(frozen=True)
 class ChatCommand:
     user_input: str
@@ -651,6 +680,7 @@ class ChatService:
                 conversation_context=_tool_context(command.chat_history),
                 owner_thread_id=thread.id,
                 owner_turn_id=turn_id,
+                attachment_material=_turn_attachment_material(self.repository, turn_id),
             )
             rag["web_tools"] = web_tools.to_dict()
             from src.web.research.research_interaction import steering_answer_instruction

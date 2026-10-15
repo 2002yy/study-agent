@@ -27,6 +27,7 @@ from src.application.chat_service import (
     _route_generation_calls,
     _session_settings,
     _tool_context,
+    _turn_attachment_material,
     _web_context_provenance,
 )
 from src.application.helpers import load_frontend_settings
@@ -521,6 +522,7 @@ class ExternalDataPolicyChatService(ChatService):
                     ),
                     owner_thread_id=thread.id,
                     owner_turn_id=turn_id,
+                    attachment_material=_turn_attachment_material(self.repository, turn_id),
                     research_intent=task_contract.task_intent == "research",
                     history_allowed=decision.history_allowed,
                 )

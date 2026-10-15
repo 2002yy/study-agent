@@ -11,6 +11,7 @@ import pytest
 
 from src.api.models.chat import ChatRequest
 from src.api.routes.chat_routes import _chat_command
+from src.application.chat_service import _turn_attachment_material
 from src.application.session_attachment_service import SessionAttachmentService
 from src.domain.runtime_entities import ChatThread, ChatTurn
 from src.infrastructure.sqlite.database import RuntimeDatabase
@@ -108,6 +109,27 @@ def test_binding_is_persisted_and_survives_reload(tmp_path):
     reloaded = repository.get_chat_turn("turn-1")
     assert reloaded is not None
     assert reloaded.attachment_refs == tuple(command.attachment_refs)
+
+
+def test_turn_material_reads_the_stored_binding(tmp_path, monkeypatch):
+    repository, attachments = _context(tmp_path)
+    ready = _ready(attachments)
+    repository.add_chat_turn(
+        ChatTurn(
+            id="turn-1", thread_id="thread-a", user_message="q", status="pending",
+            attachment_refs=(
+                {"attachment_id": ready.id, "content_hash": ready.content_hash, "filename": "notes.md"},
+            ),
+        )
+    )
+    import src.application.runtime_repository as runtime_repository
+
+    monkeypatch.setattr(runtime_repository, "get_session_attachment_service", lambda: attachments)
+
+    material = _turn_attachment_material(repository, "turn-1")
+    assert [item["attachment_id"] for item in material] == [ready.id]
+    assert "attention" in material[0]["text"]
+    assert _turn_attachment_material(repository, "turn-missing") == []
 
 
 def test_retry_does_not_replace_a_stored_binding(tmp_path):

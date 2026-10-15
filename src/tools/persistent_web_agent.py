@@ -154,6 +154,7 @@ class PersistentWebToolAgent(WebToolAgent):
         owner_turn_id: str | None = None,
         research_intent: bool = False,
         history_allowed: bool = False,
+        attachment_material: list[dict[str, Any]] | None = None,
     ) -> WebToolTrace:
         if not _env_flag("WEB_TOOL_ENABLED", default=True):
             return WebToolTrace(enabled=False)
@@ -172,12 +173,14 @@ class PersistentWebToolAgent(WebToolAgent):
                 user_input, conversation_context=conversation_context,
                 owner_thread_id=owner_thread_id, owner_turn_id=owner_turn_id,
                 history_allowed=history_allowed,
+                attachment_material=attachment_material,
             )
         if _requires_deep_research(user_input) and self.research_service is not None:
             return self._resolve_deep_research(
                 user_input,
                 owner_thread_id=owner_thread_id,
                 owner_turn_id=owner_turn_id,
+                attachment_material=attachment_material,
             )
         focused_query = conversation_search_query(user_input, conversation_context)
         run = None
@@ -190,6 +193,8 @@ class PersistentWebToolAgent(WebToolAgent):
                     owner_thread_id=owner_thread_id,
                     owner_turn_id=owner_turn_id,
                     run_kind="chat_tool_loop",
+                    # Plain-text turns keep the exact original call shape.
+                    **({"attachment_material": attachment_material} if attachment_material else {}),
                 )
                 operation_id = self.research_service.begin_tool_trace(run.id)
             except Exception as exc:
@@ -369,6 +374,7 @@ class PersistentWebToolAgent(WebToolAgent):
         *,
         owner_thread_id: str | None = None,
         owner_turn_id: str | None = None,
+        attachment_material: list[dict[str, Any]] | None = None,
     ) -> WebToolTrace:
         """G18 deep-research pipeline (decisions 1-16).
 
@@ -396,6 +402,7 @@ class PersistentWebToolAgent(WebToolAgent):
                 owner_turn_id=owner_turn_id,
                 run_kind="deep_research",
                 research_mode="deep",
+                **({"attachment_material": attachment_material} if attachment_material else {}),
             )
             completed = research_service.execute(run.id)
             deep = completed.research_context.get("deep") or {}
@@ -459,6 +466,7 @@ class PersistentWebToolAgent(WebToolAgent):
         self, user_input: str, *, conversation_context: str,
         owner_thread_id: str | None, owner_turn_id: str | None,
         history_allowed: bool,
+        attachment_material: list[dict[str, Any]] | None = None,
     ) -> WebToolTrace:
         service = self.research_service
         assert service is not None
@@ -467,7 +475,8 @@ class PersistentWebToolAgent(WebToolAgent):
         prior = service.active_semantic_episode(owner_thread_id or "") if history_allowed else None
         # No stored/assistant-generated evidence is imported into a new run.
         run = service.create(user_input, owner_thread_id=owner_thread_id,
-                             owner_turn_id=owner_turn_id, run_kind="chat_tool_loop")
+                             owner_turn_id=owner_turn_id, run_kind="chat_tool_loop",
+                             **({"attachment_material": attachment_material} if attachment_material else {}))
         operation_id = service.begin_tool_trace(run.id)
         episode = prior or ResearchEpisode(
             task_id=run.id, thread_id=owner_thread_id or "",

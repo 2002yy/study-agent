@@ -285,6 +285,35 @@ def test_recompute_supplement_supersedes_results_without_restarting(tmp_path):
     assert gateway.read_calls.count("https://example.org/alpha") == 1
 
 
+def test_deep_research_consumes_attachment_material_without_making_it_evidence(tmp_path):
+    """Message attachments inform planning but never become web evidence."""
+
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    seen: dict = {}
+
+    class CapturingPlanner(ScriptedPlanner):
+        def plan(self, query, context):
+            seen["attachments"] = context.get("attachments")
+            return list(self.initial)
+
+    service = _service(tmp_path, gateway, CapturingPlanner(["alpha"]))
+    created = service.create(
+        "compare alpha", research_mode="deep",
+        attachment_material=[{
+            "attachment_id": "att1", "filename": "firefly.png",
+            "content_hash": "hash1", "text": "流萤：2 魂，光锥叠影 5",
+        }],
+    )
+    completed = service.execute(created.id)
+
+    assert [item["attachment_id"] for item in seen["attachments"]] == ["att1"]
+    kinds = [step["kind"] for step in completed.research_context["deep"]["steps"]]
+    assert "attachment" in kinds
+    # The material must never pose as web evidence in the published source block.
+    assert "流萤" not in completed.source_block
+    assert all("流萤" not in str(item) for item in completed.query_attempts)
+
+
 def _service(
     tmp_path: Path,
     gateway: ScriptedGateway,

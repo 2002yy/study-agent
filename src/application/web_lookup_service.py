@@ -487,6 +487,7 @@ class WebLookupService:
         reader_capabilities: list[str] | None = None,
         reader_session_id: str | None = None,
         reader_setup_url: str | None = None,
+        attachment_material: list[dict[str, Any]] | None = None,
     ) -> WebLookupRun:
         normalized = query.strip()
         if not normalized:
@@ -502,6 +503,19 @@ class WebLookupService:
                 suggestion_status=suggestion_status,
             )
         context = build_research_context(normalized).to_dict()
+        # Message-level attachment material: user-provided task material only.
+        # It never becomes web evidence and never enters the source block.
+        if attachment_material:
+            context["attachments"] = [
+                {
+                    "attachment_id": str(item.get("attachment_id", "")),
+                    "filename": str(item.get("filename", "")),
+                    "content_hash": str(item.get("content_hash", "")),
+                    "text": str(item.get("text", ""))[:4_000],
+                }
+                for item in attachment_material[:4]
+                if str(item.get("text", "")).strip()
+            ]
         context.update(
             {
                 "source_truth_version": 2,
@@ -1623,6 +1637,18 @@ class WebLookupService:
         plan = [dict(task) for task in deep.get("plan", []) if isinstance(task, dict)]
         notes = [dict(n) for n in deep.get("notes", []) if isinstance(n, dict)]
         memo = str(deep.get("memo") or "")
+        # Message-level attachments are user-provided task material, not web
+        # evidence.  They stay on the research context so planning can use them,
+        # but they must never enter the memo/source block or the Evidence Gate.
+        attachments = [
+            item for item in (context.get("attachments") or []) if isinstance(item, dict)
+        ]
+        if attachments:
+            self._deep_log(
+                deep,
+                "attachment",
+                f"已读取 {len(attachments)} 个消息附件作为任务材料（非网页证据）",
+            )
         round_index = int(deep.get("round_index") or 0)
 
         def persist() -> WebLookupRun:
