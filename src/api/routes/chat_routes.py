@@ -35,6 +35,7 @@ from src.web.research.research_approach import approach_event
 from src.web.research.research_interaction import interaction_event
 from src.application.runtime_repository import (
     get_chat_service,
+    get_session_attachment_service,
     get_session_service,
     get_web_lookup_service,
 )
@@ -742,7 +743,27 @@ def abandon_interrupted_turn_endpoint(
 def _chat_command(
     request: ChatRequest,
     research_service: WebLookupService | None = None,
+    attachment_service: Any = None,
 ) -> PolicyChatCommand:
+    # Message-level attachment identity: validated against *this* session and
+    # bound before any research starts, so an invalid selection can never spawn
+    # a research task or leak another thread's material.
+    attachment_refs: list[dict[str, Any]] = []
+    if request.attachment_ids:
+        if attachment_service is None:
+            # Resolved lazily from the same DI factory the attachment routes use,
+            # so the endpoint signature stays stable for existing callers.
+            attachment_service = get_session_attachment_service()
+        if not request.session_id:
+            raise ValueError("附件需要先有会话：请先在会话中发送，再添加附件")
+        _, problems = attachment_service.validate_selection(
+            request.session_id, request.attachment_ids
+        )
+        if problems:
+            raise ValueError("附件不可用：" + "、".join(problems[:3]))
+        attachment_refs = attachment_service.selection_refs(
+            request.session_id, request.attachment_ids
+        )
     web_context = request.web_context
     web_context_run_id = request.web_context_run_id
     research_sources: dict[str, Any] | None = None
@@ -802,4 +823,5 @@ def _chat_command(
         partial_reply=request.partial_reply,
         turn_id=request.turn_id,
         operation_id=request.operation_id,
+        attachment_refs=attachment_refs,
     )

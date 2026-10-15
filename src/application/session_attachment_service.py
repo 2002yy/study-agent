@@ -481,6 +481,30 @@ class SessionAttachmentService:
             accepted.append(attachment_id)
         return accepted, problems
 
+    def selection_refs(
+        self, thread_id: str, attachment_ids: Sequence[str]
+    ) -> list[dict[str, Any]]:
+        """Server-owned identity for a message-level selection.
+
+        Returns only the durable identity needed to bind a turn (id, content
+        hash, filename); the client's raw strings are never persisted.
+        """
+
+        accepted, _ = self.validate_selection(thread_id, attachment_ids)
+        refs: list[dict[str, Any]] = []
+        for attachment_id in accepted:
+            attachment = self.repository.get(attachment_id)
+            if attachment is None:
+                continue
+            refs.append(
+                {
+                    "attachment_id": attachment.id,
+                    "content_hash": attachment.content_hash,
+                    "filename": attachment.filename,
+                }
+            )
+        return refs
+
     def attachment_material(
         self,
         thread_id: str,

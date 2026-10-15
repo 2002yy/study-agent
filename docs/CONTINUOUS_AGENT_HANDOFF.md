@@ -63,11 +63,11 @@ Rev 3（UI 整合）、Slice A（研究运行时接线）、Slice B（计算工�
 
 | 阶段 | 状态 | 内容 / 证据 |
 | --- | --- | --- |
-| A. 协议与身份 | ◐ 服务层已完成 | `SessionAttachmentService.validate_selection(thread_id, ids)`：仅接受**本会话 + ready** 的附件，重复折叠，跨会话/未知/未就绪分别报 `foreign_/unknown_/attachment_not_ready:`；`attachment_material(thread_id, ids)`：只取**被选中**附件的解析文本（复用同一临时索引与 `thread_id` 隔离，图片即视觉描述），带 `attachment_id/filename/content_hash`。测试：`tests/test_session_attachments.py` 新增 3 例（所有权/就绪校验、仅选中范围、跨线程为空）→ 21 passed。<br>**未做**：`ChatRequest.attachment_ids`、路由层校验、`chat_turns.attachment_ids` 持久化（迁移）、材料注入研究。 |
-| B. 研究消费 | ✗ 未开始 | 需要把 A 的材料注入 `research_context` 并由 Deep 消费（不得冒充网页证据）。 |
+| A. 协议与身份 | ✅ 完成 | `ChatRequest.attachment_ids`（默认空、≤8，纯文字调用不变）；`_chat_command` 校验（本会话 + ready）并对非法选择**在研究前拒绝**；`chat_turns.attachment_refs` 迁移（schema 25）持久化服务端身份 `attachment_id + content_hash + filename`；重试/继续不覆盖已存绑定（`bind_turn_attachments` 为唯一显式写入）。测试：`tests/test_chat_attachment_binding.py` 7 例（纯文字不变、身份绑定、跨会话/未知/未就绪拒绝、无会话拒绝、持久化恢复、重试不替换）+ `test_session_attachments.py` 3 例（所有权校验、仅选中材料、跨线程为空）；相邻 107 passed；mypy baseline NEW=0。 |
+| B. 研究消费 | ✗ 未开始 | 需要把 A 的持久绑定材料注入 `research_context` 并由 Deep 消费（不得冒充网页证据）。 |
 | C. 中途追加 | ✗ 未开始 | `/steer` 需接受附件 ID + `request_id` 并持久化到 steering entry。 |
 | D. 输入区 | ✗ 未开始 | “本次选中” vs “会话已有”语义、切会话重置、发送后清除。 |
-| E. 联动验收 | ✗ 未开始 | 五面证据 + 七项负控。 |
+| E. 联动验收 | ✗ 未开始 | 五面证据 + 七项负控；**必须证明新参数驱动了新的计算结果**，不能只凭 `superseded` 通过。 |
 
 > 实现顺序不变：A 剩余 → B → C → D → E；每阶段本地验证，最终一次聚合提交。不得把会话内全部附件默认塞给当前研究。
 

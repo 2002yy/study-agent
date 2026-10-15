@@ -203,6 +203,9 @@ class ChatCommand:
     operation_id: str | None = None
     answer_validation: dict[str, Any] | None = None
     review_prompt_turn_id: str | None = None
+    # Server-validated message-level attachment identity (id + content_hash),
+    # bound to the turn. Empty for plain-text turns.
+    attachment_refs: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -519,6 +522,7 @@ class ChatService:
                     parent_turn_id=retry_parent.id if retry_parent else None,
                     operation_id=operation_id,
                     conversation_instruction=command.conversation_instruction,
+                    attachment_refs=tuple(command.attachment_refs),
                     created_at=utc_now(),
                     updated_at=utc_now(),
                 )
