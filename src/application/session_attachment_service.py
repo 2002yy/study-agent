@@ -13,6 +13,7 @@ import hashlib
 import shutil
 from dataclasses import replace
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Any, Callable
 
 from src.domain.runtime_entities import (
@@ -449,6 +450,85 @@ class SessionAttachmentService:
                 }),
             ))
         return results
+
+    def validate_selection(
+        self, thread_id: str, attachment_ids: Sequence[str]
+    ) -> tuple[list[str], list[str]]:
+        """Return (accepted_ids, problems) for a message-level attachment selection.
+
+        An attachment is accepted only when it exists, belongs to *this* thread
+        and is ``ready``; the client's ids are never trusted on their own.
+        """
+
+        accepted: list[str] = []
+        problems: list[str] = []
+        seen: set[str] = set()
+        for raw in attachment_ids:
+            attachment_id = str(raw or "").strip()
+            if not attachment_id or attachment_id in seen:
+                continue
+            seen.add(attachment_id)
+            attachment = self.repository.get(attachment_id)
+            if attachment is None:
+                problems.append(f"unknown_attachment:{attachment_id}")
+                continue
+            if attachment.thread_id != thread_id:
+                problems.append(f"foreign_attachment:{attachment_id}")
+                continue
+            if attachment.status != "ready":
+                problems.append(f"attachment_not_ready:{attachment_id}:{attachment.status}")
+                continue
+            accepted.append(attachment_id)
+        return accepted, problems
+
+    def attachment_material(
+        self,
+        thread_id: str,
+        attachment_ids: Sequence[str],
+        *,
+        max_chars: int = 4_000,
+        max_attachments: int = 4,
+    ) -> list[dict[str, Any]]:
+        """Bounded extracted text for exactly the selected attachments.
+
+        Reuses the same temporary index and thread isolation as retrieval, so an
+        attachment from another thread can never contribute material here.
+        """
+
+        wanted = [str(item) for item in attachment_ids][:max_attachments]
+        if not wanted:
+            return []
+        try:
+            index = load_rag_index(self.temp_index_path)
+        except FileNotFoundError:
+            return []
+        material: list[dict[str, Any]] = []
+        for attachment_id in wanted:
+            attachment = self.repository.get(attachment_id)
+            if (
+                attachment is None
+                or attachment.thread_id != thread_id
+                or attachment.status != "ready"
+            ):
+                continue
+            texts = [
+                str(document.text or "")
+                for document in index.documents
+                if document.metadata.get("thread_id") == thread_id
+                and document.metadata.get("attachment_id") == attachment_id
+            ]
+            text = "\n".join(part for part in texts if part.strip()).strip()
+            if not text:
+                continue
+            material.append(
+                {
+                    "attachment_id": attachment.id,
+                    "filename": attachment.filename,
+                    "content_hash": attachment.content_hash,
+                    "text": text[:max_chars],
+                }
+            )
+        return material
 
     def attachment_ids_in_results(
         self, results: list[RagSearchResult]

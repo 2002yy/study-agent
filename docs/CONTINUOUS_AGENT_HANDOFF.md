@@ -59,6 +59,18 @@ Rev 3（UI 整合）、Slice A（研究运行时接线）、Slice B（计算工�
 
 验收要求五面同时留证：浏览器、HTTP/SSE、SQLite、搜索轨迹、计算结果；并覆盖负控：跨会话附件、未就绪附件、重复补充、附件删除、视觉开关关闭、会话切换期间上传完成、研究取消后的迟到结果。视觉用脚本化替身、搜索用固定网关、计算用确定性工具或现有隔离环境。
 
+### G1/G2 阶段进度（2026-10-15）
+
+| 阶段 | 状态 | 内容 / 证据 |
+| --- | --- | --- |
+| A. 协议与身份 | ◐ 服务层已完成 | `SessionAttachmentService.validate_selection(thread_id, ids)`：仅接受**本会话 + ready** 的附件，重复折叠，跨会话/未知/未就绪分别报 `foreign_/unknown_/attachment_not_ready:`；`attachment_material(thread_id, ids)`：只取**被选中**附件的解析文本（复用同一临时索引与 `thread_id` 隔离，图片即视觉描述），带 `attachment_id/filename/content_hash`。测试：`tests/test_session_attachments.py` 新增 3 例（所有权/就绪校验、仅选中范围、跨线程为空）→ 21 passed。<br>**未做**：`ChatRequest.attachment_ids`、路由层校验、`chat_turns.attachment_ids` 持久化（迁移）、材料注入研究。 |
+| B. 研究消费 | ✗ 未开始 | 需要把 A 的材料注入 `research_context` 并由 Deep 消费（不得冒充网页证据）。 |
+| C. 中途追加 | ✗ 未开始 | `/steer` 需接受附件 ID + `request_id` 并持久化到 steering entry。 |
+| D. 输入区 | ✗ 未开始 | “本次选中” vs “会话已有”语义、切会话重置、发送后清除。 |
+| E. 联动验收 | ✗ 未开始 | 五面证据 + 七项负控。 |
+
+> 实现顺序不变：A 剩余 → B → C → D → E；每阶段本地验证，最终一次聚合提交。不得把会话内全部附件默认塞给当前研究。
+
 ## 1.3 下一步（唯一入口）
 
 1. 补 G1/G2：附件消息级绑定 + 研究中追加附件绑定补充 ID + 研究中消费附件（含模拟视觉）。
