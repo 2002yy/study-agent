@@ -120,6 +120,38 @@ def test_stale_epoch_writes_are_rejected_for_checkpoint_complete_and_fail(env):
     )
 
 
+def test_takeover_after_the_lease_check_cannot_land_a_stale_write(env, monkeypatch):
+    """L2: the fence must live in the write itself, not only in a prior check.
+
+    ``assert_lease`` is disabled here on purpose, so the only thing that can stop
+    the stale writer is the predicate inside the ``UPDATE``.
+    """
+
+    database, repository, _, _, run = env
+    first = repository.acquire_lease(run.id, holder="worker-A")
+    _expire_lease(database, run.id)
+    second = repository.acquire_lease(run.id, holder="worker-B")
+    assert second.epoch == first.epoch + 1
+    before = repository.get(run.id)
+    assert before is not None and before.lease_holder == "worker-B"
+
+    monkeypatch.setattr(repository, "assert_lease", lambda *args, **kwargs: None)
+    stale = ("worker-A", first.epoch)
+
+    with pytest.raises(ValueError, match="conflicted"):
+        repository.complete(
+            run.id, items=[], source_block="", warnings=[], provider_status="found",
+            stop_reason="", lease=stale,
+        )
+    with pytest.raises(ValueError, match="conflicted"):
+        repository.fail(run.id, "boom", lease=stale)
+
+    after = repository.get(run.id)
+    assert after is not None
+    assert after.status == before.status and after.version == before.version
+    assert after.lease_holder == "worker-B" and after.lease_epoch == second.epoch
+
+
 # --- cancellation / pause / eligibility ---------------------------------
 
 def test_cancelled_run_is_never_leased_or_resumed(env):

@@ -1044,16 +1044,17 @@ class WebLookupRepository:
                 "items": len(dumped_items),
                 "warnings": len(dumped_warnings),
             }
+            lease_predicate, lease_params = _lease_predicate(lease)
             write_started = _monotonic()
             with self.database.connect() as connection:
                 cursor = connection.execute(
-                """
+                f"""
                 UPDATE web_lookup_runs
                 SET research_context = ?, query_attempts = ?,
                     selected_sources = ?, rejected_sources = ?, items = ?,
                     warnings = ?, provider_status = ?, stop_reason = ?,
                     answer_confidence = ?, updated_at = ?, version = version + 1
-                WHERE id = ? AND status = 'running' AND version = ?
+                WHERE id = ? AND status = 'running' AND version = ?{lease_predicate}
                 """,
                 (
                     dumped_context,
@@ -1068,6 +1069,7 @@ class WebLookupRepository:
                     now,
                     run_id,
                     run.version,
+                    *lease_params,
                 ),
                 )
             write_ms = (_monotonic() - write_started) * 1000.0
@@ -1245,16 +1247,17 @@ class WebLookupRepository:
             cancel_requested_at=None,
             max_items=run.max_items,
         )
+        lease_predicate, lease_params = _lease_predicate(lease)
         with self.database.connect() as connection:
             cursor = connection.execute(
-                """
+                f"""
                 UPDATE web_lookup_runs
                 SET stage = 'completed', status = ?, research_context = ?,
                     query_attempts = ?, selected_sources = ?, rejected_sources = ?,
                     provider_status = ?, stop_reason = ?, answer_confidence = ?,
                     items = ?, source_block = ?, warnings = ?, error = '',
                     completed_at = ?, updated_at = ?, version = version + 1
-                WHERE id = ? AND status = 'running' AND version = ?
+                WHERE id = ? AND status = 'running' AND version = ?{lease_predicate}
                 """,
                 (
                     status,
@@ -1280,6 +1283,7 @@ class WebLookupRepository:
                     now,
                     run_id,
                     run.version,
+                    *lease_params,
                 ),
             )
         if cursor.rowcount != 1:
@@ -1317,15 +1321,16 @@ class WebLookupRepository:
             cancel_requested_at=None,
             max_items=run.max_items,
         )
+        lease_predicate, lease_params = _lease_predicate(lease)
         with self.database.connect() as connection:
             cursor = connection.execute(
-                """
+                f"""
                 UPDATE web_lookup_runs
                 SET stage = 'failed', status = 'failed', error = ?,
                     research_context = ?, query_attempts = ?,
                     provider_status = ?, stop_reason = ?, completed_at = ?,
                     updated_at = ?, version = version + 1
-                WHERE id = ? AND status = 'running' AND version = ?
+                WHERE id = ? AND status = 'running' AND version = ?{lease_predicate}
                 """,
                 (
                     error,
@@ -1337,6 +1342,7 @@ class WebLookupRepository:
                     now,
                     run_id,
                     run.version,
+                    *lease_params,
                 ),
             )
         if cursor.rowcount != 1:
@@ -1355,6 +1361,19 @@ class WebLookupRepository:
         if run is None:
             raise ValueError(f"WebLookupRun not found: {run_id}")
         return run
+
+
+def _lease_predicate(lease: tuple[str, int] | None) -> tuple[str, tuple[Any, ...]]:
+    """L2: verify the lease *inside* the write, so the check cannot be separated.
+
+    A leased write must match ``(holder, epoch)`` in the same statement that
+    mutates the row; an unleased write must match a row that holds no lease.
+    Either way a takeover between the pre-check and the write cannot land.
+    """
+
+    if lease is None:
+        return " AND lease_holder IS NULL", ()
+    return " AND lease_holder = ? AND lease_epoch = ?", (lease[0], lease[1])
 
 
 def _normalized_source_records(row) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
