@@ -1,7 +1,7 @@
 {
   "schema_version": "real-acceptance-2026-v1",
-  "status": "NOT_YET_RUN",
-  "status_note": "Frozen inputs only. No real model / search / vision call has been made for these scenarios yet. Provider/cost pre-check on 2026-10-15 returned STOP - see PRECHECK.md.",
+  "status": "RUN_ONCE_FAILED",
+  "status_note": "One real-model round executed 2026-10-15 on head 4cb28374: A FAILED (two defects D1/D2), B PASS, C PASS. See RESULT.md. Rubric unchanged.",
   "frozen_at": "2026-10-15",
   "candidate_head": "06e96286d98d76c38018ff972460f42528479723",
   "candidate_head_note": "Pointer advanced from the original 6050fa3a so the run cannot target a stale head. Scoring criteria unchanged.",
