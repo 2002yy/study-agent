@@ -198,7 +198,7 @@ COMMIT
 
 ```
 acquire:  BEGIN IMMEDIATE
-            r = SELECT ... WHERE id=? 
+            r = SELECT ... WHERE id=?
             if r.status == 'cancelled': ROLLBACK; raise NotResumable        # N13
             if lease_active(r) and not lease_expired(r): ROLLBACK; raise LeaseHeld
             epoch = r.lease_epoch + 1
