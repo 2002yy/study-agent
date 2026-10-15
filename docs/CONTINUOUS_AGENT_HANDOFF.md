@@ -221,5 +221,5 @@ Rev 3（UI 整合）、Slice A（研究运行时接线）、Slice B（计算工�
 | 与 main 兼容 | ✅ 当前零漂移 | `origin/main == 335fc9b7`，线性领先，无冲突、无迁移编号碰撞 |
 | #229 覆盖 | ✅ 行为与测试已入 Rev 3 | 提交 `184ab178`；旧 PR 收口方式待裁定 |
 | 真实验收材料 | ✅ 已冻结（**未运行**） | `docs/evidence/real-acceptance-2026/`（截图 + PDF + 场景 + 评分 + 预算上限 + sha256） |
-| **真实模型资格验收** | ⏳ 待额度 | 三场景 A/B/C；**未运行**，不得以离线证据替代 |
+| **真实模型资格验收** | ❌ **已跑一轮，未通过（A 失败 / B、C 通过）** | 2026-10-15 于 `4cb28374`（真实 DeepSeek + 真实搜索 + 视觉开启）：A 失败于两处真实缺陷 **D1**（生产 `ExternalDataPolicyChatService` 建 turn 时未写 `attachment_refs`，消息级绑定不落库）与 **D2**（真实模型决策负载缺字段触发 `src/web/semantic_recovery.py:126` raise → 研究 run 终态失败）；B 通过（视觉读图 + PDF 原文引用）、C 通过（如实拒绝编造）。详见 `docs/evidence/real-acceptance-2026/RESULT.md`。用量：3 次搜索 / 0 次读取 / 2 次视觉，远低于上限。 |
 | PR 收口与 exact-head CI | ⏳ 未开始 | 需真实验收通过后，开一个整合 Draft PR 并跑精确 head required CI |
