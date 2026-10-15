@@ -19,7 +19,7 @@ changed; only the candidate pointer was advanced from `6050fa3a` to
 | API key | usable DeepSeek key | `DEEPSEEK_API_KEY` present (len 35) from the machine env, authenticates against the provider; `settings.api_key` populated | ✅ |
 | Vision switch | `attachment_vision_enabled=true` | `config/frontend_settings.yaml` (gitignored) sets it **true**; `vision_model_name()` = `deepseek-flash` | ✅ (2026-10-15 updated) |
 | Account balance | available | `https://api.deepseek.com/user/balance` → `is_available: true`, **CNY 17.40** (granted 6.44 + topped-up 10.96) | ✅ |
-| Hard ¥10 cap | verifiable **before** the request | No program-side spend cap exists anywhere in `src/`; provider-side balance **¥17.40 > ¥10**, so it does not bound spend to ¥10 | ❌ **OPEN — operator ruling required** |
+| Hard ¥10 cap | verifiable **before** the request | **Implemented (program side)** in `src/llm_spend_guard.py`: every paid call (chat / stream / tool loop / vision) reserves its worst case — prompt charged as an upper bound, output as `max_tokens`, attempts as `retries + 1` — and is **refused before it is sent** when the reservation would exceed `LLM_SPEND_CAP_CNY`. Ledger is process-global, so the three scenarios share one ¥10 cap. No cap configured ⇒ the guard is a no-op; a cap without explicit pricing ⇒ fail closed. | ✅ **verified live, zero cost** |
 
 ### 1.1 Unified-DeepSeek configuration applied (local, gitignored)
 
@@ -75,10 +75,19 @@ limit must provide the cap — post-hoc accounting is not acceptable.
    gitignored `.env` (see §1.1). No code change.
 2. ~~**Vision**~~ — **DONE (2026-10-15)**: `DEEPSEEK_MODEL_VISION_NAME=deepseek-flash`
    plus `attachment_vision_enabled: true` in the local, gitignored frontend settings.
-3. **The ¥10 hard cap — still open.** Choose one:
-   - (a) hold the DeepSeek balance at ≤ ¥10 (not by topping up — topping up is forbidden);
-   - (b) accept the current **¥17.40** as the effective hard cap (exceeds the approved ¥10);
-   - (c) authorise a program-side pre-request model-call/spend cap — currently a
-     feature change, which the "stop feature development" decision forbids.
+3. ~~**The ¥10 hard cap**~~ — **DONE (2026-10-15, program side)**: pre-request
+   reservations cover chat, streaming, tool loops, vision and retries; the cap
+   fails closed and is process-global. Conservative CNY pricing is configured in
+   the local `.env` (`LLM_SPEND_INPUT_CNY_PER_MTOK=2.5`,
+   `LLM_SPEND_OUTPUT_CNY_PER_MTOK=9.0`, `LLM_SPEND_CAP_CNY=10`).
 
-Everything else is satisfied. Only item 3 keeps this pack at `NOT_YET_RUN`.
+Zero-cost live proof (real app, in-process, no provider call):
+
+```
+python tools/check_llm_spend_guard.py 0
+-> event: error {"message": "spend cap reached for chat:single_chat:
+   reserved=0.0000 next=0.1026 cap=0.0000 CNY", "error_type": "SpendLimitExceeded"}
+-> TURN_FAILED_FAST: True   (run recorded used=false, evidence_status=empty)
+```
+
+Every pre-check item is therefore satisfied; A/B/C is authorised.

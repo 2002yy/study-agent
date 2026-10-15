@@ -449,7 +449,46 @@ def _build_request_kwargs(
     if resolved_response_format is not None:
         kwargs["response_format"] = resolved_response_format
 
+    # Enforce the paid-run cap *before* the request leaves the process.  Retries
+    # happen inside the SDK, so the reservation covers ``retries + 1`` attempts.
+    from src.llm_spend_guard import reserve_call
+
+    reserve_call(
+        prompt_chars=_prompt_chars(messages),
+        max_tokens=resolved_max_tokens,
+        attempts=_max_attempts(provider_profile),
+        purpose=f"chat:{task_name or ('stream' if stream else 'call')}",
+    )
     return kwargs
+
+
+def _prompt_chars(messages: list[dict]) -> int:
+    """Conservative upper bound on prompt size (evidence, not measurement)."""
+
+    total = 0
+    for message in messages:
+        content = message.get("content")
+        if isinstance(content, str):
+            total += len(content)
+        elif isinstance(content, list):
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+                text = part.get("text")
+                if isinstance(text, str):
+                    total += len(text)
+                image = part.get("image_url")
+                if isinstance(image, dict) and isinstance(image.get("url"), str):
+                    # A data URL's base64 payload is charged as a token proxy.
+                    total += len(image["url"])
+    return total
+
+
+def _max_attempts(provider_profile: str | None) -> int:
+    try:
+        return max(1, get_provider_settings(provider_profile).max_retries + 1)
+    except Exception:
+        return 1
 
 
 def stream_chat(

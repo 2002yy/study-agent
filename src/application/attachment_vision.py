@@ -16,7 +16,11 @@ import os
 from pathlib import Path
 from typing import Any
 
+from src.llm_spend_guard import SpendLimitExceeded
+
 DEFAULT_VISION_MODEL = "deepseek-v4-flash-vision-exp"
+# Output cap for one image description; also the spend-reservation bound.
+_VISION_MAX_TOKENS = 1200
 
 _DESCRIPTION_PROMPT = (
     "请为学习资料索引生成这张图片的中文文字描述：提取图中全部可读文字、"
@@ -54,6 +58,18 @@ def describe_image_with_deepseek(image_path: Path) -> str:
     try:
         from openai import OpenAI
 
+        # Vision is a paid call too: reserve it under the same hard cap before
+        # any request is sent (image payload charged as a conservative proxy).
+        from src.llm_spend_guard import reserve_call
+
+        reserve_call(
+            # base64 expands by ~4/3; x2 is a deliberately conservative proxy.
+            prompt_chars=len(_DESCRIPTION_PROMPT) + image_path.stat().st_size * 2,
+            max_tokens=_VISION_MAX_TOKENS,
+            attempts=max(1, client.max_retries + 1),
+            purpose="vision:image_description",
+        )
+
         api = OpenAI(
             api_key=client.api_key,
             base_url=client.base_url,
@@ -78,10 +94,13 @@ def describe_image_with_deepseek(image_path: Path) -> str:
         response = api.chat.completions.create(
             model=vision_model_name(),
             messages=messages,  # type: ignore[arg-type]
-            max_tokens=1200,
+            max_tokens=_VISION_MAX_TOKENS,
             extra_body={"thinking": {"type": "disabled"}},
         )
         description = (response.choices[0].message.content or "").strip()
+    except SpendLimitExceeded:
+        # A spend stop is not a provider failure: keep it distinguishable.
+        raise
     except Exception as exc:  # noqa: BLE001 - normalized into audit trail
         raise VisionDescriptionError(_classify_error(exc)) from exc
 
