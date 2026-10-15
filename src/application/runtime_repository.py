@@ -477,8 +477,17 @@ def get_web_lookup_service():
         "off",
     }
     planner = ModelDeepPlanner() if enabled else None
+    repository = get_web_lookup_repository()
+    from src.repositories.research_authorization_repository import (
+        ResearchAuthorizationRepository,
+    )
+
+    authorizations = ResearchAuthorizationRepository(repository.database)
     return ClaimEngineDispatchWebLookupService(
-        get_web_lookup_repository(), planner=planner
+        repository,
+        planner=planner,
+        # S1: an async (authorized) run must not be revived after cancellation.
+        authorization_lookup=lambda run_id: authorizations.any_for_run(run_id),
     )
 
 

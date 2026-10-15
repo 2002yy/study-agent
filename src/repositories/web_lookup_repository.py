@@ -603,19 +603,40 @@ class WebLookupRepository:
             )
 
     def assert_lease(self, run_id: str, *, holder: str, epoch: int) -> None:
-        """Fencing check for any async write; a stale epoch is rejected."""
+        """Fencing check that takes the write lock.
+
+        It is a real (no-op) UPDATE guarded by ``holder`` and ``epoch``, so a
+        takeover that bumped the epoch cannot interleave between this check and
+        the caller's write; a stale writer is rejected atomically.
+        """
 
         with self.database.connect() as connection:
             row = connection.execute(
-                "SELECT lease_holder, lease_epoch, status FROM web_lookup_runs WHERE id = ?",
-                (run_id,),
+                "SELECT status FROM web_lookup_runs WHERE id = ?", (run_id,)
             ).fetchone()
-        if row is None:
-            raise LeaseLost(f"WebLookupRun not found: {run_id}")
-        if str(row["status"]) == "cancelled":
-            raise LeaseLost(f"WebLookupRun was cancelled: {run_id}")
-        if str(row["lease_holder"] or "") != holder or int(row["lease_epoch"] or 0) != int(epoch):
-            raise LeaseLost(f"Lease fencing rejected a stale writer: {run_id}")
+            if row is None:
+                raise LeaseLost(f"WebLookupRun not found: {run_id}")
+            if str(row["status"]) == "cancelled":
+                raise LeaseLost(f"WebLookupRun was cancelled: {run_id}")
+            cursor = connection.execute(
+                """
+                UPDATE web_lookup_runs
+                SET updated_at = updated_at
+                WHERE id = ? AND lease_holder = ? AND lease_epoch = ?
+                """,
+                (run_id, holder, int(epoch)),
+            )
+            if cursor.rowcount != 1:
+                raise LeaseLost(f"Lease fencing rejected a stale writer: {run_id}")
+            connection.commit()
+
+    def lease_mandatory(self, run: WebLookupRun, *, lease: tuple[str, int] | None) -> None:
+        """A leased run may only be written through its fence (Async Deep-1A)."""
+
+        if lease is None and getattr(run, "lease_holder", None):
+            raise LeaseLost(
+                f"WebLookupRun is leased by {run.lease_holder}; a lease fence is required"
+            )
 
     def pause_run(self, run_id: str, *, reason: str = "") -> WebLookupRun:
         """running -> paused: work remains, but there is no execution entitlement."""
@@ -973,6 +994,7 @@ class WebLookupRepository:
             run = self._required(run_id)
             load_ms += (_monotonic() - load_started) * 1000.0
             self._assert_running_owner(run, operation_id)
+            self.lease_mandatory(run, lease=lease)
             checkpoint_context = merge_active_steering_context(
                 checkpoint_context,
                 run.research_context,
@@ -1174,6 +1196,7 @@ class WebLookupRepository:
             self.assert_lease(run_id, holder=lease[0], epoch=lease[1])
         stop_reason = _validated_stop_reason(stop_reason)
         run = self._required(run_id)
+        self.lease_mandatory(run, lease=lease)
         if operation_id is not None:
             self._assert_running_owner(run, operation_id)
         elif run.status != "running":
@@ -1269,6 +1292,7 @@ class WebLookupRepository:
             self.assert_lease(run_id, holder=lease[0], epoch=lease[1])
         stop_reason = _validated_stop_reason(stop_reason)
         run = self._required(run_id)
+        self.lease_mandatory(run, lease=lease)
         if operation_id is not None:
             self._assert_running_owner(run, operation_id)
         elif run.status != "running":
@@ -1375,4 +1399,17 @@ def _from_row(row) -> WebLookupRun:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         completed_at=row["completed_at"],
+        lease_epoch=int(_row_get(row, "lease_epoch", 0) or 0),
+        lease_holder=_row_get(row, "lease_holder"),
+        lease_heartbeat_at=_row_get(row, "lease_heartbeat_at"),
+        lease_expires_at=_row_get(row, "lease_expires_at"),
     )
+
+
+def _row_get(row: Any, key: str, default: Any = None) -> Any:
+    """Tolerate a row produced before the Async Deep-1A lease columns existed."""
+
+    try:
+        return row[key]
+    except (IndexError, KeyError):
+        return default

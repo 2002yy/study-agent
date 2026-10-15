@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import json
+import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable, Iterator, Literal
@@ -458,6 +459,8 @@ def _build_request_kwargs(
         max_tokens=resolved_max_tokens,
         attempts=_max_attempts(provider_profile),
         purpose=f"chat:{task_name or ('stream' if stream else 'call')}",
+        model=str(kwargs.get("model") or ""),
+        call_id=f"{task_name or ('stream' if stream else 'call')}:{uuid.uuid4().hex}",
     )
     return kwargs
 

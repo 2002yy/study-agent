@@ -231,9 +231,18 @@ def test_legacy_resume_semantics_are_preserved_for_uncancelled_runs(env):
 
 def test_checkpoint_without_a_lease_keeps_previous_behaviour(env):
     _, repository, _, _, run = env
-    repository.acquire_lease(run.id, holder="worker-A")
+    # An *unleased* run keeps the legacy behaviour: an operation owner may write
+    # without any lease fence (Async Deep-1A only fences leased runs).
+    repository.begin_operation(run.id, operation_id="op-1", stage="searching")
     updated = repository.checkpoint(
-        run.id, operation_id="worker-A", research_context={"marker": 1}, query_attempts=[],
+        run.id, operation_id="op-1", research_context={"marker": 1}, query_attempts=[],
         selected_sources=[], rejected_sources=[], items=[], warnings=[],
     )
     assert updated.research_context.get("marker") == 1
+    # ...while a leased run requires its fence (also asserted in the closure suite).
+    repository.acquire_lease(run.id, holder="worker-A")
+    with pytest.raises(LeaseLost, match="lease fence is required"):
+        repository.checkpoint(
+            run.id, operation_id="worker-A", research_context={}, query_attempts=[],
+            selected_sources=[], rejected_sources=[], items=[], warnings=[],
+        )

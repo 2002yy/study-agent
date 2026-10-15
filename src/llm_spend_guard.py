@@ -25,6 +25,8 @@ from __future__ import annotations
 import math
 import os
 import threading
+import uuid
+from contextvars import ContextVar
 
 DEFAULT_OUTPUT_TOKENS = 4_096
 
@@ -39,6 +41,34 @@ class SpendConfigurationError(RuntimeError):
 
 _lock = threading.Lock()
 _reserved_cny = 0.0
+
+#: Optional durable backend (Async Deep-1A). When set, calls made inside a bound
+#: authorization scope are reserved in SQLite and survive a process restart.
+_ledger: object | None = None
+_account_id = "account"
+_scope: ContextVar[tuple[str, str] | None] = ContextVar("llm_spend_scope", default=None)
+
+
+def configure_ledger(repository: object | None, *, account_id: str = "account") -> None:
+    """Install the durable ledger used for authorization-scoped paid calls."""
+
+    global _ledger, _account_id
+    _ledger = repository
+    _account_id = account_id
+
+
+def bind_scope(authorization_id: str, scope_id: str):
+    """Bind the current paid calls to one authorization/run scope."""
+
+    return _scope.set((str(authorization_id), str(scope_id)))
+
+
+def reset_scope(token: object) -> None:
+    _scope.reset(token)  # type: ignore[arg-type]
+
+
+def current_scope() -> tuple[str, str] | None:
+    return _scope.get()
 
 
 def reset_spend() -> None:
@@ -117,13 +147,45 @@ def reservation_cny(*, prompt_chars: int, max_tokens: int | None, attempts: int)
 
 
 def reserve_call(
-    *, prompt_chars: int, max_tokens: int | None, attempts: int = 1, purpose: str = "llm"
+    *,
+    prompt_chars: int,
+    max_tokens: int | None,
+    attempts: int = 1,
+    purpose: str = "llm",
+    model: str = "",
+    call_id: str | None = None,
 ) -> float:
     """Reserve the worst case before a request; raise when it cannot fit.
 
-    The reservation is deliberately never refunded: an unverified refund could
-    turn the cap into a post-hoc estimate, which this module exists to prevent.
+    With a durable ledger configured **and** an authorization scope bound, the
+    reservation is written to SQLite (authoritative across restarts).  Calls
+    outside any scope keep the process-level conservative counter.
     """
+
+    scope = _scope.get()
+    if _ledger is not None and scope is not None:
+        from src.repositories.llm_spend_ledger_repository import (
+            SpendIdentityConflict,
+            SpendLimitExceeded as LedgerLimitExceeded,
+        )
+
+        estimate_cny = reservation_cny(
+            prompt_chars=prompt_chars, max_tokens=max_tokens, attempts=attempts
+        )
+        authorization_id, scope_id = scope
+        try:
+            reservation = _ledger.reserve(  # type: ignore[attr-defined]
+                call_id=call_id or f"{scope_id}:{purpose}:{uuid.uuid4().hex}",
+                authorization_id=authorization_id,
+                scope_id=scope_id,
+                purpose=purpose,
+                model=model,
+                estimated_micros=math.ceil(estimate_cny * 1_000_000),
+                account_id=_account_id,
+            )
+        except (LedgerLimitExceeded, SpendIdentityConflict) as exc:
+            raise SpendLimitExceeded(str(exc)) from exc
+        return reservation.reserved_micros / 1_000_000
 
     cap = spend_cap_cny()
     if cap is None:

@@ -243,6 +243,11 @@ class WebLookupRun:
     stage_started_at: str | None = None
     cancel_requested_at: str | None = None
     owner_thread_id: str | None = None
+    # Async Deep-1A fencing lease (dedicated columns, never the research JSON).
+    lease_epoch: int = 0
+    lease_holder: str | None = None
+    lease_heartbeat_at: str | None = None
+    lease_expires_at: str | None = None
     parent_run_id: str | None = None
     root_run_id: str | None = None
     lineage_depth: int = 0

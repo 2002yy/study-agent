@@ -24,7 +24,11 @@ CNY = cny_to_micros
 @pytest.fixture()
 def repos(tmp_path):
     database = RuntimeDatabase(tmp_path / "runtime.db")
-    return ResearchAuthorizationRepository(database), SpendLedgerRepository(database), tmp_path
+    auth = ResearchAuthorizationRepository(database)
+    ledger = SpendLedgerRepository(database)
+    # F2: a reservation needs an account ceiling; without it, spending is refused.
+    ledger.ensure_account(CNY(10))
+    return auth, ledger, tmp_path
 
 
 def _grant(auth, *, run_id="run-1", spend_cny=10, deadline="2099-01-01T00:00:00+00:00"):

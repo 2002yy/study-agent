@@ -68,6 +68,19 @@ class ResearchAuthorizationRepository:
             ).fetchone()
         return _from_row(row) if row else None
 
+    def any_for_run(self, run_id: str) -> ResearchAuthorization | None:
+        """Any grant ever issued for this run (used to detect an async run)."""
+
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM research_authorizations
+                WHERE run_id = ? ORDER BY authorization_version DESC, created_at DESC LIMIT 1
+                """,
+                (run_id,),
+            ).fetchone()
+        return _from_row(row) if row else None
+
     def remaining_micros(self, authorization_id: str) -> int:
         with self.database.connect() as connection:
             row = connection.execute(
@@ -120,10 +133,18 @@ class ResearchAuthorizationRepository:
             connection.execute("BEGIN IMMEDIATE")
             previous_version = 0
             previous_id: str | None = None
+            # Cumulative usage stays authoritative across re-authorisation: the new
+            # grant continues from the run's already-reserved/settled/executed
+            # facts instead of resetting them (a new grant is a *total* ceiling).
+            carried_reserved = 0
+            carried_settled = 0
+            carried_seconds = 0.0
             if run_id:
                 prior = connection.execute(
                     """
-                    SELECT id, authorization_version FROM research_authorizations
+                    SELECT id, authorization_version, reserved_micros, settled_micros,
+                           executed_seconds
+                    FROM research_authorizations
                     WHERE run_id = ? AND status = 'active'
                     ORDER BY authorization_version DESC LIMIT 1
                     """,
@@ -132,6 +153,9 @@ class ResearchAuthorizationRepository:
                 if prior is not None:
                     previous_version = int(prior["authorization_version"])
                     previous_id = str(prior["id"])
+                    carried_reserved = int(prior["reserved_micros"])
+                    carried_settled = int(prior["settled_micros"])
+                    carried_seconds = float(prior["executed_seconds"])
                     connection.execute(
                         "UPDATE research_authorizations SET status = 'superseded', updated_at = ? WHERE id = ?",
                         (timestamp, previous_id),
@@ -143,16 +167,38 @@ class ResearchAuthorizationRepository:
                     supersedes_authorization_id, status, max_model_calls, max_vision_calls,
                     max_searches, max_reads, max_spend_micros, reserved_micros, settled_micros,
                     executed_seconds, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     grant.id, grant.owner_thread_id, run_id, grant.granted_at, grant.deadline_at,
                     previous_version + 1, previous_id, grant.max_model_calls, grant.max_vision_calls,
-                    grant.max_searches, grant.max_reads, grant.max_spend_micros, timestamp, timestamp,
+                    grant.max_searches, grant.max_reads, grant.max_spend_micros,
+                    carried_reserved, carried_settled, carried_seconds, timestamp, timestamp,
                 ),
             )
             connection.commit()
         return self.get(grant.id) or grant
+
+    def run_usage(self, run_id: str) -> dict[str, float]:
+        """Cumulative run usage across every grant (authoritative, never reset)."""
+
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT COUNT(*) AS grants,
+                       COALESCE(SUM(reserved_micros), 0) AS reserved,
+                       COALESCE(SUM(settled_micros), 0) AS settled,
+                       COALESCE(SUM(executed_seconds), 0) AS seconds
+                FROM research_authorizations WHERE run_id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+        return {
+            "grants": float(row["grants"]),
+            "reserved_micros": float(row["reserved"]),
+            "settled_micros": float(row["settled"]),
+            "executed_seconds": float(row["seconds"]),
+        }
 
     def bind_run(self, authorization_id: str, run_id: str) -> ResearchAuthorization:
         """Bind a (possibly pre-existing) grant to its run."""

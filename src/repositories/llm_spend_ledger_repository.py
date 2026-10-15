@@ -127,21 +127,44 @@ class SpendLedgerRepository:
                 )
 
             grant = connection.execute(
-                "SELECT max_spend_micros, reserved_micros, status FROM research_authorizations WHERE id = ?",
+                """
+                SELECT max_spend_micros, reserved_micros, status, deadline_at, run_id
+                FROM research_authorizations WHERE id = ?
+                """,
                 (authorization_id,),
             ).fetchone()
             if grant is None:
                 connection.rollback()
                 raise SpendLimitExceeded(f"authorization not found: {authorization_id}")
+            # F2: an invalid, expired or mis-scoped authorization must fail closed.
+            if str(grant["status"]) != "active":
+                connection.rollback()
+                raise SpendLimitExceeded(f"authorization is not active: {grant['status']}")
+            deadline = grant["deadline_at"]
+            if deadline:
+                from datetime import datetime, timezone
+
+                moment = datetime.now(timezone.utc)
+                if moment >= datetime.fromisoformat(str(deadline).replace("Z", "+00:00")):
+                    connection.rollback()
+                    raise SpendLimitExceeded("authorization has expired")
+            bound_run = grant["run_id"]
+            if bound_run is not None and str(bound_run) != str(scope_id):
+                connection.rollback()
+                raise SpendLimitExceeded(
+                    f"authorization is bound to run {bound_run}, not scope {scope_id}"
+                )
             run_remaining = int(grant["max_spend_micros"]) - int(grant["reserved_micros"])
             account = connection.execute(
                 "SELECT limit_micros, reserved_micros FROM llm_spend_accounts WHERE id = ?",
                 (account_id,),
             ).fetchone()
-            account_remaining = None if account is None else (
-                int(account["limit_micros"]) - int(account["reserved_micros"])
-            )
-            if estimate > run_remaining or (account_remaining is not None and estimate > account_remaining):
+            if account is None:
+                # F2: no account ceiling means no authority to spend; never open-ended.
+                connection.rollback()
+                raise SpendLimitExceeded("account ceiling is not configured")
+            account_remaining = int(account["limit_micros"]) - int(account["reserved_micros"])
+            if estimate > run_remaining or estimate > account_remaining:
                 connection.rollback()
                 raise SpendLimitExceeded(
                     f"spend limit: estimate={estimate} run_remaining={run_remaining} "
@@ -164,11 +187,10 @@ class SpendLedgerRepository:
                 """,
                 (estimate, now, authorization_id),
             )
-            if account is not None:
-                connection.execute(
-                    "UPDATE llm_spend_accounts SET reserved_micros = reserved_micros + ? WHERE id = ?",
-                    (estimate, account_id),
-                )
+            connection.execute(
+                "UPDATE llm_spend_accounts SET reserved_micros = reserved_micros + ? WHERE id = ?",
+                (estimate, account_id),
+            )
             connection.commit()
         return SpendReservation(call_id=call_id, authorization_id=authorization_id,
                                 scope_id=scope_id, reserved_micros=estimate,

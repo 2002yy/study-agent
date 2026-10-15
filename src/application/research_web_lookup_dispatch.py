@@ -186,10 +186,12 @@ class ClaimEngineDispatchWebLookupService(WebLookupService):
         gateway: WebLookupGateway | None = None,
         planner: Any = None,
         *,
+        authorization_lookup: Any = None,
         active_gateway_factory: ActiveGatewayFactory | None = None,
         active_runtime_factory: ActiveRuntimeFactory | None = None,
     ) -> None:
-        super().__init__(repository, gateway=gateway, planner=planner)
+        super().__init__(repository, gateway=gateway, planner=planner,
+                         authorization_lookup=authorization_lookup)
         self._active_gateway_factory = active_gateway_factory or ActiveResearchGateway
         self._active_runtime_factory = active_runtime_factory or (
             lambda repository, gateway: ActiveResearchRuntimeExecutor(

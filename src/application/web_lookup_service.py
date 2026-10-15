@@ -451,9 +451,13 @@ class WebLookupService:
         gateway: WebLookupGateway | None = None,
         planner: Any = None,
         compute_registry: Any = None,
+        authorization_lookup: Any = None,
     ):
         self.repository = repository
         self.gateway = gateway or ResearchWebGateway()
+        # S1: optional probe answering "has this run ever been authorized?" so an
+        # async run's cancellation stays terminal across the legacy resume path.
+        self.authorization_lookup = authorization_lookup
         # Slice B: compute tools reuse the shared tool registry; built lazily so
         # a service without computation never pays for it.
         self._compute_registry = compute_registry
@@ -2301,9 +2305,29 @@ class WebLookupService:
         return self.execute(run_id, raise_on_error=False)
 
     def resume(self, run_id: str) -> WebLookupRun:
-        """Explicit, user-initiated resume (the only path allowed to revive a cancel)."""
+        """Explicit, user-initiated resume.
 
+        S1: an **async (authorized) run that the user cancelled is terminal** — it may
+        only be continued by creating a new run.  The legacy immediate-mode resume is
+        preserved for runs that never had an asynchronous authorization.
+        """
+
+        run = self.get(run_id)
+        if run.status == "cancelled" and self._has_async_authorization(run_id):
+            raise ValueError(
+                "Async research run was cancelled by the user; create a new run instead"
+            )
         return self.execute(run_id, raise_on_error=False, allow_cancelled_resume=True)
+
+    def _has_async_authorization(self, run_id: str) -> bool:
+        lookup = self.authorization_lookup
+        if lookup is None:
+            return False
+        try:
+            return lookup(run_id) is not None
+        except Exception:
+            # Fail closed: an unreadable authorization must not enable a revival.
+            return True
 
     def cancel(self, run_id: str) -> WebLookupRun:
         return self.repository.request_cancel(run_id)

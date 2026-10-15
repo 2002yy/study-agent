@@ -63,6 +63,24 @@ if ASSETS_DIR.is_dir():
 
 TOOL_REGISTRY = create_default_tool_registry()
 
+# Async Deep-1A (F1): wire the durable two-tier spend ledger into the paid-call
+# guard so authorization-scoped reservations survive a process restart.  The
+# account ceiling mirrors the configured process cap (no cap -> ledger dormant).
+try:
+    import math as _math
+
+    from src.application.runtime_repository import get_web_lookup_repository
+    from src.llm_spend_guard import configure_ledger, spend_cap_cny as _spend_cap_cny
+    from src.repositories.llm_spend_ledger_repository import SpendLedgerRepository
+
+    _cap = _spend_cap_cny()
+    if _cap is not None:
+        _spend_ledger = SpendLedgerRepository(get_web_lookup_repository().database)
+        _spend_ledger.ensure_account(int(_math.ceil(_cap * 1_000_000)))
+        configure_ledger(_spend_ledger)
+except Exception:  # pragma: no cover - never block startup on the ledger
+    pass
+
 # Register all route modules (each module's router is auto-included on import)
 from .routes.health_routes import router as _health_router
 from .routes.settings_routes import router as _settings_router

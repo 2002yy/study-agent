@@ -68,6 +68,8 @@ def describe_image_with_deepseek(image_path: Path) -> str:
             max_tokens=_VISION_MAX_TOKENS,
             attempts=max(1, client.max_retries + 1),
             purpose="vision:image_description",
+            model=vision_model_name(),
+            call_id=f"vision:{image_path.name}",
         )
 
         api = OpenAI(
