@@ -211,3 +211,15 @@ Rev 3（UI 整合）、Slice A（研究运行时接线）、Slice B（计算工�
 | 门禁 | 精确 head 的 required CI 绿；不沿用旧 head 绿灯 |
 
 > 在本文件记录的事实之外，不得宣称 Slice A 或整个前后端方案已经可以合并。
+
+### 8.1 合并门进度（2026-10-15，冻结候选 `6050fa3a`）
+
+| 门项 | 状态 | 证据 |
+| --- | --- | --- |
+| 完整 L3 | ✅ | `pytest tests -q`（干净 tracked checkout、精确 HEAD）→ **4602 passed / 13 skipped**（32m00s） |
+| 13 项 skipped 核查 | ✅ 无隐藏门禁 | 7 = 可选隔离运行时（`test_python_isolation.py` 6 + `test_web_lookup_deep_research.py` 1；**已单独跑通** 6/6 + 1）；6 = 运维提供的 Crawl4AI/读者 e2e（`CRAWL4AI_PYTHON` 未设） |
+| 与 main 兼容 | ✅ 当前零漂移 | `origin/main == 335fc9b7`，线性领先，无冲突、无迁移编号碰撞 |
+| #229 覆盖 | ✅ 行为与测试已入 Rev 3 | 提交 `184ab178`；旧 PR 收口方式待裁定 |
+| 真实验收材料 | ✅ 已冻结（**未运行**） | `docs/evidence/real-acceptance-2026/`（截图 + PDF + 场景 + 评分 + 预算上限 + sha256） |
+| **真实模型资格验收** | ⏳ 待额度 | 三场景 A/B/C；**未运行**，不得以离线证据替代 |
+| PR 收口与 exact-head CI | ⏳ 未开始 | 需真实验收通过后，开一个整合 Draft PR 并跑精确 head required CI |
