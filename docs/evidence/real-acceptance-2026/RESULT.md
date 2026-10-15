@@ -188,3 +188,38 @@ added: a deployment `.env` can no longer change test behaviour (`WEB_RESEARCH_ST
 and `WEB_DEEP_MODEL_PLANNER` are cleared per test).
 
 **Still required**: a paid A/B/C round on the new head. Not authorised yet.
+
+## 10. Round 4 (P1/P1b/P2 wired) — 2026-10-15
+
+Executed head: `01e154c2`. Playwright: **3 passed (9.3 min)**. Substantive check: **A = FAIL again**,
+but for a different and now precisely identified reason, and the P1/P1b/P2 fixes are all *functioning*.
+
+### 10.1 What the fixes delivered (verified in the real run)
+
+| Fix | Real-run evidence |
+| --- | --- |
+| P1 real planner | `planning（3 个子问题）`; the searches used **model-produced focused queries** (`流萤 击破特攻 伤害 对比 配置`, `流萤 机制 伤害 加成`) — not the raw user sentence |
+| P1b supplement context | round 2 started with `（含用户转向）`; the planner produced follow-up sub-questions derived from the E2/S5 correction |
+| P2 budget ledger | grants recorded and idempotent (`steering_09cf51d1… → recompute_…`), consumed counters persistent |
+| honest execution state | the run recorded `steering: incorporated_in_round=2, executed_in_round=None` and logged `本轮时间预算不足，新增要求尚未执行；可排队到下一轮` — no fabricated success |
+
+### 10.2 Root cause of the A failure: the acceptance policy's wall budget is too small
+
+`deep.incremental_budget.consumed.wall_seconds = 198.8` against an authorised ceiling of
+`initial 150 + grant 45 = 195`. Every search then short-circuited with
+`检索预算不足，这个研究目标未完成。`, the run ended `partial`, and the supplement could not be executed.
+
+Real network reading is simply slower than the wall budget I allocated in the acceptance policy
+(reads alone accounted for ~3 minutes of the scenario). This is a **configuration sizing error in the
+acceptance policy I wrote**, inside the frozen "300 s per scenario" cap — not a product defect and
+not model tuning. Searches (2/20) and reads (6/30) were nowhere near their caps.
+
+### 10.3 Verdict
+
+* A: **FAIL** — not for missing capability, but because the supplement was starved of wall budget.
+* B/C: passed (unchanged).
+* The only required change is to re-size the acceptance policy's wall axis (e.g. initial 240 /
+  per_goal 60 / limit 300) so it fits the frozen 300 s scenario cap.
+
+**Stopped here**: per the frozen rules an A failure means keep the evidence and diagnose narrowly —
+no automatic re-run and no tuning. The re-sizing decision belongs to the operator.
