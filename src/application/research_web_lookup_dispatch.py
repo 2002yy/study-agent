@@ -204,6 +204,7 @@ class ClaimEngineDispatchWebLookupService(WebLookupService):
         *,
         raise_on_error: bool = False,
         stale_after_seconds: int = 120,
+        allow_cancelled_resume: bool = False,
     ) -> WebLookupRun:
         run = self.get(run_id)
         active_state = _dispatch_state(run)
@@ -212,6 +213,7 @@ class ClaimEngineDispatchWebLookupService(WebLookupService):
                 run_id,
                 raise_on_error=raise_on_error,
                 stale_after_seconds=stale_after_seconds,
+                allow_cancelled_resume=allow_cancelled_resume,
             )
 
         active_gateway = self._active_gateway_factory()

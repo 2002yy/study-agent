@@ -340,6 +340,46 @@ class SessionAttachment:
 
 
 @dataclass(frozen=True)
+class ResearchAuthorization:
+    """A user-granted, bounded entitlement for one research run.
+
+    ``deadline_at`` is absolute and never refreshed by recovery; a re-authorisation
+    creates a *new* grant (``supersedes_authorization_id``) instead of mutating this
+    one, and cumulative consumption/reserved amounts are never re-granted.
+    """
+
+    id: str = field(default_factory=lambda: new_id("auth"))
+    owner_thread_id: str = ""
+    run_id: str | None = None
+    granted_at: str = field(default_factory=utc_now)
+    deadline_at: str = ""
+    authorization_version: int = 1
+    supersedes_authorization_id: str | None = None
+    status: str = "active"
+    max_model_calls: int = 0
+    max_vision_calls: int = 0
+    max_searches: int = 0
+    max_reads: int = 0
+    max_spend_micros: int = 0
+    reserved_micros: int = 0
+    settled_micros: int = 0
+    executed_seconds: float = 0.0
+    created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
+
+
+@dataclass(frozen=True)
+class RunLease:
+    """Fencing lease for one run; lives in dedicated columns, not in JSON."""
+
+    run_id: str
+    holder: str
+    epoch: int
+    heartbeat_at: str
+    expires_at: str
+
+
+@dataclass(frozen=True)
 class OperationRecord:
     id: str = field(default_factory=lambda: new_id("op"))
     scope: str = ""

@@ -998,6 +998,7 @@ class WebLookupService:
         *,
         raise_on_error: bool = False,
         stale_after_seconds: int = 120,
+        allow_cancelled_resume: bool = False,
     ) -> WebLookupRun:
         existing = self.get(run_id)
         if existing.status == "completed" and existing.provider_status == "found":
@@ -1009,6 +1010,7 @@ class WebLookupService:
             operation_id=operation_id,
             stage=stage,
             stale_after_seconds=stale_after_seconds,
+            allow_cancelled_resume=allow_cancelled_resume,
         )
         context = dict(run.research_context)
         context["run_attempt"] = int(context.get("run_attempt") or 0) + 1
@@ -2299,7 +2301,9 @@ class WebLookupService:
         return self.execute(run_id, raise_on_error=False)
 
     def resume(self, run_id: str) -> WebLookupRun:
-        return self.execute(run_id, raise_on_error=False)
+        """Explicit, user-initiated resume (the only path allowed to revive a cancel)."""
+
+        return self.execute(run_id, raise_on_error=False, allow_cancelled_resume=True)
 
     def cancel(self, run_id: str) -> WebLookupRun:
         return self.repository.request_cancel(run_id)

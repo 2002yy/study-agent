@@ -10,7 +10,7 @@ from typing import Callable
 from src.infrastructure.sqlite.learning_semantic_schema import LEARNING_SEMANTIC_MIGRATION_V18
 from src.infrastructure.sqlite.learning_truth_schema import LEARNING_TRUTH_MIGRATION_V17
 
-SCHEMA_VERSION = 25
+SCHEMA_VERSION = 26
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -555,6 +555,68 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         25,
         """
         ALTER TABLE chat_turns ADD COLUMN attachment_refs TEXT NOT NULL DEFAULT '[]';
+        """,
+    ),
+    (
+        26,
+        """
+        CREATE TABLE research_authorizations (
+            id TEXT PRIMARY KEY,
+            owner_thread_id TEXT NOT NULL,
+            run_id TEXT,
+            granted_at TEXT NOT NULL,
+            deadline_at TEXT NOT NULL,
+            authorization_version INTEGER NOT NULL DEFAULT 1,
+            supersedes_authorization_id TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            max_model_calls INTEGER NOT NULL,
+            max_vision_calls INTEGER NOT NULL,
+            max_searches INTEGER NOT NULL,
+            max_reads INTEGER NOT NULL,
+            max_spend_micros INTEGER NOT NULL,
+            reserved_micros INTEGER NOT NULL DEFAULT 0,
+            settled_micros INTEGER NOT NULL DEFAULT 0,
+            executed_seconds REAL NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX idx_research_authorizations_run
+            ON research_authorizations(run_id, status);
+
+        CREATE UNIQUE INDEX idx_research_authorizations_active_run
+            ON research_authorizations(run_id)
+            WHERE status = 'active' AND run_id IS NOT NULL;
+
+        CREATE TABLE llm_spend_ledger (
+            call_id TEXT PRIMARY KEY,
+            authorization_id TEXT,
+            scope_kind TEXT NOT NULL,
+            scope_id TEXT NOT NULL,
+            purpose TEXT NOT NULL,
+            model TEXT NOT NULL DEFAULT '',
+            fingerprint TEXT NOT NULL,
+            reserved_micros INTEGER NOT NULL,
+            settled_micros INTEGER,
+            state TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX idx_llm_spend_ledger_authorization
+            ON llm_spend_ledger(authorization_id);
+
+        CREATE TABLE llm_spend_accounts (
+            id TEXT PRIMARY KEY,
+            limit_micros INTEGER NOT NULL,
+            reserved_micros INTEGER NOT NULL DEFAULT 0,
+            settled_micros INTEGER NOT NULL DEFAULT 0
+        );
+
+        ALTER TABLE web_lookup_runs ADD COLUMN lease_epoch INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE web_lookup_runs ADD COLUMN lease_holder TEXT;
+        ALTER TABLE web_lookup_runs ADD COLUMN lease_heartbeat_at TEXT;
+        ALTER TABLE web_lookup_runs ADD COLUMN lease_expires_at TEXT;
         """,
     ),
 )

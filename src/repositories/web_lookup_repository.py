@@ -10,7 +10,7 @@ import json
 import time
 from typing import Any
 
-from src.domain.runtime_entities import WebLookupRun, new_id, utc_now
+from src.domain.runtime_entities import RunLease, WebLookupRun, new_id, utc_now
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.web.research.failure_contracts import require_research_stop_reason
 from src.web.research.steering import (
@@ -74,6 +74,18 @@ def _parse_timestamp(value: Any) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+class LeaseNotAvailable(RuntimeError):
+    """The run cannot be leased (cancelled or not executable)."""
+
+
+class LeaseHeld(RuntimeError):
+    """Another holder owns a live lease on this run."""
+
+
+class LeaseLost(RuntimeError):
+    """The writer's lease epoch is stale; its write must be rejected."""
 
 
 def _operation_is_stale(context: dict[str, Any], seconds: int) -> bool:
@@ -433,8 +445,14 @@ class WebLookupRepository:
         operation_id: str,
         stage: str,
         stale_after_seconds: int = 120,
+        allow_cancelled_resume: bool = False,
     ) -> WebLookupRun:
-        """Acquire one run operation without allowing stale-owner writeback."""
+        """Acquire one run operation without allowing stale-owner writeback.
+
+        ``allow_cancelled_resume`` defaults to **False**: a user cancellation is a
+        terminal fact and must not be cleared by an ordinary resume (N13).  Only an
+        explicit, user-authorised path may opt in.
+        """
 
         if not operation_id.strip() or not stage.strip():
             raise ValueError("Research operation and stage must be non-empty")
@@ -448,6 +466,9 @@ class WebLookupRepository:
                 connection.rollback()
                 raise ValueError(f"WebLookupRun not found: {run_id}")
             run = _from_row(row)
+            if run.status == "cancelled" and not allow_cancelled_resume:
+                connection.rollback()
+                raise ValueError(f"WebLookupRun was cancelled by the user: {run_id}")
             resumable_completed = run.status == "completed" and run.provider_status in {
                 "empty",
                 "partial",
@@ -485,6 +506,184 @@ class WebLookupRepository:
             if cursor.rowcount != 1:
                 connection.rollback()
                 raise ValueError(f"WebLookupRun operation acquisition conflicted: {run_id}")
+            connection.commit()
+        return self._required(run_id)
+
+    # --- Async Deep-1A: fencing lease + paused state -----------------------
+
+    def acquire_lease(self, run_id: str, *, holder: str, ttl_seconds: int = 90) -> RunLease:
+        """Acquire the exclusive execution lease; a cancelled run is never leased."""
+
+        if not holder.strip():
+            raise ValueError("lease holder is required")
+        ttl = max(5, int(ttl_seconds))
+        now = datetime.now(timezone.utc)
+        stamp = now.isoformat()
+        expires = (now + timedelta(seconds=ttl)).isoformat()
+        with self.database.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM web_lookup_runs WHERE id = ?", (run_id,)
+            ).fetchone()
+            if row is None:
+                connection.rollback()
+                raise ValueError(f"WebLookupRun not found: {run_id}")
+            status = str(row["status"])
+            if status == "cancelled":
+                connection.rollback()
+                raise LeaseNotAvailable(f"WebLookupRun was cancelled by the user: {run_id}")
+            expires_now = _parse_timestamp(row["lease_expires_at"])
+            if row["lease_holder"] and expires_now and expires_now > now:
+                connection.rollback()
+                raise LeaseHeld(f"WebLookupRun is leased by {row['lease_holder']}: {run_id}")
+            resumable_completed = status == "completed" and str(row["provider_status"]) in {
+                "empty", "partial", "insufficient",
+            }
+            if status not in {"pending", "running", "paused", "failed", "partial"} and not resumable_completed:
+                connection.rollback()
+                raise LeaseNotAvailable(f"WebLookupRun is not executable: {run_id} ({status})")
+            epoch = int(row["lease_epoch"] or 0) + 1
+            # The lease holder *is* the operation owner: existing ownership
+            # checks keep working, and the operation identity is established
+            # atomically with the lease. The cancel fact is preserved (N13).
+            context = _with_operation(
+                json.loads(row["research_context"] or "{}"),
+                active_operation_id=holder,
+                active_operation_started_at=stamp,
+                stage_started_at=stamp,
+            )
+            cursor = connection.execute(
+                """
+                UPDATE web_lookup_runs
+                SET status = 'running', lease_epoch = ?, lease_holder = ?,
+                    lease_heartbeat_at = ?, lease_expires_at = ?, research_context = ?,
+                    updated_at = ?, version = version + 1
+                WHERE id = ? AND version = ?
+                """,
+                (epoch, holder, stamp, expires, _dump(context), stamp, run_id, int(row["version"])),
+            )
+            if cursor.rowcount != 1:
+                connection.rollback()
+                raise LeaseHeld(f"WebLookupRun lease acquisition conflicted: {run_id}")
+            connection.commit()
+        return RunLease(run_id=run_id, holder=holder, epoch=epoch,
+                        heartbeat_at=stamp, expires_at=expires)
+
+    def heartbeat_lease(self, run_id: str, *, holder: str, epoch: int,
+                        ttl_seconds: int = 90) -> RunLease:
+        """Renew the lease. Touches lease columns only, never the research JSON."""
+
+        ttl = max(5, int(ttl_seconds))
+        now = datetime.now(timezone.utc)
+        stamp = now.isoformat()
+        expires = (now + timedelta(seconds=ttl)).isoformat()
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE web_lookup_runs
+                SET lease_heartbeat_at = ?, lease_expires_at = ?, updated_at = ?
+                WHERE id = ? AND lease_holder = ? AND lease_epoch = ? AND status = 'running'
+                """,
+                (stamp, expires, stamp, run_id, holder, int(epoch)),
+            )
+            if cursor.rowcount != 1:
+                raise LeaseLost(f"Lease lost for {run_id} (holder={holder} epoch={epoch})")
+        return RunLease(run_id=run_id, holder=holder, epoch=int(epoch),
+                        heartbeat_at=stamp, expires_at=expires)
+
+    def release_lease(self, run_id: str, *, holder: str, epoch: int) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE web_lookup_runs
+                SET lease_holder = NULL, lease_expires_at = NULL, updated_at = ?
+                WHERE id = ? AND lease_holder = ? AND lease_epoch = ?
+                """,
+                (utc_now(), run_id, holder, int(epoch)),
+            )
+
+    def assert_lease(self, run_id: str, *, holder: str, epoch: int) -> None:
+        """Fencing check for any async write; a stale epoch is rejected."""
+
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT lease_holder, lease_epoch, status FROM web_lookup_runs WHERE id = ?",
+                (run_id,),
+            ).fetchone()
+        if row is None:
+            raise LeaseLost(f"WebLookupRun not found: {run_id}")
+        if str(row["status"]) == "cancelled":
+            raise LeaseLost(f"WebLookupRun was cancelled: {run_id}")
+        if str(row["lease_holder"] or "") != holder or int(row["lease_epoch"] or 0) != int(epoch):
+            raise LeaseLost(f"Lease fencing rejected a stale writer: {run_id}")
+
+    def pause_run(self, run_id: str, *, reason: str = "") -> WebLookupRun:
+        """running -> paused: work remains, but there is no execution entitlement."""
+
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE web_lookup_runs
+                SET status = 'paused', lease_epoch = lease_epoch + 1,
+                    lease_holder = NULL, lease_expires_at = NULL,
+                    stop_reason = ?, updated_at = ?, version = version + 1
+                WHERE id = ? AND status = 'running'
+                """,
+                (reason or "authorization_exhausted", utc_now(), run_id),
+            )
+        return self._required(run_id)
+
+    def resume_run(self, run_id: str) -> WebLookupRun:
+        """paused -> pending (the caller must verify an active authorization)."""
+
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE web_lookup_runs
+                SET status = 'pending', updated_at = ?, version = version + 1
+                WHERE id = ? AND status = 'paused'
+                """,
+                (utc_now(), run_id),
+            )
+        return self._required(run_id)
+
+    def cancel_run(self, run_id: str, *, reason: str = "user_cancelled") -> WebLookupRun:
+        """Idempotent cancel; fences the current holder immediately.
+
+        The cancel fact lives in ``research_context.operation.cancel_requested_at``
+        (the schema has no dedicated column), and is preserved by every recovery
+        path (N13).
+        """
+
+        stamp = utc_now()
+        with self.database.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM web_lookup_runs WHERE id = ?", (run_id,)
+            ).fetchone()
+            if row is None:
+                connection.rollback()
+                raise ValueError(f"WebLookupRun not found: {run_id}")
+            operation = _operation_state(json.loads(row["research_context"] or "{}"))
+            if operation.get("cancel_requested_at"):
+                connection.commit()
+                return self._required(run_id)
+            context = _with_operation(
+                json.loads(row["research_context"] or "{}"),
+                cancel_requested_at=stamp,
+            )
+            connection.execute(
+                """
+                UPDATE web_lookup_runs
+                SET status = CASE WHEN status IN ('pending', 'running', 'paused', 'partial')
+                                  THEN 'cancelled' ELSE status END,
+                    stop_reason = CASE WHEN stop_reason = '' THEN ? ELSE stop_reason END,
+                    lease_epoch = lease_epoch + 1, lease_holder = NULL, lease_expires_at = NULL,
+                    research_context = ?, updated_at = ?, version = version + 1
+                WHERE id = ?
+                """,
+                (reason, _dump(context), stamp, run_id),
+            )
             connection.commit()
         return self._required(run_id)
 
@@ -734,6 +933,7 @@ class WebLookupRepository:
         stop_reason: str = "",
         answer_confidence: str = "",
         diagnostics: dict[str, Any] | None = None,
+        lease: tuple[str, int] | None = None,
     ) -> WebLookupRun:
         """Persist one research checkpoint.
 
@@ -743,7 +943,13 @@ class WebLookupRepository:
         conflicts the optimistic-concurrency loop hit. Nothing about behaviour,
         durability or recovery semantics changes, and callers that pass nothing
         keep their exact previous behaviour.
+
+        ``lease`` (Async Deep-1A) is an optional ``(holder, epoch)`` fence: a stale
+        epoch is rejected before anything is written.
         """
+
+        if lease is not None:
+            self.assert_lease(run_id, holder=lease[0], epoch=lease[1])
 
         stop_reason = _validated_stop_reason(stop_reason)
         checkpoint_context = dict(research_context)
@@ -961,7 +1167,11 @@ class WebLookupRepository:
         answer_confidence: str = "",
         operation_id: str | None = None,
         final_status: str | None = None,
+        lease: tuple[str, int] | None = None,
     ) -> WebLookupRun:
+        # Async Deep-1A: a stale lease epoch must never commit a terminal result.
+        if lease is not None:
+            self.assert_lease(run_id, holder=lease[0], epoch=lease[1])
         stop_reason = _validated_stop_reason(stop_reason)
         run = self._required(run_id)
         if operation_id is not None:
@@ -1052,7 +1262,11 @@ class WebLookupRepository:
         provider_status: str = "provider_failed",
         stop_reason: str = "providers_failed",
         operation_id: str | None = None,
+        lease: tuple[str, int] | None = None,
     ) -> WebLookupRun:
+        # Async Deep-1A: a stale lease epoch must never commit a failure record.
+        if lease is not None:
+            self.assert_lease(run_id, holder=lease[0], epoch=lease[1])
         stop_reason = _validated_stop_reason(stop_reason)
         run = self._required(run_id)
         if operation_id is not None:
