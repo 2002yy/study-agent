@@ -152,8 +152,38 @@ def test_takeover_after_the_lease_check_cannot_land_a_stale_write(env, monkeypat
     assert after.lease_holder == "worker-B" and after.lease_epoch == second.epoch
 
 
-# --- cancellation / pause / eligibility ---------------------------------
+def test_authorized_run_pays_inside_its_own_scope_while_a_legacy_run_does_not(env):
+    """1B-2: paid work of an authorized run must be bound to that run's grant."""
 
+    from src import llm_spend_guard
+
+    _, _, service, auth, legacy_run = env
+    seen: list[object] = []
+
+    class _ObservingGateway(_Gateway):
+        def search(self, query, *, max_items=10):
+            seen.append(llm_spend_guard.current_scope())
+            return []
+
+        def warnings(self):
+            return []
+
+    service.gateway = _ObservingGateway()
+    # Same wiring production uses (src/application/runtime_repository.py).
+    service.authorization_lookup = lambda run_id: auth.any_for_run(run_id)
+    service.execute(legacy_run.id)
+    assert seen and seen[-1] is None, "a legacy run must keep the process cap"
+
+    authorized = service.create("authorized topic", owner_thread_id="thread-1")
+    grant = _grant(auth, authorized.id)
+    seen.clear()
+    service.execute(authorized.id)
+    assert seen and seen[-1] == (grant.id, authorized.id), (
+        "an authorized run must bind its own grant scope while it executes"
+    )
+
+
+# --- cancellation / pause / eligibility ---------------------------------
 def test_cancelled_run_is_never_leased_or_resumed(env):
     _, repository, _, _, run = env
     repository.cancel_run(run.id, reason="user_cancelled")

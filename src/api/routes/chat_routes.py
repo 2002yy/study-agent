@@ -26,6 +26,7 @@ from src.application.chat_service import (
 )
 from src.application.helpers import sse_event, stream_usage_payload
 from src.application.policy_chat_service import PolicyChatCommand
+from src.application.async_research_observer import should_cancel_on_disconnect
 from src.application.research_evidence import (
     research_binding_rows,
     research_run_provenance,
@@ -156,11 +157,25 @@ async def chat_stream_endpoint(
 
         while not prepare_task.done():
             if chat_request.turn_id and await http_request.is_disconnected():
-                await asyncio.to_thread(
-                    research_service.cancel_owned_by_turn,
+                # 1B-6: an observer leaving must not end an authorized background
+                # run.  Only an immediate (unauthorized) run keeps the historical
+                # disconnect-cancel semantics.
+                owned = await asyncio.to_thread(
+                    research_service.latest_owned_by_turn,
                     chat_request.turn_id,
-                    wait_seconds=0.0,
                 )
+                run_is_async = bool(
+                    owned is not None
+                    and await asyncio.to_thread(
+                        research_service.is_async_authorized, owned.id
+                    )
+                )
+                if should_cancel_on_disconnect(run_is_async=run_is_async):
+                    await asyncio.to_thread(
+                        research_service.cancel_owned_by_turn,
+                        chat_request.turn_id,
+                        wait_seconds=0.0,
+                    )
                 _settle_disconnected_preparation(prepare_task, service)
                 return
             run = await asyncio.to_thread(

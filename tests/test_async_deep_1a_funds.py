@@ -39,6 +39,34 @@ def _grant(auth, *, run_id="run-1", spend_cny=10, deadline="2099-01-01T00:00:00+
     )
 
 
+def test_reauthorization_carries_usage_forward_across_every_prior_status(repos):
+    """1B-1: expired / exhausted / superseded grants must never reset the total."""
+
+    auth, ledger, _ = repos
+    run_id = "run-carry"
+    first = _grant(auth, run_id=run_id, spend_cny=10)
+    ledger.reserve(call_id="carry-1", authorization_id=first.id, scope_id=run_id,
+                   purpose="planner", model="deepseek-flash", estimated_micros=CNY(3))
+    ledger.mark_sent("carry-1")
+
+    for generation, terminal_status in enumerate(
+        ("expired", "exhausted", "superseded"), start=1
+    ):
+        with auth.database.connect() as connection:
+            connection.execute(
+                "UPDATE research_authorizations SET status = ? "
+                "WHERE run_id = ? AND status = 'active'",
+                (terminal_status, run_id),
+            )
+        renewal = _grant(auth, run_id=run_id, spend_cny=10)
+        assert renewal.reserved_micros == CNY(3), (
+            f"re-authorization after '{terminal_status}' must not reset the total"
+        )
+        assert renewal.authorization_version == generation + 1
+        usage = auth.run_usage(run_id)
+        assert usage["reserved_micros"] == CNY(3), "usage must not multiply per generation"
+
+
 def test_same_call_id_with_identical_identity_is_idempotent(repos):
     auth, ledger, _ = repos
     grant = _grant(auth)

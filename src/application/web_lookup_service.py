@@ -10,6 +10,7 @@ from typing import Any, Protocol
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from src.domain.runtime_entities import WebLookupRun, new_id, utc_now
+from src import llm_spend_guard
 from src.news.digest import format_news_source_block
 from src.application.research_shadow_seam import observe_shadow, shadow_enabled
 from src.application.shadow_telemetry_sink import shadow_telemetry
@@ -997,6 +998,32 @@ class WebLookupService:
         return self.execute(run.id, raise_on_error=True)
 
     def execute(
+        self,
+        run_id: str,
+        *,
+        raise_on_error: bool = False,
+        stale_after_seconds: int = 120,
+        allow_cancelled_resume: bool = False,
+    ) -> WebLookupRun:
+        # 1B-2: an authorized run pays inside its own scope, so its calls answer to
+        # the run's cumulative authorization rather than only the process cap.
+        authorization = self._async_authorization(run_id)
+        if authorization is None:
+            return self._execute_once(
+                run_id,
+                raise_on_error=raise_on_error,
+                stale_after_seconds=stale_after_seconds,
+                allow_cancelled_resume=allow_cancelled_resume,
+            )
+        with llm_spend_guard.bound_scope(authorization.id, run_id):
+            return self._execute_once(
+                run_id,
+                raise_on_error=raise_on_error,
+                stale_after_seconds=stale_after_seconds,
+                allow_cancelled_resume=allow_cancelled_resume,
+            )
+
+    def _execute_once(
         self,
         run_id: str,
         *,
@@ -2319,6 +2346,15 @@ class WebLookupService:
             )
         return self.execute(run_id, raise_on_error=False, allow_cancelled_resume=True)
 
+    def is_async_authorized(self, run_id: str) -> bool:
+        """1B-6: whether this run is owned by an authorization and its worker.
+
+        The SSE route asks this before treating a client disconnect as a cancel:
+        an observer leaving must never end an authorized background run.
+        """
+
+        return self._has_async_authorization(run_id)
+
     def _has_async_authorization(self, run_id: str) -> bool:
         lookup = self.authorization_lookup
         if lookup is None:
@@ -2328,6 +2364,21 @@ class WebLookupService:
         except Exception:
             # Fail closed: an unreadable authorization must not enable a revival.
             return True
+
+    def _async_authorization(self, run_id: str) -> Any:
+        """The grant authorizing this run, or None for a legacy immediate run.
+
+        Never raises: absence of a readable grant only means "keep the process
+        cap", which is the pre-1B behaviour for immediate runs.
+        """
+
+        lookup = self.authorization_lookup
+        if lookup is None:
+            return None
+        try:
+            return lookup(run_id)
+        except Exception:
+            return None
 
     def cancel(self, run_id: str) -> WebLookupRun:
         return self.repository.request_cancel(run_id)

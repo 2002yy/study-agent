@@ -22,6 +22,7 @@ Configuration (no defaults are invented):
 
 from __future__ import annotations
 
+import contextlib
 import math
 import os
 import threading
@@ -37,6 +38,16 @@ class SpendLimitExceeded(RuntimeError):
 
 class SpendConfigurationError(RuntimeError):
     """A cap is configured but the pricing needed to enforce it is missing."""
+
+
+class UncertainCall(RuntimeError):
+    """1B-5: a paid call that may already have happened must not be re-issued.
+
+    Recovery may only re-run work whose earlier attempt is provably absent
+    (``reserved``, never sent).  ``sent`` means the outcome is unknown, and
+    ``settled``/``orphaned`` mean it is already accounted for; in every one of
+    those cases the safe move is to stop and report, never to pay again.
+    """
 
 
 _lock = threading.Lock()
@@ -69,6 +80,55 @@ def reset_scope(token: object) -> None:
 
 def current_scope() -> tuple[str, str] | None:
     return _scope.get()
+
+
+def stable_call_id(*, run_id: str, purpose: str, step: str) -> str:
+    """Deterministic identity for a logical paid call inside one run.
+
+    1B-5: recovery must reconstruct the *same* call, so identity is derived from
+    durable facts (run, purpose, logical step) instead of a fresh random id.
+    ``step`` must name the logical work (round/task/supplement), never an attempt
+    counter, or a retry would masquerade as a different call.
+    """
+
+    return f"{run_id}:{purpose}:{step}"
+
+
+def call_state(call_id: str) -> str | None:
+    """Durable state of a paid call, or None when there is no ledger/record."""
+
+    ledger = _ledger
+    if ledger is None:
+        return None
+    return ledger.state(call_id)  # type: ignore[attr-defined]
+
+
+def settle_call(call_id: str, *, actual_micros: int, outcome: str = "settled") -> None:
+    """Record the real cost of a finished call so recovery never repeats it."""
+
+    ledger = _ledger
+    if ledger is None:
+        return
+    if outcome == "settled":
+        ledger.settle(call_id, actual_micros=actual_micros)  # type: ignore[attr-defined]
+    else:
+        ledger.mark_orphaned(call_id)  # type: ignore[attr-defined]
+
+
+@contextlib.contextmanager
+def bound_scope(authorization_id: str, scope_id: str):
+    """1B: bind every paid call in the block to one run's authorization.
+
+    Anything that spends on behalf of a research run must run inside this block,
+    so the run's own cumulative ceiling governs its calls instead of only the
+    process-wide cap.
+    """
+
+    token = _scope.set((str(authorization_id), str(scope_id)))
+    try:
+        yield
+    finally:
+        _scope.reset(token)
 
 
 def reset_spend() -> None:
@@ -193,9 +253,19 @@ def reserve_call(
             )
         except (LedgerLimitExceeded, SpendIdentityConflict) as exc:
             raise SpendLimitExceeded(str(exc)) from exc
-        if reservation.created:
-            # F5: persist the send intent before the request leaves the process.
-            _ledger.mark_sent(resolved_call_id)  # type: ignore[attr-defined]
+        if not reservation.created:
+            # 1B-5: this exact call already exists.  Re-issuing it would be a second
+            # paid request whose outcome we cannot distinguish from the first, so a
+            # recovery must stop here instead of silently paying twice.  Only a
+            # reservation that never left the process may be re-entered.
+            state = call_state(resolved_call_id)
+            if state != "reserved":
+                raise UncertainCall(
+                    f"paid call {resolved_call_id!r} is already {state or 'unknown'}; "
+                    "refusing to re-issue it"
+                )
+        # F5: persist the send intent before the request leaves the process.
+        _ledger.mark_sent(resolved_call_id)  # type: ignore[attr-defined]
         return reservation.reserved_micros / 1_000_000
 
     cap = spend_cap_cny()

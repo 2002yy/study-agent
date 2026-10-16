@@ -140,13 +140,18 @@ class ResearchAuthorizationRepository:
             carried_settled = 0
             carried_seconds = 0.0
             if run_id:
+                # 1B-1: carry forward from the newest grant whatever its status is.
+                # An expired/exhausted/superseded grant still holds the run's
+                # cumulative facts; filtering on status='active' silently reset a
+                # re-authorized run to zero.  The newest grant already carries the
+                # whole history, so carrying from it cannot double count.
                 prior = connection.execute(
                     """
                     SELECT id, authorization_version, reserved_micros, settled_micros,
-                           executed_seconds
+                           executed_seconds, status
                     FROM research_authorizations
-                    WHERE run_id = ? AND status = 'active'
-                    ORDER BY authorization_version DESC LIMIT 1
+                    WHERE run_id = ?
+                    ORDER BY authorization_version DESC, created_at DESC LIMIT 1
                     """,
                     (run_id,),
                 ).fetchone()
@@ -156,10 +161,13 @@ class ResearchAuthorizationRepository:
                     carried_reserved = int(prior["reserved_micros"])
                     carried_settled = int(prior["settled_micros"])
                     carried_seconds = float(prior["executed_seconds"])
-                    connection.execute(
-                        "UPDATE research_authorizations SET status = 'superseded', updated_at = ? WHERE id = ?",
-                        (timestamp, previous_id),
-                    )
+                # Any still-live grant for this run is superseded by the new one,
+                # so exactly one grant can ever be authoritative.
+                connection.execute(
+                    "UPDATE research_authorizations SET status = 'superseded', updated_at = ? "
+                    "WHERE run_id = ? AND status = 'active'",
+                    (timestamp, run_id),
+                )
             connection.execute(
                 """
                 INSERT INTO research_authorizations(
