@@ -66,8 +66,8 @@ def _grant(auth, run_id, *, spend_cny=10):
 
 def _paused_authorized_run(service, repository, auth, *, topic="topic"):
     run = service.create(topic, owner_thread_id="thread-1")
-    repository.acquire_lease(run.id, holder="prep")
-    repository.pause_run(run.id, reason="prep")
+    prep = repository.acquire_lease(run.id, holder="prep")
+    repository.pause_run(run.id, reason="prep", lease=(prep.holder, prep.epoch))
     past = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
     with repository.database.connect() as connection:
         connection.execute(

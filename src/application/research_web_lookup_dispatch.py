@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from src import llm_spend_guard
 from src.application.web_lookup_service import WebLookupGateway, WebLookupService
 from src.application.active_research_runtime import ActiveResearchRuntimeExecutor
 from src.domain.evidence import build_evidence_snapshot
@@ -207,6 +208,7 @@ class ClaimEngineDispatchWebLookupService(WebLookupService):
         raise_on_error: bool = False,
         stale_after_seconds: int = 120,
         allow_cancelled_resume: bool = False,
+        lease: tuple[str, int] | None = None,
     ) -> WebLookupRun:
         run = self.get(run_id)
         active_state = _dispatch_state(run)
@@ -216,6 +218,7 @@ class ClaimEngineDispatchWebLookupService(WebLookupService):
                 raise_on_error=raise_on_error,
                 stale_after_seconds=stale_after_seconds,
                 allow_cancelled_resume=allow_cancelled_resume,
+                lease=lease,
             )
 
         active_gateway = self._active_gateway_factory()
@@ -223,12 +226,23 @@ class ClaimEngineDispatchWebLookupService(WebLookupService):
             self.repository,
             active_gateway,
         )
-        return active_runtime.execute(
-            run_id,
-            initial_state=active_state,
-            raise_on_error=raise_on_error,
-            stale_after_seconds=stale_after_seconds,
-        )
+        # 1B-R1/P1: the active path must obey the same funding and eligibility
+        # contract as every other path, so it runs inside the run's own spend scope.
+        authorization = self._async_authorization(run_id)
+        if authorization is None:
+            return active_runtime.execute(
+                run_id,
+                initial_state=active_state,
+                raise_on_error=raise_on_error,
+                stale_after_seconds=stale_after_seconds,
+            )
+        with llm_spend_guard.bound_scope(authorization.id, run_id, lease=lease):
+            return active_runtime.execute(
+                run_id,
+                initial_state=active_state,
+                raise_on_error=raise_on_error,
+                stale_after_seconds=stale_after_seconds,
+            )
 
 
 def _dispatch_mode(run: WebLookupRun) -> str:

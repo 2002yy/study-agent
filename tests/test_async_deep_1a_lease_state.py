@@ -218,8 +218,9 @@ def test_only_the_explicit_user_resume_may_revive_a_cancelled_run(env):
 
 def test_paused_resumes_only_with_an_active_authorization(env):
     _, repository, _, auth, run = env
-    repository.acquire_lease(run.id, holder="worker-A")
-    repository.pause_run(run.id, reason="authorization_exhausted")
+    held = repository.acquire_lease(run.id, holder="worker-A")
+    repository.pause_run(run.id, reason="authorization_exhausted",
+                         lease=(held.holder, held.epoch))
     assert repository._required(run.id).status == "paused"
 
     # No grant -> not eligible.

@@ -1004,9 +1004,12 @@ class WebLookupService:
         raise_on_error: bool = False,
         stale_after_seconds: int = 120,
         allow_cancelled_resume: bool = False,
+        lease: tuple[str, int] | None = None,
     ) -> WebLookupRun:
-        # 1B-2: an authorized run pays inside its own scope, so its calls answer to
-        # the run's cumulative authorization rather than only the process cap.
+        # 1B-2/1B-R1: an authorized run pays inside its own scope, established here
+        # for a direct call and by the worker (with its lease fence) for background
+        # work, so its calls answer to the run's cumulative authorization rather
+        # than only the process cap.
         authorization = self._async_authorization(run_id)
         if authorization is None:
             return self._execute_once(
@@ -1014,13 +1017,17 @@ class WebLookupService:
                 raise_on_error=raise_on_error,
                 stale_after_seconds=stale_after_seconds,
                 allow_cancelled_resume=allow_cancelled_resume,
+                lease=lease,
             )
-        with llm_spend_guard.bound_scope(authorization.id, run_id):
+        with llm_spend_guard.bound_scope(
+            authorization.id, run_id, lease=lease
+        ):
             return self._execute_once(
                 run_id,
                 raise_on_error=raise_on_error,
                 stale_after_seconds=stale_after_seconds,
                 allow_cancelled_resume=allow_cancelled_resume,
+                lease=lease,
             )
 
     def _execute_once(
@@ -1030,6 +1037,7 @@ class WebLookupService:
         raise_on_error: bool = False,
         stale_after_seconds: int = 120,
         allow_cancelled_resume: bool = False,
+        lease: tuple[str, int] | None = None,
     ) -> WebLookupRun:
         existing = self.get(run_id)
         if existing.status == "completed" and existing.provider_status == "found":
@@ -1042,6 +1050,7 @@ class WebLookupService:
             stage=stage,
             stale_after_seconds=stale_after_seconds,
             allow_cancelled_resume=allow_cancelled_resume,
+            lease=lease,
         )
         context = dict(run.research_context)
         context["run_attempt"] = int(context.get("run_attempt") or 0) + 1

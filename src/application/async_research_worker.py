@@ -77,9 +77,18 @@ class AsyncResearchWorker:
                 continue
         return None
 
-    def _park(self, run_id: str, reason: str) -> None:
+    def _park(self, run_id: str, reason: str, *, claim: AsyncResearchClaim | None = None) -> None:
+        """Park a run this worker owns.
+
+        1B-R1: parking clears the lease, so it carries this worker's fence.  Without
+        the fence a superseded worker's late failure could stop the new worker's run.
+        """
+
         try:
-            self.runs.pause_run(run_id, reason=reason)
+            self.runs.pause_run(
+                run_id, reason=reason,
+                lease=(claim.holder, claim.epoch) if claim is not None else None,
+            )
         except Exception:
             # Parking is best-effort; the claim already refused to spend.
             pass
@@ -97,15 +106,17 @@ class AsyncResearchWorker:
         # The worker trusts the database, not the claiming thread's memory.
         grant = self.authorizations.get(claim.authorization_id)
         if grant is None or str(getattr(grant, "status", "")) != "active":
-            self._park(claim.run_id, "authorization_gone")
+            self._park(claim.run_id, "authorization_gone", claim=claim)
             return WorkerOutcome(claimed=True, run_id=claim.run_id, reason="authorization_gone")
 
-        with llm_spend_guard.bound_scope(grant.id, claim.run_id):
+        with llm_spend_guard.bound_scope(
+            grant.id, claim.run_id, lease=(claim.holder, claim.epoch)
+        ):
             try:
                 self.executor(claim)
             except llm_spend_guard.UncertainCall as exc:
                 # A paid call may already have happened; stop instead of re-paying.
-                self._park(claim.run_id, "unconfirmed_paid_call")
+                self._park(claim.run_id, "unconfirmed_paid_call", claim=claim)
                 return WorkerOutcome(
                     claimed=True, run_id=claim.run_id, reason=f"uncertain:{exc}"
                 )

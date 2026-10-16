@@ -93,6 +93,7 @@ class SpendLedgerRepository:
         estimated_micros: int,
         extra: dict[str, Any] | None = None,
         account_id: str = "account",
+        lease: tuple[str, int] | None = None,
     ) -> SpendReservation:
         if not call_id.strip() or not authorization_id.strip():
             raise ValueError("call_id and authorization_id are required")
@@ -104,6 +105,31 @@ class SpendLedgerRepository:
         now = utc_now()
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if lease is not None:
+                # 1B-R1: authority to spend belongs to the current lease holder.
+                # A worker that was superseded keeps a valid authorization and a
+                # healthy balance, so the authorization check alone would let it
+                # start new paid requests.  Verify the fence here, atomically, so a
+                # stale execution identity can never pay.
+                run_row = connection.execute(
+                    "SELECT lease_holder, lease_epoch, lease_expires_at "
+                    "FROM web_lookup_runs WHERE id = ?",
+                    (scope_id,),
+                ).fetchone()
+                if run_row is None:
+                    connection.rollback()
+                    raise SpendLimitExceeded(f"unknown run for a lease-fenced call: {scope_id}")
+                if str(run_row["lease_holder"] or "") != str(lease[0]) or int(
+                    run_row["lease_epoch"] or 0
+                ) != int(lease[1]):
+                    connection.rollback()
+                    raise SpendLimitExceeded(
+                        "paid call refused: this execution identity no longer holds the lease"
+                    )
+                expires = run_row["lease_expires_at"]
+                if expires is not None and str(expires) <= now:
+                    connection.rollback()
+                    raise SpendLimitExceeded("paid call refused: the lease has expired")
             existing = connection.execute(
                 "SELECT * FROM llm_spend_ledger WHERE call_id = ?", (call_id,)
             ).fetchone()

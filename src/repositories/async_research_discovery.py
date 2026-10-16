@@ -24,7 +24,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from src.application.async_research_eligibility import is_eligible
-from src.repositories.research_authorization_repository import parse_deadline
 from src.repositories.web_lookup_repository import _dump, _with_operation
 
 #: Run states the worker may consider.  ``completed``/``cancelled`` are terminal.
@@ -77,6 +76,29 @@ class AsyncResearchClaim:
     holder: str
     epoch: int
     expires_at: str
+
+
+class _RunView:
+    """Minimal run view for the eligibility predicate, built from one row.
+
+    Reading the predicate inputs from the row inside the claim transaction avoids a
+    second connection, so the decision uses exactly the state the write locked.
+    """
+
+    def __init__(self, row: Any) -> None:
+        self.status = str(row["status"])
+        self.stop_reason = str(row["stop_reason"] or "")
+        self.research_context = json.loads(row["research_context"] or "{}")
+
+
+class _GrantView:
+    """Minimal grant view for the eligibility predicate."""
+
+    def __init__(self, row: Any) -> None:
+        self.status = str(row["status"])
+        self.deadline_at = str(row["deadline_at"])
+        self.max_spend_micros = int(row["max_spend_micros"])
+        self.reserved_micros = int(row["reserved_micros"])
 
 
 class AsyncResearchDiscovery:
@@ -223,16 +245,24 @@ class AsyncResearchDiscovery:
             if grant is None:
                 connection.rollback()
                 raise ClaimRefused("no_active_authorization")
-            if moment >= parse_deadline(str(grant["deadline_at"])):
+            # 1B-R1/P1: the claim applies the *whole* predicate, not a subset, so a
+            # candidate cannot be executed for a reason the discovery pass would have
+            # rejected (non-retryable failure, no work left, unexecutable status).
+            eligible, ineligible_reason = is_eligible(
+                run=_RunView(row),
+                grant=_GrantView(grant),  # type: ignore[arg-type]
+                lease_available=True,
+                now=moment,
+            )
+            if not eligible:
                 connection.rollback()
-                raise ClaimRefused("authorization_expired")
-            if int(grant["max_spend_micros"]) - int(grant["reserved_micros"]) <= 0:
-                connection.rollback()
-                raise ClaimRefused("authorization_exhausted")
+                raise ClaimRefused(
+                    ineligible_reason if ineligible_reason else "not_eligible"
+                )
             unconfirmed = connection.execute(
                 "SELECT COUNT(*) AS pending FROM llm_spend_ledger "
-                "WHERE authorization_id = ? AND state = 'sent'",
-                (str(grant["id"]),),
+                "WHERE scope_id = ? AND state = 'sent'",
+                (run_id,),
             ).fetchone()
             if unconfirmed is not None and int(unconfirmed["pending"]):
                 connection.rollback()
@@ -279,13 +309,18 @@ class AsyncResearchDiscovery:
             expires_at=expires,
         )
 
-    def unconfirmed_calls(self, authorization_id: str) -> tuple[str, ...]:
-        """Paid calls of this authorization whose outcome is still unknown."""
+    def unconfirmed_calls(self, run_id: str) -> tuple[str, ...]:
+        """Paid calls of this **run** whose outcome is still unknown.
+
+        1B-R1: queried by run scope, not by the current authorization id.  A
+        re-authorization creates a new grant, so an authorization-scoped query would
+        lose sight of a call sent under the previous grant and wrongly unblock it.
+        """
 
         with self.database.connect() as connection:
             rows = connection.execute(
                 "SELECT call_id FROM llm_spend_ledger "
-                "WHERE authorization_id = ? AND state = 'sent' ORDER BY created_at",
-                (authorization_id,),
+                "WHERE scope_id = ? AND state = 'sent' ORDER BY created_at",
+                (run_id,),
             ).fetchall()
         return tuple(str(row["call_id"]) for row in rows)

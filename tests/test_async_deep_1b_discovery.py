@@ -54,8 +54,8 @@ def _grant(auth, run_id, *, deadline=None, spend_cny=10):
 
 
 def _pause(repository, run_id):
-    repository.acquire_lease(run_id, holder="worker-A")
-    repository.pause_run(run_id, reason="test")
+    held = repository.acquire_lease(run_id, holder="worker-A")
+    repository.pause_run(run_id, reason="test", lease=(held.holder, held.epoch))
 
 
 # --- 1B-3: entry boundary ------------------------------------------------

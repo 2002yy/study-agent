@@ -70,8 +70,8 @@ def _grant(auth, run_id, *, spend_cny=10, deadline=None):
 
 def _paused_authorized_run(service, repository, auth, *, topic="topic"):
     run = service.create(topic, owner_thread_id="thread-1")
-    repository.acquire_lease(run.id, holder="prep")
-    repository.pause_run(run.id, reason="prep")
+    prep = repository.acquire_lease(run.id, holder="prep")
+    repository.pause_run(run.id, reason="prep", lease=(prep.holder, prep.epoch))
     _expire_lease(repository.database, run.id)
     grant = _grant(auth, run.id)
     return run, grant
@@ -189,7 +189,7 @@ def test_crash_after_claim_before_any_paid_call_allows_recovery(env):
 
     crash = discovery.claim(run.id, holder="worker-A", ttl_seconds=90)
     assert crash.epoch >= 1
-    assert discovery.unconfirmed_calls(grant.id) == (), "nothing was ever sent"
+    assert discovery.unconfirmed_calls(run.id) == (), "nothing was ever sent"
 
     # The process dies; the lease is never released or heart-beaten.
     _expire_lease(database, run.id)
@@ -233,7 +233,7 @@ def test_process_exit_after_a_sent_call_prevents_a_second_send(env):
 
     call_id = guard.stable_call_id(run_id=run.id, purpose="planner", step="round-1")
     assert ledger.state(call_id) == "sent"
-    assert discovery.unconfirmed_calls(grant.id) == (call_id,)
+    assert discovery.unconfirmed_calls(run.id) == (call_id,)
 
     # Recovery must stop rather than pay again.
     with pytest.raises(ClaimRefused) as refusal:

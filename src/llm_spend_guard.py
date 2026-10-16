@@ -26,7 +26,6 @@ import contextlib
 import math
 import os
 import threading
-import uuid
 from contextvars import ContextVar
 
 DEFAULT_OUTPUT_TOKENS = 4_096
@@ -58,6 +57,8 @@ _reserved_cny = 0.0
 _ledger: object | None = None
 _account_id = "account"
 _scope: ContextVar[tuple[str, str] | None] = ContextVar("llm_spend_scope", default=None)
+#: 1B-R1: the execution fence of the work that owns the current scope.
+_lease: ContextVar[tuple[str, int] | None] = ContextVar("llm_spend_lease", default=None)
 
 
 def configure_ledger(repository: object | None, *, account_id: str = "account") -> None:
@@ -116,19 +117,22 @@ def settle_call(call_id: str, *, actual_micros: int, outcome: str = "settled") -
 
 
 @contextlib.contextmanager
-def bound_scope(authorization_id: str, scope_id: str):
+def bound_scope(authorization_id: str, scope_id: str, *, lease: tuple[str, int] | None = None):
     """1B: bind every paid call in the block to one run's authorization.
 
     Anything that spends on behalf of a research run must run inside this block,
     so the run's own cumulative ceiling governs its calls instead of only the
-    process-wide cap.
+    process-wide cap.  ``lease`` carries the execution fence when the work runs
+    under a claimed lease, so a superseded worker cannot start new paid requests.
     """
 
-    token = _scope.set((str(authorization_id), str(scope_id)))
+    scope_token = _scope.set((str(authorization_id), str(scope_id)))
+    lease_token = _lease.set(lease)
     try:
         yield
     finally:
-        _scope.reset(token)
+        _lease.reset(lease_token)
+        _scope.reset(scope_token)
 
 
 def reset_spend() -> None:
@@ -238,7 +242,15 @@ def reserve_call(
             prompt_chars=prompt_chars, max_tokens=max_tokens, attempts=attempts
         )
         authorization_id, scope_id = scope
-        resolved_call_id = call_id or f"{scope_id}:{purpose}:{uuid.uuid4().hex}"
+        if not call_id:
+            # 1B-R1: an authorization-scoped paid call must carry a recoverable
+            # identity.  A random id would make recovery unable to tell "already
+            # sent" from "never sent", so refuse instead of inventing one.
+            raise UncertainCall(
+                "an authorized paid call requires a stable call_id "
+                "(see stable_call_id); refusing to invent one"
+            )
+        resolved_call_id = call_id
         try:
             reservation = _ledger.reserve(  # type: ignore[attr-defined]
                 call_id=resolved_call_id,
@@ -250,6 +262,7 @@ def reserve_call(
                 extra={"prompt_chars": int(prompt_chars), "max_tokens": max_tokens,
                        "attempts": int(attempts)},
                 account_id=_account_id,
+                lease=_lease.get(),
             )
         except (LedgerLimitExceeded, SpendIdentityConflict) as exc:
             raise SpendLimitExceeded(str(exc)) from exc

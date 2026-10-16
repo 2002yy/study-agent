@@ -79,8 +79,8 @@ def _expire_lease(database, run_id):
 def _authorized_run(service, repository, auth, *, topic, items=None, context=None,
                     spend_cny=10):
     run = service.create(topic, owner_thread_id="thread-1")
-    repository.acquire_lease(run.id, holder="prep")
-    repository.pause_run(run.id, reason="prep")
+    prep = repository.acquire_lease(run.id, holder="prep")
+    repository.pause_run(run.id, reason="prep", lease=(prep.holder, prep.epoch))
     _expire_lease(repository.database, run.id)
     if items or context:
         with repository.database.connect() as connection:

@@ -46,8 +46,11 @@ def has_executable_work(run: Any) -> bool:
     context = getattr(run, "research_context", None)
     deep = context.get("deep") if isinstance(context, dict) else None
     if not isinstance(deep, dict):
-        # A run without a Deep plan always has its first round to do.
-        return getattr(run, "status", "") in {"pending", "paused", "failed"}
+        # A run without a Deep plan always has its first round to do.  ``running`` is
+        # included because a leaked ``running`` status means a previous holder died
+        # mid-round: takeover still has that round to finish.  Whether the run is
+        # actually free is answered by ``lease_available``, not by this predicate.
+        return getattr(run, "status", "") in {"pending", "paused", "failed", "running"}
     for task in deep.get("plan") or []:
         if isinstance(task, dict) and task.get("status") == "pending":
             return True

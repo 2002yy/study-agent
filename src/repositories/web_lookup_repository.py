@@ -446,12 +446,18 @@ class WebLookupRepository:
         stage: str,
         stale_after_seconds: int = 120,
         allow_cancelled_resume: bool = False,
+        lease: tuple[str, int] | None = None,
     ) -> WebLookupRun:
         """Acquire one run operation without allowing stale-owner writeback.
 
         ``allow_cancelled_resume`` defaults to **False**: a user cancellation is a
         terminal fact and must not be cleared by an ordinary resume (N13).  Only an
         explicit, user-authorised path may opt in.
+
+        ``lease`` (1B-R1) lets a worker that already claimed this run begin its
+        operation under the lease it owns.  The claim *is* the authority, so an
+        executor must not have to acquire a second, mutually unrecognised identity;
+        a live lease held by anybody else is still refused.
         """
 
         if not operation_id.strip() or not stage.strip():
@@ -469,17 +475,18 @@ class WebLookupRepository:
             if run.status == "cancelled" and not allow_cancelled_resume:
                 connection.rollback()
                 raise ValueError(f"WebLookupRun was cancelled by the user: {run_id}")
-            # L2: a legacy entry point must respect another executor's live lease.
+            # L2/1B-R1: respect a lease this caller does not own.
             lease_expiry = _parse_timestamp(_row_get(row, "lease_expires_at"))
-            if (
-                _row_get(row, "lease_holder")
-                and lease_expiry
-                and lease_expiry > datetime.now(timezone.utc)
-            ):
-                connection.rollback()
-                raise LeaseHeld(
-                    f"WebLookupRun is leased by {_row_get(row, 'lease_holder')}: {run_id}"
+            holder = _row_get(row, "lease_holder")
+            if holder and lease_expiry and lease_expiry > datetime.now(timezone.utc):
+                same_holder = bool(
+                    lease is not None
+                    and str(lease[0]) == str(holder)
+                    and int(lease[1]) == int(_row_get(row, "lease_epoch") or 0)
                 )
+                if not same_holder:
+                    connection.rollback()
+                    raise LeaseHeld(f"WebLookupRun is leased by {holder}: {run_id}")
             resumable_completed = run.status == "completed" and run.provider_status in {
                 "empty",
                 "partial",
@@ -489,8 +496,18 @@ class WebLookupRepository:
                 run.research_context,
                 stale_after_seconds,
             )
+            # 1B-R1: a claim already established this run's operation identity, so
+            # the holder that owns the live lease continues that operation instead of
+            # being rejected as a second writer.
+            continuing_claim = bool(
+                lease is not None
+                and run.status == "running"
+                and str(holder or "") == str(lease[0])
+                and int(_row_get(row, "lease_epoch") or 0) == int(lease[1])
+            )
             if not (
-                run.status in {"pending", "failed", "cancelled", "partial"}
+                continuing_claim
+                or run.status in {"pending", "failed", "cancelled", "partial"}
                 or resumable_completed
                 or recoverable_running
             ):
@@ -649,20 +666,64 @@ class WebLookupRepository:
                 f"WebLookupRun is leased by {run.lease_holder}; a lease fence is required"
             )
 
-    def pause_run(self, run_id: str, *, reason: str = "") -> WebLookupRun:
-        """running -> paused: work remains, but there is no execution entitlement."""
+    def pause_run(
+        self,
+        run_id: str,
+        *,
+        reason: str = "",
+        lease: tuple[str, int] | None = None,
+    ) -> WebLookupRun:
+        """running -> paused: work remains, but there is no execution entitlement.
 
+        1B-R1: parking clears the lease, so only the holder that actually owns the
+        live lease may do it.  A superseded worker's late error path must not be able
+        to pause the new worker's run or wipe its lease, so a live lease requires a
+        matching ``(holder, epoch)`` fence and the check happens under the write lock.
+        """
+
+        moment = datetime.now(timezone.utc)
         with self.database.connect() as connection:
-            connection.execute(
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM web_lookup_runs WHERE id = ?", (run_id,)
+            ).fetchone()
+            if row is None:
+                connection.rollback()
+                raise ValueError(f"WebLookupRun not found: {run_id}")
+            if str(row["status"]) != "running":
+                connection.rollback()
+                raise LeaseLost(f"WebLookupRun is not running: {run_id}")
+            holder = row["lease_holder"]
+            expires = _parse_timestamp(row["lease_expires_at"])
+            live = bool(holder) and (expires is None or expires > moment)
+            if live:
+                if lease is None:
+                    connection.rollback()
+                    raise LeaseLost(
+                        f"WebLookupRun is leased by {holder}; a lease fence is required to pause it"
+                    )
+                if str(lease[0]) != str(holder) or int(lease[1]) != int(row["lease_epoch"] or 0):
+                    connection.rollback()
+                    raise LeaseLost(f"A superseded holder cannot pause this run: {run_id}")
+            elif lease is not None and (
+                str(lease[0]) != str(holder or "") or int(lease[1]) != int(row["lease_epoch"] or 0)
+            ):
+                connection.rollback()
+                raise LeaseLost(f"A non-holder cannot pause this run: {run_id}")
+            cursor = connection.execute(
                 """
                 UPDATE web_lookup_runs
                 SET status = 'paused', lease_epoch = lease_epoch + 1,
                     lease_holder = NULL, lease_expires_at = NULL,
                     stop_reason = ?, updated_at = ?, version = version + 1
-                WHERE id = ? AND status = 'running'
+                WHERE id = ? AND status = 'running' AND version = ?
                 """,
-                (reason or "authorization_exhausted", utc_now(), run_id),
+                (reason or "authorization_exhausted", utc_now(), run_id, int(row["version"])),
             )
+            if cursor.rowcount != 1:
+                connection.rollback()
+                raise LeaseLost(f"WebLookupRun pause conflicted: {run_id}")
+            connection.commit()
         return self._required(run_id)
 
     def resume_run(self, run_id: str) -> WebLookupRun:
