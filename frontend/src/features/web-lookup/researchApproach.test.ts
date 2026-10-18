@@ -36,6 +36,14 @@ function progress(overrides: Partial<ChatResearchProgress> = {}): ChatResearchPr
 }
 
 describe("researchApproach merge", () => {
+  it("keeps legacy omissions but clears invalidated excerpts and isolates runs", () => {
+    const previous = progress({ findings: [{ id: "f1", kind: "source_excerpt", title: "source", url: "https://example.org", text: "old source text" }] });
+    expect(mergeResearchProgress(previous, progress({ version: 4 }))?.findings).toEqual(previous.findings);
+    const cleared = mergeResearchProgress(previous, progress({ version: 4, findings: [] }));
+    expect(cleared?.findings).toEqual([]);
+    expect(mergeResearchProgress(cleared, previous)?.findings).toEqual([]);
+    expect(mergeResearchProgress(previous, progress({ run_id: "other" }))?.findings).toBeUndefined();
+  });
   it("rejects stale progress and retains process blocks across checkpoints", () => {
     const previous = progress({ version: 3, narration: [{ block_id: "first", text: "first read" }] });
     const merged = mergeResearchProgress(previous, progress({ version: 4, narration: [{ block_id: "next", text: "additional search" }] }));

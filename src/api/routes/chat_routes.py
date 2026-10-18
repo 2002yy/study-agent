@@ -399,9 +399,9 @@ def _research_progress(run: Any) -> dict[str, Any]:
         if isinstance(candidate, dict):
             active_brief = candidate
 
-    def count(name: str) -> int:
+    def count(name: str, fallback: Any = 0) -> int:
         try:
-            return max(0, int(active_metrics.get(name) or 0))
+            return max(0, int(active_metrics.get(name, fallback) or 0))
         except (TypeError, ValueError):
             return 0
 
@@ -409,6 +409,8 @@ def _research_progress(run: Any) -> dict[str, Any]:
         step for step in deep.get("steps", []) if isinstance(step, dict)
     ]
     notes = [note for note in deep.get("notes", []) if isinstance(note, dict)]
+    read_summary = context.get("read_summary") if isinstance(context, dict) else None
+    successful_reads = read_summary.get("successful", 0) if isinstance(read_summary, dict) else 0
     last_step = steps[-1] if steps else None
     owner = context.get("owner") if isinstance(context, dict) else None
     turn_id = str(owner.get("turn_id") or "") if isinstance(owner, dict) else ""
@@ -433,7 +435,7 @@ def _research_progress(run: Any) -> dict[str, Any]:
         "query_attempt_count": len(run.query_attempts),
         "selected_source_count": len(run.selected_sources),
         "candidate_count": count("candidate_count"),
-        "read_count": count("read_count"),
+        "read_count": count("read_count", successful_reads),
         "cluster_count": count("cluster_count"),
         "open_critical_gap_count": count("open_critical_gap_count"),
         "active_phase": str(active_metrics.get("phase") or "") or None,

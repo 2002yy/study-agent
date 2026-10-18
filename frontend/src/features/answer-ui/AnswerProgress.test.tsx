@@ -23,6 +23,25 @@ function progress(overrides: Partial<ChatResearchProgress> = {}): ChatResearchPr
 }
 
 describe("AnswerProgress research opening", () => {
+  it("shows read excerpts before an answer with attribution and provisional wording", () => {
+    const { container } = render(<AnswerProgress hasContent={false} progress={progress({
+      read_count: 1, findings: [{ id: "f1", kind: "source_excerpt", title: "Official source", url: "https://example.org/source", text: "Useful source content <script>test</script>" }],
+    })} />);
+    expect(screen.getByRole("region", { name: "已读资料摘录" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Official source" })).toHaveAttribute("href", "https://example.org/source");
+    expect(screen.getByText(/仍在核对，不代表最终结论/)).toBeVisible();
+    expect(screen.getByText("Useful source content <script>test</script>")).toBeVisible();
+    expect(container.querySelector("script")).toBeNull();
+  });
+
+  it("rejects unsafe excerpt links and removes invalidated snapshots", () => {
+    const { rerender } = render(<AnswerProgress hasContent={false} progress={progress({
+      findings: [{ id: "f1", kind: "source_excerpt", title: "unsafe", url: "javascript:alert(1)", text: "unsafe" }],
+    })} />);
+    expect(screen.queryByRole("region", { name: "已读资料摘录" })).toBeNull();
+    rerender(<AnswerProgress hasContent={false} progress={progress({ findings: [] })} />);
+    expect(screen.queryByRole("region", { name: "已读资料摘录" })).toBeNull();
+  });
   it("renders the opening summary and focus while researching", () => {
     render(
       <AnswerProgress

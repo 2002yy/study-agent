@@ -147,7 +147,7 @@ def scenario(tmp_path: Path, monkeypatch):
     }
 
 
-def test_multimodal_research_uses_attachment_and_recomputes_after_correction(scenario):
+def test_multimodal_research_uses_attachment_and_recomputes_after_correction(scenario, monkeypatch):
     runtime = scenario["runtime"]
     attachments = scenario["attachments"]
     gateway = scenario["gateway"]
@@ -209,6 +209,15 @@ def test_multimodal_research_uses_attachment_and_recomputes_after_correction(sce
         return original_search(query, max_items=max_items)
 
     gateway.search = search
+    snapshots = []
+    checkpoint = service.repository.checkpoint
+
+    def capture_checkpoint(*args, **kwargs):
+        saved = checkpoint(*args, **kwargs)
+        snapshots.append(_research_progress(saved))
+        return saved
+
+    monkeypatch.setattr(service.repository, "checkpoint", capture_checkpoint)
     completed = service.execute(run.id)
 
     # --- Computation surface: old result retires, new one is computed --------
@@ -234,6 +243,9 @@ def test_multimodal_research_uses_attachment_and_recomputes_after_correction(sce
     progress = _research_progress(completed)
     assert [item["status"] for item in progress["steering"]] == ["applied"]
     assert progress["narration"]
+    assert progress["read_count"] == 1
+    assert any(event["status"] == "running" and event["findings"] for event in snapshots)
+    assert all(SCREENSHOT_TEXT not in str(event["findings"]) for event in snapshots)
     # The attachment's own text never leaks into the published source block
     # (the search query legitimately mentions the character's name).
     assert SCREENSHOT_TEXT not in completed.source_block

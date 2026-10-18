@@ -16,7 +16,7 @@ const stages: Record<string, string> = {
  * surface (`ChatResearchRecovery`) suppresses its duplicate status.
  *
  * Everything here is display-only: it never feeds the answer text or the copy
- * buffer, and raw provider detail is never surfaced (only honest counts).
+ * buffer. Source excerpts carry their own attribution and remain provisional.
  */
 export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; progress?: ChatResearchProgress | null }) {
   const researching = isResearchActive(progress);
@@ -24,6 +24,9 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
   const failed = progress?.status === "failed";
   const summary = approachSummary(progress);
   const focus = approachFocus(progress);
+  const findings = (progress?.findings ?? []).filter(finding =>
+    finding.kind === "source_excerpt" && /^https?:\/\//i.test(finding.url)
+  ).slice(-3);
   const statusText = researching
     ? stages[progress!.stage] ?? "正在查找资料"
     : cancelled
@@ -37,7 +40,7 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
             : "正在组织回答";
   const read = progress?.read_count ?? 0;
   // Honest insufficiency: never dress "no usable text yet" up as progress.
-  const insufficient = researching && read === 0;
+  const insufficient = researching && read === 0 && findings.length === 0;
   return <div className="answer-progress" role="status" aria-live="polite">
     {/* Terminal states must not keep spinning. */}
     {researching ? <Loader2 className="spin" size={14} /> : null}
@@ -47,6 +50,16 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
     <span className="answer-progress-status">{statusText}</span>
     {researching ? <span className="answer-progress-counts">查询 {progress!.query_attempt_count} · 已读 {read}</span> : null}
     {insufficient ? <span className="answer-progress-note">暂未取得可用正文，正在尝试其他来源。</span> : null}
+    {findings.length ? <section className="research-findings" aria-label="已读资料摘录">
+      <strong>先看看已读到的内容</strong>
+      <p className="research-findings-note">以下是来源原文摘录，仍在核对，不代表最终结论。</p>
+      <ul>
+        {findings.map(finding => <li key={finding.id}>
+          <a href={finding.url} target="_blank" rel="noopener noreferrer">{finding.title}</a>
+          <blockquote>{finding.text}</blockquote>
+        </li>)}
+      </ul>
+    </section> : null}
     {progress?.narration?.length ? <details className="research-narration">
       <summary>查看搜索过程与失败原因</summary>
       <ol aria-label="研究过程">

@@ -36,6 +36,9 @@ export function mergeResearchProgress(
     ...incoming,
     approach: mergeApproach(previous.approach, incoming.approach),
     narration: Array.from(blocks.values()).slice(-12),
+    // Findings are a snapshot: [] explicitly removes excerpts invalidated by
+    // steering. Legacy events that omit the field preserve the current view.
+    findings: incoming.findings ?? previous.findings,
   };
 }
 

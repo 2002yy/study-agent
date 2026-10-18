@@ -13,6 +13,58 @@ from src.web.research.steering import (
     active_steering_entries,
     is_active_claim_engine_context,
 )
+from src.web.tool_evidence import _public_url
+
+
+def _source_excerpts(run: Any, deep: Mapping[str, Any]) -> list[dict[str, str]]:
+    """Project live Deep notes backed by successful reads, never search snippets.
+
+    These are attributed page excerpts, not synthesized or verified conclusions.
+    A new snapshot removes notes invalidated by steering; no authority is written.
+    """
+    records = {}
+    for record in run.selected_sources:
+        if not isinstance(record, dict):
+            continue
+        assessment = record.get("assessment") or {}
+        item = record.get("item") or {}
+        if isinstance(assessment, dict) and isinstance(item, dict):
+            records[str(assessment.get("url") or item.get("url") or "")] = record
+    excerpts: list[dict[str, str]] = []
+    seen: set[str] = set()
+    notes = deep.get("notes")
+    for note in reversed(notes if isinstance(notes, list) else []):
+        if not isinstance(note, dict) or note.get("superseded"):
+            continue
+        requested_url = str(note.get("url") or "")
+        record = records.get(requested_url, {})
+        read = record.get("read") or {}
+        assessment = record.get("assessment") or {}
+        if not isinstance(read, dict) or not isinstance(assessment, dict):
+            continue
+        if assessment.get("worth_reading") is not True or read.get("status") != "read":
+            continue
+        if str(read.get("ok")).lower() != "true" or read.get("error") or read.get("answer_eligible") is False:
+            continue
+        if read.get("requested_url") and read["requested_url"] != requested_url:
+            continue
+        try:
+            url = _public_url(read.get("url") or requested_url) if _public_url(requested_url) else ""
+        except ValueError:
+            continue
+        text = " ".join(str(note.get("facts") or "").split())[:280]
+        body = " ".join(str(read.get("content") or read.get("readme") or "").split())
+        if not url or url in seen or not text or text not in body:
+            continue
+        seen.add(url)
+        excerpts.append({
+            "id": f"{run.id}:excerpt:" + hashlib.sha256(f"{url}:{text}".encode()).hexdigest()[:20],
+            "url": url, "title": str(note.get("title") or url)[:160], "text": text,
+            "kind": "source_excerpt",
+        })
+        if len(excerpts) == 3:
+            break
+    return list(reversed(excerpts))
 
 
 def steering_supported(context: Mapping[str, Any]) -> bool:
@@ -117,6 +169,7 @@ def interaction_event(run: Any) -> dict[str, Any]:
         "steering_supported": steering_supported(context),
         "steering": receipts,
         "narration": blocks[-12:],
+        "findings": _source_excerpts(run, deep),
         "budget_extension": "configured"
         if isinstance(deep.get("incremental_budget"), dict)
         else "not_configured",

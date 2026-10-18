@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-18 最新切片：研究未结束先显示已读资料摘录（本地，未合并）。** 分支 `codex/research-early-findings-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base `facb8f37062029df95276a52f29d2abf5e28281a`；提交由本段所在Git提交恢复。只读投影当前Deep笔记与成功读取正文：候选摘要、失败/不可用正文、私网/非法URL、无正文依据的笔记与已失效笔记均不展示。最多3条/每条280字、稳定身份、原文出处；SSE `findings` 快照在转向时清除失效项，低版本拒绝/跨run隔离，旧事件省略字段兼容。聊天中直接可读，标注仍在核对；不进入答案token/复制文本/证据权威，不新增模型或工具请求。Deep已读数量改用既有read_summary，Active计数优先不变。**这是阶段性来源摘录，不是完成了模型阶段性综合答案。**
+
+本片L1 `research_early_findings` **164 PASS / 1 SKIP / 152.83s**，前端影响集 **59 PASS**，桌面/移动浏览器 **2 PASS / 6.1s**（最终答案前可见出处和正文、原研究可继续插话），build/Ruff/diff-check PASS，mypy122/128 NEW0。真实SQLite checkpoint观察到运行中已有摘录；附件文本未混入网页摘录；无L3、无新CI/推送/PR/合并/部署。日志 `D:/study-agent-validation/early-findings-{backend,frontend,browser,build,mypy}.log`。本机/项目配置只读检查未发现 Guardian旧字段，未改用户配置。
+
+**最新用户反馈与唯一下一片（覆盖下方旧NEXT）：UI需要克制、疏朗；纳西妲头像不能是灰占位。** 检查真实头像/fixture差异，收敛消息头、研究状态和输入区的边框、体积与重复说明，保持已有选附件、追加/排队、停止、过程展开行为；用桌面/移动截图复核。这是六项通用能力中的智能UI与连续交互改进，非学习系统扩张。
+
 **2026-10-18 当前执行片：下一轮问题的附件保存/恢复/发送（本地，未合并）。** 分支 `codex/chat-queue-attachments-20261018`，工作树 `D:/study-agent-validation/chat-steer-attachments`，base 为上一片 **`1ecf7b47ce6352c6ebb11dda4d4fff3270126378`**；提交由本段所在 Git 提交恢复，审阅仅 `1ecf7b47..HEAD`。原 `codex/chat-steer-attachments-20261018` 分支停留在1ecf，保留独立切片。队列现在保存服务端附件身份（ID/hash/filename），不把附件放入当前研究；恢复后手动发送仅带该条选择，并重走本会话/ready检查。无效或绑定期间消失的附件拒绝整个入队；同请求ID改选附件拒绝；文本相同但附件ID/hash不同的已完成turn不能隐藏或完成队列。UI显示附件数量；失败保留选择、成功清除本次选择，网络重试保持身份。兼容旧无附件队列，无数据库迁移/新执行权威，未扩展当前研究的工具权限。验证与最新下一片见下方。
 
 **当前片证据：** 命名后端L1 `chat_queue_attachments` **72 PASS / 31.30s**（含真实SQLite重载/旧checkpoint合并、旧纯文字队列、同ID改附件拒绝、跨会话/未就绪/删除/绑定时消失负控、错误文件/同ID不同内容hash不能冒充已交付）；前端影响集 **75 PASS**（API载荷、失败重试身份、更改选择新身份、队列恢复与后续turn附件）；桌面+移动focused浏览器 **2 PASS / 7.3s**（入队503保留选择、重试同身份、只在后续turn发送该附件）；TypeScript/Vite build、全范围Ruff、diff-check PASS，mypy **122/128 NEW=0**。仅队列接线的有界L1，无L3；JSON已有队列条目增加可选refs，旧条目按空附件处理，未变schema/cursor/研究权威。运行日志 `D:/study-agent-validation/chat-queue-{impact,backend,browser,build,mypy}.log`；源码与交接在本提交后保持干净。无新远端CI、未推送/PR/合并/部署，不授予真实模型/研究质量GO。
