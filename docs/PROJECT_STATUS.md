@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-18 CL-1B：受控模型决策调用，独立 main 合并候选（覆盖本分支旧 NEXT）。** 用户授权“本分支内实现受控模型决策调用，成功实现即合并 main”，并要求评估整条产品线能否一起合入。已评估冻结产品 head `0c818515` 的 98 文件：真实验收 A 仍 FAIL、最终 head 无 PR/CI，旧 L3 不覆盖后续生产变更，故整线 NO-GO，详见 [PRODUCT_LINE_MATURITY_20261018.md](PRODUCT_LINE_MATURITY_20261018.md)。保留原线于 `codex/conversation-agent-loop-product-base-20261018`；当前 branch `codex/conversation-agent-loop-20261018` 已将自身提交移植到 exact main base `335fc9b7875b848f202122362f2e0f8b5a9db0ee`，不带入产品线 schema/UI/工具/费用代码，也不依赖其他窗口 WIP。候选 head 以本段所在 Git 提交恢复。
+
+新增 `conversation_decision_runner.py`：单次异步可注入模型调用、调用/提示字符/输出 token 原子准入、request 去重、有限等待、取消保留预留、迟到结果丢弃、严格响应解析与最新上下文校验、异常脱敏。上下文容器限制为不可变快照。仅返回动作提议；不执行工具、不切换生产聊天路由、不新增 SDK 或真实付费调用。进程内 budget 不冒充持久人民币费用台账；真实提供商接线与持久费用/重启幂等另属 CL-1C。用户授权的合并范围为本独立候选，非整个产品线。
+
+本地 L1 `conversation_decision_1b` **113 PASS / 30.44s**（含真实 loopback HTTP 传输，以及超时吞取消、迟到、外部取消、并发限额、重复请求、无效 JSON/重复键、过期上下文、上下文读取失败）。全仓 Ruff、新文件 format-check PASS；mypy **122/128 NEW0**。验证日志 `D:/study-agent-validation/conversation-agent-loop-1b-mypy.log`。初始 Git fetch 的 schannel 连接异常，改为命令级 openssl 后成功，未更改 Git 全局配置。合并前需干净候选 preflight、完整回归、最终增量审阅与 exact-head CI；尚未宣称合并。下一动作：提交本候选，检查完整 diff 范围，跑所需最终门并 expected-head 合并。CL-1C 在合并完成后另开片。
+
 **2026-10-18 CL-1A：对话行动合同独立推进（覆盖下方 CL-0/IA-1A 依赖与旧 NEXT）。** 用户要求“新工作树不要直接依赖其余开发中的工作树的结果，另选方向推进”；本分支只依赖固定已提交产品 base `0c8185151f694926941d3e5801f65f1df72fc65c` 与自身提交，不导入其他窗口 WIP、不等待其输出。branch `codex/conversation-agent-loop-20261018`，worktree `D:/study-agent-validation/conversation-agent-loop-20261018`，本片 base `494f13f10d12c3a1230834de2d85b7907ec4913d`；候选 head 由本段所属 Git 提交恢复。调整后的任务合同见 [CONVERSATION_AGENT_LOOP_PLAN.md](CONVERSATION_AGENT_LOOP_PLAN.md)。新增 `src/application/conversation_decision.py`：有界上下文/模型输入、六类行动提议、精确 envelope 校验、请求与研究版本绑定、工具能力及剩余调用预算检查。新话题可回答或用工具且保留原研究；不支持转向、非法排队、跨 run/陈旧版本、未知工具和额外执行字段被明确拒绝。仅合同/校验器，无 I/O，无生产路由切换、模型/工具执行、预算预留、状态落盘或答案权威；不是实际意图识别质量或完整对话循环验收。
 
 **CL-1A 验证：** 命名 L1 `conversation_decision_1a`（自身 + router + task_contract + research_interaction + stage_gates_policy）**99 PASS / 29.80s**；全仓 Ruff PASS、新文件 format-check PASS、mypy baseline **122/128 NEW0**、diff-check PASS。首轮 97 PASS/2 FAIL：无 active run 的两项负控仍携带 `keep`，先触发 disposition 拒绝而非预期的 run 拒绝；仅修测试输入为 `none` 后影响集通过，无旧测试未知失败。mypy 日志 `D:/study-agent-validation/conversation-agent-loop-20261018-mypy.log`，生成缓存移至工作树外保留；本片按显式路径提交后应干净。无 L3：新增隔离合同尚未成为共享生产权威；无 UI 改动，未启动浏览器/构建。无付费调用、推送、PR、新 CI、合并或部署。**唯一下一片 CL-1B：** 在本分支接可注入、受预算/超时控制的模型决策调用，验证响应 → 提议校验与失败语义；生产接线另设门，不等待其他分支的计时或增量回复成果。

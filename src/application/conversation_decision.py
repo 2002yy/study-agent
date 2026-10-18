@@ -59,9 +59,12 @@ class DecisionContext:
     def __post_init__(self) -> None:
         _text(self.request_id, "request_id", 160)
         _text(self.user_message, "user_message", 8000)
-        if len(self.history) > 12:
+        if not isinstance(self.history, tuple) or len(self.history) > 12:
             raise ValueError("history must be bounded by caller")
-        for role, content in self.history:
+        for item in self.history:
+            if not isinstance(item, tuple) or len(item) != 2:
+                raise ValueError("history entries must be immutable role/content pairs")
+            role, content = item
             if role not in {"user", "assistant"}:
                 raise ValueError("invalid history role")
             _text(content, "history content", 8000)
@@ -70,12 +73,19 @@ class DecisionContext:
             or len(self.evidence_summary) > 8000
         ):
             raise ValueError("invalid evidence summary")
-        if len(self.available_tools) > 16 or len(set(self.available_tools)) != len(
-            self.available_tools
+        if (
+            not isinstance(self.available_tools, tuple)
+            or len(self.available_tools) > 16
         ):
             raise ValueError("invalid tool catalog")
         for tool in self.available_tools:
             _text(tool, "tool", 80)
+        if len(set(self.available_tools)) != len(self.available_tools):
+            raise ValueError("invalid tool catalog")
+        if self.active_research is not None and not isinstance(
+            self.active_research, ActiveResearch
+        ):
+            raise ValueError("invalid active research snapshot")
         if type(self.remaining_tool_calls) is not int or self.remaining_tool_calls < 0:
             raise ValueError("invalid tool budget")
         if type(self.supports_queue) is not bool:
