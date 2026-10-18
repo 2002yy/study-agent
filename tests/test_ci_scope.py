@@ -5,6 +5,55 @@ from __future__ import annotations
 from tools.ci_scope import classify, classify_path
 
 
+def test_exact_conversation_decision_paths_select_their_registered_impact_set():
+    paths = [
+        "src/application/conversation_decision.py",
+        "src/application/conversation_decision_runner.py",
+        "tests/test_conversation_decision.py",
+        "tests/test_conversation_decision_runner.py",
+    ]
+    for path in paths:
+        result = classify([path])
+        assert classify_path(path) == "conversation-decision"
+        assert result["impact_set"] == "conversation_decision_1b"
+        assert not result["full_scope"]
+        assert not result["frontend_required"]
+        assert not result["browser_required"]
+        assert not result["qualification_required"]
+    result = classify(paths + ["docs/PROJECT_STATUS.md", "tests/stage_gates.json"])
+    assert result["impact_set"] == "conversation_decision_1b"
+
+
+def test_conversation_mapping_resolves_to_real_tests_and_covers_both_modules():
+    from tools.run_stage_gate import load_manifest, resolve
+
+    paths = resolve(load_manifest(), impact_set="conversation_decision_1b")
+    assert "tests/test_conversation_decision.py" in paths
+    assert "tests/test_conversation_decision_runner.py" in paths
+
+
+def test_conversation_prefix_is_not_a_blanket_subsystem_exclusion():
+    for path in (
+        "src/application/conversation_decision_new.py",
+        "src/application/chat_service.py",
+        "tests/test_conversation_decision_other.py",
+    ):
+        result = classify(["src/application/conversation_decision.py", path])
+        assert result["impact_set"] == ""
+        assert classify_path(path) != "conversation-decision"
+
+
+def test_conversation_mixed_with_real_infrastructure_never_narrows_the_gate():
+    for path in (
+        "tools/ci_scope.py", "tests/test_ci_scope.py",
+        "src/domain/runtime_entities.py", "src/infrastructure/sqlite/database.py",
+        "src/web/research/standard_execution.py", "frontend/src/types.ts",
+        "tests/test_rq1c_protocol_probes.py", "unknown/file.py",
+    ):
+        result = classify(["src/application/conversation_decision.py", path])
+        assert result["impact_set"] == "", path
+
+
 # --- path classification --------------------------------------------------------
 
 
