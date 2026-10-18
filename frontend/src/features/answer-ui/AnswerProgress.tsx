@@ -41,6 +41,12 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
   const read = progress?.read_count ?? 0;
   // Honest insufficiency: never dress "no usable text yet" up as progress.
   const insufficient = researching && read === 0 && findings.length === 0;
+  const gaps = (progress?.reading_gaps ?? []).slice(0, 3);
+  const groups = new Map<string, typeof findings>();
+  for (const finding of findings) {
+    const question = finding.question ?? "";
+    groups.set(question, [...(groups.get(question) ?? []), finding]);
+  }
   return <div className="answer-progress" role="status" aria-live="polite">
     {/* Terminal states must not keep spinning. */}
     {/* Research opening: display-only, never part of the answer text. */}
@@ -52,14 +58,16 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
       {researching ? <span className="answer-progress-counts">查询 {progress!.query_attempt_count} · 已读 {read}</span> : null}
     </div>
     {insufficient ? <span className="answer-progress-note">暂未取得可用正文，正在尝试其他来源。</span> : null}
-    {findings.length ? <section className="research-findings" aria-label="已读资料摘录">
+    {findings.length || (gaps.length && (read > 0 || !researching)) ? <section className="research-findings" aria-label="已读资料摘录">
       <div className="research-findings-heading"><span>已读资料</span><span className="research-findings-note">原文摘录，尚非结论</span></div>
-      <ul>
-        {findings.map(finding => <li key={finding.id}>
-          <a href={finding.url} target="_blank" rel="noopener noreferrer">{finding.title}</a>
-          <blockquote>{finding.text}</blockquote>
-        </li>)}
-      </ul>
+      {Array.from(groups, ([question, excerpts]) => <div className="research-finding-group" key={question}>
+        {question ? <p className="research-finding-question">{question}</p> : null}
+        <ul>{excerpts.map(finding => <li key={finding.id}>
+            <a href={finding.url} target="_blank" rel="noopener noreferrer">{finding.title}</a>
+            <blockquote>{finding.text}</blockquote>
+        </li>)}</ul>
+      </div>)}
+      {gaps.length ? <p className="research-reading-gaps">暂无正文：{gaps.join("；")}</p> : null}
     </section> : null}
     {progress?.narration?.length ? <details className="research-narration">
       <summary>查看搜索过程与失败原因</summary>

@@ -31,9 +31,9 @@ def _source_excerpts(run: Any, deep: Mapping[str, Any]) -> list[dict[str, str]]:
         if isinstance(assessment, dict) and isinstance(item, dict):
             records[str(assessment.get("url") or item.get("url") or "")] = record
     excerpts: list[dict[str, str]] = []
-    seen: set[str] = set()
+    seen: set[tuple[str, str]] = set()
     notes = deep.get("notes")
-    for note in reversed(notes if isinstance(notes, list) else []):
+    for note in reversed(notes[-80:] if isinstance(notes, list) else []):
         if not isinstance(note, dict) or note.get("superseded"):
             continue
         requested_url = str(note.get("url") or "")
@@ -53,18 +53,56 @@ def _source_excerpts(run: Any, deep: Mapping[str, Any]) -> list[dict[str, str]]:
         except ValueError:
             continue
         text = " ".join(str(note.get("facts") or "").split())[:280]
+        question = " ".join(str(note.get("sub_question") or "").split())[:160]
         body = " ".join(str(read.get("content") or read.get("readme") or "").split())
-        if not url or url in seen or not text or text not in body:
+        if not url or (url, question) in seen or not text or text not in body:
             continue
-        seen.add(url)
+        seen.add((url, question))
         excerpts.append({
-            "id": f"{run.id}:excerpt:" + hashlib.sha256(f"{url}:{text}".encode()).hexdigest()[:20],
+            "id": f"{run.id}:excerpt:" + hashlib.sha256(f"{url}:{text}:{question}".encode()).hexdigest()[:20],
             "url": url, "title": str(note.get("title") or url)[:160], "text": text,
             "kind": "source_excerpt",
+            "question": question,
         })
-        if len(excerpts) == 3:
-            break
     return list(reversed(excerpts))
+
+
+def _reading_material(run: Any, deep: Mapping[str, Any]) -> dict[str, Any]:
+    """Organize excerpts by actual plan questions; body coverage is not support."""
+    excerpts = _source_excerpts(run, deep)
+    plan = deep.get("plan")
+    corrections = deep.get("corrections")
+    old_terms = [str(change.get("old") or "").casefold() for change in
+                 (corrections if isinstance(corrections, list) else []) if isinstance(change, dict)]
+    excerpts = [excerpt for excerpt in excerpts if not any(
+        term and term in excerpt["question"].casefold() for term in old_terms
+    )]
+    questions: list[str] = []
+    for task in plan[:12] if isinstance(plan, list) else []:
+        if not isinstance(task, dict) or task.get("status") in {"superseded", "cancelled"}:
+            continue
+        question = " ".join(str(task.get("sub_question") or "").split())[:160]
+        if question and question not in questions and not any(term and term in question.casefold() for term in old_terms):
+            questions.append(question)
+    # Reserve one slot per question before filling spare slots. A comparison
+    # must not hide one side simply because the other side has more sources.
+    selected: list[dict[str, str]] = []
+    for question in questions:
+        matching = [excerpt for excerpt in excerpts if excerpt["question"] == question]
+        if matching:
+            selected.append(matching[-1])
+        if len(selected) == 3:
+            break
+    for excerpt in reversed(excerpts):
+        if len(selected) == 3:
+            break
+        if excerpt not in selected:
+            selected.append(excerpt)
+    covered = {excerpt["question"] for excerpt in excerpts}
+    return {
+        "findings": selected,
+        "reading_gaps": [question for question in questions if question not in covered][:3],
+    }
 
 
 def steering_supported(context: Mapping[str, Any]) -> bool:
@@ -169,7 +207,7 @@ def interaction_event(run: Any) -> dict[str, Any]:
         "steering_supported": steering_supported(context),
         "steering": receipts,
         "narration": blocks[-12:],
-        "findings": _source_excerpts(run, deep),
+        **_reading_material(run, deep),
         "budget_extension": "configured"
         if isinstance(deep.get("incremental_budget"), dict)
         else "not_configured",

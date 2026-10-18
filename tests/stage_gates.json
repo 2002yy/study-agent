@@ -29,6 +29,15 @@
     }
   },
   "impact_sets": {
+    "research_question_groups": [
+      "tests/test_early_research_findings.py",
+      "tests/test_research_interaction.py",
+      "tests/test_multimodal_research_integration.py",
+      "tests/test_chat_research_run_owner.py",
+      "tests/test_research_answer_streaming.py",
+      "tests/test_web_lookup_deep_research.py",
+      "tests/test_stage_gates_policy.py"
+    ],
     "research_early_findings": [
       "tests/test_early_research_findings.py",
       "tests/test_research_interaction.py",

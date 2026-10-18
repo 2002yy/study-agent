@@ -39,6 +39,7 @@ export function mergeResearchProgress(
     // Findings are a snapshot: [] explicitly removes excerpts invalidated by
     // steering. Legacy events that omit the field preserve the current view.
     findings: incoming.findings ?? previous.findings,
+    reading_gaps: incoming.reading_gaps ?? previous.reading_gaps,
   };
 }
 

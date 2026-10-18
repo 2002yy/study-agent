@@ -94,3 +94,67 @@ def test_active_metrics_remain_authoritative_for_active_read_count():
     run = research_run()
     run.research_context["claim_engine_metrics"] = {"read_count": 7}
     assert _research_progress(run)["read_count"] == 7
+
+
+def test_comparison_reserves_space_for_each_question_and_reports_real_body_gaps():
+    run = research_run()
+    run.selected_sources = []
+    deep = run.research_context["deep"]
+    deep["plan"] = [{"sub_question": question, "status": "done"} for question in ["Photoshop scripting", "GIMP scripting", "PSD compatibility"]]
+    deep["notes"] = []
+    for index, question in enumerate(["GIMP scripting"] + ["Photoshop scripting"] * 5):
+        url = f"https://example.org/{index}"
+        text = f"Read body {index}"
+        deep["notes"].append({"url": url, "title": str(index), "facts": text, "sub_question": question})
+        run.selected_sources.append({
+            "item": {"url": url}, "assessment": {"url": url, "worth_reading": True},
+            "read": {"ok": True, "status": "read", "content": text},
+        })
+    before = deepcopy(vars(run))
+    event = interaction_event(run)
+    assert len(event["findings"]) == 3
+    assert {item["question"] for item in event["findings"]} == {"Photoshop scripting", "GIMP scripting"}
+    assert event["reading_gaps"] == ["PSD compatibility"]
+    # Execution's done flag cannot manufacture a source for the third question.
+    assert vars(run) == before
+
+
+def test_same_page_can_supply_two_questions_without_colliding_excerpt_identity():
+    run = research_run()
+    deep = run.research_context["deep"]
+    first = deep["notes"][0]
+    first["sub_question"] = "first dimension"
+    deep["notes"].append({**first, "sub_question": "second dimension"})
+    deep["plan"] = [{"sub_question": question, "status": "done"} for question in ["first dimension", "second dimension"]]
+    event = interaction_event(run)
+    assert len(event["findings"]) == 2
+    assert len({item["id"] for item in event["findings"]}) == 2
+    assert event["reading_gaps"] == []
+
+
+def test_corrected_and_cancelled_questions_do_not_reappear_as_sources_or_gaps():
+    run = research_run()
+    deep = run.research_context["deep"]
+    deep["notes"][0]["sub_question"] = "RTX 4060 measurements"
+    deep["corrections"] = [{"old": "4060", "new": "5060"}]
+    deep["plan"] = [
+        {"sub_question": "RTX 4060 measurements", "status": "done"},
+        {"sub_question": "RTX 5060 measurements", "status": "pending"},
+        {"sub_question": "cancelled task", "status": "cancelled"},
+    ]
+    event = interaction_event(run)
+    assert event["findings"] == []
+    assert event["reading_gaps"] == ["RTX 5060 measurements"]
+    deep["plan"] = []
+    assert interaction_event(run)["reading_gaps"] == []
+
+
+def test_display_cap_does_not_turn_hidden_read_material_into_a_false_gap():
+    run = research_run()
+    deep = run.research_context["deep"]
+    note = dict(deep["notes"][0])
+    deep["plan"] = [{"sub_question": f"question {index}", "status": "done"} for index in range(4)]
+    deep["notes"] = [{**note, "sub_question": task["sub_question"]} for task in deep["plan"]]
+    event = interaction_event(run)
+    assert len(event["findings"]) == 3
+    assert event["reading_gaps"] == []

@@ -1,12 +1,18 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-18（完整聊天产品主线；真实角色头像与克制聊天UI）
+> 更新：2026-10-18（完整聊天产品主线；阶段性资料按研究问题组织）
 > 产品定义：**Study Agent 是体验接近 GPT-6 Chat 的智能聊天与研究 Agent。自然聊天、自主研究、持续交互、智能 UI、统一多模态、工具执行是六项通用核心能力；长期学习与教学是其上的专业场景。**
 
 本文件只维护当前权威状态、可复核边界和唯一下一门。2026-10-06 本次收敛前的完整状态原样归档到 [`archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`](archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md)；更早历史继续由既有 archive 与 Git 历史持有。
 
 ## 0. Current Handoff（cold-start 入口）
+
+**2026-10-18 最新片：已读资料按真实研究问题分组（本地，未合并；覆盖下方旧NEXT）。** branch `codex/research-question-groups-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base **`e167c6657306f3986f4ca96210f14443bb6ce231`**；本段所在Git提交即修复head，审阅仅base后的增量。改善六项能力中的搜索分析/边研究边交互：从既有Deep plan/notes/成功读取正文只读投影问题归属，最多3条摘录优先覆盖不同问题，避免比较题被单侧较多来源淹没；同网页可服务不同问题、身份不冲突。按全部合格读取材料计算`reading_gaps`，不把展示上限误作缺资料；done状态不能制造已读材料，纠正/取消的旧问题不再当作来源或缺口。UI沿用无外框分组与一条低强调的“暂无正文”提示，第二侧资料到达后撤掉对应提示、保留第一侧且不重复。旧事件可省略新增字段，显式空快照清除过期项，低版本/跨run隔离保持。
+
+验证：命名L1 `research_question_groups` **76 PASS / 1 SKIP / 30.35s**；新增展示上限负控后仅自身模块复验 **18 PASS / 4.60s**（未声称整个命名集重跑）；前端影响集 **60 PASS**；320/390/768/1440px focused浏览器 **4 PASS / 10.9s**，覆盖单侧缺资料→双侧出现/缺口消失/原资料不重复及附件补充/排队链路；build/Ruff/diff-check PASS，mypy122/128 NEW0。日志 `D:/study-agent-validation/question-groups-{backend,cap-check,frontend,browser,build,mypy}.log`，截图仍在既有conversation目录。只新增展示字段与投影，不写研究计划/证据资格/答案token，不新增模型或工具调用、不改schema/cursor/预算；未动头像与上一片布局，桌面96px/手机80px约束保持。无L3、新CI、推送/PR/合并/部署；提交后工作树干净。
+
+**唯一下一片：有来源的阶段性归纳。** 本片仍是组织原文材料，不等于模型已生成阶段性综合答案。下一片先复用已有模型综合/复核输出，接通研究中可阅读的归纳与其出处；不以更多过程标签替代内容，不增建独立研究状态机，不提前授予正式答案/研究质量GO。学习与教学仍为六项通用能力之上的专业场景。
 
 **2026-10-18 当前片：保持大头像比例的聊天UI收简（本地，未合并）。** 分支 `codex/chat-ui-restraint-20261018`，工作树 `D:/study-agent-validation/chat-steer-attachments`，base **`a9efb72212c40b84a86bdc4a4165d98ef3ba2140`**；提交由本段所在Git提交恢复，审阅只看该base之后。**用户明确约束：角色头像不能缩成小消息图标；桌面保持既有96px，手机保持既有80px及相对视觉比例。不得为了留白而缩小头像。** 原截图灰头像来自 `frontend/e2e/api-fixture.ts` 返回灰圆SVG，真实资源 `assets/avatars/nahida.png` 正常；测试改用真实512px图片，浏览器断言图片加载与原有外框尺寸。
 

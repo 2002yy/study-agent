@@ -20,8 +20,12 @@ test("two supplements and one queued task stay in one continuous research conver
     run_id: "run-live", status, stage: status === "running" ? "searching" : "completed",
     provider_status: "", stop_reason: "", error: "", query_attempt_count: version,
     selected_source_count: 1, version, steering_supported: true,
-    read_count: 1,
-    findings: [{ id: "run-live:excerpt:1", kind: "source_excerpt", title: "已读来源：自动化接口", url: "https://example.org/automation", text: "该工具支持通过脚本接口执行图层操作，可继续核对具体兼容范围。" }],
+    read_count: version >= 3 ? 2 : 1,
+    findings: [
+      { id: "run-live:excerpt:1", kind: "source_excerpt", title: "已读来源：自动化接口", url: "https://example.org/automation", text: "该工具支持通过脚本接口执行图层操作，可继续核对具体兼容范围。", question: "Photoshop 自动化接口" },
+      ...(version >= 3 ? [{ id: "run-live:excerpt:2", kind: "source_excerpt", title: "开源工具文档", url: "https://example.org/open-tool", text: "该开源工具提供脚本调用方式，具体兼容范围仍需核对。", question: "开源替代品的兼容范围" }] : []),
+    ],
+    reading_gaps: version >= 3 ? [] : ["开源替代品的兼容范围"],
     approach: { status: "ready", summary: "我会先比较功能与 PSD 兼容性，再核对哪些操作能由 Agent 完成。", focus: [], origin: "model_plan", sequence: 1, mode: "deep" },
     steering: steeringState(version),
     narration: [{ block_id: "run-live:search:1", text: "已开始检索候选资料，接下来读取正文。" },
@@ -153,6 +157,8 @@ test("two supplements and one queued task stay in one continuous research conver
     await page.screenshot({ path: testInfo.outputPath("research-opening.png"), fullPage: true });
     // The first read-backed content is visible before any answer token or done.
     await expect(page.getByRole("region", { name: "已读资料摘录" })).toBeVisible();
+    await expect(page.getByText("Photoshop 自动化接口", { exact: true })).toBeVisible();
+    await expect(page.getByText("暂无正文：开源替代品的兼容范围", { exact: true })).toBeVisible();
     await expect(page.getByText("该工具支持通过脚本接口执行图层操作，可继续核对具体兼容范围。", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "已读来源：自动化接口" })).toHaveAttribute("href", "https://example.org/automation");
     await expect(page.getByRole("button", { name: "停止", exact: true })).toBeVisible();
@@ -177,6 +183,9 @@ test("two supplements and one queued task stay in one continuous research conver
     await input.fill("并补查脚本接口与图层控制");
     await page.getByRole("button", { name: "追加要求", exact: true }).click();
     await expect(page.getByText("正在按补充要求执行研究")).toHaveCount(2);
+    await expect(page.getByText("开源替代品的兼容范围", { exact: true })).toBeVisible();
+    await expect(page.getByText("暂无正文：开源替代品的兼容范围", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "已读来源：自动化接口" })).toHaveCount(1);
     expect(supplementRequests[2].attachment_ids).toEqual([]);
 
     // Slice B: the bound computation renders in the same conversation, with

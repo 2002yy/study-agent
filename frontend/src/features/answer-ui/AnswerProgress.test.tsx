@@ -23,6 +23,20 @@ function progress(overrides: Partial<ChatResearchProgress> = {}): ChatResearchPr
 }
 
 describe("AnswerProgress research opening", () => {
+  it("groups sources by actual questions and marks missing body without claiming support", () => {
+    render(<AnswerProgress hasContent={false} progress={progress({
+      read_count: 2,
+      findings: [
+        { id: "a1", kind: "source_excerpt", title: "Source A", url: "https://example.org/a", text: "A body", question: "Photoshop scripting" },
+        { id: "b1", kind: "source_excerpt", title: "Source B", url: "https://example.org/b", text: "B body", question: "GIMP scripting" },
+        { id: "a2", kind: "source_excerpt", title: "Source A2", url: "https://example.org/a2", text: "A2 body", question: "Photoshop scripting" },
+      ], reading_gaps: ["PSD compatibility"],
+    })} />);
+    expect(screen.getAllByText("Photoshop scripting")).toHaveLength(1);
+    expect(screen.getByText("GIMP scripting")).toBeVisible();
+    expect(screen.getByText("暂无正文：PSD compatibility")).toBeVisible();
+    expect(screen.queryByText(/已支持|全部完成/)).toBeNull();
+  });
   it("shows read excerpts before an answer with attribution and provisional wording", () => {
     const { container } = render(<AnswerProgress hasContent={false} progress={progress({
       read_count: 1, findings: [{ id: "f1", kind: "source_excerpt", title: "Official source", url: "https://example.org/source", text: "Useful source content <script>test</script>" }],

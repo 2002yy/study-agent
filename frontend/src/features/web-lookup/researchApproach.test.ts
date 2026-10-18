@@ -37,12 +37,15 @@ function progress(overrides: Partial<ChatResearchProgress> = {}): ChatResearchPr
 
 describe("researchApproach merge", () => {
   it("keeps legacy omissions but clears invalidated excerpts and isolates runs", () => {
-    const previous = progress({ findings: [{ id: "f1", kind: "source_excerpt", title: "source", url: "https://example.org", text: "old source text" }] });
+    const previous = progress({ findings: [{ id: "f1", kind: "source_excerpt", title: "source", url: "https://example.org", text: "old source text" }], reading_gaps: ["old question"] });
     expect(mergeResearchProgress(previous, progress({ version: 4 }))?.findings).toEqual(previous.findings);
-    const cleared = mergeResearchProgress(previous, progress({ version: 4, findings: [] }));
+    const cleared = mergeResearchProgress(previous, progress({ version: 4, findings: [], reading_gaps: [] }));
     expect(cleared?.findings).toEqual([]);
+    expect(cleared?.reading_gaps).toEqual([]);
+    expect(mergeResearchProgress(previous, progress({ version: 4 }))?.reading_gaps).toEqual(["old question"]);
     expect(mergeResearchProgress(cleared, previous)?.findings).toEqual([]);
     expect(mergeResearchProgress(previous, progress({ run_id: "other" }))?.findings).toBeUndefined();
+    expect(mergeResearchProgress(previous, progress({ run_id: "other" }))?.reading_gaps).toBeUndefined();
   });
   it("rejects stale progress and retains process blocks across checkpoints", () => {
     const previous = progress({ version: 3, narration: [{ block_id: "first", text: "first read" }] });
