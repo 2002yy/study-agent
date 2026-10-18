@@ -29,6 +29,12 @@
     }
   },
   "impact_sets": {
+    "conversation_decision_1a": [
+      "tests/test_conversation_decision.py",
+      "tests/test_router.py",
+      "tests/test_task_contract.py",
+      "tests/test_stage_gates_policy.py"
+    ],
     "discovery_platform_contracts_v1": [
       "tests/test_discovery_platform_contracts.py",
       "tests/test_anonymous_platform_probe.py",
