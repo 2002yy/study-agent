@@ -294,7 +294,12 @@ export function WorkspaceView({
           researchProgress={chatController.researchProgress}
           canSteer={chatController.canSteer}
           canQueue={chatController.canQueue}
-          onQueue={chatController.queue}
+          onQueue={async question => {
+            const attachmentIds = attachmentSelection;
+            if (await chatController.queue(question, attachmentIds)) {
+              setAttachmentSelection(current => current.filter(id => !attachmentIds.includes(id)));
+            }
+          }}
           onSendQueued={chatController.sendQueued}
           isSteering={chatController.isSteering}
           onEnsureSession={chatController.ensureSession}

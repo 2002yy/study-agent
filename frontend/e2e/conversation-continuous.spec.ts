@@ -12,6 +12,8 @@ test("two supplements and one queued task stay in one continuous research conver
   const steering: Array<Record<string, unknown>> = [];
   const supplementRequests: Array<Record<string, unknown>> = [];
   const queue: Array<Record<string, unknown>> = [];
+  const queueRequests: Array<Record<string, unknown>> = [];
+  const chatRequests: Array<Record<string, unknown>> = [];
   const steeringState = (version: number) =>
     steering.map(entry => ({ id: entry.id, content: entry.content, status: version > 1 ? "executing" : "pending" }));
   const progress = (version: number, status = "running") => ({
@@ -33,6 +35,12 @@ test("two supplements and one queued task stay in one continuous research conver
     const input = body ? JSON.parse(body) : {};
     if (request.url === "/chat/stream") {
       streams += 1;
+      chatRequests.push(input);
+      if (streams > 1) {
+        response.writeHead(200, { "Content-Type": "text/event-stream" });
+        response.end(`event: done\ndata: ${JSON.stringify({ session_id: "chat-live", turn_id: input.turn_id, reply: "已结合排队问题的附件说明。" })}\n\n`);
+        return;
+      }
       turnId = input.turn_id;
       operationId = input.operation_id;
       stream = response;
@@ -62,7 +70,15 @@ test("two supplements and one queued task stay in one continuous research conver
       });
       return;
     }
-    if (request.url?.endsWith("/queue")) queue.push({ id: input.request_id, content: input.content, status: "pending" });
+    if (request.url?.endsWith("/queue")) {
+      queueRequests.push(input);
+      if (queueRequests.length === 1) {
+        response.writeHead(503, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({ detail: "temporary queue failure" }));
+        return;
+      }
+      queue.push({ id: input.request_id, content: input.content, status: "pending", attachment_refs: input.attachment_ids.map((id: string) => ({ attachment_id: id })) });
+    }
     response.setHeader("Content-Type", "application/json");
     response.end(JSON.stringify({ id: "run-live", query: "compare", status: "running", stage: "searching", version: 1,
       research_context: { research_mode: "deep", deep: { steering }, conversation_queue: queue },
@@ -91,10 +107,13 @@ test("two supplements and one queued task stay in one continuous research conver
       });
     });
     let firstChatBody: Record<string, unknown> | null = null;
-    await page.route(/\/(?:chat\/stream|research-runs\/run-live(?:\/(?:steer|queue))?)$/, route => {
+    await page.route(/\/(?:chat\/stream|research-runs\/run-live(?:\/(?:steer|queue(?:\/[^/]+\/complete)?))?)$/, route => {
       firstChatBody ??= route.request().postDataJSON() as Record<string, unknown>;
       return route.continue({ url: `http://127.0.0.1:${address.port}${new URL(route.request().url()).pathname}` });
     });
+    await page.route(/\/chat\/turns\/turn_queue_[^/]+\/status$/, route => route.fulfill({
+      status: 404, contentType: "application/json", body: JSON.stringify({ detail: "not found" }),
+    }));
     await page.goto("/");
     const input = page.getByRole("textbox", { name: "输入学习问题" });
     // Slice C/D: a first multimodal question attaches before any empty send;
@@ -147,9 +166,18 @@ test("two supplements and one queued task stay in one continuous research conver
 
     // Queued task: a separate timeline card that never changes the search.
     await page.getByRole("button", { name: "完成后再做", exact: true }).click();
+    await page.getByRole("button", { name: "选择附件 notes.txt", exact: true }).click();
     await input.fill("回答完再解释得简单一点");
     await page.getByRole("button", { name: "加入下一轮", exact: true }).click();
+    await expect(page.getByRole("alert").getByText("操作没有完成", { exact: true })).toBeVisible();
+    await expect(input).toHaveValue("回答完再解释得简单一点");
+    await expect(page.getByRole("button", { name: "取消选择附件 notes.txt", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "加入下一轮", exact: true }).click();
     await expect(page.getByText("下一轮任务")).toBeVisible();
+    await expect(page.getByText("附带 1 个附件，将用于这条问题。", { exact: true })).toBeVisible();
+    expect(queueRequests[0].attachment_ids).toEqual(["att1"]);
+    expect(queueRequests[1]).toEqual(queueRequests[0]);
+    await expect(page.getByRole("button", { name: "选择附件 notes.txt", exact: true })).toHaveAttribute("aria-pressed", "false");
     // A queued task needs a manual send; the card must not imply auto-continue.
     await expect(page.getByText("已保存，待发送")).toBeVisible();
     await expect(page.getByText("不会修改当前研究的搜索条件；研究完成后需手动发送。")).toBeVisible();
@@ -170,6 +198,10 @@ test("two supplements and one queued task stay in one continuous research conver
     await expect(process).toBeVisible();
     await process.click();
     await expect(page.getByText("已纳入补充：再考虑 Agent 自动编辑")).toBeVisible();
+    await page.getByRole("button", { name: "发送排队问题", exact: true }).click();
+    await expect(page.getByText("已结合排队问题的附件说明。", { exact: true })).toBeVisible();
+    expect(chatRequests[1].attachment_ids).toEqual(["att1"]);
+    expect(chatRequests[1].turn_id).toBe(`turn_${queueRequests[1].request_id}`);
   } finally {
     stream?.end();
     server.closeAllConnections();

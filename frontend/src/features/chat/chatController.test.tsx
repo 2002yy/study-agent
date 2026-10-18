@@ -219,12 +219,47 @@ describe("continuous research conversation", () => {
     let stream: ReturnType<typeof result.current.send>;
     await act(async () => { stream = result.current.send("compare alpha"); });
     await act(async () => { await result.current.queue("next question"); });
-    expect(apiMocks.queueResearchFollowup).toHaveBeenCalledWith("run-live", "next question", expect.stringMatching(/^queue_/));
+    expect(apiMocks.queueResearchFollowup).toHaveBeenCalledWith("run-live", "next question", expect.stringMatching(/^queue_/), []);
     expect(apiMocks.steerResearchRun).not.toHaveBeenCalled();
     expect(apiMocks.sendChatStream).toHaveBeenCalledTimes(1);
     expect(signal?.aborted).toBe(false);
     expect(result.current.messages[result.current.messages.length - 1].researchQueued?.status).toBe("pending");
     await act(async () => { finish(); await stream!; });
+  });
+
+  it("retries an attachment queue with the same identity and changes it for a new selection", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    let stream: ReturnType<typeof result.current.send>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    apiMocks.queueResearchFollowup.mockRejectedValue(new Error("response lost"));
+    await act(async () => {
+      expect(await result.current.queue("next task", ["att-a"])).toBe(false);
+      expect(await result.current.queue("next task", ["att-a", "att-a"])).toBe(false);
+      expect(await result.current.queue("next task", ["att-b"])).toBe(false);
+    });
+    const calls = apiMocks.queueResearchFollowup.mock.calls;
+    expect(calls[0]).toEqual(calls[1]);
+    expect(calls[2][2]).not.toBe(calls[1][2]);
+    expect(calls[2][3]).toEqual(["att-b"]);
+    expect(apiMocks.sendChatStream).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(); await stream!; });
+  });
+
+  it("restores queued attachments and sends only that selection in the later turn", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    apiMocks.loadSessionDetail.mockResolvedValue({ session_id: "chat-live", messages: [], turns: [] });
+    apiMocks.loadResearchQueue.mockResolvedValue({ messages: [{
+      run_id: "run-old", id: "queue-old", content: "use the saved file", status: "pending",
+      attachment_refs: [{ attachment_id: "att-saved", content_hash: "hash-saved" }],
+    }] });
+    apiMocks.getChatTurnStatus.mockRejectedValue(new Error("404 Not Found"));
+    await act(async () => { await result.current.hydrateSession("chat-live"); });
+    expect(result.current.messages[result.current.messages.length - 1]?.researchQueued?.attachmentIds).toEqual(["att-saved"]);
+    let delivery: Promise<void>;
+    await act(async () => { delivery = result.current.sendQueued("queue-old"); });
+    expect(apiMocks.sendChatStream.mock.calls[0][2].attachmentIds).toEqual(["att-saved"]);
+    expect(apiMocks.sendChatStream.mock.calls[0][2].turnId).toBe("turn_queue-old");
+    await act(async () => { finish(); await delivery!; });
   });
 });
 

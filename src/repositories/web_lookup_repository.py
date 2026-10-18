@@ -663,13 +663,25 @@ class WebLookupRepository:
                     AND t.status = 'completed'
                     AND (t.id = 'turn_' || json_extract(j.value, '$.id') OR t.parent_turn_id = 'turn_' || json_extract(j.value, '$.id'))
                     AND trim(t.user_message) = json_extract(j.value, '$.content')
+                    AND json_array_length(t.attachment_refs) = json_array_length(COALESCE(json_extract(j.value, '$.attachment_refs'), '[]'))
+                    AND NOT EXISTS (
+                        SELECT 1 FROM json_each(t.attachment_refs) a
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM json_each(j.value, '$.attachment_refs') q
+                            WHERE json_extract(a.value, '$.attachment_id') = json_extract(q.value, '$.attachment_id')
+                            AND json_extract(a.value, '$.content_hash') = json_extract(q.value, '$.content_hash')
+                        )
+                    )
                 )
                 ORDER BY r.created_at, r.id, j.key
                 """, (thread_id,),
             ).fetchall()
         return [{**json.loads(row["entry"]), "run_id": row["run_id"]} for row in rows]
 
-    def queue_followup(self, run_id: str, *, content: str, request_id: str) -> WebLookupRun:
+    def queue_followup(
+        self, run_id: str, *, content: str, request_id: str,
+        attachment_refs: builtins.list[dict[str, Any]] | None = None,
+    ) -> WebLookupRun:
         if not content.strip():
             raise ValueError("Follow-up content is required")
         for _attempt in range(4):
@@ -680,12 +692,15 @@ class WebLookupRepository:
             queue = [dict(item) for item in context.get("conversation_queue", []) if isinstance(item, dict)]
             prior = next((item for item in queue if item.get("id") == request_id), None)
             if prior:
-                if prior.get("content") != content.strip():
+                if prior.get("content") != content.strip() or prior.get("attachment_refs", []) != (attachment_refs or []):
                     raise ValueError("Queue request identity already belongs to another message")
                 return run
             if len(queue) >= 32:
                 raise ValueError("Follow-up queue is full")
-            queue.append({"id": request_id, "content": content.strip(), "status": "pending", "received_at": utc_now()})
+            queue.append({
+                "id": request_id, "content": content.strip(), "status": "pending",
+                "received_at": utc_now(), "attachment_refs": attachment_refs or [],
+            })
             context["conversation_queue"] = queue
             with self.database.connect() as connection:
                 cursor = connection.execute(
@@ -708,6 +723,10 @@ class WebLookupRepository:
                 turn = connection.execute("SELECT * FROM chat_turns WHERE id = ?", (turn_id,)).fetchone()
                 if turn is None or turn["status"] != "completed" or turn["thread_id"] != run.owner_thread_id or turn["user_message"].strip() != entry["content"]:
                     raise ValueError("Follow-up delivery requires a completed matching turn")
+                expected_refs = {(ref["attachment_id"], ref["content_hash"]) for ref in entry.get("attachment_refs", [])}
+                actual_refs = {(ref["attachment_id"], ref["content_hash"]) for ref in json.loads(turn["attachment_refs"] or "[]")}
+                if expected_refs != actual_refs:
+                    raise ValueError("Follow-up delivery requires matching attachments")
                 entry["status"] = "completed"
                 entry["turn_id"] = turn_id
                 context["conversation_queue"] = queue

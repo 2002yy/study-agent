@@ -394,6 +394,9 @@ export function ChatPanel(props: ChatPanelProps) {
                         <span className="research-queue-count">已保存，待发送</span>
                       </header>
                       <p className="research-queue-body">{message.content}</p>
+                      {message.researchQueued.attachmentIds?.length ? (
+                        <p className="research-queue-note">附带 {message.researchQueued.attachmentIds.length} 个附件，将用于这条问题。</p>
+                      ) : null}
                       <p className="research-queue-note">不会修改当前研究的搜索条件；研究完成后需手动发送。</p>
                       {!isSending && props.onSendQueued ? (
                         <button

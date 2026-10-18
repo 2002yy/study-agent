@@ -172,7 +172,7 @@ export type ChatMessage = {
   evidence?: TurnEvidence;
   researchProgress?: ChatResearchProgress;
   researchSteering?: { runId: string; id: string; status: "pending" | "applied" | "executing" | "late" };
-  researchQueued?: { runId: string; id: string; status: "pending" | "executing" | "completed" };
+  researchQueued?: { runId: string; id: string; status: "pending" | "executing" | "completed"; attachmentIds?: string[] };
   // Server-validated, evidence-bound computation result (Slice B). Never a
   // model-authored chart payload; rendering is refused unless it validates.
   computation?: ComputationPayload;

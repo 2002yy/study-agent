@@ -678,28 +678,32 @@ export function useChatController(options: ControllerOptions) {
     }
   };
 
-  const queue = async (question: string) => {
+  const queue = async (question: string, selectedIds: string[] = []) => {
     const runId = researchProgressRef.current?.run_id;
-    if (!sendingRef.current || stoppingRef.current || !runId || steeringInFlightRef.current || !question.trim()) return;
+    if (!sendingRef.current || stoppingRef.current || !runId || steeringInFlightRef.current || !question.trim()) return false;
     const epoch = steeringEpochRef.current;
     const previousAttempt = supplementAttemptRef.current;
-    const id = previousAttempt?.kind === "queue" && previousAttempt.runId === runId && previousAttempt.content === question
+    const attachmentIds = [...new Set(selectedIds)].sort();
+    const attachmentKey = JSON.stringify(attachmentIds);
+    const id = previousAttempt?.kind === "queue" && previousAttempt.runId === runId && previousAttempt.content === question && previousAttempt.attachmentKey === attachmentKey
       ? previousAttempt.id : `queue_${globalThis.crypto.randomUUID()}`;
-    supplementAttemptRef.current = { runId, content: question, id, kind: "queue" };
+    supplementAttemptRef.current = { runId, content: question, id, kind: "queue", attachmentKey };
     steeringInFlightRef.current = true;
     setIsSteering(true);
     try {
-      await queueResearchFollowup(runId, question, id);
-      if (steeringEpochRef.current !== epoch) return;
+      await queueResearchFollowup(runId, question, id, attachmentIds);
+      if (steeringEpochRef.current !== epoch) return false;
       setMessages(current => [...current, {
         role: "user", content: question, avatarRole: "user", transient: true,
-        researchQueued: { runId, id, status: "pending" },
+        researchQueued: { runId, id, status: "pending", attachmentIds },
       }]);
       options.setInput(current => current.trim() === question.trim() ? "" : current);
       options.setOperationError("");
       supplementAttemptRef.current = null;
+      return true;
     } catch (error) {
       if (steeringEpochRef.current === epoch) options.setOperationError(`排队失败：${error instanceof Error ? error.message : "未知错误"}`);
+      return false;
     } finally {
       if (steeringEpochRef.current === epoch) { steeringInFlightRef.current = false; setIsSteering(false); }
     }
@@ -730,7 +734,10 @@ export function useChatController(options: ControllerOptions) {
       options.setOperationError("这个排队问题已有执行中的回答，请恢复该会话后继续。");
       return;
     }
-    await send(message.content, state.chatMessages.filter(item => item !== message), existing ? { retryOfTurnId: turnId } : { turnId });
+    await send(message.content, state.chatMessages.filter(item => item !== message), {
+      ...(existing ? { retryOfTurnId: turnId } : { turnId }),
+      attachmentIds: message.researchQueued.attachmentIds ?? [],
+    });
     if (completedQueueTurnRef.current) {
       const deliveryEpoch = steeringEpochRef.current;
       try { await completeResearchFollowup(runId, id, completedQueueTurnRef.current); }
@@ -868,7 +875,10 @@ export function useChatController(options: ControllerOptions) {
         }))];
       }), ...response.messages.map(item => ({
         role: "user" as const, content: item.content, avatarRole: "user", transient: true,
-        researchQueued: { runId: item.run_id, id: item.id, status: "pending" as const },
+        researchQueued: {
+          runId: item.run_id, id: item.id, status: "pending" as const,
+          attachmentIds: (item.attachment_refs ?? []).map(ref => ref.attachment_id),
+        },
       }))]);
     }).catch(() => undefined);
     const phases = phaseTrail(

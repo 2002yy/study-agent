@@ -862,14 +862,14 @@ export async function steerResearchRun(
   );
 }
 
-export async function queueResearchFollowup(runId: string, content: string, requestId: string): Promise<WebLookupRunResponse> {
+export async function queueResearchFollowup(runId: string, content: string, requestId: string, attachmentIds: string[] = []): Promise<WebLookupRunResponse> {
   return requestJson<WebLookupRunResponse>(`/research-runs/${encodeURIComponent(runId)}/queue`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content, request_id: requestId }),
+    body: JSON.stringify({ content, request_id: requestId, attachment_ids: attachmentIds }),
   });
 }
 
-export async function loadResearchQueue(threadId: string): Promise<{ messages: Array<{ run_id: string; id: string; content: string; status: "pending" }>; progress?: Array<ChatResearchProgress & { turn_id: string }> }> {
+export async function loadResearchQueue(threadId: string): Promise<{ messages: Array<{ run_id: string; id: string; content: string; status: "pending"; attachment_refs?: Array<{ attachment_id: string }> }>; progress?: Array<ChatResearchProgress & { turn_id: string }> }> {
   return requestJson(`/sessions/${encodeURIComponent(threadId)}/research-queue`);
 }
 

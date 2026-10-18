@@ -248,7 +248,26 @@ def steer_research_run(
 @router.post("/research-runs/{run_id}/queue", response_model=WebLookupRunResponse)
 def queue_research_followup(run_id: str, request: ResearchQueueRequest, service: WebLookupServiceDependency) -> WebLookupRunResponse:
     try:
-        return _response(service.repository.queue_followup(run_id, content=request.content, request_id=request.request_id))
+        attachment_refs: list[dict] = []
+        if request.attachment_ids:
+            from src.application.runtime_repository import get_session_attachment_service
+
+            run = service.get(run_id)
+            attachment_service = get_session_attachment_service()
+            thread_id = run.owner_thread_id or ""
+            selected_ids, problems = attachment_service.validate_selection(thread_id, request.attachment_ids)
+            if problems:
+                raise ValueError("附件不可用：" + "、".join(problems[:3]))
+            attachment_refs = sorted(
+                attachment_service.selection_refs(thread_id, request.attachment_ids),
+                key=lambda item: item["attachment_id"],
+            )
+            if {ref["attachment_id"] for ref in attachment_refs} != set(selected_ids):
+                raise ValueError("附件状态已变化，请重新选择")
+        return _response(service.repository.queue_followup(
+            run_id, content=request.content, request_id=request.request_id,
+            attachment_refs=attachment_refs,
+        ))
     except ValueError as exc:
         raise _not_found_or_conflict(exc) from exc
 
