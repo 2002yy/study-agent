@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass, field
 import math
 import threading
 import time
-from typing import AsyncIterator, Awaitable, Callable, Mapping, cast
+from typing import AsyncGenerator, Awaitable, Callable, Mapping, cast
 
 from src.application.conversation_decision import (
     ActionProposal,
@@ -114,7 +114,7 @@ async def dispatch_conversation_action(
     handlers: Mapping[ConversationAction, ActionHandler],
     budget: ActionBudget,
     timeout_seconds: float = 5.0,
-) -> AsyncIterator[ActionEvent]:
+) -> AsyncGenerator[ActionEvent, None]:
     """Yield unverified observations, with preliminary answer before research.
 
     The consumer must keep draining/closing this iterator to continue/stop work.

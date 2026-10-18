@@ -30,6 +30,7 @@
   },
   "impact_sets": {
     "conversation_decision_1b": [
+      "tests/test_conversation_action_step.py",
       "tests/test_conversation_decision_runner.py",
       "tests/test_conversation_action_dispatch.py",
       "tests/test_conversation_decision.py",
@@ -172,6 +173,13 @@
       "tests/test_conversation_action_dispatch.py",
       "tests/test_conversation_decision.py",
       "tests/test_conversation_decision_runner.py",
+      "tests/test_stage_gates_policy.py"
+    ],
+    "conversation_action_step": [
+      "tests/test_conversation_action_step.py",
+      "tests/test_conversation_action_dispatch.py",
+      "tests/test_conversation_decision_runner.py",
+      "tests/test_conversation_decision.py",
       "tests/test_stage_gates_policy.py"
     ],
     "ci_outcome_consolidation": [

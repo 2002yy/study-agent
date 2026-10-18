@@ -95,6 +95,12 @@ CL-0 至 CL-4 最终构成可运行纵向切片，CL-1A 合同完成不等于完
 
 ## 4. 验证与发布边界
 
+### CL-1D-1：单步编排（独立小片，不切生产）
+
+基于自身冻结 #235/bcdaa4b7，新 API `run_conversation_step` 组合既有决策器与动作分发器，一次最多一个模型决策与一个提议，流式返回 DecisionResult/ActionEvent。决策成功先暴露提议，后续才启动 handler；初步答案与工具观察保持原顺序。总时限包含模型、动作与消费者暂停；嵌套流显式关闭，失败、换题或取消不继续动作。两个准入预算仍分别保留，不声称跨进程持久权威。
+
+命名影响集 conversation_action_step 包含自身与分发/决策/runner/阶段策略；不跑机械 L3。观察仍未验证，本片不自动发起后续模型调用。下一片 CL-1D-2 专门实现有界观察回填，之后再做生产适配与真实联动资格。
+
 ### CL-1D：动作分发与观察（独立实现，不切生产）
 
 当前分支直接基于已合并 main `5d4da728`，独立于 #232/#233。新增 `dispatch_conversation_action` 异步事件流，将已验证提议交给显式注册的服务端 handler：answer/clarify/use_tool/steer/queue 单阶段；answer_then_research 固定先 answer 再 use_tool，消费者能在工具启动前读到初步回复事件，关闭流不会继续启动后续阶段。
