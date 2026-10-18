@@ -234,3 +234,55 @@ def test_exhausted_steering_budget_reports_unexecuted_supplement(tmp_path, monke
     assert entry.get("executed_in_round") is None
     unapplied = any("未能" in str(w) or "不完整" in str(w) for w in (completed.warnings or []))
     assert unapplied or completed.status == "partial"
+
+
+def test_steering_understanding_is_structured_and_never_claims_verification():
+    from src.web.research.deep_planner import validate_steering_understandings
+
+    supplied = ["s1", "s2"]
+    good = {
+        "steering_id": "s1",
+        "changed_focus": "比较标准扩展到脚本控制与图层级操作",
+        "reason_to_check": "自动化能力取决于接口与批量处理",
+        "questions_to_verify": ["支持哪些批量操作", "图层样式能否保留"],
+    }
+    assert validate_steering_understandings([good], supplied_ids=supplied) == [good]
+
+    # An unknown id can never be attributed to a supplement that does not exist.
+    assert validate_steering_understandings(
+        [good | {"steering_id": "invented"}], supplied_ids=supplied
+    ) == []
+    # Claim language is refused: an unverified capability must not read as confirmed.
+    assert validate_steering_understandings(
+        [good | {"changed_focus": "已确认该工具支持批量导出"}], supplied_ids=supplied
+    ) == []
+    assert validate_steering_understandings(
+        [good | {"reason_to_check": "verified by the vendor"}], supplied_ids=supplied
+    ) == []
+    # An empty focus is not an understanding.
+    assert validate_steering_understandings(
+        [good | {"changed_focus": "   "}], supplied_ids=supplied
+    ) == []
+
+
+def test_every_supplied_supplement_can_be_covered_up_to_the_bound():
+    from src.web.research.deep_planner import (
+        MAX_STEERING_UNDERSTANDINGS,
+        validate_steering_understandings,
+    )
+
+    supplied = [f"s{index}" for index in range(6)]
+    raw = [
+        {
+            "steering_id": entry_id,
+            "changed_focus": f"评估重点 {index}",
+            "reason_to_check": "需要重新核对",
+            "questions_to_verify": [f"q{index}"],
+        }
+        for index, entry_id in enumerate(supplied)
+    ]
+    cleaned = validate_steering_understandings(raw, supplied_ids=supplied)
+    assert len(cleaned) == MAX_STEERING_UNDERSTANDINGS
+    assert [item["steering_id"] for item in cleaned] == supplied[:MAX_STEERING_UNDERSTANDINGS]
+    # A duplicate id is not a second understanding.
+    assert len(validate_steering_understandings(raw[:1] * 3, supplied_ids=supplied)) == 1

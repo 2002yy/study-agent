@@ -33,6 +33,7 @@ from src.application.research_evidence import (
 )
 from src.web.research.research_approach import approach_event
 from src.web.research.research_interaction import interaction_event
+from src.web.research.steering_replies import reply_projection
 from src.application.runtime_repository import (
     get_chat_service,
     get_session_attachment_service,
@@ -448,6 +449,14 @@ def _research_progress(run: Any) -> dict[str, Any]:
         "notes_count": len(notes),
         "last_step_kind": (last_step or {}).get("kind"),
         "last_step_text": (last_step or {}).get("text"),
+        # Provisional assistant replies (task understanding and sourced
+        # judgments). Display-only: they are never the turn's answer.
+        "replies": reply_projection(
+            context if isinstance(context, dict) else {},
+            run_id=run.id,
+            turn_id=turn_id,
+            active=run.status in {"pending", "running"},
+        ),
         **interaction_event(run),
     }
 

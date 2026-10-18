@@ -4,17 +4,47 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, TypedDict
 
 from src.web.tool_evidence import _public_url
+
+
+class AnalysisSource(TypedDict):
+    """One read note as an interim-analysis source.
+
+    ``round`` is kept explicit (rather than widening every value to ``Any``) so
+    the reader round stays type-checked wherever attribution is decided.
+    """
+
+    source_id: str
+    url: str
+    question: str
+    title: str
+    excerpt: str
+    round: int | None
+
+
+class BoundCitation(TypedDict):
+    """One validated citation of a provisional judgment.
+
+    ``round`` is the reader round the quoted material came from; a citation
+    without one can never satisfy the supplement attribution condition.
+    """
+
+    source_id: str
+    url: str
+    title: str
+    question: str
+    round: int | None
+    quote: str
 
 
 def _text(value: Any) -> str:
     return " ".join(value.split()) if isinstance(value, str) else ""
 
 
-def analysis_sources(notes: list[dict[str, Any]]) -> list[dict[str, str]]:
-    sources: list[dict[str, str]] = []
+def analysis_sources(notes: list[dict[str, Any]]) -> list[AnalysisSource]:
+    sources: list[AnalysisSource] = []
     seen: set[tuple[str, str]] = set()
     for note in reversed(notes[-80:]):
         if not isinstance(note, dict) or note.get("superseded"):
@@ -33,13 +63,16 @@ def analysis_sources(notes: list[dict[str, Any]]) -> list[dict[str, str]]:
             continue
         seen.add(identity)
         sources.append({"source_id": source_id, "url": url, "question": question,
-                        "title": (_text(note.get("title")) or url)[:160], "excerpt": excerpt})
+                        "title": (_text(note.get("title")) or url)[:160], "excerpt": excerpt,
+                        "round": note.get("round") if isinstance(note.get("round"), int) else None})
         if len(sources) == 4:
             break
     return list(reversed(sources))
 
 
-def validate_interim_analysis(raw: Any, sources: list[dict[str, str]]) -> dict[str, Any] | None:
+def validate_interim_analysis(
+    raw: Any, sources: list[AnalysisSource]
+) -> dict[str, Any] | None:
     """Require real source identities and exact quotes; this is not entailment judging."""
     if not isinstance(raw, dict):
         return None
@@ -49,7 +82,7 @@ def validate_interim_analysis(raw: Any, sources: list[dict[str, str]]) -> dict[s
     if not text or len(text) > 400 or not isinstance(citations, list) or not 1 <= len(citations) <= 3:
         return None
     by_id = {source["source_id"]: source for source in sources}
-    bound: list[dict[str, str]] = []
+    bound: list[BoundCitation] = []
     seen: set[tuple[str, str]] = set()
     for citation in citations:
         if not isinstance(citation, dict) or not isinstance(citation.get("source_id"), str):
@@ -61,7 +94,16 @@ def validate_interim_analysis(raw: Any, sources: list[dict[str, str]]) -> dict[s
         identity = (source["source_id"], quote)
         if identity not in seen:
             seen.add(identity)
-            bound.append({key: source[key] for key in ("source_id", "url", "title", "question")} | {"quote": quote})
+            bound.append(
+                {
+                    "source_id": source["source_id"],
+                    "url": source["url"],
+                    "title": source["title"],
+                    "question": source["question"],
+                    "round": source["round"],
+                    "quote": quote,
+                }
+            )
     return {"status": "provisional", "text": text, "citations": bound}
 
 

@@ -46,9 +46,43 @@ test("two supplements and one queued task stay in one continuous research conver
     } : null,
     approach: { status: "ready", summary: "我会先比较功能与 PSD 兼容性，再核对哪些操作能由 Agent 完成。", focus: [], origin: "model_plan", sequence: 1, mode: "deep" },
     steering: steeringState(version),
+    replies: repliesFor(version),
     narration: [{ block_id: "run-live:search:1", text: "已开始检索候选资料，接下来读取正文。" },
       ...steering.map((entry, index) => ({ block_id: `run-live:steer:${index + 1}`, text: `已纳入补充：${entry.content}` }))],
   });
+  // Provisional assistant replies: display-only, one per supplement plus one
+  // research-level judgment. They are never the turn's answer.
+  const repliesFor = (version: number) => {
+    const replies: Array<Record<string, unknown>> = steering.map((entry, index) => {
+      const analyzed = version > index + 2;
+      return {
+        schema: "steering-reply-v1", reply_id: `run-live:steer:${entry.id}`, scope: "steering",
+        steering_id: entry.id, turn_id: turnId, lifecycle: "open",
+        stage: analyzed ? "analysis" : "acknowledgement",
+        content_version: analyzed ? 2 : 1, stale: false,
+        analysis_state: analyzed ? "ready" : "pending",
+        focus: analyzed ? `评估重点变化 ${index + 1}` : "",
+        reason: analyzed ? "自动化能力取决于接口与批量处理" : "",
+        questions: analyzed ? ["支持哪些批量操作"] : [],
+        text: analyzed
+          ? `评估重点变化：${entry.content} 相关的比较维度`
+          : "已收到这条补充要求；评估范围将按它调整（尚未生成模型分析）。",
+        citations: [], updated_at: "2026-10-18T00:00:00+00:00",
+      };
+    });
+    if (version >= 4) {
+      replies.push({
+        schema: "steering-reply-v1", reply_id: "run-live:research", scope: "research",
+        steering_id: "", turn_id: turnId, lifecycle: "open", stage: "evidence_update",
+        content_version: 3, stale: false, analysis_state: "ready",
+        focus: "", reason: "", questions: [],
+        text: "根据已读材料，初步看两种方案都能接 Agent 脚本。",
+        citations: [{ url: "https://example.org/automation", title: "阶段性判断来源", quote: "支持批量重命名图层" }],
+        updated_at: "2026-10-18T00:00:00+00:00",
+      });
+    }
+    return replies;
+  };
   const emit = (event: string, data: unknown) => stream?.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   const server = createServer(async (request, response) => {
     response.setHeader("Access-Control-Allow-Origin", "*");
@@ -196,6 +230,9 @@ test("two supplements and one queued task stay in one continuous research conver
     // the check is named by the supplement itself, not by the original question.
     await expect(page.getByText("新增核查：再考虑 Agent 自动编辑")).toBeVisible();
     await expect(page.getByRole("button", { name: "停止", exact: true })).toBeVisible();
+    // The supplement gets its own assistant reply: a receipt, never an analysis yet.
+    await expect(page.getByRole("region", { name: "阶段性回复" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "阶段性回复" }).getByText("已收到补充").first()).toBeVisible();
 
     // Supplement 2: still steers the same single HTTP stream.
     await input.fill("并补查脚本接口与图层控制");
@@ -235,6 +272,13 @@ test("two supplements and one queued task stay in one continuous research conver
     // A model synthesis becomes readable before done; raw excerpts give way
     // to a quieter analysis with quotes available on request.
     emit("research", progress(4));
+    // The supplement has its own model analysis, and the sourced judgment is
+    // explicitly provisional rather than a verified conclusion.
+    const replyBlocks = page.getByRole("region", { name: "阶段性回复" });
+    await expect(replyBlocks.getByText("初步分析").first()).toBeVisible();
+    await expect(replyBlocks.getByText("阶段性判断").first()).toBeVisible();
+    await expect(replyBlocks.getByText("有来源，尚非结论")).toBeVisible();
+    await expect(replyBlocks.getByRole("link", { name: "阶段性判断来源" })).toHaveAttribute("href", "https://example.org/automation");
     await expect(page.getByRole("region", { name: "阶段性分析", exact: true })).toBeVisible();
     await expect(page.getByText("批量处理图层、导出 PNG，两种方案都能接入 Agent 脚本。", { exact: true })).toBeVisible();
     await expect(page.getByText("需要保留 PSD 图层样式时，优先原工具：开源方案仍有部分样式不兼容。", { exact: true })).toBeVisible();
@@ -248,9 +292,72 @@ test("two supplements and one queued task stay in one continuous research conver
     await page.getByRole("region", { name: "学习对话", exact: true }).evaluate(element => { element.scrollTop = 0; });
     await page.screenshot({ path: testInfo.outputPath("interim-analysis.png"), fullPage: true });
 
-    emit("research", { ...progress(5, "completed"), steering: steering.map(entry => ({ id: entry.id, content: entry.content, status: "applied" })) });
+    emit("research", { ...progress(5, "completed"), steering: steering.map(entry => ({ id: entry.id, content: entry.content, status: "applied" })), replies: repliesFor(5).map(reply => ({ ...reply, lifecycle: "closed", lifecycle_closed_by: "run_terminal" })) });
     emit("done", { session_id: "chat-live", turn_id: turnId, reply: "已保留已有资料，并完成新增维度的补查。" });
     stream?.end();
+    // Latency marks come from one browser monotonic clock: the supplement's
+    // analysis must be recorded before the answer, and never after it.
+    // The answer mark is published on the first frame after the answer is
+    // committed, so wait for it instead of sampling once.
+    await expect.poll(async () => page.evaluate(() => (window as unknown as {
+      __studyAgentTimings?: { answer_visible_ms: number | null };
+    }).__studyAgentTimings?.answer_visible_ms ?? null)).toBeGreaterThan(0);
+    // Latency is derived in the browser from one monotonic clock, keyed by
+    // reply + content version + stage: a receipt must never be reported as the
+    // model analysis, and the answer time comes from the answer component.
+    const timings = await page.evaluate(() => {
+      const state = (window as unknown as {
+        __studyAgentTimings?: {
+          marks: Array<Record<string, number | string | null>>;
+          visible: Array<{ reply_id: string; stage: string; content_version: number; at: number }>;
+          answer_done_ms: number | null;
+          answer_visible_ms: number | null;
+          visibility_source?: string;
+        };
+      }).__studyAgentTimings ?? null;
+      if (!state) return null;
+      const stageAt = (replyId: string, stage: string) => {
+        const hits = state.visible
+          .filter(mark => mark.reply_id === replyId && mark.stage === stage)
+          .map(mark => mark.at);
+        return hits.length ? Math.min(...hits) : null;
+      };
+      const steering = state.marks.find(mark => mark.scope === "steering");
+      const steeringReplyId = String(steering?.reply_id ?? "");
+      const answer = state.answer_visible_ms;
+      const lead = (at: number | null) =>
+        answer === null || at === null || at > answer ? null : Math.round(answer - at);
+      return {
+        answer_done_ms: state.answer_done_ms,
+        answer_visible_ms: answer,
+        visibility_source: state.visibility_source,
+        submit: steering?.submit_ms ?? null,
+        receipt_event: steering?.receipt_ms ?? null,
+        receipt: stageAt(steeringReplyId, "acknowledgement"),
+        analysis: stageAt(steeringReplyId, "analysis"),
+        evidence: stageAt("run-live:research", "evidence_update"),
+        analysis_lead: lead(stageAt(steeringReplyId, "analysis")),
+        evidence_lead: lead(stageAt("run-live:research", "evidence_update")),
+      };
+    });
+    expect(timings?.answer_done_ms).toBeGreaterThan(0);
+    expect(timings?.answer_visible_ms).toBeGreaterThan(0);
+    // The mark says what it measures: a frame after commit, not "the reader saw it".
+    expect(timings?.visibility_source).toBe("rendered_after_frame");
+    // The supplement's receipt was rendered, then its analysis was rendered:
+    // the two are different content states, not one event counted twice.
+    expect(timings?.receipt).not.toBeNull();
+    expect(timings?.analysis).not.toBeNull();
+    expect(Number(timings!.submit)).toBeLessThanOrEqual(Number(timings!.receipt_event));
+    expect(Number(timings!.receipt)).toBeLessThan(Number(timings!.analysis));
+    // G1 (analysis) and G2 (sourced judgment) are reported separately, and both
+    // were on screen before the answer was.
+    expect(timings?.analysis_lead).toBeGreaterThan(0);
+    expect(timings?.evidence_lead).toBeGreaterThan(0);
+    expect(Number(timings!.analysis)).toBeLessThan(Number(timings!.answer_visible_ms));
+    expect(Number(timings!.evidence)).toBeLessThan(Number(timings!.answer_visible_ms));
+    // A finished run freezes its provisional replies instead of leaving them live.
+    await expect(page.getByRole("region", { name: "阶段性回复" }).getByText("研究已结束").first()).toBeVisible();
     await expect(page.getByRole("button", { name: "发送排队问题", exact: true })).toBeVisible();
     // The search process is collapsed by default and only expands on request.
     const process = page.getByText("来源与研究过程（2）");

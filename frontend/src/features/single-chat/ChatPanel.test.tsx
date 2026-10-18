@@ -7,7 +7,7 @@ if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { ChatResponse, ChatMessage, ChatResearchProgress } from "../../types";
+import type { ChatResponse, ChatMessage, ChatResearchProgress, ChatResearchReply } from "../../types";
 import {
   clearPendingTaskIntentOverride,
   consumePendingTaskIntentOverride,
@@ -41,6 +41,8 @@ type RenderOptions = {
     sessionId?: string;
     turnId?: string | null;
   } | null;
+  researchReplies?: ChatResearchReply[];
+  answerTurnId?: string | null;
 };
 
 function renderPanel(options: RenderOptions = {}) {
@@ -64,6 +66,8 @@ function panelElement(options: RenderOptions = {}) {
       canQueue={options.canQueue}
       onQueue={options.onQueue}
       researchProgress={options.researchProgress}
+      researchReplies={options.researchReplies}
+      answerTurnId={options.answerTurnId}
       onSubmit={options.onSubmit ?? vi.fn()}
       onStop={vi.fn()}
       streamRecovery={options.streamRecovery ?? null}
@@ -225,6 +229,162 @@ describe("continuous conversation input", () => {
     ] });
     expect(screen.getByText("已纳入研究计划 · 等待相关搜索")).toBeVisible();
     expect(container.querySelectorAll(".research-steering-effect")).toHaveLength(0);
+  });
+
+  it("renders a supplement reply as its own provisional block, never as the answer", () => {
+    const { container } = renderPanel({
+      isSending: true,
+      messages: [
+        { role: "assistant", content: "partial answer" },
+        { role: "user", content: "再考虑 Agent 自动编辑", transient: true,
+          researchSteering: { runId: "run1", id: "s1", status: "executing" } },
+      ],
+      researchReplies: [{
+        schema: "steering-reply-v1", reply_id: "run1:steer:s1", scope: "steering",
+        steering_id: "s1", turn_id: "t1", lifecycle: "open", stage: "analysis",
+        content_version: 2, stale: false, analysis_state: "ready",
+        focus: "比较标准扩展到脚本控制", reason: "需要重新核对接口",
+        questions: ["支持哪些批量操作"],
+        text: "评估重点变化：比较标准扩展到脚本控制\\n需要重新核查的原因：需要重新核对接口",
+        citations: [], updated_at: "2026-10-18T00:00:00+00:00",
+      }],
+    });
+    expect(screen.getByRole("region", { name: "阶段性回复" })).toBeVisible();
+    expect(screen.getByText("初步分析")).toBeVisible();
+    expect(container.textContent).toContain("比较标准扩展到脚本控制");
+    // The turn answer is untouched by a provisional reply.
+    expect(container.querySelector(".message-bubble")?.textContent).toContain("partial answer");
+    expect(screen.queryByText("有来源，尚非结论")).toBeNull();
+  });
+
+  it("marks a sourced provisional judgment and links only validated sources", () => {
+    renderPanel({
+      isSending: true,
+      messages: [{ role: "assistant", content: "partial answer" }],
+      researchReplies: [{
+        schema: "steering-reply-v1", reply_id: "run1:research", scope: "research",
+        steering_id: "", turn_id: "t1", lifecycle: "open", stage: "evidence_update",
+        content_version: 3, stale: false, analysis_state: "ready",
+        focus: "", reason: "", questions: [],
+        text: "根据已读材料，初步看两种方案都能接脚本。",
+        citations: [
+          { url: "https://example.org/open-tool", title: "开源工具文档", quote: "支持批量导出" },
+          { url: "javascript:alert(1)", title: "可疑来源", quote: "未经验证" },
+        ],
+        updated_at: "2026-10-18T00:00:00+00:00",
+      }],
+    });
+    expect(screen.getByText("阶段性判断")).toBeVisible();
+    expect(screen.getByText("有来源，尚非结论")).toBeVisible();
+    expect(screen.getByRole("link", { name: "开源工具文档" })).toHaveAttribute("href", "https://example.org/open-tool");
+    expect(screen.queryByRole("link", { name: "可疑来源" })).toBeNull();
+  });
+
+  it("shows why a judgment no longer covers the current task", () => {
+    renderPanel({
+      isSending: false,
+      messages: [
+        { role: "assistant", content: "answer" },
+        { role: "user", content: "再考虑 Agent 自动编辑", transient: true,
+          researchSteering: { runId: "run1", id: "s1", status: "applied" } },
+      ],
+      researchReplies: [{
+        schema: "steering-reply-v1", reply_id: "run1:steer:s1", scope: "steering",
+        steering_id: "s1", turn_id: "t1", lifecycle: "open", stage: "analysis",
+        content_version: 4, stale: true, analysis_state: "ready",
+        focus: "", reason: "", questions: [], text: "评估重点变化：图层控制",
+        citations: [], updated_at: "2026-10-18T00:00:00+00:00",
+      }],
+    });
+    expect(screen.getByText("尚未覆盖后续新增的条件")).toBeVisible();
+  });
+
+  it("tells the reader when an accepted requirement is not in the result", () => {
+    const { container } = renderPanel({
+      isSending: false,
+      answerTurnId: "turn1",
+      messages: [{ role: "assistant", content: "final answer", turnId: "turn1", turnStatus: "completed" }],
+      researchReplies: [{
+        schema: "steering-reply-v1", reply_id: "run1:research", scope: "research",
+        steering_id: "", turn_id: "turn1", lifecycle: "closed",
+        lifecycle_closed_by: "run_terminal", closed_run_status: "partial",
+        stage: "acknowledgement", content_version: 2, stale: false,
+        analysis_state: "not_generated", result_state: "not_included",
+        focus: "", reason: "", questions: [],
+        text: "已收到补充：再补充一下导出格式的限制",
+        citations: [], updated_at: "2026-10-18T00:00:00+00:00",
+      }],
+    });
+    const block = container.querySelector("[data-reply-id='run1:research']");
+    expect(block?.textContent).toContain("未包含此要求");
+    expect(block?.textContent).toContain("排队下一轮");
+  });
+
+  it("binds a research-level reply to its own turn, not to the last message", () => {
+    const { container } = renderPanel({
+      isSending: false,
+      messages: [
+        { role: "assistant", content: "first answer", turnId: "turn1", turnStatus: "completed" },
+        { role: "assistant", content: "second answer", turnId: "turn2", turnStatus: "completed" },
+      ],
+      researchReplies: [{
+        schema: "steering-reply-v1", reply_id: "run1:research", scope: "research",
+        steering_id: "", turn_id: "turn1", lifecycle: "open", stage: "evidence_update",
+        content_version: 3, stale: false, analysis_state: "pending",
+        focus: "", reason: "", questions: [],
+        text: "根据已读材料，初步看可行。",
+        citations: [], updated_at: "2026-10-18T00:00:00+00:00",
+      }],
+    });
+    const block = container.querySelector("[data-reply-id='run1:research']");
+    expect(block).not.toBeNull();
+    // .message is the turn container; the reply block is itself an <article>.
+    const owner = block?.closest(".message")?.textContent ?? "";
+    expect(owner).toContain("first answer");
+    expect(owner).not.toContain("second answer");
+  });
+
+  it("still shows a research-level reply when its turn has no message yet", () => {
+    const { container } = renderPanel({
+      isSending: true,
+      messages: [{ role: "assistant", content: "", turnId: "turn2" }],
+      researchReplies: [{
+        schema: "steering-reply-v1", reply_id: "run1:research", scope: "research",
+        steering_id: "", turn_id: "turn9", lifecycle: "open", stage: "evidence_update",
+        content_version: 3, stale: false, analysis_state: "pending",
+        focus: "", reason: "", questions: [],
+        text: "根据已读材料，初步看可行。",
+        citations: [], updated_at: "2026-10-18T00:00:00+00:00",
+      }],
+    });
+    const orphan = container.querySelector("[data-reply-id='run1:research']");
+    expect(orphan).not.toBeNull();
+    // No message owns this turn, so it must not be attributed to turn2.
+    expect(orphan?.closest(".message")).toBeNull();
+    expect(screen.getByRole("region", { name: "阶段性回复" })).toBeVisible();
+  });
+
+  it("mounts the answer-visibility probe only for the observed turn", () => {
+    const { container, rerender } = render(panelElement({
+      isSending: true,
+      answerTurnId: "turn1",
+      messages: [{ role: "assistant", content: "streaming", turnId: "turn1" }],
+    }));
+    // Still streaming: not an answer yet.
+    expect(container.querySelector(".answer-visibility-probe")).toBeNull();
+    // A previous turn's completed answer must not report into this window.
+    rerender(panelElement({
+      isSending: true,
+      answerTurnId: "turn2",
+      messages: [{ role: "assistant", content: "earlier answer", turnId: "turn1", turnStatus: "completed" }],
+    }));
+    expect(container.querySelector(".answer-visibility-probe")).toBeNull();
+    rerender(panelElement({
+      isSending: false,
+      answerTurnId: "turn1",
+      messages: [{ role: "assistant", content: "final answer", turnId: "turn1", turnStatus: "completed" }],
+    }));
+    expect(container.querySelector(".answer-visibility-probe")).not.toBeNull();
   });
 
   it("distinguishes a plan-applied supplement from one that is really executing", () => {

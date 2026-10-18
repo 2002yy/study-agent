@@ -292,6 +292,10 @@ export function WorkspaceView({
           isEndingSession={memoryController.isPreviewing}
           researchRun={webLookupController.result}
           researchProgress={chatController.researchProgress}
+          researchReplies={chatController.researchReplies}
+          onReplyVisible={chatController.onReplyVisible}
+          onAnswerVisible={chatController.onAnswerVisible}
+          answerTurnId={chatController.answerTurnId}
           canSteer={chatController.canSteer}
           canQueue={chatController.canQueue}
           onQueue={async question => {

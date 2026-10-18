@@ -144,6 +144,23 @@ export function ChatResearchRecovery({
       </div>
     );
   }
+  const runWarnings = (run?.warnings ?? []).filter(Boolean);
+  if (!inlineStatusShown && !progress && runWarnings.length) {
+    // A persisted run warning is the honest surface for "this result does not
+    // cover everything that was accepted". It is shown as-is, never summarised
+    // away, and it is the same text any API consumer sees.
+    return (
+      <div className="memory-note warn" role="status">
+        <div>
+          {runWarnings.map(warning => (
+            <span className="research-warning-line" key={warning}>
+              {warning}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
   if (run?.parent_run_id) {
     const lineage = lineageDetails(run);
     const aggregate = run.lineage_summary ?? {};

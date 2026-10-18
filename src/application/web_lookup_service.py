@@ -1,6 +1,7 @@
 """Application service for durable, resumable general-web research."""
 
 from __future__ import annotations
+from collections.abc import Mapping
 
 from dataclasses import asdict, dataclass
 import os
@@ -37,6 +38,20 @@ from src.web.research.incremental_budget import (
 )
 from src.tools.python_isolation import isolated_python_available
 from src.web.research.interim_analysis import analysis_sources, interim_revision, validate_interim_analysis
+from src.web.research.steering_replies import (
+    LIFECYCLE_OPEN,
+    apply_analysis,
+    content_state,
+    apply_evidence,
+    attribute_analysis,
+    find_reply,
+    mark_additions_stale,
+    next_content_version,
+    reply_id_for_steering,
+    research_reply,
+    research_reply_id,
+    supersede_affected,
+)
 
 
 class WebLookupGateway(Protocol):
@@ -1582,11 +1597,20 @@ class WebLookupService:
         """
 
         steering = []
-        for entry in (deep.get("steering") or [])[-3:]:
-            if not isinstance(entry, dict):
-                continue
+        understood = {
+            str(item.get("steering_id") or "")
+            for item in (context.get("steering_replies") or [])
+            if isinstance(item, dict) and item.get("analysis_state") == "ready"
+        }
+        entries = [entry for entry in (deep.get("steering") or []) if isinstance(entry, dict)]
+        # Supplements the model has not explained yet come first: a run that
+        # accepted four supplements must never silently drop the fourth.
+        uncovered = [entry for entry in entries if str(entry.get("id") or "") not in understood]
+        # Oldest first: a burst of supplements must not starve the earliest one.
+        for entry in (uncovered[:4] if uncovered else entries[-3:]):
             steering.append(
                 {
+                    "id": str(entry.get("id") or ""),
                     "content": str(entry.get("content", ""))[:300],
                     "kind": entry.get("kind"),
                     "task_id": entry.get("task_id"),
@@ -1654,11 +1678,15 @@ class WebLookupService:
         return revise(memo, notes, remaining) or {}
 
     def _deep_consume_steering(
-        self, context: dict[str, Any], deep: dict[str, Any], round_index: int
+        self, context: dict[str, Any], deep: dict[str, Any], round_index: int, run_id: str
     ) -> bool:
         """Mark pending steering as incorporated; True when anything consumed."""
         consumed = False
         merged_attachments = False
+        # Only what this pass really incorporated may affect existing replies:
+        # replaying every historical addition would make earlier and later
+        # supplements invalidate each other.
+        incorporated: list[dict[str, Any]] = []
         for entry in deep.get("steering", []):
             if isinstance(entry, dict) and entry.get("incorporated_in_round") is None:
                 # A receipt is applied only when it changes actual future work.
@@ -1669,6 +1697,13 @@ class WebLookupService:
                     continue
                 entry["budget_grant"] = authorize_goal(deep, steering_id=str(entry.get("id") or entry.get("received_at")), task_id=entry["task_id"])
                 entry["incorporated_in_round"] = round_index
+                incorporated.append(
+                    {
+                        "id": str(entry.get("id") or entry.get("received_at") or ""),
+                        "kind": str(entry.get("kind") or ""),
+                        "round": round_index,
+                    }
+                )
                 consumed = True
                 # Mid-run attachments become task material for the same round,
                 # deduped by identity; they never become web evidence.
@@ -1690,7 +1725,121 @@ class WebLookupService:
                 )
         if merged_attachments:
             self._deep_log(deep, "attachment", "补充消息中的附件已并入本轮任务材料")
+        if consumed:
+            self._deep_update_steering_replies(context, deep, run_id, incorporated)
         return consumed
+
+    def _deep_update_steering_replies(
+        self,
+        context: dict[str, Any],
+        deep: dict[str, Any],
+        run_id: str,
+        incorporated: list[dict[str, Any]],
+    ) -> None:
+        """Apply the supplements *this pass* incorporated to their replies.
+
+        An addition only marks judgments older than its own round as not covering
+        the new condition; a correction supersedes the judgments that spoke about
+        the term it replaced.  Classification happens here, where the plan change
+        is real, never at receipt time, and history is never replayed.
+        """
+        replies = list(context.get("steering_replies") or [])
+        if not run_id or not replies or not incorporated:
+            return
+        incorporated_ids = {item["id"] for item in incorporated if item.get("id")}
+        corrections = [
+            item
+            for item in (deep.get("corrections") or [])
+            if isinstance(item, dict)
+            and str(item.get("steering_id") or "") in incorporated_ids
+        ]
+        if corrections:
+            replies = supersede_affected(
+                replies,
+                old_terms=[str(item.get("old") or "") for item in corrections],
+                now=utc_now(),
+            )
+        for item in incorporated:
+            if item.get("kind") != "addition" or not item.get("id"):
+                continue
+            replies = mark_additions_stale(
+                replies,
+                keep_reply_id=reply_id_for_steering(run_id, str(item["id"])),
+                added_round=int(item.get("round") or 0),
+                now=utc_now(),
+            )
+        context["steering_replies"] = replies
+
+    def _deep_publish_steering_replies(
+        self,
+        context: dict[str, Any],
+        deep: dict[str, Any],
+        verdict: Mapping[str, Any],
+        run_id: str,
+        round_index: int,
+    ) -> bool:
+        """Publish the model's task understanding and sourced provisional judgment.
+
+        Nothing here is authority: the task understanding may only describe the
+        task, and a sourced judgment is bound to a supplement only when every
+        citation was really read for a question that supplement created.
+        """
+        turn_id = str((context.get("owner") or {}).get("turn_id") or "")
+        if not run_id:
+            return False
+        now = utc_now()
+        replies = list(context.get("steering_replies") or [])
+        changed = False
+        for understanding in verdict.get("steering_understandings") or []:
+            if not isinstance(understanding, dict):
+                continue
+            reply_id = reply_id_for_steering(
+                run_id, str(understanding.get("steering_id") or "")
+            )
+            current = find_reply(replies, reply_id)
+            if current is None or current.get("lifecycle") != LIFECYCLE_OPEN:
+                continue
+            replies = apply_analysis(
+                replies,
+                reply_id=reply_id,
+                understanding=understanding,
+                now=now,
+                version=next_content_version(current),
+                state=content_state(round_index=round_index, notes=len(deep.get("notes") or [])),
+                based_on=int(current.get("content_version") or 0),
+            )
+            changed = True
+        analysis = deep.get("interim_analysis")
+        if isinstance(analysis, dict) and str(analysis.get("text") or "").strip():
+            target = research_reply_id(run_id)
+            for entry in deep.get("steering") or []:
+                if not isinstance(entry, dict):
+                    continue
+                if attribute_analysis(analysis, plan=deep.get("plan") or [], entry=entry):
+                    target = reply_id_for_steering(run_id, str(entry.get("id") or ""))
+                    break
+            current = find_reply(replies, target)
+            if current is None and target == research_reply_id(run_id):
+                replies.append(research_reply(run_id=run_id, turn_id=turn_id, now=now))
+                current = find_reply(replies, target)
+            if current is not None and current.get("lifecycle") == LIFECYCLE_OPEN:
+                replies = apply_evidence(
+                    replies,
+                    reply_id=target,
+                    analysis=analysis,
+                    now=now,
+                    version=next_content_version(current),
+                    state=content_state(
+                        round_index=round_index,
+                        notes=len(deep.get("notes") or []),
+                        revision=str(analysis.get("revision") or ""),
+                    ),
+                    based_on=int(current.get("content_version") or 0),
+                )
+                changed = True
+        if changed:
+            context["steering_replies"] = replies
+        return changed
 
     def _deep_default_plan(
         self, query: str, context: dict[str, Any]
@@ -1844,6 +1993,12 @@ class WebLookupService:
             ):
                 deep["steering"] = merged_deep["steering"]
                 context["deep"] = deep
+            # The checkpoint merges replies written by the API thread; adopt the
+            # post-write section so the next version is allocated against durable
+            # state instead of a stale local copy.
+            merged_replies = saved.research_context.get("steering_replies")
+            if isinstance(merged_replies, list):
+                context["steering_replies"] = merged_replies
             return saved
 
         def set_stage(next_stage: str) -> None:
@@ -1886,7 +2041,7 @@ class WebLookupService:
             ):
                 ensure_active()
                 steered_this_round = self._deep_consume_steering(
-                    context, deep, round_index + 1
+                    context, deep, round_index + 1, run_id
                 )
                 ledger = deep.get("incremental_budget")
                 if isinstance(ledger, dict):
@@ -2143,11 +2298,17 @@ class WebLookupService:
                     analysis = validate_interim_analysis(verdict.get("interim_analysis"), analysis_sources(notes))
                     if analysis is not None:
                         deep["interim_analysis"] = {**analysis, "revision": interim_revision(deep)}
-                        # Persist before synthesis so observers can read it while
-                        # research is still running. No extra model call is made.
-                        persist()
                     else:
                         deep.pop("interim_analysis", None)
+                    # Provisional replies: the model's task understanding for each
+                    # accepted supplement, plus one sourced judgment bound to a
+                    # supplement only when its citations really came from that
+                    # supplement's own questions. Persisted before synthesis so a
+                    # reader sees it while research is still running.
+                    self._deep_publish_steering_replies(
+                        context, deep, verdict, run_id, round_index
+                    )
+                    persist()
                     additional = [
                         str(item).strip()
                         for item in verdict.get("additional", [])
@@ -2261,13 +2422,12 @@ class WebLookupService:
             )
             source_block = f"{memo_block}{notes_block}{base_block}"
 
-            unapplied = any(
-                isinstance(entry, dict) and entry.get("executed_in_round") is None
-                for entry in deep.get("steering", [])
-            )
-            if unapplied:
-                warnings.append("部分追加要求未能在本轮执行，当前研究范围不完整；请排队下一轮继续。")
-
+            # The honest terminal report (warning + partial status) is derived in
+            # WebLookupRepository.complete from the *merged* context, so a
+            # supplement accepted in the last moment is reported too.
+            # Replies are frozen by the terminal transition itself (see
+            # WebLookupRepository.complete): a checkpoint must never persist a
+            # closed reply while the run row is still running.
             persist()
             return self.repository.complete(
                 run_id,
@@ -2282,13 +2442,15 @@ class WebLookupService:
                 provider_status=provider_status,
                 stop_reason=reason,
                 answer_confidence=answer_confidence,
-                final_status="partial" if unapplied else None,
+                final_status=None,
             )
         except ResearchCancelled:
             return self.repository.finish_cancel(run_id, operation_id=operation_id)
         except Exception as exc:
             latest = self.get(run_id)
             if latest.status == "running" and latest.active_operation_id == operation_id:
+                # A failed run is terminal: WebLookupRepository.fail freezes the
+                # replies inside the same atomic status transition.
                 failed = self.repository.fail(
                     run_id,
                     str(exc),

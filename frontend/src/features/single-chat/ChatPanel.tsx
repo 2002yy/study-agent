@@ -30,6 +30,7 @@ import { useReadingWorkspace } from "../reading/ReadingContext";
 import type {
   ChatMessage,
   ChatResearchProgress,
+  ChatResearchReply,
   ChatResponse,
   DrawerId,
   MemoryStatusResponse,
@@ -44,6 +45,7 @@ import {
   type TaskIntent,
 } from "../task/taskContract";
 import { ChatResearchRecovery } from "../web-lookup/ChatResearchRecovery";
+import { replyHeading, replyIsProvisional, replyStatusNote } from "../web-lookup/researchReplies";
 import type { ResearchLookupResponse } from "../web-lookup/researchApi";
 import { RestoreCard } from "./RestoreCard";
 import { ChatRoleSettings } from "./ChatRoleSettings";
@@ -118,6 +120,13 @@ type ChatPanelProps = {
   isEndingSession?: boolean;
   researchRun: ResearchLookupResponse | null;
   researchProgress?: ChatResearchProgress | null;
+  researchReplies?: ChatResearchReply[];
+  /** Reported by the block itself, once per rendered content state. */
+  onReplyVisible?: (reply: ChatResearchReply, at: number) => void;
+  /** Reported by the element that renders the final answer. */
+  onAnswerVisible?: (turnId?: string) => void;
+  /** The turn whose answer visibility is being observed right now. */
+  answerTurnId?: string | null;
   isResearchBusy: boolean;
   canRetryResearch: boolean;
   canResumeResearch: boolean;
@@ -133,6 +142,63 @@ type ChatPanelProps = {
 };
 
 type CopyState = "idle" | "success" | "error";
+
+function ResearchReplyBlock({
+  reply,
+  onVisible,
+}: {
+  reply: ChatResearchReply;
+  onVisible?: (reply: ChatResearchReply, at: number) => void;
+}) {
+  useEffect(() => {
+    // The next frame after this content state is mounted is the first point at
+    // which the reader can see *this* stage - a receipt is not an analysis.
+    const frame = requestAnimationFrame(() => onVisible?.(reply, performance.now()));
+    return () => cancelAnimationFrame(frame);
+  }, [reply, onVisible]);
+  return (
+    <article className="research-reply" data-reply-id={reply.reply_id}>
+      <header className="research-reply-head">
+        <span className="research-reply-kind">{replyHeading(reply)}</span>
+        {replyIsProvisional(reply) ? (
+          <span className="research-reply-note">有来源，尚非结论</span>
+        ) : null}
+        {replyStatusNote(reply) ? (
+          <span className="research-reply-note">{replyStatusNote(reply)}</span>
+        ) : null}
+      </header>
+      <p className="research-reply-text">{reply.text}</p>
+      {reply.citations.length ? (
+        <ul className="research-reply-citations">
+          {reply.citations.map(citation => {
+            const href = safeLinkUrl(citation.url);
+            const label = citation.title || citation.url;
+            return (
+              <li key={`${citation.url}:${citation.quote}`}>
+                {href ? <a href={href} rel="noreferrer" target="_blank">{label}</a> : label}
+                <blockquote>{citation.quote}</blockquote>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </article>
+  );
+}
+
+/**
+ * Reports when the final answer is actually on screen. Mounted only for a
+ * completed assistant answer, so it is a render observation rather than an
+ * assumption that `done` implies visibility (the value is still a frame
+ * approximation, not a paint guarantee).
+ */
+function AnswerVisibilityProbe({ onVisible }: { onVisible?: () => void }) {
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => onVisible?.());
+    return () => cancelAnimationFrame(frame);
+  }, [onVisible]);
+  return <span aria-hidden="true" className="answer-visibility-probe" hidden />;
+}
 
 export function ChatPanel(props: ChatPanelProps) {
   const reading=useReadingWorkspace();
@@ -220,6 +286,37 @@ export function ChatPanel(props: ChatPanelProps) {
   const inlineResearchShown = Boolean(
     researchProgress?.run_id &&
       displayMessages.some((message) => message.researchProgress?.run_id === researchProgress.run_id),
+  );
+  // Provisional replies are display-only blocks. A supplement-scoped reply is
+  // bound to its own supplement message; the research-level one belongs to the
+  // run and is shown after the assistant message it explains.
+  const researchReplies = props.researchReplies ?? [];
+  const supplementReplies = new Map(
+    researchReplies
+      .filter(reply => reply.scope === "steering" && reply.steering_id)
+      .map(reply => [reply.steering_id, reply]),
+  );
+  // A research-level reply belongs to its own turn, never to "the last
+  // assistant message": that message may belong to an earlier, finished answer.
+  const replyOwnerIndex = (reply: ChatResearchReply): number => {
+    let found = -1;
+    displayMessages.forEach((message, index) => {
+      if (message.turnId && reply.turn_id && message.turnId === reply.turn_id) found = index;
+    });
+    return found;
+  };
+  const runRepliesByIndex = new Map<number, ChatResearchReply[]>();
+  const unownedRunReplies: ChatResearchReply[] = [];
+  for (const reply of researchReplies.filter(item => item.scope === "research")) {
+    const owner = replyOwnerIndex(reply);
+    if (owner < 0) {
+      unownedRunReplies.push(reply);
+      continue;
+    }
+    runRepliesByIndex.set(owner, [...(runRepliesByIndex.get(owner) ?? []), reply]);
+  }
+  const replyBlock = (reply: ChatResearchReply) => (
+    <ResearchReplyBlock key={reply.reply_id} reply={reply} onVisible={props.onReplyVisible} />
   );
 
   const resetCopyFeedbackLater = (kind: "message" | "interrupted", index?: number) => {
@@ -452,10 +549,32 @@ export function ChatPanel(props: ChatPanelProps) {
                     </div>
                   )}
                   {message.role === "assistant" && message.evidence ? <EvidenceTrail evidence={message.evidence} /> : null}
+                  {message.role === "assistant" &&
+                  message.content.trim() &&
+                  message.turnStatus === "completed" &&
+                  Boolean(message.turnId) &&
+                  message.turnId === props.answerTurnId ? (
+                    <AnswerVisibilityProbe onVisible={() => props.onAnswerVisible?.(message.turnId)} />
+                  ) : null}
+                  {message.researchSteering && supplementReplies.get(message.researchSteering.id) ? (
+                    <section className="research-replies" aria-label="阶段性回复">
+                      {replyBlock(supplementReplies.get(message.researchSteering.id)!)}
+                    </section>
+                  ) : null}
+                  {runRepliesByIndex.get(index)?.length ? (
+                    <section className="research-replies" aria-label="阶段性回复">
+                      {runRepliesByIndex.get(index)!.map(reply => replyBlock(reply))}
+                    </section>
+                  ) : null}
                 </div>
               </article>
             );
           })}
+          {unownedRunReplies.length ? (
+            <section className="research-replies" aria-label="阶段性回复">
+              {unownedRunReplies.map(reply => replyBlock(reply))}
+            </section>
+          ) : null}
           <div />
         </section>
         {!isAtBottom ? (

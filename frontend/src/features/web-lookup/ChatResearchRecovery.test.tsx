@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatResearchRecovery } from "./ChatResearchRecovery";
 import type { ResearchLookupResponse } from "./researchApi";
+
+afterEach(cleanup);
 
 function run(status: ResearchLookupResponse["status"]): ResearchLookupResponse {
   return {
@@ -30,6 +32,25 @@ function run(status: ResearchLookupResponse["status"]): ResearchLookupResponse {
 }
 
 describe("ChatResearchRecovery", () => {
+  it("shows a persisted warning that the result does not cover an accepted requirement", () => {
+    const payload = run("partial");
+    payload.warnings = ["本轮研究结果未包含部分追加要求（已接受但未执行）；请排队下一轮继续。"];
+    const { container } = render(
+      <ChatResearchRecovery
+        run={payload}
+        isBusy={false}
+        canRetry={false}
+        canResume={false}
+        useInChat={false}
+        onRetry={vi.fn()}
+        onResume={vi.fn()}
+      />,
+    );
+    // The same text any API consumer sees, rendered as-is rather than summarised.
+    expect(container.textContent ?? "").toContain("未包含部分追加要求");
+    expect(container.querySelector(".research-warning-line")).toBeTruthy();
+  });
+
   it("shows live progress from the chat preparation stream", () => {
     const { container } = render(
       <ChatResearchRecovery

@@ -16,11 +16,14 @@ import {
 } from "../../api";
 import { operationRegistry } from "../../app/operationRegistry";
 import { mergeResearchProgress } from "../web-lookup/researchApproach";
+import { mergeResearchReplies } from "../web-lookup/researchReplies";
+import { emptyTiming, mergeTiming, type ResearchTimingState, type TimingEvent } from "../web-lookup/researchTiming";
 import { useWorkspace } from "../../app/WorkspaceProvider";
 import type { StreamRecoveryState } from "../../app/workspaceReducer";
 import type {
   ChatMessage,
   ChatResearchProgress,
+  ChatResearchReply,
   ChatResponse,
   ChatSettings,
   RagSettings,
@@ -97,12 +100,38 @@ export function useChatController(options: ControllerOptions) {
   const { state, dispatch } = useWorkspace();
   const [isSending, setIsSending] = useState(false);
   const [researchProgress, setResearchProgress] = useState<ChatResearchProgress | null>(null);
+  const [researchReplies, setResearchReplies] = useState<ChatResearchReply[]>([]);
   const [isSteering, setIsSteering] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const stoppingRef = useRef(false);
   const steeringInFlightRef = useRef(false);
   const sendingRef = useRef(false);
   const researchProgressRef = useRef<ChatResearchProgress | null>(null);
+  const researchRepliesRef = useRef<ChatResearchReply[]>([]);
+  // Latency marks for the current turn, all from one browser monotonic clock.
+  const researchTimingRef = useRef<ResearchTimingState>(emptyTiming());
+  // The turn this window observes, so a previous answer cannot report into it.
+  const [answerTurnId, setAnswerTurnId] = useState<string | null>(null);
+  const noteTiming = (event: TimingEvent) => {
+    researchTimingRef.current = mergeTiming(researchTimingRef.current, event);
+  };
+  // Reported by the component that actually renders a reply, per content state.
+  const onReplyVisible = (reply: ChatResearchReply, at: number) => {
+    noteTiming({ kind: "reply_visible", at, reply });
+    publishTiming();
+  };
+  // Reported by the component that renders the final answer, not by the event.
+  const onAnswerVisible = (turnId?: string) => {
+    noteTiming({ kind: "answer_visible", at: performance.now(), turnId });
+    publishTiming();
+  };
+  const publishTiming = () => {
+    if (import.meta.env.DEV) {
+      (window as unknown as { __studyAgentTimings?: ResearchTimingState }).__studyAgentTimings =
+        researchTimingRef.current;
+    }
+  };
+
   const steeringEpochRef = useRef(0);
   const completedQueueTurnRef = useRef<string | null>(null);
   const supplementAttemptRef = useRef<{ runId: string; content: string; id: string; kind: "steer" | "queue"; attachmentKey?: string } | null>(null);
@@ -208,6 +237,8 @@ export function useChatController(options: ControllerOptions) {
       setIsStopping(false);
       setResearchProgress(null);
       researchProgressRef.current = null;
+      researchRepliesRef.current = [];
+      setResearchReplies([]);
       deepRunIdRef.current = null;
       steeringEpochRef.current += 1;
       supplementAttemptRef.current = null;
@@ -261,6 +292,9 @@ export function useChatController(options: ControllerOptions) {
       supplementAttemptRef.current = { runId, content: question, id: requestId, kind: "steer", attachmentKey };
       steeringInFlightRef.current = true;
       setIsSteering(true);
+      // T0 is the moment the user submits, before any network or persistence
+      // time: measuring from the server's acknowledgement would understate it.
+      const submittedAt = performance.now();
       try {
         const response = await steerResearchRun(runId, question, { requestId, ...(attachmentIds.length ? { attachmentIds } : {}) });
         if (steeringEpochRef.current !== epoch) return false;
@@ -287,6 +321,7 @@ export function useChatController(options: ControllerOptions) {
         options.setInput(current => current.trim() === question.trim() ? "" : current);
         options.setOperationError("");
         supplementAttemptRef.current = null;
+        noteTiming({ kind: "submit", at: submittedAt, steeringId: id });
         return true;
       } catch (error) {
         if (steeringEpochRef.current !== epoch) return false;
@@ -319,6 +354,8 @@ export function useChatController(options: ControllerOptions) {
     setIsStopping(false);
     completedQueueTurnRef.current = null;
     researchProgressRef.current = null;
+    researchRepliesRef.current = [];
+    setResearchReplies([]);
     deepRunIdRef.current = null;
     const isContinuation = Boolean(extraOpts.continuationOfTurnId);
     const nextMessages: ChatMessage[] = isContinuation
@@ -345,6 +382,10 @@ export function useChatController(options: ControllerOptions) {
     let activeTurnId =
       extraOpts.turnId ?? `turn_${globalThis.crypto.randomUUID()}`;
     activeTurnIdRef.current = activeTurnId;
+    // Each send is a new observation window: start it before anything can report.
+    noteTiming({ kind: "run_start", at: performance.now(), turnId: activeTurnId });
+    setAnswerTurnId(activeTurnId);
+    publishTiming();
     // G12 decision 20: the official client pre-allocates the operation handle
     // so cancellation can target (turn_id, expected_operation_id) even before
     // the server assigns its own operation id.
@@ -491,6 +532,16 @@ export function useChatController(options: ControllerOptions) {
             const merged = mergeResearchProgress(researchProgressRef.current, progress)!;
             researchProgressRef.current = merged;
             setResearchProgress(merged);
+            // Provisional replies merge by content version only: a late or
+            // duplicated event can never overwrite newer content.
+            const nextReplies = mergeResearchReplies(researchRepliesRef.current, merged.replies);
+            if (nextReplies !== researchRepliesRef.current) {
+              researchRepliesRef.current = nextReplies;
+              setResearchReplies(nextReplies);
+            }
+            if (merged.replies?.length) {
+              noteTiming({ kind: "replies", at: performance.now(), replies: merged.replies });
+            }
             setMessages(current => current.map((message, index) => {
               if (index === assistantIndex) return { ...message, researchProgress: merged };
               if (message.researchSteering?.runId !== merged.run_id) return message;
@@ -558,6 +609,9 @@ export function useChatController(options: ControllerOptions) {
           },
           onDone: (done) => {
             if (!isCurrent()) return;
+            // The answer state is committed now; the next frame is the first
+            // point at which the reader can actually see it.
+            noteTiming({ kind: "answer_done", at: performance.now() });
             if (typeof done.session_id === "string") {
               activeSessionId = done.session_id;
               setThreadId(done.session_id);
@@ -873,6 +927,11 @@ export function useChatController(options: ControllerOptions) {
       setMessages(current => [...current.flatMap(message => {
         const progress = response.progress?.find(item => item.turn_id === message.turnId);
         if (message.role !== "assistant" || !progress) return [message];
+        const restoredReplies = mergeResearchReplies(researchRepliesRef.current, progress.replies);
+        if (restoredReplies !== researchRepliesRef.current) {
+          researchRepliesRef.current = restoredReplies;
+          setResearchReplies(restoredReplies);
+        }
         return [{ ...message, researchProgress: progress }, ...(progress.steering ?? []).map(receipt => ({
           role: "user" as const, content: receipt.content, avatarRole: "user", transient: true,
           turnId: message.turnId, researchSteering: { runId: progress.run_id, id: receipt.id, status: receipt.status,
@@ -1061,6 +1120,10 @@ export function useChatController(options: ControllerOptions) {
     canSteer: isSending && !isStopping && Boolean(deepRunIdRef.current),
     canQueue: isSending && !isStopping && Boolean(researchProgress?.run_id) && !["failed", "cancelled"].includes(researchProgress?.status ?? ""),
     researchProgress,
+    researchReplies,
+    onReplyVisible,
+    onAnswerVisible,
+    answerTurnId,
     setMessages,
     setLastChat,
     setStreamRecovery,

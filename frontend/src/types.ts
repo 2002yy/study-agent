@@ -603,6 +603,39 @@ export type WebLookupRunResponse = {
   completed_at?: string | null;
 };
 
+export type ChatResearchReplyStage = "acknowledgement" | "analysis" | "evidence_update";
+
+export type ChatResearchReply = {
+  schema: string;
+  reply_id: string;
+  scope: "steering" | "research";
+  steering_id: string;
+  turn_id: string;
+  lifecycle: "open" | "superseded" | "closed";
+  stage: ChatResearchReplyStage;
+  content_version: number;
+  stale: boolean;
+  analysis_state: "pending" | "ready" | "not_generated";
+  /**
+   * Set when the run ended without covering an accepted supplement: the answer
+   * does not include this requirement, which is stronger than "no analysis".
+   */
+  result_state?: "not_included";
+  focus: string;
+  reason: string;
+  questions: string[];
+  text: string;
+  citations: Array<{ url: string; title?: string; quote: string; question?: string; round?: number | null }>;
+  updated_at: string;
+  // Provenance and audit fields. `lifecycle_closed_by` distinguishes an
+  // authoritative freeze from a writer merely claiming the reply is closed.
+  lifecycle_closed_by?: string;
+  closed_run_status?: string;
+  based_on_version?: number;
+  conflicts_refused?: number;
+  last_conflict?: { reason: string; stage: string; content_version: number; at: string };
+};
+
 export type ChatResearchApproach = {
   status: "pending" | "ready" | "failed";
   summary: string;
@@ -634,6 +667,9 @@ export type ChatResearchProgress = {
   steering_supported?: boolean;
   steering?: Array<{ id: string; content: string; status: "pending" | "applied" | "executing" | "late";
     effects?: { questions?: Array<{ text: string; created: boolean }>; sources?: Array<{ title: string; url: string }> } }>;
+  // Provisional assistant replies. Display-only: never the turn's answer and
+  // never part of the persisted chat history.
+  replies?: ChatResearchReply[];
   narration?: Array<{ block_id: string; text: string }>;
   findings?: Array<{ id: string; kind: "source_excerpt"; title: string; url: string; text: string; question?: string }>;
   reading_gaps?: string[];
