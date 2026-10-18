@@ -57,7 +57,7 @@
 
 边界：传输适配器必须使用异步非阻塞 I/O、禁用隐藏重试，并在生产提供商调用前做持久费用预留。此模块的预算为进程内准入/输出上限，**不是人民币费用台账，也不是重启幂等存储**。未新增 SDK 入口、未选择/配置提供商、未调用真实付费模型，生产路由没有切换。真实 loopback HTTP 测试验证传输 → 响应 → 合同校验链，但不证明真实模型意图质量。
 
-**CL-1C-1（独立后续片，本地实现）：** 可注入准入协议与 `SqliteDecisionAdmission`，在独立自有 SQLite 文件中原子预留调用次数、提示字符、输出 token。重启后 request 去重和预留仍在，预算合同冻结，拒绝打开业务数据库；模型失败/超时不退款。模型 runner 的准入异常与非法状态统一 fail closed，不执行 transport。该台账不是人民币费用表，不改现有 runtime schema；没有接入提供商或切换生产权威。命名 L1 为 `conversation_decision_admission`，含真实 SQLite、独立 Python 进程重启与并发连接负控。
+**CL-1C-1（独立后续片，本地实现）：** 可注入准入协议与 `SqliteDecisionAdmission`，在独立自有 SQLite 文件中原子预留调用次数、提示字符、输出 token。重启后 request 去重和预留仍在，预算合同冻结，拒绝打开业务数据库；仅允许本调用独占创建的新文件初始化，预先存在的零字节文件或合法空 SQLite 同样不接管；初始化中断遗留文件无所有权时 fail closed，不自动清理。模型失败/超时不退款。模型 runner 的准入异常与非法状态统一 fail closed，不执行 transport。该台账不是人民币费用表，不改现有 runtime schema；没有接入提供商或切换生产权威。命名 L1 为 `conversation_decision_admission`，含真实 SQLite、独立 Python 进程重启与并发连接负控。
 
 后续 **CL-1C-2（未实现）**：生产接线与货币费用预留、权威请求身份、工具预算、上下文读取和竞态校验，再接入真实提供商。不能借接线悄悄增加无费用约束的 SDK 入口。
 

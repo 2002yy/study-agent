@@ -106,11 +106,25 @@ def test_foreign_database_is_refused_without_changes(tmp_path):
         db.execute("CREATE TABLE application_state (id INTEGER)")
         db.execute("INSERT INTO application_state VALUES (1)")
     before = sha256(path.read_bytes()).hexdigest()
-    with pytest.raises(ValueError, match="own database"):
+    with pytest.raises(ValueError, match="ownership marker"):
         ledger(path)
     assert sha256(path.read_bytes()).hexdigest() == before
     with sqlite3.connect(path) as db:
         assert db.execute("SELECT * FROM application_state").fetchall() == [(1,)]
+
+
+@pytest.mark.parametrize("valid_sqlite", [False, True])
+def test_preexisting_empty_file_is_never_claimed_or_modified(tmp_path, valid_sqlite):
+    path = tmp_path / "application-not-yet-migrated.sqlite"
+    if valid_sqlite:
+        with sqlite3.connect(path) as db:
+            db.execute("VACUUM")
+    else:
+        path.write_bytes(b"")
+    before = path.read_bytes()
+    with pytest.raises(ValueError, match="ownership marker"):
+        ledger(path)
+    assert path.read_bytes() == before
 
 
 def test_provider_failures_are_not_refunded_after_restart(tmp_path):

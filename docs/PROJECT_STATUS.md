@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-19 合并与增量审阅收口（覆盖下方 #230 待合并及空库所有权记录）。** [#230](https://github.com/2002yy/study-agent/pull/230) 已于精确 head `f706db8ce072027d72764f387329599711647d52`、pull_request CI `39143921500 SUCCESS`、无未解决审阅 finding 后 expected-head squash 合并，main 为 `0236160e378c0272d7dd9e582e08c12d3ac65fda`；本地主目录已 ff-only 同步，保留三个未跟踪 IA-1A 审阅 ZIP，tracked clean。exact-main push CI `39145457669` 已绑定 0236160e，快照 in_progress；未借 PR 绿灯称 main CI 已通过。#231 已重绑 main，head `04371329d94a71bb36160170334888d8f89f1aaf`，3 文件，ready for review；与旧 4ba7b6ad 整树相同，保留 102 PASS 的同树本地证据，旧远端 CI 不授予新 head。
+
+#232 审阅 finding `4307789596` 接受并修复：原实现会初始化预先存在的空 SQLite 文件；现在只允许本调用通过 O_EXCL 独占新建的文件初始化，已有文件先以 read-only URI 核验完整所有权/额度，拿写锁后再核对一次；零字节空文件与合法空 SQLite 均负控证明原字节不变。初始化中断遗留无所有权文件只会 fail closed，不自动删除/接管。修复后的命名 L1 **114 PASS / 34.14s**，Ruff/format、mypy122/128 NEW0、diff-check PASS；无本地全量、无真实付费调用。当前候选应将本片单独重绑上述 main 后推送，完成该 finding 的解决记录；提交 SHA 以本段所属提交恢复，不把旧 #232 head 59b62753 的 CI 借给新 head。下一执行片：CL-1C-2 的持久货币费用/请求身份合同与可注入边界，保持生产路由不变；后台 CI 不阻塞下一片开发。
+
 **2026-10-19 CL-1C-1：不等待 CI 的独立调用准入片（覆盖本分支旧 NEXT）。** 用户明确“不等 CI，接着做后续小分支拆分或功能分支开发”，并要求写入 Codex 记忆；已新增记忆更新 note，未改动既有 MEMORY.md。#230 保持冻结 head `f706db8ce072027d72764f387329599711647d52` / run `39143921500` 后台执行；CI 四精确路径路由已独立开为 draft [#231](https://github.com/2002yy/study-agent/pull/231)，head `4ba7b6ad`，本地 102 PASS。当前新 branch `codex/conversation-decision-admission-20261019`，worktree `D:/study-agent-validation/conversation-decision-admission-20261019`，base f706，不依赖 #231 或其他工作树 WIP。
 
 本片新增 `conversation_decision_admission.py`：独立自有 SQLite 文件、固定额度合同、BEGIN IMMEDIATE 原子预留、request 幂等、跨实例/进程重启保留预留、并发限额、拒绝业务数据库（负控核验原库 SHA256/行不变）；不保存提示正文/模型响应/凭据，不退款、不自动重置。runner 改为可注入准入协议，存储异常/未知返回统一 admission_unavailable，模型不执行。现有进程内 DecisionBudget 保持兼容。此为次数/字符/token 台账，不冒称货币费用，未改变业务 SQLite schema/cursor，未接 SDK/真实付费模型或切换生产路由。

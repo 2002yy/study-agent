@@ -11,6 +11,7 @@ from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+import os
 import sqlite3
 from typing import Iterator
 
@@ -46,16 +47,33 @@ class SqliteDecisionAdmission:
         if str(path) == ":memory:":
             raise ValueError("persistent admission requires a file")
         self._path = path.resolve()
+        created = False
+        try:
+            handle = os.open(self._path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            # Inspect existing files read-only before taking any write lock.
+            # Even a pre-created zero-byte database belongs to somebody else
+            # unless it already carries our complete ownership contract.
+            with closing(
+                sqlite3.connect(self._path.as_uri() + "?mode=ro", uri=True, timeout=0.1)
+            ) as existing:
+                if self._objects(existing) != _TABLES:
+                    raise ValueError(
+                        "existing database lacks admission ownership marker"
+                    )
+                self._verify_limits(existing)
+        else:
+            os.close(handle)
+            created = True
         with self._transaction() as db:
-            tables = {
-                row[0]
-                for row in db.execute(
-                    "SELECT name FROM sqlite_master WHERE name NOT GLOB 'sqlite_*'"
-                )
-            }
+            tables = self._objects(db)
             if tables and tables != _TABLES:
                 raise ValueError("admission requires its own database")
             if not tables:
+                if not created:
+                    raise ValueError(
+                        "existing database lost admission ownership marker"
+                    )
                 db.execute(
                     "CREATE TABLE decision_admission_limits ("
                     "id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER NOT NULL, "
@@ -72,6 +90,15 @@ class SqliteDecisionAdmission:
                     self._caps,
                 )
             self._verify_limits(db)
+
+    @staticmethod
+    def _objects(db: sqlite3.Connection) -> set[str]:
+        return {
+            row[0]
+            for row in db.execute(
+                "SELECT name FROM sqlite_master WHERE name NOT GLOB 'sqlite_*'"
+            )
+        }
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
