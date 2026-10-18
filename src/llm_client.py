@@ -423,6 +423,7 @@ def _build_request_kwargs(
     timeout: float | None,
     response_format: ResponseFormat | None,
     stream: bool,
+    request_key: str | None = None,
 ) -> dict[str, Any]:
     resolved_model_profile = model_profile or None
     kwargs: dict[str, Any] = {
@@ -458,6 +459,8 @@ def _build_request_kwargs(
         max_tokens=resolved_max_tokens,
         attempts=_max_attempts(provider_profile),
         purpose=f"chat:{task_name or ('stream' if stream else 'call')}",
+        model=str(kwargs["model"]),
+        request_key=request_key,
     )
     return kwargs
 
@@ -504,6 +507,7 @@ def stream_chat(
     task_name: str | None = None,
     request_max_retries: int | None = None,
     extra_body: Mapping[str, Any] | None = None,
+    request_key: str | None = None,
 ) -> Iterator[str]:
     if not messages:
         return
@@ -524,6 +528,7 @@ def stream_chat(
         timeout=timeout,
         response_format=response_format,
         stream=True,
+        request_key=request_key,
     )
     if extra_body is not None:
         request_kwargs["extra_body"] = dict(extra_body)
@@ -564,6 +569,7 @@ async def async_stream_chat(
     task_name: str | None = None,
     request_max_retries: int | None = None,
     extra_body: Mapping[str, Any] | None = None,
+    request_key: str | None = None,
 ) -> AsyncIterator[str]:
     """Stream provider output without blocking the server event loop."""
 
@@ -586,6 +592,7 @@ async def async_stream_chat(
         timeout=timeout,
         response_format=response_format,
         stream=True,
+        request_key=request_key,
     )
     if extra_body is not None:
         request_kwargs["extra_body"] = dict(extra_body)
@@ -625,6 +632,7 @@ def chat(
     task_name: str | None = None,
     request_max_retries: int | None = None,
     extra_body: Mapping[str, Any] | None = None,
+    request_key: str | None = None,
 ) -> str:
     if not messages:
         return ""
@@ -645,6 +653,7 @@ def chat(
         timeout=timeout,
         response_format=response_format,
         stream=False,
+        request_key=request_key,
     )
     if extra_body is not None:
         request_kwargs["extra_body"] = dict(extra_body)
@@ -667,6 +676,7 @@ def run_tool_loop(
     should_cancel: Callable[[], bool] | None = None,
     timeout: float | None = None,
     request_max_retries: int | None = None,
+    request_key: str | None = None,
 ) -> list[dict[str, Any]]:
     """Run an OpenAI-compatible function-call loop and return tool evidence.
 
@@ -686,7 +696,7 @@ def run_tool_loop(
     )
     transcript = list(messages)
     evidence: list[dict[str, Any]] = []
-    for _ in range(max(1, max_rounds)):
+    for _round in range(max(1, max_rounds)):
         if should_cancel is not None and should_cancel():
             raise RuntimeError("tool_loop_cancelled")
         request_kwargs = _build_request_kwargs(
@@ -699,6 +709,10 @@ def run_tool_loop(
             timeout=timeout,
             response_format=None,
             stream=False,
+            # Every round is its own paid send, so it gets its own key.
+            request_key=(
+                f"{request_key}#round{_round}" if request_key else None
+            ),
         )
         request_kwargs["tools"] = tools
         request_kwargs["tool_choice"] = "auto"

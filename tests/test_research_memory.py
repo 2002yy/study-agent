@@ -99,7 +99,7 @@ def memory(tmp_path):
 def test_migration_and_explicit_terminal_publication(memory):
     database, service = memory
     with database.connect() as connection:
-        assert schema_version(connection) == 25
+        assert schema_version(connection) == 26
     run = WebLookupRepository(database).create(_run("thread-1"))
     assert service.recall("thread-1", run.query, today=date(2026, 9, 27)) == ()
 
@@ -266,7 +266,7 @@ def test_v23_upgrade_preserves_existing_runs(tmp_path, monkeypatch):
             assert schema_version(connection) == 23
     database.initialize()
     with database.connect() as connection:
-        assert schema_version(connection) == 25
+        assert schema_version(connection) == 26
         assert connection.execute(
             "SELECT COUNT(*) FROM sqlite_master WHERE name = 'research_memory_revisions'"
         ).fetchone()[0] == 1

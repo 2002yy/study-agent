@@ -46,8 +46,18 @@ def _data_url(image_path: Path) -> str:
     return f"data:{mime_type};base64,{payload}"
 
 
-def describe_image_with_deepseek(image_path: Path) -> str:
-    """Send one image to the vision model and return its text description."""
+def describe_image_with_deepseek(
+    image_path: Path, *, request_key: str | None = None
+) -> str:
+    """Send one image to the vision model and return its text description.
+
+    `request_key` identifies the experiment invocation this call belongs to.
+    It must be stable for a retry of the same logical call and distinct for a new
+    one: reusing it for a different request is refused by the spend ledger. When
+    an experiment budget is enabled and neither this argument nor a bound
+    :func:src.llm_spend_guard.spend_identity names the invocation, the call is
+    refused before any request is sent.
+    """
     from src.llm_client import _classify_error, get_provider_settings
 
     try:
@@ -68,6 +78,8 @@ def describe_image_with_deepseek(image_path: Path) -> str:
             max_tokens=_VISION_MAX_TOKENS,
             attempts=max(1, client.max_retries + 1),
             purpose="vision:image_description",
+            model=vision_model_name(),
+            request_key=request_key,
         )
 
         api = OpenAI(
