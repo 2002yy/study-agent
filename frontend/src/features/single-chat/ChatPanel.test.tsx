@@ -134,7 +134,7 @@ describe("continuous conversation input", () => {
     const submit = vi.fn();
     const queue = vi.fn();
     renderPanel({ isSending: true, canSteer: true, canQueue: true, input: "next question", onSubmit: submit, onQueue: queue });
-    fireEvent.click(screen.getByRole("button", { name: "完成后再做", exact: true }));
+    fireEvent.change(screen.getByRole("combobox", { name: "追加方式" }), { target: { value: "queue" } });
     fireEvent.click(screen.getByRole("button", { name: "加入下一轮", exact: true }));
     expect(queue).toHaveBeenCalledWith("next question");
     expect(submit).not.toHaveBeenCalled();
@@ -284,7 +284,7 @@ describe("ChatPanel learning product boundary", () => {
     expect(container.querySelector('[aria-label="对话设置"]')).toBeNull();
     expect(container.querySelector('.chat-role-settings')).toBeNull();
     // The composer only offers the two continuous-conversation semantics.
-    expect(Array.from(container.querySelectorAll('.composer-modes button')).map(button=>button.textContent))
+    expect(Array.from(container.querySelectorAll('.composer-research-mode option')).map(option=>option.textContent))
       .toEqual(["调整当前研究","完成后再做"]);
     expect(select).not.toHaveBeenCalled();
   });

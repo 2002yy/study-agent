@@ -1,12 +1,20 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-18（完整聊天产品主线；运行中/下一轮附件链路）
+> 更新：2026-10-18（完整聊天产品主线；真实角色头像与克制聊天UI）
 > 产品定义：**Study Agent 是体验接近 GPT-6 Chat 的智能聊天与研究 Agent。自然聊天、自主研究、持续交互、智能 UI、统一多模态、工具执行是六项通用核心能力；长期学习与教学是其上的专业场景。**
 
 本文件只维护当前权威状态、可复核边界和唯一下一门。2026-10-06 本次收敛前的完整状态原样归档到 [`archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`](archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md)；更早历史继续由既有 archive 与 Git 历史持有。
 
 ## 0. Current Handoff（cold-start 入口）
+
+**2026-10-18 当前片：保持大头像比例的聊天UI收简（本地，未合并）。** 分支 `codex/chat-ui-restraint-20261018`，工作树 `D:/study-agent-validation/chat-steer-attachments`，base **`a9efb72212c40b84a86bdc4a4165d98ef3ba2140`**；提交由本段所在Git提交恢复，审阅只看该base之后。**用户明确约束：角色头像不能缩成小消息图标；桌面保持既有96px，手机保持既有80px及相对视觉比例。不得为了留白而缩小头像。** 原截图灰头像来自 `frontend/e2e/api-fixture.ts` 返回灰圆SVG，真实资源 `assets/avatars/nahida.png` 正常；测试改用真实512px图片，浏览器断言图片加载与原有外框尺寸。
+
+本片去掉助手正文气泡框和装饰尖角，用户消息仅留轻底色；研究状态合并一行、原文/结论边界文案收短；输入区改为上方文字、下方附件/方式/操作，同一入口保留研究调整与排队（原双按钮改为原生选择控件）。空输入不展示无用的追加按钮；通常说明保留给读屏，非冗余常驻标签。修复附件选择按钮被通用20px宽度覆盖而挤没文件名的问题。320px失败重试暴露底部错误提示遮挡发送按钮，已将操作错误提示移到顶部并修正窄屏宽度，未绕过错误或取消重试检查。
+
+验证：前端相关组件/聊天控制器 **56 PASS**，全局提示 **3 PASS**；最终focused浏览器 **4 PASS / 10.0s**（320/390/768/1440px、真实头像80/96px、附件名可见、输入区<170px、键盘Tab、附加/排队失败重试/恢复选择/原SSE不中断/手动发送）；TypeScript/Vite build、Ruff、diff-check PASS。头像尺寸首次断言误测图片内框（78/94px），已改为检查原80/96px外框，未更改头像尺寸或放宽容差。未改后端/预算/Gate，不重跑上一片后端影响集及mypy；本轮零L3，无新CI、未推送/PR/合并/部署。日志 `D:/study-agent-validation/chat-ui-restraint-{unit,notices,final-browser,build}.log`；截图在 `frontend/test-results/conversation-continuous/*/research-opening.png`。提交后工作树干净。
+
+**唯一下一片：阶段性资料按问题维度组织。** 保持当前UI与头像约束，在现有已读摘录上区分比较题的两侧/已知与缺口，让用户先获得有用内容；模型综合的阶段性答案仍未完成，不把摘录冒称已验证答案。不扩张学习系统，不重复全量回归。
 
 **2026-10-18 最新切片：研究未结束先显示已读资料摘录（本地，未合并）。** 分支 `codex/research-early-findings-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base `facb8f37062029df95276a52f29d2abf5e28281a`；提交由本段所在Git提交恢复。只读投影当前Deep笔记与成功读取正文：候选摘要、失败/不可用正文、私网/非法URL、无正文依据的笔记与已失效笔记均不展示。最多3条/每条280字、稳定身份、原文出处；SSE `findings` 快照在转向时清除失效项，低版本拒绝/跨run隔离，旧事件省略字段兼容。聊天中直接可读，标注仍在核对；不进入答案token/复制文本/证据权威，不新增模型或工具请求。Deep已读数量改用既有read_summary，Active计数优先不变。**这是阶段性来源摘录，不是完成了模型阶段性综合答案。**
 

@@ -7,6 +7,8 @@ export default defineConfig({
   projects: [
     { name: "desktop", use: { viewport: { width: 1440, height: 900 } } },
     { name: "mobile", use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: "narrow", use: { viewport: { width: 320, height: 760 }, isMobile: true, hasTouch: true } },
+    { name: "tablet", use: { viewport: { width: 768, height: 1024 }, hasTouch: true } },
   ],
   webServer: { command: "npm run dev -- --host 127.0.0.1 --port 5178 --strictPort", url: "http://127.0.0.1:5178", reuseExistingServer: false },
 });

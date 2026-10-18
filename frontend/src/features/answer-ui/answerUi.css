@@ -77,8 +77,12 @@
 .answer-progress-status { font-weight: 500; }
 .answer-progress-counts { color: var(--muted); }
 .answer-progress-note { width: 100%; color: var(--muted); }
-.research-findings { width: 100%; min-width: 0; padding: 12px 0; color: var(--text); font-size: 14px; line-height: 1.7; }
-.research-findings-note { margin: 4px 0 10px; font-size: 12px; color: var(--muted); }
+.research-findings { width: 100%; min-width: 0; padding: 16px 0 4px; color: var(--text); font-size: 15px; line-height: 1.8; }
+.research-findings-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
+.research-findings-note { margin: 0; font-size: 12px; color: var(--muted); }
+.answer-progress .answer-progress-approach { width: 100%; font-size: 14px; font-weight: 400; line-height: 1.8; margin-bottom: 8px; color: #56616c; }
+.research-status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; width: 100%; font-size: 12px; }
+.research-status-line .answer-progress-status { font-weight: 400; }
 .research-findings ul { list-style: none; margin: 0; padding: 0; }
 .research-findings li + li { margin-top: 12px; }
 .research-findings a { color: var(--accent, #315d77); overflow-wrap: anywhere; }

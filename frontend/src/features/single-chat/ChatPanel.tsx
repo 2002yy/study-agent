@@ -369,7 +369,7 @@ export function ChatPanel(props: ChatPanelProps) {
             const currentCopyState = messageCopy?.index === index ? messageCopy.state : "idle";
             const cancelNotice = message.cancelNotice ?? null;
             return (
-              <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
+              <article aria-label={`${label}的消息`} className={`message ${message.role}`} key={`${message.role}-${index}`}>
                 <RoleAvatar fallback={message.role === "user" ? "user" : "assistant"} roleId={avatarRole} />
                 <div className="message-header">
                   <span className="message-author">{label}</span>
@@ -476,30 +476,6 @@ export function ChatPanel(props: ChatPanelProps) {
 
       <form className="composer" onSubmit={handleSubmit}>
         <div className="composer-main">
-          <div className="composer-toolbar">
-          {!isSending ? <div className="composer-modes" role="group" aria-label="输入方式">
-            <button type="button" aria-pressed={composerMode === "chat"} onClick={()=>setComposerMode("chat")}><MessageSquare size={15}/>对话</button>
-            <button type="button" aria-pressed={composerMode === "search"} onClick={()=>{setComposerMode("search");setRoleSettingsOpen(false);}}><Search size={15}/>搜索</button>
-          </div> : null}
-          {isSending && (props.canSteer || props.canQueue) ? <div className="composer-modes" role="group" aria-label="追加方式">
-            <button type="button" aria-pressed={busyInputMode === "steer"} disabled={!props.canSteer || props.isSteering} onClick={() => setBusyInputMode("steer")}>调整当前研究</button>
-            <button type="button" aria-pressed={busyInputMode === "queue"} disabled={!props.canQueue || props.isSteering} onClick={() => setBusyInputMode("queue")}>完成后再做</button>
-          </div> : null}
-          {!isSending && composerMode === "chat" && props.onSelectRole ? <button className="chat-role-settings-toggle" type="button"
-            aria-label="对话设置" title="对话设置" aria-expanded={roleSettingsOpen} aria-controls={roleSettingsId}
-            ref={roleSettingsButtonRef} onClick={()=>setRoleSettingsOpen(open=>!open)}><Settings2 size={16}/></button> : null}
-          </div>
-          {!isSending && composerMode === "chat" && roleSettingsOpen && props.onSelectRole ? <ChatRoleSettings
-            id={roleSettingsId} selectedRole={props.selectedRole ?? "auto"} disabled={isSending}
-            onSelect={role=>{props.onSelectRole?.(role);setRoleSettingsOpen(false);composerRef.current?.focus();}}
-            onClose={()=>{setRoleSettingsOpen(false);roleSettingsButtonRef.current?.focus();}}
-          /> : null}
-          <ComposerAttachments
-            sessionId={sessionId}
-            onEnsureSession={props.onEnsureSession}
-            selectedIds={props.attachmentSelection ?? []}
-            onSelectionChange={props.onAttachmentSelectionChange}
-          />
           <textarea
             ref={composerRef}
             rows={1}
@@ -509,7 +485,7 @@ export function ChatPanel(props: ChatPanelProps) {
             onCompositionStart={() => { composingRef.current = true; }}
             onCompositionEnd={() => { composingRef.current = false; }}
             onKeyDown={handleComposerKeyDown}
-            placeholder={isSending ? busyInputMode === "queue" ? "填写下一轮问题，当前研究继续…" : props.canSteer ? "补充条件或调整方向，研究会继续…" : "可以先写下补充，当前回答完成后发送…" : composerMode === "search" ? "搜索你想了解的问题…" : "输入问题，或继续对话…"}
+            placeholder={isSending ? busyInputMode === "queue" ? "写下下一条问题…" : props.canSteer ? "补充要求，或调整方向…" : "写下问题，回答完成后发送…" : composerMode === "search" ? "搜索你想了解的问题…" : "输入问题，或继续对话…"}
             aria-describedby={isSending ? "research-composer-hint" : undefined}
             title={
               enterToSend
@@ -518,11 +494,38 @@ export function ChatPanel(props: ChatPanelProps) {
             }
             value={input}
           />
+          <div className="composer-toolbar">
+          <ComposerAttachments
+            sessionId={sessionId}
+            onEnsureSession={props.onEnsureSession}
+            selectedIds={props.attachmentSelection ?? []}
+            onSelectionChange={props.onAttachmentSelectionChange}
+          />
+          {!isSending ? <div className="composer-modes" role="group" aria-label="输入方式">
+            <button type="button" aria-pressed={composerMode === "chat"} onClick={()=>setComposerMode("chat")}><MessageSquare size={15}/>对话</button>
+            <button type="button" aria-pressed={composerMode === "search"} onClick={()=>{setComposerMode("search");setRoleSettingsOpen(false);}}><Search size={15}/>搜索</button>
+          </div> : null}
+          {isSending && (props.canSteer || props.canQueue) ? <select
+            className="composer-research-mode" aria-label="追加方式" value={busyInputMode}
+            disabled={props.isSteering} onChange={event => setBusyInputMode(event.target.value as "steer" | "queue")}
+          >
+            <option value="steer" disabled={!props.canSteer}>调整当前研究</option>
+            <option value="queue" disabled={!props.canQueue}>完成后再做</option>
+          </select> : null}
+          {!isSending && composerMode === "chat" && props.onSelectRole ? <button className="chat-role-settings-toggle" type="button"
+            aria-label="对话设置" title="对话设置" aria-expanded={roleSettingsOpen} aria-controls={roleSettingsId}
+            ref={roleSettingsButtonRef} onClick={()=>setRoleSettingsOpen(open=>!open)}><Settings2 size={16}/></button> : null}
+          </div>
+          {!isSending && composerMode === "chat" && roleSettingsOpen && props.onSelectRole ? <ChatRoleSettings
+            id={roleSettingsId} selectedRole={props.selectedRole ?? "auto"} disabled={isSending}
+            onSelect={role=>{props.onSelectRole?.(role);setRoleSettingsOpen(false);composerRef.current?.focus();}}
+            onClose={()=>{setRoleSettingsOpen(false);roleSettingsButtonRef.current?.focus();}}
+          /> : null}
           <div className="composer-footer">
-            {isSending ? <span id="research-composer-hint" className="research-composer-hint">
+            {isSending ? <span id="research-composer-hint" className={`research-composer-hint${(props.canSteer || props.canQueue) && !props.isSteering ? " visually-hidden" : ""}`}>
               {props.isSteering ? "正在提交补充…" : busyInputMode === "queue" ? "完成后再做；不会修改当前研究的搜索条件" : props.canSteer ? "追加条件将在后续研究中处理" : "本轮暂不支持中途调整，可以选择完成后再做"}
             </span> : null}
-            {isSending && (props.canSteer || props.canQueue) ? <button className="send-button" disabled={!canSubmit || !input.trim()} title={busyInputMode === "queue" ? "加入下一轮" : "追加要求"} type="submit">
+            {isSending && input.trim() && (props.canSteer || props.canQueue) ? <button className="send-button" disabled={!canSubmit} title={busyInputMode === "queue" ? "加入下一轮" : "追加要求"} type="submit">
               <ArrowUp size={20}/><span className="visually-hidden">{busyInputMode === "queue" ? "加入下一轮" : "追加要求"}</span>
             </button> : null}
             {isSending ? (

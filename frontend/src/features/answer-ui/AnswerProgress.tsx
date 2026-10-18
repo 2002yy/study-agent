@@ -43,16 +43,17 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
   const insufficient = researching && read === 0 && findings.length === 0;
   return <div className="answer-progress" role="status" aria-live="polite">
     {/* Terminal states must not keep spinning. */}
-    {researching ? <Loader2 className="spin" size={14} /> : null}
     {/* Research opening: display-only, never part of the answer text. */}
     {summary ? <span className="answer-progress-approach">{summary}</span> : null}
     {focus.length ? <span className="answer-progress-focus">{focus.join(" · ")}</span> : null}
-    <span className="answer-progress-status">{statusText}</span>
-    {researching ? <span className="answer-progress-counts">查询 {progress!.query_attempt_count} · 已读 {read}</span> : null}
+    <div className="research-status-line">
+      {researching ? <Loader2 className="spin" size={13} /> : null}
+      <span className="answer-progress-status">{statusText}</span>
+      {researching ? <span className="answer-progress-counts">查询 {progress!.query_attempt_count} · 已读 {read}</span> : null}
+    </div>
     {insufficient ? <span className="answer-progress-note">暂未取得可用正文，正在尝试其他来源。</span> : null}
     {findings.length ? <section className="research-findings" aria-label="已读资料摘录">
-      <strong>先看看已读到的内容</strong>
-      <p className="research-findings-note">以下是来源原文摘录，仍在核对，不代表最终结论。</p>
+      <div className="research-findings-heading"><span>已读资料</span><span className="research-findings-note">原文摘录，尚非结论</span></div>
       <ul>
         {findings.map(finding => <li key={finding.id}>
           <a href={finding.url} target="_blank" rel="noopener noreferrer">{finding.title}</a>

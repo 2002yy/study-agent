@@ -29,7 +29,7 @@ describe("AnswerProgress research opening", () => {
     })} />);
     expect(screen.getByRole("region", { name: "已读资料摘录" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Official source" })).toHaveAttribute("href", "https://example.org/source");
-    expect(screen.getByText(/仍在核对，不代表最终结论/)).toBeVisible();
+    expect(screen.getByText("原文摘录，尚非结论")).toBeVisible();
     expect(screen.getByText("Useful source content <script>test</script>")).toBeVisible();
     expect(container.querySelector("script")).toBeNull();
   });

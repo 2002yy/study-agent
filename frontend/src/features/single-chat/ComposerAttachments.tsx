@@ -179,7 +179,7 @@ export function ComposerAttachments({
         </ul>
       ) : null}
       {selectedIds.length ? (
-        <span className="composer-attachment-count" role="status">本次选中 {selectedIds.length} 个</span>
+        <span className="composer-attachment-count visually-hidden" role="status">本次选中 {selectedIds.length} 个</span>
       ) : null}
       {error ? <span className="composer-attachment-error" role="alert">{error}</span> : null}
     </div>

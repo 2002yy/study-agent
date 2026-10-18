@@ -124,7 +124,7 @@ test("two supplements and one queued task stay in one continuous research conver
       { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("evidence") },
     );
     await expect(page.locator(".composer-attachment-chips").getByText("notes.txt")).toBeVisible();
-    await expect(page.getByText("本次选中 1 个")).toBeVisible();
+    await expect(page.getByRole("button", { name: "取消选择附件 notes.txt", exact: true })).toHaveAttribute("aria-pressed", "true");
 
     await input.fill("比较 Photoshop 和开源替代品，重点考虑自动化编辑");
     await input.press("Enter");
@@ -136,6 +136,20 @@ test("two supplements and one queued task stay in one continuous research conver
     await expect(page.getByText("本次选中 1 个")).toHaveCount(0);
     // No duplicated global status surface while the run is live.
     await expect(page.getByText(/已发起 \d+ 次查询/)).toHaveCount(0);
+    const portrait = page.locator('.message.assistant > .avatar img').first();
+    await expect(portrait).toBeVisible();
+    await expect.poll(() => portrait.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(512);
+    const avatarBox = await page.locator('.message.assistant > .avatar').first().boundingBox();
+    expect(avatarBox?.width).toBe(page.viewportSize()!.width > 900 ? 96 : 80);
+    const composerBox = await page.locator('.composer-main').boundingBox();
+    expect(composerBox?.height).toBeLessThan(170);
+    const filename = page.locator('.composer-attachment-name').first();
+    const filenameBox = await filename.boundingBox();
+    expect(filenameBox?.width).toBeGreaterThan(40);
+    await page.getByRole("textbox", { name: "输入学习问题" }).focus();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "添加附件", exact: true })).toBeFocused();
+    await page.getByRole("textbox", { name: "输入学习问题" }).focus();
     await page.screenshot({ path: testInfo.outputPath("research-opening.png"), fullPage: true });
     // The first read-backed content is visible before any answer token or done.
     await expect(page.getByRole("region", { name: "已读资料摘录" })).toBeVisible();
@@ -173,7 +187,7 @@ test("two supplements and one queued task stay in one continuous research conver
     await expect(page.getByRole("cell", { name: "12.5" })).toBeVisible();
 
     // Queued task: a separate timeline card that never changes the search.
-    await page.getByRole("button", { name: "完成后再做", exact: true }).click();
+    await page.getByRole("combobox", { name: "追加方式" }).selectOption("queue");
     await page.getByRole("button", { name: "选择附件 notes.txt", exact: true }).click();
     await input.fill("回答完再解释得简单一点");
     await page.getByRole("button", { name: "加入下一轮", exact: true }).click();
