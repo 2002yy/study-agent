@@ -282,6 +282,28 @@ def test_external_cancellation_propagates_without_refunding_or_resubmitting():
     asyncio.run(scenario())
 
 
+def test_transport_self_cancellation_is_controlled_and_does_not_cancel_caller():
+    async def scenario():
+        ledger = budget()
+        calls = []
+
+        async def transport(request):
+            calls.append(request)
+            raise asyncio.CancelledError
+
+        result = await decide_conversation_action(
+            context(), transport=transport, budget=ledger, current_context=context
+        )
+        assert result.status == "provider_error" and result.outcome_unknown
+        assert result.proposal is None and asyncio.current_task().cancelling() == 0
+        duplicate = await decide_conversation_action(
+            context(), transport=transport, budget=ledger, current_context=context
+        )
+        assert duplicate.status == "already_attempted" and len(calls) == 1
+
+    asyncio.run(scenario())
+
+
 def test_changed_context_before_admission_makes_no_call():
     async def transport(request):
         pytest.fail("stale input must not be submitted")

@@ -192,7 +192,12 @@ async def decide_conversation_action(
             return result("timeout", unknown=True)
         raw = task.result()
     except asyncio.CancelledError:
-        raise
+        caller = asyncio.current_task()
+        if caller is not None and caller.cancelling():
+            raise
+        # Adapter-owned cancellation is a transport failure, not a request to
+        # cancel the caller. Its reservation remains consumed and is not retried.
+        return result("provider_error", unknown=True)
     except TimeoutError:
         return result("timeout", unknown=True)
     except Exception:
