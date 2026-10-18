@@ -34,16 +34,19 @@ def _configure(database: Path) -> None:
 
 
 def _reserve(index: int) -> float:
-    from src.llm_spend_guard import reserve_call
+    from src.llm_spend_guard import reserve_call, spend_identity
 
-    return reserve_call(
-        prompt_chars=1_000,
-        max_tokens=100,
-        attempts=1,
-        purpose="chat:demo",
-        model="deepseek-flash",
-        request_key=f"{EXPERIMENT}|run-demo|op-demo|chat:demo|{index}",
-    )
+    with spend_identity(
+        run_id="run-demo", operation_id="op-demo", invocation=str(index), experiment=EXPERIMENT
+    ):
+        return reserve_call(
+            prompt_chars=1_000,
+            max_tokens=100,
+            attempts=1,
+            purpose="chat:demo",
+            model="deepseek-flash",
+            request_key=f"{EXPERIMENT}|run-demo|op-demo|chat:demo|{index}",
+        )
 
 
 def main() -> int:

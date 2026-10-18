@@ -366,6 +366,14 @@ class SpendLedger:
         except SpendLedgerError:
             connection.rollback()
             raise
+        except sqlite3.OperationalError as exc:
+            # Lock contention must reach reserve()'s retry loop; wrapping it here
+            # first would make those retries dead code.
+            connection.rollback()
+            message = str(exc).lower()
+            if "locked" in message or "busy" in message:
+                raise _BusyDatabase(f"spend ledger is busy: {exc}") from exc
+            raise SpendLedgerUnavailable(f"spend ledger write failed: {exc}") from exc
         except sqlite3.Error as exc:
             connection.rollback()
             raise SpendLedgerUnavailable(f"spend ledger write failed: {exc}") from exc

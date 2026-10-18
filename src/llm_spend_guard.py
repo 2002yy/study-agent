@@ -118,9 +118,15 @@ class SpendIdentity:
     run_id: str = ""
     operation_id: str = ""
     invocation: str = ""
+    #: The experiment this work is authorized to spend from. Empty means "not
+    #: authorized", which the guard refuses while an experiment budget is on.
+    experiment: str = ""
 
     def describe(self) -> str:
-        return f"run={self.run_id or '-'} op={self.operation_id or '-'} inv={self.invocation or '-'}"
+        return (
+            f"experiment={self.experiment or '-'} run={self.run_id or '-'} "
+            f"op={self.operation_id or '-'} inv={self.invocation or '-'}"
+        )
 
 
 _identity: ContextVar[SpendIdentity | None] = ContextVar("llm_spend_identity", default=None)
@@ -128,7 +134,11 @@ _identity: ContextVar[SpendIdentity | None] = ContextVar("llm_spend_identity", d
 
 @contextmanager
 def spend_identity(
-    *, run_id: str = "", operation_id: str = "", invocation: str = ""
+    *,
+    run_id: str = "",
+    operation_id: str = "",
+    invocation: str = "",
+    experiment: str = "",
 ) -> Iterator[SpendIdentity]:
     """Bind the current paid calls to one experiment invocation.
 
@@ -142,6 +152,7 @@ def spend_identity(
         run_id=str(run_id or ""),
         operation_id=str(operation_id or ""),
         invocation=str(invocation or ""),
+        experiment=str(experiment or ""),
     )
     token = _identity.set(identity)
     try:
@@ -168,10 +179,13 @@ class SpendScope:
     ledger refuses the repeated key instead of treating it as free.
     """
 
-    def __init__(self, *, run_id: str, operation_id: str, purpose: str) -> None:
+    def __init__(
+        self, *, run_id: str, operation_id: str, purpose: str, experiment: str = ""
+    ) -> None:
         self.run_id = str(run_id or "")
         self.operation_id = str(operation_id or "")
         self.purpose = str(purpose or "")
+        self.experiment = str(experiment or "")
         self._calls = 0
 
     def next_key(self, purpose: str) -> str:
@@ -180,24 +194,30 @@ class SpendScope:
             run_id=self.run_id,
             operation_id=self.operation_id,
             invocation=str(self._calls),
+            experiment=self.experiment,
         )
         return compose_request_key(
             purpose=purpose or self.purpose or "llm", identity=identity
         )
 
     def describe(self) -> str:
-        return f"run={self.run_id or '-'} op={self.operation_id or '-'} purpose={self.purpose or '-'}"
+        return (
+            f"experiment={self.experiment or '-'} run={self.run_id or '-'} "
+            f"op={self.operation_id or '-'} purpose={self.purpose or '-'}"
+        )
 
 
 _scope: ContextVar[SpendScope | None] = ContextVar("llm_spend_scope", default=None)
 
 
 def new_scope(
-    *, run_id: str, operation_id: str = "", purpose: str = ""
+    *, run_id: str, operation_id: str = "", purpose: str = "", experiment: str = ""
 ) -> SpendScope:
     """Build a scope without binding it (see :func:`push_scope`)."""
 
-    return SpendScope(run_id=run_id, operation_id=operation_id, purpose=purpose)
+    return SpendScope(
+        run_id=run_id, operation_id=operation_id, purpose=purpose, experiment=experiment
+    )
 
 
 def push_scope(scope: SpendScope):
@@ -223,11 +243,13 @@ def pop_scope(token) -> None:
 
 @contextmanager
 def spend_scope(
-    *, run_id: str, operation_id: str = "", purpose: str = ""
+    *, run_id: str, operation_id: str = "", purpose: str = "", experiment: str = ""
 ) -> Iterator[SpendScope]:
     """Bind one unit of work so every paid call inside it is named."""
 
-    scope = new_scope(run_id=run_id, operation_id=operation_id, purpose=purpose)
+    scope = new_scope(
+        run_id=run_id, operation_id=operation_id, purpose=purpose, experiment=experiment
+    )
     token = push_scope(scope)
     try:
         yield scope
@@ -452,11 +474,26 @@ def reserve_call(
             )
         if experiment and experiment_cap is not None:
             resolved_identity = identity if identity is not None else _identity.get()
+            if resolved_identity is None:
+                scope = _scope.get()
+                if scope is not None:
+                    resolved_identity = SpendIdentity(
+                        run_id=scope.run_id,
+                        operation_id=scope.operation_id,
+                        experiment=scope.experiment,
+                    )
+            # An explicit key is not authorization: a call may only spend from the
+            # experiment if the work it belongs to was declared as part of it.
+            if resolved_identity is None or resolved_identity.experiment != experiment:
+                raise SpendConfigurationError(
+                    "an experiment budget is enabled but this call is not authorized "
+                    f"for it (bound experiment: "
+                    f"{resolved_identity.experiment if resolved_identity else '-'}); "
+                    "bind spend_scope(..., experiment=...) for the authorized work"
+                )
             if not request_key:
                 scope = _scope.get()
                 if scope is None:
-                    # No guessing: an unnamed paid call could belong to anything,
-                    # and charging it to the experiment would corrupt the evidence.
                     raise SpendConfigurationError(
                         "an experiment budget is enabled but this call names no "
                         "invocation; bind spend_scope(...) (or pass request_key)"

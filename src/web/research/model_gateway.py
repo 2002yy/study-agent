@@ -417,7 +417,11 @@ class ResearchModelGateway:
                 # Research structured calls are paid calls: reserve them under the
                 # same caps *before* the request, like every other provider call.
                 # Without this the experiment ledger would not cover them.
-                from src.llm_spend_guard import reserve_call
+                from src.llm_spend_guard import (
+                    SpendConfigurationError,
+                    SpendLimitExceeded,
+                    reserve_call,
+                )
 
                 reserve_call(
                     prompt_chars=(
@@ -452,6 +456,12 @@ class ResearchModelGateway:
                 decoded = json.loads(_strip_json_fence(raw))
                 value = parse(decoded)
                 status = "completed"
+            except (SpendLimitExceeded, SpendConfigurationError) as exc:
+                # A budget stop (cap reached, or work not authorized for the
+                # experiment) is not a provider or schema failure: it must not be
+                # retried as one, and it must surface under its own reason.
+                error_type = type(exc).__name__
+                status = "budget_exhausted"
             except Exception as exc:  # provider + schema/parse errors share bounded retry
                 error_type = type(exc).__name__
 
@@ -488,6 +498,15 @@ class ResearchModelGateway:
                     status="completed",
                     value=value,
                     audits=tuple(audits),
+                )
+            if status == "budget_exhausted":
+                # Stop here: another attempt could only be refused again, and the
+                # caller must not read this as a model or parse failure.
+                return ResearchModelResult(
+                    status="unavailable",
+                    value=None,
+                    audits=tuple(audits),
+                    reason="budget_exhausted",
                 )
 
         return ResearchModelResult(

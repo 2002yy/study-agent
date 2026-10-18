@@ -15,7 +15,7 @@ from src.news.digest import format_news_source_block
 from src.application.research_shadow_seam import observe_shadow, shadow_enabled
 from src.application.shadow_telemetry_sink import shadow_telemetry
 from src.repositories.web_lookup_repository import WebLookupRepository
-from src.llm_spend_guard import spend_scope
+from src.llm_spend_guard import experiment_id, spend_scope
 from src.web.research_contract import (
     build_research_context,
     failed_attempt,
@@ -1043,7 +1043,10 @@ class WebLookupService:
             # charged to this run/operation, so an experiment cap covers the
             # whole sample instead of only the calls that happened to name a key.
             with spend_scope(
-                run_id=run_id, operation_id=operation_id, purpose="deep_research"
+                run_id=run_id,
+                operation_id=operation_id,
+                purpose="deep_research",
+                experiment=experiment_id(),
             ):
                 return self._execute_deep(
                     run_id,

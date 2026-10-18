@@ -54,7 +54,13 @@ from src.domain.answer_validation import (
 )
 from src.domain.runtime_entities import ChatThread, ChatTurn, new_id, utc_now
 from src.llm_client import async_stream_chat, chat, stream_chat
-from src.llm_spend_guard import new_scope, pop_scope, push_scope, spend_scope
+from src.llm_spend_guard import (
+    experiment_id,
+    new_scope,
+    pop_scope,
+    push_scope,
+    spend_scope,
+)
 from src.memory import read_memory_bundle
 from src.mode_manager import load_runtime_modes
 from src.performance_budget import chat_max_tokens
@@ -1029,6 +1035,7 @@ class ChatService:
             run_id=prepared.turn.id,
             operation_id=prepared.turn.operation_id or "",
             purpose="answer",
+            experiment=experiment_id(),
         )
 
     def _spend_scope(self, prepared: PreparedChatTurn):
@@ -1036,6 +1043,7 @@ class ChatService:
             run_id=prepared.turn.id,
             operation_id=prepared.turn.operation_id or "",
             purpose="answer",
+            experiment=experiment_id(),
         )
 
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:

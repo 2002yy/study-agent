@@ -104,7 +104,12 @@ def test_the_deep_planner_paid_call_is_charged_to_the_bound_run(monkeypatch, tmp
     _provider_env(monkeypatch)
 
     planner = ModelDeepPlanner()
-    with spend_scope(run_id="web_lookup_run42", operation_id="op42", purpose="deep_research"):
+    with spend_scope(
+        run_id="web_lookup_run42",
+        operation_id="op42",
+        purpose="deep_research",
+        experiment=EXPERIMENT,
+    ):
         raw = planner.plan("photoshop", {})
 
     # plan() returns the parsed sub-questions; the point is that the paid call
@@ -125,7 +130,12 @@ def test_an_exhausted_budget_stops_the_planner_before_any_request(monkeypatch, t
 
     planner = ModelDeepPlanner()
     with pytest.raises(SpendLimitExceeded):
-        with spend_scope(run_id="web_lookup_run43", operation_id="op43", purpose="deep_research"):
+        with spend_scope(
+            run_id="web_lookup_run43",
+            operation_id="op43",
+            purpose="deep_research",
+            experiment=EXPERIMENT,
+        ):
             planner.plan("photoshop", {})
     assert fake.completions.calls == []
 
@@ -149,7 +159,12 @@ def test_raising_the_retry_budget_raises_the_reservation(monkeypatch, tmp_path):
 
     def reserve_with(experiment: str, request_max_retries: int | None) -> int:
         _budget(monkeypatch, tmp_path, experiment=experiment)
-        with spend_scope(run_id=f"run-{experiment}", operation_id="op", purpose="p"):
+        with spend_scope(
+            run_id=f"run-{experiment}",
+            operation_id="op",
+            purpose="p",
+            experiment=experiment,
+        ):
             _build_request_kwargs(
                 messages=[{"role": "user", "content": "x" * 1_000}],
                 temperature=0.0,
@@ -174,15 +189,18 @@ def test_raising_the_retry_budget_raises_the_reservation(monkeypatch, tmp_path):
 _CHILD = """
 import sys, time
 sys.path.insert(0, r"{root}")
-from src.llm_spend_guard import SpendLimitExceeded, reserve_call
+from src.llm_spend_guard import SpendLimitExceeded, reserve_call, spend_identity
 deadline = float(sys.argv[2])
 while time.time() < deadline:
     time.sleep(0.001)
 try:
-    reserve_call(
-        prompt_chars=1000, max_tokens=100, attempts=1,
-        purpose="race", model="m", request_key=sys.argv[1],
-    )
+    with spend_identity(
+        run_id=sys.argv[3], operation_id="op", invocation="1", experiment=sys.argv[4]
+    ):
+        reserve_call(
+            prompt_chars=1000, max_tokens=100, attempts=1,
+            purpose="race", model="m", request_key=sys.argv[1],
+        )
 except SpendLimitExceeded:
     print("REFUSED")
 else:
@@ -215,14 +233,16 @@ def test_two_processes_racing_the_same_boundary_start_together(tmp_path, monkeyp
     # 0.0021 CNY cap; each reservation is 0.0011, so exactly one of the two fits.
     from src.llm_spend_guard import reserve_call
 
-    with spend_scope(run_id="warm", operation_id="op", purpose="warm"):
+    with spend_scope(
+        run_id="warm", operation_id="op", purpose="warm", experiment="race-experiment"
+    ):
         pass
     script = _CHILD.format(root=str(root))
     deadline = time.time() + 2.0
     env = {**os.environ, "PYTHONPATH": str(root)}
     children = [
         subprocess.Popen(
-            [sys.executable, "-c", script, f"race-{index}", str(deadline)],
+            [sys.executable, "-c", script, f"race-{index}", str(deadline), f"run-{index}", "race-experiment"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
