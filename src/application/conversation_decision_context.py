@@ -53,6 +53,11 @@ def context_from_chat_snapshots(
         or turn.cancel_requested_at is not None
     ):
         raise ValueError("decision operation is not active or owned")
+    if turn.assistant_message.strip():
+        # Continued turns retain their partial reply in this field. The v1
+        # context has no separate current-partial slot: reject instead of
+        # silently omitting it or disguising it as completed history.
+        raise ValueError("current partial reply is not supported in decision context")
     if any(item.thread_id != thread.id for item in turns):
         raise ValueError("decision history belongs to another thread")
     if len({item.id for item in turns}) != len(turns):

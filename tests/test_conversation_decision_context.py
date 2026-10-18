@@ -92,6 +92,14 @@ def test_stopped_or_foreign_turns_cannot_produce_a_decision(change):
         project(thread, replace(turn, **change), turns)
 
 
+@pytest.mark.parametrize("status", ["pending", "streaming"])
+def test_current_partial_reply_is_rejected_until_context_can_preserve_it(status):
+    thread, turn, turns = snapshots()
+    continued = replace(turn, status=status, assistant_message="已经给出的部分回答")
+    with pytest.raises(ValueError, match="current partial reply"):
+        project(thread, continued, [turns[0], continued])
+
+
 def test_cross_thread_history_rejected_instead_of_leaking_into_prompt():
     thread, turn, turns = snapshots()
     with pytest.raises(ValueError, match="another thread"):
