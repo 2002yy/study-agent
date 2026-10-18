@@ -849,14 +849,14 @@ export async function cancelChatResearchRuns(turnId: string): Promise<WebLookupR
 export async function steerResearchRun(
   runId: string,
   content: string,
-  requestOptions: { signal?: AbortSignal; requestId?: string } = {}
+  requestOptions: { signal?: AbortSignal; requestId?: string; attachmentIds?: string[] } = {}
 ): Promise<WebLookupRunResponse> {
   return requestJson<WebLookupRunResponse>(
     `/research-runs/${encodeURIComponent(runId)}/steer`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, request_id: requestOptions.requestId }),
+      body: JSON.stringify({ content, request_id: requestOptions.requestId, attachment_ids: requestOptions.attachmentIds ?? [] }),
       signal: requestOptions.signal
     }
   );

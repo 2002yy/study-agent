@@ -10,6 +10,7 @@ test("two supplements and one queued task stay in one continuous research conver
   let turnId = "";
   let operationId = "";
   const steering: Array<Record<string, unknown>> = [];
+  const supplementRequests: Array<Record<string, unknown>> = [];
   const queue: Array<Record<string, unknown>> = [];
   const steeringState = (version: number) =>
     steering.map(entry => ({ id: entry.id, content: entry.content, status: version > 1 ? "executing" : "pending" }));
@@ -42,6 +43,12 @@ test("two supplements and one queued task stay in one continuous research conver
       return;
     }
     if (request.url?.endsWith("/steer")) {
+      supplementRequests.push(input);
+      if (supplementRequests.length === 1) {
+        response.writeHead(503, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({ detail: "temporary supplement failure" }));
+        return;
+      }
       steering.push({ id: `s${steering.length + 1}`, request_id: input.request_id, content: input.content, incorporated_in_round: null });
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify({ id: "run-live", research_context: { deep: { steering } } }));
@@ -111,9 +118,17 @@ test("two supplements and one queued task stay in one continuous research conver
     await page.screenshot({ path: testInfo.outputPath("research-opening.png"), fullPage: true });
 
     // Supplement 1: adjust the current research.
+    await page.getByRole("button", { name: "选择附件 notes.txt", exact: true }).click();
     await input.fill("再考虑 Agent 自动编辑");
     await page.getByRole("button", { name: "追加要求", exact: true }).click();
+    await expect(page.getByRole("alert").getByText("操作没有完成", { exact: true })).toBeVisible();
+    await expect(input).toHaveValue("再考虑 Agent 自动编辑");
+    await expect(page.getByRole("button", { name: "取消选择附件 notes.txt", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "追加要求", exact: true }).click();
     await expect(page.getByText("研究继续进行，正在核对新增的维度。")).toBeVisible();
+    expect(supplementRequests[0].attachment_ids).toEqual(["att1"]);
+    expect(supplementRequests[1]).toEqual(supplementRequests[0]);
+    await expect(page.getByRole("button", { name: "选择附件 notes.txt", exact: true })).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByText("正在按补充要求执行研究")).toBeVisible();
     await expect(page.getByRole("button", { name: "停止", exact: true })).toBeVisible();
 
@@ -121,6 +136,7 @@ test("two supplements and one queued task stay in one continuous research conver
     await input.fill("并补查脚本接口与图层控制");
     await page.getByRole("button", { name: "追加要求", exact: true }).click();
     await expect(page.getByText("正在按补充要求执行研究")).toHaveCount(2);
+    expect(supplementRequests[2].attachment_ids).toEqual([]);
 
     // Slice B: the bound computation renders in the same conversation, with
     // unit/source/version provenance, and is switchable to a data table.

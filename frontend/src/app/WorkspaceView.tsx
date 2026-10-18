@@ -100,9 +100,12 @@ export function WorkspaceView({
   const submit = async (event: React.FormEvent, question?: string) => {
     event.preventDefault();
     const attachmentIds = attachmentSelection;
-    await chatController.send(question ?? ui.input.trim(), undefined, { attachmentIds });
-    // The selection belongs to the message that was just sent.
-    setAttachmentSelection([]);
+    const accepted = await chatController.send(question ?? ui.input.trim(), undefined, { attachmentIds });
+    // Failed supplements retain their selection for retry; preserve files
+    // selected while this request was in flight as well.
+    if (accepted !== false) {
+      setAttachmentSelection(current => current.filter(id => !attachmentIds.includes(id)));
+    }
   };
 
   const requestUpload = (mode: "upload" | "rebuild" = "upload") => {

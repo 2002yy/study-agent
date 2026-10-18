@@ -105,7 +105,7 @@ export function useChatController(options: ControllerOptions) {
   const researchProgressRef = useRef<ChatResearchProgress | null>(null);
   const steeringEpochRef = useRef(0);
   const completedQueueTurnRef = useRef<string | null>(null);
-  const supplementAttemptRef = useRef<{ runId: string; content: string; id: string; kind: "steer" | "queue" } | null>(null);
+  const supplementAttemptRef = useRef<{ runId: string; content: string; id: string; kind: "steer" | "queue"; attachmentKey?: string } | null>(null);
   const activeTurnIdRef = useRef<string | null>(null);
   const activeOperationIdRef = useRef<string>("");
   // G18: the run id of an in-flight deep-research journey; while set, main
@@ -244,24 +244,26 @@ export function useChatController(options: ControllerOptions) {
     historyBase = state.chatMessages,
     extraOpts: SendOptions = {}
   ) => {
-    if (!question.trim()) return;
-    if (sendingRef.current && stoppingRef.current) return;
+    if (!question.trim()) return false;
+    if (sendingRef.current && stoppingRef.current) return false;
 
     // G18 decision 12: while a deep-research run is streaming, a message from
     // the main input becomes mid-run steering instead of a new chat turn.
     if (sendingRef.current && deepRunIdRef.current) {
-      if (steeringInFlightRef.current) return;
+      if (steeringInFlightRef.current) return false;
       const runId = deepRunIdRef.current;
       const epoch = steeringEpochRef.current;
       const previousAttempt = supplementAttemptRef.current;
-      const requestId = previousAttempt?.kind === "steer" && previousAttempt.runId === runId && previousAttempt.content === question
+      const attachmentIds = [...new Set(extraOpts.attachmentIds ?? [])].sort();
+      const attachmentKey = JSON.stringify(attachmentIds);
+      const requestId = previousAttempt?.kind === "steer" && previousAttempt.runId === runId && previousAttempt.content === question && previousAttempt.attachmentKey === attachmentKey
         ? previousAttempt.id : `steer_${globalThis.crypto.randomUUID()}`;
-      supplementAttemptRef.current = { runId, content: question, id: requestId, kind: "steer" };
+      supplementAttemptRef.current = { runId, content: question, id: requestId, kind: "steer", attachmentKey };
       steeringInFlightRef.current = true;
       setIsSteering(true);
       try {
-        const response = await steerResearchRun(runId, question, { requestId });
-        if (steeringEpochRef.current !== epoch) return;
+        const response = await steerResearchRun(runId, question, { requestId, ...(attachmentIds.length ? { attachmentIds } : {}) });
+        if (steeringEpochRef.current !== epoch) return false;
         const context = response.research_context ?? {};
         const entries = (context.claim_engine_steering ?? (context.deep as { steering?: unknown[] } | undefined)?.steering ?? []) as
           Array<{ id?: string; request_id?: string; content: string; received_at?: string; status?: "pending" | "applied" | "late"; incorporated_in_round?: number | null }>;
@@ -284,20 +286,21 @@ export function useChatController(options: ControllerOptions) {
         options.setInput(current => current.trim() === question.trim() ? "" : current);
         options.setOperationError("");
         supplementAttemptRef.current = null;
+        return true;
       } catch (error) {
-        if (steeringEpochRef.current !== epoch) return;
+        if (steeringEpochRef.current !== epoch) return false;
         options.setOperationError(
           `研究方向注入失败：${error instanceof Error ? error.message : "未知错误"}`
         );
+        return false;
       } finally {
         if (steeringEpochRef.current === epoch) {
           steeringInFlightRef.current = false;
           setIsSteering(false);
         }
       }
-      return;
     }
-    if (sendingRef.current) return;
+    if (sendingRef.current) return false;
 
     const operationOwner = state.activeChatThreadId;
     const { operationId, controller: abortController, generationId } = operationRegistry.start(
