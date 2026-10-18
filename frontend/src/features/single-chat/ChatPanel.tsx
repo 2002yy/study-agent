@@ -24,7 +24,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { AnswerProgress } from "../answer-ui/AnswerProgress";
 import { InteractiveComputation } from "../answer-ui/InteractiveComputation";
-import { answerCopyText } from "../answer-ui/answerUiProtocol";
+import { answerCopyText, safeLinkUrl } from "../answer-ui/answerUiProtocol";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { useReadingWorkspace } from "../reading/ReadingContext";
 import type {
@@ -428,6 +428,25 @@ export function ChatPanel(props: ChatPanelProps) {
                       {message.researchSteering ? (
                         <span className="research-steering-receipt" role="status">
                           {steeringReceiptCopy[message.researchSteering.status] ?? steeringReceiptCopy.pending}
+                        </span>
+                      ) : null}
+                      {message.researchSteering?.effects?.questions?.map(question => (
+                        <span className="research-steering-effect" key={`${question.created}:${question.text}`}>
+                          {question.created ? "新增核查：" : "本次补充涉及的核查："}{question.text}
+                        </span>
+                      ))}
+                      {message.researchSteering?.effects?.sources?.length ? (
+                        <span className="research-steering-effect">
+                          关联已读材料（尚非结论）：
+                          {message.researchSteering.effects.sources.map((source, position) => {
+                            const href = safeLinkUrl(source.url);
+                            return (
+                              <span key={source.url}>
+                                {position ? "、" : ""}
+                                {href ? <a href={href} rel="noreferrer" target="_blank">{source.title}</a> : source.title}
+                              </span>
+                            );
+                          })}
                         </span>
                       ) : null}
                     </div>

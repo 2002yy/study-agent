@@ -280,7 +280,8 @@ export function useChatController(options: ControllerOptions) {
             transient: true,
             turnId: activeTurnIdRef.current ?? undefined,
             researchSteering: { runId, id, status: streamedReceipt?.status ?? receipt.status ??
-              (receipt.incorporated_in_round != null ? "applied" : "pending") },
+              (receipt.incorporated_in_round != null ? "applied" : "pending"),
+              ...(streamedReceipt?.effects ? { effects: streamedReceipt.effects } : {}) },
           },
         ]);
         options.setInput(current => current.trim() === question.trim() ? "" : current);
@@ -494,7 +495,10 @@ export function useChatController(options: ControllerOptions) {
               if (index === assistantIndex) return { ...message, researchProgress: merged };
               if (message.researchSteering?.runId !== merged.run_id) return message;
               const receipt = merged.steering?.find(item => item.id === message.researchSteering?.id);
-              return receipt ? { ...message, researchSteering: { ...message.researchSteering!, status: receipt.status } } : message;
+              return receipt
+                ? { ...message, researchSteering: { ...message.researchSteering!, status: receipt.status,
+                    ...(receipt.effects ? { effects: receipt.effects } : {}) } }
+                : message;
             }));
             // G18: a deep run (round field present) opens the steering
             // channel while it runs; terminal states close it.
@@ -871,7 +875,8 @@ export function useChatController(options: ControllerOptions) {
         if (message.role !== "assistant" || !progress) return [message];
         return [{ ...message, researchProgress: progress }, ...(progress.steering ?? []).map(receipt => ({
           role: "user" as const, content: receipt.content, avatarRole: "user", transient: true,
-          turnId: message.turnId, researchSteering: { runId: progress.run_id, id: receipt.id, status: receipt.status },
+          turnId: message.turnId, researchSteering: { runId: progress.run_id, id: receipt.id, status: receipt.status,
+            ...(receipt.effects ? { effects: receipt.effects } : {}) },
         }))];
       }), ...response.messages.map(item => ({
         role: "user" as const, content: item.content, avatarRole: "user", transient: true,

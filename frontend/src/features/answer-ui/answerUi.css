@@ -98,7 +98,15 @@
 .research-interim-citations blockquote { margin: 6px 0; padding-left: 10px; border-left: 2px solid var(--border); overflow-wrap: anywhere; }
 .research-findings a { color: var(--accent, #315d77); overflow-wrap: anywhere; }
 .research-findings blockquote { margin: 4px 0 0; padding-left: 12px; border-left: 2px solid var(--border, #dbe4ea); overflow-wrap: anywhere; white-space: pre-wrap; }
-.research-steering-receipt { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; }
+/* A supplement receipt and what it changed stack under the message text. The
+   generic `.message-body span` rule is inline-flex, so these need the extra
+   specificity to stay block-level and non-bold. */
+.message-body .research-steering-receipt,
+.message-body .research-steering-effect {
+  display: block; width: 100%; margin-top: 6px; font-size: 12px; font-weight: 400;
+  line-height: 1.6; gap: 0; overflow-wrap: anywhere;
+}
+.message-body .research-steering-effect a { color: var(--accent, #315d77); }
 .research-composer-hint { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
 /* A queued follow-up is its own timeline card; it never reads as the running
    research and never implies the current search was changed. */

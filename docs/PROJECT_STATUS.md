@@ -1,12 +1,20 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-18（阶段性判断直接回答问题；正文与来源入口收简）
+> 更新：2026-10-18（补充要求显示它实际改了什么：只认创建者、不复述原问题；下一刀改为助手增量回复）
 > 产品定义：**Study Agent 是体验接近 GPT-6 Chat 的智能聊天与研究 Agent。自然聊天、自主研究、持续交互、智能 UI、统一多模态、工具执行是六项通用核心能力；长期学习与教学是其上的专业场景。**
 
 本文件只维护当前权威状态、可复核边界和唯一下一门。2026-10-06 本次收敛前的完整状态原样归档到 [`archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`](archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md)；更早历史继续由既有 archive 与 Git 历史持有。
 
 ## 0. Current Handoff（cold-start 入口）
+
+**2026-10-18 最新片：补充要求显示“它实际改了什么”（本地 commit，未合并/未推送；覆盖下方旧 NEXT）。** branch `codex/research-interim-analysis-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base `4b8fd6ad`，本片提交 `feat(research): expose durable steering effects in chat progress`（10 个文件：`src/web/research/research_interaction.py`、`tests/test_research_interaction.py`、`tests/stage_gates.json`、`frontend/src/types.ts`、`frontend/src/features/single-chat/ChatPanel.tsx`、`frontend/src/features/single-chat/ChatPanel.test.tsx`、`frontend/src/features/chat/chatController.ts`、`frontend/src/features/answer-ui/answerUiProtocol.ts`、`frontend/src/features/answer-ui/answerUi.css`、`frontend/e2e/conversation-continuous.spec.ts`，另含本状态文档）。用户反馈：截图里“再考虑 Agent 自动编辑”下面只有一行回执、其余留白，看不出第二句话是否被当成决策依据。本片把补充回执从“状态标签”扩成“状态 + 实际效果”，**纯展示投影，无新模型/工具调用，不写计划、不授予证据或答案权威，不改 schema/预算/Gate**。
+
+实现（含审阅后的事实边界修正）：`src/web/research/research_interaction.py` 新增 `_steering_effects()`——只从 durable 事实投影。`questions` 为 plan 任务中 `steering_ids` 命中该补充 id 的项（≤2、去重、各 ≤160 字），且**只有创建者（`steering_ids[0] == entry_id`）才标记 `created=true`**；仅被追加 id 的既有核查恒为 `created=false`，绝不冒充“新增”。`created=true` 时显示文本用 `_steering_question_text()` 去掉 planner 的“；新增研究目标：”拼接前缀，只显示该补充真正加的目标（不再复述原问题）；`created=false` 时原样显示完整核查问题。`sources` 为已读摘录中 `question` 与这些核查完全相等者（≤2，仅 title/url），只表示关联材料，不表示支持。未进计划的补充**不产生 effects 字段**（空投影即诚实答案）；`superseded/cancelled` 任务与旧术语修正过的问题不计入；沿用既有 `deep_steering_status()`，`executing` 仍只在 run 活跃时出现。前端：`types.ts` 两处类型补 `effects`；`answerUiProtocol.ts` 新增 `safeLinkUrl()`（仅 http/https、无凭据、无控制字符，否则回落纯文本，不生成可点击链接）；`ChatPanel.tsx` 按 `created` 渲染“新增核查：/本次补充涉及的核查：”，来源行为“关联已读材料（尚非结论）：”；`answerUi.css` 用 `.message-body .research-steering-*`（提高特异性，覆盖既有 `.message-body span{display:inline-flex}`）保证三行竖排、非加粗；`chatController.ts` 三处（乐观追加 / SSE 合并 / 恢复）透传 `effects`。
+
+验证：命名 L1 `research_steering_effects`（写入 `tests/stage_gates.json`）**94 PASS / 1 SKIP / 39.18s**；`test_research_interaction.py` 自身 **17 PASS**（含：未进计划无 effects、`created` 只认创建者、correction 追加到既有任务不称新增、去重与 160 字/2 条上限、effects 只含 text/created 与 title/url 无权威字段）；前端 `ChatPanel.test.tsx` + answer-ui 组 **61 PASS / 26 in ChatPanel**（含既有核查不得称新增、`javascript:` 来源不生成链接）；`tsc -b && vite build` PASS；浏览器 `playwright.conversation.config.ts` 桌面/手机/窄屏/平板 **4 PASS / 10.4s**（截图 `frontend/test-results/conversation-continuous/*/continuous-research.png`：三行竖排、只显示补充自己的目标）；Ruff PASS、`git diff --check` PASS、mypy 基线门 **current=122 / baseline=128 / resolved=6（NEW0）**，日志 `D:/study-agent-validation/steering-effects-mypy.log`。零 L3、无新 CI、未推送/未创建 PR/未合并。
+
+**边界**：effects 是“服务端从计划与已读材料投影出的展示事实”，不等于论证成立或推荐正确；引用存在性检查仍不是 entailment 判定。当前只覆盖 Deep（active claim-engine 补充仍只有状态，不虚构 effects）。**下一刀（用户已调整优先级，不再是补 active 展示）**：补充要求 → 助手自己的**增量回复** → 后台研究继续 → 新发现逐步更新。要分清两层：进度信息（本 commit 的成果）与分析内容（为什么这项补充改变了原问题、目前能判断什么、还需验证什么）。补充消息继续作为用户消息存在，但助手需要一条**独立且可持续更新**的回复，而不是把研究状态都挂在原助手气泡下。3～5 秒可作为初步交互目标，但不得为赶时间生成无依据结论。真实付费验收仍按既有预算授权边界。
 
 **2026-10-18 最新片：有出处的阶段性判断 + UI 留白（本地，未合并；覆盖下方旧 NEXT）。** branch `codex/research-interim-analysis-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base **`15302f84b2a774c37d51c34e406f91bc0b8a5a0e`**；本段所在 Git 提交即实现 head，审阅仅 base 后增量。复用 Deep 原有 revise 调用生成可选归纳，不新增调用/预算/执行器。要求先给具体发现、差别或有条件建议，说明对用户的意义；不能形成有用判断时返回 null，不用“继续核对”凑分析。服务端限制正文400字、1–3条引用，引用必须匹配已读材料 ID 与原文；checkpoint 在最终综合前保存。展示重新核对成功读取/资格/重定向及当前 steering revision；新补充、失效正文会撤回过时判断。保持原文段落，无独立持久化 schema 改动，不改变正式答案/Gate 权威。
 

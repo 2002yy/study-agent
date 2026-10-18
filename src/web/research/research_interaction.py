@@ -69,9 +69,67 @@ def _source_excerpts(run: Any, deep: Mapping[str, Any]) -> list[dict[str, str]]:
     return list(reversed(excerpts))
 
 
-def _reading_material(run: Any, deep: Mapping[str, Any]) -> dict[str, Any]:
+_STEERING_TARGET_MARKER = "；新增研究目标："
+
+
+def _steering_question_text(question: str) -> str:
+    """The supplement's own target, not a restatement of the original question.
+
+    A new check is composed by the planner as
+    ``<effective query>；新增研究目标：<supplement>``; only the composed tail is
+    what the supplement added. Anything else is shown verbatim.
+    """
+    _, marker, target = question.partition(_STEERING_TARGET_MARKER)
+    return (target.strip() if marker and target.strip() else question)[:160]
+
+
+def _steering_effects(
+    deep: Mapping[str, Any], entry_id: str, excerpts: list[dict[str, str]]
+) -> dict[str, Any]:
+    """Project what one supplement actually changed, from durable plan facts only.
+
+    A supplement that never reached the plan has no questions and therefore no
+    effects: an empty projection is the honest answer, never a placeholder.
+    ``created`` is true only for the steering entry that created the plan task
+    (``steering_ids[0]``); a task that merely gained this id predates the
+    supplement and must never read as a new check. Sources are the already-read
+    excerpts attributed to exactly these questions, never support. Display only.
+    """
+    plan = deep.get("plan")
+    questions: list[dict[str, Any]] = []
+    matched: list[str] = []
+    for task in plan[:24] if isinstance(plan, list) else []:
+        if not isinstance(task, dict) or task.get("status") in {"superseded", "cancelled"}:
+            continue
+        ids = [str(value) for value in task.get("steering_ids") or []]
+        if entry_id not in ids:
+            continue
+        question = " ".join(str(task.get("sub_question") or "").split())
+        if not question:
+            continue
+        created = ids[0] == entry_id
+        text = _steering_question_text(question) if created else question[:160]
+        if any(item["text"] == text for item in questions):
+            continue
+        questions.append({"text": text, "created": created})
+        matched.append(question[:160])
+        if len(questions) == 2:
+            break
+    sources: list[dict[str, str]] = []
+    for excerpt in excerpts:
+        if excerpt["question"] not in matched:
+            continue
+        sources.append({"title": excerpt["title"], "url": excerpt["url"]})
+        if len(sources) == 2:
+            break
+    return {"questions": questions, "sources": sources}
+
+
+def _reading_material(
+    run: Any, deep: Mapping[str, Any], excerpts: list[dict[str, str]] | None = None
+) -> dict[str, Any]:
     """Organize excerpts by actual plan questions; body coverage is not support."""
-    excerpts = _source_excerpts(run, deep)
+    excerpts = _source_excerpts(run, deep) if excerpts is None else excerpts
     plan = deep.get("plan")
     corrections = deep.get("corrections")
     old_terms = [str(change.get("old") or "").casefold() for change in
@@ -181,6 +239,7 @@ def interaction_event(run: Any) -> dict[str, Any]:
     if not isinstance(deep, dict):
         deep = {}
     active = run.status in {"pending", "running"}
+    excerpts = _source_excerpts(run, deep)
     receipts = [
         {"id": item["id"], "content": item.get("content", ""), "status": item["status"]}
         for item in active_steering_entries(context)
@@ -188,14 +247,16 @@ def interaction_event(run: Any) -> dict[str, Any]:
     for item in deep.get("steering", []):
         if not isinstance(item, dict):
             continue
-        receipts.append(
-            {
-                "id": item.get("id")
-                or f"{item.get('received_at', '')}:{item.get('content', '')}",
-                "content": item.get("content", ""),
-                "status": deep_steering_status(item, active=active),
-            }
-        )
+        entry_id = item.get("id") or f"{item.get('received_at', '')}:{item.get('content', '')}"
+        receipt = {
+            "id": entry_id,
+            "content": item.get("content", ""),
+            "status": deep_steering_status(item, active=active),
+        }
+        effects = _steering_effects(deep, str(entry_id), excerpts)
+        if effects["questions"] or effects["sources"]:
+            receipt["effects"] = effects
+        receipts.append(receipt)
     blocks: list[dict[str, str]] = []
     for step in deep.get("steps", []):
         if not isinstance(step, dict) or not step.get("text"):
@@ -230,7 +291,7 @@ def interaction_event(run: Any) -> dict[str, Any]:
         "steering_supported": steering_supported(context),
         "steering": receipts,
         "narration": blocks[-12:],
-        **_reading_material(run, deep),
+        **_reading_material(run, deep, excerpts),
         "budget_extension": "configured"
         if isinstance(deep.get("incremental_budget"), dict)
         else "not_configured",

@@ -14,8 +14,18 @@ test("two supplements and one queued task stay in one continuous research conver
   const queue: Array<Record<string, unknown>> = [];
   const queueRequests: Array<Record<string, unknown>> = [];
   const chatRequests: Array<Record<string, unknown>> = [];
+  // A supplement receipt carries what it actually changed: the check the server
+  // created for it, named by the supplement's own target rather than by a
+  // restatement of the original question. Sources stay out of this fixture
+  // because no read is attributed to these questions yet.
   const steeringState = (version: number) =>
-    steering.map(entry => ({ id: entry.id, content: entry.content, status: version > 1 ? "executing" : "pending" }));
+    steering.map(entry => ({
+      id: entry.id, content: entry.content,
+      status: version > 1 ? "executing" : "pending",
+      ...(version > 1
+        ? { effects: { questions: [{ text: String(entry.content), created: true }], sources: [] } }
+        : {}),
+    }));
   const progress = (version: number, status = "running") => ({
     run_id: "run-live", status, stage: status === "running" ? "searching" : "completed",
     provider_status: "", stop_reason: "", error: "", query_attempt_count: version,
@@ -182,12 +192,17 @@ test("two supplements and one queued task stay in one continuous research conver
     expect(supplementRequests[1]).toEqual(supplementRequests[0]);
     await expect(page.getByRole("button", { name: "选择附件 notes.txt", exact: true })).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByText("正在按补充要求执行研究")).toBeVisible();
+    // The supplement shows the check it created instead of leaving a blank, and
+    // the check is named by the supplement itself, not by the original question.
+    await expect(page.getByText("新增核查：再考虑 Agent 自动编辑")).toBeVisible();
     await expect(page.getByRole("button", { name: "停止", exact: true })).toBeVisible();
 
     // Supplement 2: still steers the same single HTTP stream.
     await input.fill("并补查脚本接口与图层控制");
     await page.getByRole("button", { name: "追加要求", exact: true }).click();
     await expect(page.getByText("正在按补充要求执行研究")).toHaveCount(2);
+    await expect(page.getByText(/^新增核查：/)).toHaveCount(2);
+    await expect(page.getByText("新增核查：并补查脚本接口与图层控制")).toBeVisible();
     await expect(page.getByText("开源替代品的兼容范围", { exact: true })).toBeVisible();
     await expect(page.getByText("暂无正文：开源替代品的兼容范围", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "已读来源：自动化接口" })).toHaveCount(1);

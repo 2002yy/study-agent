@@ -171,7 +171,19 @@ export type ChatMessage = {
   parentTurnId?: string | null;
   evidence?: TurnEvidence;
   researchProgress?: ChatResearchProgress;
-  researchSteering?: { runId: string; id: string; status: "pending" | "applied" | "executing" | "late" };
+  researchSteering?: {
+    runId: string;
+    id: string;
+    status: "pending" | "applied" | "executing" | "late";
+    // What this supplement actually changed, projected from durable plan facts
+    // by the server. `created` is true only for the check this supplement
+    // created; a check it merely took part in is never shown as new. Absent
+    // while nothing has been planned or read for it.
+    effects?: {
+      questions?: Array<{ text: string; created: boolean }>;
+      sources?: Array<{ title: string; url: string }>;
+    };
+  };
   researchQueued?: { runId: string; id: string; status: "pending" | "executing" | "completed"; attachmentIds?: string[] };
   // Server-validated, evidence-bound computation result (Slice B). Never a
   // model-authored chart payload; rendering is refused unless it validates.
@@ -620,7 +632,8 @@ export type ChatResearchProgress = {
   version: number;
   // Research opening ("研究开场"): display-only, optional; legacy servers omit it.
   steering_supported?: boolean;
-  steering?: Array<{ id: string; content: string; status: "pending" | "applied" | "executing" | "late" }>;
+  steering?: Array<{ id: string; content: string; status: "pending" | "applied" | "executing" | "late";
+    effects?: { questions?: Array<{ text: string; created: boolean }>; sources?: Array<{ title: string; url: string }> } }>;
   narration?: Array<{ block_id: string; text: string }>;
   findings?: Array<{ id: string; kind: "source_excerpt"; title: string; url: string; text: string; question?: string }>;
   reading_gaps?: string[];

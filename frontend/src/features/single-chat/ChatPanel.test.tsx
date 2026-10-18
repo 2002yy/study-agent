@@ -184,6 +184,49 @@ describe("continuous conversation input", () => {
     expect(screen.getByRole("figure", { name: "计算结果" })).toBeVisible();
   });
 
+  it("shows what a supplement actually changed instead of leaving it blank", () => {
+    renderPanel({ isSending: true, messages: [
+      { role: "assistant", content: "partial answer" },
+      { role: "user", content: "再考虑 Agent 自动编辑", transient: true, researchSteering: {
+        runId: "r", id: "s", status: "executing",
+        effects: {
+          questions: [{ text: "再考虑 Agent 自动编辑", created: true }],
+          sources: [{ title: "自动化接口文档", url: "https://example.org/automation" }],
+        },
+      } },
+    ] });
+    expect(screen.getByText("正在按补充要求执行研究")).toBeVisible();
+    expect(screen.getByText("新增核查：再考虑 Agent 自动编辑")).toBeVisible();
+    expect(screen.getByText("关联已读材料（尚非结论）：")).toBeVisible();
+    expect(screen.getByRole("link", { name: "自动化接口文档" })).toHaveAttribute("href", "https://example.org/automation");
+  });
+
+  it("never calls a pre-existing check new, and never links an unvalidated url", () => {
+    const { container } = renderPanel({ isSending: true, messages: [
+      { role: "user", content: "再考虑 Agent 自动编辑", transient: true, researchSteering: {
+        runId: "r", id: "s", status: "applied",
+        effects: {
+          questions: [{ text: "compare；新增研究目标：再考虑 Agent 自动编辑", created: false }],
+          sources: [{ title: "可疑来源", url: "javascript:alert(1)" }],
+        },
+      } },
+    ] });
+    expect(screen.getByText("本次补充涉及的核查：compare；新增研究目标：再考虑 Agent 自动编辑")).toBeVisible();
+    expect(screen.queryByText("新增核查：compare；新增研究目标：再考虑 Agent 自动编辑")).toBeNull();
+    // A url that is not a real http(s) address stays readable text, not a link.
+    expect(screen.queryByRole("link", { name: "可疑来源" })).toBeNull();
+    expect(container.textContent).toContain("可疑来源");
+  });
+
+  it("keeps a supplement that changed nothing to one receipt line", () => {
+    const { container } = renderPanel({ isSending: true, messages: [
+      { role: "user", content: "再考虑 Agent 自动编辑", transient: true,
+        researchSteering: { runId: "r", id: "s", status: "pending" } },
+    ] });
+    expect(screen.getByText("已纳入研究计划 · 等待相关搜索")).toBeVisible();
+    expect(container.querySelectorAll(".research-steering-effect")).toHaveLength(0);
+  });
+
   it("distinguishes a plan-applied supplement from one that is really executing", () => {
     renderPanel({ isSending: true, messages: [
       { role: "user", content: "已进入计划", transient: true, researchSteering: { runId: "r", id: "a", status: "applied" } },

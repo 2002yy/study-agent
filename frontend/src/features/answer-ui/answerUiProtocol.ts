@@ -17,6 +17,18 @@ export function safeImageUrl(value: unknown): value is string {
   try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password; } catch { return false; }
 }
 
+/** A receipt link is rendered as a link only when it is a real, credential-free
+ *  http(s) URL; anything else stays plain text. */
+export function safeLinkUrl(value: unknown): string | null {
+  if (!text(value, 2048) || /[\x00-\x20\\]/.test(value)) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    if (url.username || url.password) return null;
+    return url.toString();
+  } catch { return null; }
+}
+
 export function parseAnswerCard(raw: string): AnswerCard | null {
   if (raw.length > 24000) return null;
   try {

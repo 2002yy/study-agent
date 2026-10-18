@@ -64,6 +64,142 @@ def test_incorporated_but_unexecuted_receipt_is_applied_not_late_or_executing():
     assert [item["status"] for item in terminal["steering"]] == ["applied"]
 
 
+def deep_read_run(**overrides):
+    """One successful read whose note is attributed to a plan question."""
+    question = "compare；新增研究目标：再考虑 Agent 自动编辑"
+    excerpt = "该工具的脚本接口支持批量重命名图层、导出 PNG，并保留 PSD 图层样式。"
+    record = {
+        "assessment": {"url": "https://example.org/automation", "worth_reading": True},
+        "item": {"url": "https://example.org/automation"},
+        "read": {
+            "status": "read",
+            "ok": "true",
+            "url": "https://example.org/automation",
+            "requested_url": "https://example.org/automation",
+            "content": excerpt,
+        },
+    }
+    deep = {
+        "steering": [
+            {"id": "s1", "content": "再考虑 Agent 自动编辑", "incorporated_in_round": 2,
+             "executed_in_round": 2, "task_id": "steer_s1", "kind": "addition"},
+        ],
+        "plan": [
+            {"task_id": "steer_s1", "sub_question": question, "status": "done", "round": 2,
+             "steering_ids": ["s1"]},
+            {"task_id": "superseded", "sub_question": "old question", "status": "superseded",
+             "steering_ids": ["s1"]},
+        ],
+        "notes": [{"url": "https://example.org/automation", "title": "自动化接口文档",
+                   "facts": excerpt, "sub_question": question}],
+    }
+    return run(
+        research_context={"research_mode": "deep", "deep": deep},
+        selected_sources=[record],
+        **overrides,
+    )
+
+
+def test_supplement_receipt_shows_the_questions_it_added_and_the_sources_read():
+    projected = interaction_event(deep_read_run())
+    receipt = projected["steering"][0]
+    assert receipt["status"] == "executing"
+    # Only the target the supplement added, never a restatement of the question.
+    assert receipt["effects"]["questions"] == [{"text": "再考虑 Agent 自动编辑", "created": True}]
+    assert receipt["effects"]["sources"] == [
+        {"title": "自动化接口文档", "url": "https://example.org/automation"}
+    ]
+
+
+def test_a_plan_task_that_predates_the_supplement_is_never_called_new():
+    """Only the creator of a task (steering_ids[0]) may read as a new check."""
+    question = "compare；新增研究目标：再考虑 Agent 自动编辑"
+    excerpt = "该工具的脚本接口支持批量重命名图层、导出 PNG，并保留 PSD 图层样式。"
+    deep = {
+        "steering": [{"id": "s2", "content": "再考虑 Agent 自动编辑",
+                      "incorporated_in_round": 3, "executed_in_round": 3}],
+        "plan": [{"task_id": "steer_s1", "sub_question": question, "status": "done", "round": 2,
+                  "steering_ids": ["s1", "s2"]}],
+        "notes": [{"url": "https://example.org/automation", "title": "自动化接口文档",
+                   "facts": excerpt, "sub_question": question}],
+    }
+    record = {
+        "assessment": {"url": "https://example.org/automation", "worth_reading": True},
+        "item": {"url": "https://example.org/automation"},
+        "read": {"status": "read", "ok": "true", "url": "https://example.org/automation",
+                 "requested_url": "https://example.org/automation", "content": excerpt},
+    }
+    receipt = interaction_event(run(
+        research_context={"research_mode": "deep", "deep": deep},
+        selected_sources=[record],
+    ))["steering"][0]
+    # Shared with a pre-existing check: the full question, and no novelty claim.
+    assert receipt["effects"]["questions"] == [{"text": question, "created": False}]
+    assert receipt["effects"]["sources"] == [
+        {"title": "自动化接口文档", "url": "https://example.org/automation"}
+    ]
+
+
+def test_a_correction_appended_to_an_existing_task_is_not_a_new_check():
+    deep = {
+        "steering": [{"id": "s2", "content": "不是 A 是 B", "kind": "correction",
+                      "incorporated_in_round": 3, "executed_in_round": 3}],
+        "plan": [{"task_id": "t1", "sub_question": "B 的兼容范围", "status": "done", "round": 2,
+                  "steering_ids": ["s1", "s2"]}],
+    }
+    receipt = interaction_event(run(research_context={"research_mode": "deep", "deep": deep}))["steering"][0]
+    assert receipt["effects"]["questions"] == [{"text": "B 的兼容范围", "created": False}]
+
+
+def test_supplement_that_never_reached_the_plan_has_no_effects_field():
+    context = {
+        "research_mode": "deep",
+        "deep": {"steering": [{"id": "s1", "content": "new condition",
+                               "incorporated_in_round": None}]},
+    }
+    receipt = interaction_event(run(research_context=context))["steering"][0]
+    # An empty projection is the honest answer; no placeholder question is invented.
+    assert "effects" not in receipt
+
+
+def test_effects_stay_bounded_and_skip_superseded_or_unread_material():
+    long_question = "q" * 300
+    deep = {
+        "steering": [{"id": "s1", "content": "c", "incorporated_in_round": 2, "executed_in_round": 2}],
+        "plan": [
+            {"task_id": f"t{i}", "sub_question": f"question-{i}-{long_question}", "status": "done",
+             "steering_ids": ["s1"]}
+            for i in range(4)
+        ],
+    }
+    projected = interaction_event(run(research_context={"research_mode": "deep", "deep": deep}))
+    effects = projected["steering"][0]["effects"]
+    assert len(effects["questions"]) == 2
+    assert effects["questions"][0]["text"].startswith("question-0-")
+    assert all(item["created"] is True for item in effects["questions"])
+    assert all(len(item["text"]) <= 160 for item in effects["questions"])
+    # No successful read backs any of these questions, so no source is claimed.
+    assert effects["sources"] == []
+    # Two plan tasks truncated to the same text are one question, not two.
+    duplicate = {"steering": deep["steering"],
+                 "plan": [{"task_id": "a", "sub_question": long_question, "status": "done",
+                           "steering_ids": ["s1"]},
+                          {"task_id": "b", "sub_question": long_question + "x", "status": "done",
+                           "steering_ids": ["s1"]}]}
+    assert len(interaction_event(run(research_context={"research_mode": "deep",
+                                                      "deep": duplicate}))["steering"][0]["effects"]["questions"]) == 1
+
+
+def test_effects_never_grant_evidence_or_answer_authority():
+    projected = interaction_event(deep_read_run())
+    receipt = projected["steering"][0]
+    assert set(receipt["effects"]) == {"questions", "sources"}
+    assert set(receipt["effects"]["questions"][0]) == {"text", "created"}
+    assert set(receipt["effects"]["sources"][0]) == {"title", "url"}
+    assert "evidence" not in projected
+    assert "support" not in str(projected["steering"])
+
+
 def test_narration_ids_survive_repeated_polling_and_never_declare_support():
     projected = interaction_event(run())
     assert interaction_event(run()) == projected
