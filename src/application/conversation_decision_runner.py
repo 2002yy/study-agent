@@ -160,6 +160,9 @@ async def decide_conversation_action(
     except Exception:
         return DecisionResult("context_unavailable")
     messages = decision_messages(context)
+    remaining = limits.timeout_seconds - (time.monotonic() - started)
+    if remaining <= 0:
+        return DecisionResult("timeout", elapsed_seconds=time.monotonic() - started)
     admission = budget.reserve(
         context.request_id,
         sum(len(item["content"]) for item in messages),
@@ -170,11 +173,13 @@ async def decide_conversation_action(
     request = ModelDecisionRequest(
         call_id=f"conversation-decision:{context.request_id}",
         messages=tuple((item["role"], item["content"]) for item in messages),
-        timeout_seconds=limits.timeout_seconds,
+        timeout_seconds=remaining,
         max_output_tokens=limits.max_output_tokens,
     )
 
     async def invoke() -> str:
+        if time.monotonic() - started >= limits.timeout_seconds:
+            raise TimeoutError("decision deadline exhausted before transport")
         return await transport(request)
 
     task = asyncio.create_task(invoke())
@@ -188,6 +193,8 @@ async def decide_conversation_action(
         raw = task.result()
     except asyncio.CancelledError:
         raise
+    except TimeoutError:
+        return result("timeout", unknown=True)
     except Exception:
         # Never surface exception text: it may include credentials or prompts.
         return result("provider_error", unknown=True)

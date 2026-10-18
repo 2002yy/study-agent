@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-18 CL-1B 最终审阅修复 / PR #230（覆盖下方候选证据）。** 完整候选审阅发现：当前上下文读取或事件循环排队耗尽时限后仍可能进入 transport。现于准入前与 transport 启动前检查同一截止时间，传给 transport 的 timeout 缩为剩余时限；两项负控证明截止已过不提交模型。命名 L1 最终 **115 PASS / 29.66s**；Ruff/format/mypy122/128 NEW0 PASS；按 CI 同配置的完整候选 detect-secrets 扫描 **0 finding**（只认既有精确证据身份白名单，未放宽规则）。此前 `0d14e34d8c23ab47777cf593ee4b272ab20467fe` 的本地 L3 在约 3% 主动停止，不借给修复后候选；保留旧部分日志，不称通过。PR [#230](https://github.com/2002yy/study-agent/pull/230) 的旧 head CI `39140892253`（pull_request）同样不得用于新候选。新的 head 以本段所属 Git 提交恢复，提交后需重新 preflight 与一次最终 L3，并绑定新 exact-head CI。完整增量审阅覆盖两个新模块、测试、manifest 与 docs；上述截止问题已修，未见其他阻断 finding（本次为本地自审，不冒称外部批准）。产品线 98 文件仍 NO-GO；当前合并范围仅 8 文件。
+
 **2026-10-18 CL-1B：受控模型决策调用，独立 main 合并候选（覆盖本分支旧 NEXT）。** 用户授权“本分支内实现受控模型决策调用，成功实现即合并 main”，并要求评估整条产品线能否一起合入。已评估冻结产品 head `0c818515` 的 98 文件：真实验收 A 仍 FAIL、最终 head 无 PR/CI，旧 L3 不覆盖后续生产变更，故整线 NO-GO，详见 [PRODUCT_LINE_MATURITY_20261018.md](PRODUCT_LINE_MATURITY_20261018.md)。保留原线于 `codex/conversation-agent-loop-product-base-20261018`；当前 branch `codex/conversation-agent-loop-20261018` 已将自身提交移植到 exact main base `335fc9b7875b848f202122362f2e0f8b5a9db0ee`，不带入产品线 schema/UI/工具/费用代码，也不依赖其他窗口 WIP。候选 head 以本段所在 Git 提交恢复。
 
 新增 `conversation_decision_runner.py`：单次异步可注入模型调用、调用/提示字符/输出 token 原子准入、request 去重、有限等待、取消保留预留、迟到结果丢弃、严格响应解析与最新上下文校验、异常脱敏。上下文容器限制为不可变快照。仅返回动作提议；不执行工具、不切换生产聊天路由、不新增 SDK 或真实付费调用。进程内 budget 不冒充持久人民币费用台账；真实提供商接线与持久费用/重启幂等另属 CL-1C。用户授权的合并范围为本独立候选，非整个产品线。

@@ -72,7 +72,7 @@ def test_injected_model_receives_bounded_request_and_yields_validated_action():
         assert request.call_id == "conversation-decision:message-1"
         assert request.max_attempts == 1
         assert request.max_output_tokens == 800
-        assert request.timeout_seconds == 5
+        assert 0 < request.timeout_seconds <= 5
         assert json.loads(request.messages[1][1])["user_message"] == ctx.user_message
         return response(ctx)
 
@@ -211,6 +211,47 @@ def test_blocking_transport_cannot_publish_a_response_after_deadline():
     assert (
         run(transport, limits=DecisionLimits(timeout_seconds=0.01)).status == "timeout"
     )
+
+
+def test_context_read_consuming_deadline_does_not_submit_or_reserve_model_call():
+    ledger = budget()
+
+    def slow_context():
+        time.sleep(0.03)
+        return context()
+
+    async def transport(request):
+        pytest.fail("deadline was exhausted before model admission")
+
+    result = run(
+        transport,
+        ledger=ledger,
+        latest=slow_context,
+        limits=DecisionLimits(timeout_seconds=0.01),
+    )
+    assert result.status == "timeout" and not result.attempted
+    assert not result.outcome_unknown
+
+    async def valid_transport(request):
+        return response(context())
+
+    assert run(valid_transport, ledger=ledger).status == "completed"
+
+
+def test_event_loop_delay_after_reservation_cannot_start_expired_transport():
+    def delayed_context():
+        asyncio.get_running_loop().call_soon(time.sleep, 0.03)
+        return context()
+
+    async def transport(request):
+        pytest.fail("expired transport must not start")
+
+    result = run(
+        transport,
+        latest=delayed_context,
+        limits=DecisionLimits(timeout_seconds=0.01),
+    )
+    assert result.status == "timeout" and result.proposal is None
 
 
 def test_external_cancellation_propagates_without_refunding_or_resubmitting():
