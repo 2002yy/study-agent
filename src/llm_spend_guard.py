@@ -73,8 +73,13 @@ __all__ = [
     "SpendLedgerError",
     "SpendLedgerUnavailable",
     "SpendLimitExceeded",
+    "SpendScope",
     "compose_request_key",
+    "new_scope",
+    "pop_scope",
+    "push_scope",
     "current_identity",
+    "current_scope",
     "experiment_spend",
     "remaining_cny",
     "reservation_cny",
@@ -82,6 +87,7 @@ __all__ = [
     "reset_spend",
     "spend_cap_cny",
     "spend_identity",
+    "spend_scope",
     "spent_cny",
 ]
 
@@ -146,6 +152,91 @@ def spend_identity(
 
 def current_identity() -> SpendIdentity | None:
     return _identity.get()
+
+
+class SpendScope:
+    """Names every paid call made inside one unit of work.
+
+    A single ``request_key`` cannot cover a unit of work that makes many calls:
+    the planner calls the model once per round, and each of those is a separate
+    paid send. The scope numbers them, so every call gets a globally distinct
+    key (experiment / run / operation / purpose / invocation / call) without the
+    caller threading a key through every layer.
+
+    Numbering is per scope entry, not per call identity: re-entering the scope
+    (for example retrying the whole step) numbers from the start again, and the
+    ledger refuses the repeated key instead of treating it as free.
+    """
+
+    def __init__(self, *, run_id: str, operation_id: str, purpose: str) -> None:
+        self.run_id = str(run_id or "")
+        self.operation_id = str(operation_id or "")
+        self.purpose = str(purpose or "")
+        self._calls = 0
+
+    def next_key(self, purpose: str) -> str:
+        self._calls += 1
+        identity = SpendIdentity(
+            run_id=self.run_id,
+            operation_id=self.operation_id,
+            invocation=str(self._calls),
+        )
+        return compose_request_key(
+            purpose=purpose or self.purpose or "llm", identity=identity
+        )
+
+    def describe(self) -> str:
+        return f"run={self.run_id or '-'} op={self.operation_id or '-'} purpose={self.purpose or '-'}"
+
+
+_scope: ContextVar[SpendScope | None] = ContextVar("llm_spend_scope", default=None)
+
+
+def new_scope(
+    *, run_id: str, operation_id: str = "", purpose: str = ""
+) -> SpendScope:
+    """Build a scope without binding it (see :func:`push_scope`)."""
+
+    return SpendScope(run_id=run_id, operation_id=operation_id, purpose=purpose)
+
+
+def push_scope(scope: SpendScope):
+    """Bind a scope and return the token that restores the previous one."""
+
+    return _scope.set(scope)
+
+
+def pop_scope(token) -> None:
+    """Restore the previous scope.
+
+    An async generator can be resumed or closed in a different context than the
+    one that set the scope, and ``ContextVar.reset`` refuses a foreign token. In
+    that case the scope is cleared instead: an unbound scope fails closed, while
+    a stale scope would charge calls to the wrong unit of work.
+    """
+
+    try:
+        _scope.reset(token)
+    except ValueError:
+        _scope.set(None)
+
+
+@contextmanager
+def spend_scope(
+    *, run_id: str, operation_id: str = "", purpose: str = ""
+) -> Iterator[SpendScope]:
+    """Bind one unit of work so every paid call inside it is named."""
+
+    scope = new_scope(run_id=run_id, operation_id=operation_id, purpose=purpose)
+    token = push_scope(scope)
+    try:
+        yield scope
+    finally:
+        pop_scope(token)
+
+
+def current_scope() -> SpendScope | None:
+    return _scope.get()
 
 
 def reset_spend() -> None:
@@ -362,12 +453,15 @@ def reserve_call(
         if experiment and experiment_cap is not None:
             resolved_identity = identity if identity is not None else _identity.get()
             if not request_key:
-                # No guessing: an unnamed paid call could belong to anything, and
-                # charging it to the experiment would corrupt the evidence.
-                raise SpendConfigurationError(
-                    "an experiment budget is enabled but this call supplied no "
-                    "request_key; use compose_request_key(...) for the invocation"
-                )
+                scope = _scope.get()
+                if scope is None:
+                    # No guessing: an unnamed paid call could belong to anything,
+                    # and charging it to the experiment would corrupt the evidence.
+                    raise SpendConfigurationError(
+                        "an experiment budget is enabled but this call names no "
+                        "invocation; bind spend_scope(...) (or pass request_key)"
+                    )
+                request_key = scope.next_key(purpose)
             amount_micros = cny_to_micros(reservation)
             ledger = _ledger()
             ledger.ensure_experiment(

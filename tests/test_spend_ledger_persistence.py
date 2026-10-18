@@ -235,7 +235,15 @@ def _run_child(root: Path, db: Path, key: str, amount: int) -> str:
     return result.stdout.strip().splitlines()[-1]
 
 
-def test_two_processes_cannot_both_cross_the_same_boundary(tmp_path):
+def test_a_second_process_cannot_cross_a_boundary_the_first_used(tmp_path):
+    """Cross-process persistence, run sequentially.
+
+    The genuine *simultaneous* race is covered in
+    `tests/test_spend_production_wiring.py`; this control keeps the simple
+    cross-process property (a second process sees the first process's spend)
+    deterministic.
+    """
+
     root = Path(__file__).resolve().parents[1]
     ledger = _opened(tmp_path, cap=6_000_000)
     _reserve(ledger, "already", 2_000_000)  # 4_000_000 left, two 3_000_000 wants

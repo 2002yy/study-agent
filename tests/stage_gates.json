@@ -44,6 +44,7 @@
     "spend_ledger": [
       "tests/test_spend_ledger_persistence.py",
       "tests/test_spend_guard_experiment.py",
+      "tests/test_spend_production_wiring.py",
       "tests/test_llm_spend_guard.py",
       "tests/test_research_memory.py",
       "tests/test_runtime_sqlite_repository.py",
@@ -481,6 +482,7 @@
     "experiment-spend-ledger": [
       "tests/test_spend_ledger_persistence.py",
       "tests/test_spend_guard_experiment.py",
+      "tests/test_spend_production_wiring.py",
       "tests/test_llm_spend_guard.py",
       "tests/test_research_memory.py",
       "tests/test_runtime_sqlite_repository.py",

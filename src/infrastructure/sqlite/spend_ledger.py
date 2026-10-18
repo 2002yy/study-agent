@@ -49,6 +49,14 @@ class SpendLedgerConflict(SpendLedgerError):
     """The request re-used a key with a different identity, model or amount."""
 
 
+class _BusyDatabase(SpendLedgerError):
+    """Internal: SQLite was busy. Retried, then reported as unavailable.
+
+    Raised distinctly so the retry loop can actually see it - wrapping it as
+    ``SpendLedgerUnavailable`` first would make the retries dead code.
+    """
+
+
 def cny_to_micros(value: float) -> int:
     """Round a CNY amount up to whole micro-CNY (never down: never undercharge)."""
 
@@ -206,6 +214,12 @@ class SpendLedger:
         except SpendLedgerError:
             connection.rollback()
             raise
+        except sqlite3.OperationalError as exc:
+            connection.rollback()
+            message = str(exc).lower()
+            if "locked" in message or "busy" in message:
+                raise _BusyDatabase(f"spend ledger is busy: {exc}") from exc
+            raise SpendLedgerUnavailable(f"spend ledger write failed: {exc}") from exc
         except sqlite3.Error as exc:
             connection.rollback()
             raise SpendLedgerUnavailable(f"spend ledger write failed: {exc}") from exc
@@ -244,7 +258,7 @@ class SpendLedger:
             identity=identity,
         )
         last_error: Exception | None = None
-        for attempt in range(self._busy_retries + 1):
+        for attempt in range(self._busy_retries + 1):  # a busy database is retried
             try:
                 return self._reserve_once(
                     experiment_id,
@@ -256,16 +270,12 @@ class SpendLedger:
                     fingerprint=fingerprint,
                     now=now,
                 )
-            except sqlite3.OperationalError as exc:  # busy / locked
+            except _BusyDatabase as exc:
                 last_error = exc
-                if "locked" not in str(exc) and "busy" not in str(exc):
-                    raise SpendLedgerUnavailable(
-                        f"spend ledger write failed: {exc}"
-                    ) from exc
                 if attempt >= self._busy_retries:
                     break
         raise SpendLedgerUnavailable(
-            f"spend ledger stayed locked after {self._busy_retries + 1} attempts: {last_error}"
+            f"spend ledger stayed busy after {self._busy_retries + 1} attempts: {last_error}"
         )
 
     def _reserve_once(

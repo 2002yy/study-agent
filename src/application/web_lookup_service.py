@@ -15,6 +15,7 @@ from src.news.digest import format_news_source_block
 from src.application.research_shadow_seam import observe_shadow, shadow_enabled
 from src.application.shadow_telemetry_sink import shadow_telemetry
 from src.repositories.web_lookup_repository import WebLookupRepository
+from src.llm_spend_guard import spend_scope
 from src.web.research_contract import (
     build_research_context,
     failed_attempt,
@@ -1038,22 +1039,28 @@ class WebLookupService:
         answer_confidence = run.answer_confidence
 
         if str(context.get("research_mode") or "") == "deep":
-            return self._execute_deep(
-                run_id,
-                run=run,
-                stage=stage,
-                operation_id=operation_id,
-                context=context,
-                query_attempts=query_attempts,
-                selected_sources=selected_sources,
-                rejected_sources=rejected_sources,
-                items=items,
-                warnings=warnings,
-                provider_status=provider_status,
-                reason=reason,
-                answer_confidence=answer_confidence,
-                raise_on_error=raise_on_error,
-            )
+            # One paid unit of work: every planner/model call inside this run is
+            # charged to this run/operation, so an experiment cap covers the
+            # whole sample instead of only the calls that happened to name a key.
+            with spend_scope(
+                run_id=run_id, operation_id=operation_id, purpose="deep_research"
+            ):
+                return self._execute_deep(
+                    run_id,
+                    run=run,
+                    stage=stage,
+                    operation_id=operation_id,
+                    context=context,
+                    query_attempts=query_attempts,
+                    selected_sources=selected_sources,
+                    rejected_sources=rejected_sources,
+                    items=items,
+                    warnings=warnings,
+                    provider_status=provider_status,
+                    reason=reason,
+                    answer_confidence=answer_confidence,
+                    raise_on_error=raise_on_error,
+                )
 
         # M4-B read-only shadow for the Lookup phase: submitted, never awaited, and
         # its result cannot be read by the research below. Flag OFF makes this a no-op.

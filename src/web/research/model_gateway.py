@@ -414,6 +414,22 @@ class ResearchModelGateway:
                 request_kwargs: dict[str, Any] = {}
                 if extra_body is not None:
                     request_kwargs["extra_body"] = dict(extra_body)
+                # Research structured calls are paid calls: reserve them under the
+                # same caps *before* the request, like every other provider call.
+                # Without this the experiment ledger would not cover them.
+                from src.llm_spend_guard import reserve_call
+
+                reserve_call(
+                    prompt_chars=(
+                        len(payload_json)
+                        + sum(len(str(item.get("content") or "")) for item in messages)
+                    ),
+                    max_tokens=max(1, min(int(max_tokens), 4000)),
+                    attempts=1,
+                    purpose=f"research:{normalized_purpose}",
+                    model=model_name,
+                    request_key=call_id,
+                )
                 response = self._request_client().chat.completions.create(
                     model=model_name,
                     messages=messages,

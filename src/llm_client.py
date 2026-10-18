@@ -424,6 +424,7 @@ def _build_request_kwargs(
     response_format: ResponseFormat | None,
     stream: bool,
     request_key: str | None = None,
+    request_max_retries: int | None = None,
 ) -> dict[str, Any]:
     resolved_model_profile = model_profile or None
     kwargs: dict[str, Any] = {
@@ -457,7 +458,7 @@ def _build_request_kwargs(
     reserve_call(
         prompt_chars=_prompt_chars(messages),
         max_tokens=resolved_max_tokens,
-        attempts=_max_attempts(provider_profile),
+        attempts=_effective_attempts(provider_profile, request_max_retries),
         purpose=f"chat:{task_name or ('stream' if stream else 'call')}",
         model=str(kwargs["model"]),
         request_key=request_key,
@@ -492,6 +493,22 @@ def _max_attempts(provider_profile: str | None) -> int:
         return max(1, get_provider_settings(provider_profile).max_retries + 1)
     except Exception:
         return 1
+
+
+def _effective_attempts(
+    provider_profile: str | None, request_max_retries: int | None
+) -> int:
+    """How many attempts the SDK may really make for this request.
+
+    The caller can override the provider's retry budget (``request_max_retries``),
+    and the SDK then retries that many times. Reserving the provider default
+    while the SDK may try more would break the worst-case bound the cap rests on,
+    so the reservation follows the effective setting.
+    """
+
+    if request_max_retries is None:
+        return _max_attempts(provider_profile)
+    return max(1, int(request_max_retries) + 1)
 
 
 def stream_chat(
@@ -529,6 +546,7 @@ def stream_chat(
         response_format=response_format,
         stream=True,
         request_key=request_key,
+        request_max_retries=request_max_retries,
     )
     if extra_body is not None:
         request_kwargs["extra_body"] = dict(extra_body)
@@ -593,6 +611,7 @@ async def async_stream_chat(
         response_format=response_format,
         stream=True,
         request_key=request_key,
+        request_max_retries=request_max_retries,
     )
     if extra_body is not None:
         request_kwargs["extra_body"] = dict(extra_body)
@@ -654,6 +673,7 @@ def chat(
         response_format=response_format,
         stream=False,
         request_key=request_key,
+        request_max_retries=request_max_retries,
     )
     if extra_body is not None:
         request_kwargs["extra_body"] = dict(extra_body)
@@ -713,6 +733,7 @@ def run_tool_loop(
             request_key=(
                 f"{request_key}#round{_round}" if request_key else None
             ),
+            request_max_retries=request_max_retries,
         )
         request_kwargs["tools"] = tools
         request_kwargs["tool_choice"] = "auto"
