@@ -23,6 +23,27 @@ function progress(overrides: Partial<ChatResearchProgress> = {}): ChatResearchPr
 }
 
 describe("AnswerProgress research opening", () => {
+  it("shows provisional synthesis while keeping its original quotes available on demand", () => {
+    const { container, rerender } = render(<AnswerProgress hasContent={false} progress={progress({
+      read_count: 1,
+      approach: { status: "ready", summary: "Opening plan", focus: ["Focus"], origin: "model_plan", sequence: 1, mode: "deep" },
+      narration: [{ block_id: "step1", text: "Reading sources" }],
+      interim_analysis: { status: "provisional", text: "A tentative comparison, with remaining gaps.", citations: [
+        { url: "https://example.org/source", title: "Real source", quote: "Original source statement." },
+      ] },
+      findings: [{ id: "f1", kind: "source_excerpt", title: "Real source", url: "https://example.org/source", text: "Original source statement." }],
+    })} />);
+    expect(screen.getByRole("region", { name: "阶段性分析" })).toBeVisible();
+    expect(screen.getByText("A tentative comparison, with remaining gaps.")).toBeVisible();
+    expect(container.querySelector(".research-status-line")).toBeNull();
+    expect(container.querySelector(".answer-progress-approach")).toBeNull();
+    expect(container.querySelectorAll("details")).toHaveLength(1);
+    expect(screen.getByText(/阶段性判断，可能随新资料调整/)).not.toBeVisible();
+    expect(container.querySelector("details.research-interim-citations")).not.toHaveAttribute("open");
+    expect(screen.queryByRole("region", { name: "已读资料摘录" })).toBeNull();
+    rerender(<AnswerProgress hasContent={false} progress={progress({ interim_analysis: null })} />);
+    expect(screen.queryByRole("region", { name: "阶段性分析" })).toBeNull();
+  });
   it("groups sources by actual questions and marks missing body without claiming support", () => {
     render(<AnswerProgress hasContent={false} progress={progress({
       read_count: 2,

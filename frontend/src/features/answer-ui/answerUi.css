@@ -88,6 +88,14 @@
 .research-finding-group + .research-finding-group { margin-top: 18px; }
 .research-finding-question { margin: 0 0 6px; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 .research-reading-gaps { margin: 16px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.research-interim-analysis { width: 100%; min-width: 0; padding: 12px 0 24px; color: var(--text); }
+.research-interim-text { margin: 0 0 20px; font-size: 15px; font-weight: 400; line-height: 1.9; overflow-wrap: anywhere; }
+.research-interim-citations { font-size: 12px; color: var(--muted); }
+.research-interim-citations summary { cursor: pointer; padding: 8px 0; }
+.research-interim-citations ul { margin: 12px 0 0; padding-left: 18px; }
+.research-interim-citations li + li { margin-top: 12px; }
+.research-interim-citations a { color: var(--accent); overflow-wrap: anywhere; }
+.research-interim-citations blockquote { margin: 6px 0; padding-left: 10px; border-left: 2px solid var(--border); overflow-wrap: anywhere; }
 .research-findings a { color: var(--accent, #315d77); overflow-wrap: anywhere; }
 .research-findings blockquote { margin: 4px 0 0; padding-left: 12px; border-left: 2px solid var(--border, #dbe4ea); overflow-wrap: anywhere; white-space: pre-wrap; }
 .research-steering-receipt { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; }

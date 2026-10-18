@@ -22,10 +22,18 @@ test("two supplements and one queued task stay in one continuous research conver
     selected_source_count: 1, version, steering_supported: true,
     read_count: version >= 3 ? 2 : 1,
     findings: [
-      { id: "run-live:excerpt:1", kind: "source_excerpt", title: "已读来源：自动化接口", url: "https://example.org/automation", text: "该工具支持通过脚本接口执行图层操作，可继续核对具体兼容范围。", question: "Photoshop 自动化接口" },
-      ...(version >= 3 ? [{ id: "run-live:excerpt:2", kind: "source_excerpt", title: "开源工具文档", url: "https://example.org/open-tool", text: "该开源工具提供脚本调用方式，具体兼容范围仍需核对。", question: "开源替代品的兼容范围" }] : []),
+      { id: "run-live:excerpt:1", kind: "source_excerpt", title: "已读来源：自动化接口", url: "https://example.org/automation", text: "该工具的脚本接口支持批量重命名图层、导出 PNG，并保留 PSD 图层样式。", question: "Photoshop 自动化接口" },
+      ...(version >= 3 ? [{ id: "run-live:excerpt:2", kind: "source_excerpt", title: "开源工具文档", url: "https://example.org/open-tool", text: "该开源工具的脚本接口支持批量处理图层和导出 PNG，但不支持部分 PSD 图层样式。", question: "开源替代品的兼容范围" }] : []),
     ],
     reading_gaps: version >= 3 ? [] : ["开源替代品的兼容范围"],
+    interim_analysis: version >= 4 ? {
+      status: "provisional",
+      text: "批量处理图层、导出 PNG，两种方案都能接入 Agent 脚本。\n\n需要保留 PSD 图层样式时，优先原工具：开源方案仍有部分样式不兼容。",
+      citations: [
+        { url: "https://example.org/automation", title: "自动化接口文档", quote: "该工具的脚本接口支持批量重命名图层、导出 PNG，并保留 PSD 图层样式。" },
+        { url: "https://example.org/open-tool", title: "开源工具文档", quote: "该开源工具的脚本接口支持批量处理图层和导出 PNG，但不支持部分 PSD 图层样式。" },
+      ],
+    } : null,
     approach: { status: "ready", summary: "我会先比较功能与 PSD 兼容性，再核对哪些操作能由 Agent 完成。", focus: [], origin: "model_plan", sequence: 1, mode: "deep" },
     steering: steeringState(version),
     narration: [{ block_id: "run-live:search:1", text: "已开始检索候选资料，接下来读取正文。" },
@@ -44,7 +52,12 @@ test("two supplements and one queued task stay in one continuous research conver
       chatRequests.push(input);
       if (streams > 1) {
         response.writeHead(200, { "Content-Type": "text/event-stream" });
-        response.end(`event: done\ndata: ${JSON.stringify({ session_id: "chat-live", turn_id: input.turn_id, reply: "已结合排队问题的附件说明。" })}\n\n`);
+        response.write(`event: computation\ndata: ${JSON.stringify({
+        schema_version: "1", run_id: "run-live", tool_run_id: "tool-1", status: "succeeded",
+        input_revision: 1, source_refs: ["source-1"], engine: "deterministic",
+        result: { columns: ["方案", "耗时"], rows: [["A", 12.5], ["B", 9.8]], unit: "seconds" },
+        })}\n\n`);
+        response.end(`event: done\ndata: ${JSON.stringify({ session_id: "chat-live", turn_id: input.turn_id, reply: "按给定示例，B 比 A 少用 2.7 秒。" })}\n\n`);
         return;
       }
       turnId = input.turn_id;
@@ -67,13 +80,6 @@ test("two supplements and one queued task stay in one continuous research conver
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify({ id: "run-live", research_context: { deep: { steering } } }));
       emit("research", progress(steering.length + 1));
-      emit("token", { text: "研究继续进行，正在核对新增的维度。" });
-      // Slice B: a server-validated, evidence-bound computation result.
-      emit("computation", {
-        schema_version: "1", run_id: "run-live", tool_run_id: "tool-1", status: "succeeded",
-        input_revision: 1, source_refs: ["source-1"], engine: "deterministic",
-        result: { columns: ["方案", "耗时"], rows: [["A", 12.5], ["B", 9.8]], unit: "seconds" },
-      });
       return;
     }
     if (request.url?.endsWith("/queue")) {
@@ -159,7 +165,7 @@ test("two supplements and one queued task stay in one continuous research conver
     await expect(page.getByRole("region", { name: "已读资料摘录" })).toBeVisible();
     await expect(page.getByText("Photoshop 自动化接口", { exact: true })).toBeVisible();
     await expect(page.getByText("暂无正文：开源替代品的兼容范围", { exact: true })).toBeVisible();
-    await expect(page.getByText("该工具支持通过脚本接口执行图层操作，可继续核对具体兼容范围。", { exact: true })).toBeVisible();
+    await expect(page.getByText("该工具的脚本接口支持批量重命名图层、导出 PNG，并保留 PSD 图层样式。", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "已读来源：自动化接口" })).toHaveAttribute("href", "https://example.org/automation");
     await expect(page.getByRole("button", { name: "停止", exact: true })).toBeVisible();
     await expect(page.getByText("已保留已有资料，并完成新增维度的补查。", { exact: true })).toHaveCount(0);
@@ -172,7 +178,6 @@ test("two supplements and one queued task stay in one continuous research conver
     await expect(input).toHaveValue("再考虑 Agent 自动编辑");
     await expect(page.getByRole("button", { name: "取消选择附件 notes.txt", exact: true })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "追加要求", exact: true }).click();
-    await expect(page.getByText("研究继续进行，正在核对新增的维度。")).toBeVisible();
     expect(supplementRequests[0].attachment_ids).toEqual(["att1"]);
     expect(supplementRequests[1]).toEqual(supplementRequests[0]);
     await expect(page.getByRole("button", { name: "选择附件 notes.txt", exact: true })).toHaveAttribute("aria-pressed", "false");
@@ -188,20 +193,13 @@ test("two supplements and one queued task stay in one continuous research conver
     await expect(page.getByRole("link", { name: "已读来源：自动化接口" })).toHaveCount(1);
     expect(supplementRequests[2].attachment_ids).toEqual([]);
 
-    // Slice B: the bound computation renders in the same conversation, with
-    // unit/source/version provenance, and is switchable to a data table.
-    await expect(page.getByRole("figure", { name: "计算结果" })).toBeVisible();
-    await expect(page.getByText(/确定性计算 · 版本 v1/)).toBeVisible();
-    await page.getByRole("button", { name: "数据表" }).click();
-    await expect(page.getByRole("cell", { name: "12.5" })).toBeVisible();
-
     // Queued task: a separate timeline card that never changes the search.
     await page.getByRole("combobox", { name: "追加方式" }).selectOption("queue");
     await page.getByRole("button", { name: "选择附件 notes.txt", exact: true }).click();
-    await input.fill("回答完再解释得简单一点");
+    await input.fill("示例 A 耗时12.5秒、B耗时9.8秒，计算差异并列表");
     await page.getByRole("button", { name: "加入下一轮", exact: true }).click();
     await expect(page.getByRole("alert").getByText("操作没有完成", { exact: true })).toBeVisible();
-    await expect(input).toHaveValue("回答完再解释得简单一点");
+    await expect(input).toHaveValue("示例 A 耗时12.5秒、B耗时9.8秒，计算差异并列表");
     await expect(page.getByRole("button", { name: "取消选择附件 notes.txt", exact: true })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "加入下一轮", exact: true }).click();
     await expect(page.getByText("下一轮任务")).toBeVisible();
@@ -219,18 +217,41 @@ test("two supplements and one queued task stay in one continuous research conver
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("continuous-research.png"), fullPage: true });
 
-    emit("research", { ...progress(3, "completed"), steering: steering.map(entry => ({ id: entry.id, content: entry.content, status: "applied" })) });
+    // A model synthesis becomes readable before done; raw excerpts give way
+    // to a quieter analysis with quotes available on request.
+    emit("research", progress(4));
+    await expect(page.getByRole("region", { name: "阶段性分析", exact: true })).toBeVisible();
+    await expect(page.getByText("批量处理图层、导出 PNG，两种方案都能接入 Agent 脚本。", { exact: true })).toBeVisible();
+    await expect(page.getByText("需要保留 PSD 图层样式时，优先原工具：开源方案仍有部分样式不兼容。", { exact: true })).toBeVisible();
+    await expect(page.locator(".answer-progress-approach, .research-status-line")).toHaveCount(0);
+    await expect(page.getByRole("figure", { name: "计算结果" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "已读资料摘录", exact: true })).toHaveCount(0);
+    await page.getByText("来源与研究过程（2）", { exact: true }).click();
+    await expect(page.getByRole("link", { name: "自动化接口文档", exact: true })).toHaveAttribute("href", "https://example.org/automation");
+    await expect(page.getByText("该开源工具的脚本接口支持批量处理图层和导出 PNG，但不支持部分 PSD 图层样式。", { exact: true })).toBeVisible();
+    await page.getByText("来源与研究过程（2）", { exact: true }).click();
+    await page.getByRole("region", { name: "学习对话", exact: true }).evaluate(element => { element.scrollTop = 0; });
+    await page.screenshot({ path: testInfo.outputPath("interim-analysis.png"), fullPage: true });
+
+    emit("research", { ...progress(5, "completed"), steering: steering.map(entry => ({ id: entry.id, content: entry.content, status: "applied" })) });
     emit("done", { session_id: "chat-live", turn_id: turnId, reply: "已保留已有资料，并完成新增维度的补查。" });
     stream?.end();
     await expect(page.getByRole("button", { name: "发送排队问题", exact: true })).toBeVisible();
-    await expect(page.getByText("研究过程已结束")).toBeVisible();
     // The search process is collapsed by default and only expands on request.
-    const process = page.getByText("查看搜索过程与失败原因");
+    const process = page.getByText("来源与研究过程（2）");
     await expect(process).toBeVisible();
     await process.click();
+    await expect(page.getByText(/研究过程已结束 · 阶段性判断/)).toBeVisible();
     await expect(page.getByText("已纳入补充：再考虑 Agent 自动编辑")).toBeVisible();
     await page.getByRole("button", { name: "发送排队问题", exact: true }).click();
-    await expect(page.getByText("已结合排队问题的附件说明。", { exact: true })).toBeVisible();
+    await expect(page.getByText("按给定示例，B 比 A 少用 2.7 秒。", { exact: true })).toBeVisible();
+    // Slice B: the bound computation renders in the same conversation, with
+    // unit/source/version provenance, and is switchable to a data table.
+    await expect(page.getByRole("figure", { name: "计算结果" })).toBeVisible();
+    await expect(page.getByText(/确定性计算 · 版本 v1/)).toBeVisible();
+    await page.getByRole("button", { name: "数据表" }).click();
+    await expect(page.getByRole("cell", { name: "12.5" })).toBeVisible();
+
     expect(chatRequests[1].attachment_ids).toEqual(["att1"]);
     expect(chatRequests[1].turn_id).toBe(`turn_${queueRequests[1].request_id}`);
   } finally {

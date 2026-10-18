@@ -27,6 +27,12 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
   const findings = (progress?.findings ?? []).filter(finding =>
     finding.kind === "source_excerpt" && /^https?:\/\//i.test(finding.url)
   ).slice(-3);
+  const candidate = progress?.interim_analysis;
+  const analysis = candidate?.status === "provisional" && typeof candidate.text === "string" &&
+    candidate.text.length > 0 && candidate.text.length <= 400 && Array.isArray(candidate.citations) &&
+    candidate.citations.length > 0 && candidate.citations.length <= 3 &&
+    candidate.citations.every(citation => typeof citation?.url === "string" &&
+      /^https?:\/\//i.test(citation.url) && typeof citation.quote === "string") ? candidate : null;
   const statusText = researching
     ? stages[progress!.stage] ?? "正在查找资料"
     : cancelled
@@ -40,7 +46,7 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
             : "正在组织回答";
   const read = progress?.read_count ?? 0;
   // Honest insufficiency: never dress "no usable text yet" up as progress.
-  const insufficient = researching && read === 0 && findings.length === 0;
+  const insufficient = researching && read === 0 && findings.length === 0 && !analysis;
   const gaps = (progress?.reading_gaps ?? []).slice(0, 3);
   const groups = new Map<string, typeof findings>();
   for (const finding of findings) {
@@ -50,15 +56,31 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
   return <div className="answer-progress" role="status" aria-live="polite">
     {/* Terminal states must not keep spinning. */}
     {/* Research opening: display-only, never part of the answer text. */}
-    {summary ? <span className="answer-progress-approach">{summary}</span> : null}
-    {focus.length ? <span className="answer-progress-focus">{focus.join(" · ")}</span> : null}
-    <div className="research-status-line">
+    {!analysis && summary ? <span className="answer-progress-approach">{summary}</span> : null}
+    {!analysis && focus.length ? <span className="answer-progress-focus">{focus.join(" · ")}</span> : null}
+    {!analysis ? <div className="research-status-line">
       {researching ? <Loader2 className="spin" size={13} /> : null}
       <span className="answer-progress-status">{statusText}</span>
       {researching ? <span className="answer-progress-counts">查询 {progress!.query_attempt_count} · 已读 {read}</span> : null}
-    </div>
+    </div> : null}
     {insufficient ? <span className="answer-progress-note">暂未取得可用正文，正在尝试其他来源。</span> : null}
-    {findings.length || (gaps.length && (read > 0 || !researching)) ? <section className="research-findings" aria-label="已读资料摘录">
+    {analysis ? <section className="research-interim-analysis" aria-label="阶段性分析">
+      {analysis.text.split(/\n\s*\n|\n/).filter(paragraph => paragraph.trim()).map((paragraph, index) =>
+        <p className="research-interim-text" key={index}>{paragraph}</p>)}
+      <details className="research-interim-citations">
+        <summary>来源与研究过程（{analysis.citations.length}）</summary>
+        <p>{statusText} · 阶段性判断，可能随新资料调整</p>
+        <ul>{analysis.citations.map((citation, index) => <li key={`${citation.url}:${index}`}>
+          <a href={citation.url} target="_blank" rel="noopener noreferrer">{citation.title}</a>
+          <blockquote>{citation.quote}</blockquote>
+        </li>)}</ul>
+        {gaps.length ? <p className="research-reading-gaps">暂无正文：{gaps.join("；")}</p> : null}
+        {progress?.narration?.length ? <ol aria-label="研究过程">
+          {progress.narration.map(block => <li key={block.block_id}>{block.text}</li>)}
+        </ol> : null}
+      </details>
+    </section> : null}
+    {!analysis && (findings.length || (gaps.length && (read > 0 || !researching))) ? <section className="research-findings" aria-label="已读资料摘录">
       <div className="research-findings-heading"><span>已读资料</span><span className="research-findings-note">原文摘录，尚非结论</span></div>
       {Array.from(groups, ([question, excerpts]) => <div className="research-finding-group" key={question}>
         {question ? <p className="research-finding-question">{question}</p> : null}
@@ -69,7 +91,7 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
       </div>)}
       {gaps.length ? <p className="research-reading-gaps">暂无正文：{gaps.join("；")}</p> : null}
     </section> : null}
-    {progress?.narration?.length ? <details className="research-narration">
+    {!analysis && progress?.narration?.length ? <details className="research-narration">
       <summary>查看搜索过程与失败原因</summary>
       <ol aria-label="研究过程">
         {progress.narration.map(block => <li key={block.block_id}>{block.text}</li>)}

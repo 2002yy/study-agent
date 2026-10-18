@@ -40,6 +40,8 @@ export function mergeResearchProgress(
     // steering. Legacy events that omit the field preserve the current view.
     findings: incoming.findings ?? previous.findings,
     reading_gaps: incoming.reading_gaps ?? previous.reading_gaps,
+    // null withdraws an invalidated analysis; undefined is an older event.
+    interim_analysis: incoming.interim_analysis === undefined ? previous.interim_analysis : incoming.interim_analysis,
   };
 }
 

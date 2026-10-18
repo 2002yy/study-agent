@@ -624,6 +624,7 @@ export type ChatResearchProgress = {
   narration?: Array<{ block_id: string; text: string }>;
   findings?: Array<{ id: string; kind: "source_excerpt"; title: string; url: string; text: string; question?: string }>;
   reading_gaps?: string[];
+  interim_analysis?: { status: "provisional"; text: string; citations: Array<{ url: string; title: string; quote: string }> } | null;
   budget_extension?: "configured" | "not_configured";
   approach?: ChatResearchApproach | null;
   // G18 deep-research journey fields (present only for deep runs).

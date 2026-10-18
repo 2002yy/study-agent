@@ -1,12 +1,20 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-18（完整聊天产品主线；阶段性资料按研究问题组织）
+> 更新：2026-10-18（阶段性判断直接回答问题；正文与来源入口收简）
 > 产品定义：**Study Agent 是体验接近 GPT-6 Chat 的智能聊天与研究 Agent。自然聊天、自主研究、持续交互、智能 UI、统一多模态、工具执行是六项通用核心能力；长期学习与教学是其上的专业场景。**
 
 本文件只维护当前权威状态、可复核边界和唯一下一门。2026-10-06 本次收敛前的完整状态原样归档到 [`archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`](archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md)；更早历史继续由既有 archive 与 Git 历史持有。
 
 ## 0. Current Handoff（cold-start 入口）
+
+**2026-10-18 最新片：有出处的阶段性判断 + UI 留白（本地，未合并；覆盖下方旧 NEXT）。** branch `codex/research-interim-analysis-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base **`15302f84b2a774c37d51c34e406f91bc0b8a5a0e`**；本段所在 Git 提交即实现 head，审阅仅 base 后增量。复用 Deep 原有 revise 调用生成可选归纳，不新增调用/预算/执行器。要求先给具体发现、差别或有条件建议，说明对用户的意义；不能形成有用判断时返回 null，不用“继续核对”凑分析。服务端限制正文400字、1–3条引用，引用必须匹配已读材料 ID 与原文；checkpoint 在最终综合前保存。展示重新核对成功读取/资格/重定向及当前 steering revision；新补充、失效正文会撤回过时判断。保持原文段落，无独立持久化 schema 改动，不改变正式答案/Gate 权威。
+
+用户指出“毫无结论、AI味、仍然堆积”后，本片改为直接展示判断正文：有判断即收起开场计划/查询计数/重复标题，原文和过程合为一个默认折叠入口，阶段性边界说明移入其中；段间留白，无新增卡框。头像仍桌面96px、手机80px。脚本浏览器场景移除每次 steer 无条件发送的过程套话和未请求计算，计算覆盖移到明确请求数字比较的排队问题；这些是 mock 修正，不冒称生产模型已执行。
+
+验证：命名 L1 `research_interim_analysis` **99 PASS / 1 SKIP / 35.40s**；最后补段落保留后，自身+生产 planner+已读来源模块 **34 PASS / 10.88s**，未重复全量。前端上一版影响集62 PASS，本次反馈修复最终直接影响集 **32 PASS**，TypeScript/Vite build PASS；最终320/390/768/1440px浏览器 **4 PASS / 10.5s**（同SSE连续追加/排队失败重试、附件身份、出处折叠、查询行撤下、计算按需、原头像尺寸），人工查看390px截图判断正文与来源入口留白通过。Ruff PASS、mypy **122/128 NEW0**、diff-check PASS。Ruff首次误从frontend目录运行导致tests/tools路径不存在，已改repo根目录通过，非代码失败。日志 `D:/study-agent-validation/interim-analysis-{impact,final-focused,frontend,build,browser,mypy}.log`；截图 `frontend/test-results/conversation-continuous/*/interim-analysis.png`。本片零 L3；无新 CI/推送/PR/合并/部署，提交后预期干净，主目录不改。
+
+**边界与下一刀：** 引用存在性检查不等于论证成立/推荐正确；全部离线 fake 模型/工具与真实 SQLite/HTTP/SSE，不授予真实研究质量 GO。当前只覆盖 Deep；Standard 的增量判断仍未接通。下一执行片：用用户问题与阶段性判断组成小型内容验收集，核查“具体结论/证据适配/有用后果/无套话”，再决定是否扩展 Standard；真实付费验收沿用既有预算授权边界。
 
 **2026-10-18 最新片：已读资料按真实研究问题分组（本地，未合并；覆盖下方旧NEXT）。** branch `codex/research-question-groups-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base **`e167c6657306f3986f4ca96210f14443bb6ce231`**；本段所在Git提交即修复head，审阅仅base后的增量。改善六项能力中的搜索分析/边研究边交互：从既有Deep plan/notes/成功读取正文只读投影问题归属，最多3条摘录优先覆盖不同问题，避免比较题被单侧较多来源淹没；同网页可服务不同问题、身份不冲突。按全部合格读取材料计算`reading_gaps`，不把展示上限误作缺资料；done状态不能制造已读材料，纠正/取消的旧问题不再当作来源或缺口。UI沿用无外框分组与一条低强调的“暂无正文”提示，第二侧资料到达后撤掉对应提示、保留第一侧且不重复。旧事件可省略新增字段，显式空快照清除过期项，低版本/跨run隔离保持。
 

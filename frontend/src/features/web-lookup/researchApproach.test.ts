@@ -36,6 +36,15 @@ function progress(overrides: Partial<ChatResearchProgress> = {}): ChatResearchPr
 }
 
 describe("researchApproach merge", () => {
+  it("withdraws provisional analysis on null without reviving stale or other-run content", () => {
+    const analysis = { status: "provisional" as const, text: "Tentative result", citations: [{ url: "https://example.org", title: "Source", quote: "Exact original statement" }] };
+    const previous = progress({ interim_analysis: analysis });
+    expect(mergeResearchProgress(previous, progress({ version: 4 }))?.interim_analysis).toEqual(analysis);
+    const withdrawn = mergeResearchProgress(previous, progress({ version: 4, interim_analysis: null }));
+    expect(withdrawn?.interim_analysis).toBeNull();
+    expect(mergeResearchProgress(withdrawn, previous)?.interim_analysis).toBeNull();
+    expect(mergeResearchProgress(previous, progress({ run_id: "other" }))?.interim_analysis).toBeUndefined();
+  });
   it("keeps legacy omissions but clears invalidated excerpts and isolates runs", () => {
     const previous = progress({ findings: [{ id: "f1", kind: "source_excerpt", title: "source", url: "https://example.org", text: "old source text" }], reading_gaps: ["old question"] });
     expect(mergeResearchProgress(previous, progress({ version: 4 }))?.findings).toEqual(previous.findings);

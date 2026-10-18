@@ -36,6 +36,7 @@ from src.web.research.incremental_budget import (
     load_incremental_policy, remaining as incremental_remaining, total_authorized,
 )
 from src.tools.python_isolation import isolated_python_available
+from src.web.research.interim_analysis import analysis_sources, interim_revision, validate_interim_analysis
 
 
 class WebLookupGateway(Protocol):
@@ -2139,6 +2140,14 @@ class WebLookupService:
                         ],
                         self._deep_revise_context(deep, context, round_index),
                     )
+                    analysis = validate_interim_analysis(verdict.get("interim_analysis"), analysis_sources(notes))
+                    if analysis is not None:
+                        deep["interim_analysis"] = {**analysis, "revision": interim_revision(deep)}
+                        # Persist before synthesis so observers can read it while
+                        # research is still running. No extra model call is made.
+                        persist()
+                    else:
+                        deep.pop("interim_analysis", None)
                     additional = [
                         str(item).strip()
                         for item in verdict.get("additional", [])

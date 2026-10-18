@@ -14,6 +14,7 @@ from src.web.research.steering import (
     is_active_claim_engine_context,
 )
 from src.web.tool_evidence import _public_url
+from src.web.research.interim_analysis import analysis_sources, interim_revision, validate_interim_analysis
 
 
 def _source_excerpts(run: Any, deep: Mapping[str, Any]) -> list[dict[str, str]]:
@@ -61,6 +62,7 @@ def _source_excerpts(run: Any, deep: Mapping[str, Any]) -> list[dict[str, str]]:
         excerpts.append({
             "id": f"{run.id}:excerpt:" + hashlib.sha256(f"{url}:{text}:{question}".encode()).hexdigest()[:20],
             "url": url, "title": str(note.get("title") or url)[:160], "text": text,
+            "requested_url": requested_url,
             "kind": "source_excerpt",
             "question": question,
         })
@@ -102,7 +104,28 @@ def _reading_material(run: Any, deep: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "findings": selected,
         "reading_gaps": [question for question in questions if question not in covered][:3],
+        "interim_analysis": _interim_projection(deep, excerpts),
     }
+
+
+def _interim_projection(deep: Mapping[str, Any], excerpts: list[dict[str, str]]) -> dict[str, Any] | None:
+    candidate = deep.get("interim_analysis")
+    if not isinstance(candidate, dict) or candidate.get("revision") != interim_revision(dict(deep)):
+        return None
+    sources = analysis_sources([{
+        "url": excerpt["requested_url"], "facts": excerpt["text"],
+        "sub_question": excerpt["question"], "title": excerpt["title"],
+    } for excerpt in excerpts])
+    analysis = validate_interim_analysis(candidate, sources)
+    if analysis is None:
+        return None
+    canonical = {source["source_id"]: next((
+        excerpt["url"] for excerpt in excerpts
+        if excerpt["requested_url"] == source["url"] and excerpt["question"] == source["question"]
+    ), source["url"]) for source in sources}
+    return {"status": "provisional", "text": analysis["text"], "citations": [{
+        "url": canonical[citation["source_id"]], "title": citation["title"], "quote": citation["quote"],
+    } for citation in analysis["citations"]]}
 
 
 def steering_supported(context: Mapping[str, Any]) -> bool:
