@@ -8,6 +8,7 @@ import pytest
 
 from src.application.conversation_action_dispatch import (
     ActionBudget,
+    SteeringObservation,
     dispatch_conversation_action,
 )
 from src.application.conversation_decision import (
@@ -197,6 +198,58 @@ def test_missing_second_adapter_cannot_partially_answer_or_consume_budget():
         run(handlers={ConversationAction.ANSWER: handler}, budget=ledger)[0].status
         == "observed"
     )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "own",
+        "later_revision",
+        "new_topic",
+        "no_receipt",
+        "wrong_run",
+        "old_revision",
+        "non_steer",
+    ],
+)
+def test_steering_revision_change_requires_exact_handler_owned_receipt(change):
+    ctx = context(active_research=ActiveResearch("run-1", 2, "原研究", True))
+    state = [ctx]
+    committed = ActiveResearch("run-1", 3, "修正后的研究", True)
+
+    async def handler(_):
+        state[0] = replace(ctx, active_research=committed)
+        if change == "later_revision":
+            state[0] = replace(ctx, active_research=replace(committed, revision=4))
+        if change == "new_topic":
+            state[0] = replace(state[0], user_message="换题")
+        if change == "no_receipt":
+            return "已处理"
+        receipt = committed
+        if change == "wrong_run":
+            receipt = replace(committed, run_id="other")
+        if change == "old_revision":
+            receipt = ctx.active_research
+        return SteeringObservation("已处理", receipt)
+
+    action = "answer" if change == "non_steer" else "steer"
+    events = run(
+        action,
+        ctx=ctx,
+        latest=lambda: state[0],
+        handlers={ConversationAction(action): handler},
+    )
+    expected = (
+        "observed"
+        if change == "own"
+        else (
+            "invalid_observation"
+            if change in {"wrong_run", "old_revision", "non_steer"}
+            else "stale_context"
+        )
+    )
+    assert events[0].status == expected and events[0].attempted
+    assert events[0].observation == ("已处理" if change == "own" else "")
 
 
 def test_concurrent_duplicate_dispatch_has_one_side_effect():

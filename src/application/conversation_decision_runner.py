@@ -14,7 +14,7 @@ import math
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Protocol
 
 from src.application.conversation_decision import (
     ActionProposal,
@@ -113,6 +113,12 @@ class DecisionResult:
 DecisionTransport = Callable[[ModelDecisionRequest], Awaitable[str]]
 
 
+class DecisionAdmission(Protocol):
+    def reserve(
+        self, request_id: str, prompt_chars: int, output_tokens: int
+    ) -> str: ...
+
+
 def _discard_late(task: asyncio.Task[str]) -> None:
     # Retrieve late exceptions; never publish or validate late model output.
     if not task.cancelled():
@@ -132,7 +138,7 @@ async def decide_conversation_action(
     context: DecisionContext,
     *,
     transport: DecisionTransport,
-    budget: DecisionBudget,
+    budget: DecisionAdmission,
     current_context: Callable[[], DecisionContext],
     limits: DecisionLimits = DecisionLimits(),
 ) -> DecisionResult:
@@ -163,13 +169,21 @@ async def decide_conversation_action(
     remaining = limits.timeout_seconds - (time.monotonic() - started)
     if remaining <= 0:
         return DecisionResult("timeout", elapsed_seconds=time.monotonic() - started)
-    admission = budget.reserve(
-        context.request_id,
-        sum(len(item["content"]) for item in messages),
-        limits.max_output_tokens,
-    )
+    try:
+        admission = budget.reserve(
+            context.request_id,
+            sum(len(item["content"]) for item in messages),
+            limits.max_output_tokens,
+        )
+    except Exception:
+        return DecisionResult("admission_unavailable")
     if admission != "reserved":
-        return DecisionResult(admission)
+        return DecisionResult(
+            admission
+            if isinstance(admission, str)
+            and admission in {"already_attempted", "budget_exhausted"}
+            else "admission_unavailable"
+        )
     request = ModelDecisionRequest(
         call_id=f"conversation-decision:{context.request_id}",
         messages=tuple((item["role"], item["content"]) for item in messages),
