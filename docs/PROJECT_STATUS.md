@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-19 #242 主线重绑。** 已吸收自身#240合并main cf70e688c91fe93cd259c10c6dc7d00a1b2e4586，merge bcc4d3f1；冲突仅两份文档与manifest，保留双方记录及context测试。session生产代码与原827b81ad相同；当前main增量5文件。命名conversation_decision_1b **278 PASS/91.45s**，Ruff/diff-check PASS，mypy122/128 NEW0；无本地L3。旧CI39220756792不授予新候选，推送后重绑PR base main并记录一次exact-head CI。下一功能片为累计回答输入与loop可选接线，未接其他窗口WIP。
+
 **2026-10-19 #242 审阅修复 / 终态后的close_error。** finding4311507599有效：有效LoopStopped后清理异常先记close_error，又被_next通用异常覆盖成stream_error。新增内部专用关闭异常分流，保留failed/close_error、unknown与脱敏错误，不把终态观察提升为清理成功。新增精确负控；最终命名L1 conversation_loop_session 223 PASS/65.38s，mypy122/128 NEW0、Ruff/format/diff-check PASS。候选head由本段所属提交恢复，旧a88a4f42不授予新head；推送后绑定一次CI并解决已修finding。
 
 **2026-10-19 #242 父片修复整合。** 吸收自身冻结#240 head778d0003，含#239不可变观察身份与#240工具后STEER派生身份两项有效review修复；文档冲突保留双方。session生产代码不变，联合影响集conversation_loop_session 222 PASS/61.01s、mypy122/128 NEW0、Ruff/diff-check PASS后推送，新head独立绑定CI，旧150ae5ec结果不授予新head。CI-CL-2为本轮第三小片，继续基于本分支冻结结果登记精确路径与完整消费者集合。
