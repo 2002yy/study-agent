@@ -95,11 +95,13 @@
       "tests/test_stage_gates_policy.py"
     ],
     "conversation_decision_1b": [
+      "tests/test_conversation_decision_admission.py",
       "tests/test_conversation_decision_runner.py",
       "tests/test_conversation_decision.py",
       "tests/test_router.py",
       "tests/test_task_contract.py",
-      "tests/test_stage_gates_policy.py"
+      "tests/test_stage_gates_policy.py",
+      "tests/test_conversation_decision_context.py"
     ],
     "conversation_decision_1a": [
       "tests/test_conversation_decision.py",
@@ -409,6 +411,21 @@
       "tests/test_standard_research.py",
       "tests/test_standard_handoff.py",
       "tests/test_standard_execution.py",
+      "tests/test_stage_gates_policy.py"
+    ],
+    "conversation_decision_admission": [
+      "tests/test_conversation_decision_admission.py",
+      "tests/test_conversation_decision_runner.py",
+      "tests/test_conversation_decision.py",
+      "tests/test_stage_gates_policy.py"
+    ],
+    "conversation_decision_context": [
+      "tests/test_router.py",
+      "tests/test_task_contract.py",
+      "tests/test_conversation_decision_context.py",
+      "tests/test_conversation_decision.py",
+      "tests/test_conversation_decision_runner.py",
+      "tests/test_chat_service.py",
       "tests/test_stage_gates_policy.py"
     ]
   },
