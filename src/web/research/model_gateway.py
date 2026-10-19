@@ -19,6 +19,12 @@ from typing import Any, Callable, Generic, Mapping, TypeVar
 from src.llm_client import ModelProfile, get_client, get_model_name, get_provider_settings
 
 RESEARCH_MODEL_AUDIT_SCHEMA_VERSION = "research-model-call-audit-v1"
+#: Every status ``complete_structured`` may write. ``from_dict`` accepts exactly
+#: this set, so an audit that can be serialized can also be restored - a budget
+#: stop must round-trip like any other outcome.
+RESEARCH_MODEL_AUDIT_STATUSES = frozenset(
+    {"completed", "attempt_failed", "budget_exhausted"}
+)
 MAX_RESEARCH_MODEL_ATTEMPTS = 2
 
 _JSON_OBJECT_CONTRACT_SUFFIX = (
@@ -247,7 +253,7 @@ class ResearchModelCallAudit:
         if data.get("schema_version") != RESEARCH_MODEL_AUDIT_SCHEMA_VERSION:
             raise ValueError("unsupported research model audit schema")
         status = _required_text(data.get("status"), 50, "status")
-        if status not in {"completed", "attempt_failed"}:
+        if status not in RESEARCH_MODEL_AUDIT_STATUSES:
             raise ValueError("invalid research model audit status")
         return cls(
             call_id=_required_text(data.get("call_id"), 300, "call_id"),
@@ -662,6 +668,7 @@ def _counts_tuple(value: Any, max_items: int) -> tuple[tuple[str, int], ...]:
 __all__ = [
     "MAX_RESEARCH_MODEL_ATTEMPTS",
     "RESEARCH_MODEL_AUDIT_SCHEMA_VERSION",
+    "RESEARCH_MODEL_AUDIT_STATUSES",
     "ResearchModelAttemptStart",
     "ResearchModelCallAudit",
     "ResearchModelGateway",

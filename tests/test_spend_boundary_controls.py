@@ -32,7 +32,12 @@ from src.llm_spend_guard import (
     spend_identity,
     spend_scope,
 )
-from src.web.research.model_gateway import ResearchModelGateway
+from src.web.research.model_gateway import (
+    RESEARCH_MODEL_AUDIT_SCHEMA_VERSION,
+    RESEARCH_MODEL_AUDIT_STATUSES,
+    ResearchModelCallAudit,
+    ResearchModelGateway,
+)
 
 EXPERIMENT = "boundary-experiment"
 
@@ -172,6 +177,126 @@ def test_a_budget_stop_is_reported_as_budget_exhausted(monkeypatch, tmp_path):
     # The stop is not retried as if it were a provider failure.
     assert len(result.audits) == 1
     assert result.audits[0].error_type == "SpendLimitExceeded"
+
+
+def test_a_budget_stop_audit_round_trips(monkeypatch, tmp_path):
+    """The audit a budget stop writes must survive to_dict -> from_dict.
+
+    ``complete_structured`` writes ``status="budget_exhausted"``, so the reader
+    must accept it: an audit that can be serialized but not restored would lose
+    exactly the record that explains why no request was sent.
+    """
+
+    _budget(monkeypatch, tmp_path, cap="0.0000001")
+    _provider_env(monkeypatch)
+    client = _RecordingClient()
+    gateway = ResearchModelGateway(client=client, model_name="fake-flash", max_attempts=3)
+
+    seen: list[dict] = []
+    with spend_scope(
+        run_id="web_lookup_run9",
+        operation_id="op9",
+        purpose="active_research",
+        experiment=EXPERIMENT,
+    ):
+        result = gateway.complete_structured(
+            logical_call_id="lead-discovery:9",
+            purpose="lead_discovery",
+            messages=[{"role": "user", "content": "question"}],
+            audit_payload={"query": "question"},
+            response_schema_version="lead-discovery-v1",
+            parse=lambda raw: raw,
+            on_attempt_finished=lambda audit: seen.append(audit.to_dict()),
+        )
+
+    assert result.reason == "budget_exhausted"
+    assert len(seen) == 1
+    restored = ResearchModelCallAudit.from_dict(seen[0])
+    assert restored.status == "budget_exhausted"
+    assert restored.error_type == "SpendLimitExceeded"
+    assert restored.call_id == "lead-discovery:9:attempt:1"
+
+
+def test_a_restored_budget_stop_audit_matches_what_was_written(monkeypatch, tmp_path):
+    """The record survives a JSON round trip, as the runtime persists it."""
+
+    import json
+
+    _budget(monkeypatch, tmp_path, cap="0.0000001")
+    _provider_env(monkeypatch)
+    client = _RecordingClient()
+    gateway = ResearchModelGateway(client=client, model_name="fake-flash", max_attempts=3)
+
+    written: list[ResearchModelCallAudit] = []
+    with spend_scope(
+        run_id="web_lookup_run10",
+        operation_id="op10",
+        purpose="active_research",
+        experiment=EXPERIMENT,
+    ):
+        gateway.complete_structured(
+            logical_call_id="lead-discovery:10",
+            purpose="lead_discovery",
+            messages=[{"role": "user", "content": "question"}],
+            audit_payload={"query": "question"},
+            response_schema_version="lead-discovery-v1",
+            parse=lambda raw: raw,
+            on_attempt_finished=written.append,
+        )
+
+    payload = json.dumps(written[0].to_dict(), ensure_ascii=False)
+    restored = ResearchModelCallAudit.from_dict(json.loads(payload))
+    assert restored == written[0]
+
+
+def test_an_unauthorized_stop_is_distinguishable_from_an_exhausted_budget(
+    monkeypatch, tmp_path
+):
+    """A refused experiment identity must not read as "the budget ran out"."""
+
+    _budget(monkeypatch, tmp_path)
+    _provider_env(monkeypatch)
+    client = _RecordingClient()
+    gateway = ResearchModelGateway(client=client, model_name="fake-flash", max_attempts=1)
+
+    # No scope at all: the work is not declared for the experiment.
+    result = _call_gateway(gateway)
+
+    assert result.reason == "budget_exhausted"
+    assert client.requests == []
+    assert len(result.audits) == 1
+    # The audit keeps the reason: a configuration refusal, not an empty budget.
+    assert result.audits[0].error_type == "SpendConfigurationError"
+    assert result.audits[0].status == "budget_exhausted"
+
+
+def test_an_unknown_audit_status_is_still_rejected():
+    """The set is wider, not open: anything else must still fail to restore."""
+
+    import json
+
+    _budget_payload = {
+        "schema_version": RESEARCH_MODEL_AUDIT_SCHEMA_VERSION,
+        "call_id": "call:1",
+        "logical_call_id": "call",
+        "purpose": "lead_discovery",
+        "provider_profile": "openai",
+        "model_profile": "flash",
+        "model_name": "m",
+        "attempt": 1,
+        "started_at": "2026-10-19T00:00:00+00:00",
+        "completed_at": "2026-10-19T00:00:01+00:00",
+        "elapsed_seconds": 1.0,
+        "status": "model_failed",
+        "response_schema_version": "lead-discovery-v1",
+        "input_sha256": "0" * 64,
+        "input_chars": 1,
+    }
+    assert RESEARCH_MODEL_AUDIT_STATUSES == frozenset(
+        {"completed", "attempt_failed", "budget_exhausted"}
+    )
+    with pytest.raises(ValueError):
+        ResearchModelCallAudit.from_dict(json.loads(json.dumps(_budget_payload)))
 
 
 # -- 2. a busy database ------------------------------------------------------
