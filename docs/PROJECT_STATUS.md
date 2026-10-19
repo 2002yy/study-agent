@@ -8,6 +8,17 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+
+**2026-10-19 本轮三片与main整合收口（#236当前候选）。** #233已在224cae06 / CI39215954538 SUCCESS后合main5ead630f，其exact-main CI39217839722 SUCCESS；#235已在5566aa4d7c2c1968b9f82bd57cbc277d7a6a1d7b / CI39219048419 SUCCESS / 版本回执finding已解决后expected-head合main `afa5450143ca8a569d621487d2d3b00d415a9565`，push CI39221117547后台in_progress，根main已ff同步、4个外部ZIP保留。当前#236已吸收该发布main，add/add冲突实质仅AsyncIterator→AsyncGenerator两个注解，保留正确可关闭类型；交接/impact冲突保留双方。对main差异仍仅原单步编排6文件，未引入其他窗口WIP；整合后conversation_decision_1b 196 PASS/51.22s、mypy122/128 NEW0、Ruff/format/diff-check PASS；候选SHA由本段所属提交恢复，需绑定新exact-head CI，旧2ce7dbe7绿灯不授予新head。PR base改main。
+
+本轮新增三片均已推送：#240有界多步流，最终head778d0003174c8cde39e8f130455831505386d399 / CI39220080887，命名L1 215 PASS/67.23s；#242单次消费/运行回执，最终head827b81adfc6562c6403bc68c90c9431cda68768c / CI39220756792，L1 223 PASS/65.38s；#244精确CI路径/完整消费者，heade05e39e16307af47a2933df8164c5860b1f598d2 / CI39221109190，L1 132 PASS/34.88s。三项CI最后快照in_progress，未合并或上线。#239重放身份finding4311370434已修且解决，head2bcb4e4c13128c8090403240c9370fcd944a00c5 / CI39219767478 / L1 182 PASS；#240工具后STEER finding4311446891和#242终态close_error finding4311507599也已修并解决，修复完整进入后续片。各review修复只复验对应影响集，没有机械跑本地L3。完整真实模型/累计观察/生产聊天/付费工具联动仍未验收。唯一下一功能片：基于自身#244冻结结果做有界累计工具观察与阶段回复输入；同步按新head CI/审阅逐片合并，不等后台CI才开发。
+
+**2026-10-19 #236 修复集成。** 原head0f715a27 / CI39148846133 SUCCESS；因父片#235 finding4307918994已修，现显式吸收自身冻结修复5186abb9与已发布main9e36b935。冲突仅交接与impact列表，保留step和admission两项测试；step生产逻辑不变。单步/分发/决策/runner影响集134 PASS/36.92s；最终吸收f4209544仅同步父片文档，生产树与受测8a04a571一致，未重复测试。最新head需独立CI；旧绿灯不授予新head。本分支仍基于自身#235，不依赖其他窗口WIP。下一片有界观察回填独立推进。
+
+
+**2026-10-19 CL-1D-1：受控单步编排（当前独立小片）。** branch `codex/conversation-action-step-20261019` / worktree `D:/study-agent-validation/conversation-action-step-20261019`，显式固定 base 为自身 #235 head `bcdaa4b77933551702849ab383cd3cbe15b76993`；未依赖其他窗口 WIP。新增 `run_conversation_step`，一次受控决策 → 提议事件 → 动作观察流，共用总时限；消费者暂停计入时限，关闭外层流会关闭分发流，决策失败不调用动作、换题拒绝旧动作、取消传播到正在执行的适配器。观察保留原 attempted/outcome_unknown，不自动重试、开启下一决策或授予证据/答案权威。无生产聊天/SDK/付费调用接线。
+
+命名 L1 `conversation_action_step` **127 PASS / 33.91s**（新增14项 + 分发/决策/runner/阶段策略）；Ruff/format PASS，mypy122/128 NEW0。类型门先发现 aclosing 不接受仅声明 AsyncIterator 的分发 API，已将其注解收紧为真实 AsyncGenerator，明确可关闭协议，运行行为不变；未放宽 baseline。共享 legacy1b 添加此消费者。无本地 L3、无 UI 变更。最终候选 SHA 由本段所属 Git 提交恢复；待独立 stacked PR/一次 exact-head CI，#235 合并后调整 base main。当前仅验证 scripted 模型和本地工具的控制流，不宣称真实模型质量或产品上线。唯一下一片 CL-1D-2：有界观察回填到后续决策，区分未验证工具输出与已验证证据，并保留提示预算和新决策身份。
 **2026-10-19 #235 main集成更新。** #233在exact head224cae06 / CI39215954538 SUCCESS后合入main5ead630fd902360ddff0f5694fbf4f3ddad74140；#235自己的f4209544 / CI39216114150 SUCCESS且版本回执finding已解决，但当前main交接冲突。保留双方交接后吸收已发布context投影，dispatch生产树不变，共享影响集conversation_decision_1b 182 PASS/62.04s覆盖新main消费者后再推送；新head绑定一次CI，不借旧绿灯。自身后续#236/#239/#240与session切片继续独立后台开发，不将其他窗口WIP混入。
 
 
