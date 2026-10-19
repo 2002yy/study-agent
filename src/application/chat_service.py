@@ -1298,10 +1298,34 @@ class ChatService:
         reply = f"{prepared.base_reply}{suffix}" if prepared.is_continuation else suffix
         gate_blocked_pedagogy = False
         if answer_validation_active(prepared) and prepared.answer_validation is None:
+            from src.web.research.answer_layers import strict_publication_requested
             from src.web.research.official_publication import publish_official_fields
 
+            # The reader's own attachment (and whether we really decoded it) and
+            # an explicit "verified only" request are part of the publication
+            # decision, so the answer never implies a read that did not happen.
+            attachment_refs = getattr(prepared.turn, "attachment_refs", ()) or ()
+            attachment_present = bool(attachment_refs)
+            screenshot_read = True
+            if attachment_present:
+                try:
+                    material = _turn_attachment_material(self.repository, prepared.turn.id)
+                except Exception:  # noqa: BLE001 - a missing material read must not block the answer
+                    material = []
+                screenshot_read = any(
+                    isinstance(item, dict)
+                    and str(item.get("description") or item.get("text") or "").strip()
+                    for item in (material or [])
+                )
+
             reply, field_audit = publish_official_fields(
-                prepared.turn.user_message, ((prepared.rag or {}).get("web_tools") or {}).get("calls") or [], reply)
+                prepared.turn.user_message,
+                ((prepared.rag or {}).get("web_tools") or {}).get("calls") or [],
+                reply,
+                attachment_present=attachment_present,
+                screenshot_read=screenshot_read,
+                strict=strict_publication_requested(prepared.turn.user_message),
+            )
             field_audit["answer_generation_calls"] = _route_generation_calls(prepared.route)
             prepared = replace(prepared, rag={**deepcopy(prepared.rag), "official_field_publication": field_audit})
             published_rag = deepcopy(prepared.rag)
