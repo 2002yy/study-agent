@@ -8,6 +8,13 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+
+**2026-10-19 CI-CL-2：精确CI路径与新消费者（本轮第三小片）。** branch `codex/conversation-loop-ci-scope-20261019` / worktree `D:/study-agent-validation/conversation-loop-ci-scope-20261019`，初始base自身150ae5ec，最终显式吸收自身#242冻结修复 `827b81adfc6562c6403bc68c90c9431cda68768c`；该parent已经包含#239重放身份与#240工具后STEER两项review修复，未取其他窗口WIP。新增范围仅tools/ci_scope.py、tests/test_ci_scope.py、manifest与两份交接/合同文档。
+
+精确登记dispatch/step/followup/bounded_loop/loop_session五个模块及各自测试；与原decision/runner共14路径映射共享conversation_decision_1b。没有conversation_*通配跳过，也不登记admission/context；持久/共享domain/SQLite、生产路由、CI工具、资格协议、未知路径混入仍扩大范围。补全命名开发门的新直接消费者清单，详情见CONVERSATION_AGENT_LOOP_PLAN的CI-CL-2；路由测试核对真实文件、manifest消费者集合和25组未登记/持久路径混入负控。CI自身改动不套用本片新增快速分类，workflow/权限/预算/强制L3/发布门不变。首次manifest误写test_workflow_routing.py被预检阻止（尚未跑pytest），已改为真实test_ci_workflow_routing.py；未绕过校验。
+
+当前验证：CI影响集conversation_loop_ci_scope **132 PASS/34.88s**；Ruff/diff-check PASS。src及功能测试与parent827b81ad逐字一致，沿用其mypy122/128 NEW0及session影响集223 PASS/65.38s范围证据，不冒称新SHA重新跑过产品全量；前两片loop最终215 PASS/67.23s，session最终223 PASS。无本地L3/SDK/付费调用/生产切换/UI。#233已合main5ead630fd902360ddff0f5694fbf4f3ddad74140，exact-main CI39217839722 SUCCESS，根main已ff同步并保留4个外部ZIP；#235新5566aa4d / CI39219048419，#239新2bcb4e4c / CI39219767478，#240新778d0003 / CI39220080887，#242新827b81ad均需各自最新CI；已修finding4311370434/4311446891/4311507599已解决，旧head绿灯不能授予新head。本轮新增#240/#242与本片独立PR，候选SHA以本段所属Git提交恢复。唯一下一功能片：有界累计工具观察与阶段回复输入，避免模型只看到最近一次结果；合并仍按最新head审阅+CI逐片完成，不等待后台CI才开发。
+
 **2026-10-19 #242 审阅修复 / 终态后的close_error。** finding4311507599有效：有效LoopStopped后清理异常先记close_error，又被_next通用异常覆盖成stream_error。新增内部专用关闭异常分流，保留failed/close_error、unknown与脱敏错误，不把终态观察提升为清理成功。新增精确负控；最终命名L1 conversation_loop_session 223 PASS/65.38s，mypy122/128 NEW0、Ruff/format/diff-check PASS。候选head由本段所属提交恢复，旧a88a4f42不授予新head；推送后绑定一次CI并解决已修finding。
 
 **2026-10-19 #242 父片修复整合。** 吸收自身冻结#240 head778d0003，含#239不可变观察身份与#240工具后STEER派生身份两项有效review修复；文档冲突保留双方。session生产代码不变，联合影响集conversation_loop_session 222 PASS/61.01s、mypy122/128 NEW0、Ruff/diff-check PASS后推送，新head独立绑定CI，旧150ae5ec结果不授予新head。CI-CL-2为本轮第三小片，继续基于本分支冻结结果登记精确路径与完整消费者集合。
