@@ -37,6 +37,7 @@ def scenario(
     active_research=None,
     supports_queue=False,
     answer_handler=None,
+    answer_generator=None,
 ):
     root = DecisionContext(
         "loop-1",
@@ -99,6 +100,7 @@ def scenario(
         handlers={kind: action for kind in ConversationAction},
         limits=limits or LoopLimits(),
         answer_handler=answer_handler,
+        answer_generator=answer_generator,
     )
     return root, state, calls, stream
 

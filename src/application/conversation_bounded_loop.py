@@ -15,6 +15,7 @@ from src.application.conversation_action_dispatch import (
     ActionInvocation,
     dispatch_conversation_action,
 )
+from src.application.conversation_answer_generator import BoundedAnswerGenerator
 from src.application.conversation_answer_input import AnswerHandler, AnswerInput
 from src.application.conversation_decision import (
     ActionProposal,
@@ -85,18 +86,26 @@ async def run_conversation_loop(
     handlers: Mapping[ConversationAction, ActionHandler],
     limits: LoopLimits = LoopLimits(),
     answer_handler: AnswerHandler | None = None,
+    answer_generator: BoundedAnswerGenerator | None = None,
 ) -> AsyncGenerator[LoopEvent, None]:
     """Stream decisions/observations and one normal terminal event.
 
     Only successful tool observations can request another decision. All calls
     share the supplied budgets and total deadline, including consumer pauses.
     An optional trusted answer handler receives bounded accumulated inputs; it
-    owns actual generation budgets and output/evidence validation.
+    owns actual generation budgets and output/evidence validation. An optional
+    bounded generator instead uses the loop's projected fresh snapshots; the two
+    answer adapters are mutually exclusive.
     The host owns fresh snapshots and real tool consumption. Closing/cancelling
     stops this iterator; it does not assert rollback of admitted external work.
     """
     if answer_handler is not None and not callable(answer_handler):
         raise ValueError("invalid answer handler")
+    if answer_generator is not None and (
+        not isinstance(answer_generator, BoundedAnswerGenerator)
+        or answer_handler is not None
+    ):
+        raise ValueError("invalid or conflicting answer generator")
     deadline = time.monotonic() + limits.timeout_seconds
     frames: list[tuple[DecisionContext, ActionProposal, ActionEvent]] = []
     trail = ObservationTrail(context)
@@ -127,12 +136,15 @@ async def run_conversation_loop(
     async def answer(invocation: ActionInvocation) -> str:
         # Dispatch owns admission, freshness, timeout and cancellation. Capture
         # the current completed trail before this answer is appended to it.
+        value = AnswerInput(expected, invocation, trail)
+        if answer_generator is not None:
+            return await answer_generator.generate(value, current_context=latest)
         if answer_handler is None:
             raise ValueError("missing answer handler")
-        return await answer_handler(AnswerInput(expected, invocation, trail))
+        return await answer_handler(value)
 
     selected_handlers = handlers
-    if answer_handler is not None:
+    if answer_handler is not None or answer_generator is not None:
         selected_handlers = {**handlers, ConversationAction.ANSWER: answer}
     decision = await decide_conversation_action(
         expected,

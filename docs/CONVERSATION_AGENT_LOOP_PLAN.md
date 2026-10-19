@@ -182,3 +182,7 @@ AnswerInput仅接受ANSWER阶段与ANSWER/ANSWER_THEN_RESEARCH提议；初始输
 ### CL-1F-1：有界回答生成
 
 单次注入transport，AnswerLimits限制等待≤30秒、输出≤4000 tokens且≤8000字符。answer_request_id由固定schema+当前请求身份+ANSWER阶段派生，不包含可变内容/提议分类；与决策ID分开，可共享DecisionAdmission总额度。传输前后的精确上下文校验、无退款/重试、忽略迟到、调用者取消传播与脱敏失败是执行边界。SqliteDecisionAdmission仅复用现有自有库schema，不引入业务持久变更。该台账不等于货币预算，可信生产transport仍须禁用隐藏重试并预留真实花费。生成文本只是provisional结果，不是证据或发布许可。下一片loop可选接线必须使用内部派生的fresh上下文。
+
+### CL-1F-2：原生loop生成适配器
+
+BoundedAnswerGenerator仅在runner completed时返回正文；其余结果抛脱敏AnswerGenerationError给可信调用者。loop的可选answer_generator与旧answer_handler互斥；构造输入时使用当前expected/trail，生成期间读内部latest（含工具后派生请求身份），不要求宿主复制投影算法或改写快照来通过检查。保留外层deadline/动作预算/取消链，生成器拥有独立或共享准入台账；任何失败都不执行后续工具。dispatch继续保守报告handler_error/unknown，本片不修改公共动作回执语义。实际货币费用、SDK隐藏重试、内容/引用质量和正式发布仍由生产适配器及后续资格门负责。本片仍为opt-in，不是生产权威切换。
