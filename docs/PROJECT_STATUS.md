@@ -8,7 +8,7 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**2026-10-19 #236 修复集成。** 原head0f715a27 / CI39148846133 SUCCESS；因父片#235 finding4307918994已修，现显式吸收自身冻结修复5186abb9与已发布main9e36b935。冲突仅交接与impact列表，保留step和admission两项测试；step生产逻辑不变。重新跑单步/分发/决策/runner影响集，最新head需独立CI；旧绿灯不授予新head。本分支仍基于自身#235，不依赖其他窗口WIP。下一片有界观察回填独立推进。
+**2026-10-19 #236 修复集成。** 原head0f715a27 / CI39148846133 SUCCESS；因父片#235 finding4307918994已修，现显式吸收自身冻结修复5186abb9与已发布main9e36b935。冲突仅交接与impact列表，保留step和admission两项测试；step生产逻辑不变。单步/分发/决策/runner影响集134 PASS/36.92s；最终吸收f4209544仅同步父片文档，生产树与受测8a04a571一致，未重复测试。最新head需独立CI；旧绿灯不授予新head。本分支仍基于自身#235，不依赖其他窗口WIP。下一片有界观察回填独立推进。
 
 
 **2026-10-19 CL-1D-1：受控单步编排（当前独立小片）。** branch `codex/conversation-action-step-20261019` / worktree `D:/study-agent-validation/conversation-action-step-20261019`，显式固定 base 为自身 #235 head `bcdaa4b77933551702849ab383cd3cbe15b76993`；未依赖其他窗口 WIP。新增 `run_conversation_step`，一次受控决策 → 提议事件 → 动作观察流，共用总时限；消费者暂停计入时限，关闭外层流会关闭分发流，决策失败不调用动作、换题拒绝旧动作、取消传播到正在执行的适配器。观察保留原 attempted/outcome_unknown，不自动重试、开启下一决策或授予证据/答案权威。无生产聊天/SDK/付费调用接线。
@@ -16,7 +16,7 @@
 命名 L1 `conversation_action_step` **127 PASS / 33.91s**（新增14项 + 分发/决策/runner/阶段策略）；Ruff/format PASS，mypy122/128 NEW0。类型门先发现 aclosing 不接受仅声明 AsyncIterator 的分发 API，已将其注解收紧为真实 AsyncGenerator，明确可关闭协议，运行行为不变；未放宽 baseline。共享 legacy1b 添加此消费者。无本地 L3、无 UI 变更。最终候选 SHA 由本段所属 Git 提交恢复；待独立 stacked PR/一次 exact-head CI，#235 合并后调整 base main。当前仅验证 scripted 模型和本地工具的控制流，不宣称真实模型质量或产品上线。唯一下一片 CL-1D-2：有界观察回填到后续决策，区分未验证工具输出与已验证证据，并保留提示预算和新决策身份。
 **2026-10-19 #235 审阅修复 / 自身版本回执。** finding4307918994 指出成功STEER更新研究版本后被误判过期；新增仅可信handler返回的 SteeringObservation(observation,research_after)，要求同一run且版本前进，并与执行完成时精确研究快照匹配，用户消息/历史/请求仍不得变化。无回执、并发再次推进版本、换题、跨run、旧版本和非steer携回执均拒绝；不是直接允许任意研究版本变化。handler必须在自身事务中取得回执，不能事后读取其他写入者的最新版本冒充。观察仍没有生产applied/证据权威。
 
-本片修复命名L1 conversation_action_dispatch 120 PASS/28.29s，mypy122/128 NEW0；随后合入已发布main9e36b935（#232），保留交接冲突双方，重跑共享影响集覆盖runner/持久准入消费者。候选head由本段所在提交恢复；旧bcdaa4b7 CI39148186998 SUCCESS不授予新head，提交后绑定一次CI并解决已修finding。#236原0f715a27 CI39148846133 SUCCESS，需吸收本修复再更新head；不借旧CI、不等后台CI才开发。下一功能片仍为有界观察回填，独立分支。
+本片修复命名L1 conversation_action_dispatch 120 PASS/28.29s，mypy122/128 NEW0；随后合入已发布main9e36b935（#232），保留交接冲突双方，重跑共享影响集conversation_decision_1b 164 PASS/49.02s，覆盖runner/持久准入消费者。候选head由本段所在提交恢复；旧bcdaa4b7 CI39148186998 SUCCESS不授予新head，提交后绑定一次CI并解决已修finding。#236原0f715a27 CI39148846133 SUCCESS，需吸收本修复再更新head；不借旧CI、不等后台CI才开发。下一功能片仍为有界观察回填，独立分支。
 
 **2026-10-19 CL-1D：独立动作分发与观察（本分支当前片）。** #231 已在 head04371329 / CI `39146013970 SUCCESS` / 无未解决 finding 后 expected-head 合并，main `5d4da728162bc974d62d3def40718c78211d5483`。#232 已通过旧05993443 CI，但新 main 仅本交接冲突，保留双方后整合并补 legacy 快速门的 admission 测试，最新 head `58a2f4ae` 已推送，本地命名门137 PASS；#233 已接受 partial-reply finding4307851812，v1 对当前非空 assistant_message 明确拒绝，保留既有 ChatService 续答路径；整合新main并补共享快速门context测试，最新本地候选 `2e44f344`，命名门151 PASS。新 head 均需各自 CI，不借旧绿灯。没有为这些切片/修复再跑本地全量。
 
