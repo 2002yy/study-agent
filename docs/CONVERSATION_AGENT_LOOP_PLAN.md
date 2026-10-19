@@ -99,7 +99,7 @@ CL-0 至 CL-4 最终构成可运行纵向切片，CL-1A 合同完成不等于完
 
 ### CL-1D-2：有界观察回填（独立小片，不切生产）
 
-基于自身#236冻结2ce7dbe7，新增decide_after_tool_observation及tool_followup_context。一次调用最多请求一个后续提议，仅接收同请求的成功确定工具观察，服务端额度必须真实扣减；请求/用户消息/历史/研究版本变化使旧观察失效。原证据摘要不被工具文本覆盖；工具观察独立标记unverified，序列化包最多8000字符，新增提示精确计入DecisionAdmission。新request_id按原上下文/提议/观察稳定派生，重复观察不获新准入身份，支持既有SQLite账本。
+基于自身#236冻结2ce7dbe7，新增decide_after_tool_observation及tool_followup_context。一次调用最多请求一个后续提议，仅接收同请求的成功确定工具观察，服务端额度必须真实扣减；请求/用户消息/历史/研究版本变化使旧观察失效。原证据摘要不被工具文本覆盖；工具观察独立标记unverified，序列化包最多8000字符，新增提示精确计入DecisionAdmission。新request_id仅按不可变source request_id与USE_TOOL阶段稳定派生（不纳入可刷新的上下文、提议措辞或结果正文），重复观察不获新准入身份，支持既有SQLite账本。
 
 回填函数不执行下一提议；宿主可复用公开投影交给受控分发器。没有自动循环/生产接线/答案或applied权威；模型与handler仍为注入接口。命名影响集conversation_observation_followup覆盖自身、step、dispatch、runner、admission、decision及阶段策略。下一小片CL-1D-3做受总预算约束的多步事件流与明确终止原因，再考虑生产适配与真实资格。
 
