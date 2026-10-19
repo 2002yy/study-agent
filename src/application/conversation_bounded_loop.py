@@ -27,8 +27,12 @@ from src.application.conversation_decision_runner import (
     decide_conversation_action,
 )
 from src.application.conversation_observation_followup import (
-    decide_after_tool_observation,
     tool_followup_context,
+)
+from src.application.conversation_observation_trail import (
+    ObservationLimitError,
+    ObservationTrail,
+    decide_with_observation_trail,
 )
 
 
@@ -88,6 +92,7 @@ async def run_conversation_loop(
     """
     deadline = time.monotonic() + limits.timeout_seconds
     frames: list[tuple[DecisionContext, ActionProposal, ActionEvent]] = []
+    trail = ObservationTrail(context)
     steps = observations = 0
 
     def latest() -> DecisionContext:
@@ -152,11 +157,25 @@ async def run_conversation_loop(
             )
         ) as actions:
             async for event in actions:
+                trail_error = ""
                 if event.status == "observed":
                     observations += 1
                     if event.stage == ConversationAction.USE_TOOL:
                         tool_observation = event
+                    if event.stage == ConversationAction.USE_TOOL or (
+                        proposal.action == ConversationAction.ANSWER_THEN_RESEARCH
+                        and event.stage == ConversationAction.ANSWER
+                    ):
+                        try:
+                            trail = trail.append(expected, proposal, event)
+                        except ObservationLimitError:
+                            trail_error = "observation_limit"
+                        except (TypeError, ValueError):
+                            trail_error = "invalid_observation"
                 yield event
+                if trail_error:
+                    yield LoopStopped(trail_error, steps, observations)
+                    return
                 if event.status != "observed":
                     yield LoopStopped(
                         "action_failed",
@@ -202,10 +221,11 @@ async def run_conversation_loop(
         except (TypeError, ValueError):
             yield LoopStopped("invalid_observation", steps, observations)
             return
-        decision = await decide_after_tool_observation(
+        frames.append((expected, proposal, tool_observation))
+        expected = projected
+        decision = await decide_with_observation_trail(
             expected,
-            proposal,
-            tool_observation,
+            trail,
             current_context=latest,
             transport=transport,
             budget=decision_budget,
@@ -214,5 +234,3 @@ async def run_conversation_loop(
                 timeout_seconds=min(remaining, limits.decision.timeout_seconds),
             ),
         )
-        frames.append((expected, proposal, tool_observation))
-        expected = projected

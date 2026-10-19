@@ -97,6 +97,12 @@ CL-0 至 CL-4 最终构成可运行纵向切片，CL-1A 合同完成不等于完
 
 ## 4. 验证与发布边界
 
+### CL-1D-6：多步流消费累计记录（独立小片，不切生产）
+
+loop将阶段回复和确定工具结果依次加入ObservationTrail；下一模型看到完整累计记录，原历史/证据保留。frame加入派生链后才调用下一决策，权限与研究版本仍使用fresh真实快照检查。达到记录容量时，先交付已完成的原文观察，再给observation_limit并关闭执行流，不启动后续模型/工具；容量不是证据权限，也不能据此退款或重放。
+
+命名conversation_loop_trail覆盖loop/trail/session/followup/step/dispatch/runner/admission/decision/阶段策略。验证多次工具与阶段回复、八步累积、累计提示只差一字符的准入负控、tool或初步回复处超容量、session终态。下一片为提供给可信回答handler的有界累计输入，避免最终正文仍需宿主自行拼接；实际模型和生产联动另验。
+
 ### CL-1D-5：累计观察与阶段回复输入（独立小片，不切生产）
 
 ObservationTrail保存root上下文与不可变ObservationFrame元组，单条必须为确定成功的工具观察或answer_then_research的阶段回复。验证同请求配对、连续派生身份和原意图/历史/研究以及累计额度，拒绝跨任务、重复或乱序记录。最多16阶段/16000个JSON序列化字符，未完成answer/tool配对不能发起下一决策；不截断正文。

@@ -9,6 +9,13 @@
 ## 0. Current Handoff（cold-start 入口）
 
 
+**2026-10-19 CL-1D-6：多步流消费累计记录（本轮第二小片）。** branch `codex/conversation-loop-trail-20261019` / worktree `D:/study-agent-validation/conversation-loop-trail-20261019`，初始固定base自身#245提交7b6fb5668f9eb91334430f0b9f4d4dc7575a752d，发布前还需吸收本轮#245逐次额度/精确CI修复。未导入其他窗口WIP。
+
+run_conversation_loop改为收集answer_then_research的阶段回复及每次成功确定工具观察，后续模型输入使用完整ObservationTrail；派生当前身份先加入frame再请求模型，仍还原真实研究版本以验证STEER回执。原history/evidence摘要不改写，最多8次决策/16记录/16000个序列化字符，额外输入精确计入共享DecisionAdmission。容量耗尽给observation_limit并关闭内层流：已完成的原文观察仍交付、不截断；若阶段回复已超容量，其后已预留但未执行的tool不会启动，不退款或自动重试。完整八步验证了输入记录数2/4/6/8/10/12/14，边界停止仍有结构化session回执。
+
+本地新增5个执行器用例（含容量分支参数），执行器38 PASS；初步命名L1 conversation_loop_trail 274 PASS/101.70s，mypy122/128 NEW0、Ruff/format PASS；吸收父片审阅修复后的最终结果另记。当前先本地提交以保护独立片，再合入父片已冻结修复，尚未推送此旧候选。无真实模型/付费调用/生产聊天/UI/业务schema/发布权威切换，无本地L3；测试仅证明数据与执行顺序，非真实模型回答质量。唯一下一动作：最终联合门、独立PR与一次exact-head CI；继续按主线成熟度逐片合并。
+
+
 **2026-10-19 CL-1D-5：累计观察与阶段回复输入（本轮第一小片）。** branch `codex/conversation-observation-trail-20261019` / worktree `D:/study-agent-validation/conversation-observation-trail-20261019`，固定base为自身已提交#244 `e05e39e16307af47a2933df8164c5860b1f598d2`；未取其他窗口WIP。#236在headbbcef47d / CI39221498204 SUCCESS / 无未解决finding后已expected-head合入main9684aa829c6b5cc4e8d70ff4754ecb4302557043；旧mainafa54501 CI39221117547 SUCCESS。#239旧2bcb4e4c已有绿灯与已解决review，正单独重绑新main再绑定新CI；#240/#242/#244原冻结head的CI本轮起始均SUCCESS，无未解决finding，仍按依赖顺序逐片调整主线，不能借旧绿灯。
 
 新增ObservationFrame/ObservationTrail与decide_with_observation_trail：不可变地保留本轮阶段回复和全部工具结果，配对ANSWER_THEN_RESEARCH的answer→tool并验证连续派生请求、原意图/历史/研究及累计额度；最多16个阶段和16000个实际序列化字符（含转义），超限拒绝而非隐式截断。阶段回复和工具结果作为标记unverified的独立JSON数据，原chat history与evidence_summary不被改写；阶段回复要求模型衔接而非重复，工具输出不成为权限或正式证据。额外消息准确计入原DecisionAdmission，沿用超时/取消/迟到/当前快照校验。稳定工具后续身份提取为tool_observation_request_id供记录验证共用，JSON算法与旧持久身份逐字一致，不迁移账本、不重置去重。
