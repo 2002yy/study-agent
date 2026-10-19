@@ -107,6 +107,22 @@
       "tests/test_web_lookup_run.py",
       "tests/test_stage_gates_policy.py"
     ],
+    "conversation_decision_1b": [
+      "tests/test_conversation_decision_admission.py",
+      "tests/test_conversation_decision_runner.py",
+      "tests/test_conversation_action_dispatch.py",
+      "tests/test_conversation_decision.py",
+      "tests/test_router.py",
+      "tests/test_task_contract.py",
+      "tests/test_stage_gates_policy.py",
+      "tests/test_conversation_decision_context.py"
+    ],
+    "conversation_decision_1a": [
+      "tests/test_conversation_decision.py",
+      "tests/test_router.py",
+      "tests/test_task_contract.py",
+      "tests/test_stage_gates_policy.py"
+    ],
     "discovery_platform_contracts_v1": [
       "tests/test_discovery_platform_contracts.py",
       "tests/test_anonymous_platform_probe.py",
@@ -231,6 +247,12 @@
       "tests/test_rag_evidence_api.py",
       "tests/test_rag_evidence_eligibility.py",
       "tests/test_rag.py"
+    ],
+    "conversation_action_dispatch": [
+      "tests/test_conversation_action_dispatch.py",
+      "tests/test_conversation_decision.py",
+      "tests/test_conversation_decision_runner.py",
+      "tests/test_stage_gates_policy.py"
     ],
     "ci_outcome_consolidation": [
       "tests/test_ci_outcomes.py",
@@ -409,6 +431,21 @@
       "tests/test_standard_research.py",
       "tests/test_standard_handoff.py",
       "tests/test_standard_execution.py",
+      "tests/test_stage_gates_policy.py"
+    ],
+    "conversation_decision_admission": [
+      "tests/test_conversation_decision_admission.py",
+      "tests/test_conversation_decision_runner.py",
+      "tests/test_conversation_decision.py",
+      "tests/test_stage_gates_policy.py"
+    ],
+    "conversation_decision_context": [
+      "tests/test_router.py",
+      "tests/test_task_contract.py",
+      "tests/test_conversation_decision_context.py",
+      "tests/test_conversation_decision.py",
+      "tests/test_conversation_decision_runner.py",
+      "tests/test_chat_service.py",
       "tests/test_stage_gates_policy.py"
     ]
   },

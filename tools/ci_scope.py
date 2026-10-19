@@ -22,6 +22,15 @@ import sys
 # Ordered so the first match wins; most specific categories come first.
 _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
+        "conversation-decision",
+        (
+            "src/application/conversation_decision.py",
+            "src/application/conversation_decision_runner.py",
+            "tests/test_conversation_decision.py",
+            "tests/test_conversation_decision_runner.py",
+        ),
+    ),
+    (
         "qualification",
         (
             "tests/test_rq1c_*",
@@ -128,6 +137,7 @@ _FRONTEND_CATEGORIES = frozenset({"frontend"})
 # path -> one research set" would look fast while silently narrowing what is verified, so
 # an unregistered subsystem deliberately falls through to the full scope instead.
 _IMPACT_SET_BY_CATEGORY: dict[str, str] = {
+    "conversation-decision": "conversation_decision_1b",
     "standard": "standard_research_loop",
 }
 
