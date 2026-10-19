@@ -9,6 +9,9 @@
 ## 0. Current Handoff（cold-start 入口）
 
 
+**2026-10-19 #245 审阅修复 / 逐次额度与精确路由。** finding4313958266有效：只比较root减工具次数会恢复并发额外消耗的额度。现每个tool frame后将下一帧额度上限收紧为该帧before.remaining_tool_calls-1，新增3组并发大幅扣减→非法恢复负控，合法后续零额度上下文仍可回答。finding4313958272也有效：新增trail模块/测试未登记会让普通后续修改回退全量。现仅登记这两个精确路径，连同原14个共16路径；同前缀新路径仍回退，admission/context/共享/CI/资格/未知范围不缩小。联合影响集conversation_observation_trail加入ci_scope/ci_workflow_routing/ci_outcomes，最终394 PASS/131.04s；Ruff/format、mypy122/128 NEW0、diff-check PASS。当前candidate SHA由本段提交恢复，旧7b6fb566 CI39254094559不授予修复后head；推送后解决已修finding并绑定一次CI。新scope为8文件（原6+CI分类与测试），不是单方面跳过CI或发布资格。
+
+
 **2026-10-19 CL-1D-5：累计观察与阶段回复输入（本轮第一小片）。** branch `codex/conversation-observation-trail-20261019` / worktree `D:/study-agent-validation/conversation-observation-trail-20261019`，固定base为自身已提交#244 `e05e39e16307af47a2933df8164c5860b1f598d2`；未取其他窗口WIP。#236在headbbcef47d / CI39221498204 SUCCESS / 无未解决finding后已expected-head合入main9684aa829c6b5cc4e8d70ff4754ecb4302557043；旧mainafa54501 CI39221117547 SUCCESS。#239旧2bcb4e4c已有绿灯与已解决review，正单独重绑新main再绑定新CI；#240/#242/#244原冻结head的CI本轮起始均SUCCESS，无未解决finding，仍按依赖顺序逐片调整主线，不能借旧绿灯。
 
 新增ObservationFrame/ObservationTrail与decide_with_observation_trail：不可变地保留本轮阶段回复和全部工具结果，配对ANSWER_THEN_RESEARCH的answer→tool并验证连续派生请求、原意图/历史/研究及累计额度；最多16个阶段和16000个实际序列化字符（含转义），超限拒绝而非隐式截断。阶段回复和工具结果作为标记unverified的独立JSON数据，原chat history与evidence_summary不被改写；阶段回复要求模型衔接而非重复，工具输出不成为权限或正式证据。额外消息准确计入原DecisionAdmission，沿用超时/取消/迟到/当前快照校验。稳定工具后续身份提取为tool_observation_request_id供记录验证共用，JSON算法与旧持久身份逐字一致，不迁移账本、不重置去重。
