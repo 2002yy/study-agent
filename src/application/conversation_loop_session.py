@@ -24,6 +24,10 @@ class LoopReceipt:
     outcome_unknown: bool = False
 
 
+class _SessionCloseError(RuntimeError):
+    pass
+
+
 class _SessionEvents:
     def __init__(self, session: ConversationLoopSession) -> None:
         self._session = session
@@ -92,7 +96,7 @@ class ConversationLoopSession:
                     detail="close_error",
                     outcome_unknown=True,
                 )
-                raise RuntimeError("conversation session close failed") from None
+                raise _SessionCloseError("conversation session close failed") from None
 
     async def aclose(self) -> None:
         """Close a paused stream or cancel an active pull without restarting it."""
@@ -196,6 +200,10 @@ class ConversationLoopSession:
             await self._close_source()
             if explicitly_closed:
                 raise StopAsyncIteration from None
+            raise
+        except _SessionCloseError:
+            # A valid terminal event can still fail during generator cleanup.
+            # Keep the dedicated failed/close_error receipt from _close_source.
             raise
         except Exception:
             self._receipt = replace(

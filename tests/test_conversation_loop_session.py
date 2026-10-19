@@ -231,6 +231,27 @@ def test_close_failure_is_sanitized_and_is_not_reported_as_closed():
     asyncio.run(run())
 
 
+def test_close_failure_after_valid_terminal_event_retains_close_error_classification():
+    async def run():
+        async def source():
+            try:
+                yield LoopStopped("answered", 0, 0)
+            finally:
+                raise ValueError("private terminal cleanup payload")
+
+        session = ConversationLoopSession("request-1", source())
+        stream = session.events()
+        with pytest.raises(RuntimeError, match="^conversation session close failed$"):
+            await anext(stream)
+        receipt = session.receipt
+        assert receipt.status == "failed" and receipt.detail == "close_error"
+        assert receipt.outcome_unknown and "private" not in repr(receipt)
+        await stream.aclose()
+        assert session.receipt == receipt
+
+    asyncio.run(run())
+
+
 def test_caller_cancellation_during_close_is_not_swallowed():
     async def run():
         closing = asyncio.Event()
