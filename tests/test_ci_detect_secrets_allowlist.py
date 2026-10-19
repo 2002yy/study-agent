@@ -5,7 +5,7 @@ import re
 CI_WORKFLOW = Path(".github/workflows/ci.yml")
 AUDIT_HASH = "ab" * 32
 #: A 40-hex value in an evidence file: a frozen run's target commit.
-COMMIT_SHA = "06e96286d98d76c38018ff972460f42528479723"
+COMMIT_SHA = "06e96286d98d76c38018ff972460f42528479723"  # pragma: allowlist secret -- public commit, verified in this repository
 
 
 def _exclude_lines_pattern() -> re.Pattern[str]:
@@ -59,7 +59,9 @@ def test_ci_detect_secrets_does_not_allow_arbitrary_commit_like_fields() -> None
     assert pattern.search(f'"api_key": "{COMMIT_SHA}"') is None
     assert pattern.search(f'"token": "{COMMIT_SHA}"') is None
     # ...and the 40-hex branch still demands lowercase hex.
-    assert pattern.search('"candidate_head": "06E96286D98D76C38018FF972460F42528479723"') is None
+    # Derived, not a second literal: the uppercase form must not be a new
+    # hex-looking string in the repository.
+    assert pattern.search(f'"candidate_head": "{COMMIT_SHA.upper()}"') is None
 
 
 def test_ci_detect_secrets_audit_hash_allowlist_requires_64_lowercase_hex() -> None:
