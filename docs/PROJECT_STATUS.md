@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 #244主线重绑。** #242在91af16b5 / CI39262262003 SUCCESS / finding已解决后合main ab1e5ab4；本片吸收此已合主线，merge d6578988，仅docs与manifest冲突，保留双方。main增量仅两份docs、CI分类/测试及manifest，src与main逐字相同。命名L1 conversation_loop_ci_scope **132 PASS/46.05s**，Ruff/diff-check PASS；非生产改动，未重复全量/mypy。候选SHA以本段提交恢复，旧e05e39e1绿灯不授予新head；推送后绑定新CI并改base main。下一功能片在独立工作树继续受控回答生成和loop适配。
+
 
 **2026-10-19 CI-CL-2：精确CI路径与新消费者（本轮第三小片）。** branch `codex/conversation-loop-ci-scope-20261019` / worktree `D:/study-agent-validation/conversation-loop-ci-scope-20261019`，初始base自身150ae5ec，最终显式吸收自身#242冻结修复 `827b81adfc6562c6403bc68c90c9431cda68768c`；该parent已经包含#239重放身份与#240工具后STEER两项review修复，未取其他窗口WIP。新增范围仅tools/ci_scope.py、tests/test_ci_scope.py、manifest与两份交接/合同文档。
 
