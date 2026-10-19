@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 本轮两片最终收口 / CL-1F-2。** 第二片已吸收自身#249最终48e41f6c3763e332c7ee084291f15c455b6ebf00（merge e1d47e8f，仅交接冲突保留双方），最终命名L1 conversation_answer_generator **471 PASS/115.19s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0，工作树在本段所属提交后干净。第一片最终456 PASS/155.57s，负控旧候选失败已留证；远端finding4316987054确认同一期限缺陷，已在最终48e41f6c修复并resolve，CI39297650133绑定该head后台，旧1a5ad399不借绿灯。第二片增量仅9文件（相对48e41f6c），PR与新head由本段所属提交及GitHub恢复；未取其他窗口WIP。
+
+#242已在91af16b5 / CI39262262003 SUCCESS / finding已解决后合main ab1e5ab4fc562fc8a64e504dde20e4ccef06536f；根main已ff同步且保留4个外部ZIP，exact-main push CI39296224656后台，前main cf70e688 CI39261429543 SUCCESS。#244重绑main后的head0f9142442e0a15bee84a32a7d88a9112b7d88e96 / CI39296775208后台，L1 132 PASS，不借旧head。无本地L3、SDK/真实付费调用、生产聊天/证据或发布权威切换；单次transport控制流不代表真实模型质量或首答延迟合格。唯一下一执行片：现有提供方传输合同的离线接线资格与生成费用边界，继续在后台CI期间独立推进，成熟片按新head审阅和CI逐片合main。
+
 **2026-10-20 CL-1F-2：loop原生受控回答生成（本轮第二片）。** branch codex/conversation-answer-generator-20261020，初始冻结base自身#249 1a5ad399b4792f5551cc08ff3bdbb6b22d6fae59；发布前显式吸收本轮#249最终期限修复，不取其他窗口WIP。新增BoundedAnswerGenerator与脱敏AnswerGenerationError，loop可选answer_generator使用内部latest投影读当前快照，工具后的最终回答不会被raw root身份误判；与旧answer_handler互斥，默认路径不变。保留外层动作/总时限、预算、去重和取消，内层再做生成准入与精确fresh检查；失败停止，不把错误当回答、不触发后续tool。原dispatch失败回执仍保守handler_error/unknown，不把生成失败升级成已发布或证据权威。可共享决策和回答总额度；新模块/测试精确登记，未知范围仍扩大。无SDK/真实付费调用/生产路由/业务schema或发布资格切换，无本地L3。初步命名L1 conversation_answer_generator **470 PASS/171.18s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0；本地冻结初片，吸收父片最终期限修复后的联合门另记，不以旧父片结果授予最终候选。下一执行片：基于已有提供方传输合同做离线接线资格，不扩大到自动付费或正式回答发布。
 **2026-10-20 #249 最终期限修复。** 自审新增负控slow_completion_snapshot：发送及返回都在限内，但第三次（完成时）快照读取耗时超过总期限。旧1a5ad399确实返回completed，负控1 FAIL/34 deselected，日志D:/study-agent-validation/answer-deadline-negative.log。修复在输出校验后、交付前再次验证总期限，超时正文不交付且标unknown；长度检查先于strip。该缺陷局限于新opt-in runner，无共享/持久/生产权威变更，按L1复验，不以明确负控失败为未知原因强制全量。mypy122/128 NEW0，Ruff/format PASS；最终命名L1 conversation_answer_runner **456 PASS/155.57s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0；新候选SHA以本段提交恢复。修复将显式带入第二片，旧1a5ad399 / CI39296855483不能授予修复head。
 
