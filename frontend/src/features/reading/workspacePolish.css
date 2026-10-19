@@ -49,10 +49,12 @@
 .reading-layout .message.user .avatar { background: #f2f5f6; }
 .reading-layout .composer-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; border-color: #e0e6ea; border-radius: 16px; padding: 12px; box-shadow: none; }
 .reading-layout .composer-main:focus-within { border-color: #a5b7ac; box-shadow: 0 0 0 1px #a5b7ac24; }
-.reading-layout .composer-toolbar { grid-column: 1; grid-row: 2; display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 6px; min-width: 0; }
-.reading-layout .composer-footer { grid-column: 2; grid-row: 2; align-self: end; align-items: center; gap: 6px; margin: 0; }
-.reading-layout .composer-main > textarea { grid-column: 1 / -1; grid-row: 1; margin: 0; padding: 4px 2px 10px; }
-.reading-layout .composer-main > .chat-role-settings { grid-column: 1 / -1; grid-row: 3; }
+.reading-layout .composer-toolbar { grid-column: 1; grid-row: 3; display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 6px; min-width: 0; }
+.reading-layout .composer-footer { grid-column: 2; grid-row: 3; align-self: end; align-items: center; gap: 6px; margin: 0; }
+/* The role panel opens *above* the input: it is a chooser for what the next
+   message sends, so it must never sit between the input and its controls. */
+.reading-layout .composer-main > .chat-role-settings { grid-column: 1 / -1; grid-row: 1; }
+.reading-layout .composer-main > textarea { grid-column: 1 / -1; grid-row: 2; margin: 0; padding: 4px 2px 10px; }
 .reading-layout .composer-research-mode { min-height: 40px; max-width: 126px; padding: 6px 4px; border: 0; border-radius: 6px; background: transparent; color: #66716e; font: inherit; font-size: 12px; cursor: pointer; }
 .reading-layout .composer-research-mode:focus-visible { outline: 2px solid #47735d; outline-offset: 2px; }
 .reading-layout .composer textarea::placeholder { color: #6f7b85; }
