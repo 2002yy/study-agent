@@ -1371,6 +1371,9 @@ class ChatService:
                 attachment_present=attachment_present,
                 screenshot_read=screenshot_read,
                 strict=strict_publication_requested(prepared.turn.user_message),
+                tool_error=str(
+                    ((prepared.rag or {}).get("web_tools") or {}).get("error") or ""
+                ),
             )
             field_audit["answer_generation_calls"] = _route_generation_calls(prepared.route)
             prepared = replace(prepared, rag={**deepcopy(prepared.rag), "official_field_publication": field_audit})

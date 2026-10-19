@@ -603,7 +603,11 @@ export type WebLookupRunResponse = {
   completed_at?: string | null;
 };
 
-export type ChatResearchReplyStage = "acknowledgement" | "analysis" | "evidence_update";
+export type ChatResearchReplyStage =
+  | "acknowledgement"
+  | "knowledge"
+  | "analysis"
+  | "evidence_update";
 
 export type ChatResearchReply = {
   schema: string;

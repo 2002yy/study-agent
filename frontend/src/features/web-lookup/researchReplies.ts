@@ -52,6 +52,7 @@ export function mergeResearchReplies(
 /** A reply that only acknowledges the supplement must not read as analysis. */
 export function replyHeading(reply: ChatResearchReply): string {
   if (reply.stage === "acknowledgement") return "已收到补充";
+  if (reply.stage === "knowledge") return "初步说明";
   if (reply.scope === "research") return "阶段性判断";
   return "初步分析";
 }
@@ -62,6 +63,8 @@ export function replyIsProvisional(reply: ChatResearchReply): boolean {
 
 export function replyStatusNote(reply: ChatResearchReply): string | null {
   if (reply.lifecycle === "superseded") return "已被后续纠正取代";
+  // A general opening is useful, never authority: say so where it is read.
+  if (reply.stage === "knowledge") return "已有知识；未经本次检索核实";
   if (reply.stale) return "尚未覆盖后续新增的条件";
   // The run accepted this requirement but the answer does not cover it. This is
   // the stronger, more honest statement, and it names the next step.

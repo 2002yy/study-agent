@@ -41,6 +41,7 @@ def publish_official_fields(
     attachment_present: bool = False,
     screenshot_read: bool = True,
     strict: bool = False,
+    tool_error: str = "",
 ) -> tuple[str, dict[str, Any]]:
     plan = official_plan(query)
     refs: list[dict[str, Any]] = []
@@ -101,8 +102,12 @@ def publish_official_fields(
             screenshot_read=screenshot_read,
         )
         gaps: list[str] = []
+        # The trace already explains why reads failed; a failed call itself is
+        # dropped from the sanitized calls, so this is the durable signal.
+        if str(tool_error or "").strip():
+            gaps.append(str(tool_error).strip()[:200])
         failed = _failed_reads(calls)
-        if failed:
+        if failed and not str(tool_error or "").strip():
             gaps.append(
                 f"有 {failed} 个来源本次未能成功读取（例如 403 或空缓存），"
                 "因此与这些来源相关的具体事实无法核对。"

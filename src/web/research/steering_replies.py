@@ -33,8 +33,19 @@ LIFECYCLE_CLOSED = "closed"
 LIFECYCLES = (LIFECYCLE_OPEN, LIFECYCLE_SUPERSEDED, LIFECYCLE_CLOSED)
 
 STAGE_ACKNOWLEDGEMENT = "acknowledgement"
+#: A general opening from the planner: useful immediately, never presented as
+#: verified, and superseded by the sourced judgment once one exists.
+STAGE_KNOWLEDGE = "knowledge"
 STAGE_ANALYSIS = "analysis"
 STAGE_EVIDENCE = "evidence_update"
+
+#: Later stages win, so an opening never overwrites a sourced judgment.
+STAGE_RANK = {
+    STAGE_ACKNOWLEDGEMENT: 0,
+    STAGE_KNOWLEDGE: 1,
+    STAGE_ANALYSIS: 2,
+    STAGE_EVIDENCE: 3,
+}
 STAGES = (STAGE_ACKNOWLEDGEMENT, STAGE_ANALYSIS, STAGE_EVIDENCE)
 
 # Bounded display sizes; nothing here is authority-bearing.
@@ -284,6 +295,56 @@ def _based_on(current: Mapping[str, Any], based_on: int | None) -> int:
         return 0
 
 
+def apply_knowledge(
+    replies: Sequence[Any],
+    *,
+    run_id: str,
+    turn_id: str,
+    text: str,
+    now: str,
+    version: int | None = None,
+) -> list[dict[str, Any]]:
+    """Publish the planner's general opening as the research reply.
+
+    It exists so the reader gets something useful at the start of a run. It is
+    replaced (never silently kept) once a sourced judgment exists, and it is
+    marked stale when a later supplement changes the question.
+    """
+
+    body = _text(text, MAX_TEXT_CHARS)
+    if not body:
+        return [dict(reply) for reply in replies if isinstance(reply, dict)]
+    reply_id = research_reply_id(run_id)
+    current = find_reply(replies, reply_id)
+    if current is None:
+        updated = research_reply(run_id=run_id, turn_id=turn_id, now=now)
+        updated["stage"] = STAGE_KNOWLEDGE
+        updated["text"] = body
+        updated["content_state"] = dict(content_state(round_index=0, notes=0))
+        # The placeholder starts empty at version 0; publishing content is a
+        # content change, so it must advance the version like any other.
+        updated["content_version"] = next_content_version(updated)
+        updated["based_on_version"] = 0
+        return [dict(reply) for reply in replies if isinstance(reply, dict)] + [updated]
+    if current.get("lifecycle") != LIFECYCLE_OPEN:
+        return [dict(reply) for reply in replies if isinstance(reply, dict)]
+    if STAGE_RANK.get(str(current.get("stage") or ""), 0) > STAGE_RANK[STAGE_KNOWLEDGE]:
+        # A sourced judgment or a task understanding already exists: the opening
+        # must not replace it.
+        return [dict(reply) for reply in replies if isinstance(reply, dict)]
+    updated = {
+        **current,
+        "stage": STAGE_KNOWLEDGE,
+        "content_version": version if version is not None else next_content_version(current),
+        "text": body,
+        "analysis_state": "pending",
+        "updated_at": now,
+        "based_on_version": int(current.get("content_version") or 0),
+        "timing": {**(current.get("timing") or {}), "knowledge_at": now},
+    }
+    return _replace(replies, updated)
+
+
 def apply_analysis(
     replies: Sequence[Any],
     *,
@@ -441,7 +502,7 @@ def mark_additions_stale(
         if (
             str(item.get("reply_id") or "") != keep_reply_id
             and item.get("lifecycle") == LIFECYCLE_OPEN
-            and item.get("stage") in {STAGE_ANALYSIS, STAGE_EVIDENCE}
+            and item.get("stage") in {STAGE_KNOWLEDGE, STAGE_ANALYSIS, STAGE_EVIDENCE}
             and not item.get("stale")
             and state_key(item)[0] < int(added_round or 0)
         ):

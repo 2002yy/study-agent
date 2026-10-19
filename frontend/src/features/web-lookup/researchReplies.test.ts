@@ -68,6 +68,13 @@ describe("provisional reply merging", () => {
     expect(replyStatusNote(reply({ analysis_state: "not_generated" }))).toBe("本轮未生成模型分析");
   });
 
+  it("presents a general opening as an opening, never as verified", () => {
+    const opening = reply({ stage: "knowledge", text: "这类选择取决于导出流程。" });
+
+    expect(replyHeading(opening)).toBe("初步说明");
+    expect(replyStatusNote(opening)).toBe("已有知识；未经本次检索核实");
+  });
+
   it("never displays an unproven close as frozen, in either path", () => {
     const claimed = reply({ lifecycle: "closed", content_version: 4 });
     // First restore: nothing to compare against, and still not frozen.
