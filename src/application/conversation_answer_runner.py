@@ -185,8 +185,10 @@ async def generate_conversation_answer(
         return result(status)
     if (
         not isinstance(raw, str)
-        or not raw.strip()
         or len(raw) > limits.max_response_chars
+        or not raw.strip()
     ):
         return result("invalid_response")
+    if time.monotonic() - started >= limits.timeout_seconds:
+        return result("timeout", unknown=submitted)
     return result("completed", answer=raw)
