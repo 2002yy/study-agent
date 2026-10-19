@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-19 #235 main集成更新。** #233在exact head224cae06 / CI39215954538 SUCCESS后合入main5ead630fd902360ddff0f5694fbf4f3ddad74140；#235自己的f4209544 / CI39216114150 SUCCESS且版本回执finding已解决，但当前main交接冲突。保留双方交接后吸收已发布context投影，dispatch生产树不变，共享影响集conversation_decision_1b 182 PASS/62.04s覆盖新main消费者后再推送；新head绑定一次CI，不借旧绿灯。自身后续#236/#239/#240与session切片继续独立后台开发，不将其他窗口WIP混入。
+
 
 **2026-10-19 #235 审阅修复 / 自身版本回执。** finding4307918994 指出成功STEER更新研究版本后被误判过期；新增仅可信handler返回的 SteeringObservation(observation,research_after)，要求同一run且版本前进，并与执行完成时精确研究快照匹配，用户消息/历史/请求仍不得变化。无回执、并发再次推进版本、换题、跨run、旧版本和非steer携回执均拒绝；不是直接允许任意研究版本变化。handler必须在自身事务中取得回执，不能事后读取其他写入者的最新版本冒充。观察仍没有生产applied/证据权威。
 
@@ -19,6 +21,17 @@
 
 命名 L1 `conversation_action_dispatch` **113 PASS / 34.66s**（自身 + decision + runner + stage policy）；包含 fixture 决策→先答→本地实际求和→观察回传→fixture 决策再回答、单路由、并发重复、预算/能力、调度竞态、用户换题/关闭流、外部与适配器取消、超时吞取消/迟到、无效观察等负控。共享 `conversation_decision_1b` 也登记本新消费者，避免将来共享代码快速门漏测；manifest 键放在独立锚点减少并行 JSON 冲突。Ruff/format、mypy122/128 NEW0、diff-check PASS。无 SDK/付费调用、生产入口/工具权威切换、业务 schema 或前端改动，无本地 L3。候选 SHA 以本段所属 Git 提交恢复。下一动作：提交独立 PR/绑定一次 CI，然后 CL-1D-1 受控单步编排与观察回填；不等待后台 CI 才开发，不以本片称完整 Agent 已上线。
 
+**2026-10-19 #233 集成更新。** #232 在 exact head58a2f4ae / CI39147888463 SUCCESS / finding已解决后 expected-head 合并，main9e36b9359f4224735c30d163ff9e105932bc1eea；main CI39215516784已后台启动。#233 原head2e44f344 / CI39147924617 SUCCESS，但新main交接文档冲突；本片保留双方交接并合入已发布的持久准入实现，生产context投影不变。整合后共享影响集conversation_decision_1b 155 PASS/45.58s、Ruff/diff-check PASS，随后推送；新head需独立CI，不借旧绿灯。没有为文档整合机械跑L3。
+
+**2026-10-19 #233 续答边界修复与 main 集成（覆盖旧可接受 streaming 的无条件表述）。** 接受审阅 finding `4307851812`：ChatService 的 continuation 会复用当前 turn 并保留部分 assistant_message，而 v1 DecisionContext 没有独立的当前 partial-reply 槽。当前投影对非空当前 assistant_message 明确拒绝，不把部分回复静默丢弃或伪装成已完成历史；pending/streaming 两项负控通过。只限制尚未接生产的决策投影，不修改现有 ChatService 的重试/继续功能。支持完整续答的上下文合同仍待独立设计，不冒称已实现。
+
+同步 #231 已合并 main `5d4da728162bc974d62d3def40718c78211d5483`，仅冲突本交接，保留双方记录；共享 `conversation_decision_1b` 补当前 context 测试，防止未来共享模型变更漏掉该消费者。最终命名 L1 `conversation_decision_context`（含相邻 router/task）**151 PASS / 80.41s**，Ruff/format、mypy122/128 NEW0、diff-check PASS；无本地全量。旧 head `2ad75cec` 的 CI 不授予新候选。新 head 由本段所属提交恢复；修复后推送并 resolve finding，绑定一次新 CI。动作分发在独立 main 基线工作树推进，不依赖本片未合并成果。
+
+**2026-10-19 CL-1C-2a：服务端对话快照 → 决策输入（本片覆盖旧 NEXT）。** #230 已在 exact head f706、CI `39143921500 SUCCESS`、审阅 finding 解决后 expected-head 合并，main `0236160e378c0272d7dd9e582e08c12d3ac65fda`；主目录 ff-only 同步且 tracked clean，三个未跟踪 IA-1A 审阅 ZIP 原样保留。exact-main CI `39145457669` 已绑定 0236160e，最后快照运行中，未称 main CI 通过。#231 已重绑 main / ready，head `04371329d94a71bb36160170334888d8f89f1aaf`，同树本地 102 PASS；#232 修复既有空库被接管的问题后重绑 main，head `059934433a755e37770aaf156b46e8b59aa90fdf`，114 PASS，finding `4307789596` 已 resolve。两次 retarget 后无新 head CI，经确认无 run 后各 close/reopen 一次，仅触发缺失的当前候选验证：#231 `39146013970`、#232 `39146011883`（pull_request），已绑定各自新 SHA；不借用旧绿灯、不轮询等候。
+
+当前 branch `codex/conversation-decision-context-20261019` / worktree `D:/study-agent-validation/conversation-decision-context-20261019`，独立 base 为上述 main，不依赖 #231/#232 或其他窗口 WIP。新增 `context_from_chat_snapshots`：会话/turn/operation 所有权、活动/取消状态、当前 turn 的一致快照、跨会话历史与研究归属校验；历史只含前六个 completed 轮次，request_id 稳定绑定服务端身份。该模块只读、无 I/O，不改变业务 schema、聊天入口、外部数据披露、工具执行或证据权威；它不负责多次 DB 读取的原子性，生产调用者仍需一致快照和执行前复核。
+
+本片 L1 `conversation_decision_context` **126 PASS / 37.15s**（自身 + decision + runner + chat_service + stage policy），含真实 SQLite 的落库/reload/不写回、跨会话、过期/取消、重复/不一致当前轮次、历史上限、重试身份隔离等负控。Ruff/format PASS，mypy122/128 NEW0，diff-check PASS；无 L3、无付费调用。候选 SHA 以本段所属提交恢复。下一动作：提交独立候选并开 PR/绑定一次 CI；随后 CL-1C-2b 先定义货币费用与原子读取/提供商适配的边界，后台 CI 不阻塞开发。整个 GPT-like 对话循环与真实模型选择质量尚未验收。
 **2026-10-19 #232 合入新 main 的集成候选。** #231 在 head `04371329` / pull_request CI `39146013970 SUCCESS` / 当前审阅无未解决 finding 后 expected-head 合并，main 为 `5d4da728162bc974d62d3def40718c78211d5483`。#232 旧 head `05993443` 的 CI `39146011883 SUCCESS` 与所有权 finding 已解决；与新 main 的唯一合并冲突为本文件，已保留双方交接。本次未改生产源文件，补齐 legacy `conversation_decision_1b` 对新 admission 调用方测试的覆盖，避免以后共享 runner 快速 CI 漏测。该命名集 **137 PASS / 71.06s**；此前自身影响集114的证据保留为同源证据。无本地全量。合并提交 SHA 由本段所属提交恢复，需新 exact-head CI，不将旧 05993443 绿灯授予新 head。#233 正处理续答 partial reply 的审阅边界；独立动作分发分支已开始，后台 CI 不阻塞开发。
 
 **2026-10-19 合并与增量审阅收口（覆盖下方 #230 待合并及空库所有权记录）。** [#230](https://github.com/2002yy/study-agent/pull/230) 已于精确 head `f706db8ce072027d72764f387329599711647d52`、pull_request CI `39143921500 SUCCESS`、无未解决审阅 finding 后 expected-head squash 合并，main 为 `0236160e378c0272d7dd9e582e08c12d3ac65fda`；本地主目录已 ff-only 同步，保留三个未跟踪 IA-1A 审阅 ZIP，tracked clean。exact-main push CI `39145457669` 已绑定 0236160e，快照 in_progress；未借 PR 绿灯称 main CI 已通过。#231 已重绑 main，head `04371329d94a71bb36160170334888d8f89f1aaf`，3 文件，ready for review；与旧 4ba7b6ad 整树相同，保留 102 PASS 的同树本地证据，旧远端 CI 不授予新 head。
