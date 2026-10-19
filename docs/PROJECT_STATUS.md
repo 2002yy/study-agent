@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-19 CL-1E-2：loop可选回答接线（本轮第二片）。** branch codex/conversation-loop-answer-20261019，固定base自身#247 3390fafd3ee9d1e3de0c028a6c10d1ed94d7db68。run_conversation_loop新增可选answer_handler，经过原dispatch准入、freshness、超时和取消后，收到当前提议对应的AnswerInput；阶段回复在执行完成后才入trail，最终回答收到此前全部阶段及工具观察。原ActionInvocation和默认handler路径兼容，不改生产聊天入口。实际生成预算、权限、输出与证据校验由可信适配器负责；输入拒绝统一经原handler失败通道，不启动后续tool。新增8个用例覆盖前后阶段衔接、两工具累计、旧handler覆盖、新意图拒绝、阶段后关闭、失败/空/超长输出停止和调用者取消传播。无真实模型/SDK/付费调用/生产聊天或发布权威切换，无本地L3。命名L1 conversation_loop_answer **299 PASS/69.10s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0。候选SHA以本段提交恢复。
+
+#247 head3390fafd / pull_request CI39262160573后台执行，review暂无finding；#240已合main cf70e688 / push CI39261429543后台，旧main969fb53a CI39255920427 SUCCESS。#242已重绑main并推送91af16b5，命名联合278 PASS，等待新head自身CI；不借旧绿灯。下一执行片：可信回答生成适配器的独立准入合同与有界调用（继续保留生成费用和正式证据验收门）。
+
 **2026-10-19 CL-1E-1：有界回答输入（本轮第一片）。** branch codex/conversation-answer-input-20261019，固定base自身#246 5e6e26623ad216690274d0edbc18660bd00d376a，未读其他窗口WIP。AnswerInput把当前上下文、精确提议、阶段和完整累计观察作为独立数据交给可信回答适配器；验证初始/后续身份与额度、拒绝未完成answer/tool配对，序列化数据上限64000字符，超限拒绝不截断。保留历史、证据摘要及unverified标记，决策理由不冒充研究发现。注册两个精确CI路径与消费者门，无前缀通配。#240已在head c9d73977 / CI39256503247 SUCCESS / finding已解决后合main cf70e688c91fe93cd259c10c6dc7d00a1b2e4586。输入模块尚不生成回答；下一片将其接入受控loop的可选回答处理器。未接生产聊天/SDK/付费调用/发布权威，无本地L3。命名L1 conversation_answer_input **413 PASS/117.09s**，mypy122/128 NEW0，Ruff/format/diff-check PASS，候选secret findings0；候选SHA由本段提交恢复。
 
 **2026-10-19 CL-1D-6 最终父片绑定。** 已吸收自身#245冻结修复ad0b2e32f235fb7739ba6a05729193a3b61566bf（逐次额度与精确路由两个已解决finding）；冲突仅交接，保留双方。新模块/CI路径来自已提交自身父片，非WIP。最终命名L1 conversation_loop_trail **277 PASS/103.24s**，mypy122/128 NEW0、Ruff/format/diff-check PASS；候选SHA由本段所属提交恢复；#245两个finding4313958266/4313958272均已修并解决，修复后CI39255166237后台执行；父片CI继续后台执行，不借旧7b6fb566绿灯。
