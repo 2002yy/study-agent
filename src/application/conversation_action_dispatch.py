@@ -8,7 +8,7 @@ local budget prevents duplicate dispatch within one live executor only.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 import math
 import threading
 import time
@@ -16,6 +16,7 @@ from typing import AsyncIterator, Awaitable, Callable, Mapping, cast
 
 from src.application.conversation_decision import (
     ActionProposal,
+    ActiveResearch,
     ConversationAction,
     DecisionContext,
     validate_proposal,
@@ -38,7 +39,20 @@ class ActionEvent:
     attempted: bool = False
 
 
-ActionHandler = Callable[[ActionInvocation], Awaitable[str]]
+@dataclass(frozen=True)
+class SteeringObservation:
+    """Trusted adapter receipt, captured by the handler's own state update.
+
+    The adapter must return the exact research snapshot it committed, not read
+    an unrelated latest revision after committing. This is not an applied or
+    evidence receipt for the production research system.
+    """
+
+    observation: str
+    research_after: ActiveResearch
+
+
+ActionHandler = Callable[[ActionInvocation], Awaitable[str | SteeringObservation]]
 
 
 @dataclass
@@ -97,7 +111,7 @@ def _same_intent(left: DecisionContext, right: DecisionContext) -> bool:
     )
 
 
-def _discard_late(task: asyncio.Task[str]) -> None:
+def _discard_late(task: asyncio.Task[str | SteeringObservation]) -> None:
     if not task.cancelled():
         task.exception()
 
@@ -189,7 +203,7 @@ async def dispatch_conversation_action(
         async def invoke(
             bound_handler: ActionHandler = handler,
             bound_stage: ConversationAction = stage,
-        ) -> str:
+        ) -> str | SteeringObservation:
             nonlocal invoked
             if time.monotonic() - started >= timeout_seconds:
                 raise TimeoutError("action deadline")
@@ -207,7 +221,7 @@ async def dispatch_conversation_action(
 
         task = asyncio.create_task(invoke())
         error = ""
-        content = ""
+        content: str | SteeringObservation = ""
         try:
             done, _ = await asyncio.wait(
                 {task}, timeout=max(0, timeout_seconds - (time.monotonic() - started))
@@ -240,8 +254,25 @@ async def dispatch_conversation_action(
                 attempted=invoked,
             )
             return
+        completion_context = expected_context
+        if isinstance(content, SteeringObservation):
+            before = expected_context.active_research
+            after = content.research_after
+            if (
+                stage != ConversationAction.STEER
+                or before is None
+                or not isinstance(after, ActiveResearch)
+                or after.run_id != before.run_id
+                or after.revision <= before.revision
+            ):
+                yield ActionEvent(
+                    checked.request_id, "invalid_observation", stage, attempted=invoked
+                )
+                return
+            completion_context = replace(expected_context, active_research=after)
+            content = content.observation
         try:
-            still_current = _same_intent(current_context(), expected_context)
+            still_current = _same_intent(current_context(), completion_context)
         except Exception:
             still_current = False
         if not still_current:
