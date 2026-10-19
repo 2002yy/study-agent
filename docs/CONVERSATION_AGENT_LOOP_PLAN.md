@@ -97,6 +97,12 @@ CL-0 至 CL-4 最终构成可运行纵向切片，CL-1A 合同完成不等于完
 
 ## 4. 验证与发布边界
 
+### CL-1D-5：累计观察与阶段回复输入（独立小片，不切生产）
+
+ObservationTrail保存root上下文与不可变ObservationFrame元组，单条必须为确定成功的工具观察或answer_then_research的阶段回复。验证同请求配对、连续派生身份和原意图/历史/研究以及累计额度，拒绝跨任务、重复或乱序记录。最多16阶段/16000个JSON序列化字符，未完成answer/tool配对不能发起下一决策；不截断正文。
+
+decide_with_observation_trail将全部记录作为额外JSON数据消息送入原受控决策器，区别assistant_preliminary与tool_observation并标记unverified；原history与evidence摘要保留，所有新增字符先准入。共用tool_observation_request_id提取旧身份算法，已持久化去重身份不改变。该片不执行动作；下一片CL-1D-6在loop中消费并定义观察容量耗尽的停止行为。
+
 ### CI-CL-2：精确路径与消费者影响集（本轮第三片）
 
 登记的新增精确模块为conversation_action_dispatch、conversation_action_step、conversation_observation_followup、conversation_bounded_loop、conversation_loop_session及各自测试；与原decision/runner共14个路径映射conversation_decision_1b。不存在conversation_*通配排除，admission/context、共享domain/SQLite、生产路由/CI工具、资格门和未知路径仍保守扩大。workflow不变，也不删除强制L3或最终发布资格。

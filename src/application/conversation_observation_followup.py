@@ -35,6 +35,27 @@ class _StaleObservation(ValueError):
     pass
 
 
+def tool_observation_request_id(source_request_id: str) -> str:
+    """Stable next identity for one admitted tool stage; no execution authority."""
+    if (
+        not isinstance(source_request_id, str)
+        or not source_request_id.strip()
+        or len(source_request_id) > 160
+    ):
+        raise ValueError("invalid observation source identity")
+    identity = json.dumps(
+        [
+            "conversation-observation-followup-v1",
+            source_request_id,
+            ConversationAction.USE_TOOL,
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return "observation:" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
 def tool_followup_context(
     previous: DecisionContext,
     fresh: DecisionContext,
@@ -76,18 +97,9 @@ def tool_followup_context(
     # One admitted action request has at most one USE_TOOL stage. Neither a
     # reconstructed prior snapshot, proposal wording nor receipt body can turn
     # that same execution into a new model-call identity.
-    identity = json.dumps(
-        [
-            "conversation-observation-followup-v1",
-            observation.request_id,
-            observation.stage,
-        ],
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
+    return replace(
+        fresh, request_id=tool_observation_request_id(observation.request_id)
     )
-    request_id = "observation:" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
-    return replace(fresh, request_id=request_id)
 
 
 @dataclass(frozen=True)

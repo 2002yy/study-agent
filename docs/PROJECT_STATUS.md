@@ -9,6 +9,13 @@
 ## 0. Current Handoff（cold-start 入口）
 
 
+**2026-10-19 CL-1D-5：累计观察与阶段回复输入（本轮第一小片）。** branch `codex/conversation-observation-trail-20261019` / worktree `D:/study-agent-validation/conversation-observation-trail-20261019`，固定base为自身已提交#244 `e05e39e16307af47a2933df8164c5860b1f598d2`；未取其他窗口WIP。#236在headbbcef47d / CI39221498204 SUCCESS / 无未解决finding后已expected-head合入main9684aa829c6b5cc4e8d70ff4754ecb4302557043；旧mainafa54501 CI39221117547 SUCCESS。#239旧2bcb4e4c已有绿灯与已解决review，正单独重绑新main再绑定新CI；#240/#242/#244原冻结head的CI本轮起始均SUCCESS，无未解决finding，仍按依赖顺序逐片调整主线，不能借旧绿灯。
+
+新增ObservationFrame/ObservationTrail与decide_with_observation_trail：不可变地保留本轮阶段回复和全部工具结果，配对ANSWER_THEN_RESEARCH的answer→tool并验证连续派生请求、原意图/历史/研究及累计额度；最多16个阶段和16000个实际序列化字符（含转义），超限拒绝而非隐式截断。阶段回复和工具结果作为标记unverified的独立JSON数据，原chat history与evidence_summary不被改写；阶段回复要求模型衔接而非重复，工具输出不成为权限或正式证据。额外消息准确计入原DecisionAdmission，沿用超时/取消/迟到/当前快照校验。稳定工具后续身份提取为tool_observation_request_id供记录验证共用，JSON算法与旧持久身份逐字一致，不迁移账本、不重置去重。
+
+新增32项自身测试PASS，mypy122/128 NEW0、Ruff/format PASS；命名L1 conversation_observation_trail（自身+followup/loop/session/step/dispatch/runner/admission/decision/阶段策略）最终 **269 PASS/134.39s**。新模块尚未被多步loop消费，由本轮第二片CL-1D-6接线；无生产聊天/SDK/付费调用/业务schema/UI或发布权威变更，无本地L3。候选SHA以本段所属提交恢复。下一动作提交独立PR并后台CI，继续实现loop累计输入与真实限额停止负控，不能把脚本模型控制流当真实智能验收。
+
+
 **2026-10-19 CI-CL-2：精确CI路径与新消费者（本轮第三小片）。** branch `codex/conversation-loop-ci-scope-20261019` / worktree `D:/study-agent-validation/conversation-loop-ci-scope-20261019`，初始base自身150ae5ec，最终显式吸收自身#242冻结修复 `827b81adfc6562c6403bc68c90c9431cda68768c`；该parent已经包含#239重放身份与#240工具后STEER两项review修复，未取其他窗口WIP。新增范围仅tools/ci_scope.py、tests/test_ci_scope.py、manifest与两份交接/合同文档。
 
 精确登记dispatch/step/followup/bounded_loop/loop_session五个模块及各自测试；与原decision/runner共14路径映射共享conversation_decision_1b。没有conversation_*通配跳过，也不登记admission/context；持久/共享domain/SQLite、生产路由、CI工具、资格协议、未知路径混入仍扩大范围。补全命名开发门的新直接消费者清单，详情见CONVERSATION_AGENT_LOOP_PLAN的CI-CL-2；路由测试核对真实文件、manifest消费者集合和25组未登记/持久路径混入负控。CI自身改动不套用本片新增快速分类，workflow/权限/预算/强制L3/发布门不变。首次manifest误写test_workflow_routing.py被预检阻止（尚未跑pytest），已改为真实test_ci_workflow_routing.py；未绕过校验。
