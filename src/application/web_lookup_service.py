@@ -1862,10 +1862,26 @@ class WebLookupService:
     def _deep_planner_plan(
         self, query: str, context: dict[str, Any]
     ) -> list[dict[str, Any]] | None:
+        tasks, _ = self._deep_planner_plan_with_opening(query, context)
+        return tasks
+
+    def _deep_planner_plan_with_opening(
+        self, query: str, context: dict[str, Any]
+    ) -> tuple[list[dict[str, Any]] | None, str]:
+        """The plan and the planner's optional general opening (one call)."""
+
+        opening_planner = getattr(self.planner, "plan_with_opening", None)
         plan_callable = getattr(self.planner, "plan", None)
-        if not callable(plan_callable):
-            return None
-        result = plan_callable(query, context)
+        if callable(opening_planner):
+            result, opening = opening_planner(query, context)
+        elif callable(plan_callable):
+            result, opening = plan_callable(query, context), ""
+        else:
+            return None, ""
+        return self._deep_plan_tasks(result), str(opening or "")
+
+    @staticmethod
+    def _deep_plan_tasks(result: Any) -> list[dict[str, Any]] | None:
         tasks = [
             {
                 "task_id": f"t{index + 1}",
@@ -1877,6 +1893,25 @@ class WebLookupService:
             if str(item).strip()
         ]
         return tasks or None
+
+    def _deep_publish_opening(
+        self, context: dict[str, Any], run_id: str, text: str
+    ) -> None:
+        """Publish the planner's general opening as the research reply."""
+
+        from src.web.research.steering_replies import apply_knowledge
+
+        if not run_id or not str(text or "").strip():
+            return
+        turn_id = str((context.get("owner") or {}).get("turn_id") or "")
+        replies = [
+            dict(item)
+            for item in (context.get("steering_replies") or [])
+            if isinstance(item, dict)
+        ]
+        context["steering_replies"] = apply_knowledge(
+            replies, run_id=run_id, turn_id=turn_id, text=text, now=utc_now()
+        )
 
     @staticmethod
     def _deep_rewrite_query(sub_question: str) -> str:
@@ -2021,14 +2056,16 @@ class WebLookupService:
             # ---- planning -------------------------------------------------
             initialize_budget(deep, None if "incremental_budget" in deep else load_incremental_policy(python_isolation_available=isolated_python_available()))
             set_stage("planning")
+            opening = ""
             if not plan:
                 if callable(getattr(self.planner, "plan", None)):
                     if incremental_remaining(deep, "model_calls") == 0:
                         raise ValueError("Initial planning budget is exhausted")
                     consume_incremental_budget(deep, "model_calls")
-                planned = self._deep_planner_plan(run.query, context)
+                planned, opening = self._deep_planner_plan_with_opening(run.query, context)
                 plan = planned or self._deep_default_plan(run.query, context)
                 deep["plan"] = plan
+            self._deep_publish_opening(context, run_id, opening)
             self._deep_log(deep, "planning", f"研究计划已生成（{len(plan)} 个子问题）")
             persist()
 

@@ -38,7 +38,16 @@ export type ReplyVisibleMark = {
   content_version: number;
   stage: ChatResearchReplyStage;
   at: number;
+  /** Characters of reply text that became readable at `at`. */
+  chars: number;
 };
+
+/** Stages that carry something worth reading (a receipt is not). */
+const SUBSTANTIVE_STAGES: ReadonlySet<ChatResearchReplyStage> = new Set([
+  "knowledge",
+  "analysis",
+  "evidence_update",
+]);
 
 export type ResearchTimingState = {
   marks: ReplyTimingMark[];
@@ -152,6 +161,7 @@ export function mergeTiming(
         content_version: event.reply.content_version,
         stage: event.reply.stage,
         at: event.at,
+        chars: String(event.reply.text ?? "").length,
       });
     }
     return { ...state, marks, visible };
@@ -191,6 +201,40 @@ export function firstVisibleAt(
 function lead(answer: number | null, at: number | null): number | null {
   if (answer === null || at === null || at > answer) return null;
   return Math.round(answer - at);
+}
+
+/** When the first substantive reply text was readable, if it ever was. */
+export function firstSubstantiveMs(state: ResearchTimingState): number | null {
+  const marks = state.visible.filter(
+    mark => SUBSTANTIVE_STAGES.has(mark.stage) && mark.chars > 0,
+  );
+  return marks.length ? Math.min(...marks.map(mark => mark.at)) : null;
+}
+
+/**
+ * How many characters of substantive reply text the reader had at `elapsedMs`.
+ *
+ * This is the honest version of "how much did the reader learn, and when": it
+ * counts readable knowledge/analysis/evidence text, never receipts or status
+ * lines. Character count is a lower bound on usefulness, not a quality score.
+ */
+export function usefulCharsAt(state: ResearchTimingState, elapsedMs: number): number {
+  const latest = new Map<string, ReplyVisibleMark>();
+  for (const mark of state.visible) {
+    if (!SUBSTANTIVE_STAGES.has(mark.stage) || mark.at > elapsedMs) continue;
+    const known = latest.get(mark.reply_id);
+    if (!known || mark.at >= known.at) latest.set(mark.reply_id, mark);
+  }
+  let total = 0;
+  for (const mark of latest.values()) total += mark.chars;
+  return total;
+}
+
+/** The 10 s / 20 s / 30 s snapshot the acceptance question asks for. */
+export function usefulTimeline(
+  state: ResearchTimingState,
+): { at: number; chars: number }[] {
+  return [10_000, 20_000, 30_000].map(at => ({ at, chars: usefulCharsAt(state, at) }));
 }
 
 /** How long before the answer the first visible reply appeared (null when late). */

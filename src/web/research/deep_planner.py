@@ -32,11 +32,20 @@ _PROHIBITED_CLAIM_MARKERS = (
 
 _PLAN_INSTRUCTION = (
     "Plan the public-web research for this question. Reply with JSON only:\n"
-    '{"sub_questions": ["short focused search query", ...]}\n'
+    '{"sub_questions": ["short focused search query", ...], "initial_answer": ""}\n'
     f"Rules: {MAX_SUB_QUESTIONS} or fewer; each is a short search query (<= 12 words); "
     "no site: unless the publisher is certain; never a full user sentence; "
-    "no claims, no answers, no code."
+    "no claims, no answers, no code.\n"
+    '"initial_answer" is optional: at most two sentences of stable, general '
+    "orientation that would help the reader immediately (principles, common "
+    "mechanisms, what the choice depends on). Leave it empty when the question "
+    "needs current facts to say anything useful. It must contain no numbers, "
+    "versions, prices, dates, percentages, official claims, or anything that "
+    "would need verification."
 )
+
+#: The opening is orientation, not a second research report.
+MAX_INITIAL_ANSWER_CHARS = 280
 
 _REVISE_INSTRUCTION = (
     "You are continuing a public-web research run. Reply with JSON only:\n"
@@ -87,6 +96,18 @@ class ModelDeepPlanner:
 
     # -- plan -------------------------------------------------------------
     def plan(self, query: str, context: dict[str, Any] | None = None) -> list[str]:
+        questions, _ = self.plan_with_opening(query, context)
+        return questions
+
+    def plan_with_opening(
+        self, query: str, context: dict[str, Any] | None = None
+    ) -> tuple[list[str], str]:
+        """The sub-questions plus an optional general opening.
+
+        The opening is produced by this same call - no extra model request - and
+        it is only accepted when it makes no claim that would need a source.
+        """
+
         payload = {
             "question": str(query or "")[:600],
             "attachments": [
@@ -98,16 +119,18 @@ class ModelDeepPlanner:
         raw = self._completion(_PLAN_INSTRUCTION, payload)
         data = _json_object(raw)
         questions = data.get("sub_questions") if isinstance(data, dict) else None
-        if not isinstance(questions, list):
-            return []
         cleaned: list[str] = []
-        for item in questions[:MAX_SUB_QUESTIONS]:
-            text = str(item).strip()
-            if not text or len(text) > MAX_QUERY_CHARS:
-                continue
-            if text not in cleaned:
-                cleaned.append(text)
-        return cleaned
+        if isinstance(questions, list):
+            for item in questions[:MAX_SUB_QUESTIONS]:
+                text = str(item).strip()
+                if not text or len(text) > MAX_QUERY_CHARS:
+                    continue
+                if text not in cleaned:
+                    cleaned.append(text)
+        opening = ""
+        if isinstance(data, dict):
+            opening = _validated_opening(data.get("initial_answer"))
+        return cleaned, opening
 
     # -- revise -----------------------------------------------------------
     def revise(
@@ -256,6 +279,19 @@ def _default_completion(instruction: str, payload: dict[str, Any]) -> str:
         response_format="json_object",
         task_name="deep_planner",
     )
+
+
+def _validated_opening(value: Any) -> str:
+    """A publishable opening: short, and free of anything needing a source."""
+
+    from src.web.research.answer_layers import claims_need_evidence
+
+    text = " ".join(str(value or "").split())
+    if not text or len(text) > MAX_INITIAL_ANSWER_CHARS:
+        return ""
+    if claims_need_evidence(text):
+        return ""
+    return text
 
 
 def _json_object(raw: Any) -> dict[str, Any] | None:

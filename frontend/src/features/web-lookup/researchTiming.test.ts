@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { ChatResearchReply } from "../../types";
 import {
   analysisLeadBeforeAnswer,
+  firstSubstantiveMs,
+  usefulCharsAt,
+  usefulTimeline,
   emptyTiming,
   evidenceLeadBeforeAnswer,
   leadBeforeAnswer,
@@ -150,6 +153,41 @@ describe("browser-side reply timing", () => {
     expect(state.marks).toHaveLength(1);
     expect(state.visible).toHaveLength(1);
     expect(state.answer_visible_ms).toBe(300);
+  });
+
+  it("counts only substantive text, and says how much existed at 10/20/30s", () => {
+    let state = emptyTiming();
+    state = mergeTiming(state, { kind: "run_start", at: 0, turnId: "turn1" });
+    // A receipt is not substance.
+    state = mergeTiming(state, {
+      kind: "reply_visible", at: 3_000,
+      reply: reply({ stage: "acknowledgement", text: "已收到补充" }),
+    });
+    state = mergeTiming(state, {
+      kind: "reply_visible", at: 8_000,
+      reply: reply({ stage: "knowledge", text: "x".repeat(120) }),
+    });
+    state = mergeTiming(state, {
+      kind: "reply_visible", at: 25_000,
+      // A different reply (the sourced judgment), so both texts coexist.
+      reply: reply({
+        reply_id: "run1:research",
+        scope: "research",
+        steering_id: "",
+        stage: "evidence_update",
+        text: "y".repeat(80),
+      }),
+    });
+
+    expect(firstSubstantiveMs(state)).toBe(8_000);
+    expect(usefulCharsAt(state, 5_000)).toBe(0);
+    expect(usefulCharsAt(state, 10_000)).toBe(120);
+    expect(usefulCharsAt(state, 30_000)).toBe(200);
+    expect(usefulTimeline(state)).toEqual([
+      { at: 10_000, chars: 120 },
+      { at: 20_000, chars: 120 },
+      { at: 30_000, chars: 200 },
+    ]);
   });
 
   it("states what the answer mark measures", () => {

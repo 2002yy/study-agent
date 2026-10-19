@@ -138,3 +138,135 @@ def test_the_knowledge_layer_is_capped_and_labelled():
 
     assert "未使用本次检索结果核实" in text
     assert len(text) < len(long_draft)
+
+# -- the opening: knowledge-stage reply --------------------------------------
+def _opening_reply(**overrides):
+    from src.web.research.steering_replies import (
+        apply_knowledge,
+        find_reply,
+        research_reply_id,
+    )
+
+    replies: list[dict] = []
+    replies = apply_knowledge(
+        replies,
+        run_id="run1",
+        turn_id="turn1",
+        text="这类选择通常取决于导出流程：批处理能力、脚本支持和协作方式。",
+        now="2026-10-19T00:00:01+00:00",
+    )
+    return replies, find_reply(replies, research_reply_id("run1"))
+
+
+def test_the_opening_is_published_as_knowledge():
+    from src.web.research.steering_replies import STAGE_KNOWLEDGE
+
+    _, reply = _opening_reply()
+
+    assert reply["stage"] == STAGE_KNOWLEDGE
+    assert reply["scope"] == "research"
+    assert reply["lifecycle"] == "open"
+    assert reply["content_version"] == 1
+
+
+def test_a_sourced_judgment_is_never_replaced_by_the_opening():
+    from src.web.research.steering_replies import (
+        apply_evidence,
+        apply_knowledge,
+        find_reply,
+        research_reply_id,
+    )
+
+    replies, reply = _opening_reply()
+    replies = apply_evidence(
+        replies,
+        reply_id=reply["reply_id"],
+        analysis={"text": "已读材料支持：GIMP 走自动化路线。", "citations": [{"url": "https://gimp.org", "quote": "q"}]},
+        now="2026-10-19T00:00:02+00:00",
+        version=2,
+        based_on=1,
+        state={"round": 1, "notes": 2, "revision": ""},
+    )
+    replies = apply_knowledge(
+        replies,
+        run_id="run1",
+        turn_id="turn1",
+        text="另一段通用说明。",
+        now="2026-10-19T00:00:03+00:00",
+    )
+    current = find_reply(replies, research_reply_id("run1"))
+    assert current["stage"] == "evidence_update"
+    assert current["text"] == "已读材料支持：GIMP 走自动化路线。"
+
+
+def test_a_later_supplement_marks_the_opening_as_not_covering_it():
+    from src.web.research.steering_replies import mark_additions_stale
+
+    replies, reply = _opening_reply()
+    replies = mark_additions_stale(
+        replies, keep_reply_id="run1:steer:s2", added_round=2, now="2026-10-19T00:00:04+00:00"
+    )
+    current = next(item for item in replies if item["reply_id"] == reply["reply_id"])
+    assert current["stale"] is True
+    assert current["content_version"] == reply["content_version"] + 1
+
+
+# -- the planner opening is validated ---------------------------------------
+def test_the_planner_accepts_a_general_opening_and_rejects_a_specific_one():
+    from src.web.research.deep_planner import _validated_opening
+
+    assert _validated_opening("这是稳定的通用说明：取决于任务类型与现有运行时。")
+    assert _validated_opening("最新版本比上个版本快 35%，官方已经确认。") == ""
+    assert _validated_opening("x" * 400) == ""
+    assert _validated_opening(None) == ""
+
+
+# -- end to end: the persisted answer is substantive ------------------------
+def test_the_persisted_assistant_message_is_a_layered_answer(tmp_path):
+    """The reader sees real content, not only the research summary in the UI."""
+
+    from dataclasses import replace
+
+    from src.application.chat_service import ChatCommand, ChatService
+    from src.tools.web_agent import WebToolTrace
+    from tests.test_chat_service import _service
+
+    service, repository = _service(tmp_path)
+    trace = WebToolTrace(
+        calls=(
+            {
+                "name": "web_read",
+                "arguments": {"url": "https://example.com/ps"},
+                "result": {"status": "failed", "error": "http_403"},
+            },
+        )
+    )
+    draft = (
+        "这类问题主要看导出流程：批处理能力、格式支持与协作方式决定差异。"
+        "Photoshop 2026 最新版本比 GIMP 快 35%，官方已经确认。"
+    )
+    service = ChatService(
+        service.repository,
+        replace(
+            service.dependencies,
+            resolve_web_tools=lambda *args, **kwargs: trace,
+            route_request=lambda **kwargs: {
+                "role": "nahida",
+                "mode": "研究",
+                "model_profile": "flash",
+                "reason": "test",
+                "task_contract": {"task_intent": "research"},
+            },
+            chat=lambda *args, **kwargs: draft,
+        ),
+    )
+
+    prepared = service.start_turn(ChatCommand(user_input="Photoshop 和 GIMP 哪个更适合游戏素材？"))
+    # complete_turn is the publication seam the route uses to persist the answer.
+    service.complete_turn(prepared, draft)
+    stored = repository.get_chat_turn(prepared.turn.id).assistant_message
+
+    assert "未使用本次检索结果核实" in stored
+    assert "35%" not in stored
+    assert "本次未能核实" in stored
+    assert "暂不能给出已核实的结论" not in stored
