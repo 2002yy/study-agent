@@ -453,8 +453,14 @@ def _build_request_kwargs(
 
     # Enforce the paid-run cap *before* the request leaves the process.  Retries
     # happen inside the SDK, so the reservation covers ``retries + 1`` attempts.
-    from src.llm_spend_guard import reserve_call
+    from src.llm_spend_guard import require_allowed_model, reserve_call
 
+    # An experiment can pin the model ids it will pay for: a profile is not a
+    # model, and the reservation was computed for a specific one.
+    require_allowed_model(
+        str(kwargs["model"]),
+        purpose=f"chat:{task_name or ('stream' if stream else 'call')}",
+    )
     reserve_call(
         prompt_chars=_prompt_chars(messages),
         max_tokens=resolved_max_tokens,

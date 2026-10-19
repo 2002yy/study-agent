@@ -426,8 +426,11 @@ class ResearchModelGateway:
                 from src.llm_spend_guard import (
                     SpendConfigurationError,
                     SpendLimitExceeded,
+                    require_allowed_model,
                     reserve_call,
                 )
+
+                require_allowed_model(model_name, purpose=f"research:{normalized_purpose}")
 
                 reserve_call(
                     prompt_chars=(

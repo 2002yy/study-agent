@@ -74,6 +74,7 @@ __all__ = [
     "SpendLedgerUnavailable",
     "SpendLimitExceeded",
     "SpendScope",
+    "allowed_models",
     "compose_request_key",
     "new_scope",
     "pop_scope",
@@ -83,6 +84,7 @@ __all__ = [
     "experiment_spend",
     "remaining_cny",
     "reservation_cny",
+    "require_allowed_model",
     "reserve_call",
     "reset_spend",
     "spend_cap_cny",
@@ -299,6 +301,38 @@ def spent_cny() -> float:
 def remaining_cny() -> float | None:
     cap = spend_cap_cny()
     return None if cap is None else max(0.0, cap - _reserved_cny)
+
+
+def allowed_models() -> frozenset[str] | None:
+    """The model ids a paid run may use, or None when unrestricted.
+
+    ``LLM_EXPERIMENT_ALLOWED_MODELS`` pins an experiment to specific model ids.
+    It exists because a profile is not a model: the router may pick ``pro`` for a
+    hard question while the reservation was computed for a cheaper one. A
+    mismatch is refused before the request - never silently re-routed, and never
+    "fallen back" to a bigger model.
+    """
+
+    raw = os.getenv("LLM_EXPERIMENT_ALLOWED_MODELS", "").strip()
+    if not raw:
+        return None
+    return frozenset(part.strip() for part in raw.split(",") if part.strip())
+
+
+def require_allowed_model(model: str, *, purpose: str = "") -> str:
+    """Refuse a paid call whose resolved model is not allowed for this run."""
+
+    allowed = allowed_models()
+    if allowed is None:
+        return model
+    if str(model) not in allowed:
+        raise SpendConfigurationError(
+            f"model {model!r} is not allowed for this experiment "
+            f"(allowed: {', '.join(sorted(allowed))})"
+            + (f" for {purpose}" if purpose else "")
+            + "; the call is refused instead of falling back to another model"
+        )
+    return model
 
 
 def experiment_id() -> str:

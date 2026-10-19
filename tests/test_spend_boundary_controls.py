@@ -64,7 +64,7 @@ def _provider_env(monkeypatch) -> None:
 
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:9/v1")
-    monkeypatch.setenv("MODEL_FLASH_NAME", "fake-flash")
+    monkeypatch.setenv("MODEL_FLASH_NAME", "deepseek-flash")
     monkeypatch.setenv("MODEL_PRO_NAME", "fake-pro")
 
 
@@ -424,3 +424,123 @@ def test_an_identity_for_another_experiment_is_refused(monkeypatch, tmp_path):
                 run_id="run1", operation_id="op1", invocation="1", experiment="other"
             ),
         )
+
+# -- 4. the run is Flash-only -------------------------------------------------
+def test_a_pro_call_is_refused_when_the_run_is_flash_only(monkeypatch, tmp_path):
+    """A profile is not a model: the router must not be able to spend on pro.
+
+    The reservation is priced for flash, so a pro call would be charged at the
+    wrong rate. It is refused before the request - not re-routed, not "fallen
+    back" to a bigger model.
+    """
+
+    from src.llm_client import _build_request_kwargs
+    from src.llm_spend_guard import SpendConfigurationError
+
+    _budget(monkeypatch, tmp_path)
+    _provider_env(monkeypatch)
+    monkeypatch.setenv("LLM_EXPERIMENT_ALLOWED_MODELS", "deepseek-flash")
+    monkeypatch.setenv("MODEL_PRO_NAME", "deepseek-v4-pro")
+
+    with pytest.raises(SpendConfigurationError):
+        with spend_scope(
+            run_id="run-pro",
+            operation_id="op",
+            purpose="answer",
+            experiment=EXPERIMENT,
+        ):
+            _build_request_kwargs(
+                messages=[{"role": "user", "content": "x" * 100}],
+                temperature=0.0,
+                model_profile="pro",
+                provider_profile="deepseek",
+                task_name="single_chat",
+                max_tokens=100,
+                timeout=5.0,
+                response_format=None,
+                stream=False,
+            )
+
+
+def test_the_allowed_flash_call_still_reserves(monkeypatch, tmp_path):
+    from src.llm_client import _build_request_kwargs
+
+    _budget(monkeypatch, tmp_path)
+    _provider_env(monkeypatch)
+    monkeypatch.setenv("LLM_EXPERIMENT_ALLOWED_MODELS", "deepseek-flash")
+
+    with spend_scope(
+        run_id="run-flash", operation_id="op", purpose="answer", experiment=EXPERIMENT
+    ):
+        _build_request_kwargs(
+            messages=[{"role": "user", "content": "x" * 100}],
+            temperature=0.0,
+            model_profile="flash",
+            provider_profile="deepseek",
+            task_name="single_chat",
+            max_tokens=100,
+            timeout=5.0,
+            response_format=None,
+            stream=False,
+        )
+    assert experiment_spend(EXPERIMENT)["calls"] == 1
+
+
+def test_the_research_gateway_refuses_a_model_outside_the_run(monkeypatch, tmp_path):
+    _budget(monkeypatch, tmp_path)
+    _provider_env(monkeypatch)
+    monkeypatch.setenv("LLM_EXPERIMENT_ALLOWED_MODELS", "deepseek-flash")
+    client = _RecordingClient()
+    gateway = ResearchModelGateway(
+        client=client, model_name="deepseek-v4-pro", max_attempts=2
+    )
+
+    with spend_scope(
+        run_id="run-gw", operation_id="op", purpose="active", experiment=EXPERIMENT
+    ):
+        result = _call_gateway(gateway)
+
+    assert client.requests == []
+    assert result.status == "unavailable"
+    assert result.audits[0].error_type == "SpendConfigurationError"
+
+
+def test_vision_uses_the_live_flash_model(monkeypatch):
+    """``deepseek-flash`` understands images natively; the exp id is retired."""
+
+    from src.application.attachment_vision import vision_model_name
+
+    monkeypatch.delenv("DEEPSEEK_MODEL_VISION_NAME", raising=False)
+    assert vision_model_name() == "deepseek-flash"
+
+
+def test_a_vision_model_outside_the_run_is_refused(monkeypatch, tmp_path):
+    from src.application.attachment_vision import describe_image_with_deepseek
+    from src.llm_spend_guard import SpendConfigurationError
+
+    _budget(monkeypatch, tmp_path)
+    _provider_env(monkeypatch)
+    monkeypatch.setenv("LLM_EXPERIMENT_ALLOWED_MODELS", "deepseek-flash")
+    monkeypatch.setenv("DEEPSEEK_MODEL_VISION_NAME", "deepseek-v4-flash-vision-exp")
+    image = tmp_path / "shot.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 4096)
+
+    with pytest.raises(SpendConfigurationError):
+        describe_image_with_deepseek(image, request_key="run-vision|op|vision|1")
+
+
+def test_the_precheck_is_flash_only():
+    """The precheck must price the run for flash, not for pro."""
+
+    import importlib.util
+    from pathlib import Path
+
+    tool = Path(__file__).resolve().parents[1] / "tools" / "precheck_sample_budget.py"
+    spec = importlib.util.spec_from_file_location("precheck_sample_budget", tool)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    assert module.REQUIRED_MODELS == ("deepseek-flash",)
+    assert module.RATE_CARD_CNY_PER_MTOK["deepseek-flash"]["input_peak"] == 2.0
+    assert module.RATE_CARD_CNY_PER_MTOK["deepseek-flash"]["output_peak"] == 8.0

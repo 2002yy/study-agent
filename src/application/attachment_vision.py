@@ -16,9 +16,12 @@ import os
 from pathlib import Path
 from typing import Any
 
-from src.llm_spend_guard import SpendLimitExceeded
+from src.llm_spend_guard import SpendConfigurationError, SpendLimitExceeded
 
-DEFAULT_VISION_MODEL = "deepseek-v4-flash-vision-exp"
+#: ``deepseek-flash`` (DeepSeek-V4.1-Flash-1017) understands images natively.
+#: The old ``deepseek-v4-flash-vision-exp`` id is retired: it is only forwarded
+#: to V4.1-Flash, so a run must not depend on it.
+DEFAULT_VISION_MODEL = "deepseek-flash"
 # Output cap for one image description; also the spend-reservation bound.
 _VISION_MAX_TOKENS = 1200
 
@@ -70,8 +73,9 @@ def describe_image_with_deepseek(
 
         # Vision is a paid call too: reserve it under the same hard cap before
         # any request is sent (image payload charged as a conservative proxy).
-        from src.llm_spend_guard import reserve_call
+        from src.llm_spend_guard import require_allowed_model, reserve_call
 
+        require_allowed_model(vision_model_name(), purpose="vision:image_description")
         reserve_call(
             # base64 expands by ~4/3; x2 is a deliberately conservative proxy.
             prompt_chars=len(_DESCRIPTION_PROMPT) + image_path.stat().st_size * 2,
@@ -110,8 +114,9 @@ def describe_image_with_deepseek(
             extra_body={"thinking": {"type": "disabled"}},
         )
         description = (response.choices[0].message.content or "").strip()
-    except SpendLimitExceeded:
-        # A spend stop is not a provider failure: keep it distinguishable.
+    except (SpendConfigurationError, SpendLimitExceeded):
+        # A spend stop (cap reached, model not allowed) is not a provider
+        # failure: keep it distinguishable instead of wrapping it.
         raise
     except Exception as exc:  # noqa: BLE001 - normalized into audit trail
         raise VisionDescriptionError(_classify_error(exc)) from exc

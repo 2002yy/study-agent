@@ -21,12 +21,15 @@ sys.path.insert(0, str(ROOT))
 #: DeepSeek's published rate card, CNY per 1M tokens, read from
 #: https://api-docs.deepseek.com/zh-cn/quick_start/pricing (2026-10-19).
 #: Peak = Mon-Fri 09:00-12:00 and 14:00-18:00 Beijing time; off-peak is half.
+#: ``deepseek-flash`` is DeepSeek-V4.1-Flash-1017 and understands images
+#: natively, so vision needs no separate model id.
 RATE_CARD_CNY_PER_MTOK = {
     "deepseek-flash": {"input_peak": 2.0, "input_offpeak": 1.0, "output_peak": 8.0, "output_offpeak": 4.0},
     "deepseek-v4-pro": {"input_peak": 9.0, "input_offpeak": 4.5, "output_peak": 27.0, "output_offpeak": 13.5},
 }
-#: Every model the router may pick for a sample (`llm_router.VALID_MODELS`).
-SAMPLE_MODELS = ("deepseek-flash", "deepseek-v4-pro")
+#: The run is Flash-only: the reservation is priced for this model, so anything
+#: else must be refused rather than silently charged at the wrong rate.
+REQUIRED_MODELS = ("deepseek-flash",)
 
 #: A representative Deep research sample, used only to show worst-case sizes.
 SAMPLE_SHAPE = {
@@ -80,9 +83,23 @@ def main() -> int:
     if ledger == "(runtime database)":
         print("  note                 : LLM_SPEND_LEDGER_DB unset; the runtime database is used")
 
+    allowed = os.getenv("LLM_EXPERIMENT_ALLOWED_MODELS", "").strip()
+    print(f"  allowed models       : {allowed or '(unrestricted - the router may pick pro)'}")
+    if not allowed:
+        failures.append(
+            "LLM_EXPERIMENT_ALLOWED_MODELS is unset, so a hard question could be routed "
+            "to a model the reservation was not priced for"
+        )
+    else:
+        pinned = {part.strip() for part in allowed.split(",") if part.strip()}
+        if pinned != set(REQUIRED_MODELS):
+            failures.append(
+                f"this run must be Flash-only; allowed models are {sorted(pinned)}"
+            )
+
     print("\n=== coverage against the provider rate card (worst case = peak)")
     if input_price is not None and output_price is not None:
-        for model in SAMPLE_MODELS:
+        for model in REQUIRED_MODELS:
             rates = RATE_CARD_CNY_PER_MTOK[model]
             ok_input = input_price >= rates["input_peak"]
             ok_output = output_price >= rates["output_peak"]
@@ -97,6 +114,18 @@ def main() -> int:
                     f"{model} peak ({rates['input_peak']}/{rates['output_peak']} CNY per 1M) "
                     f"is not covered by the configured {input_price}/{output_price}"
                 )
+
+    print("\n=== vision and retrieval")
+    from src.application.attachment_vision import vision_model_name
+
+    vision = vision_model_name()
+    print(f"  vision model         : {vision}")
+    if vision not in REQUIRED_MODELS:
+        failures.append(f"vision model {vision!r} is not one of {list(REQUIRED_MODELS)}")
+    print(
+        "  note                 : DeepSeek Search/Fetch become billable on 2026-11-01 "
+        "(5 CNY / 1000 requests); this run must use the repository's own retrieval"
+    )
 
     print("\n=== worst-case reservation of one representative sample")
     if input_price is not None and output_price is not None:
@@ -129,7 +158,10 @@ def main() -> int:
             print(f"  FAIL: {failure}")
         print("PRECHECK: FAIL - do not start a paid sample yet")
         return 1
-    print("PRECHECK: PASS - the configured reservation is at least the published worst case")
+    print(
+        "PRECHECK: PASS - Flash-only, and the configured reservation is at least "
+        "the published flash peak"
+    )
     return 0
 
 
