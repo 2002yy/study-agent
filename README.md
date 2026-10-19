@@ -3,6 +3,8 @@
 > **个人学习工作台**：长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”。
 >
 > 当前进度唯一入口：[`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)。
+>
+> **产品迭代优先级与双循环开发规则：** [`docs/PRODUCT_ITERATION_POLICY.md`](docs/PRODUCT_ITERATION_POLICY.md)。AI 执行入口见根目录 [`AGENTS.md`](AGENTS.md)，当前任务仍以项目状态交接为准。
 
 Study Agent 不是把聊天记录长期堆积起来的 Chatbot，也不是让多个角色各自维护一套“记忆真相”的角色扮演系统。当前产品主线是把学习过程收敛为可恢复、可验证、可追溯的学习状态：
 
