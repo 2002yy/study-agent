@@ -9,6 +9,13 @@
 ## 0. Current Handoff（cold-start 入口）
 
 
+**2026-10-19 CL-1D-3：有界多步事件流（本轮第一小片）。** branch `codex/conversation-bounded-loop-20261019` / worktree `D:/study-agent-validation/conversation-bounded-loop-20261019`，固定base为自身#239 `756a6e22a8c6021248270f4366bfa9c094391ed7`。#233在head224cae06 / CI39215954538 SUCCESS / finding已解决后expected-head合入main `5ead630fd902360ddff0f5694fbf4f3ddad74140`；上一个main9e36b935 CI39215516784 SUCCESS。其他窗口WIP未导入。
+
+新增 `run_conversation_loop`、LoopLimits、LoopStopped：串联决策→分发→成功工具观察→回填→下一决策；直接回答/澄清/转向/排队收束本轮，仅成功确定的工具结果能继续。1–8步硬上限、共享DecisionAdmission/ActionBudget及含消费者暂停的总时限，单次模型/动作还受原限额约束。公开事件流保留DecisionResult/ActionEvent，不吞初步答案；正常结束给一个结构化停止原因与步数/观察数，取消/关闭传播至内层，不能将其解释为外部执行已回滚。新意图或研究变化停止，工具消耗未由服务端记录则拒绝继续。后续只回填最近一条工具观察，完整多观察累积/实际模型质量另验；不把控制顺序测试当产品智能验收。
+
+新增28项测试覆盖三次工具后回答、先答再查的可见顺序、步数/双预算、关闭/取消、换题/研究变化、未记额度、总时限和脱敏。命名L1 conversation_bounded_loop（自身+followup/step/dispatch/runner/admission/decision/阶段策略）最终205 PASS/56.49s；Ruff/format、mypy122/128 NEW0与diff-check PASS；候选SHA由本段所属提交恢复。无SDK/付费调用、生产路由/持久业务schema/UI/答案权威变更，无本地L3。下一片CL-1D-4：单次消费的运行回执与中断边界；本轮继续开发，不因本片推送而结束。
+
+
 **2026-10-19 CL-1D-2：有界工具观察回填（当前独立小片）。** branch `codex/conversation-observation-followup-20261019` / worktree `D:/study-agent-validation/conversation-observation-followup-20261019`，显式固定base为自身#236冻结head `2ce7dbe7c0cdd7e8a3d07422464727a0bd9cb179`；未取其他窗口WIP。#232已expected-head合入main `9e36b9359f4224735c30d163ff9e105932bc1eea`，根main已ff同步，4个外部IA-1A未跟踪ZIP完整保留；其main CI39215516784在后台。#233整合main后head224cae0664b35a40f1e115e3f44d7ecb1239e0be / CI39215954538；#235修复版本回执finding并整合main后headf42095445331b1666e0f2087153629e9b1a44e02 / CI39216114150；#236吸收修复后head2ce7dbe7 / CI39216194104；上述最新CI快照in_progress，均不借旧绿灯合并。#235 finding4307918994已解决，本地共享影响集164 PASS；#236影响集134 PASS。
 
 新增 `decide_after_tool_observation` 与纯投影 `tool_followup_context`：仅接受同一请求、成功且确定的USE_TOOL观察及经校验的原提议；服务端必须已记录至少一次工具消耗，换题/改历史/改研究快照拒绝。观察以单独JSON消息标记unverified，原证据摘要/用户意图保持原样；固定系统说明不插入观察内容。序列化观察包上限8000字符，超限拒绝而不悄悄截断。额外两条消息的准确字符数先经过原DecisionAdmission准入，再提交注入式模型；沿用原超时/取消/迟到/提议校验与no-retry。观察身份稳定派生为新request_id，证据或预算刷新不能给同一观察换身份重试；兼容进程预算和已合并SQLite账本，不存工具正文。宿主可用公开投影执行下一提议，本函数不自动执行或发布。
