@@ -302,6 +302,29 @@ def test_blocking_transport_expiry_does_not_publish():
     assert result.status == "timeout" and not result.answer
 
 
+def test_slow_completion_snapshot_cannot_publish_after_deadline():
+    item = value()
+    checks = []
+
+    def current():
+        checks.append(True)
+        if len(checks) == 3:
+            time.sleep(0.02)
+        return item.context
+
+    async def transport(request):
+        return "expired during validation"
+
+    result = run(
+        transport,
+        item=item,
+        current=current,
+        limits=AnswerLimits(timeout_seconds=0.005),
+    )
+    assert result.status == "timeout" and not result.answer
+    assert result.attempted and result.outcome_unknown
+
+
 @pytest.mark.parametrize("change", ["focus", "phase", "evidence"])
 def test_sqlite_reopen_blocks_replay_with_changed_mutable_content(tmp_path, change):
     item = value()
