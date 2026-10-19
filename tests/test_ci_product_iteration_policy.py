@@ -78,3 +78,14 @@ def test_missing_document_index_is_rejected(isolated_policy: Path) -> None:
         encoding="utf-8",
     )
     assert any("index" in issue for issue in check_policy(isolated_policy))
+
+
+def test_missing_pr_dynamic_evidence_field_is_rejected(isolated_policy: Path) -> None:
+    template = isolated_policy / ".github/pull_request_template.md"
+    template.write_text(
+        template.read_text(encoding="utf-8").replace(
+            "## Dynamic evidence (actual or not_run)", "## Dynamic evidence removed"
+        ),
+        encoding="utf-8",
+    )
+    assert any("PR template" in issue for issue in check_policy(isolated_policy))

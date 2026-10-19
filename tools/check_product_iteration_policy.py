@@ -16,6 +16,7 @@ REQUIRED_FILES = (
     "docs/README.md",
     "docs/PRODUCT_ITERATION_POLICY.md",
     ".github/workflows/ci.yml",
+    ".github/pull_request_template.md",
 )
 POLICY_LINK = "docs/PRODUCT_ITERATION_POLICY.md"
 POLICY_SECTIONS = (
@@ -65,6 +66,16 @@ def check_policy(root: Path) -> list[str]:
         errors.append("policy must prohibit unauthorized paid dynamic tests")
     if "assistant_message" not in policy or "ChatGPT" not in policy:
         errors.append("policy must require actual answer and comparison evidence")
+
+    template = content[".github/pull_request_template.md"]
+    for heading in (
+        "## User task, priority and causal owner",
+        "## Static evidence (exact head)",
+        "## Dynamic evidence (actual or not_run)",
+        "## Safety, cost and decision",
+    ):
+        if heading not in template:
+            errors.append(f"PR template missing product evidence field: {heading}")
 
     workflow = content[".github/workflows/ci.yml"]
     if "id: product_policy" not in workflow:
