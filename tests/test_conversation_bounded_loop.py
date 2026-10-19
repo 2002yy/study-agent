@@ -7,7 +7,11 @@ import json
 
 import pytest
 
-from src.application.conversation_action_dispatch import ActionBudget, ActionEvent
+from src.application.conversation_action_dispatch import (
+    ActionBudget,
+    ActionEvent,
+    SteeringObservation,
+)
 from src.application.conversation_bounded_loop import (
     LoopLimits,
     LoopStopped,
@@ -30,12 +34,16 @@ def scenario(
     handler=None,
     decision_budget=None,
     action_budget=None,
+    active_research=None,
+    supports_queue=False,
 ):
     root = DecisionContext(
         "loop-1",
         "先分析再计算",
         available_tools=("compute",),
         remaining_tool_calls=tools,
+        active_research=active_research,
+        supports_queue=supports_queue,
     )
     state, calls = [root], []
     choices = iter(actions)
@@ -52,12 +60,16 @@ def scenario(
                 "schema": "conversation-decision-v1",
                 "request_id": data["request_id"],
                 "action": action,
-                "relation": "new_topic",
+                "relation": "supplement" if action == "steer" else "new_topic",
                 "reason": "选择下一步",
                 "focus": "计算",
                 "tool": tool,
-                "target_run_id": None,
-                "target_revision": None,
+                "target_run_id": data["active_research"]["run_id"]
+                if action in {"steer", "queue"}
+                else None,
+                "target_revision": data["active_research"]["revision"]
+                if action in {"steer", "queue"}
+                else None,
                 "active_run_disposition": "keep" if data["active_research"] else "none",
             }
         )
@@ -91,6 +103,63 @@ def scenario(
 
 async def collect(stream):
     return [event async for event in stream]
+
+
+@pytest.mark.parametrize(
+    "change", ["own_revision", "concurrent_revision", "new_topic", "before_handler"]
+)
+def test_tool_then_steer_preserves_identity_but_requires_exact_revision_receipt(change):
+    async def run():
+        active = ActiveResearch("run-1", 1, "原研究", True)
+
+        async def handler(invocation):
+            if invocation.stage == ConversationAction.USE_TOOL:
+                state[0] = replace(
+                    state[0], remaining_tool_calls=state[0].remaining_tool_calls - 1
+                )
+                return "工具结果"
+            committed = replace(active, revision=2, question="转向后的研究")
+            state[0] = replace(state[0], active_research=committed)
+            if change == "concurrent_revision":
+                state[0] = replace(
+                    state[0], active_research=replace(committed, revision=3)
+                )
+            if change == "new_topic":
+                state[0] = replace(state[0], user_message="另一个问题")
+            return SteeringObservation("已接收转向", committed)
+
+        _, state, calls, stream = scenario(
+            ("use_tool", "steer"), active_research=active, handler=handler
+        )
+        first = [await anext(stream) for _ in range(3)]
+        assert (
+            isinstance(first[-1], DecisionResult)
+            and first[-1].proposal.action == ConversationAction.STEER
+        )
+        if change == "before_handler":
+            state[0] = replace(state[0], active_research=replace(active, revision=2))
+        rest = await collect(stream)
+        if change == "own_revision":
+            assert rest[-1] == LoopStopped("steering_observed", 2, 2)
+            assert rest[0].request_id == first[-1].proposal.request_id
+        else:
+            assert rest[-1] == LoopStopped(
+                "action_failed", 2, 1, False, "stale_context"
+            )
+        assert calls.count("steer") == (0 if change == "before_handler" else 1)
+
+    asyncio.run(run())
+
+
+def test_tool_then_queue_keeps_projected_identity_and_stops():
+    _, _, calls, stream = scenario(
+        ("use_tool", "queue"),
+        active_research=ActiveResearch("run-1", 1, "原研究", True),
+        supports_queue=True,
+    )
+    events = asyncio.run(collect(stream))
+    assert events[-1] == LoopStopped("queue_observed", 2, 2)
+    assert calls == ["model", "use_tool", "model", "queue"]
 
 
 def test_answer_then_research_streams_before_tool_and_next_answer():

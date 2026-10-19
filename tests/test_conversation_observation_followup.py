@@ -95,6 +95,60 @@ def test_durable_admission_reopening_rejects_same_observation_and_counts_full_pr
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "refresh", ["evidence", "capability", "quota", "proposal", "receipt"]
+)
+def test_reconstructed_prior_snapshot_cannot_reidentify_a_durable_observation(
+    tmp_path, refresh
+):
+    async def scenario():
+        previous, proposal, event, fresh = inputs()
+        calls = []
+        path = tmp_path / "admission.sqlite"
+
+        def ledger():
+            return SqliteDecisionAdmission(
+                path, max_calls=3, max_prompt_chars=100000, max_output_tokens=2400
+            )
+
+        async def model(request):
+            calls.append(request)
+            return response(request)
+
+        first = await decide_after_tool_observation(
+            previous,
+            proposal,
+            event,
+            current_context=lambda: fresh,
+            transport=model,
+            budget=ledger(),
+        )
+        assert first.status == "completed"
+        if refresh == "evidence":
+            previous = replace(previous, evidence_summary="刷新证据")
+        elif refresh == "capability":
+            previous = replace(previous, available_tools=("compute", "read"))
+        elif refresh == "quota":
+            previous = replace(previous, remaining_tool_calls=3)
+        elif refresh == "proposal":
+            proposal = replace(proposal, reason="重建说明", focus="重建目标")
+        else:
+            event = replace(event, observation="5.0")
+        fresh = replace(previous, remaining_tool_calls=0)
+        second = await decide_after_tool_observation(
+            previous,
+            proposal,
+            event,
+            current_context=lambda: fresh,
+            transport=model,
+            budget=ledger(),
+        )
+        assert second.status == "already_attempted" and len(calls) == 1
+        assert ledger().usage().calls == 1
+
+    asyncio.run(scenario())
+
+
 def response(request, *, request_id=None):
     data = json.loads(request.messages[1][1])
     return json.dumps(

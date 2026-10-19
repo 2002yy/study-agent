@@ -73,14 +73,14 @@ def tool_followup_context(
         raise _StaleObservation("observation belongs to an older intent")
     if fresh.remaining_tool_calls > previous.remaining_tool_calls - 1:
         raise ValueError("tool consumption has not been recorded by server")
-    # Stable per observed action, independent of later quota/evidence updates.
-    # Replaying the same observation cannot obtain a new admission identity.
+    # One admitted action request has at most one USE_TOOL stage. Neither a
+    # reconstructed prior snapshot, proposal wording nor receipt body can turn
+    # that same execution into a new model-call identity.
     identity = json.dumps(
         [
             "conversation-observation-followup-v1",
-            asdict(previous),
-            asdict(proposal),
-            asdict(observation),
+            observation.request_id,
+            observation.stage,
         ],
         ensure_ascii=False,
         sort_keys=True,

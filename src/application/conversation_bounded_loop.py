@@ -98,12 +98,17 @@ async def run_conversation_loop(
             fresh.request_id != context.request_id
             or fresh.user_message != context.user_message
             or fresh.history != context.history
-            or fresh.active_research != context.active_research
         ):
             return fresh
+        # Rebuild execution identities using the original research snapshot,
+        # then restore the actual snapshot for every freshness/receipt check.
+        # Otherwise a handler-owned STEER revision loses its projected identity
+        # before dispatch can compare it with the exact completion receipt.
+        actual_research = fresh.active_research
+        fresh = replace(fresh, active_research=context.active_research)
         for before, proposal, observation in frames:
             fresh = tool_followup_context(before, fresh, proposal, observation)
-        return fresh
+        return replace(fresh, active_research=actual_research)
 
     expected = context
     decision = await decide_conversation_action(

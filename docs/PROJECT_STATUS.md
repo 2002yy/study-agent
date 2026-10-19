@@ -8,12 +8,17 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-19 #242 父片修复整合。** 吸收自身冻结#240 head778d0003，含#239不可变观察身份与#240工具后STEER派生身份两项有效review修复；文档冲突保留双方。session生产代码不变，联合影响集conversation_loop_session 222 PASS/61.01s、mypy122/128 NEW0、Ruff/diff-check PASS后推送，新head独立绑定CI，旧150ae5ec结果不授予新head。CI-CL-2为本轮第三小片，继续基于本分支冻结结果登记精确路径与完整消费者集合。
+
 
 **2026-10-19 CL-1D-4：单次消费与运行回执（本轮第二小片）。** branch `codex/conversation-loop-session-20261019` / worktree `D:/study-agent-validation/conversation-loop-session-20261019`，固定base为自身#240 `672fd1228eaeb1fc688eae424a6fe6160fd0ae66`，其PR CI39218240337后台执行。新main为已发布#233的5ead630f（CI39217839722后台），#235旧f4209544 CI39216114150已绿但需整合新main交接再绑定新head；未借旧绿灯合并。
 
 新增ConversationLoopSession与不可变LoopReceipt：events()同步claim唯一消费句柄，不开始模型；关闭未读句柄也可靠关闭source。主动关闭、外部取消、正常终态、无终态流与异常明确分开，回执只含身份/步数/观察计数/状态，不存提示或工具正文；同实例不能再开消费句柄，新实例也仍受原共享准入去重。活动pull被取消时保留unknown，已发生的工具动作不声称回滚；暂停或断开后能查看本进程回执，不自动重放，不提供跨进程持久恢复。并发读取拒绝、active close取消内部pull、关闭失败脱敏且标记failed，关闭中的调用者取消仍传播。
 
 新增21项自身测试；命名L1 conversation_loop_session **212 PASS/73.64s**（自身+loop/followup/dispatch/runner/admission/decision/阶段策略）；Ruff/format与mypy122/128 NEW0 PASS，diff-check/候选扫描随提交完成。无生产聊天/SDK/付费调用/持久业务schema/UI或发布权威变更，无本地L3。候选SHA由本段所属提交恢复。下一片CI-CL-2：为这些明确可追踪的新消费者登记精确CI路径与共享影响集，避免普通局部修改因未登记路径反复全量；未知路径/共享权威仍保守扩大。
+**2026-10-19 #240 审阅修复 / 工具后STEER身份。** finding4311446891有效：frame投影因研究版本更新退回raw root request_id，成功STEER回执无法匹配。现只在原请求/用户/历史仍一致时重建派生身份；研究快照用于身份重建后立即恢复为真实fresh快照，执行前与完成时的版本/typed receipt校验均保留，绝不允许任意新版本。新增工具→STEER成功、并发版本、换题、handler启动前版本变化及工具→QUEUE五项回归。显式吸收自身#239的不可变source身份修复2bcb4e4c；原672fd122 CI不授予新head。候选SHA由本段所属提交恢复；命名L1 conversation_bounded_loop 215 PASS/67.23s，mypy122/128 NEW0、Ruff/format/diff-check PASS。修复将带入#242和CI-CL-2，不等待CI才开发。
+
+**2026-10-19 #239 审阅修复 / 观察重放身份。** finding4311370434有效：原hash包含整个previous，调用方重建旧上下文可使同一工具事件重新取得模型准入。现仅以不可变source request_id + USE_TOOL阶段派生后续身份（一个已准入提议最多一次工具阶段），不纳入证据/额度/能力、提议措辞或结果正文。新增5项SQLite重开负控覆盖这些重建变化，命名L1 conversation_observation_followup 182 PASS/49.08s。旧head756a6e22 / CI39217176655 SUCCESS不授予修复后head；推送后一次绑定CI并解决已修finding。修复将显式带入自身#240/#242及第三片CI路由，不依赖其他窗口WIP。
 
 
 **2026-10-19 CL-1D-3：有界多步事件流（本轮第一小片）。** branch `codex/conversation-bounded-loop-20261019` / worktree `D:/study-agent-validation/conversation-bounded-loop-20261019`，固定base为自身#239 `756a6e22a8c6021248270f4366bfa9c094391ed7`。#233在head224cae06 / CI39215954538 SUCCESS / finding已解决后expected-head合入main `5ead630fd902360ddff0f5694fbf4f3ddad74140`；上一个main9e36b935 CI39215516784 SUCCESS。其他窗口WIP未导入。

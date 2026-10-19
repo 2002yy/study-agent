@@ -105,13 +105,16 @@ ConversationLoopSession包装可信loop事件流，消费句柄只能claim一次
 
 ### CL-1D-3：有界多步事件流（独立小片，不切生产）
 
+工具回填后执行STEER必须保留派生请求身份；投影重建仅计算身份，必须返回真实fresh研究快照，让执行前检查与handler自身精确版本回执继续拒绝并发变化。不能回退raw root身份，也不能用历史研究版本伪装当前状态。
+
+
 LoopLimits 将一次运行限制为1–8次决策，并共享总时限、决策准入和动作/工具预算。run_conversation_loop流式输出原决策/观察，成功工具观察才触发下一决策；回答/澄清/转向/排队即收束。LoopStopped携停止原因、决策步数/成功观察数及失败detail/unknown，不把observed授予发布权威。消费者暂停计入期限，关闭/取消不执行后续阶段。服务端snapshot/工具额度仍是真实权威。
 
 下一片CL-1D-4增加单次消费的运行回执，明确关闭/取消的恢复边界；不做外部副作用自动重试。完整多观察累积/真实模型质量及生产接线仍待后续验收。
 
 ### CL-1D-2：有界观察回填（独立小片，不切生产）
 
-基于自身#236冻结2ce7dbe7，新增decide_after_tool_observation及tool_followup_context。一次调用最多请求一个后续提议，仅接收同请求的成功确定工具观察，服务端额度必须真实扣减；请求/用户消息/历史/研究版本变化使旧观察失效。原证据摘要不被工具文本覆盖；工具观察独立标记unverified，序列化包最多8000字符，新增提示精确计入DecisionAdmission。新request_id按原上下文/提议/观察稳定派生，重复观察不获新准入身份，支持既有SQLite账本。
+基于自身#236冻结2ce7dbe7，新增decide_after_tool_observation及tool_followup_context。一次调用最多请求一个后续提议，仅接收同请求的成功确定工具观察，服务端额度必须真实扣减；请求/用户消息/历史/研究版本变化使旧观察失效。原证据摘要不被工具文本覆盖；工具观察独立标记unverified，序列化包最多8000字符，新增提示精确计入DecisionAdmission。新request_id仅按不可变source request_id与USE_TOOL阶段稳定派生（不纳入可刷新的上下文、提议措辞或结果正文），重复观察不获新准入身份，支持既有SQLite账本。
 
 回填函数不执行下一提议；宿主可复用公开投影交给受控分发器。没有自动循环/生产接线/答案或applied权威；模型与handler仍为注入接口。命名影响集conversation_observation_followup覆盖自身、step、dispatch、runner、admission、decision及阶段策略。下一小片CL-1D-3做受总预算约束的多步事件流与明确终止原因，再考虑生产适配与真实资格。
 
