@@ -8,9 +8,23 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+
+**2026-10-19 本轮两片收口 / #240重绑main。** #236在bbcef47d / CI39221498204 SUCCESS后合main9684aa82，其exact-main CI39252662563 SUCCESS；#239在09283d0f0625c95520772ec92a7e3c4b119525b8 / CI39253778617 SUCCESS / 无未解决finding后expected-head合main `969fb53abb4f4f42999e48713543db6006c91c2f`，根main已ff同步，4个外部ZIP保留，新main push CI39255920427后台in_progress。#240原778d0003 / CI39220080887 SUCCESS且STEER身份finding已解决，现吸收发布main，仅交接/impact冲突，保留双方，loop生产树不变；共享影响集conversation_decision_1b 256 PASS/98.16s，mypy122/128 NEW0、Ruff/diff-check PASS，base改main，新head独立CI，不借旧绿灯。
+
+本轮新增两片均已推送：#245累计观察/阶段回复输入，headad0b2e32f235fb7739ba6a05729193a3b61566bf / CI39255166237后台in_progress，L1联合CI 394 PASS/131.04s、35项自身测试；#246执行流消费累计记录，head5e6e26623ad216690274d0edbc18660bd00d376a / CI39255727257后台in_progress，L1 277 PASS/103.24s、执行器38项通过。两片mypy122/128 NEW0、Ruff/format/diff-check与密钥扫描0 finding，工作树干净。#245的逐次额度finding4313958266与精确路径finding4313958272已修并解决，完整进入#246；未知路径和发布/强制门未缩小，#246实际差异选择conversation_decision_1b、full_scope/frontend/browser=false。没有本地L3、SDK/付费调用、生产聊天或UI切换；测试仅证数据/控制流，非真实模型回答质量。唯一下一功能片：提供给可信回答handler的有界累计输入，同时按最新head CI/审阅继续把自身成熟片移入main，不等CI才开发。候选SHA由本段所属提交恢复。
+
+
+**2026-10-19 #240 审阅修复 / 工具后STEER身份。** finding4311446891有效：frame投影因研究版本更新退回raw root request_id，成功STEER回执无法匹配。现只在原请求/用户/历史仍一致时重建派生身份；研究快照用于身份重建后立即恢复为真实fresh快照，执行前与完成时的版本/typed receipt校验均保留，绝不允许任意新版本。新增工具→STEER成功、并发版本、换题、handler启动前版本变化及工具→QUEUE五项回归。显式吸收自身#239的不可变source身份修复2bcb4e4c；原672fd122 CI不授予新head。候选SHA由本段所属提交恢复；命名L1 conversation_bounded_loop 215 PASS/67.23s，mypy122/128 NEW0、Ruff/format/diff-check PASS。修复将带入#242和CI-CL-2，不等待CI才开发。
 **2026-10-19 #239 重绑发布main。** #236在bbcef47d81150cca08f29e0bfdd84f052a3f0bea / CI39221498204 SUCCESS / 无未解决finding后expected-head合入main9684aa829c6b5cc4e8d70ff4754ecb4302557043；前mainafa54501 CI39221117547 SUCCESS。本#239旧2bcb4e4c / CI39219767478 SUCCESS且重放身份finding已解决，现吸收发布main，交接与impact冲突保留双方、followup生产逻辑不变；整合共享影响集conversation_decision_1b 223 PASS/118.69s，mypy122/128 NEW0、Ruff/diff-check PASS后推送并将base改main，旧绿灯不授予新head。本轮累计观察/阶段回复另在独立分支推进。
 
 **2026-10-19 #239 审阅修复 / 观察重放身份。** finding4311370434有效：原hash包含整个previous，调用方重建旧上下文可使同一工具事件重新取得模型准入。现仅以不可变source request_id + USE_TOOL阶段派生后续身份（一个已准入提议最多一次工具阶段），不纳入证据/额度/能力、提议措辞或结果正文。新增5项SQLite重开负控覆盖这些重建变化，命名L1 conversation_observation_followup 182 PASS/49.08s。旧head756a6e22 / CI39217176655 SUCCESS不授予修复后head；推送后一次绑定CI并解决已修finding。修复将显式带入自身#240/#242及第三片CI路由，不依赖其他窗口WIP。
+
+
+**2026-10-19 CL-1D-3：有界多步事件流（本轮第一小片）。** branch `codex/conversation-bounded-loop-20261019` / worktree `D:/study-agent-validation/conversation-bounded-loop-20261019`，固定base为自身#239 `756a6e22a8c6021248270f4366bfa9c094391ed7`。#233在head224cae06 / CI39215954538 SUCCESS / finding已解决后expected-head合入main `5ead630fd902360ddff0f5694fbf4f3ddad74140`；上一个main9e36b935 CI39215516784 SUCCESS。其他窗口WIP未导入。
+
+新增 `run_conversation_loop`、LoopLimits、LoopStopped：串联决策→分发→成功工具观察→回填→下一决策；直接回答/澄清/转向/排队收束本轮，仅成功确定的工具结果能继续。1–8步硬上限、共享DecisionAdmission/ActionBudget及含消费者暂停的总时限，单次模型/动作还受原限额约束。公开事件流保留DecisionResult/ActionEvent，不吞初步答案；正常结束给一个结构化停止原因与步数/观察数，取消/关闭传播至内层，不能将其解释为外部执行已回滚。新意图或研究变化停止，工具消耗未由服务端记录则拒绝继续。后续只回填最近一条工具观察，完整多观察累积/实际模型质量另验；不把控制顺序测试当产品智能验收。
+
+新增28项测试覆盖三次工具后回答、先答再查的可见顺序、步数/双预算、关闭/取消、换题/研究变化、未记额度、总时限和脱敏。命名L1 conversation_bounded_loop（自身+followup/step/dispatch/runner/admission/decision/阶段策略）最终205 PASS/56.49s；Ruff/format、mypy122/128 NEW0与diff-check PASS；候选SHA由本段所属提交恢复。无SDK/付费调用、生产路由/持久业务schema/UI/答案权威变更，无本地L3。下一片CL-1D-4：单次消费的运行回执与中断边界；本轮继续开发，不因本片推送而结束。
 
 
 **2026-10-19 CL-1D-2：有界工具观察回填（当前独立小片）。** branch `codex/conversation-observation-followup-20261019` / worktree `D:/study-agent-validation/conversation-observation-followup-20261019`，显式固定base为自身#236冻结head `2ce7dbe7c0cdd7e8a3d07422464727a0bd9cb179`；未取其他窗口WIP。#232已expected-head合入main `9e36b9359f4224735c30d163ff9e105932bc1eea`，根main已ff同步，4个外部IA-1A未跟踪ZIP完整保留；其main CI39215516784在后台。#233整合main后head224cae0664b35a40f1e115e3f44d7ecb1239e0be / CI39215954538；#235修复版本回执finding并整合main后headf42095445331b1666e0f2087153629e9b1a44e02 / CI39216114150；#236吸收修复后head2ce7dbe7 / CI39216194104；上述最新CI快照in_progress，均不借旧绿灯合并。#235 finding4307918994已解决，本地共享影响集164 PASS；#236影响集134 PASS。
