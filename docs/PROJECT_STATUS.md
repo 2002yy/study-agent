@@ -8,6 +8,19 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-19 #242 主线重绑。** 已吸收自身#240合并main cf70e688c91fe93cd259c10c6dc7d00a1b2e4586，merge bcc4d3f1；冲突仅两份文档与manifest，保留双方记录及context测试。session生产代码与原827b81ad相同；当前main增量5文件。命名conversation_decision_1b **278 PASS/91.45s**，Ruff/diff-check PASS，mypy122/128 NEW0；无本地L3。旧CI39220756792不授予新候选，推送后重绑PR base main并记录一次exact-head CI。下一功能片为累计回答输入与loop可选接线，未接其他窗口WIP。
+
+**2026-10-19 #242 审阅修复 / 终态后的close_error。** finding4311507599有效：有效LoopStopped后清理异常先记close_error，又被_next通用异常覆盖成stream_error。新增内部专用关闭异常分流，保留failed/close_error、unknown与脱敏错误，不把终态观察提升为清理成功。新增精确负控；最终命名L1 conversation_loop_session 223 PASS/65.38s，mypy122/128 NEW0、Ruff/format/diff-check PASS。候选head由本段所属提交恢复，旧a88a4f42不授予新head；推送后绑定一次CI并解决已修finding。
+
+**2026-10-19 #242 父片修复整合。** 吸收自身冻结#240 head778d0003，含#239不可变观察身份与#240工具后STEER派生身份两项有效review修复；文档冲突保留双方。session生产代码不变，联合影响集conversation_loop_session 222 PASS/61.01s、mypy122/128 NEW0、Ruff/diff-check PASS后推送，新head独立绑定CI，旧150ae5ec结果不授予新head。CI-CL-2为本轮第三小片，继续基于本分支冻结结果登记精确路径与完整消费者集合。
+
+
+**2026-10-19 CL-1D-4：单次消费与运行回执（本轮第二小片）。** branch `codex/conversation-loop-session-20261019` / worktree `D:/study-agent-validation/conversation-loop-session-20261019`，固定base为自身#240 `672fd1228eaeb1fc688eae424a6fe6160fd0ae66`，其PR CI39218240337后台执行。新main为已发布#233的5ead630f（CI39217839722后台），#235旧f4209544 CI39216114150已绿但需整合新main交接再绑定新head；未借旧绿灯合并。
+
+新增ConversationLoopSession与不可变LoopReceipt：events()同步claim唯一消费句柄，不开始模型；关闭未读句柄也可靠关闭source。主动关闭、外部取消、正常终态、无终态流与异常明确分开，回执只含身份/步数/观察计数/状态，不存提示或工具正文；同实例不能再开消费句柄，新实例也仍受原共享准入去重。活动pull被取消时保留unknown，已发生的工具动作不声称回滚；暂停或断开后能查看本进程回执，不自动重放，不提供跨进程持久恢复。并发读取拒绝、active close取消内部pull、关闭失败脱敏且标记failed，关闭中的调用者取消仍传播。
+
+新增21项自身测试；命名L1 conversation_loop_session **212 PASS/73.64s**（自身+loop/followup/dispatch/runner/admission/decision/阶段策略）；Ruff/format与mypy122/128 NEW0 PASS，diff-check/候选扫描随提交完成。无生产聊天/SDK/付费调用/持久业务schema/UI或发布权威变更，无本地L3。候选SHA由本段所属提交恢复。下一片CI-CL-2：为这些明确可追踪的新消费者登记精确CI路径与共享影响集，避免普通局部修改因未登记路径反复全量；未知路径/共享权威仍保守扩大。
+**2026-10-19 #240 审阅修复 / 工具后STEER身份。** finding4311446891有效：frame投影因研究版本更新退回raw root request_id，成功STEER回执无法匹配。现只在原请求/用户/历史仍一致时重建派生身份；研究快照用于身份重建后立即恢复为真实fresh快照，执行前与完成时的版本/typed receipt校验均保留，绝不允许任意新版本。新增工具→STEER成功、并发版本、换题、handler启动前版本变化及工具→QUEUE五项回归。显式吸收自身#239的不可变source身份修复2bcb4e4c；原672fd122 CI不授予新head。候选SHA由本段所属提交恢复；命名L1 conversation_bounded_loop 215 PASS/67.23s，mypy122/128 NEW0、Ruff/format/diff-check PASS。修复将带入#242和CI-CL-2，不等待CI才开发。
 
 **2026-10-19 本轮两片收口 / #240重绑main。** #236在bbcef47d / CI39221498204 SUCCESS后合main9684aa82，其exact-main CI39252662563 SUCCESS；#239在09283d0f0625c95520772ec92a7e3c4b119525b8 / CI39253778617 SUCCESS / 无未解决finding后expected-head合main `969fb53abb4f4f42999e48713543db6006c91c2f`，根main已ff同步，4个外部ZIP保留，新main push CI39255920427后台in_progress。#240原778d0003 / CI39220080887 SUCCESS且STEER身份finding已解决，现吸收发布main，仅交接/impact冲突，保留双方，loop生产树不变；共享影响集conversation_decision_1b 256 PASS/98.16s，mypy122/128 NEW0、Ruff/diff-check PASS，base改main，新head独立CI，不借旧绿灯。
 
