@@ -9,6 +9,11 @@
 ## 0. Current Handoff（cold-start 入口）
 
 
+**2026-10-19 #240 审阅修复 / 工具后STEER身份。** finding4311446891有效：frame投影因研究版本更新退回raw root request_id，成功STEER回执无法匹配。现只在原请求/用户/历史仍一致时重建派生身份；研究快照用于身份重建后立即恢复为真实fresh快照，执行前与完成时的版本/typed receipt校验均保留，绝不允许任意新版本。新增工具→STEER成功、并发版本、换题、handler启动前版本变化及工具→QUEUE五项回归。显式吸收自身#239的不可变source身份修复2bcb4e4c；原672fd122 CI不授予新head。候选SHA由本段所属提交恢复；命名L1 conversation_bounded_loop 215 PASS/67.23s，mypy122/128 NEW0、Ruff/format/diff-check PASS。修复将带入#242和CI-CL-2，不等待CI才开发。
+
+**2026-10-19 #239 审阅修复 / 观察重放身份。** finding4311370434有效：原hash包含整个previous，调用方重建旧上下文可使同一工具事件重新取得模型准入。现仅以不可变source request_id + USE_TOOL阶段派生后续身份（一个已准入提议最多一次工具阶段），不纳入证据/额度/能力、提议措辞或结果正文。新增5项SQLite重开负控覆盖这些重建变化，命名L1 conversation_observation_followup 182 PASS/49.08s。旧head756a6e22 / CI39217176655 SUCCESS不授予修复后head；推送后一次绑定CI并解决已修finding。修复将显式带入自身#240/#242及第三片CI路由，不依赖其他窗口WIP。
+
+
 **2026-10-19 CL-1D-3：有界多步事件流（本轮第一小片）。** branch `codex/conversation-bounded-loop-20261019` / worktree `D:/study-agent-validation/conversation-bounded-loop-20261019`，固定base为自身#239 `756a6e22a8c6021248270f4366bfa9c094391ed7`。#233在head224cae06 / CI39215954538 SUCCESS / finding已解决后expected-head合入main `5ead630fd902360ddff0f5694fbf4f3ddad74140`；上一个main9e36b935 CI39215516784 SUCCESS。其他窗口WIP未导入。
 
 新增 `run_conversation_loop`、LoopLimits、LoopStopped：串联决策→分发→成功工具观察→回填→下一决策；直接回答/澄清/转向/排队收束本轮，仅成功确定的工具结果能继续。1–8步硬上限、共享DecisionAdmission/ActionBudget及含消费者暂停的总时限，单次模型/动作还受原限额约束。公开事件流保留DecisionResult/ActionEvent，不吞初步答案；正常结束给一个结构化停止原因与步数/观察数，取消/关闭传播至内层，不能将其解释为外部执行已回滚。新意图或研究变化停止，工具消耗未由服务端记录则拒绝继续。后续只回填最近一条工具观察，完整多观察累积/实际模型质量另验；不把控制顺序测试当产品智能验收。
