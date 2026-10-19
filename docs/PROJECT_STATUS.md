@@ -8,6 +8,16 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-19 #239 重绑发布main。** #236在bbcef47d81150cca08f29e0bfdd84f052a3f0bea / CI39221498204 SUCCESS / 无未解决finding后expected-head合入main9684aa829c6b5cc4e8d70ff4754ecb4302557043；前mainafa54501 CI39221117547 SUCCESS。本#239旧2bcb4e4c / CI39219767478 SUCCESS且重放身份finding已解决，现吸收发布main，交接与impact冲突保留双方、followup生产逻辑不变；整合共享影响集conversation_decision_1b 223 PASS/118.69s，mypy122/128 NEW0、Ruff/diff-check PASS后推送并将base改main，旧绿灯不授予新head。本轮累计观察/阶段回复另在独立分支推进。
+
+**2026-10-19 #239 审阅修复 / 观察重放身份。** finding4311370434有效：原hash包含整个previous，调用方重建旧上下文可使同一工具事件重新取得模型准入。现仅以不可变source request_id + USE_TOOL阶段派生后续身份（一个已准入提议最多一次工具阶段），不纳入证据/额度/能力、提议措辞或结果正文。新增5项SQLite重开负控覆盖这些重建变化，命名L1 conversation_observation_followup 182 PASS/49.08s。旧head756a6e22 / CI39217176655 SUCCESS不授予修复后head；推送后一次绑定CI并解决已修finding。修复将显式带入自身#240/#242及第三片CI路由，不依赖其他窗口WIP。
+
+
+**2026-10-19 CL-1D-2：有界工具观察回填（当前独立小片）。** branch `codex/conversation-observation-followup-20261019` / worktree `D:/study-agent-validation/conversation-observation-followup-20261019`，显式固定base为自身#236冻结head `2ce7dbe7c0cdd7e8a3d07422464727a0bd9cb179`；未取其他窗口WIP。#232已expected-head合入main `9e36b9359f4224735c30d163ff9e105932bc1eea`，根main已ff同步，4个外部IA-1A未跟踪ZIP完整保留；其main CI39215516784在后台。#233整合main后head224cae0664b35a40f1e115e3f44d7ecb1239e0be / CI39215954538；#235修复版本回执finding并整合main后headf42095445331b1666e0f2087153629e9b1a44e02 / CI39216114150；#236吸收修复后head2ce7dbe7 / CI39216194104；上述最新CI快照in_progress，均不借旧绿灯合并。#235 finding4307918994已解决，本地共享影响集164 PASS；#236影响集134 PASS。
+
+新增 `decide_after_tool_observation` 与纯投影 `tool_followup_context`：仅接受同一请求、成功且确定的USE_TOOL观察及经校验的原提议；服务端必须已记录至少一次工具消耗，换题/改历史/改研究快照拒绝。观察以单独JSON消息标记unverified，原证据摘要/用户意图保持原样；固定系统说明不插入观察内容。序列化观察包上限8000字符，超限拒绝而不悄悄截断。额外两条消息的准确字符数先经过原DecisionAdmission准入，再提交注入式模型；沿用原超时/取消/迟到/提议校验与no-retry。观察身份稳定派生为新request_id，证据或预算刷新不能给同一观察换身份重试；兼容进程预算和已合并SQLite账本，不存工具正文。宿主可用公开投影执行下一提议，本函数不自动执行或发布。
+
+验证：新增22项自身测试PASS，包括scripted模型→本地实际加法→观察回填→下一决策→宿主执行回答，及SQLite重开去重/完整提示计费、原证据保留、提示数据与指令分离、转义后包体超限、旧身份/未消费额度/换题拒绝、取消与超时；只证明控制流和消息边界，不证明真实模型智能或抗注入质量。命名L1 conversation_observation_followup含step/dispatch/runner/admission/decision/阶段策略，最终 **177 PASS / 47.97s**。Ruff/format、mypy122/128 NEW0、diff-check PASS；无SDK/付费模型、无生产路由、无业务schema或前端变更，无本地L3。候选SHA由本段所属Git提交恢复；下一动作独立stacked PR并一次绑定exact-head CI。唯一后续片CL-1D-3：有界多步事件流与终止原因，继续由总决策/动作预算约束，不引入生产发布权威。
 
 **2026-10-19 本轮三片与main整合收口（#236当前候选）。** #233已在224cae06 / CI39215954538 SUCCESS后合main5ead630f，其exact-main CI39217839722 SUCCESS；#235已在5566aa4d7c2c1968b9f82bd57cbc277d7a6a1d7b / CI39219048419 SUCCESS / 版本回执finding已解决后expected-head合main `afa5450143ca8a569d621487d2d3b00d415a9565`，push CI39221117547后台in_progress，根main已ff同步、4个外部ZIP保留。当前#236已吸收该发布main，add/add冲突实质仅AsyncIterator→AsyncGenerator两个注解，保留正确可关闭类型；交接/impact冲突保留双方。对main差异仍仅原单步编排6文件，未引入其他窗口WIP；整合后conversation_decision_1b 196 PASS/51.22s、mypy122/128 NEW0、Ruff/format/diff-check PASS；候选SHA由本段所属提交恢复，需绑定新exact-head CI，旧2ce7dbe7绿灯不授予新head。PR base改main。
 
