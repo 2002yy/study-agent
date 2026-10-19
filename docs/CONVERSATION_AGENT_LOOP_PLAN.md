@@ -105,6 +105,9 @@ loop将阶段回复和确定工具结果依次加入ObservationTrail；下一模
 
 ### CL-1D-5：累计观察与阶段回复输入（独立小片，不切生产）
 
+每次工具记录后的额度上限按该帧before额度减一继续收紧，不能只按root减次数恢复并发消耗；源码与测试两个精确新路径映射完整共享影响集，不使用前缀通配。CI自身修改仍采用保守范围，普通后续trail改动才使用命名聚焦门。
+
+
 ObservationTrail保存root上下文与不可变ObservationFrame元组，单条必须为确定成功的工具观察或answer_then_research的阶段回复。验证同请求配对、连续派生身份和原意图/历史/研究以及累计额度，拒绝跨任务、重复或乱序记录。最多16阶段/16000个JSON序列化字符，未完成answer/tool配对不能发起下一决策；不截断正文。
 
 decide_with_observation_trail将全部记录作为额外JSON数据消息送入原受控决策器，区别assistant_preliminary与tool_observation并标记unverified；原history与evidence摘要保留，所有新增字符先准入。共用tool_observation_request_id提取旧身份算法，已持久化去重身份不改变。该片不执行动作；下一片CL-1D-6在loop中消费并定义观察容量耗尽的停止行为。

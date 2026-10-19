@@ -8,12 +8,15 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-19 CL-1D-6 最终父片绑定。** 已吸收自身#245冻结修复ad0b2e32f235fb7739ba6a05729193a3b61566bf（逐次额度与精确路由两个已解决finding）；冲突仅交接，保留双方。新模块/CI路径来自已提交自身父片，非WIP。最终命名L1 conversation_loop_trail **277 PASS/103.24s**，mypy122/128 NEW0、Ruff/format/diff-check PASS；候选SHA由本段所属提交恢复；#245两个finding4313958266/4313958272均已修并解决，修复后CI39255166237后台执行；父片CI继续后台执行，不借旧7b6fb566绿灯。
+
 
 **2026-10-19 CL-1D-6：多步流消费累计记录（本轮第二小片）。** branch `codex/conversation-loop-trail-20261019` / worktree `D:/study-agent-validation/conversation-loop-trail-20261019`，初始固定base自身#245提交7b6fb5668f9eb91334430f0b9f4d4dc7575a752d，发布前还需吸收本轮#245逐次额度/精确CI修复。未导入其他窗口WIP。
 
 run_conversation_loop改为收集answer_then_research的阶段回复及每次成功确定工具观察，后续模型输入使用完整ObservationTrail；派生当前身份先加入frame再请求模型，仍还原真实研究版本以验证STEER回执。原history/evidence摘要不改写，最多8次决策/16记录/16000个序列化字符，额外输入精确计入共享DecisionAdmission。容量耗尽给observation_limit并关闭内层流：已完成的原文观察仍交付、不截断；若阶段回复已超容量，其后已预留但未执行的tool不会启动，不退款或自动重试。完整八步验证了输入记录数2/4/6/8/10/12/14，边界停止仍有结构化session回执。
 
 本地新增5个执行器用例（含容量分支参数），执行器38 PASS；初步命名L1 conversation_loop_trail 274 PASS/101.70s，mypy122/128 NEW0、Ruff/format PASS；吸收父片审阅修复后的最终结果另记。当前先本地提交以保护独立片，再合入父片已冻结修复，尚未推送此旧候选。无真实模型/付费调用/生产聊天/UI/业务schema/发布权威切换，无本地L3；测试仅证明数据与执行顺序，非真实模型回答质量。唯一下一动作：最终联合门、独立PR与一次exact-head CI；继续按主线成熟度逐片合并。
+**2026-10-19 #245 审阅修复 / 逐次额度与精确路由。** finding4313958266有效：只比较root减工具次数会恢复并发额外消耗的额度。现每个tool frame后将下一帧额度上限收紧为该帧before.remaining_tool_calls-1，新增3组并发大幅扣减→非法恢复负控，合法后续零额度上下文仍可回答。finding4313958272也有效：新增trail模块/测试未登记会让普通后续修改回退全量。现仅登记这两个精确路径，连同原14个共16路径；同前缀新路径仍回退，admission/context/共享/CI/资格/未知范围不缩小。联合影响集conversation_observation_trail加入ci_scope/ci_workflow_routing/ci_outcomes，最终394 PASS/131.04s；Ruff/format、mypy122/128 NEW0、diff-check PASS。当前candidate SHA由本段提交恢复，旧7b6fb566 CI39254094559不授予修复后head；推送后解决已修finding并绑定一次CI。新scope为8文件（原6+CI分类与测试），不是单方面跳过CI或发布资格。
 
 
 **2026-10-19 CL-1D-5：累计观察与阶段回复输入（本轮第一小片）。** branch `codex/conversation-observation-trail-20261019` / worktree `D:/study-agent-validation/conversation-observation-trail-20261019`，固定base为自身已提交#244 `e05e39e16307af47a2933df8164c5860b1f598d2`；未取其他窗口WIP。#236在headbbcef47d / CI39221498204 SUCCESS / 无未解决finding后已expected-head合入main9684aa829c6b5cc4e8d70ff4754ecb4302557043；旧mainafa54501 CI39221117547 SUCCESS。#239旧2bcb4e4c已有绿灯与已解决review，正单独重绑新main再绑定新CI；#240/#242/#244原冻结head的CI本轮起始均SUCCESS，无未解决finding，仍按依赖顺序逐片调整主线，不能借旧绿灯。

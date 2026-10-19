@@ -94,7 +94,7 @@ class ObservationTrail:
         if len(self.frames) > 16:
             raise ObservationLimitError("observation stage limit")
         request_id = self.root.request_id
-        tools = 0
+        remaining_cap = self.root.remaining_tool_calls
         pending: ObservationFrame | None = None
         for frame in self.frames:
             if not isinstance(frame, ObservationFrame):
@@ -105,7 +105,7 @@ class ObservationTrail:
                 or before.user_message != self.root.user_message
                 or before.history != self.root.history
                 or before.active_research != self.root.active_research
-                or before.remaining_tool_calls > self.root.remaining_tool_calls - tools
+                or before.remaining_tool_calls > remaining_cap
             ):
                 raise ValueError("observation trail intent or quota mismatch")
             if frame.event.stage == ConversationAction.ANSWER:
@@ -122,7 +122,7 @@ class ObservationTrail:
                         raise ValueError("missing matching preliminary answer")
                 elif pending is not None:
                     raise ValueError("changed proposal within action")
-                tools += 1
+                remaining_cap = before.remaining_tool_calls - 1
                 request_id = tool_observation_request_id(request_id)
                 pending = None
         if len(self.to_json()) > 16000:

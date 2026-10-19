@@ -193,6 +193,20 @@ def test_serialized_limit_counts_escaping_without_silent_truncation():
     assert len(trail.frames) == 1 and trail.frames[0].event.observation == '"' * 4000
 
 
+@pytest.mark.parametrize("initial,after_concurrent_drop", [(3, 1), (5, 2), (5, 1)])
+def test_each_tool_boundary_preserves_larger_concurrent_quota_consumption(
+    initial, after_concurrent_drop
+):
+    ctx = root(remaining_tool_calls=initial)
+    trail, current = add_tool(ObservationTrail(ctx), ctx)
+    current = replace(current, remaining_tool_calls=after_concurrent_drop)
+    trail, next_ctx = add_tool(trail, current)
+    trail.validate_next_context(next_ctx)
+    restored = replace(next_ctx, remaining_tool_calls=after_concurrent_drop)
+    with pytest.raises(ValueError, match="quota mismatch"):
+        trail.append(restored, proposal(restored), event(restored))
+
+
 def test_sixteen_stages_fit_but_seventeenth_is_rejected():
     ctx = root(remaining_tool_calls=10)
     trail = ObservationTrail(ctx)
