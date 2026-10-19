@@ -77,7 +77,7 @@ def main() -> int:
     if input_price is None or output_price is None:
         failures.append("pricing is not configured; a cap without pricing fails closed")
     if experiment_cap is None:
-        failures.append("no experiment cap is configured, so no durable ¥ limit exists")
+        failures.append("no experiment cap is configured, so no durable CNY limit exists")
     if not experiment:
         failures.append("no experiment id is configured")
     if ledger == "(runtime database)":
@@ -149,7 +149,7 @@ def main() -> int:
         if experiment_cap is not None and total * 3 > experiment_cap:
             print(
                 f"  note                 : three samples at this shape would reserve "
-                f"{total * 3:.4f} CNY against a {experiment_cap} cap"
+                f"{total * 3:.4f} CNY against a {experiment_cap} CNY cap"
             )
 
     print("\n=== result")

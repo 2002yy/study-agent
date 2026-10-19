@@ -20,7 +20,9 @@ from src.llm_spend_guard import (
 def _clean_ledger(monkeypatch):
     reset_spend()
     for name in ("LLM_SPEND_CAP_CNY", "LLM_SPEND_INPUT_CNY_PER_MTOK",
-                 "LLM_SPEND_OUTPUT_CNY_PER_MTOK", "LLM_SPEND_DEFAULT_MAX_TOKENS"):
+                 "LLM_SPEND_OUTPUT_CNY_PER_MTOK", "LLM_SPEND_DEFAULT_MAX_TOKENS",
+                 "LLM_SPEND_EXPERIMENT_ID", "LLM_SPEND_EXPERIMENT_CAP_CNY",
+                 "LLM_SPEND_LEDGER_DB", "LLM_EXPERIMENT_ALLOWED_MODELS"):
         monkeypatch.delenv(name, raising=False)
     yield
     reset_spend()
