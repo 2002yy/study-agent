@@ -29,6 +29,8 @@ def test_exact_conversation_decision_paths_select_their_registered_impact_set():
         "tests/test_conversation_observation_trail.py",
         "src/application/conversation_answer_input.py",
         "tests/test_conversation_answer_input.py",
+        "src/application/conversation_answer_runner.py",
+        "tests/test_conversation_answer_runner.py",
     ]
     for path in paths:
         result = classify([path])
@@ -61,6 +63,7 @@ def test_loop_mapping_covers_actual_modules_and_complete_registered_consumer_sta
         "conversation_loop_session",
         "conversation_observation_trail",
         "conversation_answer_input",
+        "conversation_answer_runner",
     ):
         module = f"src/application/{name}.py"
         test = f"tests/test_{name}.py"

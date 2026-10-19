@@ -178,3 +178,7 @@ AnswerInput仅接受ANSWER阶段与ANSWER/ANSWER_THEN_RESEARCH提议；初始输
 ### CL-1E-2：loop可选回答输入
 
 可选answer_handler覆盖本次loop的ANSWER阶段，原handler签名与默认路径不变。输入在dispatch执行可信handler时构造，绑定当前expected与已完成trail，避免只拿到末条观察或把自己尚未生成的回复加入输入。继承原动作预算/去重/过期拒绝/超时/关闭/取消，生成适配器仍须自行预留真实生成额度和校验输出；观察不是正式证据或已发布答案。无生产接线、SDK或自动付费调用。本片不是子阶段关闭/生产资格；下一片再独立定义生成调用准入，真实模型质量与前3–5秒初步答案保留实测验收门。
+
+### CL-1F-1：有界回答生成
+
+单次注入transport，AnswerLimits限制等待≤30秒、输出≤4000 tokens且≤8000字符。answer_request_id由固定schema+当前请求身份+ANSWER阶段派生，不包含可变内容/提议分类；与决策ID分开，可共享DecisionAdmission总额度。传输前后的精确上下文校验、无退款/重试、忽略迟到、调用者取消传播与脱敏失败是执行边界。SqliteDecisionAdmission仅复用现有自有库schema，不引入业务持久变更。该台账不等于货币预算，可信生产transport仍须禁用隐藏重试并预留真实花费。生成文本只是provisional结果，不是证据或发布许可。下一片loop可选接线必须使用内部派生的fresh上下文。
