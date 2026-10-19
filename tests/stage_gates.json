@@ -97,6 +97,7 @@
     "conversation_decision_1b": [
       "tests/test_conversation_decision_admission.py",
       "tests/test_conversation_decision_runner.py",
+      "tests/test_conversation_action_dispatch.py",
       "tests/test_conversation_decision.py",
       "tests/test_router.py",
       "tests/test_task_contract.py",
@@ -233,6 +234,12 @@
       "tests/test_rag_evidence_api.py",
       "tests/test_rag_evidence_eligibility.py",
       "tests/test_rag.py"
+    ],
+    "conversation_action_dispatch": [
+      "tests/test_conversation_action_dispatch.py",
+      "tests/test_conversation_decision.py",
+      "tests/test_conversation_decision_runner.py",
+      "tests/test_stage_gates_policy.py"
     ],
     "ci_outcome_consolidation": [
       "tests/test_ci_outcomes.py",
