@@ -9,6 +9,13 @@
 ## 0. Current Handoff（cold-start 入口）
 
 
+**2026-10-19 CL-1D-4：单次消费与运行回执（本轮第二小片）。** branch `codex/conversation-loop-session-20261019` / worktree `D:/study-agent-validation/conversation-loop-session-20261019`，固定base为自身#240 `672fd1228eaeb1fc688eae424a6fe6160fd0ae66`，其PR CI39218240337后台执行。新main为已发布#233的5ead630f（CI39217839722后台），#235旧f4209544 CI39216114150已绿但需整合新main交接再绑定新head；未借旧绿灯合并。
+
+新增ConversationLoopSession与不可变LoopReceipt：events()同步claim唯一消费句柄，不开始模型；关闭未读句柄也可靠关闭source。主动关闭、外部取消、正常终态、无终态流与异常明确分开，回执只含身份/步数/观察计数/状态，不存提示或工具正文；同实例不能再开消费句柄，新实例也仍受原共享准入去重。活动pull被取消时保留unknown，已发生的工具动作不声称回滚；暂停或断开后能查看本进程回执，不自动重放，不提供跨进程持久恢复。并发读取拒绝、active close取消内部pull、关闭失败脱敏且标记failed，关闭中的调用者取消仍传播。
+
+新增21项自身测试；命名L1 conversation_loop_session **212 PASS/73.64s**（自身+loop/followup/dispatch/runner/admission/decision/阶段策略）；Ruff/format与mypy122/128 NEW0 PASS，diff-check/候选扫描随提交完成。无生产聊天/SDK/付费调用/持久业务schema/UI或发布权威变更，无本地L3。候选SHA由本段所属提交恢复。下一片CI-CL-2：为这些明确可追踪的新消费者登记精确CI路径与共享影响集，避免普通局部修改因未登记路径反复全量；未知路径/共享权威仍保守扩大。
+
+
 **2026-10-19 CL-1D-3：有界多步事件流（本轮第一小片）。** branch `codex/conversation-bounded-loop-20261019` / worktree `D:/study-agent-validation/conversation-bounded-loop-20261019`，固定base为自身#239 `756a6e22a8c6021248270f4366bfa9c094391ed7`。#233在head224cae06 / CI39215954538 SUCCESS / finding已解决后expected-head合入main `5ead630fd902360ddff0f5694fbf4f3ddad74140`；上一个main9e36b935 CI39215516784 SUCCESS。其他窗口WIP未导入。
 
 新增 `run_conversation_loop`、LoopLimits、LoopStopped：串联决策→分发→成功工具观察→回填→下一决策；直接回答/澄清/转向/排队收束本轮，仅成功确定的工具结果能继续。1–8步硬上限、共享DecisionAdmission/ActionBudget及含消费者暂停的总时限，单次模型/动作还受原限额约束。公开事件流保留DecisionResult/ActionEvent，不吞初步答案；正常结束给一个结构化停止原因与步数/观察数，取消/关闭传播至内层，不能将其解释为外部执行已回滚。新意图或研究变化停止，工具消耗未由服务端记录则拒绝继续。后续只回填最近一条工具观察，完整多观察累积/实际模型质量另验；不把控制顺序测试当产品智能验收。
