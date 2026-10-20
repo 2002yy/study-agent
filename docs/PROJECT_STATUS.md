@@ -8,7 +8,13 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 #246主线整合候选。** 本轮完成两个已有功能分支的主线收口，未新增SDK接线代码。#246已吸收自身#245最新冻结226c0d3182f9e597870179f39aaa5379ee3d17a9（其main为已合#244的5cd917ad）；第二次吸收仅交接冲突，保留双方，不改变生产代码。最终命名L1 conversation_loop_trail **277 PASS/94.49s**，mypy122/128 NEW0、Ruff/diff-check PASS，密钥扫描见本段发布命令；src相对已审阅5e6e2662的差异仅来自已合main context和已冻结父片，loop自身行为未变。本片相对#245增量5文件，候选SHA以本段提交恢复，base维持自身#245。旧5e6e2662绿灯不授予新head；推送后绑定新CI，不等待CI才推进。#245首次推送遇TLS EOF，使用命令级HTTP参数重试已成功，无全局Git配置修改。
+
+SDK接线所需的现有凭据复用选择已通过异步问题提交，尚无答复；本轮原拟新工作树conversation-model-transport-20261020留在9f0c1f14，tracked clean，无SDK/真实调用或配置修改。该选择仅限制后续API接线，不阻断已有合并/聚焦验证。下一执行动作：凭据选择后继续网关接线；选择前仅推进自身成熟片的main整合，不把问题未答当授权，不重复等待CI。
+
 **2026-10-19 CL-1D-6 最终父片绑定。** 已吸收自身#245冻结修复ad0b2e32f235fb7739ba6a05729193a3b61566bf（逐次额度与精确路由两个已解决finding）；冲突仅交接，保留双方。新模块/CI路径来自已提交自身父片，非WIP。最终命名L1 conversation_loop_trail **277 PASS/103.24s**，mypy122/128 NEW0、Ruff/format/diff-check PASS；候选SHA由本段所属提交恢复；#245两个finding4313958266/4313958272均已修并解决，修复后CI39255166237后台执行；父片CI继续后台执行，不借旧7b6fb566绿灯。
+**2026-10-20 #245主线重绑收口。** #244在head0f9142442e0a15bee84a32a7d88a9112b7d88e96 / pull_request CI39296775208 SUCCESS / 无未解决finding后expected-head合入main 5cd917ad1c03fb520ce512605aa49bfd82f09216。本片吸收已合main（merge049831e4）；main中followup的内联稳定ID与本片提取helper冲突，显式保留本片已审阅helper与相同JSON/hash算法，CI仅保留trail两个精确路径及完整消费者，文档保留双方，context模块/测试来自已合main。main增量8文件，未导入其他窗口WIP。命名L1 conversation_observation_trail **394 PASS/126.89s**，mypy122/128 NEW0、Ruff/diff-check PASS；无本地L3，无新SDK/API或付费调用。新候选SHA以本段提交恢复，旧ad0b2e32绿灯不授予新head；推送后base main及新CI单独绑定。#246同步吸收本片冻结结果并在独立工作树跑联合门。下一功能接线的凭据复用选择仍待用户回答：按已读取openai-platform-api-key技能暂停SDK接线，现存配置不修改；空新工作树conversation-model-transport-20261020固定9f0c1f14且无代码更改。
+
 
 
 **2026-10-19 CL-1D-6：多步流消费累计记录（本轮第二小片）。** branch `codex/conversation-loop-trail-20261019` / worktree `D:/study-agent-validation/conversation-loop-trail-20261019`，初始固定base自身#245提交7b6fb5668f9eb91334430f0b9f4d4dc7575a752d，发布前还需吸收本轮#245逐次额度/精确CI修复。未导入其他窗口WIP。
