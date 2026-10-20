@@ -8,6 +8,17 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 #245主线重绑收口。** #244在head0f9142442e0a15bee84a32a7d88a9112b7d88e96 / pull_request CI39296775208 SUCCESS / 无未解决finding后expected-head合入main 5cd917ad1c03fb520ce512605aa49bfd82f09216。本片吸收已合main（merge049831e4）；main中followup的内联稳定ID与本片提取helper冲突，显式保留本片已审阅helper与相同JSON/hash算法，CI仅保留trail两个精确路径及完整消费者，文档保留双方，context模块/测试来自已合main。main增量8文件，未导入其他窗口WIP。命名L1 conversation_observation_trail **394 PASS/126.89s**，mypy122/128 NEW0、Ruff/diff-check PASS；无本地L3，无新SDK/API或付费调用。新候选SHA以本段提交恢复，旧ad0b2e32绿灯不授予新head；推送后base main及新CI单独绑定。#246同步吸收本片冻结结果并在独立工作树跑联合门。下一功能接线的凭据复用选择仍待用户回答：按已读取openai-platform-api-key技能暂停SDK接线，现存配置不修改；空新工作树conversation-model-transport-20261020固定9f0c1f14且无代码更改。
+
+
+**2026-10-19 #245 审阅修复 / 逐次额度与精确路由。** finding4313958266有效：只比较root减工具次数会恢复并发额外消耗的额度。现每个tool frame后将下一帧额度上限收紧为该帧before.remaining_tool_calls-1，新增3组并发大幅扣减→非法恢复负控，合法后续零额度上下文仍可回答。finding4313958272也有效：新增trail模块/测试未登记会让普通后续修改回退全量。现仅登记这两个精确路径，连同原14个共16路径；同前缀新路径仍回退，admission/context/共享/CI/资格/未知范围不缩小。联合影响集conversation_observation_trail加入ci_scope/ci_workflow_routing/ci_outcomes，最终394 PASS/131.04s；Ruff/format、mypy122/128 NEW0、diff-check PASS。当前candidate SHA由本段提交恢复，旧7b6fb566 CI39254094559不授予修复后head；推送后解决已修finding并绑定一次CI。新scope为8文件（原6+CI分类与测试），不是单方面跳过CI或发布资格。
+
+
+**2026-10-19 CL-1D-5：累计观察与阶段回复输入（本轮第一小片）。** branch `codex/conversation-observation-trail-20261019` / worktree `D:/study-agent-validation/conversation-observation-trail-20261019`，固定base为自身已提交#244 `e05e39e16307af47a2933df8164c5860b1f598d2`；未取其他窗口WIP。#236在headbbcef47d / CI39221498204 SUCCESS / 无未解决finding后已expected-head合入main9684aa829c6b5cc4e8d70ff4754ecb4302557043；旧mainafa54501 CI39221117547 SUCCESS。#239旧2bcb4e4c已有绿灯与已解决review，正单独重绑新main再绑定新CI；#240/#242/#244原冻结head的CI本轮起始均SUCCESS，无未解决finding，仍按依赖顺序逐片调整主线，不能借旧绿灯。
+
+新增ObservationFrame/ObservationTrail与decide_with_observation_trail：不可变地保留本轮阶段回复和全部工具结果，配对ANSWER_THEN_RESEARCH的answer→tool并验证连续派生请求、原意图/历史/研究及累计额度；最多16个阶段和16000个实际序列化字符（含转义），超限拒绝而非隐式截断。阶段回复和工具结果作为标记unverified的独立JSON数据，原chat history与evidence_summary不被改写；阶段回复要求模型衔接而非重复，工具输出不成为权限或正式证据。额外消息准确计入原DecisionAdmission，沿用超时/取消/迟到/当前快照校验。稳定工具后续身份提取为tool_observation_request_id供记录验证共用，JSON算法与旧持久身份逐字一致，不迁移账本、不重置去重。
+
+新增32项自身测试PASS，mypy122/128 NEW0、Ruff/format PASS；命名L1 conversation_observation_trail（自身+followup/loop/session/step/dispatch/runner/admission/decision/阶段策略）最终 **269 PASS/134.39s**。新模块尚未被多步loop消费，由本轮第二片CL-1D-6接线；无生产聊天/SDK/付费调用/业务schema/UI或发布权威变更，无本地L3。候选SHA以本段所属提交恢复。下一动作提交独立PR并后台CI，继续实现loop累计输入与真实限额停止负控，不能把脚本模型控制流当真实智能验收。
 **2026-10-20 #244主线重绑。** #242在91af16b5 / CI39262262003 SUCCESS / finding已解决后合main ab1e5ab4；本片吸收此已合主线，merge d6578988，仅docs与manifest冲突，保留双方。main增量仅两份docs、CI分类/测试及manifest，src与main逐字相同。命名L1 conversation_loop_ci_scope **132 PASS/46.05s**，Ruff/diff-check PASS；非生产改动，未重复全量/mypy。候选SHA以本段提交恢复，旧e05e39e1绿灯不授予新head；推送后绑定新CI并改base main。下一功能片在独立工作树继续受控回答生成和loop适配。
 
 

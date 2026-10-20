@@ -25,6 +25,8 @@ def test_exact_conversation_decision_paths_select_their_registered_impact_set():
         "tests/test_conversation_observation_followup.py",
         "tests/test_conversation_bounded_loop.py",
         "tests/test_conversation_loop_session.py",
+        "src/application/conversation_observation_trail.py",
+        "tests/test_conversation_observation_trail.py",
     ]
     for path in paths:
         result = classify([path])
@@ -55,6 +57,7 @@ def test_loop_mapping_covers_actual_modules_and_complete_registered_consumer_sta
         "conversation_action_dispatch", "conversation_action_step",
         "conversation_observation_followup", "conversation_bounded_loop",
         "conversation_loop_session",
+        "conversation_observation_trail",
     ):
         module = f"src/application/{name}.py"
         test = f"tests/test_{name}.py"
@@ -72,7 +75,7 @@ def test_loop_mapping_covers_actual_modules_and_complete_registered_consumer_sta
         "tests/test_conversation_bounded_loop.py", "tests/test_conversation_loop_session.py",
     }),
     ("conversation_action_step", {"tests/test_conversation_observation_followup.py"}),
-    ("conversation_observation_followup", {"tests/test_conversation_bounded_loop.py"}),
+    ("conversation_observation_followup", {"tests/test_conversation_bounded_loop.py", "tests/test_conversation_observation_trail.py"}),
     ("conversation_bounded_loop", {"tests/test_conversation_loop_session.py"}),
 ])
 def test_named_development_gates_retain_new_direct_consumers(impact, consumers):
@@ -107,6 +110,8 @@ def test_conversation_prefix_is_not_a_blanket_subsystem_exclusion():
         "src/application/conversation_action_dispatch_new.py",
         "src/application/conversation_bounded_loop_new.py",
         "tests/test_conversation_loop_session_new.py",
+        "src/application/conversation_observation_trail_new.py",
+        "tests/test_conversation_observation_trail_new.py",
     ):
         result = classify(["src/application/conversation_decision.py", path])
         assert result["impact_set"] == ""
