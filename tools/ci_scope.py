@@ -32,6 +32,7 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "src/application/conversation_bounded_loop.py",
             "src/application/conversation_loop_session.py",
             "src/application/conversation_observation_trail.py",
+            "src/application/conversation_answer_input.py",
             "tests/test_conversation_decision.py",
             "tests/test_conversation_decision_runner.py",
             "tests/test_conversation_action_dispatch.py",
@@ -40,6 +41,7 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "tests/test_conversation_bounded_loop.py",
             "tests/test_conversation_loop_session.py",
             "tests/test_conversation_observation_trail.py",
+            "tests/test_conversation_answer_input.py",
         ),
     ),
     (
