@@ -23,7 +23,7 @@ import sys
 _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "developer-cli",
-        ("tools/studyctl.py", "tests/test_studyctl.py"),
+        ("tools/studyctl.py", "tests/test_studyctl.py", "tests/test_studyctl_plan.py"),
     ),
     (
         "conversation-decision",
