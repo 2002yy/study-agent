@@ -1788,6 +1788,95 @@ class WebLookupService:
         if event is not None:
             record_event(context, event)
 
+    def _apply_motion_conflicts(
+        self,
+        context: dict[str, Any],
+        deep: dict[str, Any],
+        verdict: dict[str, Any],
+        run_id: str,
+        records: list[dict[str, Any]],
+    ) -> None:
+        """Route the planner's conflict claims through the verified producer.
+
+        The planner may report `conflict_claims`: "these two texts disagree, and
+        here is the sentence each side comes from". The shell cannot invent that
+        judgement and does not try; it can only refuse it. A claim whose old side
+        is not the answer's own text, whose new side does not name a real read, or
+        which contradicts an older read produces no event at all.
+
+        Only a verified event withdraws a statement, and it never writes a new
+        one: a conflict means "we do not know which is right", which is the
+        opposite of a replacement.
+
+        Refusals are kept in the bounded diagnostic trace so a silent no-op can be
+        told from a rejected claim.
+        """
+
+        claims = verdict.get("conflict_claims") if isinstance(verdict, dict) else None
+        if not isinstance(claims, list) or not claims:
+            return
+        replies = [item for item in (context.get("steering_replies") or []) if isinstance(item, dict)]
+        if not replies or not run_id:
+            return
+        from src.web.research.answer_coordinator import coordinate
+        from src.web.research.conflict_producer import ConflictClaim, build_conflict_event
+        from src.web.research.motion_events import record_event
+        from src.web.research.read_evidence import read_evidence_from_records
+
+        evidence = read_evidence_from_records(records)
+        round_index = int(context.get("run_round") or 0)
+        notes_count = len(deep.get("notes") or [])
+        interim_state = context.get("interim_state")
+        revision = (
+            str(interim_state.get("revision") or "")
+            if isinstance(interim_state, dict)
+            else ""
+        )
+        turn_id = str((context.get("owner") or {}).get("turn_id") or "")
+        refusals = [
+            item for item in (context.get("motion_refusals") or []) if isinstance(item, dict)
+        ]
+        for item in claims:
+            if not isinstance(item, dict):
+                continue
+            binding = item.get("source_binding")
+            claim = ConflictClaim(
+                target_reply_id=str(item.get("target_reply_id") or ""),
+                claim=str(item.get("claim") or ""),
+                old_quote=str(item.get("old_quote") or ""),
+                new_quote=str(item.get("new_quote") or ""),
+                new_binding=binding if isinstance(binding, dict) else {},
+                old_source_url=str(item.get("old_source_url") or ""),
+                condition=str(item.get("condition") or ""),
+            )
+            event, refusal = build_conflict_event(
+                claim,
+                replies=replies,
+                evidence=evidence,
+                run_id=run_id,
+                at=utc_now(),
+                round_index=round_index,
+                notes=notes_count,
+                revision=revision,
+            )
+            if event is None:
+                refusals.append(
+                    {"target": claim.target_reply_id[:80], "refusal": refusal}
+                )
+                continue
+            result = coordinate(
+                replies,
+                event,
+                now=utc_now(),
+                run_id=run_id,
+                turn_id=turn_id,
+                read_evidence=evidence,
+            )
+            replies = list(result.replies)
+            record_event(context, event)
+        context["steering_replies"] = replies
+        context["motion_refusals"] = refusals[-20:]
+
     def _deep_update_steering_replies(
         self,
         context: dict[str, Any],
@@ -2471,6 +2560,12 @@ class WebLookupService:
                     # reader sees it while research is still running.
                     self._deep_publish_steering_replies(
                         context, deep, verdict, run_id, round_index
+                    )
+                    # Only the model's interpretation can claim a conflict; this
+                    # turns a backed claim into a verified event and a withdrawal,
+                    # and a paraphrase or an unread page into a refusal.
+                    self._apply_motion_conflicts(
+                        context, deep, verdict, run_id, selected_sources
                     )
                     persist()
                     additional = [

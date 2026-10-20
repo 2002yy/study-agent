@@ -86,3 +86,47 @@
 | AR-1C | 双语义协调器：事件 → 重判 → 新快照（版本转换规则） | `snapshot_from_replies` + `apply_proposals` |
 | AR-1D | UI：可靠答案 + 真实进度 + 局部修订视图 | 前端 `retracted`/`stale` 展示 |
 | AR-1E | 真实 DeepSeek/搜索/图片多轮验收 | 全部 |
+
+## 7. AR-1C-3 发布接线（冻结）
+
+### 7.1 读取身份随读取一起落地
+
+一次读取在**发生的那一刻**决定身份，而不是在事件构造时反推：
+
+- `read_id` 由 `(run_id, 规范化 URL, 轮次, 第几次尝试)` 派生，不含时间戳，所以重放得到同一身份而不是孪生事件；
+- 第几次尝试来自记录上持久化的 `read_history`（上限 10 条），Deep 路径按 URL 就地覆盖也不会把第二次读取压成第 1 次；
+- 状态、轮次、摘录哈希与身份一起写进该次读取，事件、摘要、恢复三处读的是**同一个事实**。
+
+持久化沿用 `WebLookupRepository.checkpoint()` 的单条版本校验 UPDATE：读取记录与事件同批落地，不新增第二套事务。
+
+### 7.2 可读不等于可发布
+
+| 绑定 | 能展示旧引用 | 能承载**新正文** |
+| --- | --- | --- |
+| 旧式（`url` + 引文 `content_sha256`） | 是 | 否（`binding_not_publication_grade`） |
+| 新式（另含 `read_id` + `read_excerpt_sha256`） | 是 | 是 |
+
+理由：展示旧答案时我们只是在复述它当时的引用；写入新正文时我们要回答"这句话来自**哪一次读取**"。答不出来的绑定不能授权发布，但也不清空历史。
+
+### 7.3 冲突 = 模型判断 + 外壳校验
+
+| 步骤 | 谁 |
+| --- | --- |
+| 取页面并记录说了什么 | 外壳（读取带 `read_id`） |
+| 判断两段话**在同一件事上**矛盾 | 模型，必须给出 `claim` |
+| 判断矛盾对答案是否重要 | 既有证据质量门 |
+| 校验双方都指向真实读取、真实目标、有效版本 | 外壳（`conflict_producer.build_conflict_event`） |
+| 执行被授权的修订 | 协调器 |
+| 写新措辞 | 模型 |
+
+拒绝码是**具名事实**而不是布尔：`conflict_unexplained`、`old_quote_not_in_reply`、`old_source_not_cited`、`source_not_read` / `read_id_not_found` / `quote_not_in_read`、`same_source`、`quotes_identical`、`read_not_newer`、`target_missing` / `target_not_current`。
+
+**"两页数字不同"不是冲突**：没有 `claim` 一律拒绝。冲突只**撤回**、不**生成**替代正文——冲突的含义是"我们不知道哪边对"，这正好是替换的反面。
+
+`EVIDENCE_CONFLICT` 的撤回权需要 `verified is True` **且** 显式 `target_reply_id`；原先按 `source_refs` 与 `conflicting_urls` 的交集撤回已删除（那让未校验的主张凭一个 URL 就能撤掉答案）。
+
+### 7.4 本轮不做
+
+- 不在切片内调用模型（无付费运行）：`conflict_claims` 由 planner 输出携带，缺失即无行为变化；
+- 不新增事件种类（仍是六类）、不新增事件游标、不新增事实库；
+- 全量 L3 推迟到 2026-10-22（当日授权：不跑全量），本轮只做聚焦测试与子阶段集成。

@@ -29,7 +29,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from src.web.research.answer_state import CURRENT
+from src.web.research.answer_state import CURRENT, statement_lifecycle
 from src.web.research.motion_events import EVIDENCE_CONFLICT, MotionEvent
 from src.web.research.read_evidence import (
     ReadEvidence,
@@ -107,7 +107,9 @@ def build_conflict_event(
     )
     if target is None:
         return None, TARGET_MISSING
-    if str(target.get("lifecycle") or "") != CURRENT:
+    # Same mapping the snapshot uses: "open" is current, and a reply that only
+    # looks open to a raw string compare must not be treated as retracted.
+    if statement_lifecycle(target) != CURRENT:
         return None, TARGET_NOT_CURRENT
 
     old_quote = str(claim.old_quote or "").strip()

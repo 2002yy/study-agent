@@ -57,9 +57,11 @@ def _stale_reply(**overrides):
     return base
 
 
-def _read_record(url="https://example.com/a", content=PAGE):
+def _read_record(url="https://example.com/a", content=PAGE, read_id="read-1"):
+    # Modern records carry the identity of the attempt; a binding can then name
+    # which read produced the sentence it publishes.
     return {
-        "read": {"ok": True, "content": content},
+        "read": {"ok": True, "status": "read", "content": content, "read_id": read_id, "round": 1},
         "item": {"title": "示例页", "url": url},
         "assessment": {"url": url},
     }
@@ -69,12 +71,14 @@ def _evidence(**kwargs):
     return read_evidence_from_records([_read_record(**kwargs)])
 
 
-def _binding(quote=PAGE[:20], url="https://example.com/a", *, hash_of=None):
+def _binding(quote=PAGE[:20], url="https://example.com/a", *, hash_of=None, read_id="read-1", excerpt=PAGE):
     text = hash_of if hash_of is not None else quote
     return {
         "url": url,
         "quote": quote,
         "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "read_id": read_id,
+        "read_excerpt_sha256": hashlib.sha256(excerpt.encode("utf-8")).hexdigest(),
     }
 
 

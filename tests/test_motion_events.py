@@ -61,7 +61,23 @@ def _event(kind, **overrides):
     return MotionEvent(**values)
 
 
+READ_ID = "read-1"
+READ_EXCERPT = "GIMP batch export uses the command line interface."
+
+
 def _binding(url: str = "https://gimp.org/", quote: str = "batch export uses the command line"):
+    return {
+        "url": url,
+        "quote": quote,
+        "content_sha256": hashlib.sha256(quote.encode()).hexdigest(),
+        "read_id": READ_ID,
+        "read_excerpt_sha256": hashlib.sha256(READ_EXCERPT.encode()).hexdigest(),
+    }
+
+
+def _legacy_binding(url: str = "https://gimp.org/", quote: str = "batch export uses the command line"):
+    """A pre-AR-1C binding: it names a URL and a quote, not the read."""
+
     return {"url": url, "quote": quote, "content_sha256": hashlib.sha256(quote.encode()).hexdigest()}
 
 
@@ -71,7 +87,8 @@ def _reads():
     return (
         ReadEvidence.build(
             url="https://gimp.org/",
-            excerpt="GIMP batch export uses the command line interface.",
+            excerpt=READ_EXCERPT,
+            read_id=READ_ID,
         ),
     )
 

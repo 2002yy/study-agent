@@ -23,6 +23,9 @@ from urllib.parse import urlsplit
 #: The read excerpt is bounded when it is captured; keep the same bound here.
 EXCERPT_CHARS = 3000
 
+#: A binding can be readable and still not be allowed to carry new published text.
+PUBLICATION_GRADE_REFUSAL = "binding_not_publication_grade"
+
 
 @dataclass(frozen=True)
 class ReadEvidence:
@@ -310,6 +313,29 @@ def verify_bindings(
         refusal = verify_binding(binding, evidence)
         if refusal:
             return refusal
+    return ""
+
+
+def verify_publication_binding(
+    binding: Mapping[str, Any], evidence: Sequence[ReadEvidence]
+) -> str:
+    """Stricter check for a binding that will carry *new published text*.
+
+    `verify_binding` answers "is this backed by a read?" and accepts the legacy
+    quote-only digest, because old answers must still render their citations.
+    Publication asks a different question: "which read produced this sentence?"
+    A binding that does not name its `read_id` and the excerpt digest of that
+    read cannot answer it, so the new text may not be published on its strength.
+    Legacy bindings stay readable; they are simply not publication-grade.
+    """
+
+    refusal = verify_binding(binding, evidence)
+    if refusal:
+        return refusal
+    if not str(binding.get("read_id") or "").strip():
+        return PUBLICATION_GRADE_REFUSAL
+    if not str(binding.get("read_excerpt_sha256") or "").strip():
+        return PUBLICATION_GRADE_REFUSAL
     return ""
 
 
