@@ -19,6 +19,145 @@ URL = "/chat/threads/chat-1/turns/turn-2/agent-events"
 BODY = {"operation_id": "operation-1"}
 
 
+@pytest.mark.parametrize(
+    "body",
+    [b"", b"{", b'{"extra":1}', b"x" * 5000],
+    ids=["missing", "malformed", "extra", "oversized"],
+)
+def test_disabled_gate_runs_before_any_body_parsing(tmp_path, body):
+    async def run():
+        app, clients, _, admitted, closed, authorized, _ = app_setup(
+            tmp_path, enabled=False
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(URL, content=body)
+        assert response.status_code == 404
+        assert not authorized and not admitted and not clients and not closed
+
+    asyncio.run(run())
+
+
+def test_disabled_does_not_receive_body(tmp_path):
+    async def run():
+        app, clients, _, _, _, authorized, _ = app_setup(tmp_path, enabled=False)
+        statuses = []
+
+        async def receive():
+            raise AssertionError("disabled endpoint must not receive a body")
+
+        async def send(event):
+            if event["type"] == "http.response.start":
+                statuses.append(event["status"])
+
+        await app(scope(), receive, send)
+        assert statuses == [404] and not authorized and not clients
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "body,headers,status",
+    [
+        (b"{", {}, 400),
+        (b"\xff", {}, 400),
+        (b"[]", {}, 422),
+        (b"{}", {}, 422),
+        (b"x" * 4097, {}, 413),
+        (b"x" * 4097, {"content-length": "1"}, 413),
+        (b"{}", {"content-length": "-1"}, 400),
+        (b"{}", {"content-length": "9" * 5000}, 413),
+    ],
+    ids=[
+        "json",
+        "encoding",
+        "array",
+        "missing-id",
+        "size",
+        "false-size",
+        "negative",
+        "huge-length",
+    ],
+)
+def test_invalid_input_is_bounded_before_authorization(tmp_path, body, headers, status):
+    async def run():
+        app, clients, _, admitted, closed, authorized, _ = app_setup(tmp_path)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                URL, content=body, headers={**TOKEN, **headers}
+            )
+        assert response.status_code == status
+        assert not clients and not admitted and not closed and not authorized
+
+    asyncio.run(run())
+
+
+def test_chunked_overflow_stops_reading_before_authorization(tmp_path):
+    async def run():
+        app, clients, _, admitted, _, authorized, _ = app_setup(tmp_path)
+        consumed = []
+
+        async def chunks():
+            for index in range(3):
+                consumed.append(index)
+                yield b"x" * 2500
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(URL, content=chunks(), headers=TOKEN)
+        assert response.status_code == 413 and consumed == [0, 1]
+        assert not clients and not admitted and not authorized
+
+    asyncio.run(run())
+
+
+def test_request_at_byte_limit_can_start_owned_run(tmp_path):
+    async def run():
+        app, clients, _, _, _, authorized, _ = app_setup(tmp_path)
+        raw = json.dumps(BODY).encode()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                URL, content=raw + b" " * (4096 - len(raw)), headers=TOKEN
+            )
+        assert response.status_code == 200 and clients[0].is_closed()
+        assert len(authorized) == 1
+
+    asyncio.run(run())
+
+
+def test_stalled_body_times_out_without_authorization(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "src.api.routes.conversation_events_routes._BODY_TIMEOUT_SECONDS", 0.01
+    )
+
+    async def run():
+        app, clients, _, admitted, _, authorized, _ = app_setup(tmp_path)
+        statuses = []
+        cancelled = asyncio.Event()
+
+        async def receive():
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+        async def send(event):
+            if event["type"] == "http.response.start":
+                statuses.append(event["status"])
+
+        await app(scope(), receive, send)
+        assert statuses == [408] and cancelled.is_set()
+        assert not clients and not admitted and not authorized
+
+    asyncio.run(run())
+
+
 def app_setup(tmp_path, *, enabled=True, starter=None):
     binding, repo, path, clients, requests, admitted, thread, turn = setup(tmp_path)
     closed, authorized = [], []

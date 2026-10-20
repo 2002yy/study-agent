@@ -8,11 +8,12 @@ the existing ChatTurn operation through on_closed.
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Awaitable, Callable
 
 import anyio
 from fastapi import APIRouter, HTTPException, Path, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.responses import StreamingResponse
 from starlette.types import Receive, Scope, Send
 
@@ -32,6 +33,41 @@ class ConversationEventsRequest(BaseModel):
 StartRun = Callable[[str, str, str], ConversationLoopSession]
 Authorize = Callable[[Request, str, str, str], Awaitable[bool]]
 OnClosed = Callable[[str, str, str, LoopReceipt], Awaitable[None]]
+
+_MAX_REQUEST_BYTES = 4096
+_BODY_TIMEOUT_SECONDS = 2.0
+
+
+async def _read_command(request: Request) -> ConversationEventsRequest:
+    length = request.headers.get("content-length")
+    if length is not None:
+        if not length.isascii() or not length.isdecimal():
+            raise HTTPException(400, "Invalid conversation request")
+        # Compare strings first: arbitrarily long decimal headers never reach int().
+        normalized = length.lstrip("0") or "0"
+        if len(normalized) > 4 or int(normalized) > _MAX_REQUEST_BYTES:
+            raise HTTPException(413, "Conversation request too large")
+
+    async def read() -> bytes:
+        body = bytearray()
+        async for chunk in request.stream():
+            if len(chunk) > _MAX_REQUEST_BYTES - len(body):
+                raise HTTPException(413, "Conversation request too large")
+            body.extend(chunk)
+        return bytes(body)
+
+    try:
+        body = await asyncio.wait_for(read(), timeout=_BODY_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        raise HTTPException(408, "Conversation request timed out") from None
+    try:
+        value = json.loads(body)
+    except (ValueError, UnicodeError):
+        raise HTTPException(400, "Invalid conversation request") from None
+    try:
+        return ConversationEventsRequest.model_validate(value)
+    except ValidationError:
+        raise HTTPException(422, "Invalid conversation request") from None
 
 
 def _discard(task: asyncio.Task[None]) -> None:
@@ -109,13 +145,13 @@ def create_conversation_events_router(
     @router.post("/chat/threads/{thread_id}/turns/{turn_id}/agent-events")
     async def events(
         request: Request,
-        command: ConversationEventsRequest,
         thread_id: str = Path(min_length=1, max_length=160),
         turn_id: str = Path(min_length=1, max_length=160),
     ):
         try:
             if enabled() is not True:
                 raise HTTPException(404, "Conversation events unavailable")
+            command = await _read_command(request)
             allowed = await authorize(request, thread_id, turn_id, command.operation_id)
         except HTTPException:
             raise
