@@ -105,6 +105,177 @@ async def collect(stream):
     return [event async for event in stream]
 
 
+def trail_choice(request, action):
+    data = json.loads(request.messages[1][1])
+    return json.dumps(
+        {
+            "schema": "conversation-decision-v1",
+            "request_id": data["request_id"],
+            "action": action,
+            "relation": "continuation",
+            "reason": "继续本轮分析",
+            "focus": "计算",
+            "tool": "compute"
+            if action in {"use_tool", "answer_then_research"}
+            else None,
+            "target_run_id": None,
+            "target_revision": None,
+            "active_run_disposition": "keep" if data["active_research"] else "none",
+        }
+    )
+
+
+def test_all_tools_and_already_shown_reply_reach_later_model_in_order():
+    async def run():
+        requests = []
+        tool_values = iter((2 + 3, 2 * 3))
+
+        async def model(request):
+            index = len(requests)
+            requests.append(request)
+            if index:
+                body = json.loads(request.messages[-1][1])
+                assert body["schema"] == "conversation-observation-trail-v1"
+                assert [item["content"] for item in body["entries"]] == [
+                    "先求和再求积",
+                    "5",
+                ] + (["6"] if index == 2 else [])
+                assert body["entries"][0]["kind"] == "assistant_preliminary"
+                assert all(
+                    item["verification"] == "unverified" for item in body["entries"]
+                )
+                original = json.loads(request.messages[1][1])
+                assert (
+                    original["history"] == []
+                    and original["evidence_summary"] == root.evidence_summary
+                )
+            return trail_choice(
+                request, ("answer_then_research", "use_tool", "answer")[index]
+            )
+
+        async def handler(invocation):
+            if invocation.stage == ConversationAction.USE_TOOL:
+                state[0] = replace(
+                    state[0], remaining_tool_calls=state[0].remaining_tool_calls - 1
+                )
+                return str(next(tool_values))
+            return (
+                "先求和再求积"
+                if invocation.proposal.action == ConversationAction.ANSWER_THEN_RESEARCH
+                else "和为5，积为6"
+            )
+
+        root, state, calls, stream = scenario(tools=2, model=model, handler=handler)
+        async with aclosing(stream):
+            await anext(stream)
+            assert (await anext(stream)).observation == "先求和再求积"
+            assert calls == ["model", "answer"]
+            rest = await collect(stream)
+        assert rest[-1] == LoopStopped("answered", 3, 4)
+        assert rest[-2].observation == "和为5，积为6"
+        assert calls == [
+            "model",
+            "answer",
+            "use_tool",
+            "model",
+            "use_tool",
+            "model",
+            "answer",
+        ]
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("overflow_stage", ["tool", "preliminary"])
+def test_observation_capacity_stops_future_calls_without_hiding_completed_output(
+    overflow_stage,
+):
+    async def run():
+        async def handler(invocation):
+            if invocation.stage == ConversationAction.USE_TOOL:
+                state[0] = replace(
+                    state[0], remaining_tool_calls=state[0].remaining_tool_calls - 1
+                )
+            return "x" * 8000
+
+        choices = (
+            "use_tool",
+            "use_tool" if overflow_stage == "tool" else "answer_then_research",
+        )
+        from src.application.conversation_loop_session import ConversationLoopSession
+
+        root, state, calls, stream = scenario(choices, tools=2, handler=handler)
+        session = ConversationLoopSession(root.request_id, stream)
+        async with aclosing(session.events()) as events_stream:
+            events = await collect(events_stream)
+        assert events[-1] == LoopStopped("observation_limit", 2, 2)
+        assert session.receipt.status == "stopped"
+        assert session.receipt.stop_reason == "observation_limit"
+        assert session.receipt.observations == 2 and not session.receipt.outcome_unknown
+        completed = [item for item in events if isinstance(item, ActionEvent)]
+        assert len(completed) == 2 and all(
+            len(item.observation) == 8000 for item in completed
+        )
+        assert calls.count("model") == 2
+        # Overflow after a preliminary answer must not start its reserved tool stage.
+        assert calls.count("use_tool") == (2 if overflow_stage == "tool" else 1)
+
+    asyncio.run(run())
+
+
+def test_cumulative_prompt_budget_is_checked_before_third_model_call():
+    async def run():
+        sizes = []
+
+        class ProbeAdmission:
+            def reserve(self, request_id, prompt_chars, output_tokens):
+                sizes.append(prompt_chars)
+                return "reserved"
+
+        # Establish public admission sizes, then make the real ledger one
+        # character short of admitting the third cumulative prompt.
+        _, _, _, probe = scenario(
+            ("use_tool", "use_tool", "answer"),
+            tools=2,
+            decision_budget=ProbeAdmission(),
+        )
+        assert (await collect(probe))[-1].reason == "answered"
+        assert len(sizes) == 3 and sizes[2] > sizes[1]
+        budget = DecisionBudget(3, sum(sizes) - 1, 2400)
+        _, _, calls, stream = scenario(
+            ("use_tool", "use_tool", "answer"), tools=2, decision_budget=budget
+        )
+        events = await collect(stream)
+        assert events[-1] == LoopStopped(
+            "decision_failed", 3, 2, False, "budget_exhausted"
+        )
+        assert calls == ["model", "use_tool", "model", "use_tool"]
+
+    asyncio.run(run())
+
+
+def test_eight_steps_retain_all_prior_preliminary_answers_and_tools():
+    async def run():
+        observed_counts = []
+
+        async def model(request):
+            if len(request.messages) == 4:
+                observed_counts.append(
+                    len(json.loads(request.messages[-1][1])["entries"])
+                )
+            return trail_choice(request, "answer_then_research")
+
+        _, _, calls, stream = scenario(
+            tools=8, model=model, limits=LoopLimits(max_decisions=8)
+        )
+        events = await collect(stream)
+        assert observed_counts == [2, 4, 6, 8, 10, 12, 14]
+        assert events[-1] == LoopStopped("decision_limit", 8, 16)
+        assert calls.count("model") == 8 and calls.count("use_tool") == 8
+
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize(
     "change", ["own_revision", "concurrent_revision", "new_topic", "before_handler"]
 )
