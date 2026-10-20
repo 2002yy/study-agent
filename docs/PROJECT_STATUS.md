@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 三片收口：CLI-02最终候选。** 初始自身832cbcc2的计划实现4c4b9e8f，显式吸收父片#266修复20766b2880a41fdce6f4abbbb505b76d0e4d45de得到merge cd13c192；仅Current Handoff冲突保留双方，代码自动合并，不取其他窗口WIP。最终命名L1 studyctl **172 PASS/66.75s**（基础14项＋plan16项＋直接CI/门合同），此前171为吸收父片前证据，不借给新候选。CLI独立mypy PASS、src122/128 NEW0，Ruff/format/diff-check PASS，密钥检查以发布结果恢复；相对20766b28仍7文件独立增量。未提交门配置/空影响集/异常路径/未知和混合范围均不允许静默缩小或启动全量。所有plan都不执行测试/模型，带L0命令、登记L1 argv与scope_review理由。无L3/生产发布或付费调用。
+
+#266最终head20766b28 / exact-head PR CI39459399448后台，Ctrl-C thread已resolve，旧832绿灯不授予修复头。BallWar Draft #7 head3b602f90为4.7目标，11/12隔离测试、已记录首次未隔离user://与设置旧接口阻塞，不合并。两Study CLI工作树及BallWar候选均显式提交，root4个ZIP与BallWar原6项WIP保留。当前命名L1与风险证据已冻结，文档不重跑联合门。唯一下一CLI片：显式白名单test run，复用stage runner和L3 preflight，覆盖子进程失败/超时/取消/无误启动重型门；BallWar设置能力缺口另列独立片，不扩大本CLI合同。
+
 **2026-10-21 CLI-02：test plan独立开发片。** branch codex/studyctl-test-plan-20261021，初始自身CLI-01冻结832cbcc2，后续显式吸收#266 Ctrl-C审阅修复；未取其他工作树WIP。只调用本CLI信任的classify/load_manifest/resolve，不从任意repo执行Python。解析精确base/head并校验祖先关系，rename按两端，默认排除working tree并明示，include才纳入；未提交门配置不允许暗中影响排除WIP的计划。仅已登记非空影响集输出runner argv，原路径存在性双检；未知/混合无唯一登记集为PARTIAL/3并scope_review，不发起测试/网络/模型，不把full_scope/l3_eligible变为自动L3。异常空白/换行路径阻断而不修剪成已登记路径。初次169 PASS后补门配置脏状态/路径负控，当前新候选复验中；最终结果以本段后续收口恢复。standalone CLI mypy PASS、src122/128 NEW0。无生产权威/持久schema变化，无本地L3。下一片是显式白名单test run，沿用原stage runner/L3 preflight，不新增调度器。
 
 并行BallWar已按用户更正目标4.7，独立候选3b602f90c5f6525e0973ded2268f3a0ca7bcc9ba / Draft PR 2002yy/BallWar#7。实际4.7.1导入成功、10个核心runner与EndToEndContinueMain通过，SettingsAndResult扩展测试虽exit0/PASS却有2条缺失Main.player_settings脚本错误；整体11/12，未合并。首次兼容测试未隔离user://，旧玩家设置无法核实；后续独立APPDATA/LOCALAPPDATA+引擎探针证明隔离后复验同结果，已如实记录BallWar交接，不掩盖错误。496项仅CRLF导入元数据恢复，原6项混合工作树改动未动。此迁移阻塞单独修复，不趁CLI片改玩法。
