@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 CL-1I-1最终候选。** owned绑定最终命名L1 conversation_owned_binding **566 PASS/136.06s**，自身14项（含SQLite WAL并发快照、只读不创建/不写入、真实SDK假HTTP绑定与取消），mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0。初次562 PASS/4 FAIL仅为测试路径/序列化假设，修复测试后14项及最终566项均通过，生产实现未因该错误更改。初始自身#255后合main8a66eccf，集成基线907d6600只恢复2个已合main上下文文件，逐字校验一致；新实现审阅范围907d6600..候选为7文件，PR相对#255另含这2个不变main依赖，无其他窗口WIP。候选SHA以本段提交恢复。下一片可选API基于此冻结成果继续，只有身份请求、显式宿主授权/结束回调，默认关闭、不自动注册生产app，不等CI才推进。
+
 **2026-10-20 CL-1I-1：服务端owned聊天操作绑定（本轮第一新功能片）。** branch codex/conversation-owned-binding-20261020，初始自身#255冻结15c10c03，合入自身已发布main8a66eccf后得到基线907d6600；仅恢复已合main的conversation_decision_context及其测试，二者与main逐字一致，loop保留自身已冻结可选生成器/handler实现，未取其他窗口WIP。SQLiteChatSnapshotReader通过mode=ro、query_only和单BEGIN读取thread/current/最近6条completed历史，关闭连接、不创建数据库或做恢复写入；WAL并发取消负控证明三次SELECT同快照，下一次读取能看到取消。OwnedConversationBinding只接thread/turn/operation身份，复用既有快照projection检查，服务器回调提供工具/研究/证据/额度与模型准入，执行前持续刷新，不接收客户端历史/预算/工具目录。此处不创建/完成/释放ChatTurn，不改正式发布门；调用者仍负责身份授权与操作生命周期。
 
 自身14项真实SQLite/SDK假HTTP已PASS/6.85s，mypy122/128 NEW0、Ruff/format PASS；初次联合562 PASS/4 FAIL是测试假设错误（decision wire history为role/content对象、upsert不写cancel字段），现改走现有request_turn_cancel CAS并验证accepted，生产代码未改变；最终命名门执行中，结果另记。未改schema/共享core模型/生产路由，无真实网络/付费调用，无本地L3。下一独立片：默认关闭、显式授权且只读身份请求的可选SSE router，由宿主提供操作结束回调，继续保持provisional/unverified。
