@@ -221,7 +221,12 @@ def apply_decision(
     if action == STALE:
         if current.get("stale"):
             return current
-        updated = {**current, "stale": True}
+        from src.web.research.steering_replies import STALE_TEXT_SUFFIX
+
+        text = str(current.get("text") or "")
+        if not text.endswith(STALE_TEXT_SUFFIX):
+            text = f"{text}{STALE_TEXT_SUFFIX}"[:1200]
+        updated = {**current, "stale": True, "text": text}
         updated = advance_content(updated, now=now)
         updated["last_revision"] = {
             "action": STALE,

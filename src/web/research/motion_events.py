@@ -26,6 +26,8 @@ retract anything on their own - a failed read is a gap, not a verdict.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
+import json
 from typing import Any, Mapping, Sequence
 
 from src.web.research.answer_revision import (
@@ -72,6 +74,9 @@ MAX_RECORDED_EVENTS = 20
 class MotionEvent:
     kind: str
     at: str
+    #: Stable identity: a redelivered event must not be applied twice. Derived
+    #: deterministically when the producer does not supply one.
+    event_id: str = ""
     round: int = 0
     notes: int = 0
     revision: str = ""
@@ -85,8 +90,24 @@ class MotionEvent:
         if not str(self.at or "").strip():
             raise ValueError("motion event requires a timestamp")
 
+    def identity(self) -> str:
+        if str(self.event_id or "").strip():
+            return str(self.event_id)
+        payload = "|".join(
+            [
+                self.kind,
+                str(self.at),
+                str(int(self.round)),
+                str(int(self.notes)),
+                str(self.revision),
+                json.dumps(_bounded_detail(self.detail), ensure_ascii=False, sort_keys=True),
+            ]
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
+
     def to_dict(self) -> dict[str, Any]:
         return {
+            "event_id": self.identity(),
             "kind": self.kind,
             "at": str(self.at),
             "round": int(self.round),
@@ -171,7 +192,11 @@ def proposals_for_event(
         # A requirement the reply predates cannot be assumed to cover it. This is
         # a *stale* proposal, not a retraction: only evidence settles that.
         condition = str((event.detail or {}).get("condition") or "").strip()
+        # The reply that carries the new condition is not "not covering" itself.
+        keep_reply_id = str((event.detail or {}).get("keep_reply_id") or "").strip()
         for statement in snapshot.statements:
+            if keep_reply_id and statement.reply_id == keep_reply_id:
+                continue
             if statement.lifecycle != CURRENT:
                 continue
             if statement.kind not in {"knowledge", "conditional", "evidence"}:
