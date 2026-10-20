@@ -35,6 +35,8 @@ def test_exact_conversation_decision_paths_select_their_registered_impact_set():
         "tests/test_conversation_answer_generator.py",
         "src/application/conversation_deepseek_transport.py",
         "tests/test_conversation_deepseek_transport.py",
+        "src/application/conversation_deepseek_session.py",
+        "tests/test_conversation_deepseek_session.py",
     ]
     for path in paths:
         result = classify([path])
@@ -70,6 +72,7 @@ def test_loop_mapping_covers_actual_modules_and_complete_registered_consumer_sta
         "conversation_answer_runner",
         "conversation_answer_generator",
         "conversation_deepseek_transport",
+        "conversation_deepseek_session",
     ):
         module = f"src/application/{name}.py"
         test = f"tests/test_{name}.py"

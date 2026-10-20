@@ -8,6 +8,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 本轮两片最终交付候选 / 仅DeepSeek。** 第一片#252 head2b9b9f5bc389d5e5e148aff91ed3c3f8c41423b3 / pull_request CI39377002020后台，命名L1 495 PASS/128.64s，暂无finding。第二片固定该自身父片，最终命名L1 conversation_deepseek_session **510 PASS/134.10s**，自身15项真实SDK/假HTTP PASS，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0，候选SHA以本段提交恢复；7文件独立增量，无其他窗口WIP。初次509 PASS/1 FAIL是SDK空header的断言错误，已修为验证不继承外部组织/项目值，并完成15项与最终510项复验；不是生产逻辑故障或未知原因，不触发全量。测试不使用真实凭据或网络，用户配置未改，未做真实付费/模型质量/首答延迟验收；生产聊天未切换，无本地L3。
+
+本轮#244在0f914244 / CI39296775208 SUCCESS无finding后合main5cd917ad，#245在226c0d31 / CI39376484599 SUCCESS且两finding已解决后合main9ae37d4caac71935b75fc85c1b93c75502e466e9；前main5cd917ad push CI39376017114 SUCCESS，新main push CI39377570868后台。#246已重绑该main，heade663d9a654b4dca3b139aa6da704de632ca2e212 / CI39377648481后台；生产/测试树与已验证d7102e3a完全相同，复用277 PASS/94.49s且不借旧CI授予新head。先前凭据问题已由用户“只要deepseek”明确解除；当前仅DeepSeek配置与端点，不使用OpenAI服务，不再阻塞。唯一下一执行片：将DeepSeek会话接入可选服务入口并验证请求生命周期，继续按最新head审阅/CI逐片合main。
+
+**2026-10-20 CL-1G-2：DeepSeek专属SDK会话（本轮第二新功能片）。** branch codex/conversation-deepseek-session-20261020，固定base自身#252 2b9b9f5bc389d5e5e148aff91ed3c3f8c41423b3，不取其他窗口WIP。用户已选定仅DeepSeek，先前凭据问题已解除，不选择或使用OpenAI服务。DeepSeekConversationSettings只读取显式传入的DEEPSEEK_API_KEY、DEEPSEEK_MODEL_FLASH/PRO_NAME与DEEPSEEK_BASE_URL映射；没有OPENAI_*或通用model回退，密钥repr隐藏，endpoint仅HTTPS api.deepseek.com根/v1。owned单次异步session不触碰共享客户端，默认HTTP关闭重定向/环境代理，显式空SDK组织/项目/webhook避免继承OPENAI_*元数据；关闭后已有transport/generator也不能发送。提供同一transport给决策和BoundedAnswerGenerator，不切生产路由。
+
+使用真实SDK与httpx.MockTransport（内存假HTTP）验证序列化、完整两次调用loop、503仅一次、不自动重试、期限取消、拒绝跨提供方重定向与客户端关闭；所有配置/凭据均为显式fake，未发起真实网络/付费请求，不修改用户凭据。初始断言误把“无外部组织值”写成“完全无header”：SDK对显式空字符串发送空header，现断言其值为空且不继承foreign环境值，15项自身用例全部PASS/6.87s；生产代码未因此改变。mypy122/128 NEW0，Ruff/format PASS，最终命名门发布前另记。精确登记模块/测试CI与消费者，无前缀通配或强制门缩小，无本地L3。下一片：DeepSeek会话与生产服务的显式选择接线及观察回执，真实模型质量/首答延迟和货币费用仍另有验收门。
+
 **2026-10-20 CL-1G-1：仅DeepSeek传输适配器（本轮第一新功能片）。** 用户已明确“不用openai，只要deepseek”，覆盖此前待选状态；不使用OpenAI服务/配置，不发起真实付费调用。branch codex/conversation-model-transport-20261020，固定base自身#251 9f0c1f14b8b8702bcc5e6b28205798604590efe7，不取其他窗口WIP。DeepSeekConversationTransport接受宿主注入客户端和model，统一支持现有ModelDecisionRequest/ModelAnswerRequest；决策JSON object、回答正文，固定thinking disabled、stream false、每次SDK副本max_retries=0，验证预算参数并拒绝无法禁用重试的客户端。只收单条stop完成且无refusal/tool_calls的非空有界正文，截断/多choice不自动修复或重试；沿用原runner的准入/期限/过期与错误脱敏。本模块不读环境、不创建客户端、不授予费用/证据/发布权威；下一片才做DeepSeek专属配置及owned SDK生命周期，明确禁止OPENAI_*回退。精确登记新模块和测试CI路径。命名L1 conversation_deepseek_transport **495 PASS/128.64s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0；候选SHA以本段提交恢复，未改生产聊天/业务schema，无本地L3。
 
 本轮另已合#244到main5cd917ad，#245重绑head226c0d31 / CI39376484599后台、L1 394 PASS；#246 head d7102e3a / CI39376553152 SUCCESS、L1 277 PASS，仍按依赖顺序主线重绑，不能合入未过门的父片。根main已ff同步，4外部ZIP保留。
