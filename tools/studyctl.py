@@ -353,6 +353,10 @@ def main(argv: list[str] | None = None) -> int:
         if output is not None and not getattr(options, "dry_run", False):
             result["artifacts"] = [str(output.absolute())]
             save_new(output, json.dumps(result, ensure_ascii=True))
+    except KeyboardInterrupt:
+        result.update(exit_code=5, status="BLOCKED")
+        result["artifacts"] = []
+        result["errors"] = [{"code": "cancelled", "message": "Operation cancelled."}]
     except CLIError as error:
         result.update(
             exit_code=error.code, status="FAIL" if error.code in (2, 4) else "BLOCKED"
