@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 CL-1H-1：DeepSeek可选应用服务（本轮第一新功能片）。** branch codex/conversation-deepseek-service-20261020，初始固定自身#253 7c39a460，发布前显式吸收本轮URL修复835e0aad；未取其他窗口WIP。DeepSeekConversationService.start把同一model admission用于决策及回答，返回单次消费ConversationLoopSession；只创建/claim/关闭未读run不会创建SDK或发送请求，实际消费时才进入owned DeepSeek会话并受控执行loop。阶段后关闭/调用者取消按内层loop→SDK顺序释放，终态返回前owned SDK已关闭，保留原脱敏/unknown/去重回执；只在应用层显式调用，不改ChatService/HTTP生产入口或发布权威。宿主继续负责所有权快照、工具权限与真实费用授权。
+
+初步命名L1 conversation_deepseek_service **519 PASS/125.32s**（自身9项真实SDK假HTTP），mypy122/128 NEW0、Ruff/format PASS；包括初步→工具→完整最终输入、未读关闭、阶段后关闭、取消SDK、过期不发送、重启同request不重复扣费、provider失败和单次claim。该初片本地冻结后吸收父片已验515项URL修复，再跑最终联合门；旧7c父片结果不授予最终候选。无真实凭据/网络/付费请求、生产切换或本地L3。下一独立片：消费此服务回执的安全进度投影，分离阶段答案、工具状态与终态，始终保留provisional/unverified边界。
+
 **2026-10-20 本轮两片最终交付候选 / 仅DeepSeek。** 第一片#252 head2b9b9f5bc389d5e5e148aff91ed3c3f8c41423b3 / pull_request CI39377002020后台，命名L1 495 PASS/128.64s，暂无finding。第二片固定该自身父片，最终命名L1 conversation_deepseek_session **510 PASS/134.10s**，自身15项真实SDK/假HTTP PASS，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0，候选SHA以本段提交恢复；7文件独立增量，无其他窗口WIP。初次509 PASS/1 FAIL是SDK空header的断言错误，已修为验证不继承外部组织/项目值，并完成15项与最终510项复验；不是生产逻辑故障或未知原因，不触发全量。测试不使用真实凭据或网络，用户配置未改，未做真实付费/模型质量/首答延迟验收；生产聊天未切换，无本地L3。
 
 本轮#244在0f914244 / CI39296775208 SUCCESS无finding后合main5cd917ad，#245在226c0d31 / CI39376484599 SUCCESS且两finding已解决后合main9ae37d4caac71935b75fc85c1b93c75502e466e9；前main5cd917ad push CI39376017114 SUCCESS，新main push CI39377570868后台。#246已重绑该main，heade663d9a654b4dca3b139aa6da704de632ca2e212 / CI39377648481后台；生产/测试树与已验证d7102e3a完全相同，复用277 PASS/94.49s且不借旧CI授予新head。先前凭据问题已由用户“只要deepseek”明确解除；当前仅DeepSeek配置与端点，不使用OpenAI服务，不再阻塞。唯一下一执行片：将DeepSeek会话接入可选服务入口并验证请求生命周期，继续按最新head审阅/CI逐片合main。
