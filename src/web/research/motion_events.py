@@ -93,8 +93,29 @@ class MotionEvent:
             "notes": int(self.notes),
             "revision": str(self.revision),
             "cause": str(self.cause)[:200],
-            "detail": {str(key): value for key, value in dict(self.detail).items()},
+            "detail": _bounded_detail(self.detail),
         }
+
+
+def _bounded_detail(detail: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep the trace a diagnostic window, not an unbounded log."""
+
+    bounded: dict[str, Any] = {}
+    for index, (key, value) in enumerate(dict(detail or {}).items()):
+        if index >= 8:
+            break
+        if isinstance(value, str):
+            bounded[str(key)[:40]] = value[:200]
+        elif isinstance(value, (int, float, bool)) or value is None:
+            bounded[str(key)[:40]] = value
+        elif isinstance(value, (list, tuple)):
+            bounded[str(key)[:40]] = [
+                (str(item)[:200] if not isinstance(item, dict) else _bounded_detail(item))
+                for item in list(value)[:5]
+            ]
+        elif isinstance(value, Mapping):
+            bounded[str(key)[:40]] = _bounded_detail(value)
+    return bounded
 
 
 def record_event(context: dict[str, Any], event: MotionEvent) -> None:
@@ -117,6 +138,7 @@ def _proposal(
     reason: str,
     replacement: str = "",
     source_refs: Sequence[str] = (),
+    source_bindings: Sequence[Mapping[str, Any]] = (),
     strict: bool = False,
 ) -> RevisionProposal:
     return RevisionProposal(
@@ -129,6 +151,7 @@ def _proposal(
         research_notes=int(event.notes),
         replacement=replacement,
         source_refs=tuple(source_refs),
+        source_bindings=tuple(dict(item) for item in source_bindings),
         strict=strict,
         proposed_by="motion",
     )
@@ -153,6 +176,13 @@ def proposals_for_event(
                 continue
             if statement.kind not in {"knowledge", "conditional", "evidence"}:
                 continue
+            # Already re-judged after this condition: marking it again would
+            # undo a newer answer with an older event.
+            if (statement.research_round, statement.research_notes) >= (
+                int(event.round),
+                int(event.notes),
+            ):
+                continue
             proposals.append(
                 _proposal(
                     statement=statement,
@@ -166,10 +196,14 @@ def proposals_for_event(
 
     if event.kind == EVIDENCE_CONFLICT:
         contested = {str(url) for url in (event.detail or {}).get("conflicting_urls") or []}
+        if not contested:
+            # Without a locatable source we cannot say which statement is
+            # contested. Retracting everything would be a guess, not a revision.
+            return []
         for statement in snapshot.statements:
             if statement.lifecycle != CURRENT:
                 continue
-            if contested and not (set(statement.source_refs) & contested):
+            if not (set(statement.source_refs) & contested):
                 continue
             # Withdraw the conclusion; do not write a new one from a conflict.
             proposals.append(
@@ -185,9 +219,13 @@ def proposals_for_event(
 
     if event.kind == EVIDENCE_READ:
         replacement = str((event.detail or {}).get("replacement") or "").strip()
-        refs = [str(url) for url in (event.detail or {}).get("source_refs") or [] if str(url).strip()]
+        bindings = tuple(
+            dict(item)
+            for item in (event.detail or {}).get("source_bindings") or []
+            if isinstance(item, dict)
+        )
         target = str((event.detail or {}).get("target_reply_id") or "").strip()
-        if not replacement or not refs or not target:
+        if not replacement or not bindings or not target:
             # A read alone proves nothing about how to phrase the answer.
             return []
         statement = next(
@@ -202,7 +240,7 @@ def proposals_for_event(
                 action=REPLACE,
                 reason=str(event.cause or "新证据支持重写"),
                 replacement=replacement,
-                source_refs=refs,
+                source_bindings=bindings,
                 strict=strict,
             )
         )

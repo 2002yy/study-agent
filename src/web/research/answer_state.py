@@ -73,6 +73,10 @@ class StatementState:
     content_version: int
     reason: str = ""
     source_refs: tuple[str, ...] = ()
+    #: The research state (round, notes) this statement was derived from, so a
+    #: condition event can tell "not covered yet" from "already re-judged".
+    research_round: int = 0
+    research_notes: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -84,6 +88,8 @@ class StatementState:
             "content_version": self.content_version,
             "reason": self.reason,
             "source_refs": list(self.source_refs),
+            "research_round": self.research_round,
+            "research_notes": self.research_notes,
         }
 
 
@@ -194,6 +200,13 @@ def statement_lifecycle(reply: Mapping[str, Any]) -> str:
     return CURRENT
 
 
+def _state_part(reply: Mapping[str, Any], key: str) -> int:
+    state = reply.get("content_state")
+    if not isinstance(state, Mapping):
+        return 0
+    return _int(state.get(key))
+
+
 def _source_refs(reply: Mapping[str, Any]) -> tuple[str, ...]:
     refs = []
     for citation in reply.get("citations") or []:
@@ -259,6 +272,8 @@ def snapshot_from_replies(
                 content_version=_int(reply.get("content_version")),
                 reason=str(reply.get("last_revision", {}).get("reason") if isinstance(reply.get("last_revision"), Mapping) else ""),
                 source_refs=_source_refs(reply),
+                research_round=_state_part(reply, "round"),
+                research_notes=_state_part(reply, "notes"),
             )
         )
     statements.sort(key=lambda item: item.reply_id)

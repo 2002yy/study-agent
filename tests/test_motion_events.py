@@ -5,9 +5,16 @@ nothing must not rewrite anything, a conflict withdraws instead of inventing, an
 a condition that predates the reply cannot be applied to it.
 """
 
+import hashlib
+
 import pytest
 
-from src.web.research.answer_revision import RETRACT, REPLACE, STALE
+from src.web.research.answer_revision import (
+    RETRACT,
+    REPLACE,
+    STALE,
+    RevisionProposalError,
+)
 from src.web.research.motion_events import (
     CONDITION_ADDED,
     CONDITION_CORRECTED,
@@ -52,6 +59,10 @@ def _event(kind, **overrides):
     values = {"kind": kind, "at": NOW, "round": 2, "notes": 5, "revision": "rev-2", "cause": ""}
     values.update(overrides)
     return MotionEvent(**values)
+
+
+def _binding(url: str = "https://gimp.org/", quote: str = "batch export uses the command line"):
+    return {"url": url, "quote": quote, "content_sha256": hashlib.sha256(quote.encode()).hexdigest()}
 
 
 def _snapshot(replies, **kwargs):
@@ -133,11 +144,18 @@ def test_a_conflict_withdraws_only_the_contested_statements():
     assert proposals[0].replacement == ""
 
 
-def test_a_conflict_without_urls_does_not_guess_which_statement_is_affected():
+def test_a_conflict_without_urls_retracts_nothing():
+    """No locatable source means no revision - not "withdraw everything"."""
+
     snapshot = _snapshot([_reply()])
     proposals = proposals_for_event(_event(EVIDENCE_CONFLICT, detail={}), snapshot)
+    assert proposals == []
 
-    assert [item.action for item in proposals] == [RETRACT]
+    replies, decisions, _ = apply_event(
+        [_reply()], _event(EVIDENCE_CONFLICT, detail={}), now=NOW, run_id="run1", turn_id="turn1"
+    )
+    assert decisions == []
+    assert replies[0]["lifecycle"] == "open"
 
 
 def test_a_read_without_bound_text_proposes_nothing():
@@ -153,7 +171,7 @@ def test_a_read_without_bound_text_proposes_nothing():
     ) == []
 
 
-def test_a_read_bound_to_a_source_can_replace():
+def test_a_read_bound_to_a_verified_quote_can_replace():
     snapshot = _snapshot([_reply()])
     proposals = proposals_for_event(
         _event(
@@ -161,14 +179,62 @@ def test_a_read_bound_to_a_source_can_replace():
             detail={
                 "target_reply_id": "run1:research",
                 "replacement": "GIMP 的批量导出依赖命令行；已读材料支持这一点。",
-                "source_refs": ["https://gimp.org/"],
+                "source_bindings": [_binding()],
             },
         ),
         snapshot,
     )
 
     assert [item.action for item in proposals] == [REPLACE]
-    assert proposals[0].source_refs == ("https://gimp.org/",)
+    assert proposals[0].source_bindings[0]["url"] == "https://gimp.org/"
+
+
+def test_a_replacement_installs_its_own_citations():
+    replies, decisions, _ = apply_event(
+        [_reply(citations=[{"url": "https://old.example/", "quote": "old"}])],
+        _event(
+            EVIDENCE_READ,
+            detail={
+                "target_reply_id": "run1:research",
+                "replacement": "GIMP 的批量导出依赖命令行。",
+                "source_bindings": [_binding()],
+            },
+        ),
+        now=NOW,
+        run_id="run1",
+        turn_id="turn1",
+    )
+
+    assert decisions[0].applied == REPLACE
+    urls = [citation["url"] for citation in replies[0]["citations"]]
+    assert urls == ["https://gimp.org/"]
+    assert "https://old.example/" not in urls
+
+
+def test_a_binding_whose_quote_does_not_match_its_digest_is_rejected():
+    with pytest.raises(RevisionProposalError):
+        _event(
+            EVIDENCE_READ,
+            detail={
+                "target_reply_id": "run1:research",
+                "replacement": "GIMP 的批量导出依赖命令行。",
+                "source_bindings": [
+                    {"url": "https://gimp.org/", "quote": "x", "content_sha256": "0" * 64}
+                ],
+            },
+        ).to_dict()
+        from src.web.research.answer_revision import RevisionProposal
+
+        RevisionProposal(
+            target_reply_id="run1:research",
+            target_content_version=3,
+            action=REPLACE,
+            reason="r",
+            replacement="t",
+            source_bindings=(
+                {"url": "https://gimp.org/", "quote": "x", "content_sha256": "0" * 64},
+            ),
+        )
 
 
 def test_a_failed_read_and_a_terminal_status_propose_nothing():
@@ -211,7 +277,9 @@ def test_applying_a_conflict_event_retracts_the_statement():
     assert replies[0]["revision_history"]
 
 
-def test_an_event_older_than_the_reply_is_refused():
+def test_an_event_older_than_the_reply_affects_nothing():
+    """A statement re-judged after the condition must not be marked again."""
+
     replies, decisions, _ = apply_event(
         [_reply(content_state={"round": 3, "notes": 9, "revision": "rev-3"})],
         _event(CONDITION_ADDED, round=2, notes=5),
@@ -220,9 +288,9 @@ def test_an_event_older_than_the_reply_is_refused():
         turn_id="turn1",
     )
 
-    assert decisions[0].accepted is False
-    assert decisions[0].refusal == "older_research_state"
+    assert decisions == []
     assert replies[0]["stale"] is False
+    assert replies[0]["content_version"] == 3
 
 
 def test_applying_the_same_event_twice_is_refused():
@@ -290,3 +358,14 @@ def test_the_service_records_the_condition_event_that_caused_the_change(tmp_path
     assert [event["kind"] for event in events] == [CONDITION_ADDED]
     assert events[0]["round"] == 2
     assert events[0]["cause"]
+
+
+def test_the_event_detail_is_bounded():
+    event = _event(
+        CONDITION_ADDED,
+        detail={f"key{index}": "x" * 500 for index in range(20)},
+    )
+    detail = event.to_dict()["detail"]
+
+    assert len(detail) <= 8
+    assert all(len(str(value)) <= 200 for value in detail.values())

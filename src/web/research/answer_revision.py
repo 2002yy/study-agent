@@ -34,6 +34,7 @@ Guards, all deterministic:
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from typing import Any, Iterable, Mapping, Sequence
 
 from src.web.research.answer_layers import claims_need_evidence
@@ -66,7 +67,11 @@ class RevisionProposal:
     research_round: int = 0
     research_notes: int = 0
     replacement: str = ""
+    #: Bare urls, kept for audit and back-compat. Not evidence on their own.
     source_refs: tuple[str, ...] = ()
+    #: Verified reads the replacement is bound to: ``{"url", "quote",
+    #: "content_sha256"}``. A bare URL list is not enough to publish new text.
+    source_bindings: tuple[Mapping[str, Any], ...] = ()
     strict: bool = False
     #: Deterministic rules or a model may propose; only the rules decide.
     proposed_by: str = "deterministic"
@@ -82,6 +87,17 @@ class RevisionProposal:
             raise RevisionProposalError("reason is required")
         if self.action == REPLACE and not str(self.replacement or "").strip():
             raise RevisionProposalError("replace requires a replacement")
+        for binding in self.source_bindings:
+            if not isinstance(binding, Mapping):
+                raise RevisionProposalError("source binding must be a mapping")
+            if not str(binding.get("url") or "").strip():
+                raise RevisionProposalError("source binding requires a url")
+            quote = str(binding.get("quote") or "")
+            digest = str(binding.get("content_sha256") or "")
+            if not quote or not digest:
+                raise RevisionProposalError("source binding requires quote + content_sha256")
+            if hashlib.sha256(quote.encode("utf-8")).hexdigest() != digest:
+                raise RevisionProposalError("source binding digest does not match its quote")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -94,6 +110,7 @@ class RevisionProposal:
             "research_notes": int(self.research_notes),
             "replacement": str(self.replacement)[:1200],
             "source_refs": list(self.source_refs),
+            "source_bindings": [dict(item) for item in self.source_bindings],
             "strict": bool(self.strict),
             "proposed_by": self.proposed_by,
         }
@@ -164,12 +181,16 @@ def evaluate(proposal: RevisionProposal, reply: Mapping[str, Any]) -> RevisionDe
         return RevisionDecision(proposal, True, applied=STALE)
     if proposal.action == RETRACT:
         return RevisionDecision(proposal, True, applied=RETRACT)
-    # replace: the new text must pass the ordinary publication rules.
+    # replace: the new text must pass the ordinary publication rules, and it must
+    # be bound to reads whose quotes really match the recorded digest - a bare URL
+    # list would let new text inherit "verified" status it never earned.
     refunds = claims_need_evidence(proposal.replacement)
-    if refunds and not proposal.source_refs:
+    if refunds and not proposal.source_bindings:
         return RevisionDecision(proposal, False, refusal="replacement_unbacked_claim")
-    if proposal.strict and not proposal.source_refs:
+    if proposal.strict and not proposal.source_bindings:
         return RevisionDecision(proposal, False, refusal="strict_requires_evidence")
+    if refunds and proposal.source_refs and not proposal.source_bindings:
+        return RevisionDecision(proposal, False, refusal="unverified_binding")
     return RevisionDecision(proposal, True, applied=REPLACE)
 
 
@@ -237,11 +258,21 @@ def apply_decision(
         "content_version": from_version,
         "stage": str(current.get("stage") or ""),
     }
+    # The new text carries the citations it was actually bound to; it may never
+    # keep the previous body's evidence.
+    citations = [
+        {
+            "url": str(binding.get("url") or ""),
+            "quote": str(binding.get("quote") or ""),
+            "title": str(binding.get("title") or ""),
+        }
+        for binding in decision.proposal.source_bindings
+    ]
     updated = {
         **current,
         "lifecycle": LIFECYCLE_OPEN,
         "text": str(decision.proposal.replacement)[:1200],
-        "citations": list(current.get("citations") or []),
+        "citations": citations,
     }
     updated = advance_content(updated, now=now)
     updated["last_revision"] = {
