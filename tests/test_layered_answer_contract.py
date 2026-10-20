@@ -106,6 +106,52 @@ def test_a_specific_claim_can_never_become_knowledge(sentence):
     assert withheld[0].kind == UNVERIFIED
 
 
+def test_a_gap_clause_cannot_launder_a_claim_in_the_same_sentence():
+    """The loophole: 'officially confirmed +35%, but compatibility unverified'.
+
+    The uncertainty wording excuses only the clause that is about the gap; the
+    claim next to it still needs evidence.
+    """
+
+    mixed = "官方已经确认，新版本性能提升 35%，但兼容性尚未核实。"
+
+    assert claims_need_evidence(mixed) == "official_claim"
+
+    published, withheld = classify_draft(mixed)
+    reasons = {segment.reason for segment in withheld}
+    assert "official_claim" in reasons and "specific_number" in reasons
+    published_text = "".join(segment.text for segment in published)
+    assert "35%" not in published_text
+    assert "官方已经确认" not in published_text
+    assert "尚未核实" in published_text
+
+
+def test_a_bare_number_is_still_a_specific_claim():
+    for sentence in (
+        "这个库有 128 个模块。",
+        "训练一轮需要 45 分钟。",
+        "该版本比上一版快 1.5 倍。",
+    ):
+        assert claims_need_evidence(sentence) != ""
+
+    published, withheld = classify_draft("这个库有 128 个模块。")
+    assert published == [] and withheld
+
+
+def test_a_gap_clause_that_names_a_version_is_publishable():
+    assert claims_need_evidence("0.136.0 的兼容性尚未核实。") == ""
+
+
+def test_the_mixed_draft_keeps_only_the_honest_part_when_published():
+    mixed = "官方已经确认，新版本性能提升 35%，但兼容性尚未核实。"
+    text, audit = publish_official_fields("FastAPI 新版本", [], mixed)
+
+    assert "35%" not in text
+    assert "官方已经确认" not in text
+    assert "尚未核实" in text
+    assert audit["layered"]["withheld"]
+
+
 def test_an_explicit_gap_statement_is_not_treated_as_a_claim():
     assert claims_need_evidence("最新版本的兼容性尚未核实。") == ""
     published, withheld = classify_draft("最新版本的兼容性尚未核实。")
