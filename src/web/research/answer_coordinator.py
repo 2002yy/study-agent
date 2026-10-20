@@ -39,12 +39,17 @@ from src.web.research.steering_replies import supersede_affected
 #: A duplicate event is not an error; it simply has nothing left to do.
 SKIP_DUPLICATE_EVENT = "duplicate_event"
 
+#: The delegated lifecycle transition for a replaced term. Kept out of ACTIONS:
+#: it is not a revision of a judgment, it is the judgment losing its subject.
+SUPERSEDE = "supersede"
+
 
 @dataclass(frozen=True)
 class CoordinatorResult:
     replies: tuple[dict[str, Any], ...]
     decisions: tuple[RevisionDecision, ...]
     snapshot: StaticAnswerSnapshot
+    delegated: tuple[Mapping[str, Any], ...] = ()
     audit: Mapping[str, Any] = field(default_factory=dict)
 
     @property
@@ -100,6 +105,10 @@ def coordinate(
         )
 
     decisions: list[RevisionDecision] = []
+    # A correction is a lifecycle transition the revision vocabulary does not
+    # name (it is neither retraction nor staleness). It is delegated, and the
+    # audit says so instead of inventing a retract proposal for it.
+    delegated: list[dict[str, Any]] = []
     if event.kind == CONDITION_CORRECTED:
         # The runtime's correction semantics are "supersede the replies that
         # spoke about the replaced term". The AR-1A action vocabulary has no
@@ -116,15 +125,17 @@ def coordinate(
             dict(item)
             for item in supersede_affected(current, old_terms=old_terms, now=now)
         ]
-        for index, reply in enumerate(current):
+        for reply in current:
             prior = before.get(reply.get("reply_id")) or {}
             if prior and reply != prior:
-                decisions.append(
-                    RevisionDecision(
-                        proposal=_legacy_proposal(reply, event, reason="纠正替代了旧术语"),
-                        accepted=True,
-                        applied="supersede",
-                    )
+                delegated.append(
+                    {
+                        "reply_id": str(reply.get("reply_id") or ""),
+                        "action": SUPERSEDE,
+                        "delegated": True,
+                        "from_version": int(prior.get("content_version") or 0),
+                        "to_version": int(reply.get("content_version") or 0),
+                    }
                 )
     else:
         proposals = proposals_for_event(event, snapshot, strict=strict)
@@ -149,14 +160,18 @@ def coordinate(
             "action": decision.applied,
             "accepted": decision.accepted,
             "refusal": decision.refusal,
+            "proposal_action": decision.proposal.action,
+            "delegated": False,
         }
         for decision in decisions
         if decision.accepted
     ]
+    applied_summary.extend(delegated)
     return CoordinatorResult(
         replies=tuple(current),
         decisions=tuple(decisions),
         snapshot=after,
+        delegated=tuple(delegated),
         audit={
             "schema_version": "answer-coordination-v1",
             "event_id": identity,
@@ -166,19 +181,4 @@ def coordinate(
             "before_version": snapshot.content_version,
             "after_version": after.content_version,
         },
-    )
-
-
-def _legacy_proposal(reply: Mapping[str, Any], event: MotionEvent, *, reason: str):
-    from src.web.research.answer_revision import RevisionProposal
-
-    return RevisionProposal(
-        target_reply_id=str(reply.get("reply_id") or ""),
-        target_content_version=max(0, int(reply.get("content_version") or 0) - 1),
-        action="retract",
-        reason=reason,
-        research_revision=event.revision,
-        research_round=int(event.round),
-        research_notes=int(event.notes),
-        proposed_by="legacy",
     )

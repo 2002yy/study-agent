@@ -160,7 +160,12 @@ def _terminal_lifecycle(reply: Mapping[str, Any]) -> str:
     return ""
 
 
-def evaluate(proposal: RevisionProposal, reply: Mapping[str, Any]) -> RevisionDecision:
+def evaluate(
+    proposal: RevisionProposal,
+    reply: Mapping[str, Any],
+    *,
+    read_evidence: Sequence[Any] = (),
+) -> RevisionDecision:
     """Decide whether one proposal may touch one reply. No side effects."""
 
     if str(reply.get("reply_id") or "") != proposal.target_reply_id:
@@ -187,6 +192,12 @@ def evaluate(proposal: RevisionProposal, reply: Mapping[str, Any]) -> RevisionDe
     refunds = claims_need_evidence(proposal.replacement)
     if refunds and not proposal.source_bindings:
         return RevisionDecision(proposal, False, refusal="replacement_unbacked_claim")
+    if proposal.source_bindings and read_evidence:
+        from src.web.research.read_evidence import verify_bindings
+
+        refusal = verify_bindings(proposal.source_bindings, read_evidence)
+        if refusal:
+            return RevisionDecision(proposal, False, refusal=refusal)
     if proposal.strict and not proposal.source_bindings:
         return RevisionDecision(proposal, False, refusal="strict_requires_evidence")
     if refunds and proposal.source_refs and not proposal.source_bindings:
@@ -273,12 +284,29 @@ def apply_decision(
         }
         for binding in decision.proposal.source_bindings
     ]
+    # A replacement backed by a read may clear the stale flag and adopt the
+    # research state it was produced under; a claim-free replacement has nothing
+    # to prove and may too. Anything else keeps the flag and says why -
+    # "replaced" must not be claimed before the new body has evidence of its own.
+    from src.web.research.answer_layers import claims_need_evidence
+
+    backed = bool(decision.proposal.source_bindings) or not claims_need_evidence(
+        str(decision.proposal.replacement)
+    )
     updated = {
         **current,
         "lifecycle": LIFECYCLE_OPEN,
         "text": str(decision.proposal.replacement)[:1200],
         "citations": citations,
+        "stale": not backed,
+        "stale_reason": "" if backed else "replacement_pending_verification",
     }
+    if backed:
+        updated["content_state"] = {
+            "round": int(decision.proposal.research_round),
+            "notes": int(decision.proposal.research_notes),
+            "revision": str(decision.proposal.research_revision),
+        }
     updated = advance_content(updated, now=now)
     updated["last_revision"] = {
         "action": REPLACE,
