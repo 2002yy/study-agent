@@ -96,7 +96,7 @@ def test_an_event_is_bounded_and_serializable():
 
 # -- condition changes ------------------------------------------------------
 def test_a_new_condition_asks_for_stale_not_retraction():
-    snapshot = _snapshot([_reply()])
+    snapshot = _snapshot([_reply(content_state={"round": 1, "notes": 2, "revision": "rev-1"})])
     proposals = proposals_for_event(
         _event(CONDITION_ADDED, detail={"condition": "只比较旧硬件环境"}), snapshot
     )
@@ -110,7 +110,7 @@ def test_a_new_condition_asks_for_stale_not_retraction():
 def test_a_correction_targets_the_same_kinds_of_statement():
     snapshot = _snapshot(
         [
-            _reply(),
+            _reply(content_state={"round": 1, "notes": 2, "revision": "rev-1"}),
             _reply(reply_id="run1:steer:s1", scope="steering", steering_id="s1", lifecycle="retracted"),
         ]
     )
@@ -247,7 +247,7 @@ def test_a_failed_read_and_a_terminal_status_propose_nothing():
 # -- applying an event ------------------------------------------------------
 def test_applying_a_condition_event_marks_the_reply_stale_with_an_audit_trail():
     replies, decisions, _ = apply_event(
-        [_reply()],
+        [_reply(content_state={"round": 1, "notes": 2, "revision": "rev-1"})],
         _event(CONDITION_ADDED, detail={"condition": "只比较旧硬件环境"}),
         now=NOW,
         run_id="run1",
@@ -295,7 +295,7 @@ def test_an_event_older_than_the_reply_affects_nothing():
 
 def test_applying_the_same_event_twice_is_refused():
     replies, _, _ = apply_event(
-        [_reply()], _event(CONDITION_ADDED), now=NOW, run_id="run1", turn_id="turn1"
+        [_reply(content_state={"round": 1, "notes": 2, "revision": "rev-1"})], _event(CONDITION_ADDED), now=NOW, run_id="run1", turn_id="turn1"
     )
     _, decisions, _ = apply_event(
         replies, _event(CONDITION_ADDED), now=NOW, run_id="run1", turn_id="turn1"

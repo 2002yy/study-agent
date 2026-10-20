@@ -201,12 +201,11 @@ def proposals_for_event(
                 continue
             if statement.kind not in {"knowledge", "conditional", "evidence"}:
                 continue
-            # Already re-judged after this condition: marking it again would
-            # undo a newer answer with an older event.
-            if (statement.research_round, statement.research_notes) >= (
-                int(event.round),
-                int(event.notes),
-            ):
+            # Already re-judged in (or after) the round the condition arrived in:
+            # marking it again would undo a newer answer with an older event.
+            # Round is the axis the runtime already uses for this comparison, so
+            # the coordinator stays equivalent to mark_additions_stale.
+            if statement.research_round >= int(event.round):
                 continue
             proposals.append(
                 _proposal(

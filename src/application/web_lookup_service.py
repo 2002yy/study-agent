@@ -45,12 +45,10 @@ from src.web.research.steering_replies import (
     apply_evidence,
     attribute_analysis,
     find_reply,
-    mark_additions_stale,
     next_content_version,
     reply_id_for_steering,
     research_reply,
     research_reply_id,
-    supersede_affected,
 )
 
 
@@ -1753,24 +1751,11 @@ class WebLookupService:
             if isinstance(item, dict)
             and str(item.get("steering_id") or "") in incorporated_ids
         ]
-        if corrections:
-            replies = supersede_affected(
-                replies,
-                old_terms=[str(item.get("old") or "") for item in corrections],
-                now=utc_now(),
-            )
-        for item in incorporated:
-            if item.get("kind") != "addition" or not item.get("id"):
-                continue
-            replies = mark_additions_stale(
-                replies,
-                keep_reply_id=reply_id_for_steering(run_id, str(item["id"])),
-                added_round=int(item.get("round") or 0),
-                now=utc_now(),
-            )
-        # Record the motion events that caused these state changes. The trace is
-        # audit only: the writes above are already the deterministic transition,
-        # and the proposal path (AR-1C) will read this trace instead of guessing.
+        # One writer: the coordinator performs the transition and records the
+        # event. It reproduces the legacy result field by field (pairing tests in
+        # tests/test_answer_coordinator.py), so this is a convergence, not a
+        # semantic change.
+        from src.web.research.answer_coordinator import coordinate
         from src.web.research.motion_events import (
             CONDITION_ADDED,
             CONDITION_CORRECTED,
@@ -1778,35 +1763,58 @@ class WebLookupService:
             record_event,
         )
 
-        state = context.get("interim_state") if isinstance(context.get("interim_state"), dict) else {}
-        for item in corrections:
-            record_event(
-                context,
-                MotionEvent(
-                    kind=CONDITION_CORRECTED,
-                    at=utc_now(),
-                    round=int(item.get("round") or 0),
-                    notes=len(deep.get("notes") or []),
-                    revision=str(state.get("revision") or ""),
-                    cause=f"用户纠正了术语：{str(item.get('old') or '')} -> {str(item.get('new') or '')}",
-                    detail={"condition": str(item.get("new") or ""), "old_terms": [str(item.get("old") or "")]},
-                ),
+        turn_id = str((context.get("owner") or {}).get("turn_id") or "")
+        revision_state = (
+            context.get("interim_state") if isinstance(context.get("interim_state"), dict) else {}
+        )
+        revision = str(revision_state.get("revision") or "")
+        notes_count = len(deep.get("notes") or [])
+        if corrections:
+            event = MotionEvent(
+                kind=CONDITION_CORRECTED,
+                at=utc_now(),
+                round=int(corrections[0].get("round") or 0),
+                notes=notes_count,
+                revision=revision,
+                cause="用户纠正了被替换的术语",
+                detail={"old_terms": [str(item.get("old") or "") for item in corrections]},
             )
+            result = coordinate(
+                replies,
+                event,
+                now=utc_now(),
+                run_id=run_id,
+                turn_id=turn_id,
+            )
+            replies = list(result.replies)
+            record_event(context, event)
         for item in incorporated:
             if item.get("kind") != "addition" or not item.get("id"):
                 continue
-            record_event(
-                context,
-                MotionEvent(
-                    kind=CONDITION_ADDED,
-                    at=utc_now(),
-                    round=int(item.get("round") or 0),
-                    notes=len(deep.get("notes") or []),
-                    revision=str(state.get("revision") or ""),
-                    cause="用户追加了新的研究条件",
-                    detail={"condition": str(item.get("id") or "")},
-                ),
+            event = MotionEvent(
+                kind=CONDITION_ADDED,
+                at=utc_now(),
+                round=int(item.get("round") or 0),
+                notes=notes_count,
+                revision=revision,
+                cause="用户追加了新的研究条件",
+                detail={
+                    "keep_reply_id": reply_id_for_steering(run_id, str(item["id"])),
+                    "condition": str(item.get("id") or ""),
+                },
             )
+            result = coordinate(
+                replies,
+                event,
+                now=utc_now(),
+                run_id=run_id,
+                turn_id=turn_id,
+            )
+            replies = list(result.replies)
+            record_event(context, event)
+        # Record the motion events that caused these state changes. The trace is
+        # The events were recorded by the coordinator above, in the same pass that
+        # produced the replies; recording them again here would double the trace.
         context["steering_replies"] = replies
 
     def _deep_publish_steering_replies(
