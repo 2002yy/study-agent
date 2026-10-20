@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 CL-1H-2：单次消费的显示进度流（本轮第二新功能片）。** branch codex/conversation-progress-stream-20261020，初始固定自身服务756f0eaa，已ff绑定其最终文档父片#254 dd17b5f11564159dd731421807bd8b0c846d57ac（仅交接，无生产变化）；未取其他窗口WIP。conversation_progress_stream立即claim原ConversationLoopSession，支持未读close、单次消费、拒绝并发读取、取消传播与内层资源释放。只投影计划focus、阶段/最终答案、澄清、工具状态和终态；不输出模型reason、原始工具正文、prompt/history或证据摘要。所有帧固定unverified/provisional，answered终态不授予发布/证据权威。root request_id关联同一run，sequence与哈希event_id仅本流显示去重，不提供持久恢复/重放权限；SSE采用单行JSON数据，正文换行不能注入event/data字段。缺失终态、源异常、SDK清理失败输出一个脱敏failed终态，调用者取消仍传播。
+
+最终命名L1 conversation_progress_stream **534 PASS/143.66s**（自身10项，含真实SDK服务完整初步→工具→最终显示），mypy122/128 NEW0、Ruff/format/diff-check PASS，候选密钥扫描另见发布结果。当前仅应用层DTO/SSE编码，不注册HTTP路由或写ChatTurn，不切生产聊天、费用或证据/发布权威，无真实网络/付费模型、无本地L3。候选SHA以本段提交恢复，下一片：把显式选择服务与owned聊天操作绑定到可选API入口，沿用原证据/发布门。
+
+本轮#246在e663d9a6 / CI39377648481 SUCCESS / 无finding后合main b6aee2b72e8904e0a382bd9a93469168f48bf71b，exact-main CI39381453432 SUCCESS，根main已ff且4外部ZIP保留。#247重绑main L1 413 PASS、mypy122/128，但head2c681ed6缺失新CI；追加交接head3bfefb2c已推送触发synchronize，必须绑定新head CI，不能借旧3390fafd绿灯。#253 URLfinding4321928343已修复并resolve，head835e0aad / CI39381952927后台、L1 515 PASS；#254服务headdd17b5f1 / CI39382951751后台、L1 524 PASS。两新功能片只基于自身冻结成果，不等CI才开发。
+
 **2026-10-20 CL-1H-1最终候选。** DeepSeek可选应用服务已吸收自身#253修复835e0aad（merge756f0eaa，仅交接冲突保留双方），最终命名L1 conversation_deepseek_service **524 PASS/140.58s**，自身9项SDK假HTTP，mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0；相对835e0aad独立7文件，候选SHA以本段提交恢复，未取其他窗口WIP。初始519仅为旧父片的初步证据，新联合门已覆盖URL canonical真实SDK回归。创建/claim/关闭未读run不建SDK，取消/关闭/终态都释放自有客户端，共享模型准入不因新service/session重启而自动重置；默认生产ChatService/HTTP不变。下一片安全进度流基于此自身冻结代码继续，本轮不等CI。
 
 **2026-10-20 CL-1H-1：DeepSeek可选应用服务（本轮第一新功能片）。** branch codex/conversation-deepseek-service-20261020，初始固定自身#253 7c39a460，发布前显式吸收本轮URL修复835e0aad；未取其他窗口WIP。DeepSeekConversationService.start把同一model admission用于决策及回答，返回单次消费ConversationLoopSession；只创建/claim/关闭未读run不会创建SDK或发送请求，实际消费时才进入owned DeepSeek会话并受控执行loop。阶段后关闭/调用者取消按内层loop→SDK顺序释放，终态返回前owned SDK已关闭，保留原脱敏/unknown/去重回执；只在应用层显式调用，不改ChatService/HTTP生产入口或发布权威。宿主继续负责所有权快照、工具权限与真实费用授权。
