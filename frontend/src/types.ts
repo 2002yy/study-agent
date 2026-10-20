@@ -615,7 +615,7 @@ export type ChatResearchReply = {
   scope: "steering" | "research";
   steering_id: string;
   turn_id: string;
-  lifecycle: "open" | "superseded" | "closed";
+  lifecycle: "open" | "superseded" | "retracted" | "closed";
   stage: ChatResearchReplyStage;
   content_version: number;
   stale: boolean;

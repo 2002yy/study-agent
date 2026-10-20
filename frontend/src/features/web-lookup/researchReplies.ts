@@ -37,9 +37,12 @@ export function mergeResearchReplies(
       if (reply.lifecycle_closed_by === "run_terminal") byId.set(reply.reply_id, reply);
       continue;
     }
-    // An invalidation the server decided (superseded) must reach the reader even
-    // though it is not a "newer content" in the usual sense.
-    if (reply.lifecycle === "superseded" && reply.content_version >= known.content_version) {
+    // An invalidation the server decided (superseded or retracted) must reach the
+    // reader even though it is not a "newer content" in the usual sense.
+    if (
+      (reply.lifecycle === "superseded" || reply.lifecycle === "retracted") &&
+      reply.content_version >= known.content_version
+    ) {
       byId.set(reply.reply_id, reply);
       continue;
     }
@@ -62,6 +65,7 @@ export function replyIsProvisional(reply: ChatResearchReply): boolean {
 }
 
 export function replyStatusNote(reply: ChatResearchReply): string | null {
+  if (reply.lifecycle === "retracted") return "已撤回，不再作为当前结论";
   if (reply.lifecycle === "superseded") return "已被后续纠正取代";
   // A general opening is useful, never authority: say so where it is read.
   if (reply.stage === "knowledge") return "已有知识；未经本次检索核实";

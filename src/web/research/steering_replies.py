@@ -29,6 +29,9 @@ SUPERSEDED_TEXT_SUFFIX = "（这条判断已被后续纠正取代）"
 
 LIFECYCLE_OPEN = "open"
 LIFECYCLE_SUPERSEDED = "superseded"
+#: The statement was withdrawn: it may not be read as a current conclusion, and
+#: it is terminal for that reply like ``superseded``.
+LIFECYCLE_RETRACTED = "retracted"
 LIFECYCLE_CLOSED = "closed"
 LIFECYCLES = (LIFECYCLE_OPEN, LIFECYCLE_SUPERSEDED, LIFECYCLE_CLOSED)
 
@@ -702,14 +705,17 @@ def merge_steering_replies(
         # The lifecycle is authority, so it is protected before any state or
         # version comparison - a newer round may replace content, never the fact
         # that this judgment was invalidated.
-        if prior.get("lifecycle") == LIFECYCLE_SUPERSEDED:
-            if reply.get("lifecycle") != LIFECYCLE_SUPERSEDED:
-                merged[key] = _flagged_conflict(prior, reply, reason="superseded_reopen")
-            elif content_fingerprint(reply) != content_fingerprint(prior):
-                # The same rule the client applies: once a judgment is invalidated
-                # its body is frozen too, so the two layers cannot disagree.
+        prior_lifecycle = prior.get("lifecycle")
+        if prior_lifecycle in {LIFECYCLE_SUPERSEDED, LIFECYCLE_RETRACTED}:
+            # A withdrawn statement is history: a late writer cannot revive it,
+            # and its body is frozen so the two layers cannot disagree.
+            if reply.get("lifecycle") != prior_lifecycle:
                 merged[key] = _flagged_conflict(
-                    prior, reply, reason="superseded_immutable"
+                    prior, reply, reason=f"{prior_lifecycle}_reopen"
+                )
+            elif content_fingerprint(reply) != content_fingerprint(prior):
+                merged[key] = _flagged_conflict(
+                    prior, reply, reason=f"{prior_lifecycle}_immutable"
                 )
             continue
         # A freeze is only authoritative when it came from the research run's
