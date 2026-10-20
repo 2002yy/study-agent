@@ -220,16 +220,23 @@ def proposals_for_event(
         return proposals
 
     if event.kind == EVIDENCE_CONFLICT:
-        contested = {str(url) for url in (event.detail or {}).get("conflicting_urls") or []}
-        if not contested:
-            # Without a locatable source we cannot say which statement is
-            # contested. Retracting everything would be a guess, not a revision.
+        detail = event.detail or {}
+        # Two gates before any withdrawal right is granted. `verified` means a
+        # producer checked that both sides name a real read and a real target;
+        # `target_reply_id` means the contested statement is named rather than
+        # inferred from a URL overlap. A model's unbacked claim produces neither,
+        # and an unbacked claim must not retract anything.
+        if detail.get("verified") is not True:
+            return []
+        target = str(detail.get("target_reply_id") or "").strip()
+        contested = {str(url) for url in detail.get("conflicting_urls") or []}
+        if not target or not contested:
             return []
         for statement in snapshot.statements:
+            if statement.reply_id != target:
+                continue
             if statement.lifecycle != CURRENT:
-                continue
-            if not (set(statement.source_refs) & contested):
-                continue
+                return []
             # Withdraw the conclusion; do not write a new one from a conflict.
             proposals.append(
                 _proposal(
@@ -237,9 +244,11 @@ def proposals_for_event(
                     event=event,
                     action=RETRACT,
                     reason=str(event.cause or "新证据与旧判断冲突，等待重新核验"),
+                    source_refs=sorted(contested),
                     strict=strict,
                 )
             )
+            return proposals
         return proposals
 
     if event.kind == EVIDENCE_READ:
