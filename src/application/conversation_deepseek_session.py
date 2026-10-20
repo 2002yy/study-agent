@@ -44,6 +44,7 @@ class DeepSeekConversationSettings:
             }
         ):
             raise ValueError("invalid DeepSeek-only configuration")
+        object.__setattr__(self, "base_url", self.base_url.rstrip("/"))
 
     @classmethod
     def from_environment(

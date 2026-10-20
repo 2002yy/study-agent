@@ -86,6 +86,20 @@ def test_configuration_is_deepseek_only_with_no_openai_fallback():
 @pytest.mark.parametrize(
     "base",
     [
+        "https://api.deepseek.com/",
+        "https://api.deepseek.com//",
+        "https://api.deepseek.com/v1/",
+        "https://api.deepseek.com/v1//",
+    ],
+)
+def test_accepted_base_url_is_canonical_before_sdk_receives_it(base):
+    parsed = DeepSeekConversationSettings("fake", "model", base)
+    assert parsed.base_url == base.rstrip("/")
+
+
+@pytest.mark.parametrize(
+    "base",
+    [
         "https://api.openai.com/v1",
         "http://api.deepseek.com/v1",
         "https://api.deepseek.com.evil/v1",
@@ -99,7 +113,10 @@ def test_other_endpoints_cannot_be_selected(base):
         DeepSeekConversationSettings("fake", "model", base)
 
 
-def test_sdk_serializes_bounded_request_and_owned_client_closes(monkeypatch):
+@pytest.mark.parametrize(
+    "base", ["https://api.deepseek.com/v1", "https://api.deepseek.com/v1//"]
+)
+def test_sdk_serializes_bounded_request_and_owned_client_closes(monkeypatch, base):
     monkeypatch.setenv("OPENAI_ORG_ID", "foreign-test-org")
     monkeypatch.setenv("OPENAI_PROJECT_ID", "foreign-test-project")
 
@@ -111,7 +128,8 @@ def test_sdk_serializes_bounded_request_and_owned_client_closes(monkeypatch):
             return httpx.Response(200, json=response("SDK回答"))
 
         session = DeepSeekConversationSession(
-            settings(), client_factory=factory(http, clients, arguments)
+            DeepSeekConversationSettings(settings().api_key, settings().model, base),
+            client_factory=factory(http, clients, arguments),
         )
         with pytest.raises(RuntimeError):
             _ = session.transport
