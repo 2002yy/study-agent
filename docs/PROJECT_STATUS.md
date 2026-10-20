@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 #253 审阅修复 / DeepSeek URL规范化。** finding4321928343有效：原校验rstrip后允许URL却存原字符串，SDK可能发/v1//chat/completions。新增4组尾斜杠负控在旧7c39a460均实际FAIL，保留日志D:/study-agent-validation/deepseek-url-negative.log；现冻结settings在验证后存canonical rstrip值，真实SDK假HTTP新增双斜杠路径回归，实际线缆路径保持/v1/chat/completions。最终命名L1 conversation_deepseek_session **515 PASS/151.91s**，mypy122/128 NEW0、Ruff/format/diff-check PASS；无SDK真实调用/配置修改/生产切换，无本地L3。新head以本段提交恢复，旧7c39a460 / CI39377762994 SUCCESS不能授予修复head。修复将显式带入本轮DeepSeek应用服务与进度流两个自身独立片，未取其他窗口WIP。
+
 **2026-10-20 本轮两片最终交付候选 / 仅DeepSeek。** 第一片#252 head2b9b9f5bc389d5e5e148aff91ed3c3f8c41423b3 / pull_request CI39377002020后台，命名L1 495 PASS/128.64s，暂无finding。第二片固定该自身父片，最终命名L1 conversation_deepseek_session **510 PASS/134.10s**，自身15项真实SDK/假HTTP PASS，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0，候选SHA以本段提交恢复；7文件独立增量，无其他窗口WIP。初次509 PASS/1 FAIL是SDK空header的断言错误，已修为验证不继承外部组织/项目值，并完成15项与最终510项复验；不是生产逻辑故障或未知原因，不触发全量。测试不使用真实凭据或网络，用户配置未改，未做真实付费/模型质量/首答延迟验收；生产聊天未切换，无本地L3。
 
 本轮#244在0f914244 / CI39296775208 SUCCESS无finding后合main5cd917ad，#245在226c0d31 / CI39376484599 SUCCESS且两finding已解决后合main9ae37d4caac71935b75fc85c1b93c75502e466e9；前main5cd917ad push CI39376017114 SUCCESS，新main push CI39377570868后台。#246已重绑该main，heade663d9a654b4dca3b139aa6da704de632ca2e212 / CI39377648481后台；生产/测试树与已验证d7102e3a完全相同，复用277 PASS/94.49s且不借旧CI授予新head。先前凭据问题已由用户“只要deepseek”明确解除；当前仅DeepSeek配置与端点，不使用OpenAI服务，不再阻塞。唯一下一执行片：将DeepSeek会话接入可选服务入口并验证请求生命周期，继续按最新head审阅/CI逐片合main。
