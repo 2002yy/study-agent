@@ -1297,7 +1297,10 @@ class WebLookupService:
                             **record,
                             "item": dict(record.get("item") or {}),
                             "assessment": assessment,
-                            "read": read_result,
+                            "read": {
+                                **read_result,
+                                "round": int(context.get("run_round") or 0),
+                            },
                         }
                         if record.get("evidence_state") == "inherited_candidate":
                             if read_result.get("status") == "read":
