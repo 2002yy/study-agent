@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 CL-1I-1：服务端owned聊天操作绑定（本轮第一新功能片）。** branch codex/conversation-owned-binding-20261020，初始自身#255冻结15c10c03，合入自身已发布main8a66eccf后得到基线907d6600；仅恢复已合main的conversation_decision_context及其测试，二者与main逐字一致，loop保留自身已冻结可选生成器/handler实现，未取其他窗口WIP。SQLiteChatSnapshotReader通过mode=ro、query_only和单BEGIN读取thread/current/最近6条completed历史，关闭连接、不创建数据库或做恢复写入；WAL并发取消负控证明三次SELECT同快照，下一次读取能看到取消。OwnedConversationBinding只接thread/turn/operation身份，复用既有快照projection检查，服务器回调提供工具/研究/证据/额度与模型准入，执行前持续刷新，不接收客户端历史/预算/工具目录。此处不创建/完成/释放ChatTurn，不改正式发布门；调用者仍负责身份授权与操作生命周期。
+
+自身14项真实SQLite/SDK假HTTP已PASS/6.85s，mypy122/128 NEW0、Ruff/format PASS；初次联合562 PASS/4 FAIL是测试假设错误（decision wire history为role/content对象、upsert不写cancel字段），现改走现有request_turn_cancel CAS并验证accepted，生产代码未改变；最终命名门执行中，结果另记。未改schema/共享core模型/生产路由，无真实网络/付费调用，无本地L3。下一独立片：默认关闭、显式授权且只读身份请求的可选SSE router，由宿主提供操作结束回调，继续保持provisional/unverified。
+
 **2026-10-20 CL-1H-2：单次消费的显示进度流（本轮第二新功能片）。** branch codex/conversation-progress-stream-20261020，初始固定自身服务756f0eaa，已ff绑定其最终文档父片#254 dd17b5f11564159dd731421807bd8b0c846d57ac（仅交接，无生产变化）；未取其他窗口WIP。conversation_progress_stream立即claim原ConversationLoopSession，支持未读close、单次消费、拒绝并发读取、取消传播与内层资源释放。只投影计划focus、阶段/最终答案、澄清、工具状态和终态；不输出模型reason、原始工具正文、prompt/history或证据摘要。所有帧固定unverified/provisional，answered终态不授予发布/证据权威。root request_id关联同一run，sequence与哈希event_id仅本流显示去重，不提供持久恢复/重放权限；SSE采用单行JSON数据，正文换行不能注入event/data字段。缺失终态、源异常、SDK清理失败输出一个脱敏failed终态，调用者取消仍传播。
 
 最终命名L1 conversation_progress_stream **534 PASS/143.66s**（自身10项，含真实SDK服务完整初步→工具→最终显示），mypy122/128 NEW0、Ruff/format/diff-check PASS，候选密钥扫描另见发布结果。当前仅应用层DTO/SSE编码，不注册HTTP路由或写ChatTurn，不切生产聊天、费用或证据/发布权威，无真实网络/付费模型、无本地L3。候选SHA以本段提交恢复，下一片：把显式选择服务与owned聊天操作绑定到可选API入口，沿用原证据/发布门。

@@ -39,6 +39,7 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "src/application/conversation_deepseek_session.py",
             "src/application/conversation_deepseek_service.py",
             "src/application/conversation_progress_stream.py",
+            "src/application/conversation_owned_binding.py",
             "tests/test_conversation_decision.py",
             "tests/test_conversation_decision_runner.py",
             "tests/test_conversation_action_dispatch.py",
@@ -54,6 +55,7 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "tests/test_conversation_deepseek_session.py",
             "tests/test_conversation_deepseek_service.py",
             "tests/test_conversation_progress_stream.py",
+            "tests/test_conversation_owned_binding.py",
         ),
     ),
     (

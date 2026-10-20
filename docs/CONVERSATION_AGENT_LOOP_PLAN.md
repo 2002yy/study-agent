@@ -208,3 +208,7 @@ DeepSeekConversationService.start只捕获可信快照读取器、工具handler�
 ### CL-1H-2：显示进度投影与SSE编码
 
 从单次消费会话投影计划状态、preliminary/final答案、clarification、工具元数据和终态；不转发模型reason/prompt/history/证据摘要或工具原文。固定unverified/provisional，不用answered终态绕过原证据/发布门。request_id关联同一owned操作，sequence与event_id仅本流显示标识，不支持持久恢复或执行重放。立即claim保证未读关闭可释放；拒绝并发读取，关闭/取消沿原会话释放SDK。缺失终态、源异常和清理失败各给一个脱敏failed终态，取消传播；SSE正文只在JSON单行data中，换行不会新增字段。宿主必须用aclosing消费，并自行把owned request关联到消息。本片不注册HTTP端点或改ChatTurn发布。
+
+### CL-1I-1：owned操作与一致只读快照
+
+SQLite读适配器以只读URI和单事务读取thread/current/最近6个completed prior turns，不初始化、迁移或恢复写入，不读取其他线程。binding复用已合main的context_from_chat_snapshots，严格拒绝取消/归档/换owner/完成/当前partial；始终由服务器回调决定能力、证据摘要和额度，模型调用前后及动作前重读。读适配器不创建、完成、释放操作或发布回复。宿主必须先授权调用者并拥有当前操作、持久费用准入和结束处理；下一片默认关闭的router仅接受身份，不接受客户端历史、工具或预算，也不自动注册生产app。
