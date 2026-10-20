@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 #245主线重绑收口。** #244在head0f9142442e0a15bee84a32a7d88a9112b7d88e96 / pull_request CI39296775208 SUCCESS / 无未解决finding后expected-head合入main 5cd917ad1c03fb520ce512605aa49bfd82f09216。本片吸收已合main（merge049831e4）；main中followup的内联稳定ID与本片提取helper冲突，显式保留本片已审阅helper与相同JSON/hash算法，CI仅保留trail两个精确路径及完整消费者，文档保留双方，context模块/测试来自已合main。main增量8文件，未导入其他窗口WIP。命名L1 conversation_observation_trail **394 PASS/126.89s**，mypy122/128 NEW0、Ruff/diff-check PASS；无本地L3，无新SDK/API或付费调用。新候选SHA以本段提交恢复，旧ad0b2e32绿灯不授予新head；推送后base main及新CI单独绑定。#246同步吸收本片冻结结果并在独立工作树跑联合门。下一功能接线的凭据复用选择仍待用户回答：按已读取openai-platform-api-key技能暂停SDK接线，现存配置不修改；空新工作树conversation-model-transport-20261020固定9f0c1f14且无代码更改。
+
 
 **2026-10-19 #245 审阅修复 / 逐次额度与精确路由。** finding4313958266有效：只比较root减工具次数会恢复并发额外消耗的额度。现每个tool frame后将下一帧额度上限收紧为该帧before.remaining_tool_calls-1，新增3组并发大幅扣减→非法恢复负控，合法后续零额度上下文仍可回答。finding4313958272也有效：新增trail模块/测试未登记会让普通后续修改回退全量。现仅登记这两个精确路径，连同原14个共16路径；同前缀新路径仍回退，admission/context/共享/CI/资格/未知范围不缩小。联合影响集conversation_observation_trail加入ci_scope/ci_workflow_routing/ci_outcomes，最终394 PASS/131.04s；Ruff/format、mypy122/128 NEW0、diff-check PASS。当前candidate SHA由本段提交恢复，旧7b6fb566 CI39254094559不授予修复后head；推送后解决已修finding并绑定一次CI。新scope为8文件（原6+CI分类与测试），不是单方面跳过CI或发布资格。
 
