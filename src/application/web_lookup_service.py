@@ -1293,15 +1293,28 @@ class WebLookupService:
                             warnings.append(
                                 f"source read failed ({url}): {type(exc).__name__}: {exc}"
                             )
-                        updated_record = {
-                            **record,
-                            "item": dict(record.get("item") or {}),
-                            "assessment": assessment,
-                            "read": {
-                                **read_result,
-                                "round": int(context.get("run_round") or 0),
+                        from src.web.research.read_evidence import (
+                            normalize_read_result,
+                            with_attempt_recorded,
+                        )
+
+                        read_round = int(context.get("run_round") or 0)
+                        read_result = normalize_read_result(
+                            read_result,
+                            run_id=run_id,
+                            url=url,
+                            round_index=read_round,
+                            record=record,
+                            at=utc_now(),
+                        )
+                        updated_record = with_attempt_recorded(
+                            {
+                                **record,
+                                "item": dict(record.get("item") or {}),
+                                "assessment": assessment,
                             },
-                        }
+                            read_result,
+                        )
                         if record.get("evidence_state") == "inherited_candidate":
                             if read_result.get("status") == "read":
                                 updated_record["evidence_state"] = "revalidated"
@@ -2390,8 +2403,20 @@ class WebLookupService:
                                     f"deep source read failed ({url}): "
                                     + str(read_result.get("error") or "read_failed")
                                 )
-                            record_read = dict(record)
-                            record_read["read"] = {**read_result, "round": round_index}
+                            from src.web.research.read_evidence import (
+                                normalize_read_result,
+                                with_attempt_recorded,
+                            )
+
+                            read_result = normalize_read_result(
+                                read_result,
+                                run_id=run_id,
+                                url=url,
+                                round_index=round_index,
+                                record=record,
+                                at=utc_now(),
+                            )
+                            record_read = with_attempt_recorded(dict(record), read_result)
                             for position, existing_record in enumerate(
                                 selected_sources
                             ):

@@ -62,8 +62,9 @@ def _normalize_url(url: object) -> str:
     return f"{parts.scheme.lower()}://{parts.netloc.lower()}{path}{query}"
 
 
-def _read_excerpt(record: Mapping[str, Any]) -> str:
-    read = record.get("read")
+def read_excerpt(read: Mapping[str, Any]) -> str:
+    """The usable text of one read payload ("" when there is none)."""
+
     if not isinstance(read, Mapping):
         return ""
     if not (read.get("ok") is True or str(read.get("ok")).lower() == "true"):
@@ -80,6 +81,11 @@ def _read_excerpt(record: Mapping[str, Any]) -> str:
         ]
         return "\n".join(path for path in paths if path)[:EXCERPT_CHARS]
     return ""
+
+
+def _read_excerpt(record: Mapping[str, Any]) -> str:
+    read = record.get("read")
+    return read_excerpt(read) if isinstance(read, Mapping) else ""
 
 
 def read_id_for(*, run_id: str, url: str, round_index: int, attempt: int) -> str:
@@ -123,6 +129,90 @@ def read_attempts(records: Iterable[Mapping[str, Any]], url: str) -> int:
     return count
 
 
+#: How many attempts per source stay addressable in the authoritative record.
+READ_HISTORY_LIMIT = 10
+
+
+def read_attempt(record: Mapping[str, Any]) -> int:
+    """The ordinal this attempt will have, from the attempts already recorded."""
+
+    history = record.get("read_history")
+    if isinstance(history, list):
+        return len(history) + 1
+    return 1
+
+
+def normalize_read_result(
+    read_result: Mapping[str, Any],
+    *,
+    run_id: str,
+    url: str,
+    round_index: int,
+    record: Mapping[str, Any],
+    at: str,
+) -> dict[str, Any]:
+    """Decide the attempt's identity, status and round - once, at the read.
+
+    The event builder, the per-round summary and recovery used to each recompute
+    part of this and could disagree. It is decided here, persisted with the read,
+    and read back afterwards instead of being guessed again.
+    """
+
+    attempt = read_attempt(record)
+    read_id = read_id_for(
+        run_id=run_id, url=url, round_index=round_index, attempt=attempt
+    )
+    payload = dict(read_result)
+    status = str(payload.get("status") or "")
+    excerpt = read_excerpt(payload)
+    if status == "read" and not excerpt:
+        # "Succeeded" without usable text is the same fact as a failed read.
+        payload = {
+            **payload,
+            "ok": False,
+            "status": "failed",
+            "reason": "no_usable_content",
+        }
+        status = "failed"
+    return {
+        **payload,
+        "status": status,
+        "read_id": read_id,
+        "attempt": attempt,
+        "round": int(round_index),
+        "at": str(at),
+        "excerpt_sha256": (
+            hashlib.sha256(excerpt.encode("utf-8")).hexdigest() if excerpt else ""
+        ),
+    }
+
+
+def with_attempt_recorded(
+    record: Mapping[str, Any], read: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Attach the attempt to the source record without losing earlier attempts."""
+
+    history = [
+        dict(item)
+        for item in (record.get("read_history") or [])
+        if isinstance(item, Mapping)
+    ]
+    history.append(
+        {
+            "read_id": str(read.get("read_id") or ""),
+            "status": str(read.get("status") or ""),
+            "round": int(read.get("round") or 0),
+            "at": str(read.get("at") or ""),
+            "excerpt_sha256": str(read.get("excerpt_sha256") or ""),
+        }
+    )
+    return {
+        **dict(record),
+        "read": dict(read),
+        "read_history": history[-READ_HISTORY_LIMIT:],
+    }
+
+
 def read_evidence_from_records(
     records: Iterable[Mapping[str, Any]],
     *,
@@ -132,11 +222,11 @@ def read_evidence_from_records(
     """Turn selected-source records into the evidence a revision may cite."""
 
     evidence: list[ReadEvidence] = []
-    seen: dict[str, int] = {}
     for record in records:
         if not isinstance(record, Mapping):
             continue
-        excerpt = _read_excerpt(record)
+        read = record.get("read") if isinstance(record.get("read"), Mapping) else {}
+        excerpt = read_excerpt(read)
         if not excerpt:
             continue
         item = record.get("item") if isinstance(record.get("item"), Mapping) else {}
@@ -148,20 +238,12 @@ def read_evidence_from_records(
         )
         if not url.strip():
             continue
-        key = _normalize_url(url)
-        seen[key] = seen.get(key, 0) + 1
         evidence.append(
             ReadEvidence.build(
                 url=url,
                 excerpt=excerpt,
-                round_index=round_index,
-                read_id=str(record.get("read_id") or "")
-                or read_id_for(
-                    run_id=run_id or str(record.get("run_id") or ""),
-                    url=url,
-                    round_index=round_index,
-                    attempt=seen[key],
-                ),
+                round_index=int(read.get("round") or round_index),
+                read_id=str(read.get("read_id") or ""),
             )
         )
     return tuple(evidence)
@@ -273,8 +355,10 @@ def build_read_event(
     url = _record_url(record)
     if not url.strip():
         return None
-    attempt = max(1, read_attempts(records, url))
-    read_id = read_id_for(
+    attempt = int(read.get("attempt") or 0) or max(1, read_attempts(records, url))
+    # Prefer the identity persisted with the read; deriving a new one here could
+    # disagree with the record that recovery will read back.
+    read_id = str(read.get("read_id") or "") or read_id_for(
         run_id=run_id, url=url, round_index=round_index, attempt=attempt
     )
     detail = {
@@ -298,7 +382,9 @@ def build_read_event(
                 cause="读取成功但没有可用正文",
                 detail=detail,
             )
-        detail["excerpt_sha256"] = hashlib.sha256(excerpt.encode("utf-8")).hexdigest()
+        detail["excerpt_sha256"] = str(read.get("excerpt_sha256") or "") or hashlib.sha256(
+            excerpt.encode("utf-8")
+        ).hexdigest()
         return MotionEvent(
             kind=EVIDENCE_READ,
             at=at,
@@ -328,8 +414,11 @@ def round_read_summary(
 ) -> list[dict[str, int]]:
     """Per-round activity, derived from the authoritative read records.
 
-    ``recheck`` counts conflicts that an actual evaluation raised; it is never
-    inferred from how many pages were read.
+    ``read``/``failed`` come from the persisted reads, so the 20-entry diagnostic
+    window cannot lose them. ``recent_recheck`` is deliberately named for what it
+    is: conflicts raised by the evaluations **in the window handed in**. It is not
+    a cumulative count, and calling it one would require a durable conflict store
+    that does not exist yet.
     """
 
     rounds: dict[int, dict[str, int]] = {}
@@ -343,7 +432,7 @@ def round_read_summary(
         if status not in {"read", "failed"}:
             continue
         round_index = int(read.get("round") or 0)
-        bucket = rounds.setdefault(round_index, {"round": round_index, "read": 0, "failed": 0, "recheck": 0})
+        bucket = rounds.setdefault(round_index, {"round": round_index, "read": 0, "failed": 0, "recent_recheck": 0})
         bucket["read" if status == "read" else "failed"] += 1
     for event in events:
         if not isinstance(event, Mapping):
@@ -351,6 +440,6 @@ def round_read_summary(
         if str(event.get("kind") or "") != "evidence_conflict":
             continue
         round_index = int(event.get("round") or 0)
-        bucket = rounds.setdefault(round_index, {"round": round_index, "read": 0, "failed": 0, "recheck": 0})
-        bucket["recheck"] += 1
+        bucket = rounds.setdefault(round_index, {"round": round_index, "read": 0, "failed": 0, "recent_recheck": 0})
+        bucket["recent_recheck"] += 1
     return [rounds[key] for key in sorted(rounds)]
