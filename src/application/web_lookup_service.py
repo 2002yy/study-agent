@@ -1768,6 +1768,45 @@ class WebLookupService:
                 added_round=int(item.get("round") or 0),
                 now=utc_now(),
             )
+        # Record the motion events that caused these state changes. The trace is
+        # audit only: the writes above are already the deterministic transition,
+        # and the proposal path (AR-1C) will read this trace instead of guessing.
+        from src.web.research.motion_events import (
+            CONDITION_ADDED,
+            CONDITION_CORRECTED,
+            MotionEvent,
+            record_event,
+        )
+
+        state = context.get("interim_state") if isinstance(context.get("interim_state"), dict) else {}
+        for item in corrections:
+            record_event(
+                context,
+                MotionEvent(
+                    kind=CONDITION_CORRECTED,
+                    at=utc_now(),
+                    round=int(item.get("round") or 0),
+                    notes=len(deep.get("notes") or []),
+                    revision=str(state.get("revision") or ""),
+                    cause=f"用户纠正了术语：{str(item.get('old') or '')} -> {str(item.get('new') or '')}",
+                    detail={"condition": str(item.get("new") or ""), "old_terms": [str(item.get("old") or "")]},
+                ),
+            )
+        for item in incorporated:
+            if item.get("kind") != "addition" or not item.get("id"):
+                continue
+            record_event(
+                context,
+                MotionEvent(
+                    kind=CONDITION_ADDED,
+                    at=utc_now(),
+                    round=int(item.get("round") or 0),
+                    notes=len(deep.get("notes") or []),
+                    revision=str(state.get("revision") or ""),
+                    cause="用户追加了新的研究条件",
+                    detail={"condition": str(item.get("id") or "")},
+                ),
+            )
         context["steering_replies"] = replies
 
     def _deep_publish_steering_replies(

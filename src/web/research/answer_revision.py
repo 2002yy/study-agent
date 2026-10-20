@@ -158,6 +158,9 @@ def evaluate(proposal: RevisionProposal, reply: Mapping[str, Any]) -> RevisionDe
     if proposal.action == KEEP:
         return RevisionDecision(proposal, True, applied=KEEP)
     if proposal.action == STALE:
+        if reply.get("stale") is True:
+            # Already marked: say so instead of pretending to change something.
+            return RevisionDecision(proposal, False, refusal="already_stale")
         return RevisionDecision(proposal, True, applied=STALE)
     if proposal.action == RETRACT:
         return RevisionDecision(proposal, True, applied=RETRACT)
