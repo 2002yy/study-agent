@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI-04：只读research inspect候选。** branch codex/studyctl-research-inspect-20261021 / worktree D:/study-agent-validation/studyctl-research-inspect-20261021，固定自身#269提交807fdea6a0969c7889bd7fbafbc3aac0a9d3a122，不取其他开发工作树WIP。显式--run与--database，读取一致离线SQLite快照到内存，仅SELECT指定run，不调用RuntimeDatabase初始化/迁移/恢复；64MiB文件预算、JSON列2Mi字符预算、SQLite查询2秒预算，拒绝WAL/SHM/journal旁文件。复用known_research_evidence_ids/load_claim_engine_state，不新建EvidenceRuntime或质量门，不扫描答案或更改停止码。只投影记录事件，跨run timeline拒绝归属，搜索/读取/引用支持/停止四类缺失证据为PARTIAL/3，坏快照/JSON/缺列/缺run为BLOCKED/3；PASS只指检查记录完备，不授予答案或发布权威。输入快照SHA256和CLI head分开，在线/大库读取后续独立处理。
+
+前置CLI-03现为#269 head807fdea6；干净源码真实CLI执行conversation_decision_admission **114 PASS/32.29s**，回执D:/study-agent-validation/studyctl-run-venv-clean-e2e-20261021.json记录同SHA、前后tracked/untracked均0、uncommitted_source=false。曾误用系统Python3.14导致缺pytest，CLI正确返回FAIL/4并保留child_exit_code=1；改用项目既有venv后通过，未安装依赖或更改全局环境。本轮用户明确“CI回头查，先做后面的”：后续push不查询/等待CI，PR继续独立发布；不宣称REMOTE GO或main已合并。BallWar设置已修、迁移候选#7 head ecd582d1128b1dc5192b444ba66dc70d054c8e79，12原生runner/34设置断言通过，#8已合入该候选分支，尚未合main；本轮未追加CI轮询。原混合工作树保留。
+
+CLI-04联合命名studyctl **246 PASS/141.45s**，含CLI全栈、直接state/trace/memory与CI门合同；最终增加路径规范化/目录拒绝后仅重跑直接影响集，自身 **23 PASS/1 SKIP/26.87s**（Windows无symlink权限，真实软链接负控跳过），不重复未变更的下层合同门。三个CLI模块mypy PASS，src相对807f无变化，复用src122/128 NEW0；Ruff/新增模块format/diff-check PASS，无本地L3、真实模型或付费调用。最终SHA由本段提交恢复，远端CI待后查。下一执行片：基于既有离线研究快照做诊断可用性验收；CI与合并在后续统一核对，不建立新调度器、SDK或真实研究调用。
+
 **2026-10-21 CLI-03：受控test run候选。** branch codex/studyctl-test-run-20261021，固定自身#267 head8cc3594af474c2e65f1e1ae0614ebad7226bd126，不依赖其他窗口WIP。复用原stage runner/manifest resolver；显式L1/L2选择登记非空且tests内的文件，显式L3才预检→全pytest，预检失败或deadline耗尽不启动后续。dry-run无进程/日志写入，禁止任意repo脚本及参数透传。子环境白名单、独立HOME/APPDATA、屏蔽凭据与PYTEST_ADDOPTS，检测根及祖先.env则不读内容而阻断；不是网络沙箱，测试仍须遵守原隔离合同。超时/取消终止自有进程树，失败原码保留、无重试；1MiB日志阈值与诊断转发上限、清理不确定性显式记录。执行前拒绝已有output，执行前后源码tracked/untracked状态写入结果，不用dirty测试冒充HEAD资格。
 
 最终命名L1 studyctl **201 PASS/85.27s**（自身执行29项、基础14、计划16及直接CI/门合同），两CLI模块mypy PASS，src相对8cc无改动，复用122/128 NEW0；Ruff/format/diff-check及secret以发布收口恢复。真实CLI调原conversation_decision_admission **114 PASS/30.96s**，退出0、child日志仅stderr；该开发中E2E来自旧HEAD上的本分支WIP，最终候选提交后再记干净源码回执，不借SHA。无全量L3、真实模型/费用/生产权威变化。下一CLI片：只读research inspect，先锁现有trace读取器和证据缺口；不新增研究调度器。

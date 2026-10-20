@@ -56,7 +56,51 @@ def parser_for_cli() -> Parser:
     run.add_argument("--impact-set", default="")
     run.add_argument("--stage", default="")
     run.add_argument("--timeout", type=float, default=300)
+    research = children.add_parser("research", add_help=False)
+    common(research)
+    inspections = research.add_subparsers(dest="research_command")
+    inspect = inspections.add_parser("inspect", add_help=False)
+    common(inspect)
+    inspect.add_argument("--run", default="")
+    inspect.add_argument("--database", type=Path)
     return parser
+
+
+def inspect_research(options: argparse.Namespace) -> dict[str, Any]:
+    if (
+        options.research_command != "inspect"
+        or not options.run
+        or options.database is None
+    ):
+        raise CLIError(
+            2,
+            "missing_inspect_source",
+            "Select inspect, --run and an offline --database snapshot.",
+        )
+    if len(options.run) > 256 or any(ord(char) < 32 for char in options.run):
+        raise CLIError(2, "invalid_run_id", "Expected a bounded run identifier.")
+    if __package__ in (None, ""):
+        sys.path.insert(0, str(ROOT))
+    import sqlite3
+    from tools.studyctl_research import inspect_snapshot
+
+    try:
+        return inspect_snapshot(options.database, options.run)
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+        sqlite3.Error,
+    ):
+        raise CLIError(
+            3,
+            "research_snapshot_unavailable",
+            "A compatible offline snapshot and uniquely identified run are required.",
+        ) from None
 
 
 def run_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
@@ -402,7 +446,14 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             result["command"] = "help"
             result["data"] = {
-                "commands": ["status", "doctor", "test plan", "test run", "help"],
+                "commands": [
+                    "status",
+                    "doctor",
+                    "test plan",
+                    "test run",
+                    "research inspect",
+                    "help",
+                ],
                 "side_effects": "test run executes the selected gate and writes isolated logs; other commands are read-only unless --output is explicit",
             }
         else:
@@ -429,6 +480,11 @@ def main(argv: list[str] | None = None) -> int:
                             "message": "No single registered impact set covers these changes.",
                         }
                     ]
+            elif options.command == "research":
+                result["command"] = "research inspect"
+                result["data"] = inspect_research(options)
+                for key in ("status", "exit_code", "errors"):
+                    result[key] = result["data"][key]
             elif options.command == "status":
                 result["data"] = read_status(root)
             else:

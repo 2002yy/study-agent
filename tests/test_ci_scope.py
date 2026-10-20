@@ -12,12 +12,14 @@ from tools.ci_scope import classify, classify_path
 def test_studyctl_exact_paths_use_registered_cli_stack_and_unknown_stays_broad():
     from tools.run_stage_gate import load_manifest, resolve
 
-    scope = classify(["tools/studyctl.py", "tools/studyctl_execution.py", "tests/test_studyctl.py", "tests/test_studyctl_plan.py", "tests/test_studyctl_execution.py"])
+    scope = classify(["tools/studyctl.py", "tools/studyctl_execution.py", "tools/studyctl_research.py", "tests/test_studyctl.py", "tests/test_studyctl_plan.py", "tests/test_studyctl_execution.py", "tests/test_studyctl_research.py"])
     assert scope["impact_set"] == "studyctl"
     assert not scope["frontend_required"] and not scope["browser_required"]
     paths = resolve(load_manifest(), impact_set="studyctl")
     assert "tests/test_studyctl.py" in paths
     assert "tests/test_ci_scope.py" in paths
+    assert "tests/test_studyctl_research.py" in paths
+    assert "tests/test_research_quality_state.py" in paths
     assert classify(["tools/studyctl_other.py"])["full_scope"]
 
 

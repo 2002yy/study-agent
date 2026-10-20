@@ -40,4 +40,14 @@ L1/L2只允许已登记、非空、位于tests内的文件集，复用原run_sta
 
 stdout仍一份JSON，子日志转stderr（最多1MiB诊断）并保留原始日志路径；检测1MiB日志阈值超限时停止，磁盘日志可在检测间隔内短暂超过阈值。timeout是全步骤总预算，停止进程树另有最多约10秒清理；取消/超时以退出5报告，cleanup_complete=false时不能假装已确认清理。Windows按自有PID树停止，POSIX用自有进程组。没有自动重试。
 
-子失败映射CLI退出4并保留child_exit_code；L3预检失败为3，取消/超时/日志预算为5。显式output在执行前拒绝已有文件，避免测试已执行才发现不能写结果；输出报告与子日志共同列为artifacts。研究/ci查询后续逐片加入，不提供真实研究或付费调用。
+子失败映射CLI退出4并保留child_exit_code；L3预检失败为3，取消/超时/日志预算为5。显式output在执行前拒绝已有文件，避免测试已执行才发现不能写结果；输出报告与子日志共同列为artifacts。不提供真实研究或付费调用。
+
+## 研究记录检查（只读离线快照）
+
+```powershell
+python tools/studyctl.py research inspect --run <run-id> --database <offline-snapshot.sqlite> --json
+```
+
+必须显式提供由现有数据库备份/导出手段产生的一致离线SQLite快照；本命令不负责备份，不自动查找或连接运行中的产品数据库。拒绝同路径的-wal/-shm/-journal旁文件及超过64MiB的文件，JSON列各限2Mi字符。在内存反序列化后只查询指定run，不打开产品RuntimeDatabase、不执行迁移或恢复，不修改输入或创建SQLite旁文件。结果含输入快照SHA256；外层head_sha是CLI检出版本，不是研究执行版本。大数据库/在线WAL支持后续另片处理。
+
+复用known_research_evidence_ids与load_claim_engine_state校验server-owned证据和research-state-v1。只输出记录状态、停止码及已验证事件，不读取或推断最终答案；搜索、读取、引用支持（链接和gate事件）及停止记录分别标明有记录/证据不足。整条trace出现其他run_id时不归属给当前run。缺字段、旧schema、缺事件、未知停止码为PARTIAL/3；无指定run、坏数据库/JSON、缺必要列等前提错误为BLOCKED/3。CLI PASS/0仅表示所需记录齐全，不证明研究成功、引用正确或允许发布；已失败研究仍可被成功检查。--dry-run可只读检查但不写output；CI查询仍未实现。

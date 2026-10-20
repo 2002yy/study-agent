@@ -488,6 +488,10 @@
       "tests/test_stage_gates_policy.py"
     ],
     "studyctl": [
+      "tests/test_studyctl_research.py",
+      "tests/test_research_quality_state.py",
+      "tests/test_research_quality_trace.py",
+      "tests/test_research_memory.py",
       "tests/test_studyctl_execution.py",
       "tests/test_studyctl_plan.py",
       "tests/test_studyctl.py",
