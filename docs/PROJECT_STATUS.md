@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 #247重绑累计loop主线。** #246在heade663d9a654b4dca3b139aa6da704de632ca2e212 / CI39377648481 SUCCESS / 无finding后expected-head合入main b6aee2b7（完整SHA以Git恢复）。本片吸收已合main（merge f189deca），冲突仅docs/manifest与精确CI路径，保留answer_input模块登记与消费门及双方交接。main增量仍7文件，未取其他窗口WIP。重绑后命名L1 conversation_answer_input **413 PASS/126.44s**，mypy122/128 NEW0、Ruff/diff-check PASS；src中的输入模块与已审阅3390fafd一致，无本地L3。旧head CI不授予新候选，新head以本段提交恢复，推送后base main单独CI。用户已明确仅DeepSeek，旧待答记录失效，本轮新服务和进度片另行独立开发。
+
 **2026-10-19 CL-1E-1：有界回答输入（本轮第一片）。** branch codex/conversation-answer-input-20261019，固定base自身#246 5e6e26623ad216690274d0edbc18660bd00d376a，未读其他窗口WIP。AnswerInput把当前上下文、精确提议、阶段和完整累计观察作为独立数据交给可信回答适配器；验证初始/后续身份与额度、拒绝未完成answer/tool配对，序列化数据上限64000字符，超限拒绝不截断。保留历史、证据摘要及unverified标记，决策理由不冒充研究发现。注册两个精确CI路径与消费者门，无前缀通配。#240已在head c9d73977 / CI39256503247 SUCCESS / finding已解决后合main cf70e688c91fe93cd259c10c6dc7d00a1b2e4586。输入模块尚不生成回答；下一片将其接入受控loop的可选回答处理器。未接生产聊天/SDK/付费调用/发布权威，无本地L3。命名L1 conversation_answer_input **413 PASS/117.09s**，mypy122/128 NEW0，Ruff/format/diff-check PASS，候选secret findings0；候选SHA由本段提交恢复。
 
 **2026-10-19 CL-1D-6 最终父片绑定。** 已吸收自身#245冻结修复ad0b2e32f235fb7739ba6a05729193a3b61566bf（逐次额度与精确路由两个已解决finding）；冲突仅交接，保留双方。新模块/CI路径来自已提交自身父片，非WIP。最终命名L1 conversation_loop_trail **277 PASS/103.24s**，mypy122/128 NEW0、Ruff/format/diff-check PASS；候选SHA由本段所属提交恢复；#245两个finding4313958266/4313958272均已修并解决，修复后CI39255166237后台执行；父片CI继续后台执行，不借旧7b6fb566绿灯。
