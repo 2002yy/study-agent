@@ -93,9 +93,15 @@ class RevisionProposal:
             if not str(binding.get("url") or "").strip():
                 raise RevisionProposalError("source binding requires a url")
             quote = str(binding.get("quote") or "")
-            digest = str(binding.get("content_sha256") or "")
+            # quote_sha256 hashes the quote; content_sha256 is the legacy name for
+            # the same field. read_excerpt_sha256 names the read, never the quote.
+            digest = str(
+                binding.get("quote_sha256") or binding.get("content_sha256") or ""
+            )
             if not quote or not digest:
-                raise RevisionProposalError("source binding requires quote + content_sha256")
+                raise RevisionProposalError(
+                    "source binding requires quote + quote_sha256"
+                )
             if hashlib.sha256(quote.encode("utf-8")).hexdigest() != digest:
                 raise RevisionProposalError("source binding digest does not match its quote")
 
@@ -192,7 +198,12 @@ def evaluate(
     refunds = claims_need_evidence(proposal.replacement)
     if refunds and not proposal.source_bindings:
         return RevisionDecision(proposal, False, refusal="replacement_unbacked_claim")
-    if proposal.source_bindings and read_evidence:
+    if proposal.source_bindings:
+        # A binding without the run's read records is an assertion, not evidence.
+        # Refusing here (instead of skipping verification) is the difference
+        # between "not checked" and "checked and allowed".
+        if not read_evidence:
+            return RevisionDecision(proposal, False, refusal="source_reads_unavailable")
         from src.web.research.read_evidence import verify_bindings
 
         refusal = verify_bindings(proposal.source_bindings, read_evidence)
@@ -327,6 +338,7 @@ def apply_proposals(
     proposals: Iterable[RevisionProposal],
     *,
     now: str,
+    read_evidence: Sequence[Any] = (),
 ) -> tuple[list[dict[str, Any]], list[RevisionDecision]]:
     """Evaluate and apply proposals in order; return the replies and the audit."""
 
@@ -340,7 +352,7 @@ def apply_proposals(
         if index is None:
             decisions.append(RevisionDecision(proposal, False, refusal="unknown_reply"))
             continue
-        decision = evaluate(proposal, current[index])
+        decision = evaluate(proposal, current[index], read_evidence=read_evidence)
         decisions.append(decision)
         if decision.accepted:
             current[index] = apply_decision(current[index], decision, now=now)

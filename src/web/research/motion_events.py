@@ -284,6 +284,7 @@ def apply_event(
     conditions: Sequence[str] = (),
     strict: bool = False,
     attachment_present: bool = False,
+    read_evidence: Sequence[Any] = (),
 ) -> tuple[list[dict[str, Any]], list[RevisionDecision], StaticAnswerSnapshot]:
     """Reference implementation: snapshot -> proposals -> decisions."""
 
@@ -296,5 +297,7 @@ def apply_event(
         attachment_present=attachment_present,
     )
     proposals = proposals_for_event(event, snapshot, strict=strict)
-    updated, decisions = apply_proposals(replies, proposals, now=now)
+    updated, decisions = apply_proposals(
+        replies, proposals, now=now, read_evidence=read_evidence
+    )
     return updated, decisions, snapshot

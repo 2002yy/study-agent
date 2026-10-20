@@ -67,6 +67,7 @@ def coordinate(
     conditions: Sequence[str] = (),
     strict: bool = False,
     attachment_present: bool = False,
+    read_evidence: Sequence[Any] = (),
     consumed_event_ids: Iterable[str] = (),
 ) -> CoordinatorResult:
     """Consume one event and return the resulting replies, decisions and snapshot.
@@ -139,7 +140,9 @@ def coordinate(
                 )
     else:
         proposals = proposals_for_event(event, snapshot, strict=strict)
-        current, applied = apply_proposals(current, proposals, now=now)
+        current, applied = apply_proposals(
+            current, proposals, now=now, read_evidence=read_evidence
+        )
         decisions.extend(applied)
 
     after = snapshot_from_replies(

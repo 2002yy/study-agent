@@ -1309,6 +1309,13 @@ class WebLookupService:
                                 updated_record["evidence_state"] = "invalid_or_rejected"
                                 updated_record.pop("inherited_note_seed", None)
                         selected_sources[index] = updated_record
+                        self._record_read_event(
+                            context,
+                            run_id=run_id,
+                            records=selected_sources,
+                            record=updated_record,
+                            round_index=int(context.get("run_round") or 0),
+                        )
                         context["read_summary"] = _read_summary(
                             selected_sources,
                             budget,
@@ -1726,6 +1733,44 @@ class WebLookupService:
         if consumed:
             self._deep_update_steering_replies(context, deep, run_id, incorporated)
         return consumed
+
+    def _record_read_event(
+        self,
+        context: dict[str, Any],
+        *,
+        run_id: str,
+        records: list[dict[str, Any]],
+        record: dict[str, Any],
+        round_index: int,
+    ) -> None:
+        """Record what one read attempt actually produced.
+
+        One event per attempt: the movement layer must be able to say which read
+        brought which material. A skipped page produced no attempt and gets no
+        event, and the event never claims the read changed a conclusion.
+        """
+
+        from src.web.research.motion_events import record_event
+        from src.web.research.read_evidence import build_read_event
+
+        interim = (
+            context.get("interim_state")
+            if isinstance(context.get("interim_state"), dict)
+            else {}
+        )
+        event = build_read_event(
+            run_id=run_id,
+            records=records,
+            record=record,
+            round_index=round_index,
+            notes=len((context.get("deep") or {}).get("notes") or [])
+            if isinstance(context.get("deep"), dict)
+            else 0,
+            revision=str(interim.get("revision") or ""),
+            at=utc_now(),
+        )
+        if event is not None:
+            record_event(context, event)
 
     def _deep_update_steering_replies(
         self,
@@ -2343,13 +2388,20 @@ class WebLookupService:
                                     + str(read_result.get("error") or "read_failed")
                                 )
                             record_read = dict(record)
-                            record_read["read"] = read_result
+                            record_read["read"] = {**read_result, "round": round_index}
                             for position, existing_record in enumerate(
                                 selected_sources
                             ):
                                 if _source_url(existing_record) == url:
                                     selected_sources[position] = record_read
                                     break
+                            self._record_read_event(
+                                context,
+                                run_id=run_id,
+                                records=selected_sources,
+                                record=record_read,
+                                round_index=round_index,
+                            )
                             context["read_summary"] = {
                                 **_read_summary(selected_sources, budget),
                                 "attempted": attempted_reads,

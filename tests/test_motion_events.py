@@ -65,6 +65,17 @@ def _binding(url: str = "https://gimp.org/", quote: str = "batch export uses the
     return {"url": url, "quote": quote, "content_sha256": hashlib.sha256(quote.encode()).hexdigest()}
 
 
+def _reads():
+    from src.web.research.read_evidence import ReadEvidence
+
+    return (
+        ReadEvidence.build(
+            url="https://gimp.org/",
+            excerpt="GIMP batch export uses the command line interface.",
+        ),
+    )
+
+
 def _snapshot(replies, **kwargs):
     return snapshot_from_replies(replies, run_id="run1", turn_id="turn1", **kwargs)
 
@@ -203,6 +214,7 @@ def test_a_replacement_installs_its_own_citations():
         now=NOW,
         run_id="run1",
         turn_id="turn1",
+        read_evidence=_reads(),
     )
 
     assert decisions[0].applied == REPLACE
