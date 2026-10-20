@@ -36,6 +36,7 @@ def scenario(
     action_budget=None,
     active_research=None,
     supports_queue=False,
+    answer_handler=None,
 ):
     root = DecisionContext(
         "loop-1",
@@ -97,6 +98,7 @@ def scenario(
         action_budget=action_budget or ActionBudget(8, tools),
         handlers={kind: action for kind in ConversationAction},
         limits=limits or LoopLimits(),
+        answer_handler=answer_handler,
     )
     return root, state, calls, stream
 
@@ -563,3 +565,120 @@ def test_changed_research_during_tool_is_rejected():
 def test_invalid_limits_rejected(field, value):
     with pytest.raises(ValueError):
         LoopLimits(**{field: value})
+
+
+def test_answer_adapter_gets_preliminary_and_complete_final_inputs():
+    async def run():
+        inputs = []
+
+        async def answer(value):
+            inputs.append(value)
+            return "阶段分析" if value.phase == "preliminary" else "整合结论"
+
+        _, _, calls, stream = scenario(
+            ("answer_then_research", "use_tool", "answer"),
+            answer_handler=answer,
+        )
+        events = await collect(stream)
+        assert events[-1].reason == "answered"
+        assert [value.phase for value in inputs] == ["preliminary", "final"]
+        assert not inputs[0].trail.frames
+        entries = json.loads(inputs[-1].to_json())["observations"]["entries"]
+        assert [entry["content"] for entry in entries] == ["阶段分析", "5", "5"]
+        assert inputs[-1].context.request_id == inputs[-1].trail.next_request_id
+        assert inputs[-1].context.remaining_tool_calls == 0
+        assert calls == ["model", "use_tool", "model", "use_tool", "model"]
+
+    asyncio.run(run())
+
+
+def test_answer_adapter_direct_answer_overrides_legacy_handler():
+    async def run():
+        seen = []
+
+        async def answer(value):
+            seen.append(value)
+            return "直接回答"
+
+        _, _, calls, stream = scenario(("answer",), answer_handler=answer)
+        events = await collect(stream)
+        assert events[-1].reason == "answered"
+        assert events[-2].observation == "直接回答"
+        assert len(seen) == 1 and seen[0].phase == "final"
+        assert calls == ["model"]
+
+    asyncio.run(run())
+
+
+def test_stale_intent_never_reaches_answer_adapter():
+    async def run():
+        seen = []
+
+        async def answer(value):
+            seen.append(value)
+            return "不应执行"
+
+        _, state, _, stream = scenario(("answer",), answer_handler=answer)
+        await anext(stream)
+        state[0] = replace(state[0], user_message="换题")
+        events = await collect(stream)
+        assert events[-1].reason == "action_failed"
+        assert not seen
+
+    asyncio.run(run())
+
+
+def test_close_after_adapter_preliminary_does_not_start_tool():
+    async def run():
+        async def answer(value):
+            return "初步分析"
+
+        _, _, calls, stream = scenario(("answer_then_research",), answer_handler=answer)
+        await anext(stream)
+        event = await anext(stream)
+        assert event.stage == ConversationAction.ANSWER
+        await stream.aclose()
+        assert calls == ["model"]
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("failure", ["raise", "empty", "oversize"])
+def test_failed_answer_adapter_prevents_following_tool(failure):
+    async def run():
+        async def answer(value):
+            if failure == "raise":
+                raise RuntimeError("sensitive provider detail")
+            return "" if failure == "empty" else "x" * 8001
+
+        _, _, calls, stream = scenario(("answer_then_research",), answer_handler=answer)
+        events = await collect(stream)
+        assert events[-1].reason == "action_failed"
+        assert calls == ["model"]
+        assert "sensitive provider detail" not in repr(events)
+
+    asyncio.run(run())
+
+
+def test_caller_cancel_propagates_to_answer_adapter_and_stops_tool():
+    async def run():
+        entered, cancelled = asyncio.Event(), asyncio.Event()
+
+        async def answer(value):
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+            return "unreachable"
+
+        _, _, calls, stream = scenario(("answer_then_research",), answer_handler=answer)
+        task = asyncio.create_task(collect(stream))
+        await entered.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert cancelled.is_set()
+        assert calls == ["model"]
+
+    asyncio.run(run())
