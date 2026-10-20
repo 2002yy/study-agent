@@ -48,6 +48,29 @@ _OFFICIAL_CLAIM = re.compile(
 )
 _COMPARISON = re.compile(r"快了?\s*\d|比[^，。；]{0,12}(?:快|慢|高|低)\s*\d")
 _SCREENSHOT_CLAIM = re.compile(r"图中|截图(?:中|里|显示)|画面中(?:显示|可见)")
+#: A number with a unit, or a long bare number: still a specific fact.
+_BARE_NUMBER = re.compile(
+    r"\d+(?:\.\d+)?\s*(?:个|条|次|倍|种|张|KB|MB|GB|TB|ms|毫秒|秒|分钟|小时|天|周|个月)"
+    r"|\d{3,}"
+)
+
+#: Claims that are never excused, even inside a clause that also says "unverified".
+HARD_CLAIM_PATTERNS = (
+    (_PERCENT, "specific_number"),
+    (_PRICE, "specific_price"),
+    (_COMPARISON, "specific_comparison"),
+    (_OFFICIAL_CLAIM, "official_claim"),
+)
+#: Claims that are acceptable *only* when the same clause is an explicit gap.
+SOFT_CLAIM_PATTERNS = (
+    (_VERSION, "specific_version"),
+    (_DATE, "specific_date"),
+    (_BARE_NUMBER, "specific_number"),
+    (_SCREENSHOT_CLAIM, "screenshot_claim"),
+)
+
+#: Clause boundaries: a mixed sentence is judged clause by clause.
+_CLAUSE_SPLIT = re.compile(r"(?<=[，,；;。!?！？])")
 _CONDITIONAL = re.compile(r"^(?:如果|若|假如|假设|一旦)[^，。]{0,40}(?:，|,|则|那么)")
 #: Saying "we could not verify the current version" is an honest gap statement,
 #: not an unsupported claim: the uncertainty is explicit in the sentence itself.
@@ -100,33 +123,50 @@ class LayeredAnswer:
         }
 
 
-def claims_need_evidence(text: str) -> str:
-    """Return the reason a sentence may not be published as knowledge.
+def split_clauses(text: str) -> list[str]:
+    return [part for part in _CLAUSE_SPLIT.split(str(text or "")) if part.strip()]
 
-    An empty string means the sentence only states a stable idea. Everything else
-    is a specific factual claim: it needs a real read, or it is withheld.
+
+def _clause_claim(clause: str) -> str:
+    """The reason this clause asserts a fact, ignoring any uncertainty wording."""
+
+    for pattern, reason in HARD_CLAIM_PATTERNS:
+        if pattern.search(clause):
+            return reason
+    for pattern, reason in SOFT_CLAIM_PATTERNS:
+        if pattern.search(clause):
+            return reason
+    return ""
+
+
+def _is_gap_clause(clause: str) -> bool:
+    """True when the clause merely states that something could not be checked."""
+
+    if not _UNCERTAINTY.search(clause):
+        return False
+    # A gap clause may name what is unverified (a version, a date); it may not
+    # also assert a number, a price, a comparison or an official claim.
+    return not any(pattern.search(clause) for pattern, _ in HARD_CLAIM_PATTERNS)
+
+
+def claims_need_evidence(text: str) -> str:
+    """Return the reason this text may not be published as knowledge.
+
+    Judged **clause by clause**: a sentence that pairs a specific claim with
+    "but this is unverified" still contains a claim, and a gap statement only
+    excuses the part that is actually about the gap.
     """
 
     body = str(text or "").strip()
     if not body:
         return "empty"
-    if _UNCERTAINTY.search(body):
-        # The statement is about the gap itself, so it is publishable as-is.
-        return ""
-    if _PERCENT.search(body):
-        return "specific_number"
-    if _PRICE.search(body):
-        return "specific_price"
-    if _DATE.search(body):
-        return "specific_date"
-    if _VERSION.search(body):
-        return "specific_version"
-    if _COMPARISON.search(body):
-        return "specific_comparison"
-    if _OFFICIAL_CLAIM.search(body):
-        return "official_claim"
-    if _SCREENSHOT_CLAIM.search(body):
-        return "screenshot_claim"
+    for clause in split_clauses(body):
+        reason = _clause_claim(clause)
+        if not reason:
+            continue
+        if _is_gap_clause(clause):
+            continue
+        return reason
     return ""
 
 
@@ -148,7 +188,7 @@ def classify_draft(
 
     published: list[AnswerSegment] = []
     withheld: list[AnswerSegment] = []
-    for sentence in split_sentences(draft):
+    for sentence in split_clauses(" ".join(split_sentences(draft))):
         reason = claims_need_evidence(sentence)
         if attachment_present and not screenshot_read:
             if reason == "screenshot_claim" or _SCREENSHOT_CLAIM.search(sentence):
