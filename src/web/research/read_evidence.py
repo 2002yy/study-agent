@@ -63,7 +63,7 @@ def _normalize_url(url: object) -> str:
 
 
 def _read_excerpt(record: Mapping[str, Any]) -> str:
-    read = record.get("read")
+    read = _mapping(record.get("read"))
     if not isinstance(read, Mapping):
         return ""
     if not (read.get("ok") is True or str(read.get("ok")).lower() == "true"):
@@ -80,6 +80,12 @@ def _read_excerpt(record: Mapping[str, Any]) -> str:
         ]
         return "\n".join(path for path in paths if path)[:EXCERPT_CHARS]
     return ""
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    """A mapping, or an empty one. Keeps `record.get(...)` chains type-safe."""
+
+    return value if isinstance(value, Mapping) else {}
 
 
 def read_id_for(*, run_id: str, url: str, round_index: int, attempt: int) -> str:
@@ -109,11 +115,11 @@ def read_attempts(records: Iterable[Mapping[str, Any]], url: str) -> int:
     for record in records:
         if not isinstance(record, Mapping):
             continue
-        if not isinstance(record.get("read"), Mapping):
+        if not _mapping(record.get("read")):
             continue
-        item = record.get("item") if isinstance(record.get("item"), Mapping) else {}
+        item = _mapping(record.get("item"))
         assessment = (
-            record.get("assessment") if isinstance(record.get("assessment"), Mapping) else {}
+            _mapping(record.get("assessment"))
         )
         candidate = str(
             assessment.get("url") or item.get("url") or item.get("link") or item.get("href") or ""
@@ -139,9 +145,9 @@ def read_evidence_from_records(
         excerpt = _read_excerpt(record)
         if not excerpt:
             continue
-        item = record.get("item") if isinstance(record.get("item"), Mapping) else {}
+        item = _mapping(record.get("item"))
         assessment = (
-            record.get("assessment") if isinstance(record.get("assessment"), Mapping) else {}
+            _mapping(record.get("assessment"))
         )
         url = str(
             assessment.get("url") or item.get("url") or item.get("link") or item.get("href") or ""
@@ -231,9 +237,9 @@ def verify_bindings(
 
 # -- AR-1C-2-E: one event per read attempt ------------------------------------
 def _record_url(record: Mapping[str, Any]) -> str:
-    item = record.get("item") if isinstance(record.get("item"), Mapping) else {}
+    item = _mapping(record.get("item"))
     assessment = (
-        record.get("assessment") if isinstance(record.get("assessment"), Mapping) else {}
+        _mapping(record.get("assessment"))
     )
     return str(
         assessment.get("url") or item.get("url") or item.get("link") or item.get("href") or ""
@@ -264,7 +270,7 @@ def build_read_event(
         MotionEvent,
     )
 
-    read = record.get("read")
+    read = _mapping(record.get("read"))
     if not isinstance(read, Mapping):
         return None
     status = str(read.get("status") or "")
@@ -336,7 +342,7 @@ def round_read_summary(
     for record in records:
         if not isinstance(record, Mapping):
             continue
-        read = record.get("read")
+        read = _mapping(record.get("read"))
         if not isinstance(read, Mapping):
             continue
         status = str(read.get("status") or "")
