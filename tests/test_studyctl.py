@@ -148,3 +148,15 @@ def test_entrypoint_runs_without_global_package(repo):
         timeout=10,
     )
     assert result.returncode == 0 and json.loads(result.stdout)["status"] == "PASS"
+
+
+def test_cancellation_is_structured_exit_five(monkeypatch, capsys):
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(studyctl.subprocess, "run", interrupt)
+    try:
+        result = invoke(capsys, "status")
+    except KeyboardInterrupt:
+        pytest.fail("cancellation escaped the CLI result contract")
+    assert result["exit_code"] == 5 and result["errors"][0]["code"] == "cancelled"

@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI-01审阅收口。** #266旧head832cbcc2 / PR CI39458046112后台，finding PRRT_kwDOSYWoX86ubDa_有效：Ctrl-C未转JSON/5。新增负控在旧代码实际FAIL（studyctl-cancel-negative.log），现在main边界捕获KeyboardInterrupt，给cancelled脱敏结果，退出5且无traceback。最终命名L1 studyctl **156 PASS/52.72s**，自身14项；CLI独立mypy PASS、src122/128 NEW0复用未改src同树证据，Ruff/format/diff-check PASS；secret另记发布结果。本段提交恢复候选，修复后推送绑定新CI，旧头绿灯不能授予新head。CLI-02基于自身冻结832开发，发布前显式吸收此修复；BallWar4.7独立Draft #7整体11/12，设置旧接口脚本错误未解决，未合并。
+
 **2026-10-21 CLI-01：studyctl基础查询独立片。** branch codex/studyctl-foundation-20261021，固定已合main069fc126；无其他窗口WIP，root4个ZIP保留。tools/studyctl.py为标准库本地入口，status/doctor/help读取Git和权威文件，不导入产品/模型/凭据、不联网或启动测试；Git禁optional locks及fsmonitor，日志脱敏，stdout一份JSON，明确0/2/3/4/5退出码。显式output以同目录临时文件+hard link拒绝覆盖，dry-run不落盘。注册仅两个精确CLI路径，未知路径仍扩大，未将整个tools或CI类别映射到小门。命名L1 studyctl **155 PASS/50.47s**（自身13项真实Git/子进程），src mypy122/128 NEW0；CLI独立mypy最初发现argparse.error返回注解不匹配，现改NoReturn，复验另记；Ruff/format/diff-check与密钥检查以发布结果恢复。无生产行为/权威/schema变更，无本地L3。CLI使用见docs/STUDYCTL.md。下一自身小片：test plan直接复用classify/load_manifest/resolve，仅计划不执行；不把full_scope/l3_eligible当作自动执行L3的许可。
 
 **2026-10-20 #248重绑已合main。** #247在3bfefb2c / CI39383248671 SUCCESS / 无finding后expected-head合main8a66eccf（完整SHA以Git恢复）。本片吸收该main，merge6914c74c，冲突仅旧loop默认路径与自身可选answer_handler、其测试、docs/manifest；保留自身已审阅实现，输入模块与main相同，不混入后续generator或SDK。main增量仍5文件。命名L1 conversation_loop_answer **299 PASS/101.92s**，mypy122/128 NEW0、Ruff/diff-check PASS，候选SHA以本段提交恢复。先将PR base改main，再推候选触发synchronize，避免上一片retarget期间缺失CI；旧39e38bd3绿灯不授予新head。无本地L3，当前新owned绑定/可选API独立开发。
