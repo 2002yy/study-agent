@@ -212,3 +212,7 @@ DeepSeekConversationService.start只捕获可信快照读取器、工具handler�
 ### CL-1I-1：owned操作与一致只读快照
 
 SQLite读适配器以只读URI和单事务读取thread/current/最近6个completed prior turns，不初始化、迁移或恢复写入，不读取其他线程。binding复用已合main的context_from_chat_snapshots，严格拒绝取消/归档/换owner/完成/当前partial；始终由服务器回调决定能力、证据摘要和额度，模型调用前后及动作前重读。读适配器不创建、完成、释放操作或发布回复。宿主必须先授权调用者并拥有当前操作、持久费用准入和结束处理；下一片默认关闭的router仅接受身份，不接受客户端历史、工具或预算，也不自动注册生产app。
+
+### CL-1I-2：显式宿主策略与HTTP流生命周期
+
+create_conversation_events_router默认关闭、不自动注册app；宿主必须提供逐操作授权、owned run创建和操作结束回调。请求仅thread/turn路径与operation_id正文，客户端历史、工具、预算或证据字段直接422；授权/身份失败与重放拒绝均不启动SDK。显示流继续固定provisional/unverified，不借event_id提供持久恢复。Response拥有已claim会话：即使发送头失败尚未读取，也会关闭；断线/取消沿原loop和SDK释放，再通知一次宿主。清理等待上限1秒，超时取消；宿主回调必须有界、按operation身份CAS处理并保留unknown，不得直接发布答案。此片不创建/完成ChatTurn，不变更全局生产入口或现有认证；下一片补可信宿主的持久操作结算，真实模型效果与3–5秒初答仍需单独验收。

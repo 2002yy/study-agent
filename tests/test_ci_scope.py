@@ -43,6 +43,8 @@ def test_exact_conversation_decision_paths_select_their_registered_impact_set():
         "tests/test_conversation_progress_stream.py",
         "src/application/conversation_owned_binding.py",
         "tests/test_conversation_owned_binding.py",
+        "src/api/routes/conversation_events_routes.py",
+        "tests/test_conversation_events_routes.py",
     ]
     for path in paths:
         result = classify([path])
