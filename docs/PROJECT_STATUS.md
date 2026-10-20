@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 #246重绑已合main / 最新选择覆盖下方待答状态。** 用户已明确仅DeepSeek，先前凭据选择不再阻塞；新功能#252及独立session分支已继续，未调用真实服务。#245在head226c0d3182f9e597870179f39aaa5379ee3d17a9 / CI39376484599 SUCCESS / 两finding已解决后expected-head合入main9ae37d4c（完整SHA见Git）。本片吸收此main，仅docs/manifest冲突，保留双方交接与loop_trail命名门；生产与测试树须核验和已验证d7102e3a相同，因此复用该同树L1 277 PASS/94.49s、mypy122/128 NEW0，不机械重跑相同门。当前新head只以本段提交恢复，旧CI39376553152不授予新SHA；推送后base main且CI单独绑定。无本地L3。
+
 **2026-10-20 #246主线整合候选。** 本轮完成两个已有功能分支的主线收口，未新增SDK接线代码。#246已吸收自身#245最新冻结226c0d3182f9e597870179f39aaa5379ee3d17a9（其main为已合#244的5cd917ad）；第二次吸收仅交接冲突，保留双方，不改变生产代码。最终命名L1 conversation_loop_trail **277 PASS/94.49s**，mypy122/128 NEW0、Ruff/diff-check PASS，密钥扫描见本段发布命令；src相对已审阅5e6e2662的差异仅来自已合main context和已冻结父片，loop自身行为未变。本片相对#245增量5文件，候选SHA以本段提交恢复，base维持自身#245。旧5e6e2662绿灯不授予新head；推送后绑定新CI，不等待CI才推进。#245首次推送遇TLS EOF，使用命令级HTTP参数重试已成功，无全局Git配置修改。
 
 SDK接线所需的现有凭据复用选择已通过异步问题提交，尚无答复；本轮原拟新工作树conversation-model-transport-20261020留在9f0c1f14，tracked clean，无SDK/真实调用或配置修改。该选择仅限制后续API接线，不阻断已有合并/聚焦验证。下一执行动作：凭据选择后继续网关接线；选择前仅推进自身成熟片的main整合，不把问题未答当授权，不重复等待CI。
@@ -22,6 +24,9 @@ SDK接线所需的现有凭据复用选择已通过异步问题提交，尚无�
 run_conversation_loop改为收集answer_then_research的阶段回复及每次成功确定工具观察，后续模型输入使用完整ObservationTrail；派生当前身份先加入frame再请求模型，仍还原真实研究版本以验证STEER回执。原history/evidence摘要不改写，最多8次决策/16记录/16000个序列化字符，额外输入精确计入共享DecisionAdmission。容量耗尽给observation_limit并关闭内层流：已完成的原文观察仍交付、不截断；若阶段回复已超容量，其后已预留但未执行的tool不会启动，不退款或自动重试。完整八步验证了输入记录数2/4/6/8/10/12/14，边界停止仍有结构化session回执。
 
 本地新增5个执行器用例（含容量分支参数），执行器38 PASS；初步命名L1 conversation_loop_trail 274 PASS/101.70s，mypy122/128 NEW0、Ruff/format PASS；吸收父片审阅修复后的最终结果另记。当前先本地提交以保护独立片，再合入父片已冻结修复，尚未推送此旧候选。无真实模型/付费调用/生产聊天/UI/业务schema/发布权威切换，无本地L3；测试仅证明数据与执行顺序，非真实模型回答质量。唯一下一动作：最终联合门、独立PR与一次exact-head CI；继续按主线成熟度逐片合并。
+**2026-10-20 #245主线重绑收口。** #244在head0f9142442e0a15bee84a32a7d88a9112b7d88e96 / pull_request CI39296775208 SUCCESS / 无未解决finding后expected-head合入main 5cd917ad1c03fb520ce512605aa49bfd82f09216。本片吸收已合main（merge049831e4）；main中followup的内联稳定ID与本片提取helper冲突，显式保留本片已审阅helper与相同JSON/hash算法，CI仅保留trail两个精确路径及完整消费者，文档保留双方，context模块/测试来自已合main。main增量8文件，未导入其他窗口WIP。命名L1 conversation_observation_trail **394 PASS/126.89s**，mypy122/128 NEW0、Ruff/diff-check PASS；无本地L3，无新SDK/API或付费调用。新候选SHA以本段提交恢复，旧ad0b2e32绿灯不授予新head；推送后base main及新CI单独绑定。#246同步吸收本片冻结结果并在独立工作树跑联合门。下一功能接线的凭据复用选择仍待用户回答：按已读取openai-platform-api-key技能暂停SDK接线，现存配置不修改；空新工作树conversation-model-transport-20261020固定9f0c1f14且无代码更改。
+
+
 **2026-10-19 #245 审阅修复 / 逐次额度与精确路由。** finding4313958266有效：只比较root减工具次数会恢复并发额外消耗的额度。现每个tool frame后将下一帧额度上限收紧为该帧before.remaining_tool_calls-1，新增3组并发大幅扣减→非法恢复负控，合法后续零额度上下文仍可回答。finding4313958272也有效：新增trail模块/测试未登记会让普通后续修改回退全量。现仅登记这两个精确路径，连同原14个共16路径；同前缀新路径仍回退，admission/context/共享/CI/资格/未知范围不缩小。联合影响集conversation_observation_trail加入ci_scope/ci_workflow_routing/ci_outcomes，最终394 PASS/131.04s；Ruff/format、mypy122/128 NEW0、diff-check PASS。当前candidate SHA由本段提交恢复，旧7b6fb566 CI39254094559不授予修复后head；推送后解决已修finding并绑定一次CI。新scope为8文件（原6+CI分类与测试），不是单方面跳过CI或发布资格。
 
 
