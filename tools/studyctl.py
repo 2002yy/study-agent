@@ -50,7 +50,78 @@ def parser_for_cli() -> Parser:
     plan.add_argument("--base")
     plan.add_argument("--head", default="HEAD")
     plan.add_argument("--include-working-tree", action="store_true")
+    run = plans.add_parser("run", add_help=False)
+    common(run)
+    run.add_argument("--level", choices=("L1", "L2", "L3"), default="L1")
+    run.add_argument("--impact-set", default="")
+    run.add_argument("--stage", default="")
+    run.add_argument("--timeout", type=float, default=300)
     return parser
+
+
+def run_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
+    if __package__ in (None, ""):
+        sys.path.insert(0, str(ROOT))
+    from tools.studyctl_execution import commands_for, execute
+
+    if root.resolve() != ROOT.resolve():
+        raise CLIError(
+            3,
+            "execution_repo_mismatch",
+            "Run the CLI from the target checkout; arbitrary repository scripts cannot execute.",
+        )
+    if not 0 < options.timeout <= 3600:
+        raise CLIError(
+            2, "invalid_timeout", "Timeout must be between zero and 3600 seconds."
+        )
+    if (
+        options.level == "L1"
+        and (not options.impact_set or options.stage)
+        or options.level == "L2"
+        and (not options.stage or options.impact_set)
+        or options.level == "L3"
+        and (options.impact_set or options.stage)
+    ):
+        raise CLIError(
+            2, "invalid_selector", "Choose one matching level and gate selector."
+        )
+    try:
+        commands = commands_for(root, options.level, options.impact_set, options.stage)
+    except (ValueError, OSError, TypeError, AttributeError, SystemExit):
+        raise CLIError(
+            3,
+            "invalid_run_gate",
+            "Select a valid nonempty registered gate and matching level.",
+        ) from None
+    if getattr(options, "dry_run", False):
+        return {
+            "status": "PASS",
+            "exit_code": 0,
+            "errors": [],
+            "artifacts": [],
+            "steps": [],
+            "commands": commands,
+            "execution": "not_started",
+        }
+    if any(
+        (directory / ".env").exists() or (directory / ".env").is_symlink()
+        for directory in (root, *root.parents)
+    ):
+        raise CLIError(
+            3,
+            "ambient_dotenv",
+            "Execute tests in an isolated checkout without ambient .env files.",
+        )
+    source_state = read_status(root)
+    outcome = execute(root, commands, options.timeout)
+    outcome["source_state_before"] = source_state
+    outcome["source_state_after"] = read_status(root)
+    outcome["uncommitted_source"] = any(
+        state["tracked_changes"] or state["untracked_entries"]
+        for state in (source_state, outcome["source_state_after"])
+    )
+    outcome["execution"] = "attempted"
+    return outcome
 
 
 def plan_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
@@ -312,6 +383,18 @@ def main(argv: list[str] | None = None) -> int:
     try:
         parser = parser_for_cli()
         options = parser.parse_args(argv)
+        output = getattr(options, "output", None)
+        if output is not None and not getattr(options, "dry_run", False):
+            if output.exists() or output.is_symlink():
+                raise CLIError(
+                    3,
+                    "output_exists",
+                    "Output already exists; refusing execution or overwrite.",
+                )
+            if not output.parent.is_dir():
+                raise CLIError(
+                    3, "output_unavailable", "Output parent directory is unavailable."
+                )
         help_requested = getattr(options, "help", False) or options.command == "help"
         if help_requested:
             if not getattr(options, "json", False):
@@ -319,8 +402,8 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             result["command"] = "help"
             result["data"] = {
-                "commands": ["status", "doctor", "test plan", "help"],
-                "side_effects": "read-only unless --output is explicit",
+                "commands": ["status", "doctor", "test plan", "test run", "help"],
+                "side_effects": "test run executes the selected gate and writes isolated logs; other commands are read-only unless --output is explicit",
             }
         else:
             if not options.command:
@@ -328,10 +411,17 @@ def main(argv: list[str] | None = None) -> int:
             result["command"] = options.command
             root, result["head_sha"] = repository(getattr(options, "repo", ROOT))
             if options.command == "test":
-                result["command"] = "test plan"
-                result["data"] = plan_tests(root, options)
-                result["head_sha"] = result["data"]["head_sha"]
-                if result["data"]["requires_scope_review"]:
+                running = options.test_command == "run"
+                result["command"] = "test run" if running else "test plan"
+                result["data"] = (
+                    run_tests(root, options) if running else plan_tests(root, options)
+                )
+                if running:
+                    for key in ("status", "exit_code", "errors", "artifacts"):
+                        result[key] = result["data"][key]
+                else:
+                    result["head_sha"] = result["data"]["head_sha"]
+                if not running and result["data"]["requires_scope_review"]:
                     result.update(status="PARTIAL", exit_code=3)
                     result["errors"] = [
                         {
@@ -351,7 +441,7 @@ def main(argv: list[str] | None = None) -> int:
         result["duration_ms"] = round((time.monotonic() - started) * 1000)
         output = getattr(options, "output", None)
         if output is not None and not getattr(options, "dry_run", False):
-            result["artifacts"] = [str(output.absolute())]
+            result["artifacts"] = [*result["artifacts"], str(output.absolute())]
             save_new(output, json.dumps(result, ensure_ascii=True))
     except KeyboardInterrupt:
         result.update(exit_code=5, status="BLOCKED")
