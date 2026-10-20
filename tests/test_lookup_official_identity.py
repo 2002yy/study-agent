@@ -52,7 +52,12 @@ def test_short_release_cannot_stop_when_publication_rejects_the_raw_version(monk
     summary = recovery_summary(calls)
     assert searches and summary["target_coverage"]["covered"] == 0
     assert summary["stop_reason"] != "READ_BACKED_PROGRESS"
-    _, audit = publish_official_fields(query, calls, "Invented release facts")
+    # The raw version claim is what must not be published: with the layered
+    # contract a specific claim is withheld (there is nothing general to say
+    # here), so the publication still abstains and cites nothing.
+    _, audit = publish_official_fields(
+        query, calls, "FastAPI 0.136.0 是正式发布版本，官方已经确认。"
+    )
     assert audit["status"] == "abstained" and not audit["assertion_refs"]
 
 
