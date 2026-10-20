@@ -100,6 +100,14 @@ CL-0 至 CL-4 最终构成可运行纵向切片，CL-1A 合同完成不等于完
 
 ## 4. 验证与发布边界
 
+### CI-CL-2：精确路径与消费者影响集（本轮第三片）
+
+登记的新增精确模块为conversation_action_dispatch、conversation_action_step、conversation_observation_followup、conversation_bounded_loop、conversation_loop_session及各自测试；与原decision/runner共14个路径映射conversation_decision_1b。不存在conversation_*通配排除，admission/context、共享domain/SQLite、生产路由/CI工具、资格门和未知路径仍保守扩大。workflow不变，也不删除强制L3或最终发布资格。
+
+可复用消费者清单（初始base自身150ae5ec，包含后续自身review修复，最终parent见Current Handoff）：dispatch门增补step/followup/loop/session；step门增补直接使用它的followup测试；followup门增补loop；loop门增补session；共享conversation_decision_1b继续保留整个链和SQLite账本测试。测试同时核对真实路径、manifest解析、新消费者子集以及混入未登记/持久路径的负控。
+
+命名L1 conversation_loop_ci_scope覆盖ci_scope、ci_workflow_routing、ci_outcomes、stage_gates_policy。下一功能片：有界累计工具观察与阶段回复输入，避免只看最近一次工具结果，保持未经验证数据与证据的区别。
+
 ### CL-1D-4：单次消费与运行回执（独立小片，不切生产）
 
 ConversationLoopSession包装可信loop事件流，消费句柄只能claim一次；句柄关闭在首次读取前也有效。LoopReceipt不可变，不含提示/工具正文，区分stopped、closed、cancelled、failed；无结构化终态或计数不一致不能冒充成功。活动pull中断标记unknown，暂停关闭不自动重放，不能声称外部动作被回滚。跨进程持久恢复/完整断线续传另设门，本片仅进程内状态与消费权。

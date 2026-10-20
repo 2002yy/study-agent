@@ -26,8 +26,18 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
         (
             "src/application/conversation_decision.py",
             "src/application/conversation_decision_runner.py",
+            "src/application/conversation_action_dispatch.py",
+            "src/application/conversation_action_step.py",
+            "src/application/conversation_observation_followup.py",
+            "src/application/conversation_bounded_loop.py",
+            "src/application/conversation_loop_session.py",
             "tests/test_conversation_decision.py",
             "tests/test_conversation_decision_runner.py",
+            "tests/test_conversation_action_dispatch.py",
+            "tests/test_conversation_action_step.py",
+            "tests/test_conversation_observation_followup.py",
+            "tests/test_conversation_bounded_loop.py",
+            "tests/test_conversation_loop_session.py",
         ),
     ),
     (

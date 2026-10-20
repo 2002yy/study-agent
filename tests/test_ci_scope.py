@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from tools.ci_scope import classify, classify_path
 
 
@@ -11,6 +15,16 @@ def test_exact_conversation_decision_paths_select_their_registered_impact_set():
         "src/application/conversation_decision_runner.py",
         "tests/test_conversation_decision.py",
         "tests/test_conversation_decision_runner.py",
+        "src/application/conversation_action_dispatch.py",
+        "src/application/conversation_action_step.py",
+        "src/application/conversation_observation_followup.py",
+        "src/application/conversation_bounded_loop.py",
+        "src/application/conversation_loop_session.py",
+        "tests/test_conversation_action_dispatch.py",
+        "tests/test_conversation_action_step.py",
+        "tests/test_conversation_observation_followup.py",
+        "tests/test_conversation_bounded_loop.py",
+        "tests/test_conversation_loop_session.py",
     ]
     for path in paths:
         result = classify([path])
@@ -32,11 +46,67 @@ def test_conversation_mapping_resolves_to_real_tests_and_covers_both_modules():
     assert "tests/test_conversation_decision_runner.py" in paths
 
 
+def test_loop_mapping_covers_actual_modules_and_complete_registered_consumer_stack():
+    from tools.run_stage_gate import load_manifest, resolve
+
+    paths = resolve(load_manifest(), impact_set="conversation_decision_1b")
+    root = Path(__file__).resolve().parents[1]
+    for name in (
+        "conversation_action_dispatch", "conversation_action_step",
+        "conversation_observation_followup", "conversation_bounded_loop",
+        "conversation_loop_session",
+    ):
+        module = f"src/application/{name}.py"
+        test = f"tests/test_{name}.py"
+        assert (root / module).is_file() and (root / test).is_file()
+        assert test in paths
+        assert classify([module.replace("/", "\\"), test])["impact_set"] == "conversation_decision_1b"
+    # The ledger is a dependency, but changing its persistence code is not
+    # classified as an ordinary loop slice by this patch.
+    assert "tests/test_conversation_decision_admission.py" in paths
+
+
+@pytest.mark.parametrize("impact,consumers", [
+    ("conversation_action_dispatch", {
+        "tests/test_conversation_action_step.py", "tests/test_conversation_observation_followup.py",
+        "tests/test_conversation_bounded_loop.py", "tests/test_conversation_loop_session.py",
+    }),
+    ("conversation_action_step", {"tests/test_conversation_observation_followup.py"}),
+    ("conversation_observation_followup", {"tests/test_conversation_bounded_loop.py"}),
+    ("conversation_bounded_loop", {"tests/test_conversation_loop_session.py"}),
+])
+def test_named_development_gates_retain_new_direct_consumers(impact, consumers):
+    from tools.run_stage_gate import load_manifest, resolve
+
+    paths = resolve(load_manifest(), impact_set=impact)
+    assert consumers <= set(paths)
+
+
+@pytest.mark.parametrize("name", [
+    "conversation_action_dispatch", "conversation_action_step",
+    "conversation_observation_followup", "conversation_bounded_loop",
+    "conversation_loop_session",
+])
+@pytest.mark.parametrize("adjacent", [
+    "src/application/conversation_decision_admission.py",
+    "src/application/conversation_decision_context.py",
+    "src/infrastructure/sqlite/database.py", "src/domain/evidence.py",
+    "mystery/new.py",
+])
+def test_loop_slice_mixed_with_persistence_or_unregistered_paths_cannot_narrow(name, adjacent):
+    result = classify([f"src/application/{name}.py", adjacent])
+    assert result["impact_set"] == ""
+    assert classify_path(adjacent) != "conversation-decision"
+
+
 def test_conversation_prefix_is_not_a_blanket_subsystem_exclusion():
     for path in (
         "src/application/conversation_decision_new.py",
         "src/application/chat_service.py",
         "tests/test_conversation_decision_other.py",
+        "src/application/conversation_action_dispatch_new.py",
+        "src/application/conversation_bounded_loop_new.py",
+        "tests/test_conversation_loop_session_new.py",
     ):
         result = classify(["src/application/conversation_decision.py", path])
         assert result["impact_set"] == ""
