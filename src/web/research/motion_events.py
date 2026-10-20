@@ -40,6 +40,7 @@ from src.web.research.answer_revision import (
 )
 from src.web.research.answer_state import (
     CURRENT,
+    StatementState,
     StaticAnswerSnapshot,
     snapshot_from_replies,
 )
@@ -252,14 +253,14 @@ def proposals_for_event(
         if not replacement or not bindings or not target:
             # A read alone proves nothing about how to phrase the answer.
             return []
-        statement = next(
+        target_statement: StatementState | None = next(
             (item for item in snapshot.statements if item.reply_id == target), None
         )
-        if statement is None or statement.lifecycle != CURRENT:
+        if target_statement is None or target_statement.lifecycle != CURRENT:
             return []
         proposals.append(
             _proposal(
-                statement=statement,
+                statement=target_statement,
                 event=event,
                 action=REPLACE,
                 reason=str(event.cause or "新证据支持重写"),

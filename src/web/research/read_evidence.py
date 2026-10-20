@@ -88,6 +88,12 @@ def _read_excerpt(record: Mapping[str, Any]) -> str:
     return read_excerpt(read) if isinstance(read, Mapping) else ""
 
 
+def _mapping(value: Any) -> Mapping[str, Any]:
+    """A mapping, or an empty one. Keeps `record.get(...)` chains type-safe."""
+
+    return value if isinstance(value, Mapping) else {}
+
+
 def read_id_for(*, run_id: str, url: str, round_index: int, attempt: int) -> str:
     """Stable identity of one read attempt.
 
@@ -117,10 +123,8 @@ def read_attempts(records: Iterable[Mapping[str, Any]], url: str) -> int:
             continue
         if not isinstance(record.get("read"), Mapping):
             continue
-        item = record.get("item") if isinstance(record.get("item"), Mapping) else {}
-        assessment = (
-            record.get("assessment") if isinstance(record.get("assessment"), Mapping) else {}
-        )
+        item = _mapping(record.get("item"))
+        assessment = _mapping(record.get("assessment"))
         candidate = str(
             assessment.get("url") or item.get("url") or item.get("link") or item.get("href") or ""
         )
@@ -225,14 +229,12 @@ def read_evidence_from_records(
     for record in records:
         if not isinstance(record, Mapping):
             continue
-        read = record.get("read") if isinstance(record.get("read"), Mapping) else {}
+        read = _mapping(record.get("read"))
         excerpt = read_excerpt(read)
         if not excerpt:
             continue
-        item = record.get("item") if isinstance(record.get("item"), Mapping) else {}
-        assessment = (
-            record.get("assessment") if isinstance(record.get("assessment"), Mapping) else {}
-        )
+        item = _mapping(record.get("item"))
+        assessment = _mapping(record.get("assessment"))
         url = str(
             assessment.get("url") or item.get("url") or item.get("link") or item.get("href") or ""
         )
@@ -313,10 +315,8 @@ def verify_bindings(
 
 # -- AR-1C-2-E: one event per read attempt ------------------------------------
 def _record_url(record: Mapping[str, Any]) -> str:
-    item = record.get("item") if isinstance(record.get("item"), Mapping) else {}
-    assessment = (
-        record.get("assessment") if isinstance(record.get("assessment"), Mapping) else {}
-    )
+    item = _mapping(record.get("item"))
+    assessment = _mapping(record.get("assessment"))
     return str(
         assessment.get("url") or item.get("url") or item.get("link") or item.get("href") or ""
     )
