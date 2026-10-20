@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI-01：studyctl基础查询独立片。** branch codex/studyctl-foundation-20261021，固定已合main069fc126；无其他窗口WIP，root4个ZIP保留。tools/studyctl.py为标准库本地入口，status/doctor/help读取Git和权威文件，不导入产品/模型/凭据、不联网或启动测试；Git禁optional locks及fsmonitor，日志脱敏，stdout一份JSON，明确0/2/3/4/5退出码。显式output以同目录临时文件+hard link拒绝覆盖，dry-run不落盘。注册仅两个精确CLI路径，未知路径仍扩大，未将整个tools或CI类别映射到小门。命名L1 studyctl **155 PASS/50.47s**（自身13项真实Git/子进程），src mypy122/128 NEW0；CLI独立mypy最初发现argparse.error返回注解不匹配，现改NoReturn，复验另记；Ruff/format/diff-check与密钥检查以发布结果恢复。无生产行为/权威/schema变更，无本地L3。CLI使用见docs/STUDYCTL.md。下一自身小片：test plan直接复用classify/load_manifest/resolve，仅计划不执行；不把full_scope/l3_eligible当作自动执行L3的许可。
+
 **2026-10-20 #248重绑已合main。** #247在3bfefb2c / CI39383248671 SUCCESS / 无finding后expected-head合main8a66eccf（完整SHA以Git恢复）。本片吸收该main，merge6914c74c，冲突仅旧loop默认路径与自身可选answer_handler、其测试、docs/manifest；保留自身已审阅实现，输入模块与main相同，不混入后续generator或SDK。main增量仍5文件。命名L1 conversation_loop_answer **299 PASS/101.92s**，mypy122/128 NEW0、Ruff/diff-check PASS，候选SHA以本段提交恢复。先将PR base改main，再推候选触发synchronize，避免上一片retarget期间缺失CI；旧39e38bd3绿灯不授予新head。无本地L3，当前新owned绑定/可选API独立开发。
 
 **2026-10-19 CL-1E-2：loop可选回答接线（本轮第二片）。** branch codex/conversation-loop-answer-20261019，固定base自身#247 3390fafd3ee9d1e3de0c028a6c10d1ed94d7db68。run_conversation_loop新增可选answer_handler，经过原dispatch准入、freshness、超时和取消后，收到当前提议对应的AnswerInput；阶段回复在执行完成后才入trail，最终回答收到此前全部阶段及工具观察。原ActionInvocation和默认handler路径兼容，不改生产聊天入口。实际生成预算、权限、输出与证据校验由可信适配器负责；输入拒绝统一经原handler失败通道，不启动后续tool。新增8个用例覆盖前后阶段衔接、两工具累计、旧handler覆盖、新意图拒绝、阶段后关闭、失败/空/超长输出停止和调用者取消传播。无真实模型/SDK/付费调用/生产聊天或发布权威切换，无本地L3。命名L1 conversation_loop_answer **299 PASS/69.10s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0。候选SHA以本段提交恢复。
