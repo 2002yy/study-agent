@@ -26,11 +26,11 @@ python tools/studyctl.py ci inspect --snapshot <saved-query.json> --github-repo 
 python tools/studyctl.py ci outcomes --receipt <raw-outcomes.json> --exact-head <40-char-sha> --run-id 42 --event pull_request --json
 ```
 
-inspect支持已保存的prs/checks查询快照，展示历史身份/运行/审阅缺口；outcomes只回放带head/run/event/routing的原始步骤回执。外层head_sha标识实际CLI检出，expected_head_sha是被检查提交，二者不能混用。--output仍拒绝覆盖，--dry-run只读且不写报告。两个命令都不合并或触发工作流；完整live ci verify仍待后续采集required-check策略、全部上下文、当前review以及merge/main证据，不能用这两个离线命令冒充。
+inspect支持已保存的prs/checks查询快照，展示历史身份/运行/审阅缺口；outcomes只回放带head/run/event/routing的原始步骤回执。外层head_sha标识实际CLI检出，expected_head_sha是被检查提交，二者不能混用。--output仍拒绝覆盖，--dry-run只读且不写报告。两个离线命令都不合并或触发工作流；当前GitHub证据改用上方ci collect/main，不能用离线记录冒充。
 
 ## 后续CLI建设范围
 
-Study Agent只读/测试基础、研究目录/诊断/分页/差异已分别有候选；尚未全部合流main。当前CI离线入口后，优先补GitHub可信只读采集和完整exact-head CI/review核验、兄弟片合流和main验收，以及成功/失败/取消等完整真实run记录与原工具一致性验收。已有B5只证明历史摘要能被如实读取。真实研究运行入口是后置片，另需明确预算/授权，仅DeepSeek，不另建调度器。
+Study Agent只读/测试基础已合main（#266/#267/#269）；研究目录/诊断/分页/差异和GitHub可信采集已有候选，本分支保留分页兄弟片与CI/比较命令的并集，尚未全部合流main。下一门是各当前head的CI/review、逐片合并与main验收，以及成功/失败/取消等完整真实run记录与原工具一致性验收。已有B5只证明历史摘要能被如实读取。真实研究运行入口是后置片，另需明确预算/授权，仅DeepSeek，不另建调度器。
 
 其余仓库按原合同逐一做局部G0→复用入口→至少三条业务E2E，不把项目已有能力当CLI已验收：LingBot环境/实验与可比性；Vector Breach地图/资产审计与比赛记录；VoxelCombat构建/战斗证据/门报告且保留D的NO-GO；Cardfront状态/测试清单/规则门并遵Grill冻结范围；BallWar正式codec只读存档验证和Android预检，目标4.7。此表为本开发线待接线/验收方向，不宣称其他窗口当前分支的全局状态。
 
@@ -134,4 +134,4 @@ python tools/studyctl.py research inspect --run <run-id> --database <offline-sna
 
 必须显式提供由现有数据库备份/导出手段产生的一致离线SQLite快照；本命令不负责备份，不自动查找或连接运行中的产品数据库。拒绝同路径的-wal/-shm/-journal旁文件及超过64MiB的文件，JSON列各限2Mi字符。在内存反序列化后只查询指定run，不打开产品RuntimeDatabase、不执行迁移或恢复，不修改输入或创建SQLite旁文件。结果含输入快照SHA256；外层head_sha是CLI检出版本，不是研究执行版本。大数据库/在线WAL支持后续另片处理。
 
-复用known_research_evidence_ids与load_claim_engine_state校验server-owned证据和research-state-v1。只输出记录状态、停止码及已验证事件，不读取或推断最终答案；搜索、读取、引用支持（链接和gate事件）及停止记录分别标明有记录/证据不足。整条trace出现其他run_id时不归属给当前run。缺字段、旧schema、缺事件、未知停止码为PARTIAL/3；无指定run、坏数据库/JSON、缺必要列等前提错误为BLOCKED/3。CLI PASS/0仅表示所需记录齐全，不证明研究成功、引用正确或允许发布；已失败研究仍可被成功检查。--dry-run可只读检查但不写output；CI查询仍未实现。
+复用known_research_evidence_ids与load_claim_engine_state校验server-owned证据和research-state-v1。只输出记录状态、停止码及已验证事件，不读取或推断最终答案；搜索、读取、引用支持（链接和gate事件）及停止记录分别标明有记录/证据不足。整条trace出现其他run_id时不归属给当前run。缺字段、旧schema、缺事件、未知停止码为PARTIAL/3；无指定run、坏数据库/JSON、缺必要列等前提错误为BLOCKED/3。CLI PASS/0仅表示所需记录齐全，不证明研究成功、引用正确或允许发布；已失败研究仍可被成功检查。--dry-run可只读检查但不写output；研究命令本身不查询CI，GitHub查询见ci collect/main。

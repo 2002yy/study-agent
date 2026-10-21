@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-22 CLI-05可信采集与全CLI合流候选最终门。** #280 branch codex/studyctl-ci-collect-20261021 / worktree D:/study-agent-validation/studyctl-ci-collect-20261021；冻结父#279 c2b5822e34a8360e88e4df84de566083e387f934、分页兄弟#275 9bd92f4f60b99ab74327cac4cc77bcd8d4aee8bf，保留compare/分页/CI parser、精确CI路径和命名影响集并集，冲突仅docs/manifest/CI路径。最终命名studyctl **409 PASS/1 SKIP/210.12s**，日志D:/study-agent-validation/studyctl-github-unified-final-l1-20261022.log；Ruff、四个变更模块format、8工具mypy、diff-check及唯一20文件scope通过，无src/workflow变化、本地L3、模型或真实研究请求。skip仍为Windows symlink权限。受测代码提交2f509c63，后续仅docs，最终SHA以本段提交恢复；最后secret与clean/实际CLI回执在提交后执行，不重复同树门。
+
+已完成可信只读采集（collect指定PR、main指定当前main/push，required合同/完整规则与review分页/身份前后核对/预算/脱敏）和两个有效审阅修复：4337605902规则分页、4337733124错event失败归属。#279 thread PRRT_kwDOSYWoX86uyvo5已解决，#280 thread PRRT_kwDOSYWoX86uzC8L在最终推送后解决。命令级回执D:/study-agent-validation/studyctl-github-cli-final-e2e-20261022/manifest.json，按实际观察保留pending、错head、dry-run阻断，不授予merge_authorized。之前真实资格采集支持#266/#267/#269 expected-head合main，当前main2b3e27648719c1fda9f2486c6de4ec584f1199d1；push39641686708最后in_progress，不能声称CLI全线REMOTE GO。
+
+父片冻结重绑清单/一次CI：D:/study-agent-validation/studyctl-rebound-candidates-20261022.json、studyctl-rebound-ci-once-20261022.json；#270 base已main/head3741298283b2b8c4421f857eb168a1cfe3b461cf/CI39642003837最后in_progress，其余后续同样新head后台，不借旧绿灯。下一唯一执行片：检查#270当前head完整审阅及精确CI，通过后expected-head合main，逐片推进#273/#274/#275/#276/#277/#278/#279/#280；分支合流/main验收与完整真实run业务样本仍未完成。根目录四个未跟踪ZIP保留，其他开发工作未动。
+
 **2026-10-21 CLI-05D实时采集命令。** branch codex/studyctl-ci-collect-20261021 / worktree D:/study-agent-validation/studyctl-ci-collect-20261021，固定自身#279 a24b9daae934a296a80992541fc0d5668eaacad2。ci collect显式PR/repository/SHA；ci main验证当前main与push事件；required-check只声明项目要求，不修改服务器规则。dry-run零网络/零输出写入并BLOCKED，已有output在网络前拒绝，所有API异常脱敏，外层代码SHA与所查远端SHA分列。命名studyctl 386 PASS/1 SKIP/190.50s（自身13项）；Ruff与explicit-package-bases工具mypy通过。另显式吸收自身独立测试修复96047bfb的tests/test_studyctl_execution.py（不取其他WIP），纯测试增量单独重验32项，生产树不变。
 
 #266精确20766b28 / pull_request CI39459399448 SUCCESS / 完整review无阻断后合main5f0e616e518ca3deb193778d9a17780eacd393a6，push39609573752最后in_progress；#267精确eb68ad1b / pull_request CI39554111731 SUCCESS / 完整review无阻断后合main9de6b4aea45c2624f4e2b9ec07ed1cf1182ad5fe，push39611131236最后in_progress。均expected-head保护，不等待CI才继续开发；根目录四个ZIP原样保留。#278旧head CI失败不可合并，测试修复正在#269重新绑定main及后续候选。真实可信采集已可用，但CLI全线main整合、完整真实run验收仍未完成；下一片按新head审阅与CI逐片收口，不扩展更多命令。无模型/付费请求、workflow/src改动或本地L3。
