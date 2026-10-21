@@ -55,7 +55,7 @@ def parser_for_cli() -> Parser:
     run.add_argument("--level", choices=("L1", "L2", "L3"), default="L1")
     run.add_argument("--impact-set", default="")
     run.add_argument("--stage", default="")
-    run.add_argument("--timeout", type=float, default=300)
+    run.add_argument("--timeout", type=float)
     return parser
 
 
@@ -70,10 +70,6 @@ def run_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
             "execution_repo_mismatch",
             "Run the CLI from the target checkout; arbitrary repository scripts cannot execute.",
         )
-    if not 0 < options.timeout <= 3600:
-        raise CLIError(
-            2, "invalid_timeout", "Timeout must be between zero and 3600 seconds."
-        )
     if (
         options.level == "L1"
         and (not options.impact_set or options.stage)
@@ -84,6 +80,18 @@ def run_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
     ):
         raise CLIError(
             2, "invalid_selector", "Choose one matching level and gate selector."
+        )
+    if options.timeout is None:
+        if options.level == "L3":
+            raise CLIError(
+                2,
+                "l3_timeout_required",
+                "L3 requires an explicit --timeout budget (up to 3600 seconds).",
+            )
+        options.timeout = 300
+    if not 0 < options.timeout <= 3600:
+        raise CLIError(
+            2, "invalid_timeout", "Timeout must be between zero and 3600 seconds."
         )
     try:
         commands = commands_for(root, options.level, options.impact_set, options.stage)

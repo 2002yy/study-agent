@@ -28,6 +28,8 @@ python tools/studyctl.py test plan --base <ancestor-sha> --include-working-tree 
 
 ## 受控测试执行
 
+审阅修复：L1/L2默认300秒；L3必须显式--timeout（最多3600秒，例如1800），未提供预算时参数错误且不执行预检。所有事后判定超时/日志超额的路径同样清理进程树；Windows通过私有pipe让bootstrap等待，先纳入带kill-on-close的Job Object再放行命令，避免父进程退出后无法按PID找回后代。Job归属失败则不放行；清理按Job成员数确认，不把父进程已退出当作后代清理完成。正常结束也回收本次Job遗留进程。
+
 ```powershell
 python tools/studyctl.py test run --impact-set conversation_decision_admission --timeout 120 --json
 python tools/studyctl.py test run --level L2 --stage p2-a-retrieval-stack --dry-run --json
