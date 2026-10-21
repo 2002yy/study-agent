@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI-05B最终本地门。** 命名studyctl **337 PASS/1 SKIP/181.26s**，含父片24个证据判定和本片13个CLI接线用例；七工具mypy、Ruff/新模块format/diff-check PASS，无src/workflow变化、L3或live查询。父片#277 head928b0760d3c969c9c8422272ac24cf83e373232c；本片最终SHA由本段所属提交恢复。提交后读取旧本地CI快照和构造step回执做实际CLI回放，明确不是当前GitHub状态或真实合并资格，回执D:/study-agent-validation/studyctl-ci-offline-e2e-20261021/manifest.json。当前建设缺口清单已写STUDYCTL与外部实施计划；下一正式片可信live采集，不扩展更多诊断命令。用户要求不等CI，本轮仅发布PR，不查询/等待CI或合main。
+
+**2026-10-21 CLI-05B离线CI命令接线。** branch codex/studyctl-ci-cli-20261021 / worktree D:/study-agent-validation/studyctl-ci-cli-20261021，基于自身已提交CLI-05A，吸收冻结事件补强928b0760d3c969c9c8422272ac24cf83e373232c（无其他工作树WIP）。新增ci inspect --snapshot/--github-repo/--pr/--exact-head和ci outcomes --receipt/--exact-head/--run-id/--event；参数缺失先拒绝，输入错误脱敏，外层CLI代码SHA与被检head分列。离线snapshot不能获merge GO；raw outcomes仅复用已有门作记录回放，真实性/当前PR资格不在此命令内。自身13 PASS/10.52s，包含禁止gh/网络子进程、跨checkout来源、实际entrypoint JSON；联合门吸收父修复后收口补记。无GitHub/CI查询、workflow修改、L3或模型请求。下一正式片是live required policy/check contexts/review/main采集，不以此离线入口声称CLI-05整体完成；STUDYCTL文档已列Study和其余五仓库剩余方向。
+
 **2026-10-21 CLI-05A事件元数据补强。** 最终人工检查补上workflow event的类型/已知名称白名单，避免未知对象在诊断输出中回显任意内容；自身CI模块24 PASS/6.07s，Ruff/format/mypy/diff-check PASS，既有failed_steps与下层未变，不重跑同树下层门。最终CLI分支吸收此冻结修复后跑完整命名studyctl联合门，不能仅借前置323结果；此片最终SHA由本段提交恢复，CI仍后查。
 
 **2026-10-21 CLI-05A最终本地门。** 已冻结代码34eb2916c4360a6663bbc2d3c80f049212726426，命名studyctl **323 PASS/1 SKIP/176.40s**，含23个CI证据/原始outcome用例及原CI规则直接影响集；既有Windows symlink权限跳过。mypy、Ruff/新模块format/diff-check PASS，src/CI workflow未变、无L3或网络查询。此后仅文档收口，不重复同树门。最终SHA由本段提交恢复；下一自身分支只基于此已提交候选接CLI，CI仍留后查。完整live required checks/main证据采集还没实现，离线快照不能授予merge GO。

@@ -2,6 +2,21 @@
 
 ## CI证据范围（离线核心）
 
+离线入口（不会查询或等待GitHub）：
+
+```powershell
+python tools/studyctl.py ci inspect --snapshot <saved-query.json> --github-repo owner/repository --pr 7 --exact-head <40-char-sha> --json
+python tools/studyctl.py ci outcomes --receipt <raw-outcomes.json> --exact-head <40-char-sha> --run-id 42 --event pull_request --json
+```
+
+inspect支持已保存的prs/checks查询快照，展示历史身份/运行/审阅缺口；outcomes只回放带head/run/event/routing的原始步骤回执。外层head_sha标识实际CLI检出，expected_head_sha是被检查提交，二者不能混用。--output仍拒绝覆盖，--dry-run只读且不写报告。两个命令都不合并或触发工作流；完整live ci verify仍待后续采集required-check策略、全部上下文、当前review以及merge/main证据，不能用这两个离线命令冒充。
+
+## 后续CLI建设范围
+
+Study Agent只读/测试基础、研究目录/诊断/分页/差异已分别有候选；尚未全部合流main。当前CI离线入口后，优先补GitHub可信只读采集和完整exact-head CI/review核验、兄弟片合流和main验收，以及成功/失败/取消等完整真实run记录与原工具一致性验收。已有B5只证明历史摘要能被如实读取。真实研究运行入口是后置片，另需明确预算/授权，仅DeepSeek，不另建调度器。
+
+其余仓库按原合同逐一做局部G0→复用入口→至少三条业务E2E，不把项目已有能力当CLI已验收：LingBot环境/实验与可比性；Vector Breach地图/资产审计与比赛记录；VoxelCombat构建/战斗证据/门报告且保留D的NO-GO；Cardfront状态/测试清单/规则门并遵Grill冻结范围；BallWar正式codec只读存档验证和Android预检，目标4.7。此表为本开发线待接线/验收方向，不宣称其他窗口当前分支的全局状态。
+
 tools/studyctl_ci.py只解析已保存的CI数据，不访问GitHub或等待工作流。inspect_ci_snapshot兼容本地cli-review-fixes-closeout快照结构（prs/checks）：核对仓库URL、PR、40位head、workflow event/head与审阅分页，保留运行状态和证据缺口。该旧格式没有required-check policy/check contexts，也不能证明当前性，因此即使全绿也BLOCKED；明确同head/event的失败可报告FAIL，不借旧head结果。
 
 replay_outcomes复用check_ci_outcomes.failed_steps，判断原始outcome而非continue-on-error后的conclusion，保留pytest_impact替代、frontend/browser路由规则。输入studyctl-ci-outcomes-v1为可选离线回执包装：head_sha/run_id/event/frontend_required/browser_required/steps；steps直接采用CI_STEP_RESULTS的原始字典，不要求改写旧快照或修改CI workflow。回执身份/路由缺失阻断，既有规则判失败为FAIL/4。PASS/0只代表提供的原始outcome满足该门，不证明回执真实性、当前PR状态、必需检查或可合并；merge_authorized始终false。CLI接线在下一独立片。

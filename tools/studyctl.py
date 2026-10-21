@@ -74,7 +74,88 @@ def parser_for_cli() -> Parser:
     comparison.add_argument("--left-artifact", type=Path)
     comparison.add_argument("--right-artifact", type=Path)
     comparison.add_argument("--run", default="")
+    ci = children.add_parser("ci", add_help=False)
+    common(ci)
+    ci_commands = ci.add_subparsers(dest="ci_command")
+    ci_inspect = ci_commands.add_parser("inspect", add_help=False)
+    common(ci_inspect)
+    ci_inspect.add_argument("--snapshot", type=Path)
+    ci_inspect.add_argument("--github-repo", default="")
+    ci_inspect.add_argument("--pr", type=int)
+    ci_inspect.add_argument("--exact-head", default="")
+    outcomes = ci_commands.add_parser("outcomes", add_help=False)
+    common(outcomes)
+    outcomes.add_argument("--receipt", type=Path)
+    outcomes.add_argument("--exact-head", default="")
+    outcomes.add_argument("--run-id", type=int)
+    outcomes.add_argument("--event", choices=("pull_request", "push"))
     return parser
+
+
+def ci_evidence(options: argparse.Namespace) -> dict[str, Any]:
+    if __package__ in (None, ""):
+        sys.path.insert(0, str(ROOT))
+    import re
+    from tools.studyctl_ci import inspect_ci_snapshot, replay_outcomes, valid_sha
+
+    if options.ci_command not in {"inspect", "outcomes"} or not valid_sha(
+        options.exact_head
+    ):
+        raise CLIError(
+            2,
+            "invalid_ci_arguments",
+            "Select ci inspect/outcomes and an exact 40-character head SHA.",
+        )
+    if options.ci_command == "inspect":
+        if (
+            options.snapshot is None
+            or options.pr is None
+            or options.pr <= 0
+            or re.fullmatch(
+                r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}", options.github_repo
+            )
+            is None
+        ):
+            raise CLIError(
+                2,
+                "invalid_ci_selector",
+                "Select a snapshot, owner/repository and positive PR number.",
+            )
+    elif (
+        options.receipt is None
+        or options.run_id is None
+        or options.run_id <= 0
+        or options.event is None
+    ):
+        raise CLIError(
+            2,
+            "invalid_outcome_selector",
+            "Select a receipt, positive run ID and explicit event.",
+        )
+    try:
+        return (
+            inspect_ci_snapshot(
+                options.snapshot, options.github_repo, options.pr, options.exact_head
+            )
+            if options.ci_command == "inspect"
+            else replay_outcomes(
+                options.receipt, options.exact_head, options.run_id, options.event
+            )
+        )
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+    ):
+        raise CLIError(
+            3,
+            "ci_evidence_unavailable",
+            "Compatible recorded CI evidence with matching identities is required.",
+        ) from None
 
 
 def inspect_research(options: argparse.Namespace) -> dict[str, Any]:
@@ -563,6 +644,8 @@ def main(argv: list[str] | None = None) -> int:
                     "research inspect",
                     "research list",
                     "research compare",
+                    "ci inspect",
+                    "ci outcomes",
                     "help",
                 ],
                 "side_effects": "test run executes the selected gate and writes isolated logs; other commands are read-only unless --output is explicit",
@@ -594,6 +677,14 @@ def main(argv: list[str] | None = None) -> int:
             elif options.command == "research":
                 result["command"] = "research " + (options.research_command or "")
                 result["data"] = inspect_research(options)
+                result["data"]["requested_repo_head_sha"] = result["head_sha"]
+                result["data"]["inspection_root"] = str(ROOT)
+                _, result["head_sha"] = repository(ROOT)
+                for key in ("status", "exit_code", "errors"):
+                    result[key] = result["data"][key]
+            elif options.command == "ci":
+                result["command"] = "ci " + (options.ci_command or "")
+                result["data"] = ci_evidence(options)
                 result["data"]["requested_repo_head_sha"] = result["head_sha"]
                 result["data"]["inspection_root"] = str(ROOT)
                 _, result["head_sha"] = repository(ROOT)
