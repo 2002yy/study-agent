@@ -24,6 +24,8 @@ def test_studyctl_exact_paths_use_registered_cli_stack_and_unknown_stays_broad()
     assert classify(["tests/test_studyctl_catalog.py"])["impact_set"] == "studyctl"
     assert "tests/test_studyctl_recording.py" in paths
     assert "tests/test_studyctl_compare.py" in paths
+    assert "tests/test_studyctl_ci.py" in paths
+    assert classify(["tools/studyctl_ci.py", "tests/test_studyctl_ci.py"])["impact_set"] == "studyctl"
     assert classify(["tools/studyctl_compare.py", "tests/test_studyctl_compare.py"])["impact_set"] == "studyctl"
     assert classify(["tools/studyctl_recording.py", "tests/test_studyctl_recording.py"])["impact_set"] == "studyctl"
     assert classify(["tools/studyctl_other.py"])["full_scope"]

@@ -1,5 +1,11 @@
 # studyctl
 
+## CI证据范围（离线核心）
+
+tools/studyctl_ci.py只解析已保存的CI数据，不访问GitHub或等待工作流。inspect_ci_snapshot兼容本地cli-review-fixes-closeout快照结构（prs/checks）：核对仓库URL、PR、40位head、workflow event/head与审阅分页，保留运行状态和证据缺口。该旧格式没有required-check policy/check contexts，也不能证明当前性，因此即使全绿也BLOCKED；明确同head/event的失败可报告FAIL，不借旧head结果。
+
+replay_outcomes复用check_ci_outcomes.failed_steps，判断原始outcome而非continue-on-error后的conclusion，保留pytest_impact替代、frontend/browser路由规则。输入studyctl-ci-outcomes-v1为可选离线回执包装：head_sha/run_id/event/frontend_required/browser_required/steps；steps直接采用CI_STEP_RESULTS的原始字典，不要求改写旧快照或修改CI workflow。回执身份/路由缺失阻断，既有规则判失败为FAIL/4。PASS/0只代表提供的原始outcome满足该门，不证明回执真实性、当前PR状态、必需检查或可合并；merge_authorized始终false。CLI接线在下一独立片。
+
 仓库内执行，无需全局安装：
 
 ```powershell
