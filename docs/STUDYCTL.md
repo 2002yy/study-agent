@@ -17,6 +17,8 @@ status/doctor只读本地Git与权威文件是否存在，不加载产品、模�
 
 ## 测试计划（只读，不执行）
 
+审阅修复：--head必须等于目标checkout当前HEAD，避免历史SHA配当前manifest/runner。登记文件在目标root解析，不用CLI自身root验证其他checkout。quick_checks以目标绝对路径运行Ruff，以base/head检查已提交范围，显式包含WIP时另查HEAD到working tree，并列tracked status检查；status需stdout为空才算clean，退出0本身不是洁净证明。Git字面反斜杠路径阻断，不能被路径归一化缩小影响集。
+
 ```powershell
 python tools/studyctl.py test plan --base <ancestor-sha> --head HEAD --json
 python tools/studyctl.py test plan --base <ancestor-sha> --include-working-tree --json

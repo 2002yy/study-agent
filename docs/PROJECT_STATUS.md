@@ -16,6 +16,8 @@
 
 BallWar并行修复已关设置错误：#8 headf1d9bf6独立审阅后merge afb5901进4.7候选；发现main已更新7c0a426（运行/文档迁移/新增CI），重绑517a98a，最新候选ecd582d1128b1dc5192b444ba66dc70d054c8e79。重绑后12/12原生runner无错误、设置34断言与1120×720原生开关截图通过；CI同步4.7.1官方资产、12runner、独立XDG_DATA_HOME，先拒绝SCRIPT ERROR/ERROR再认PASS，候选#7须其最新CI，不再沿用旧“无CI”状态。原混合WIP/真实玩家数据保留，当前只关闭源码设置/迁移测试阻塞，Android/发版/长程性能未验收。
 
+**2026-10-21 CLI-02审阅修复（#267四项）。** 固定旧head8cc3594af474c2e65f1e1ae0614ebad7226bd126，当前branch/worktree不变且初始clean。要求计划head等于目标HEAD；原resolve新增可选root参数并保留默认兼容，由plan显式传target root；L0 Ruff目标绝对路径、提交base/head diff-check、显式WIP diff-check与tracked status空输出判据；拒绝Git字面反斜杠。新负控覆盖历史head、仅目标checkout存在的测试、已提交空白/dirty范围和异常路径。初版新fixture把新测试路径也放进变更范围，触发正确的保守scope_review；改为基线先包含目标专属测试后再只改CLI，从而隔离验证root问题，非放宽分类器。最终命名L1 studyctl **176 PASS/57.90s**、两工具mypy、Ruff/format/diff-check PASS，src未变。无L3/模型调用；修复SHA由本段所属提交恢复，旧CI不授予新head。下一动作：冻结推送本片，后继#269/#270只吸收此已提交修复并按增量验收。
+
 **2026-10-21 三片收口：CLI-02最终候选。** 初始自身832cbcc2的计划实现4c4b9e8f，显式吸收父片#266修复20766b2880a41fdce6f4abbbb505b76d0e4d45de得到merge cd13c192；仅Current Handoff冲突保留双方，代码自动合并，不取其他窗口WIP。最终命名L1 studyctl **172 PASS/66.75s**（基础14项＋plan16项＋直接CI/门合同），此前171为吸收父片前证据，不借给新候选。CLI独立mypy PASS、src122/128 NEW0，Ruff/format/diff-check PASS，密钥检查以发布结果恢复；相对20766b28仍7文件独立增量。未提交门配置/空影响集/异常路径/未知和混合范围均不允许静默缩小或启动全量。所有plan都不执行测试/模型，带L0命令、登记L1 argv与scope_review理由。无L3/生产发布或付费调用。
 
 #266最终head20766b28 / exact-head PR CI39459399448后台，Ctrl-C thread已resolve，旧832绿灯不授予修复头。BallWar Draft #7 head3b602f90为4.7目标，11/12隔离测试、已记录首次未隔离user://与设置旧接口阻塞，不合并。两Study CLI工作树及BallWar候选均显式提交，root4个ZIP与BallWar原6项WIP保留。当前命名L1与风险证据已冻结，文档不重跑联合门。唯一下一CLI片：显式白名单test run，复用stage runner和L3 preflight，覆盖子进程失败/超时/取消/无误启动重型门；BallWar设置能力缺口另列独立片，不扩大本CLI合同。
