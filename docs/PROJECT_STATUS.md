@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI-05A最终本地门。** 已冻结代码34eb2916c4360a6663bbc2d3c80f049212726426，命名studyctl **323 PASS/1 SKIP/176.40s**，含23个CI证据/原始outcome用例及原CI规则直接影响集；既有Windows symlink权限跳过。mypy、Ruff/新模块format/diff-check PASS，src/CI workflow未变、无L3或网络查询。此后仅文档收口，不重复同树门。最终SHA由本段提交恢复；下一自身分支只基于此已提交候选接CLI，CI仍留后查。完整live required checks/main证据采集还没实现，离线快照不能授予merge GO。
+
 **2026-10-21 CLI-05A离线CI证据核心。** branch codex/studyctl-ci-evidence-20261021 / worktree D:/study-agent-validation/studyctl-ci-evidence-20261021，固定自身#276 4ff20cde16da8359a5688cf6323f6bea672a9413。新studyctl_ci只读2MiB JSON，兼容已存prs/checks查询快照，绑定仓库URL/PR/head/event与review分页，不复制评论正文；缺policy/check contexts/live freshness/main证据不能GO，同head明确failure可FAIL，旧head或未知结论仅BLOCKED。另复用既有failed_steps回放raw outcome，不被conclusion假绿覆盖，pytest_impact及可选frontend/browser语义不改；可选离线step回执身份head/run/event与routing必须完整。raw回放PASS只证明提供记录满足步骤门，不代表authenticity或合并许可。无live GitHub调用/CI等待/工作流修改；CLI下一片接线。自身＋直接outcomes初步60 PASS/14.57s，补未知conclusion负控后联合门收口补记；src未变，无L3/模型费用。
 
 **2026-10-21 CLI-04E最终本地门。** 命名studyctl **300 PASS/1 SKIP/174.67s**（自身14 PASS/12.79s），六工具mypy、Ruff/新增模块format/diff-check PASS，src与历史B5文件未变，无L3/模型调用。最终候选SHA由本段提交恢复，提交后记录同一Git归档真实CLI自比较回执；same_artifact=true/各计数delta0也固定PARTIAL，不能当两次实验或质量通过。兄弟分页片#275 headb964344ae409b08ed5f0425d2a18cc06b6f3bbf9已独立发布，L1 302 PASS/1 SKIP；二者同父407c但未相互合并，后续联合时需保留parser/命名影响集并集。用户要求不等CI，本轮不查CI、不合main。下一执行片CLI-05 exact-head CI只读核验，复用现有outcome规则，缺必需证据则BLOCKED，不运行或轮询工作流。
