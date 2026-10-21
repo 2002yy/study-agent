@@ -488,6 +488,7 @@
       "tests/test_stage_gates_policy.py"
     ],
     "studyctl": [
+      "tests/test_studyctl_plan.py",
       "tests/test_studyctl.py",
       "tests/test_ci_scope.py",
       "tests/test_ci_workflow_routing.py",

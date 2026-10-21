@@ -42,7 +42,174 @@ def parser_for_cli() -> Parser:
     children = parser.add_subparsers(dest="command")
     for name in ("status", "doctor", "help"):
         common(children.add_parser(name, add_help=False))
+    test = children.add_parser("test", add_help=False)
+    common(test)
+    plans = test.add_subparsers(dest="test_command")
+    plan = plans.add_parser("plan", add_help=False)
+    common(plan)
+    plan.add_argument("--base")
+    plan.add_argument("--head", default="HEAD")
+    plan.add_argument("--include-working-tree", action="store_true")
     return parser
+
+
+def plan_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
+    # Load only this CLI checkout's trusted implementations, never Python from
+    # an arbitrary --repo directory. The policy source is explicit in the result.
+    if __package__ in (None, ""):
+        sys.path.insert(0, str(ROOT))
+    from tools.ci_scope import classify
+    from tools.run_stage_gate import load_manifest, resolve
+
+    if options.test_command != "plan" or not options.base:
+        raise CLIError(
+            2, "missing_plan_range", "test plan requires --base and a valid subcommand."
+        )
+    try:
+        base = git(
+            root,
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            options.base + "^{commit}",
+        )
+        head = git(
+            root,
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            options.head + "^{commit}",
+        )
+        git(root, "merge-base", "--is-ancestor", base, head)
+    except CLIError as error:
+        if error.code == 5:
+            raise
+        raise CLIError(
+            2, "invalid_plan_range", "Expected existing ancestor base and commit head."
+        ) from None
+    if head != git(root, "rev-parse", "HEAD"):
+        raise CLIError(
+            2,
+            "plan_head_mismatch",
+            "Runnable plans require the target checkout's current HEAD.",
+        )
+    paths = git(
+        root, "diff", "--name-only", "--no-renames", "-z", base, head, "--"
+    ).split("\0")
+    policy_changes = git(
+        root,
+        "diff",
+        "--name-only",
+        "HEAD",
+        "--",
+        "tools/ci_scope.py",
+        "tools/run_stage_gate.py",
+        "tests/stage_gates.json",
+    )
+    if policy_changes and not options.include_working_tree:
+        raise CLIError(
+            3,
+            "policy_modified",
+            "Uncommitted gate changes require --include-working-tree.",
+        )
+    dirty = bool(git(root, "status", "--porcelain=v1", "--untracked-files=normal"))
+    if options.include_working_tree:
+        if head != git(root, "rev-parse", "HEAD"):
+            raise CLIError(
+                2,
+                "working_tree_head",
+                "Working changes can only be included at current HEAD.",
+            )
+        paths += git(
+            root, "diff", "--name-only", "--no-renames", "-z", "HEAD", "--"
+        ).split("\0")
+        paths += git(root, "ls-files", "--others", "--exclude-standard", "-z").split(
+            "\0"
+        )
+    changed = sorted(set(filter(None, paths)))
+    if any(
+        path != path.strip() or "\n" in path or "\r" in path or "\\" in path
+        for path in changed
+    ):
+        raise CLIError(
+            3, "unsupported_path", "Change paths require explicit manual scope review."
+        )
+    scope = classify(changed)
+    selected = scope["impact_set"]
+    tests: list[str] = []
+    commands: list[list[str]] = []
+    if selected:
+        try:
+            tests = resolve(
+                load_manifest(root / "tests/stage_gates.json"),
+                impact_set=selected,
+                root=root,
+            )
+        except (SystemExit, OSError, ValueError, TypeError, AttributeError):
+            raise CLIError(
+                3, "invalid_gate", "Registered impact set is unavailable or invalid."
+            ) from None
+        if not tests:
+            raise CLIError(
+                3, "empty_gate", "An empty impact set cannot authorize test execution."
+            )
+        if any(not (root / path).is_file() for path in tests):
+            raise CLIError(
+                3,
+                "missing_test",
+                "Registered tests are missing in the target checkout.",
+            )
+        commands = [
+            [
+                sys.executable,
+                str(root / "tools/run_stage_gate.py"),
+                "--impact-set",
+                selected,
+            ]
+        ]
+    neutral = (
+        all(name == "docs" for name in scope["categories"])
+        and not scope["unknown_paths"]
+    )
+    return {
+        "base_sha": base,
+        "head_sha": head,
+        "policy_root": str(ROOT),
+        "changed_paths": changed,
+        "scope": scope,
+        "tests": tests,
+        "commands": commands,
+        "quick_checks": [
+            [
+                "ruff",
+                "check",
+                str(root / "src"),
+                str(root / "tests"),
+                str(root / "tools"),
+            ],
+            ["git", "-C", str(root), "diff", "--check", base, head, "--"],
+            *(
+                [["git", "-C", str(root), "diff", "--check", "HEAD", "--"]]
+                if options.include_working_tree
+                else []
+            ),
+            ["git", "-C", str(root), "status", "--short", "--untracked-files=no"],
+        ],
+        "quick_checks_require_empty_stdout": [
+            "git status --short --untracked-files=no"
+        ],
+        "recommendation": "L1_named"
+        if selected
+        else "L0_only"
+        if neutral or not changed
+        else "scope_review",
+        "execution": "not_started",
+        "working_tree_included": options.include_working_tree,
+        "working_tree_excluded": dirty and not options.include_working_tree,
+        "requires_scope_review": bool(changed) and not selected and not neutral,
+        "l3_automatic": False,
+        "l3_rule": "Eligibility is not an instruction to run L3; explicit project gate and preflight required.",
+    }
 
 
 def git(root: Path, *arguments: str) -> str:
@@ -72,7 +239,7 @@ def git(root: Path, *arguments: str) -> str:
         raise CLIError(
             3, "git_unavailable", "Cannot read the requested Git repository."
         )
-    return result.stdout.strip()
+    return result.stdout.rstrip("\r\n")
 
 
 def repository(root: Path) -> tuple[Path, str]:
@@ -178,7 +345,7 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             result["command"] = "help"
             result["data"] = {
-                "commands": ["status", "doctor", "help"],
+                "commands": ["status", "doctor", "test plan", "help"],
                 "side_effects": "read-only unless --output is explicit",
             }
         else:
@@ -186,7 +353,19 @@ def main(argv: list[str] | None = None) -> int:
                 raise CLIError(2, "missing_command", "Select a command; see --help.")
             result["command"] = options.command
             root, result["head_sha"] = repository(getattr(options, "repo", ROOT))
-            if options.command == "status":
+            if options.command == "test":
+                result["command"] = "test plan"
+                result["data"] = plan_tests(root, options)
+                result["head_sha"] = result["data"]["head_sha"]
+                if result["data"]["requires_scope_review"]:
+                    result.update(status="PARTIAL", exit_code=3)
+                    result["errors"] = [
+                        {
+                            "code": "scope_review_required",
+                            "message": "No single registered impact set covers these changes.",
+                        }
+                    ]
+            elif options.command == "status":
                 result["data"] = read_status(root)
             else:
                 result["data"] = doctor(root)
