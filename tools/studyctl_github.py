@@ -358,6 +358,9 @@ def evaluate(observed: dict[str, Any], project_checks: list[str]) -> dict[str, A
                     )
                 ):
                     gaps.append("required_workflow_event_mismatch")
+                    # A failure belonging to another event/PR is not evidence
+                    # that this requested PR or main gate executed and failed.
+                    continue
                 elif (
                     runs[0]["status"] != "completed"
                     or runs[0]["conclusion"] != "success"

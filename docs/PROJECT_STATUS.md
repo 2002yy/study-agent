@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-22 #280事件归属审阅4337733124。** 有效finding：同SHA但push/其他PR的failed check曾覆盖identity gap而误报当前PR FAIL。现先核对suite/event/PR，身份不符立即保留BLOCKED，不能接纳其failure；main遇PR失败同理。三个负控覆盖push→PR、其他PR、PR→main。直接影响集212 PASS/60.09s（自身42项），Ruff/format/工具mypy/diff-check通过；#279规则分页thread PRRT_kwDOSYWoX86uyvo5已修并解决，本轮event修复推送后解决#280 thread PRRT_kwDOSYWoX86uzC8L。最终head以本段提交恢复；子CLI吸收后需联合门，不能借旧390项作为最终新行为证据。src/workflow不变、无本地L3/模型调用。后续仅main整合、当前head review/CI与完整真实run验收。
+
 **2026-10-22 CLI parent-fix binding.** Frozen parent fddeae9a502b9516ad48ce8240a7c3a0a4d868e3; previous candidate 970fc710b51862918c5f9c32ccd4c4ce13d074ea. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
 
 **2026-10-22 #279审阅修复4337605902。** 有效finding：rules/branches接口默认分页，原单请求可能漏后续required check/未知门。现复用10页/100条/总deadline预算读取全部规则，规则无独立id，完整JSON指纹用于重复页校验；不足或超限阻断。两个负控明确旧第一页行为PASS，而第二页新增required check/未知门必须BLOCKED；另验页数耗尽。直接影响集209 PASS/60.45s（自身39项），Ruff/format/工具mypy/diff-check通过；不重复此前373项不变层。另吸收自身96047bfb的完整执行测试修复，与已验208+最终32项的测试/执行器blob相同。下一步绑定已冻结父片后推新head并解决该thread，不借旧head CI。
