@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-22 #279审阅修复4337605902。** 有效finding：rules/branches接口默认分页，原单请求可能漏后续required check/未知门。现复用10页/100条/总deadline预算读取全部规则，规则无独立id，完整JSON指纹用于重复页校验；不足或超限阻断。两个负控明确旧第一页行为PASS，而第二页新增required check/未知门必须BLOCKED；另验页数耗尽。直接影响集209 PASS/60.45s（自身39项），Ruff/format/工具mypy/diff-check通过；不重复此前373项不变层。另吸收自身96047bfb的完整执行测试修复，与已验208+最终32项的测试/执行器blob相同。下一步绑定已冻结父片后推新head并解决该thread，不借旧head CI。
+
+#269最新dd70dc0474c134d9e1c7a025188d2f261f4de8fe / pull_request CI39611831046 SUCCESS、完整review无阻断后expected-head合main2b3e27648719c1fda9f2486c6de4ec584f1199d1。CLI后续候选已逐片吸收其冻结测试修复，仅docs/执行测试变化；src/tools/其余tests/manifest完全不变，复用旧层验证而不机械全量。下一唯一门仍是各新head审阅/CI与main资格，不增加新CLI功能。
+
 **CLI-05C最终本地门。** 命名studyctl 373 PASS/1 SKIP/203.31s（自身36项），Ruff、独立工具mypy、diff-check通过；skip仍为Windows symlink权限。真实采集13次请求/PR、11次/main；#266按已采精确head20766b28与完整审阅检查expected-head合入main5f0e616e（完整SHA见Git），新main push CI单独记录，不借旧main绿灯。原根目录四个review ZIP保留。下一片基于本片冻结提交接CLI；#278原CI竞态单独修复，不修改门或忽略失败。
 
 **2026-10-21 CLI-05C可信GitHub采集核心。** branch codex/studyctl-ci-live-20261021 / worktree D:/study-agent-validation/studyctl-ci-live-20261021，固定自身#278 c67cfbb7e0c7d8c2181f97f22d84e87b64146e82。新增只读gh适配器：固定github.com、只允许GET与固定GraphQL查询，90秒/80请求/每响应2MiB/每流10页；不继承调试/其他host设置、不输出响应错误正文。采集保护设置/生效rules、全部check runs/statuses/actions、完整threads和reviews，前后核对PR与base/policy。404只有admin权限且branch明确unprotected才能解释为无保护；空server政策仍须显式project required checks，否则BLOCKED。检查绑定SHA/app/suite/event/PR，skip/neutral/未知规则/缺权限/分页耗尽/状态变化阻断；PASS只证明观察到的GitHub检查与审阅门，merge_authorized仍false，本地验收与expected-head合并由调用者负责。
