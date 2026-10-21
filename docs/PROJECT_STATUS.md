@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-22 CLI parent-fix binding.** Frozen parent 14087de6e614b2028752b4a8cd2c19a050961247; previous candidate b964344ae409b08ed5f0425d2a18cc06b6f3bbf9. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
 **2026-10-21 CLI-04D最终本地门。** 命名studyctl **302 PASS/1 SKIP/181.26s**，自身事件页16 PASS/16.07s；五工具mypy、Ruff/新增模块format/diff-check PASS，src与历史归档未动，无L3或模型请求。既有Windows symlink权限用例仍跳过，未隐藏其他失败。最终SHA由本段提交恢复，提交后记录构造SQLite的实际分页命令回执，不将其当真实模型质量验收。兄弟比较分支基于同父407c，不依赖本片WIP；后续整合保留二者parser与影响集登记，CI留后查。
 
 **2026-10-21 CLI-04D有界事件页。** branch codex/studyctl-event-pages-20261021 / worktree D:/study-agent-validation/studyctl-event-pages-20261021，固定自身#274提交407c2373cd12e51967c83adaa14228d2560f492c。SQLite inspect默认50条、显式1～100条，游标绑定snapshot SHA256/run_id/sequence，坏格式参数错，跨源/未知位置阻断。total_event_count/events_returned/has_more/next_event_cursor明确内容范围；覆盖判据仍来自整条已验证state.trace，不把分页面输出当完整记录。B5 summary拒绝事件选项，不伪造timeline。自身聚焦与联合门结果收口补记；src/持久schema不动，无新研究/费用或L3。下一片已有B5诊断的只读数值差异，保持PARTIAL且不作质量优劣裁决；CI遵用户要求留后查。
