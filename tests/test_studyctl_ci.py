@@ -141,6 +141,17 @@ def test_duplicate_runs_are_not_silently_collapsed(snapshot):
         inspect(snapshot)
 
 
+def test_unknown_event_payload_is_rejected_instead_of_echoed(snapshot):
+    change(
+        snapshot,
+        lambda data: data["checks"][0]["runs"][0].update(
+            event={"private": "do-not-emit"}
+        ),
+    )
+    with pytest.raises(ValueError):
+        inspect(snapshot)
+
+
 @pytest.mark.parametrize("conclusion", [None, "", "skipped", "neutral"])
 def test_missing_or_non_success_conclusion_does_not_invent_execution_failure(
     snapshot, conclusion

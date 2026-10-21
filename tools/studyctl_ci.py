@@ -120,6 +120,16 @@ def inspect_ci_snapshot(
             gaps.append("workflow_head_mismatch")
         if not valid_sha(run.get("headSha")):
             raise ValueError("invalid recorded workflow head")
+        if not isinstance(run.get("event"), str) or run["event"] not in {
+            "pull_request",
+            "push",
+            "workflow_dispatch",
+            "schedule",
+            "pull_request_target",
+            "workflow_run",
+            "merge_group",
+        }:
+            raise ValueError("invalid recorded workflow event")
         if run.get("event") != "pull_request":
             gaps.append("workflow_event_mismatch")
         status, conclusion = run.get("status"), run.get("conclusion")

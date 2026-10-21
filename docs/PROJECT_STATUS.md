@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI-05A事件元数据补强。** 最终人工检查补上workflow event的类型/已知名称白名单，避免未知对象在诊断输出中回显任意内容；自身CI模块24 PASS/6.07s，Ruff/format/mypy/diff-check PASS，既有failed_steps与下层未变，不重跑同树下层门。最终CLI分支吸收此冻结修复后跑完整命名studyctl联合门，不能仅借前置323结果；此片最终SHA由本段提交恢复，CI仍后查。
+
 **2026-10-21 CLI-05A最终本地门。** 已冻结代码34eb2916c4360a6663bbc2d3c80f049212726426，命名studyctl **323 PASS/1 SKIP/176.40s**，含23个CI证据/原始outcome用例及原CI规则直接影响集；既有Windows symlink权限跳过。mypy、Ruff/新模块format/diff-check PASS，src/CI workflow未变、无L3或网络查询。此后仅文档收口，不重复同树门。最终SHA由本段提交恢复；下一自身分支只基于此已提交候选接CLI，CI仍留后查。完整live required checks/main证据采集还没实现，离线快照不能授予merge GO。
 
 **2026-10-21 CLI-05A离线CI证据核心。** branch codex/studyctl-ci-evidence-20261021 / worktree D:/study-agent-validation/studyctl-ci-evidence-20261021，固定自身#276 4ff20cde16da8359a5688cf6323f6bea672a9413。新studyctl_ci只读2MiB JSON，兼容已存prs/checks查询快照，绑定仓库URL/PR/head/event与review分页，不复制评论正文；缺policy/check contexts/live freshness/main证据不能GO，同head明确failure可FAIL，旧head或未知结论仅BLOCKED。另复用既有failed_steps回放raw outcome，不被conclusion假绿覆盖，pytest_impact及可选frontend/browser语义不改；可选离线step回执身份head/run/event与routing必须完整。raw回放PASS只证明提供记录满足步骤门，不代表authenticity或合并许可。无live GitHub调用/CI等待/工作流修改；CLI下一片接线。自身＋直接outcomes初步60 PASS/14.57s，补未知conclusion负控后联合门收口补记；src未变，无L3/模型费用。
