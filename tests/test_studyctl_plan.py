@@ -210,3 +210,74 @@ def test_whitespace_path_is_not_trimmed_into_a_registered_path(planned, capsys):
     assert (
         result["exit_code"] == 3 and result["errors"][0]["code"] == "unsupported_path"
     )
+
+
+def test_historical_head_cannot_label_current_checkout_commands(planned, capsys):
+    root, base, _ = planned
+    result = call(capsys, planned, "--head", base)
+    assert result["exit_code"] == 2
+    assert result["errors"][0]["code"] == "plan_head_mismatch"
+    assert not result["data"].get("commands")
+
+
+def test_manifest_tests_are_resolved_in_target_checkout(planned, capsys):
+    root, _, _ = planned
+    unique = "tests/test_only_in_target_checkout.py"
+    (root / unique).write_text("# target-only\n", encoding="utf-8")
+    manifest = root / "tests/stage_gates.json"
+    data = json.loads(manifest.read_text())
+    data["impact_sets"]["studyctl"] = [unique]
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+    base = commit(root, unique, "tests/stage_gates.json")
+    (root / "tools/studyctl.py").write_text("# next CLI revision\n", encoding="utf-8")
+    commit(root, "tools/studyctl.py")
+    result = invoke(capsys, "test", "plan", "--repo", str(root), "--base", base)
+    assert result["exit_code"] == 0 and result["data"]["tests"] == [unique]
+
+
+def test_l0_checks_cover_committed_whitespace_and_explicit_dirty_changes(
+    planned, capsys
+):
+    root, _, _ = planned
+    (root / "tools/studyctl.py").write_text(
+        "# committed trailing spaces  \n", encoding="utf-8"
+    )
+    head = commit(root, "tools/studyctl.py")
+    result = call(capsys, planned)
+    checks = result["data"]["quick_checks"]
+    assert checks[1] == [
+        "git",
+        "-C",
+        str(root),
+        "diff",
+        "--check",
+        planned[1],
+        head,
+        "--",
+    ]
+    assert subprocess.run(checks[1], capture_output=True).returncode != 0
+    (root / "tools/studyctl.py").write_text(
+        "# dirty trailing spaces  \n", encoding="utf-8"
+    )
+    result = call(capsys, planned, "--include-working-tree")
+    checks = result["data"]["quick_checks"]
+    assert ["git", "-C", str(root), "diff", "--check", "HEAD", "--"] in checks
+    assert subprocess.run(checks[-1], capture_output=True).stdout
+    assert result["data"]["quick_checks_require_empty_stdout"]
+
+
+def test_literal_git_backslash_is_rejected_before_classification(
+    planned, capsys, monkeypatch
+):
+    original = studyctl.git
+
+    def literal_path(root, *args):
+        if "diff" in args and "-z" in args:
+            return "tools\\studyctl.py\0"
+        return original(root, *args)
+
+    monkeypatch.setattr(studyctl, "git", literal_path)
+    result = call(capsys, planned)
+    assert (
+        result["exit_code"] == 3 and result["errors"][0]["code"] == "unsupported_path"
+    )

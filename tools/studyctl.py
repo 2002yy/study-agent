@@ -87,6 +87,12 @@ def plan_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
         raise CLIError(
             2, "invalid_plan_range", "Expected existing ancestor base and commit head."
         ) from None
+    if head != git(root, "rev-parse", "HEAD"):
+        raise CLIError(
+            2,
+            "plan_head_mismatch",
+            "Runnable plans require the target checkout's current HEAD.",
+        )
     paths = git(
         root, "diff", "--name-only", "--no-renames", "-z", base, head, "--"
     ).split("\0")
@@ -121,7 +127,10 @@ def plan_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
             "\0"
         )
     changed = sorted(set(filter(None, paths)))
-    if any(path != path.strip() or "\n" in path or "\r" in path for path in changed):
+    if any(
+        path != path.strip() or "\n" in path or "\r" in path or "\\" in path
+        for path in changed
+    ):
         raise CLIError(
             3, "unsupported_path", "Change paths require explicit manual scope review."
         )
@@ -132,7 +141,9 @@ def plan_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
     if selected:
         try:
             tests = resolve(
-                load_manifest(root / "tests/stage_gates.json"), impact_set=selected
+                load_manifest(root / "tests/stage_gates.json"),
+                impact_set=selected,
+                root=root,
             )
         except (SystemExit, OSError, ValueError, TypeError, AttributeError):
             raise CLIError(
@@ -169,8 +180,23 @@ def plan_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
         "tests": tests,
         "commands": commands,
         "quick_checks": [
-            ["ruff", "check", "src", "tests", "tools"],
-            ["git", "diff", "--check"],
+            [
+                "ruff",
+                "check",
+                str(root / "src"),
+                str(root / "tests"),
+                str(root / "tools"),
+            ],
+            ["git", "-C", str(root), "diff", "--check", base, head, "--"],
+            *(
+                [["git", "-C", str(root), "diff", "--check", "HEAD", "--"]]
+                if options.include_working_tree
+                else []
+            ),
+            ["git", "-C", str(root), "status", "--short", "--untracked-files=no"],
+        ],
+        "quick_checks_require_empty_stdout": [
+            "git status --short --untracked-files=no"
         ],
         "recommendation": "L1_named"
         if selected
