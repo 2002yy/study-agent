@@ -69,10 +69,50 @@ def parser_for_cli() -> Parser:
     catalog.add_argument("--database", type=Path)
     catalog.add_argument("--limit", type=int, default=20)
     catalog.add_argument("--cursor", default="")
+    comparison = inspections.add_parser("compare", add_help=False)
+    common(comparison)
+    comparison.add_argument("--left-artifact", type=Path)
+    comparison.add_argument("--right-artifact", type=Path)
+    comparison.add_argument("--run", default="")
     return parser
 
 
 def inspect_research(options: argparse.Namespace) -> dict[str, Any]:
+    if options.research_command == "compare":
+        if (
+            options.left_artifact is None
+            or options.right_artifact is None
+            or not options.run
+            or len(options.run) > 256
+            or any(ord(c) < 32 for c in options.run)
+        ):
+            raise CLIError(
+                2,
+                "invalid_compare_arguments",
+                "Select two recorded artifacts and a bounded run ID.",
+            )
+        if __package__ in (None, ""):
+            sys.path.insert(0, str(ROOT))
+        from tools.studyctl_compare import compare_recordings
+
+        try:
+            return compare_recordings(
+                options.left_artifact, options.right_artifact, options.run
+            )
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RecursionError,
+            OverflowError,
+        ):
+            raise CLIError(
+                3,
+                "recordings_not_comparable",
+                "Compatible records with matching task context and run identity are required.",
+            ) from None
     if options.research_command == "list":
         if options.database is None or not 1 <= options.limit <= 100:
             raise CLIError(
@@ -522,6 +562,7 @@ def main(argv: list[str] | None = None) -> int:
                     "test run",
                     "research inspect",
                     "research list",
+                    "research compare",
                     "help",
                 ],
                 "side_effects": "test run executes the selected gate and writes isolated logs; other commands are read-only unless --output is explicit",

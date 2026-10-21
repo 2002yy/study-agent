@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI-04E最终本地门。** 命名studyctl **300 PASS/1 SKIP/174.67s**（自身14 PASS/12.79s），六工具mypy、Ruff/新增模块format/diff-check PASS，src与历史B5文件未变，无L3/模型调用。最终候选SHA由本段提交恢复，提交后记录同一Git归档真实CLI自比较回执；same_artifact=true/各计数delta0也固定PARTIAL，不能当两次实验或质量通过。兄弟分页片#275 headb964344ae409b08ed5f0425d2a18cc06b6f3bbf9已独立发布，L1 302 PASS/1 SKIP；二者同父407c但未相互合并，后续联合时需保留parser/命名影响集并集。用户要求不等CI，本轮不查CI、不合main。下一执行片CLI-05 exact-head CI只读核验，复用现有outcome规则，缺必需证据则BLOCKED，不运行或轮询工作流。
+
+**2026-10-21 CLI-04E归档数值比较。** branch codex/studyctl-recording-compare-20261021 / worktree D:/study-agent-validation/studyctl-recording-compare-20261021，独立固定自身#274 407c2373cd12e51967c83adaa14228d2560f492c，与事件分页为同父片兄弟分支，不依赖对方WIP。新增research compare，复用B5有界JSON读取/既有摘要投影，一次读取每输入避免重复读造成来源变化；仅同schema/run/完整问题与reference_date相同时计算已记录计数right-left。缺项delta=null，原停止码/门状态/缺证据提示分别保留，问题正文不输出；同一文件标same_artifact，各侧artifact SHA256独立。未知模型/执行配置/完整事件/引用支持明确缺失，固定PARTIAL，不做质量优劣或发布判定；不同任务/日期/坏记录阻断。自身14项通过，最终联合门与静态证据收口补记；src/历史产物不改，无L3/模型请求，CI遵用户要求后查。两个兄弟片最终整合时需保留parser/影响集精确路径并集，不覆盖另一片。
+
 **2026-10-21 CLI-04C干净提交命令验收。** 生产候选b054a58c7e37672541a0333c9a3b8892ddf2ea9c上实际执行5类CLI业务样例，结果PASS/0（历史空库目录）、FAIL/2（limit0）、BLOCKED/3（归档run身份不匹配）、PARTIAL/3（Git B5真实诊断）、FAIL/4且child1（系统Python无pytest的环境失败）。每条stdout单JSON，argv/head/原始退出码和stderr分开保留；输入B5/历史DB的SHA256前后相同，无旁文件。回执D:/study-agent-validation/studyctl-business-examples-20261021/manifest.json；不是新模型实验或真实研究质量验收。后续只有本文档与使用说明变化，复用同src/tools/tests树的286 PASS/1 SKIP、mypy/Ruff/format证据，不重跑全套。目录片#273 head440e8705425c939ac68b6a2b57965d392cf1c90b、归档片最终head由本段提交恢复，两片独立推送，CI遵用户要求未查。下一片有界事件分页；CI/main合并资格后续按对应head独立核对。
 
 **2026-10-21 CLI-04C最终本地门。** 命名studyctl **286 PASS/1 SKIP/118.48s**，含16个归档JSON回放/坏输入/真样本断言，继承目录片270 PASS/1 SKIP。五工具mypy、Ruff/新增模块format/diff-check PASS，src与历史B5文件未改，无本地L3或新真实研究。最终候选SHA由本段提交恢复；Git归档回放仍为PARTIAL，不转成研究质量GO。下一动作记录干净候选实际CLI的成功/参数错/前提阻断/环境执行失败回执，独立PR、CI留后查。

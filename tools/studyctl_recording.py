@@ -44,7 +44,7 @@ def count(value: Any) -> int | None:
     return value
 
 
-def inspect_recording(path: Path, run_id: str) -> dict[str, Any]:
+def read_recording(path: Path) -> tuple[bytes, dict[str, Any]]:
     if not path.is_file():
         raise ValueError("recording unavailable")
     with path.open("rb") as file:
@@ -58,6 +58,17 @@ def inspect_recording(path: Path, run_id: str) -> dict[str, Any]:
     )
     if not isinstance(data, dict) or data.get("schema_version") != RECORDING_SCHEMA:
         raise ValueError("unsupported recording schema")
+    return raw, data
+
+
+def inspect_recording(path: Path, run_id: str) -> dict[str, Any]:
+    raw, data = read_recording(path)
+    return summarize_recording(raw, data, run_id)
+
+
+def summarize_recording(
+    raw: bytes, data: dict[str, Any], run_id: str
+) -> dict[str, Any]:
     run, identity = data.get("run"), data.get("ui_progress")
     if (
         not isinstance(run, dict)

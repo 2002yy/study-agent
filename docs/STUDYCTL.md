@@ -48,6 +48,14 @@ stdout仍一份JSON，子日志转stderr（最多1MiB诊断）并保留原始日
 
 ## 研究记录检查（只读离线快照）
 
+已有B5归档的数值差异可以只读比较：
+
+```powershell
+python tools/studyctl.py research compare --left-artifact <baseline.json> --right-artifact <current.json> --run b5_active_searxng_smoke --json
+```
+
+两边须为同一已支持schema、指定run身份、完全相同的问题和reference_date；问题只用于本地匹配，不输出正文。各计数列出left/right/delta（right-left），任一侧缺失则delta=null，停止码与缺证据提示各自保留，不合成优劣评分。输出两侧artifact SHA256、上下文fingerprint与same_artifact，避免把同一文件当两次实验。该schema缺模型/执行配置身份及完整时间线，结果始终PARTIAL/3，不代表控制变量成立、质量提升或发布许可；不同任务/日期、坏输入等BLOCKED/3。无网络或模型调用。
+
 Git归档诊断也可直接读取，无需重跑研究或重建SQLite：
 
 ```powershell
