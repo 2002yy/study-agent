@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -265,11 +266,32 @@ def alive(pid):
     return status.exists() and status.read_text().split()[2] != "Z"
 
 
+def wait_stopped(pid, timeout=2, clock=time.monotonic):
+    # killpg() sends a signal; delivery and /proc's terminal state are asynchronous.
+    # Capture the real clock before the deadline-race test patches monotonic.
+    deadline = clock() + timeout
+    while alive(pid):
+        if clock() >= deadline:
+            return False
+        time.sleep(0.01)
+    return True
+
+
+def test_cleanup_observation_still_rejects_a_live_process():
+    process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(20)"])
+    try:
+        assert not wait_stopped(process.pid, timeout=0.1)
+    finally:
+        process.kill()
+        process.wait(timeout=5)
+    assert wait_stopped(process.pid)
+
+
 def test_timeout_stops_runner_descendant(tmp_path):
     code = "import subprocess,sys,time; child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(20)']); print(child.pid,flush=True);time.sleep(20)"
     result = execution.execute(tmp_path, [child(code)], 0.75)
     pid = int(Path(result["artifacts"][0]).read_text().strip())
-    assert result["exit_code"] == 5 and not alive(pid)
+    assert result["exit_code"] == 5 and wait_stopped(pid)
 
 
 def test_l3_requires_explicit_budget_without_starting_any_child(
@@ -333,7 +355,7 @@ def test_timeout_after_parent_exit_still_cleans_descendant(tmp_path, monkeypatch
             result["exit_code"] == 5 and result["steps"][0]["stop_reason"] == "timeout"
         )
         assert stopped and result["steps"][0]["cleanup_complete"]
-        assert not alive(pid)
+        assert wait_stopped(pid, clock=original_clock)
     finally:
         if alive(pid):
             if sys.platform == "win32":

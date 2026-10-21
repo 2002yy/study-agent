@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI清理观察竞态修复。** branch codex/studyctl-cleanup-observation-20261021 / worktree D:/study-agent-validation/studyctl-cleanup-observation-20261021，固定自身#269 9dfae10c16dd2c20d2e175b704ac988bedcb8510；只改tests/test_studyctl_execution.py和本交接。#278 run39593484878精确c67cfbb7的唯一失败是父进程退出后killpg立即alive断言。WSL Ubuntu stdlib实际复现20次，8次立即仍活、20次均随后停止（D:/study-agent-validation/studyctl-cleanup-linux-probe-20261021.json）；信号递送异步，不是确认逃逸进程。两个后代清理断言改为最多2秒观察，使用冻结的真实clock，保留cleanup_complete/退出码/原因断言；新增持续活进程负控必须失败，未改生产代码或跳过测试。直接影响集208 PASS/98.18s，Ruff/diff-check通过，无L3。Linux无pytest，此处Linux证据是20次真实执行器复现，不冒充Linux pytest。下一动作将此冻结测试修复吸收#269及后续自身CLI候选，再绑定各自新head CI；不借旧绿灯合并。
+
 **2026-10-21 #269最终父片合流。** 自身修复4a440f386e48e7a9882cd3309f731e8b8ada4820显式吸收已提交父片#267 eb68ad1bb68af5ceb4f543dc2454db857dcecfbb，merge c12a0ea9fef017ef58391dc8dfd0b0af85968ba7；仅Current Handoff冲突，保留双方，源码自动合并。最终联合命名studyctl **207 PASS/73.73s**，CLI/stage resolver三模块mypy、Ruff/format/diff-check PASS，src未变。旧实现的四个计划负控均实际FAIL；旧L3默认300秒在新增测试中错误启动执行器，负控实际FAIL。后续仅文档收口，不重复同树测试；最终推送SHA由本段提交恢复。下一片#270只吸收此冻结候选与自身来源SHA修复，不接其他窗口WIP。CI推送后一次记录，不等待才推进；无L3或真实模型调用。
 
 **2026-10-21 CLI-03审阅修复（#269两项）。** 基于自身807fdea6a0969c7889bd7fbafbc3aac0a9d3a122初始clean。L3必须显式预算，L1/L2保留300秒默认；预算缺失/非法先拒绝且不启动全量。修复wait超时与父进程退出竞争后的post-loop判定：同样调用树清理。Windows新增本执行器私有Job Object，bootstrap阻塞私有pipe→入Job→放行真实argv，关闭/终止Job且查询活动成员后确认清理，不能用已退出PID推断后代；分配失败不放行、正常结束同样回收后台遗留后代。原始argv/子退出码与JSON不变，无shell/新依赖。新增实际父先退出而后代sleep的受控时序回归，在Windows原生通过，不只mock cleanup flag。自身31 PASS/13.85s；联合命名studyctl **203 PASS/74.70s**，两CLI模块mypy/Ruff/format/diff-check PASS。无L3/真实模型，下一动作显式吸收#267已提交修复后跑联合门并推送，不借旧CI。
