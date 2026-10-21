@@ -35,7 +35,7 @@ python tools/studyctl.py test plan --base <ancestor-sha> --include-working-tree 
 ```powershell
 python tools/studyctl.py test run --impact-set conversation_decision_admission --timeout 120 --json
 python tools/studyctl.py test run --level L2 --stage p2-a-retrieval-stack --dry-run --json
-python tools/studyctl.py test run --level L3 --dry-run --json
+python tools/studyctl.py test run --level L3 --timeout 1800 --dry-run --json
 ```
 
 L1/L2只允许已登记、非空、位于tests内的文件集，复用原run_stage_gate.py，不接受任意shell/pytest透传或任意repo的可执行脚本。L3只能显式选择，先执行原l3_preflight.py，成功后才启动全套pytest；预检失败/总deadline耗尽不启动后续步骤。dry-run只列argv，不执行预检、pytest或创建运行日志。
