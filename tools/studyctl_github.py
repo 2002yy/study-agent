@@ -123,7 +123,12 @@ class GitHub:
         return data
 
     def pages(
-        self, endpoint: str, key: str | None, projection: str
+        self,
+        endpoint: str,
+        key: str | None,
+        projection: str,
+        *,
+        identity_key: str | None = "id",
     ) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         total: int | None = None
@@ -150,8 +155,14 @@ class GitHub:
             if len(batch) < 100:
                 if total is not None and len(items) != total:
                     raise Unavailable("github_pages_incomplete")
-                ids = [x.get("id") for x in items]
-                if any(type(x) is not int for x in ids) or len(ids) != len(set(ids)):
+                ids = (
+                    [x.get(identity_key) for x in items]
+                    if identity_key
+                    else [json.dumps(x, sort_keys=True) for x in items]
+                )
+                if (identity_key and any(type(x) is not int for x in ids)) or len(
+                    ids
+                ) != len(set(ids)):
                     raise Unavailable("github_page_identity_invalid")
                 return items
         raise Unavailable("github_page_budget_exceeded")
@@ -227,7 +238,10 @@ def policy(api: GitHub, repository: str, branch: str) -> dict[str, Any]:
         projection="{name,protected,commit:{sha:.commit.sha}}",
     )
     protection = api.api(f"{prefix}/branches/{encoded}/protection", missing_ok=True)
-    rules = api.api(f"{prefix}/rules/branches/{encoded}")
+    # Effective rules have no per-rule id; preserve all fields for page identity.
+    rules = api.pages(
+        f"{prefix}/rules/branches/{encoded}", None, ".", identity_key=None
+    )
     if ref.get("name") != branch or not valid_sha(ref["commit"]["sha"]):
         raise Unavailable("base_branch_identity_invalid")
     # An inaccessible protection endpoint must never be interpreted as no policy.

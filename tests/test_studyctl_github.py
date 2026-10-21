@@ -207,6 +207,7 @@ def test_initial_wrong_head_and_main_head_block_before_inventory(monkeypatch, fa
 def test_protection_404_only_absent_with_admin_and_unprotected_ref():
     def client(admin, protected):
         api = Mock()
+        api.pages.return_value = []
         api.api.side_effect = [
             dict(full_name=REPO, permissions=dict(admin=admin)),
             dict(name="main", protected=protected, commit=dict(sha=BASE)),
@@ -333,3 +334,55 @@ def test_budget_and_invalid_selectors_do_not_start_transport(monkeypatch):
     with pytest.raises(gh.Unavailable, match="invalid_github_selector"):
         gh.collect("../bad", HEAD, pr=7, project_checks=["test"])
     run.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "last_rule",
+    [
+        dict(
+            type="required_status_checks",
+            ruleset_id=101,
+            parameters=dict(
+                required_status_checks=[
+                    dict(context="additional-gate", integration_id=None)
+                ]
+            ),
+        ),
+        dict(type="unknown-additional-gate", ruleset_id=101),
+    ],
+)
+def test_effective_rules_second_page_cannot_be_omitted(facts, last_rule):
+    first_page = [dict(type="creation", ruleset_id=index) for index in range(100)]
+    client = gh.GitHub()
+    client.api = Mock(
+        side_effect=[
+            dict(full_name=REPO, permissions=dict(admin=True)),
+            dict(name="main", protected=True, commit=dict(sha=BASE)),
+            {},
+            first_page,
+            [last_rule],
+        ]
+    )
+    rules = gh.policy(client, REPO, "main")
+    assert len(rules["rules"]) == 101
+    assert client.api.call_args_list[-1].args[0].endswith("per_page=100&page=2")
+    facts["policy"] = {**rules, "rules": first_page}
+    assert gh.evaluate(facts, ["test"])["status"] == "PASS"  # old first-page behavior
+    facts["policy"] = rules
+    assert gh.evaluate(facts, ["test"])["status"] == "BLOCKED"
+
+
+def test_effective_rules_page_budget_blocks_incomplete_contract():
+    client = gh.GitHub()
+    client.api = Mock(
+        side_effect=[
+            [
+                dict(type="creation", ruleset_id=page * 100 + index)
+                for index in range(100)
+            ]
+            for page in range(gh.MAX_PAGES)
+        ]
+    )
+    with pytest.raises(gh.Unavailable, match="page_budget"):
+        client.pages("rules/branches/main", None, ".", identity_key=None)
+    assert client.api.call_count == gh.MAX_PAGES
