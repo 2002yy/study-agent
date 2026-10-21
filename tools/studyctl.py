@@ -64,6 +64,8 @@ def parser_for_cli() -> Parser:
     inspect.add_argument("--run", default="")
     inspect.add_argument("--database", type=Path)
     inspect.add_argument("--artifact", type=Path)
+    inspect.add_argument("--event-limit", type=int)
+    inspect.add_argument("--event-cursor", default="")
     catalog = inspections.add_parser("list", add_help=False)
     common(catalog)
     catalog.add_argument("--database", type=Path)
@@ -298,18 +300,35 @@ def inspect_research(options: argparse.Namespace) -> dict[str, Any]:
         )
     if len(options.run) > 256 or any(ord(char) < 32 for char in options.run):
         raise CLIError(2, "invalid_run_id", "Expected a bounded run identifier.")
+    if options.event_limit is not None and not 1 <= options.event_limit <= 100:
+        raise CLIError(2, "invalid_event_limit", "Event limit must be from 1 to 100.")
+    if options.artifact is not None and (
+        options.event_limit is not None or options.event_cursor
+    ):
+        raise CLIError(
+            2,
+            "recording_has_no_timeline",
+            "Recorded summaries have no event timeline to page.",
+        )
     if __package__ in (None, ""):
         sys.path.insert(0, str(ROOT))
     import sqlite3
-    from tools.studyctl_research import inspect_snapshot
+    from tools.studyctl_research import InvalidCursor, inspect_snapshot
     from tools.studyctl_recording import inspect_recording
 
     try:
         return (
             inspect_recording(options.artifact, options.run)
             if options.artifact is not None
-            else inspect_snapshot(options.database, options.run)
+            else inspect_snapshot(
+                options.database,
+                options.run,
+                options.event_limit or 50,
+                options.event_cursor,
+            )
         )
+    except InvalidCursor:
+        raise CLIError(2, "invalid_event_cursor", "Invalid event cursor.") from None
     except (
         OSError,
         ValueError,

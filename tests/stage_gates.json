@@ -493,6 +493,7 @@
       "tests/test_studyctl_ci_cli.py",
       "tests/test_studyctl_ci.py",
       "tests/test_studyctl_compare.py",
+      "tests/test_studyctl_event_pages.py",
       "tests/test_studyctl_recording.py",
       "tests/test_studyctl_catalog.py",
       "tests/test_studyctl_research.py",

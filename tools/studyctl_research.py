@@ -135,9 +135,60 @@ def list_snapshot(path: Path, limit: int, cursor: str = "") -> dict[str, Any]:
     }
 
 
-def inspect_snapshot(path: Path, run_id: str) -> dict[str, Any]:
+def event_cursor(digest: str, run_id: str, sequence: int) -> str:
+    return base64.urlsafe_b64encode(
+        json.dumps(
+            {
+                "kind": "research-events-v1",
+                "snapshot_sha256": digest,
+                "run_id": run_id,
+                "after_sequence": sequence,
+            },
+            sort_keys=True,
+        ).encode()
+    ).decode()
+
+
+def event_position(cursor: str, digest: str, run_id: str) -> int:
+    if not cursor:
+        return -1
+    try:
+        if len(cursor) > 4096:
+            raise ValueError("cursor too long")
+        data = json.loads(base64.b64decode(cursor, altchars=b"-_", validate=True))
+        if not isinstance(data, dict) or set(data) != {
+            "kind",
+            "snapshot_sha256",
+            "run_id",
+            "after_sequence",
+        }:
+            raise ValueError("invalid cursor")
+        if (
+            data["kind"] != "research-events-v1"
+            or type(data["after_sequence"]) is not int
+            or data["after_sequence"] < 0
+        ):
+            raise ValueError("invalid cursor")
+        if not isinstance(data["run_id"], str) or not isinstance(
+            data["snapshot_sha256"], str
+        ):
+            raise ValueError("invalid cursor")
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        raise InvalidCursor("invalid event cursor") from None
+    if data["snapshot_sha256"] != digest or data["run_id"] != run_id:
+        raise ValueError("event cursor source changed")
+    return data["after_sequence"]
+
+
+def inspect_snapshot(
+    path: Path, run_id: str, limit: int = 50, cursor: str = ""
+) -> dict[str, Any]:
     """Project recorded facts only; PASS describes inspection, never research quality."""
     raw = read_snapshot(path)
+    if not 1 <= limit <= 100:
+        raise ValueError("invalid event page limit")
+    digest = hashlib.sha256(raw).hexdigest()
+    after = event_position(cursor, digest, run_id)
     with snapshot_connection(raw) as connection:
         row = connection.execute(
             "SELECT id, status, stage, provider_status, stop_reason, "
@@ -174,10 +225,15 @@ def inspect_snapshot(path: Path, run_id: str) -> dict[str, Any]:
         "provider_status": run.provider_status,
         "recorded_stop_reason": run.stop_reason,
         "stop_reason_recognized": is_research_stop_reason(run.stop_reason),
-        "snapshot_sha256": hashlib.sha256(raw).hexdigest(),
+        "snapshot_sha256": digest,
         "state_load_status": loaded.status,
         "state_load_reason": loaded.reason,
         "events": [],
+        "total_event_count": None,
+        "events_returned": 0,
+        "has_more": False,
+        "next_event_cursor": None,
+        "coverage_scope": "whole_recorded_trace",
         "coverage": {},
         "missing_evidence": missing,
         "authority": "recorded diagnostics only; no publication or answer-quality approval",
@@ -190,7 +246,19 @@ def inspect_snapshot(path: Path, run_id: str) -> dict[str, Any]:
         # event to the requested run or filtering away the provenance failure.
         missing.append("cross_run_trace")
     else:
-        data["events"] = [event.to_dict() for event in state.trace]
+        if cursor and not any(event.sequence == after for event in state.trace):
+            raise ValueError("event cursor position unavailable")
+        remaining = [event for event in state.trace if event.sequence > after]
+        page = remaining[:limit]
+        data["events"] = [event.to_dict() for event in page]
+        data["total_event_count"] = len(state.trace)
+        data["events_returned"] = len(page)
+        data["has_more"] = len(remaining) > limit
+        data["next_event_cursor"] = (
+            event_cursor(digest, run_id, page[-1].sequence)
+            if data["has_more"]
+            else None
+        )
         groups = {
             "search": {"search_completed"},
             "read": {"read_completed"},

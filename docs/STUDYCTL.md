@@ -93,6 +93,7 @@ python tools/studyctl.py research compare --left-artifact <baseline.json> --righ
 ```
 
 两边须为同一已支持schema、指定run身份、完全相同的问题和reference_date；问题只用于本地匹配，不输出正文。各计数列出left/right/delta（right-left），任一侧缺失则delta=null，停止码与缺证据提示各自保留，不合成优劣评分。输出两侧artifact SHA256、上下文fingerprint与same_artifact，避免把同一文件当两次实验。该schema缺模型/执行配置身份及完整时间线，结果始终PARTIAL/3，不代表控制变量成立、质量提升或发布许可；不同任务/日期、坏输入等BLOCKED/3。无网络或模型调用。
+SQLite事件输出默认最多50条，--event-limit为1～100；has_more/next_event_cursor表示后续页。使用同一database/run与--event-cursor继续读取，游标绑定快照SHA256、run_id和最后sequence；快照变化、跨run或不存在的位置阻断，坏格式为参数错。total_event_count统计整条已校验trace，coverage_scope=whole_recorded_trace，不因当前页没有read/gate/stop事件而判缺证据。分页不写数据库。只有摘要的--artifact输入不接受事件分页选项，也不会生成假时间线。
 
 Git归档诊断也可直接读取，无需重跑研究或重建SQLite：
 
