@@ -270,3 +270,78 @@ def test_timeout_stops_runner_descendant(tmp_path):
     result = execution.execute(tmp_path, [child(code)], 0.75)
     pid = int(Path(result["artifacts"][0]).read_text().strip())
     assert result["exit_code"] == 5 and not alive(pid)
+
+
+def test_l3_requires_explicit_budget_without_starting_any_child(
+    registered, capsys, monkeypatch
+):
+    monkeypatch.setattr(studyctl, "ROOT", registered)
+    monkeypatch.setattr(
+        execution, "execute", lambda *args: pytest.fail("L3 started without a budget")
+    )
+    result = invoke(capsys, "test", "run", "--repo", str(registered), "--level", "L3")
+    assert (
+        result["exit_code"] == 2
+        and result["errors"][0]["code"] == "l3_timeout_required"
+    )
+    planned = invoke(
+        capsys,
+        "test",
+        "run",
+        "--repo",
+        str(registered),
+        "--level",
+        "L3",
+        "--timeout",
+        "1800",
+        "--dry-run",
+    )
+    assert planned["exit_code"] == 0 and len(planned["data"]["commands"]) == 2
+
+
+def test_timeout_after_parent_exit_still_cleans_descendant(tmp_path, monkeypatch):
+    # Force wait() to time out exactly as the runner exits. The next poll sees
+    # completion; only the post-loop deadline detects timeout.
+    original_wait = subprocess.Popen.wait
+    original_clock = execution.time.monotonic
+    expired = []
+    original_stop = execution.stop_tree
+    stopped = []
+
+    def racing_wait(process, timeout=None):
+        if timeout is not None and timeout <= 0.05 and not expired:
+            original_wait(process, timeout=5)
+            expired.append(True)
+            raise subprocess.TimeoutExpired(process.args, timeout)
+        return original_wait(process, timeout=timeout)
+
+    def clock():
+        return original_clock() + (100 if expired else 0)
+
+    def stop(process, job=None):
+        stopped.append(True)
+        return original_stop(process, job)
+
+    monkeypatch.setattr(subprocess.Popen, "wait", racing_wait)
+    monkeypatch.setattr(execution.time, "monotonic", clock)
+    monkeypatch.setattr(execution, "stop_tree", stop)
+    code = "import subprocess,sys; p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(20)']); print(p.pid,flush=True)"
+    result = execution.execute(tmp_path, [child(code)], 10)
+    pid = int(Path(result["artifacts"][0]).read_text().strip())
+    try:
+        assert (
+            result["exit_code"] == 5 and result["steps"][0]["stop_reason"] == "timeout"
+        )
+        assert stopped and result["steps"][0]["cleanup_complete"]
+        assert not alive(pid)
+    finally:
+        if alive(pid):
+            if sys.platform == "win32":
+                subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/F"], capture_output=True
+                )
+            else:
+                import os
+                import signal
+
+                os.kill(pid, signal.SIGKILL)

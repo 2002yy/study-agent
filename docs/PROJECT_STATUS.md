@@ -16,11 +16,15 @@
 
 CLI-04联合命名studyctl **246 PASS/141.45s**，含CLI全栈、直接state/trace/memory与CI门合同；最终增加路径规范化/目录拒绝后仅重跑直接影响集，自身 **23 PASS/1 SKIP/26.87s**（Windows无symlink权限，真实软链接负控跳过），不重复未变更的下层合同门。三个CLI模块mypy PASS，src相对807f无变化，复用src122/128 NEW0；Ruff/新增模块format/diff-check PASS，无本地L3、真实模型或付费调用。最终SHA由本段提交恢复，远端CI待后查。下一执行片：基于既有离线研究快照做诊断可用性验收；CI与合并在后续统一核对，不建立新调度器、SDK或真实研究调用。
 
+**2026-10-21 CLI-03审阅修复（#269两项）。** 基于自身807fdea6a0969c7889bd7fbafbc3aac0a9d3a122初始clean。L3必须显式预算，L1/L2保留300秒默认；预算缺失/非法先拒绝且不启动全量。修复wait超时与父进程退出竞争后的post-loop判定：同样调用树清理。Windows新增本执行器私有Job Object，bootstrap阻塞私有pipe→入Job→放行真实argv，关闭/终止Job且查询活动成员后确认清理，不能用已退出PID推断后代；分配失败不放行、正常结束同样回收后台遗留后代。原始argv/子退出码与JSON不变，无shell/新依赖。新增实际父先退出而后代sleep的受控时序回归，在Windows原生通过，不只mock cleanup flag。自身31 PASS/13.85s；联合命名studyctl **203 PASS/74.70s**，两CLI模块mypy/Ruff/format/diff-check PASS。无L3/真实模型，下一动作显式吸收#267已提交修复后跑联合门并推送，不借旧CI。
+
 **2026-10-21 CLI-03：受控test run候选。** branch codex/studyctl-test-run-20261021，固定自身#267 head8cc3594af474c2e65f1e1ae0614ebad7226bd126，不依赖其他窗口WIP。复用原stage runner/manifest resolver；显式L1/L2选择登记非空且tests内的文件，显式L3才预检→全pytest，预检失败或deadline耗尽不启动后续。dry-run无进程/日志写入，禁止任意repo脚本及参数透传。子环境白名单、独立HOME/APPDATA、屏蔽凭据与PYTEST_ADDOPTS，检测根及祖先.env则不读内容而阻断；不是网络沙箱，测试仍须遵守原隔离合同。超时/取消终止自有进程树，失败原码保留、无重试；1MiB日志阈值与诊断转发上限、清理不确定性显式记录。执行前拒绝已有output，执行前后源码tracked/untracked状态写入结果，不用dirty测试冒充HEAD资格。
 
 最终命名L1 studyctl **201 PASS/85.27s**（自身执行29项、基础14、计划16及直接CI/门合同），两CLI模块mypy PASS，src相对8cc无改动，复用122/128 NEW0；Ruff/format/diff-check及secret以发布收口恢复。真实CLI调原conversation_decision_admission **114 PASS/30.96s**，退出0、child日志仅stderr；该开发中E2E来自旧HEAD上的本分支WIP，最终候选提交后再记干净源码回执，不借SHA。无全量L3、真实模型/费用/生产权威变化。下一CLI片：只读research inspect，先锁现有trace读取器和证据缺口；不新增研究调度器。
 
 BallWar并行修复已关设置错误：#8 headf1d9bf6独立审阅后merge afb5901进4.7候选；发现main已更新7c0a426（运行/文档迁移/新增CI），重绑517a98a，最新候选ecd582d1128b1dc5192b444ba66dc70d054c8e79。重绑后12/12原生runner无错误、设置34断言与1120×720原生开关截图通过；CI同步4.7.1官方资产、12runner、独立XDG_DATA_HOME，先拒绝SCRIPT ERROR/ERROR再认PASS，候选#7须其最新CI，不再沿用旧“无CI”状态。原混合WIP/真实玩家数据保留，当前只关闭源码设置/迁移测试阻塞，Android/发版/长程性能未验收。
+
+**2026-10-21 CLI-02审阅修复（#267四项）。** 固定旧head8cc3594af474c2e65f1e1ae0614ebad7226bd126，当前branch/worktree不变且初始clean。要求计划head等于目标HEAD；原resolve新增可选root参数并保留默认兼容，由plan显式传target root；L0 Ruff目标绝对路径、提交base/head diff-check、显式WIP diff-check与tracked status空输出判据；拒绝Git字面反斜杠。新负控覆盖历史head、仅目标checkout存在的测试、已提交空白/dirty范围和异常路径。初版新fixture把新测试路径也放进变更范围，触发正确的保守scope_review；改为基线先包含目标专属测试后再只改CLI，从而隔离验证root问题，非放宽分类器。最终命名L1 studyctl **176 PASS/57.90s**、两工具mypy、Ruff/format/diff-check PASS，src未变。无L3/模型调用；修复SHA由本段所属提交恢复，旧CI不授予新head。下一动作：冻结推送本片，后继#269/#270只吸收此已提交修复并按增量验收。
 
 **2026-10-21 三片收口：CLI-02最终候选。** 初始自身832cbcc2的计划实现4c4b9e8f，显式吸收父片#266修复20766b2880a41fdce6f4abbbb505b76d0e4d45de得到merge cd13c192；仅Current Handoff冲突保留双方，代码自动合并，不取其他窗口WIP。最终命名L1 studyctl **172 PASS/66.75s**（基础14项＋plan16项＋直接CI/门合同），此前171为吸收父片前证据，不借给新候选。CLI独立mypy PASS、src122/128 NEW0，Ruff/format/diff-check PASS，密钥检查以发布结果恢复；相对20766b28仍7文件独立增量。未提交门配置/空影响集/异常路径/未知和混合范围均不允许静默缩小或启动全量。所有plan都不执行测试/模型，带L0命令、登记L1 argv与scope_review理由。无L3/生产发布或付费调用。
 

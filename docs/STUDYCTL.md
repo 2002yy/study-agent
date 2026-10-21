@@ -17,6 +17,8 @@ status/doctor只读本地Git与权威文件是否存在，不加载产品、模�
 
 ## 测试计划（只读，不执行）
 
+审阅修复：--head必须等于目标checkout当前HEAD，避免历史SHA配当前manifest/runner。登记文件在目标root解析，不用CLI自身root验证其他checkout。quick_checks以目标绝对路径运行Ruff，以base/head检查已提交范围，显式包含WIP时另查HEAD到working tree，并列tracked status检查；status需stdout为空才算clean，退出0本身不是洁净证明。Git字面反斜杠路径阻断，不能被路径归一化缩小影响集。
+
 ```powershell
 python tools/studyctl.py test plan --base <ancestor-sha> --head HEAD --json
 python tools/studyctl.py test plan --base <ancestor-sha> --include-working-tree --json
@@ -27,6 +29,8 @@ python tools/studyctl.py test plan --base <ancestor-sha> --include-working-tree 
 命名影响集必须已登记、非空且在目标检出存在；输出原runner的argv、测试路径与L0检查，仅计划而不执行。文档/无改动只推荐L0；未知或混合范围没有唯一已登记集时返回PARTIAL/3及scope_review，保持保守扩大，不拼造新影响集。full_scope和l3_eligible不是自动执行L3的许可；L2阶段关闭/L3显式资格仍按AGENTS和原预检执行。带前后空白/换行的异常文件路径阻断，不修剪成已登记路径。
 
 ## 受控测试执行
+
+审阅修复：L1/L2默认300秒；L3必须显式--timeout（最多3600秒，例如1800），未提供预算时参数错误且不执行预检。所有事后判定超时/日志超额的路径同样清理进程树；Windows通过私有pipe让bootstrap等待，先纳入带kill-on-close的Job Object再放行命令，避免父进程退出后无法按PID找回后代。Job归属失败则不放行；清理按Job成员数确认，不把父进程已退出当作后代清理完成。正常结束也回收本次Job遗留进程。
 
 ```powershell
 python tools/studyctl.py test run --impact-set conversation_decision_admission --timeout 120 --json
