@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**CLI-05C最终本地门。** 命名studyctl 373 PASS/1 SKIP/203.31s（自身36项），Ruff、独立工具mypy、diff-check通过；skip仍为Windows symlink权限。真实采集13次请求/PR、11次/main；#266按已采精确head20766b28与完整审阅检查expected-head合入main5f0e616e（完整SHA见Git），新main push CI单独记录，不借旧main绿灯。原根目录四个review ZIP保留。下一片基于本片冻结提交接CLI；#278原CI竞态单独修复，不修改门或忽略失败。
+
+**2026-10-21 CLI-05C可信GitHub采集核心。** branch codex/studyctl-ci-live-20261021 / worktree D:/study-agent-validation/studyctl-ci-live-20261021，固定自身#278 c67cfbb7e0c7d8c2181f97f22d84e87b64146e82。新增只读gh适配器：固定github.com、只允许GET与固定GraphQL查询，90秒/80请求/每响应2MiB/每流10页；不继承调试/其他host设置、不输出响应错误正文。采集保护设置/生效rules、全部check runs/statuses/actions、完整threads和reviews，前后核对PR与base/policy。404只有admin权限且branch明确unprotected才能解释为无保护；空server政策仍须显式project required checks，否则BLOCKED。检查绑定SHA/app/suite/event/PR，skip/neutral/未知规则/缺权限/分页耗尽/状态变化阻断；PASS只证明观察到的GitHub检查与审阅门，merge_authorized仍false，本地验收与expected-head合并由调用者负责。
+
+真实只读回执D:/study-agent-validation/studyctl-github-live-smoke-20261021：#266精确20766b28 PASS、main精确069fc126 PASS；#278精确c67cfbb7 FAIL，run39593484878（pull_request）仅失败test_timeout_after_parent_exit_still_cleans_descendant，5028 PASS/6 SKIP，不借绿灯合并。初步自身36+CI路由76共112 PASS；联合门最终证据补记。无workflow/src变化、L3、模型或付费请求。下一片接ci collect/main入口，并单独修复Linux子进程停止观察竞态，再按当前head收口CLI候选。
+
 **2026-10-21 CLI-05B最终本地门。** 命名studyctl **337 PASS/1 SKIP/181.26s**，含父片24个证据判定和本片13个CLI接线用例；七工具mypy、Ruff/新模块format/diff-check PASS，无src/workflow变化、L3或live查询。父片#277 head928b0760d3c969c9c8422272ac24cf83e373232c；本片最终SHA由本段所属提交恢复。提交后读取旧本地CI快照和构造step回执做实际CLI回放，明确不是当前GitHub状态或真实合并资格，回执D:/study-agent-validation/studyctl-ci-offline-e2e-20261021/manifest.json。当前建设缺口清单已写STUDYCTL与外部实施计划；下一正式片可信live采集，不扩展更多诊断命令。用户要求不等CI，本轮仅发布PR，不查询/等待CI或合main。
 
 **2026-10-21 CLI-05B离线CI命令接线。** branch codex/studyctl-ci-cli-20261021 / worktree D:/study-agent-validation/studyctl-ci-cli-20261021，基于自身已提交CLI-05A，吸收冻结事件补强928b0760d3c969c9c8422272ac24cf83e373232c（无其他工作树WIP）。新增ci inspect --snapshot/--github-repo/--pr/--exact-head和ci outcomes --receipt/--exact-head/--run-id/--event；参数缺失先拒绝，输入错误脱敏，外层CLI代码SHA与被检head分列。离线snapshot不能获merge GO；raw outcomes仅复用已有门作记录回放，真实性/当前PR资格不在此命令内。自身13 PASS/10.52s，包含禁止gh/网络子进程、跨checkout来源、实际entrypoint JSON；联合门吸收父修复后收口补记。无GitHub/CI查询、workflow修改、L3或模型请求。下一正式片是live required policy/check contexts/review/main采集，不以此离线入口声称CLI-05整体完成；STUDYCTL文档已列Study和其余五仓库剩余方向。

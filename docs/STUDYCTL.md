@@ -1,5 +1,13 @@
 # studyctl
 
+## GitHub可信采集核心
+
+`tools/studyctl_github.py`可按显式repository、PR/主线SHA和项目检查名称采集当前GitHub证据；CLI入口由后续独立片接入。固定GitHub host，只读GET/固定GraphQL，不触发或重跑工作流、不自动合并。90秒总预算、每请求最多15秒、最多80请求/每流10页、每响应输出最多2MiB；预算或权限不足阻断，不重试。
+
+采集branch protection、生效rules、check runs/statuses、workflow events及完整review threads/reviews，前后核对PR/head/base/policy。无保护须同时有admin权限和branch unprotected证据；没有任何required check合同不能PASS。项目显式检查与服务器要求分开报告；GitHub Actions检查还绑定suite、event与PR身份。未知附加规则、未解决意见、请求修改、skipped/neutral、旧SHA、分页缺失或采集中状态变化均不能通过。
+
+PASS仅表示采集期间指定SHA的GitHub检查/审阅门通过；不是L3、真实模型质量或合并许可，`merge_authorized=false`。主线必须另采集当前main及push事件。采集不是原子事务；调用方合并时仍须expected-head保护和自身本地/人工验收。保存报告日后只能当历史证据，不能继承live资格。
+
 ## CI证据范围（离线核心）
 
 离线入口（不会查询或等待GitHub）：
