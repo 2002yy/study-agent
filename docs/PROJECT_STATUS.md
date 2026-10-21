@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-22 CLI parent-fix binding.** Frozen parent 15c6b2d8e410266829a94181769c17ba42aa83a7; previous candidate 407c2373cd12e51967c83adaa14228d2560f492c. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
 **2026-10-21 CLI-04C干净提交命令验收。** 生产候选b054a58c7e37672541a0333c9a3b8892ddf2ea9c上实际执行5类CLI业务样例，结果PASS/0（历史空库目录）、FAIL/2（limit0）、BLOCKED/3（归档run身份不匹配）、PARTIAL/3（Git B5真实诊断）、FAIL/4且child1（系统Python无pytest的环境失败）。每条stdout单JSON，argv/head/原始退出码和stderr分开保留；输入B5/历史DB的SHA256前后相同，无旁文件。回执D:/study-agent-validation/studyctl-business-examples-20261021/manifest.json；不是新模型实验或真实研究质量验收。后续只有本文档与使用说明变化，复用同src/tools/tests树的286 PASS/1 SKIP、mypy/Ruff/format证据，不重跑全套。目录片#273 head440e8705425c939ac68b6a2b57965d392cf1c90b、归档片最终head由本段提交恢复，两片独立推送，CI遵用户要求未查。下一片有界事件分页；CI/main合并资格后续按对应head独立核对。
 
 **2026-10-21 CLI-04C最终本地门。** 命名studyctl **286 PASS/1 SKIP/118.48s**，含16个归档JSON回放/坏输入/真样本断言，继承目录片270 PASS/1 SKIP。五工具mypy、Ruff/新增模块format/diff-check PASS，src与历史B5文件未改，无本地L3或新真实研究。最终候选SHA由本段提交恢复；Git归档回放仍为PARTIAL，不转成研究质量GO。下一动作记录干净候选实际CLI的成功/参数错/前提阻断/环境执行失败回执，独立PR、CI留后查。
