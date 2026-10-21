@@ -156,6 +156,24 @@ def test_main_requires_push_and_omits_pr_review(facts):
     assert gh.evaluate(facts, ["test"])["status"] == "BLOCKED"
 
 
+@pytest.mark.parametrize("case", ["push_for_pr", "other_pr", "pr_for_main"])
+def test_failure_from_mismatched_workflow_identity_is_only_missing_evidence(
+    facts, case
+):
+    facts["checks"][0]["conclusion"] = "failure"
+    facts["runs"][0]["conclusion"] = "failure"
+    if case == "push_for_pr":
+        facts["runs"][0].update(event="push", pull_requests=[])
+    elif case == "other_pr":
+        facts["runs"][0]["pull_requests"] = [dict(number=8)]
+    else:
+        facts.update(event="push", pr=None, pull_request=None)
+    result = gh.evaluate(facts, ["test"])
+    assert result["status"] == "BLOCKED" and result["exit_code"] == 3
+    assert "required_check_failed" not in [x["code"] for x in result["errors"]]
+    assert "required_workflow_event_mismatch" in [x["code"] for x in result["errors"]]
+
+
 def collection_mocks(monkeypatch, facts):
     pr = Mock(return_value=facts["pull_request"])
     policy = Mock(return_value=facts["policy"])
