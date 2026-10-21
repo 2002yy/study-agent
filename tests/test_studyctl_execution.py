@@ -263,7 +263,10 @@ def alive(pid):
         finally:
             kernel.CloseHandle(handle)
     status = Path(f"/proc/{pid}/stat")
-    return status.exists() and status.read_text().split()[2] != "Z"
+    try:
+        return status.read_text().split()[2] != "Z"
+    except FileNotFoundError:
+        return False
 
 
 def wait_stopped(pid, timeout=2, clock=time.monotonic):
