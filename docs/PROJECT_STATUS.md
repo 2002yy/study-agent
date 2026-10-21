@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-22 CLI parent-fix binding.** Frozen parent fddeae9a502b9516ad48ce8240a7c3a0a4d868e3; previous candidate 970fc710b51862918c5f9c32ccd4c4ce13d074ea. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
 **2026-10-22 #279审阅修复4337605902。** 有效finding：rules/branches接口默认分页，原单请求可能漏后续required check/未知门。现复用10页/100条/总deadline预算读取全部规则，规则无独立id，完整JSON指纹用于重复页校验；不足或超限阻断。两个负控明确旧第一页行为PASS，而第二页新增required check/未知门必须BLOCKED；另验页数耗尽。直接影响集209 PASS/60.45s（自身39项），Ruff/format/工具mypy/diff-check通过；不重复此前373项不变层。另吸收自身96047bfb的完整执行测试修复，与已验208+最终32项的测试/执行器blob相同。下一步绑定已冻结父片后推新head并解决该thread，不借旧head CI。
 
 #269最新dd70dc0474c134d9e1c7a025188d2f261f4de8fe / pull_request CI39611831046 SUCCESS、完整review无阻断后expected-head合main2b3e27648719c1fda9f2486c6de4ec584f1199d1。CLI后续候选已逐片吸收其冻结测试修复，仅docs/执行测试变化；src/tools/其余tests/manifest完全不变，复用旧层验证而不机械全量。下一唯一门仍是各新head审阅/CI与main资格，不增加新CLI功能。
