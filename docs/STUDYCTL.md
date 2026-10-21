@@ -48,6 +48,8 @@ stdout仍一份JSON，子日志转stderr（最多1MiB诊断）并保留原始日
 
 ## 研究记录检查（只读离线快照）
 
+SQLite事件输出默认最多50条，--event-limit为1～100；has_more/next_event_cursor表示后续页。使用同一database/run与--event-cursor继续读取，游标绑定快照SHA256、run_id和最后sequence；快照变化、跨run或不存在的位置阻断，坏格式为参数错。total_event_count统计整条已校验trace，coverage_scope=whole_recorded_trace，不因当前页没有read/gate/stop事件而判缺证据。分页不写数据库。只有摘要的--artifact输入不接受事件分页选项，也不会生成假时间线。
+
 Git归档诊断也可直接读取，无需重跑研究或重建SQLite：
 
 ```powershell
