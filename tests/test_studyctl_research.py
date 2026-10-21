@@ -12,7 +12,7 @@ from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.trace import append_research_trace
 from tests.test_research_memory import _run
 from tests.test_studyctl import invoke, repo as repo
-from tools import studyctl_research
+from tools import studyctl, studyctl_research
 
 
 @pytest.fixture
@@ -228,3 +228,15 @@ def test_unknown_stop_reason_does_not_gain_authority(repo, snapshot, capsys):
     result = inspect(repo, snapshot, capsys)
     assert result["status"] == "PARTIAL"
     assert not result["data"]["stop_reason_recognized"]
+
+
+def test_report_head_identifies_cli_even_when_repo_points_at_other_checkout(
+    repo, snapshot, capsys
+):
+    cli_head = studyctl.git(studyctl.ROOT, "rev-parse", "HEAD")
+    target_head = studyctl.git(repo, "rev-parse", "HEAD")
+    assert cli_head != target_head
+    result = inspect(repo, snapshot, capsys)
+    assert result["head_sha"] == cli_head
+    assert result["data"]["requested_repo_head_sha"] == target_head
+    assert result["data"]["inspection_root"] == str(studyctl.ROOT)

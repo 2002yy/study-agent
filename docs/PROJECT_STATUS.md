@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI-04审阅修复（#270来源SHA）。** 固定自身5c59eb8c775cc37d77e1b8d3a5f9b5c27bc11566初始clean；--repo仍可指向其他checkout，但research inspect的外层head_sha改用实际CLI ROOT提交，指定repo的SHA独立保存requested_repo_head_sha并列inspection_root，不和输入snapshot_sha256混用。新增两个不同真实Git checkout的回归验证归属；自身 **24 PASS/1 SKIP/17.63s**（既有Windows symlink权限跳过），初次新测试漏import引发NameError，仅补测试导入后通过，非产品异常。无真实研究/数据库写入。下一动作：吸收#267/#269冻结修复后跑联合命名门、静态检查并推送，最终SHA以本段提交恢复，不借旧CI或其他工作树WIP。
+
 **2026-10-21 CLI-04：只读research inspect候选。** branch codex/studyctl-research-inspect-20261021 / worktree D:/study-agent-validation/studyctl-research-inspect-20261021，固定自身#269提交807fdea6a0969c7889bd7fbafbc3aac0a9d3a122，不取其他开发工作树WIP。显式--run与--database，读取一致离线SQLite快照到内存，仅SELECT指定run，不调用RuntimeDatabase初始化/迁移/恢复；64MiB文件预算、JSON列2Mi字符预算、SQLite查询2秒预算，拒绝WAL/SHM/journal旁文件。复用known_research_evidence_ids/load_claim_engine_state，不新建EvidenceRuntime或质量门，不扫描答案或更改停止码。只投影记录事件，跨run timeline拒绝归属，搜索/读取/引用支持/停止四类缺失证据为PARTIAL/3，坏快照/JSON/缺列/缺run为BLOCKED/3；PASS只指检查记录完备，不授予答案或发布权威。输入快照SHA256和CLI head分开，在线/大库读取后续独立处理。
 
 前置CLI-03现为#269 head807fdea6；干净源码真实CLI执行conversation_decision_admission **114 PASS/32.29s**，回执D:/study-agent-validation/studyctl-run-venv-clean-e2e-20261021.json记录同SHA、前后tracked/untracked均0、uncommitted_source=false。曾误用系统Python3.14导致缺pytest，CLI正确返回FAIL/4并保留child_exit_code=1；改用项目既有venv后通过，未安装依赖或更改全局环境。本轮用户明确“CI回头查，先做后面的”：后续push不查询/等待CI，PR继续独立发布；不宣称REMOTE GO或main已合并。BallWar设置已修、迁移候选#7 head ecd582d1128b1dc5192b444ba66dc70d054c8e79，12原生runner/34设置断言通过，#8已合入该候选分支，尚未合main；本轮未追加CI轮询。原混合工作树保留。

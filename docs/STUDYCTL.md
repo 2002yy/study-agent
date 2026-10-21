@@ -44,6 +44,8 @@ stdout仍一份JSON，子日志转stderr（最多1MiB诊断）并保留原始日
 
 ## 研究记录检查（只读离线快照）
 
+审阅修复：即使--repo指向其他检出，外层head_sha仍取实际CLI代码ROOT的提交；requested_repo_head_sha单列用户指定检出的提交，inspection_root显示解释器来源。输入快照SHA256继续独立记录，不把目标仓库版本误写为检查工具版本。
+
 ```powershell
 python tools/studyctl.py research inspect --run <run-id> --database <offline-snapshot.sqlite> --json
 ```

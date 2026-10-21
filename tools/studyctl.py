@@ -483,6 +483,9 @@ def main(argv: list[str] | None = None) -> int:
             elif options.command == "research":
                 result["command"] = "research inspect"
                 result["data"] = inspect_research(options)
+                result["data"]["requested_repo_head_sha"] = result["head_sha"]
+                result["data"]["inspection_root"] = str(ROOT)
+                _, result["head_sha"] = repository(ROOT)
                 for key in ("status", "exit_code", "errors"):
                     result[key] = result["data"][key]
             elif options.command == "status":
