@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI-04C干净提交命令验收。** 生产候选b054a58c7e37672541a0333c9a3b8892ddf2ea9c上实际执行5类CLI业务样例，结果PASS/0（历史空库目录）、FAIL/2（limit0）、BLOCKED/3（归档run身份不匹配）、PARTIAL/3（Git B5真实诊断）、FAIL/4且child1（系统Python无pytest的环境失败）。每条stdout单JSON，argv/head/原始退出码和stderr分开保留；输入B5/历史DB的SHA256前后相同，无旁文件。回执D:/study-agent-validation/studyctl-business-examples-20261021/manifest.json；不是新模型实验或真实研究质量验收。后续只有本文档与使用说明变化，复用同src/tools/tests树的286 PASS/1 SKIP、mypy/Ruff/format证据，不重跑全套。目录片#273 head440e8705425c939ac68b6a2b57965d392cf1c90b、归档片最终head由本段提交恢复，两片独立推送，CI遵用户要求未查。下一片有界事件分页；CI/main合并资格后续按对应head独立核对。
+
 **2026-10-21 CLI-04C最终本地门。** 命名studyctl **286 PASS/1 SKIP/118.48s**，含16个归档JSON回放/坏输入/真样本断言，继承目录片270 PASS/1 SKIP。五工具mypy、Ruff/新增模块format/diff-check PASS，src与历史B5文件未改，无本地L3或新真实研究。最终候选SHA由本段提交恢复；Git归档回放仍为PARTIAL，不转成研究质量GO。下一动作记录干净候选实际CLI的成功/参数错/前提阻断/环境执行失败回执，独立PR、CI留后查。
 
 **2026-10-21 CLI-04C：消费Git已归档B5真实诊断。** branch codex/studyctl-recorded-research-20261021 / worktree D:/study-agent-validation/studyctl-recorded-research-20261021，固定自身目录片#273 440e8705425c939ac68b6a2b57965d392cf1c90b。按用户“找找git”检查main历史路径清单后未见数据库快照，但找到B5真实smoke JSON；实际producer创建run b5_active_searxng_smoke、完成后从同一run投影ui_progress并删除临时SQLite。因此新增--artifact仅接受既有v2 schema，和--database二选一；2MiB、重复key/非有限数/坏计数/跨run拒绝，不导入live producer、不重建数据库或伪造事件。仅回显既有run/门状态、停止码和数值摘要；身份字段仅关联、UI不是Evidence Gate；问题/答案摘要不输出，缺计数null而非0，缺完整trace/支持事件固定PARTIAL/3。真实已提交样本得到partial/evidence_budget_exhausted、7候选/0读取/0 eligible，events=[]；不是重新研究或新模型质量验收。自身16项通过，五工具mypy、Ruff/format通过，联合命名门收口后补记；src/历史产物保持不变，无L3/费用。用户要求不等CI，后续push不查CI。下一动作：记录最终候选的实际CLI多类结果回执，再继续有界事件分页或其他仓库局部G0。

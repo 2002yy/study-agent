@@ -58,6 +58,18 @@ artifact与database必须二选一。当前只支持既有research-quality-b5-ac
 
 Git主线归档的此样本实际记录partial/evidence_budget_exhausted、7个候选、0次读取、0条eligible evidence；这是既有真实smoke的有限诊断回放，不是本次真实模型质量验收。归档提交cbb6ba0a0ddceb0ac4eb314ab3119b505ab9e099，blob e8b43a243b01051d90e4945d07709790d121638d；生成工具在执行完后删除临时SQLite，主线已查范围未见此smoke的完整数据库，CLI不从摘要重建它。
 
+### 已执行的离线业务样例
+
+在干净提交b054a58c7e37672541a0333c9a3b8892ddf2ea9c上，实际子命令得到以下结果；回执位于D:/study-agent-validation/studyctl-business-examples-20261021/manifest.json，记录argv、实际进程/信封退出码、head及输入SHA256。两个输入文件校验和未变，无SQLite旁文件、真实研究或模型调用。
+
+| 场景 | 实际状态/退出码 | 含义 |
+| --- | --- | --- |
+| list历史空库 | PASS/0 | 目录可读且明确为空，不代表研究质量通过 |
+| list --limit 0 | FAIL/2 | 参数错误，未执行研究 |
+| inspect归档但run不存在 | BLOCKED/3 | 身份前提不满足，不解释其他run |
+| inspect真实B5归档 | PARTIAL/3 | 可见既有摘要，缺完整事件/引用支持 |
+| 无pytest的系统Python执行登记门 | FAIL/4，child_exit_code=1 | 环境执行失败已保留，不能冒充产品测试失败或通过 |
+
 先发现run ID，再检查所需记录：
 
 ```powershell
