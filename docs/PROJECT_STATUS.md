@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-22 CLI parent-fix binding.** Frozen parent 3741298283b2b8c4421f857eb168a1cfe3b461cf; previous candidate 440e8705425c939ac68b6a2b57965d392cf1c90b. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
 **2026-10-21 CLI-04B最终验证。** 命名studyctl **270 PASS/1 SKIP/115.92s**，新增目录16项、四工具mypy、Ruff/新增模块format/diff-check PASS，src未变、无L3或模型调用。提交与PR以本段所属Git提交恢复；CI遵从用户“不等CI，先做后续”暂不查询。用户答复“找找git”后，已对main跟踪文件和main历史object路径建有界清单（D:/study-agent-validation/studyctl-{git-evidence-files,main-object-paths}-20261021.txt），未找到跟踪的SQLite快照；找到已提交B5_ACTIVE_SEARXNG_SMOKE.json（blob e8b43a243b01051d90e4945d07709790d121638d，归档提交cbb6ba0a0ddceb0ac4eb314ab3119b505ab9e099），实际run为partial/evidence_budget_exhausted且仅含诊断摘要。下一片优先支持此既有JSON的只读兼容解释，保留缺时间线/支持事件的PARTIAL；事件分页后续另片，不把汇总伪造为完整trace或SQLite。
 
 **2026-10-21 CLI-04B离线运行目录。** branch codex/studyctl-research-catalog-20261021 / worktree D:/study-agent-validation/studyctl-research-catalog-20261021，基于自身已提交#270 1c2291155eb6fb76c0fdaa75eacf4768a54c3408，不依赖其他开发WIP。新增research list，显式离线快照，复用原只读内存连接/64MiB/2秒预算；只列run ID/status/stage/stop_reason，二进制顺序、1～100条分页，游标绑定文件SHA256，变化阻断。空目录PASS仅代表读取成功，不代表研究验收；坏metadata不静默跳过，未知/过期游标分参数错与快照前提不足。自身16项通过，最终联合门/静态检查以收口结果补记。没有修改src、数据库schema、真实用户设置或调用模型；CI按用户要求留后查。
