@@ -28,4 +28,20 @@ python tools/studyctl.py test plan --base <ancestor-sha> --include-working-tree 
 
 命名影响集必须已登记、非空且在目标检出存在；输出原runner的argv、测试路径与L0检查，仅计划而不执行。文档/无改动只推荐L0；未知或混合范围没有唯一已登记集时返回PARTIAL/3及scope_review，保持保守扩大，不拼造新影响集。full_scope和l3_eligible不是自动执行L3的许可；L2阶段关闭/L3显式资格仍按AGENTS和原预检执行。带前后空白/换行的异常文件路径阻断，不修剪成已登记路径。
 
-test run、research inspect和ci verify后续逐片加入，不提供默认重型测试、真实研究或付费调用。
+## 受控测试执行
+
+审阅修复：L1/L2默认300秒；L3必须显式--timeout（最多3600秒，例如1800），未提供预算时参数错误且不执行预检。所有事后判定超时/日志超额的路径同样清理进程树；Windows通过私有pipe让bootstrap等待，先纳入带kill-on-close的Job Object再放行命令，避免父进程退出后无法按PID找回后代。Job归属失败则不放行；清理按Job成员数确认，不把父进程已退出当作后代清理完成。正常结束也回收本次Job遗留进程。
+
+```powershell
+python tools/studyctl.py test run --impact-set conversation_decision_admission --timeout 120 --json
+python tools/studyctl.py test run --level L2 --stage p2-a-retrieval-stack --dry-run --json
+python tools/studyctl.py test run --level L3 --timeout 1800 --dry-run --json
+```
+
+L1/L2只允许已登记、非空、位于tests内的文件集，复用原run_stage_gate.py，不接受任意shell/pytest透传或任意repo的可执行脚本。L3只能显式选择，先执行原l3_preflight.py，成功后才启动全套pytest；预检失败/总deadline耗尽不启动后续步骤。dry-run只列argv，不执行预检、pytest或创建运行日志。
+
+真实执行会创建独立临时日志/用户目录，子进程只继承OS运行必需变量及CI SHA，不继承提供商凭据、代理或PYTEST_ADDOPTS，设置离线模型环境；根目录或祖先存在.env时阻断，不读取其内容。源码可在L1/L2中含WIP，结果明确记录执行前后tracked/untracked状态，不能把dirty结果冒充精确HEAD资格。该适配器不是网络隔离沙箱，也不替代测试自身的离线/权限合同。
+
+stdout仍一份JSON，子日志转stderr（最多1MiB诊断）并保留原始日志路径；检测1MiB日志阈值超限时停止，磁盘日志可在检测间隔内短暂超过阈值。timeout是全步骤总预算，停止进程树另有最多约10秒清理；取消/超时以退出5报告，cleanup_complete=false时不能假装已确认清理。Windows按自有PID树停止，POSIX用自有进程组。没有自动重试。
+
+子失败映射CLI退出4并保留child_exit_code；L3预检失败为3，取消/超时/日志预算为5。显式output在执行前拒绝已有文件，避免测试已执行才发现不能写结果；输出报告与子日志共同列为artifacts。研究/ci查询后续逐片加入，不提供真实研究或付费调用。
