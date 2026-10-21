@@ -48,6 +48,16 @@ stdout仍一份JSON，子日志转stderr（最多1MiB诊断）并保留原始日
 
 ## 研究记录检查（只读离线快照）
 
+Git归档诊断也可直接读取，无需重跑研究或重建SQLite：
+
+```powershell
+python tools/studyctl.py research inspect --artifact docs/research_quality/B5_ACTIVE_SEARXNG_SMOKE.json --run b5_active_searxng_smoke --json
+```
+
+artifact与database必须二选一。当前只支持既有research-quality-b5-active-smoke-v2、最多2MiB；不导入其会发起真实请求的producer，只读现成文件。该版本只在ui_progress保存run_id，producer由同一completed run生成此关联；CLI仅将它用于身份关联，不把UI播报当证据。保存artifact_sha256并原样呈现run状态/停止码及有记录的数值摘要；缺项是null，绝不补0。重复JSON键、非法计数、未知schema、身份不匹配等阻断。question、brief_excerpt、query正文不输出，不从摘要推导新失败原因。无论摘要状态是否completed，缺时间线/引用支持事件都保持PARTIAL/3且events=[]，不捏造trace。
+
+Git主线归档的此样本实际记录partial/evidence_budget_exhausted、7个候选、0次读取、0条eligible evidence；这是既有真实smoke的有限诊断回放，不是本次真实模型质量验收。归档提交cbb6ba0a0ddceb0ac4eb314ab3119b505ab9e099，blob e8b43a243b01051d90e4945d07709790d121638d；生成工具在执行完后删除临时SQLite，主线已查范围未见此smoke的完整数据库，CLI不从摘要重建它。
+
 先发现run ID，再检查所需记录：
 
 ```powershell

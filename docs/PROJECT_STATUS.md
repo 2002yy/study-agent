@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI-04C最终本地门。** 命名studyctl **286 PASS/1 SKIP/118.48s**，含16个归档JSON回放/坏输入/真样本断言，继承目录片270 PASS/1 SKIP。五工具mypy、Ruff/新增模块format/diff-check PASS，src与历史B5文件未改，无本地L3或新真实研究。最终候选SHA由本段提交恢复；Git归档回放仍为PARTIAL，不转成研究质量GO。下一动作记录干净候选实际CLI的成功/参数错/前提阻断/环境执行失败回执，独立PR、CI留后查。
+
+**2026-10-21 CLI-04C：消费Git已归档B5真实诊断。** branch codex/studyctl-recorded-research-20261021 / worktree D:/study-agent-validation/studyctl-recorded-research-20261021，固定自身目录片#273 440e8705425c939ac68b6a2b57965d392cf1c90b。按用户“找找git”检查main历史路径清单后未见数据库快照，但找到B5真实smoke JSON；实际producer创建run b5_active_searxng_smoke、完成后从同一run投影ui_progress并删除临时SQLite。因此新增--artifact仅接受既有v2 schema，和--database二选一；2MiB、重复key/非有限数/坏计数/跨run拒绝，不导入live producer、不重建数据库或伪造事件。仅回显既有run/门状态、停止码和数值摘要；身份字段仅关联、UI不是Evidence Gate；问题/答案摘要不输出，缺计数null而非0，缺完整trace/支持事件固定PARTIAL/3。真实已提交样本得到partial/evidence_budget_exhausted、7候选/0读取/0 eligible，events=[]；不是重新研究或新模型质量验收。自身16项通过，五工具mypy、Ruff/format通过，联合命名门收口后补记；src/历史产物保持不变，无L3/费用。用户要求不等CI，后续push不查CI。下一动作：记录最终候选的实际CLI多类结果回执，再继续有界事件分页或其他仓库局部G0。
+
 **2026-10-21 CLI-04B最终验证。** 命名studyctl **270 PASS/1 SKIP/115.92s**，新增目录16项、四工具mypy、Ruff/新增模块format/diff-check PASS，src未变、无L3或模型调用。提交与PR以本段所属Git提交恢复；CI遵从用户“不等CI，先做后续”暂不查询。用户答复“找找git”后，已对main跟踪文件和main历史object路径建有界清单（D:/study-agent-validation/studyctl-{git-evidence-files,main-object-paths}-20261021.txt），未找到跟踪的SQLite快照；找到已提交B5_ACTIVE_SEARXNG_SMOKE.json（blob e8b43a243b01051d90e4945d07709790d121638d，归档提交cbb6ba0a0ddceb0ac4eb314ab3119b505ab9e099），实际run为partial/evidence_budget_exhausted且仅含诊断摘要。下一片优先支持此既有JSON的只读兼容解释，保留缺时间线/支持事件的PARTIAL；事件分页后续另片，不把汇总伪造为完整trace或SQLite。
 
 **2026-10-21 CLI-04B离线运行目录。** branch codex/studyctl-research-catalog-20261021 / worktree D:/study-agent-validation/studyctl-research-catalog-20261021，基于自身已提交#270 1c2291155eb6fb76c0fdaa75eacf4768a54c3408，不依赖其他开发WIP。新增research list，显式离线快照，复用原只读内存连接/64MiB/2秒预算；只列run ID/status/stage/stop_reason，二进制顺序、1～100条分页，游标绑定文件SHA256，变化阻断。空目录PASS仅代表读取成功，不代表研究验收；坏metadata不静默跳过，未知/过期游标分参数错与快照前提不足。自身16项通过，最终联合门/静态检查以收口结果补记。没有修改src、数据库schema、真实用户设置或调用模型；CI按用户要求留后查。

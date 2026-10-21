@@ -63,6 +63,7 @@ def parser_for_cli() -> Parser:
     common(inspect)
     inspect.add_argument("--run", default="")
     inspect.add_argument("--database", type=Path)
+    inspect.add_argument("--artifact", type=Path)
     catalog = inspections.add_parser("list", add_help=False)
     common(catalog)
     catalog.add_argument("--database", type=Path)
@@ -99,12 +100,12 @@ def inspect_research(options: argparse.Namespace) -> dict[str, Any]:
     if (
         options.research_command != "inspect"
         or not options.run
-        or options.database is None
+        or (options.database is None) == (options.artifact is None)
     ):
         raise CLIError(
             2,
             "missing_inspect_source",
-            "Select inspect, --run and an offline --database snapshot.",
+            "Select inspect, --run and exactly one offline --database or --artifact.",
         )
     if len(options.run) > 256 or any(ord(char) < 32 for char in options.run):
         raise CLIError(2, "invalid_run_id", "Expected a bounded run identifier.")
@@ -112,9 +113,14 @@ def inspect_research(options: argparse.Namespace) -> dict[str, Any]:
         sys.path.insert(0, str(ROOT))
     import sqlite3
     from tools.studyctl_research import inspect_snapshot
+    from tools.studyctl_recording import inspect_recording
 
     try:
-        return inspect_snapshot(options.database, options.run)
+        return (
+            inspect_recording(options.artifact, options.run)
+            if options.artifact is not None
+            else inspect_snapshot(options.database, options.run)
+        )
     except (
         OSError,
         ValueError,
