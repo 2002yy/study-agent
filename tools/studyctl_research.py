@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import hashlib
-from contextlib import closing
+import base64
+from contextlib import closing, contextmanager
 import json
 from pathlib import Path
 import sqlite3
 import time
-from typing import Any
+from typing import Any, Iterator
 
 from src.domain.runtime_entities import WebLookupRun
 from src.web.research.failure_contracts import is_research_stop_reason
@@ -19,8 +20,11 @@ MAX_DATABASE_BYTES = 64 * 1024 * 1024
 MAX_CONTEXT_BYTES = 2 * 1024 * 1024
 
 
-def inspect_snapshot(path: Path, run_id: str) -> dict[str, Any]:
-    """Project recorded facts only; PASS describes inspection, never research quality."""
+class InvalidCursor(ValueError):
+    pass
+
+
+def read_snapshot(path: Path) -> bytes:
     path = path.resolve(strict=True)
     if not path.is_file():
         raise ValueError("offline_snapshot_required")
@@ -32,6 +36,11 @@ def inspect_snapshot(path: Path, run_id: str) -> dict[str, Any]:
         raw = file.read(MAX_DATABASE_BYTES + 1)
     if len(raw) > MAX_DATABASE_BYTES or not raw.startswith(b"SQLite format 3\x00"):
         raise ValueError("invalid_database_snapshot")
+    return raw
+
+
+@contextmanager
+def snapshot_connection(raw: bytes) -> Iterator[sqlite3.Connection]:
     # Deserialize into memory: SQLite cannot create journals, migrate, or modify
     # the supplied file. Caller must supply a coherent offline snapshot.
     with closing(sqlite3.connect(":memory:")) as connection:
@@ -41,6 +50,95 @@ def inspect_snapshot(path: Path, run_id: str) -> dict[str, Any]:
         deadline = time.monotonic() + 2
         connection.set_progress_handler(lambda: int(time.monotonic() > deadline), 1000)
         connection.row_factory = sqlite3.Row
+        yield connection
+
+
+def encode_cursor(digest: str, after: str) -> str:
+    return base64.urlsafe_b64encode(
+        json.dumps({"snapshot_sha256": digest, "after": after}, sort_keys=True).encode()
+    ).decode()
+
+
+def decode_cursor(cursor: str, digest: str) -> str:
+    if not cursor:
+        return ""
+    try:
+        if len(cursor) > 2048:
+            raise ValueError("cursor too long")
+        data = json.loads(base64.b64decode(cursor, altchars=b"-_", validate=True))
+        if not isinstance(data, dict) or set(data) != {"snapshot_sha256", "after"}:
+            raise ValueError("invalid cursor")
+        after = data["after"]
+        if (
+            not isinstance(after, str)
+            or not 0 < len(after) <= 256
+            or any(ord(c) < 32 for c in after)
+        ):
+            raise ValueError("invalid cursor")
+        if (
+            not isinstance(data["snapshot_sha256"], str)
+            or len(data["snapshot_sha256"]) != 64
+        ):
+            raise ValueError("invalid cursor")
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        raise InvalidCursor("invalid cursor") from None
+    if data["snapshot_sha256"] != digest:
+        raise ValueError("snapshot changed")
+    return after
+
+
+def list_snapshot(path: Path, limit: int, cursor: str = "") -> dict[str, Any]:
+    if not 1 <= limit <= 100:
+        raise ValueError("invalid page limit")
+    raw = read_snapshot(path)
+    digest = hashlib.sha256(raw).hexdigest()
+    after = decode_cursor(cursor, digest)
+    with snapshot_connection(raw) as connection:
+        rows = connection.execute(
+            "SELECT id, status, stage, stop_reason FROM web_lookup_runs "
+            "WHERE (? = '' OR id COLLATE BINARY > ?) ORDER BY id COLLATE BINARY LIMIT ?",
+            (after, after, limit + 1),
+        ).fetchall()
+    records = [dict(row) for row in rows]
+    for record in records:
+        if any(
+            not isinstance(value, str)
+            or not value
+            or len(value) > 256
+            or any(ord(c) < 32 for c in value)
+            for key, value in record.items()
+            if key != "stop_reason"
+        ):
+            raise ValueError("invalid catalog metadata")
+        reason = record["stop_reason"]
+        if (
+            not isinstance(reason, str)
+            or len(reason) > 256
+            or any(ord(c) < 32 for c in reason)
+        ):
+            raise ValueError("invalid stop reason")
+    ids = [record["id"] for record in records]
+    if len(set(ids)) != len(ids):
+        raise ValueError("duplicate run identity")
+    page = records[:limit]
+    return {
+        "status": "PASS",
+        "exit_code": 0,
+        "errors": [],
+        "snapshot_sha256": digest,
+        "runs": page,
+        "has_more": len(records) > limit,
+        "next_cursor": encode_cursor(digest, page[-1]["id"])
+        if len(records) > limit
+        else None,
+        "authority": "catalog metadata only; not research quality approval",
+    }
+
+
+def inspect_snapshot(path: Path, run_id: str) -> dict[str, Any]:
+    """Project recorded facts only; PASS describes inspection, never research quality."""
+    raw = read_snapshot(path)
+    with snapshot_connection(raw) as connection:
         row = connection.execute(
             "SELECT id, status, stage, provider_status, stop_reason, "
             "research_context, selected_sources, rejected_sources "

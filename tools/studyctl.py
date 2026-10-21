@@ -63,10 +63,39 @@ def parser_for_cli() -> Parser:
     common(inspect)
     inspect.add_argument("--run", default="")
     inspect.add_argument("--database", type=Path)
+    catalog = inspections.add_parser("list", add_help=False)
+    common(catalog)
+    catalog.add_argument("--database", type=Path)
+    catalog.add_argument("--limit", type=int, default=20)
+    catalog.add_argument("--cursor", default="")
     return parser
 
 
 def inspect_research(options: argparse.Namespace) -> dict[str, Any]:
+    if options.research_command == "list":
+        if options.database is None or not 1 <= options.limit <= 100:
+            raise CLIError(
+                2,
+                "invalid_catalog_arguments",
+                "research list requires --database and a limit from 1 to 100.",
+            )
+        if __package__ in (None, ""):
+            sys.path.insert(0, str(ROOT))
+        import sqlite3
+        from tools.studyctl_research import InvalidCursor, list_snapshot
+
+        try:
+            return list_snapshot(options.database, options.limit, options.cursor)
+        except InvalidCursor:
+            raise CLIError(
+                2, "invalid_catalog_cursor", "Invalid catalog cursor."
+            ) from None
+        except (OSError, ValueError, TypeError, sqlite3.Error):
+            raise CLIError(
+                3,
+                "research_snapshot_unavailable",
+                "A compatible unchanged offline snapshot is required.",
+            ) from None
     if (
         options.research_command != "inspect"
         or not options.run
@@ -486,6 +515,7 @@ def main(argv: list[str] | None = None) -> int:
                     "test plan",
                     "test run",
                     "research inspect",
+                    "research list",
                     "help",
                 ],
                 "side_effects": "test run executes the selected gate and writes isolated logs; other commands are read-only unless --output is explicit",
@@ -515,7 +545,7 @@ def main(argv: list[str] | None = None) -> int:
                         }
                     ]
             elif options.command == "research":
-                result["command"] = "research inspect"
+                result["command"] = "research " + (options.research_command or "")
                 result["data"] = inspect_research(options)
                 result["data"]["requested_repo_head_sha"] = result["head_sha"]
                 result["data"]["inspection_root"] = str(ROOT)

@@ -48,6 +48,15 @@ stdout仍一份JSON，子日志转stderr（最多1MiB诊断）并保留原始日
 
 ## 研究记录检查（只读离线快照）
 
+先发现run ID，再检查所需记录：
+
+```powershell
+python tools/studyctl.py research list --database <offline-snapshot.sqlite> --limit 20 --json
+python tools/studyctl.py research list --database <same-snapshot.sqlite> --cursor <next_cursor> --json
+```
+
+list只返回run ID、记录状态、阶段和停止码，不解析问题/答案/来源正文或运行研究。按ID的二进制顺序分页，limit为1～100，next_cursor为空表示结束；游标绑定整个输入文件的SHA256，快照改变则BLOCKED，不能继续拼接两份快照。空目录明确返回runs=[]且无后续页，PASS只表示目录成功读取，不代表存在研究记录或研究通过。输入同样须一致离线快照，不自动连接产品运行库。
+
 审阅修复：即使--repo指向其他检出，外层head_sha仍取实际CLI代码ROOT的提交；requested_repo_head_sha单列用户指定检出的提交，inspection_root显示解释器来源。输入快照SHA256继续独立记录，不把目标仓库版本误写为检查工具版本。
 
 ```powershell
