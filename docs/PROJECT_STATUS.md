@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-21 CLI-05D实时采集命令。** branch codex/studyctl-ci-collect-20261021 / worktree D:/study-agent-validation/studyctl-ci-collect-20261021，固定自身#279 a24b9daae934a296a80992541fc0d5668eaacad2。ci collect显式PR/repository/SHA；ci main验证当前main与push事件；required-check只声明项目要求，不修改服务器规则。dry-run零网络/零输出写入并BLOCKED，已有output在网络前拒绝，所有API异常脱敏，外层代码SHA与所查远端SHA分列。命名studyctl 386 PASS/1 SKIP/190.50s（自身13项）；Ruff与explicit-package-bases工具mypy通过。另显式吸收自身独立测试修复96047bfb的tests/test_studyctl_execution.py（不取其他WIP），纯测试增量单独重验32项，生产树不变。
+
+#266精确20766b28 / pull_request CI39459399448 SUCCESS / 完整review无阻断后合main5f0e616e518ca3deb193778d9a17780eacd393a6，push39609573752最后in_progress；#267精确eb68ad1b / pull_request CI39554111731 SUCCESS / 完整review无阻断后合main9de6b4aea45c2624f4e2b9ec07ed1cf1182ad5fe，push39611131236最后in_progress。均expected-head保护，不等待CI才继续开发；根目录四个ZIP原样保留。#278旧head CI失败不可合并，测试修复正在#269重新绑定main及后续候选。真实可信采集已可用，但CLI全线main整合、完整真实run验收仍未完成；下一片按新head审阅与CI逐片收口，不扩展更多命令。无模型/付费请求、workflow/src改动或本地L3。
+
 **CLI-05C最终本地门。** 命名studyctl 373 PASS/1 SKIP/203.31s（自身36项），Ruff、独立工具mypy、diff-check通过；skip仍为Windows symlink权限。真实采集13次请求/PR、11次/main；#266按已采精确head20766b28与完整审阅检查expected-head合入main5f0e616e（完整SHA见Git），新main push CI单独记录，不借旧main绿灯。原根目录四个review ZIP保留。下一片基于本片冻结提交接CLI；#278原CI竞态单独修复，不修改门或忽略失败。
 
 **2026-10-21 CLI-05C可信GitHub采集核心。** branch codex/studyctl-ci-live-20261021 / worktree D:/study-agent-validation/studyctl-ci-live-20261021，固定自身#278 c67cfbb7e0c7d8c2181f97f22d84e87b64146e82。新增只读gh适配器：固定github.com、只允许GET与固定GraphQL查询，90秒/80请求/每响应2MiB/每流10页；不继承调试/其他host设置、不输出响应错误正文。采集保护设置/生效rules、全部check runs/statuses/actions、完整threads和reviews，前后核对PR与base/policy。404只有admin权限且branch明确unprotected才能解释为无保护；空server政策仍须显式project required checks，否则BLOCKED。检查绑定SHA/app/suite/event/PR，skip/neutral/未知规则/缺权限/分页耗尽/状态变化阻断；PASS只证明观察到的GitHub检查与审阅门，merge_authorized仍false，本地验收与expected-head合并由调用者负责。

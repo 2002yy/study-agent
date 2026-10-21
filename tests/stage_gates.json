@@ -488,6 +488,7 @@
       "tests/test_stage_gates_policy.py"
     ],
     "studyctl": [
+      "tests/test_studyctl_github_cli.py",
       "tests/test_studyctl_github.py",
       "tests/test_studyctl_ci_cli.py",
       "tests/test_studyctl_ci.py",

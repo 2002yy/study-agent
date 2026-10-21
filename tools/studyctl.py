@@ -89,6 +89,14 @@ def parser_for_cli() -> Parser:
     outcomes.add_argument("--exact-head", default="")
     outcomes.add_argument("--run-id", type=int)
     outcomes.add_argument("--event", choices=("pull_request", "push"))
+    for name in ("collect", "main"):
+        live = ci_commands.add_parser(name, add_help=False)
+        common(live)
+        live.add_argument("--github-repo", default="")
+        live.add_argument("--exact-head", default="")
+        live.add_argument("--required-check", action="append", default=[])
+        if name == "collect":
+            live.add_argument("--pr", type=int)
     return parser
 
 
@@ -97,6 +105,66 @@ def ci_evidence(options: argparse.Namespace) -> dict[str, Any]:
         sys.path.insert(0, str(ROOT))
     import re
     from tools.studyctl_ci import inspect_ci_snapshot, replay_outcomes, valid_sha
+
+    if options.ci_command in {"collect", "main"}:
+        from tools.studyctl_github import collect, valid_repository
+
+        if (
+            not valid_sha(options.exact_head)
+            or not valid_repository(options.github_repo)
+            or (
+                options.ci_command == "collect"
+                and (options.pr is None or options.pr <= 0)
+            )
+            or len(options.required_check) > 20
+            or any(
+                not x or len(x) > 150 or any(ord(c) < 32 for c in x)
+                for x in options.required_check
+            )
+        ):
+            raise CLIError(
+                2,
+                "invalid_github_selector",
+                "Select owner/repository, exact SHA and valid check names; collect also requires a positive PR.",
+            )
+        if getattr(options, "dry_run", False):
+            return dict(
+                status="BLOCKED",
+                exit_code=3,
+                merge_authorized=False,
+                repository=options.github_repo,
+                expected_head_sha=options.exact_head,
+                event="pull_request" if options.ci_command == "collect" else "push",
+                network="not_requested",
+                project_required_checks=options.required_check,
+                errors=[
+                    dict(
+                        code="live_collection_not_performed",
+                        message="Dry run only; no GitHub evidence collected.",
+                    )
+                ],
+            )
+        try:
+            return collect(
+                options.github_repo,
+                options.exact_head,
+                pr=options.pr if options.ci_command == "collect" else None,
+                project_checks=options.required_check,
+            )
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RecursionError,
+            OverflowError,
+        ):
+            raise CLIError(
+                3,
+                "github_evidence_unavailable",
+                "Complete current GitHub evidence with matching identities is required; permission, transport, budget or state changes can block collection.",
+            ) from None
 
     if options.ci_command not in {"inspect", "outcomes"} or not valid_sha(
         options.exact_head
@@ -646,6 +714,8 @@ def main(argv: list[str] | None = None) -> int:
                     "research compare",
                     "ci inspect",
                     "ci outcomes",
+                    "ci collect",
+                    "ci main",
                     "help",
                 ],
                 "side_effects": "test run executes the selected gate and writes isolated logs; other commands are read-only unless --output is explicit",

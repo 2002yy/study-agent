@@ -2,7 +2,16 @@
 
 ## GitHub可信采集核心
 
-`tools/studyctl_github.py`可按显式repository、PR/主线SHA和项目检查名称采集当前GitHub证据；CLI入口由后续独立片接入。固定GitHub host，只读GET/固定GraphQL，不触发或重跑工作流、不自动合并。90秒总预算、每请求最多15秒、最多80请求/每流10页、每响应输出最多2MiB；预算或权限不足阻断，不重试。
+实时只读入口（需要已登录的`gh`，不会等待CI）：
+
+```powershell
+python tools/studyctl.py ci collect --github-repo 2002yy/study-agent --pr 279 --exact-head <40-char-sha> --required-check test --json
+python tools/studyctl.py ci main --github-repo 2002yy/study-agent --exact-head <current-main-sha> --required-check test --json
+```
+
+`collect`要求正整数PR；`main`只核验当前main及push事件。`--required-check`可重复，表示调用者明示的项目检查要求，不写入服务器保护规则，也不代替服务器要求。两类要求全部满足才可PASS。`--dry-run`不访问网络、不写output，返回BLOCKED/3和计划信息，不制造已采集证据。已有output会在任何网络调用前阻断；正常output仅创建新报告。权限/传输/预算/身份变化等前提不满足返回脱敏BLOCKED/3，明确的required check失败返回FAIL/4。外层head_sha是实际CLI代码提交，内部expected_head_sha才是所检远端SHA。
+
+`tools/studyctl_github.py`可按显式repository、PR/主线SHA和项目检查名称采集当前GitHub证据，CLI入口已接入。固定GitHub host，只读GET/固定GraphQL，不触发或重跑工作流、不自动合并。90秒总预算、每请求最多15秒、最多80请求/每流10页、每响应输出最多2MiB；预算或权限不足阻断，不重试。
 
 采集branch protection、生效rules、check runs/statuses、workflow events及完整review threads/reviews，前后核对PR/head/base/policy。无保护须同时有admin权限和branch unprotected证据；没有任何required check合同不能PASS。项目显式检查与服务器要求分开报告；GitHub Actions检查还绑定suite、event与PR身份。未知附加规则、未解决意见、请求修改、skipped/neutral、旧SHA、分页缺失或采集中状态变化均不能通过。
 
