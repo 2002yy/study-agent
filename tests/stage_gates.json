@@ -505,6 +505,16 @@
       "tests/test_conversation_decision_admission.py",
       "tests/test_conversation_decision.py",
       "tests/test_stage_gates_policy.py"
+    ],
+    "studyctl": [
+      "tests/test_studyctl_execution.py",
+      "tests/test_studyctl_plan.py",
+      "tests/test_studyctl.py",
+      "tests/test_ci_scope.py",
+      "tests/test_ci_workflow_routing.py",
+      "tests/test_ci_outcomes.py",
+      "tests/test_stage_gates_policy.py",
+      "tests/test_l3_preflight.py"
     ]
   },
   "stage_gates": {
