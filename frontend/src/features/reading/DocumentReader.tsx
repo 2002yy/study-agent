@@ -1,5 +1,5 @@
 import { BookOpen, ChevronLeft, ChevronRight, List, MessageSquare, X } from "lucide-react";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useReadingWorkspace } from "./ReadingContext";
 
 const PdfReader=lazy(()=>import("./PdfReader"));
@@ -15,7 +15,9 @@ export function DocumentReader() {
   const [pdfMode,setPdfMode]=useState(true);
   useEffect(()=>{setPdfMode(true);setSelection(null)},[target?.scope,target?.documentId,target?.attachmentId,target?.runId,target?.url]);
   useEffect(()=>{if(document && target?.startLine && !document.pdf_page_map?.length)setPdfMode(false)},[document,target]);
-  useEffect(() => {
+  // Commit initial line positioning before a fast first jump can be edited.
+  // A passive effect could otherwise reset jumpLine after the user types a line.
+  useLayoutEffect(() => {
     setSelection(null);
     setJumpLine(String(document?.start_line ?? 1));
     if (!document) return;
