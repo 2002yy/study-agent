@@ -28,11 +28,19 @@ MANIFEST = REPO_ROOT / "tests" / "stage_gates.json"
 def load_manifest(path: Path = MANIFEST) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("schema_version") != "staged-regression-policy-v1":
-        raise SystemExit(f"unexpected manifest schema: {payload.get('schema_version')!r}")
+        raise SystemExit(
+            f"unexpected manifest schema: {payload.get('schema_version')!r}"
+        )
     return payload
 
 
-def resolve(payload: dict[str, Any], *, impact_set: str = "", stage: str = "") -> list[str]:
+def resolve(
+    payload: dict[str, Any],
+    *,
+    impact_set: str = "",
+    stage: str = "",
+    root: Path = REPO_ROOT,
+) -> list[str]:
     if bool(impact_set) == bool(stage):
         raise SystemExit("pass exactly one of --impact-set / --stage")
     if impact_set:
@@ -46,7 +54,7 @@ def resolve(payload: dict[str, Any], *, impact_set: str = "", stage: str = "") -
             raise SystemExit(f"unknown stage gate: {stage!r}")
         paths = list(gates[stage])
 
-    missing = [item for item in paths if not (REPO_ROOT / item).exists()]
+    missing = [item for item in paths if not (root / item).exists()]
     if missing:
         raise SystemExit("manifest references missing paths: " + ", ".join(missing))
     return paths
@@ -63,9 +71,9 @@ def main(argv: list[str] | None = None) -> int:
     payload = load_manifest()
 
     if args.list:
-        for name in (payload.get("impact_sets") or {}):
+        for name in payload.get("impact_sets") or {}:
             print(f"impact-set {name}")
-        for name in (payload.get("stage_gates") or {}):
+        for name in payload.get("stage_gates") or {}:
             print(f"stage      {name}")
         return 0
 
