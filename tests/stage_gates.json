@@ -36,6 +36,7 @@
       "tests/test_stage_gates_policy.py"
     ],
     "conversation_decision_1b": [
+      "tests/test_conversation_answer_generator.py",
       "tests/test_conversation_answer_runner.py",
       "tests/test_conversation_answer_input.py",
       "tests/test_conversation_observation_trail.py",
@@ -223,6 +224,8 @@
       "tests/test_stage_gates_policy.py"
     ],
     "conversation_bounded_loop": [
+      "tests/test_conversation_answer_runner.py",
+      "tests/test_conversation_answer_generator.py",
       "tests/test_conversation_observation_trail.py",
       "tests/test_conversation_loop_session.py",
       "tests/test_conversation_bounded_loop.py",
@@ -235,6 +238,8 @@
       "tests/test_stage_gates_policy.py"
     ],
     "conversation_loop_session": [
+      "tests/test_conversation_answer_runner.py",
+      "tests/test_conversation_answer_generator.py",
       "tests/test_conversation_observation_trail.py",
       "tests/test_conversation_loop_session.py",
       "tests/test_conversation_bounded_loop.py",
@@ -268,6 +273,8 @@
       "tests/test_stage_gates_policy.py"
     ],
     "conversation_loop_trail": [
+      "tests/test_conversation_answer_runner.py",
+      "tests/test_conversation_answer_generator.py",
       "tests/test_conversation_answer_input.py",
       "tests/test_conversation_bounded_loop.py",
       "tests/test_conversation_observation_trail.py",
@@ -460,6 +467,7 @@
       "tests/test_stage_gates_policy.py"
     ],
     "conversation_answer_input": [
+      "tests/test_conversation_answer_generator.py",
       "tests/test_conversation_answer_runner.py",
       "tests/test_conversation_answer_input.py",
       "tests/test_ci_scope.py",
@@ -477,6 +485,8 @@
       "tests/test_stage_gates_policy.py"
     ],
     "conversation_loop_answer": [
+      "tests/test_conversation_answer_runner.py",
+      "tests/test_conversation_answer_generator.py",
       "tests/test_conversation_answer_input.py",
       "tests/test_conversation_bounded_loop.py",
       "tests/test_conversation_observation_trail.py",
@@ -490,6 +500,7 @@
       "tests/test_stage_gates_policy.py"
     ],
     "conversation_answer_runner": [
+      "tests/test_conversation_answer_generator.py",
       "tests/test_conversation_answer_runner.py",
       "tests/test_conversation_answer_input.py",
       "tests/test_ci_scope.py",
@@ -515,6 +526,24 @@
       "tests/test_ci_outcomes.py",
       "tests/test_stage_gates_policy.py",
       "tests/test_l3_preflight.py"
+    ],
+    "conversation_answer_generator": [
+      "tests/test_conversation_answer_generator.py",
+      "tests/test_conversation_answer_input.py",
+      "tests/test_conversation_bounded_loop.py",
+      "tests/test_conversation_observation_trail.py",
+      "tests/test_conversation_loop_session.py",
+      "tests/test_conversation_observation_followup.py",
+      "tests/test_conversation_action_step.py",
+      "tests/test_conversation_action_dispatch.py",
+      "tests/test_conversation_decision_runner.py",
+      "tests/test_conversation_decision_admission.py",
+      "tests/test_conversation_decision.py",
+      "tests/test_stage_gates_policy.py",
+      "tests/test_conversation_answer_runner.py",
+      "tests/test_ci_scope.py",
+      "tests/test_ci_workflow_routing.py",
+      "tests/test_ci_outcomes.py"
     ]
   },
   "stage_gates": {
