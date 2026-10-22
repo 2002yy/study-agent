@@ -190,3 +190,7 @@ AnswerInput仅接受ANSWER阶段与ANSWER/ANSWER_THEN_RESEARCH提议；初始输
 ### CL-1F-2：原生loop生成适配器
 
 BoundedAnswerGenerator仅在runner completed时返回正文；其余结果抛脱敏AnswerGenerationError给可信调用者。loop的可选answer_generator与旧answer_handler互斥；构造输入时使用当前expected/trail，生成期间读内部latest（含工具后派生请求身份），不要求宿主复制投影算法或改写快照来通过检查。保留外层deadline/动作预算/取消链，生成器拥有独立或共享准入台账；任何失败都不执行后续工具。dispatch继续保守报告handler_error/unknown，本片不修改公共动作回执语义。实际货币费用、SDK隐藏重试、内容/引用质量和正式发布仍由生产适配器及后续资格门负责。本片仍为opt-in，不是生产权威切换。
+
+### CL-1G-1：仅DeepSeek的单次传输
+
+用户选定DeepSeek。注入客户端的transport只翻译已有两个受控请求，不自行读取配置或创建网络客户端。明确设置max_retries=0、thinking disabled与stream false，决策加json_object；验证一次调用、期限/token/messages边界，只接受stop单choice且无refusal/tool_calls的有界正文。重试/修复/改提供方均不在本片。SDK异常交由既有runner脱敏，取消原样传播。下一片仅DEEPSEEK_*配置和owned异步SDK客户端；OpenAI兼容协议不意味着使用OpenAI服务，禁止OPENAI_*配置回退。

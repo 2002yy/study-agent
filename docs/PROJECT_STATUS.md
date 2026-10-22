@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-20 CL-1G-1：仅DeepSeek传输适配器（本轮第一新功能片）。** 用户已明确“不用openai，只要deepseek”，覆盖此前待选状态；不使用OpenAI服务/配置，不发起真实付费调用。branch codex/conversation-model-transport-20261020，固定base自身#251 9f0c1f14b8b8702bcc5e6b28205798604590efe7，不取其他窗口WIP。DeepSeekConversationTransport接受宿主注入客户端和model，统一支持现有ModelDecisionRequest/ModelAnswerRequest；决策JSON object、回答正文，固定thinking disabled、stream false、每次SDK副本max_retries=0，验证预算参数并拒绝无法禁用重试的客户端。只收单条stop完成且无refusal/tool_calls的非空有界正文，截断/多choice不自动修复或重试；沿用原runner的准入/期限/过期与错误脱敏。本模块不读环境、不创建客户端、不授予费用/证据/发布权威；下一片才做DeepSeek专属配置及owned SDK生命周期，明确禁止OPENAI_*回退。精确登记新模块和测试CI路径。命名L1 conversation_deepseek_transport **495 PASS/128.64s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0；候选SHA以本段提交恢复，未改生产聊天/业务schema，无本地L3。
+
+本轮另已合#244到main5cd917ad，#245重绑head226c0d31 / CI39376484599后台、L1 394 PASS；#246 head d7102e3a / CI39376553152 SUCCESS、L1 277 PASS，仍按依赖顺序主线重绑，不能合入未过门的父片。根main已ff同步，4外部ZIP保留。
+
 **2026-10-20 本轮两片最终收口 / CL-1F-2。** 第二片已吸收自身#249最终48e41f6c3763e332c7ee084291f15c455b6ebf00（merge e1d47e8f，仅交接冲突保留双方），最终命名L1 conversation_answer_generator **471 PASS/115.19s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0，工作树在本段所属提交后干净。第一片最终456 PASS/155.57s，负控旧候选失败已留证；远端finding4316987054确认同一期限缺陷，已在最终48e41f6c修复并resolve，CI39297650133绑定该head后台，旧1a5ad399不借绿灯。第二片增量仅9文件（相对48e41f6c），PR与新head由本段所属提交及GitHub恢复；未取其他窗口WIP。
 
 #242已在91af16b5 / CI39262262003 SUCCESS / finding已解决后合main ab1e5ab4fc562fc8a64e504dde20e4ccef06536f；根main已ff同步且保留4个外部ZIP，exact-main push CI39296224656后台，前main cf70e688 CI39261429543 SUCCESS。#244重绑main后的head0f9142442e0a15bee84a32a7d88a9112b7d88e96 / CI39296775208后台，L1 132 PASS，不借旧head。无本地L3、SDK/真实付费调用、生产聊天/证据或发布权威切换；单次transport控制流不代表真实模型质量或首答延迟合格。唯一下一执行片：现有提供方传输合同的离线接线资格与生成费用边界，继续在后台CI期间独立推进，成熟片按新head审阅和CI逐片合main。
