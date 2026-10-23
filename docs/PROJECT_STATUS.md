@@ -13,9 +13,14 @@
 远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
 不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
 保留本片独立功能；吸收冻结父片的目录游标存在性修复与已提交main，不吸收兄弟分支。
-本片将重跑命名studyctl L1、工具mypy/Ruff/格式/diff；不以旧头CI授予新头，不重复本地L3。
+已完成命名studyctl L1 393 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交2bea2414932487b7f4abda016c1304b3247e4840。
+实际子进程核验 8类断言通过，输入hash不变；构造GitHub记录与真实只读采集分别标记，不授予merge_authorized。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
 验证目录 D:/study-agent-validation/studyctl-live-rebind-20261023/279/。
-下一动作：完成本片门、固定提交推送，并继续后继独立候选；不等待后台CI。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
 
 
 **2026-10-23 CLI-05B混合run失败出口回归。** 只绑定已提交#277核心修复；命令层补push/旧head两种混合记录用例，要求当前PR已知失败经入口保留FAIL/4、完整记录与被检head，merge_authorized仍false。输入只读，工具自身SHA与目标SHA继续分列；不发起gh/网络、不改workflow或产品src。下一门命名studyctl与实际CLI回执，CI只留一次观察不等完成。
