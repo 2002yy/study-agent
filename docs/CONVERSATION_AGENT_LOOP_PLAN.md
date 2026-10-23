@@ -194,3 +194,9 @@ BoundedAnswerGenerator仅在runner completed时返回正文；其余结果抛脱
 ### CL-1G-1：仅DeepSeek的单次传输
 
 用户选定DeepSeek。注入客户端的transport只翻译已有两个受控请求，不自行读取配置或创建网络客户端。明确设置max_retries=0、thinking disabled与stream false，决策加json_object；验证一次调用、期限/token/messages边界，只接受stop单choice且无refusal/tool_calls的有界正文。重试/修复/改提供方均不在本片。SDK异常交由既有runner脱敏，取消原样传播。下一片仅DEEPSEEK_*配置和owned异步SDK客户端；OpenAI兼容协议不意味着使用OpenAI服务，禁止OPENAI_*配置回退。
+
+### CL-1G-2：DeepSeek专属配置与owned SDK会话
+
+只消费显式DEEPSEEK_*映射，flash/pro模型必须分别配置，不从通用或OPENAI_*取值；仅允许HTTPS api.deepseek.com根/v1端点。默认SDK客户端使用自有HTTP client，禁用重试、重定向和环境代理，显式空organization/project/webhook避免SDK自动读其他服务元数据。async with只拥有自己的客户端，关闭后借出的transport/generator也失效。
+
+宿主先构造DeepSeekConversationSettings.from_environment(显式映射)，再async with DeepSeekConversationSession(settings)，将session.transport交给原loop作为决策transport，将session.answer_generator(共享或独立准入)作为answer_generator；停止流后退出会话。不修改旧llm_client全局缓存或.env，不自动切换生产入口；真实费用授权与证据发布仍由宿主负责。SDK包使用兼容协议，网络目标仅DeepSeek。测试使用MockTransport，不借用现有凭据或真实服务。
