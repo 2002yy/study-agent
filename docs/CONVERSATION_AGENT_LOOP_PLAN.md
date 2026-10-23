@@ -200,3 +200,7 @@ BoundedAnswerGenerator仅在runner completed时返回正文；其余结果抛脱
 只消费显式DEEPSEEK_*映射，flash/pro模型必须分别配置，不从通用或OPENAI_*取值；仅允许HTTPS api.deepseek.com根/v1端点。默认SDK客户端使用自有HTTP client，禁用重试、重定向和环境代理，显式空organization/project/webhook避免SDK自动读其他服务元数据。async with只拥有自己的客户端，关闭后借出的transport/generator也失效。
 
 宿主先构造DeepSeekConversationSettings.from_environment(显式映射)，再async with DeepSeekConversationSession(settings)，将session.transport交给原loop作为决策transport，将session.answer_generator(共享或独立准入)作为answer_generator；停止流后退出会话。不修改旧llm_client全局缓存或.env，不自动切换生产入口；真实费用授权与证据发布仍由宿主负责。SDK包使用兼容协议，网络目标仅DeepSeek。测试使用MockTransport，不借用现有凭据或真实服务。
+
+### CL-1H-1：可选应用服务入口
+
+DeepSeekConversationService.start只捕获可信快照读取器、工具handler目录和显式共享模型准入/动作预算，返回单次消费会话；不读取环境或启动付费调用。实际读取时才创建owned SDK，并在结束/关闭/取消时先关闭loop再释放SDK。未读run、过期请求和重复请求均不发额外模型调用；会话回执不含正文，SDK清理失败不冒充完整成功。宿主仍负责真实费用/权限/证据/正式发布。本片只提供应用层入口，不切现有HTTP聊天或生产权威；下一片提供安全进度投影。
