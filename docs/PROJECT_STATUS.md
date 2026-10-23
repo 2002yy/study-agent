@@ -8,6 +8,16 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-23 #273分页审阅修复。** finding4333785509 有效：同快照摘要但不存在的after
+会跳过真实run或返回空成功页。现在在同一内存快照以BINARY精确查边界，必须唯一存在才分页；
+不含边界的第一页不受影响，未知边界按原InvalidCursor映射参数错2，输入不变/不回显游标。
+三种边界负控（不存在/超出末尾/错误大小写）在旧代码均实际失败，修复后catalog/research/CLI
+直接影响集57 PASS/1 SKIP；三工具mypy/Ruff/格式/diff通过，src未变且122/128 NEW0复用。
+先前271项门属于修复前版本，不借给新head；此有界小修复仅跑直接影响集，不重复L3。
+证据 D:/study-agent-validation/studyctl-research-rebind-20261023/catalog-review-fix/。
+下一动作：推送本片并将同一冻结修复同步#274，重跑直接消费者；新head CI/审阅未完成不合main。
+
+
 **2026-10-23 CLI候选#273主线重绑。** 初始head 15c6b2d8e410266829a94181769c17ba42aa83a7，
 显式吸收已提交 c955f34aaef57f0958e47b23b2348d45a7121070（refs/heads/codex/studyctl-research-inspect-20261021）；不读取其他工作树WIP。
 远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，

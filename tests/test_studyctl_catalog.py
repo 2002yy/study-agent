@@ -1,5 +1,6 @@
 """Read-only run discovery with snapshot-bound pagination and no answer bodies."""
 
+import hashlib
 import json
 import sqlite3
 
@@ -10,6 +11,7 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.web_lookup_repository import WebLookupRepository
 from tests.test_studyctl import invoke, repo as repo
 from tests.test_studyctl_research import snapshot as snapshot
+from tools.studyctl_research import encode_cursor
 
 
 def catalog(repo, snapshot, capsys, *args):
@@ -116,3 +118,15 @@ def test_catalog_dry_run_does_not_write_report(repo, snapshot, capsys):
     output = snapshot.parent / "not-written.json"
     result = catalog(repo, snapshot, capsys, "--dry-run", "--output", str(output))
     assert result["exit_code"] == 0 and not output.exists()
+
+
+@pytest.mark.parametrize("boundary", ["missing-run", "zzzz-after-last", "INSPECT-RUN"])
+def test_unknown_snapshot_cursor_boundary_is_rejected(repo, snapshot, capsys, boundary):
+    before = snapshot.read_bytes()
+    cursor = encode_cursor(hashlib.sha256(before).hexdigest(), boundary)
+    result = catalog(repo, snapshot, capsys, "--cursor", cursor)
+    assert result["exit_code"] == 2
+    assert result["errors"][0]["code"] == "invalid_catalog_cursor"
+    assert not result["data"].get("runs")
+    assert snapshot.read_bytes() == before
+    assert cursor not in json.dumps(result)
