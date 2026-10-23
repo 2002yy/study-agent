@@ -764,6 +764,19 @@
       "tests/test_d1_r0_d2_fixes.py",
       "tests/test_web_lookup_run.py",
       "tests/test_stage_gates_policy.py"
+    ],
+    "spend_ledger": [
+      "tests/test_spend_ledger_persistence.py",
+      "tests/test_spend_guard_experiment.py",
+      "tests/test_spend_production_wiring.py",
+      "tests/test_spend_boundary_controls.py",
+      "tests/test_llm_spend_guard.py",
+      "tests/test_research_memory.py",
+      "tests/test_runtime_sqlite_repository.py",
+      "tests/test_learning_truth_repository.py",
+      "tests/test_learning_semantic_closure.py",
+      "tests/test_web_lookup_research_contract.py",
+      "tests/test_stage_gates_policy.py"
     ]
   },
   "stage_gates": {
@@ -939,6 +952,19 @@
       "tests/test_answer_claim_turn_lifecycle.py",
       "tests/test_answer_phase_no_hidden_sdk_retry.py",
       "tests/test_web_lookup_stop_reason_recovery.py",
+      "tests/test_stage_gates_policy.py"
+    ],
+    "experiment-spend-ledger": [
+      "tests/test_spend_ledger_persistence.py",
+      "tests/test_spend_guard_experiment.py",
+      "tests/test_spend_production_wiring.py",
+      "tests/test_spend_boundary_controls.py",
+      "tests/test_llm_spend_guard.py",
+      "tests/test_research_memory.py",
+      "tests/test_runtime_sqlite_repository.py",
+      "tests/test_learning_truth_repository.py",
+      "tests/test_learning_semantic_closure.py",
+      "tests/test_web_lookup_research_contract.py",
       "tests/test_stage_gates_policy.py"
     ]
   },

@@ -54,6 +54,13 @@ from src.domain.answer_validation import (
 )
 from src.domain.runtime_entities import ChatThread, ChatTurn, new_id, utc_now
 from src.llm_client import async_stream_chat, chat, stream_chat
+from src.llm_spend_guard import (
+    experiment_id,
+    new_scope,
+    pop_scope,
+    push_scope,
+    spend_scope,
+)
 from src.memory import read_memory_bundle
 from src.mode_manager import load_runtime_modes
 from src.performance_budget import chat_max_tokens
@@ -946,7 +953,7 @@ class ChatService:
         try:
             suffix = bounded_model_call(
                 prepared.research_deadline,
-                lambda: self.dependencies.chat(
+                lambda: self._chat_within_scope(prepared)(
                     prepared.messages,
                     model_profile=prepared.route["model_profile"],
                     max_tokens=max_tokens,
@@ -1007,6 +1014,38 @@ class ChatService:
                 ) from None
             raise
 
+    def _chat_within_scope(self, prepared: PreparedChatTurn):
+        """A ``chat`` callable whose reservation is charged to this turn."""
+
+        def call(*args, **kwargs):
+            with self._spend_scope(prepared):
+                return self.dependencies.chat(*args, **kwargs)
+
+        return call
+
+    def _scope_for(self, prepared: PreparedChatTurn):
+        """The experiment scope of one turn's paid calls.
+
+        The turn id is a stable, globally unique identity, and the scope numbers
+        the calls made inside it, so each paid send is charged separately instead
+        of sharing (or re-using) one key.
+        """
+
+        return new_scope(
+            run_id=prepared.turn.id,
+            operation_id=prepared.turn.operation_id or "",
+            purpose="answer",
+            experiment=experiment_id(),
+        )
+
+    def _spend_scope(self, prepared: PreparedChatTurn):
+        return spend_scope(
+            run_id=prepared.turn.id,
+            operation_id=prepared.turn.operation_id or "",
+            purpose="answer",
+            experiment=experiment_id(),
+        )
+
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
         remaining_seconds(prepared.research_deadline)
         if answer_validation_active(prepared) and prepared.answer_validation is None:
@@ -1016,19 +1055,20 @@ class ChatService:
         )
         if not self._begin_generation_call(prepared):
             return
-        yield from bounded_stream(
-            prepared.research_deadline,
-            self.dependencies.stream_chat(
-                prepared.messages,
-                model_profile=prepared.route["model_profile"],
-                max_tokens=max_tokens,
-                task_name="single_chat",
-                should_cancel=should_cancel,
-                request_max_retries=0,
-                extra_body=_answer_generation_extra_body(prepared),
-                **request_options(prepared.research_deadline),
-            ),
-        )
+        with self._spend_scope(prepared):
+            yield from bounded_stream(
+                prepared.research_deadline,
+                self.dependencies.stream_chat(
+                    prepared.messages,
+                    model_profile=prepared.route["model_profile"],
+                    max_tokens=max_tokens,
+                    task_name="single_chat",
+                    should_cancel=should_cancel,
+                    request_max_retries=0,
+                    extra_body=_answer_generation_extra_body(prepared),
+                    **request_options(prepared.research_deadline),
+                ),
+            )
 
     async def stream_async(self, prepared: PreparedChatTurn) -> AsyncIterator[str]:
         remaining_seconds(prepared.research_deadline)
@@ -1040,17 +1080,23 @@ class ChatService:
         started = self._begin_generation_call(prepared)
         if not started:
             return
-        async with asyncio.timeout(remaining_seconds(prepared.research_deadline)):
-            async for token in self.dependencies.async_stream_chat(
-                prepared.messages,
-                model_profile=prepared.route["model_profile"],
-                max_tokens=max_tokens,
-                task_name="single_chat",
-                request_max_retries=0,
-                extra_body=_answer_generation_extra_body(prepared),
-                **request_options(prepared.research_deadline),
-            ):
-                yield token
+        # An async generator may be closed from another context, so the scope is
+        # bound with an explicit token instead of a context manager.
+        scope_token = push_scope(self._scope_for(prepared))
+        try:
+            async with asyncio.timeout(remaining_seconds(prepared.research_deadline)):
+                async for token in self.dependencies.async_stream_chat(
+                    prepared.messages,
+                    model_profile=prepared.route["model_profile"],
+                    max_tokens=max_tokens,
+                    task_name="single_chat",
+                    request_max_retries=0,
+                    extra_body=_answer_generation_extra_body(prepared),
+                    **request_options(prepared.research_deadline),
+                ):
+                    yield token
+        finally:
+            pop_scope(scope_token)
 
     def _record_claim_binding_call(
         self,
@@ -1181,7 +1227,7 @@ class ChatService:
             ),
             model_fn=lambda messages: bounded_model_call(
                 prepared.research_deadline,
-                lambda: self.dependencies.chat(
+                lambda: self._chat_within_scope(prepared)(
                     list(messages),
                     model_profile=prepared.route["model_profile"],
                     max_tokens=self.dependencies.chat_max_tokens(
