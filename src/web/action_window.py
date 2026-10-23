@@ -26,6 +26,15 @@ DEFAULT_FIRST_SHARE = 0.6
 # otherwise would only produce a phase that starts and immediately times out.
 MIN_RESERVE_SECONDS = 1.0
 
+# Layered policy (§9.5). A conversational turn and a research turn are not the same unit of
+# work: five seconds is a plausible bound on choosing and rendering a reply, and no plausible
+# bound at all on a search that has to reach the network. Applying one window to both is what
+# produced the "answer_then_research gets 5s, of which 1s is reserved for search" situation -
+# correct isolation, unusable research.
+DEFAULT_CONVERSATIONAL_SECONDS = 5.0
+DEFAULT_RESEARCH_SECONDS = 25.0
+MAX_ACTION_SECONDS = 30.0
+
 
 @dataclass(frozen=True)
 class ActionWindow:
@@ -104,3 +113,40 @@ def split(started: float, total_seconds: float, *, first_share: float = DEFAULT_
     """Convenience constructor; same validation as the dataclass."""
 
     return ActionWindow(started=started, total_seconds=total_seconds, first_share=first_share)
+
+
+@dataclass(frozen=True)
+class ActionTimePolicy:
+    """How long an action may take, chosen by what kind of action it is.
+
+    The window is picked before the action runs and never extended mid-flight: the two
+    phases of ``answer_then_research`` share one ``started``, so the research phase cannot
+    buy itself more time by starting late. That is the property the caller depends on, and
+    it is why this object returns a window rather than a per-phase timeout.
+
+    ``is_research`` is a boolean rather than a ``ConversationAction`` because this module
+    must not import the application layer - the dependency already runs the other way.
+    """
+
+    conversational_seconds: float = DEFAULT_CONVERSATIONAL_SECONDS
+    research_seconds: float = DEFAULT_RESEARCH_SECONDS
+    first_share: float = DEFAULT_FIRST_SHARE
+
+    def __post_init__(self) -> None:
+        for name, seconds in (
+            ("conversational", self.conversational_seconds),
+            ("research", self.research_seconds),
+        ):
+            if (
+                not isinstance(seconds, (int, float))
+                or isinstance(seconds, bool)
+                or not math.isfinite(seconds)
+                or not 0 < seconds <= MAX_ACTION_SECONDS
+            ):
+                raise ValueError(f"{name}_seconds_out_of_range")
+
+    def window_for(self, *, started: float, is_research: bool) -> ActionWindow:
+        total = self.research_seconds if is_research else self.conversational_seconds
+        return ActionWindow(
+            started=started, total_seconds=total, first_share=self.first_share
+        )

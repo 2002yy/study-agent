@@ -21,6 +21,7 @@ from src.application.conversation_decision import (
     DecisionContext,
     validate_proposal,
 )
+from src.web.action_window import MAX_ACTION_SECONDS, ActionTimePolicy
 
 
 @dataclass(frozen=True)
@@ -128,18 +129,24 @@ async def dispatch_conversation_action(
     handlers: Mapping[ConversationAction, ActionHandler],
     budget: ActionBudget,
     timeout_seconds: float = 5.0,
+    time_policy: ActionTimePolicy | None = None,
 ) -> AsyncGenerator[ActionEvent, None]:
     """Yield unverified observations, with preliminary answer before research.
 
     The consumer must keep draining/closing this iterator to continue/stop work.
     Observations are not committed chat answers or Evidence Gate approvals.
     An admitted attempt is never automatically retried or refunded.
+
+    Timing follows ``time_policy`` when given. Without one, both classes of action keep the
+    legacy single ``timeout_seconds`` window, so existing callers are unchanged - but the
+    two phases of ``answer_then_research`` then still split that one window instead of both
+    being allowed to consume all of it.
     """
     if (
         isinstance(timeout_seconds, bool)
         or not isinstance(timeout_seconds, (int, float))
         or not math.isfinite(timeout_seconds)
-        or not 0 < timeout_seconds <= 30
+        or not 0 < timeout_seconds <= MAX_ACTION_SECONDS
     ):
         raise ValueError("invalid action timeout")
     started = time.monotonic()
@@ -164,6 +171,34 @@ async def dispatch_conversation_action(
         if checked.action == ConversationAction.ANSWER_THEN_RESEARCH
         else (checked.action,)
     )
+    # Layered windows: a research action gets a research-sized deadline, and the two phases
+    # of one action share a single `started`, so a slow preliminary answer eats its own
+    # budget rather than the search's reserve.
+    policy = (
+        time_policy
+        if time_policy is not None
+        else ActionTimePolicy(
+            conversational_seconds=timeout_seconds, research_seconds=timeout_seconds
+        )
+    )
+    window = policy.window_for(
+        started=started,
+        is_research=checked.action
+        in {
+            ConversationAction.USE_TOOL,
+            ConversationAction.ANSWER_THEN_RESEARCH,
+            ConversationAction.STEER,
+        },
+    )
+    two_phase = len(stages) == 2
+
+    def stage_deadline(index: int) -> float:
+        """A single stage owns the whole window; two stages split it, first phase first."""
+
+        if not two_phase:
+            return window.overall_deadline
+        return window.first_deadline if index == 0 else window.overall_deadline
+
     # Freeze server handler selection before claiming, so partial configuration
     # cannot consume a budget or publish an answer without the research adapter.
     selected = tuple(handlers.get(stage) for stage in stages)
@@ -171,7 +206,7 @@ async def dispatch_conversation_action(
         yield ActionEvent(checked.request_id, "unsupported_action")
         return
     bound_handlers = tuple(cast(ActionHandler, handler) for handler in selected)
-    if time.monotonic() - started >= timeout_seconds:
+    if time.monotonic() >= stage_deadline(0):
         yield ActionEvent(checked.request_id, "timeout")
         return
     tool_cost = int(
@@ -183,7 +218,8 @@ async def dispatch_conversation_action(
         yield ActionEvent(checked.request_id, admission)
         return
 
-    for stage, handler in zip(stages, bound_handlers):
+    for index, (stage, handler) in enumerate(zip(stages, bound_handlers)):
+        deadline = stage_deadline(index)
         try:
             fresh = current_context()
             if not _same_intent(fresh, expected_context):
@@ -203,9 +239,10 @@ async def dispatch_conversation_action(
         async def invoke(
             bound_handler: ActionHandler = handler,
             bound_stage: ConversationAction = stage,
+            bound_deadline: float = deadline,
         ) -> str | SteeringObservation:
             nonlocal invoked
-            if time.monotonic() - started >= timeout_seconds:
+            if time.monotonic() >= bound_deadline:
                 raise TimeoutError("action deadline")
             try:
                 current = current_context()
@@ -224,7 +261,7 @@ async def dispatch_conversation_action(
         content: str | SteeringObservation = ""
         try:
             done, _ = await asyncio.wait(
-                {task}, timeout=max(0, timeout_seconds - (time.monotonic() - started))
+                {task}, timeout=max(0, deadline - time.monotonic())
             )
             if not done:
                 error = "timeout"
@@ -280,7 +317,7 @@ async def dispatch_conversation_action(
                 checked.request_id, "stale_context", stage, attempted=invoked
             )
             return
-        if time.monotonic() - started >= timeout_seconds:
+        if time.monotonic() >= deadline:
             yield ActionEvent(
                 checked.request_id,
                 "timeout",
