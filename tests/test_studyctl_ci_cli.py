@@ -170,3 +170,26 @@ def test_direct_entrypoint_has_one_json_and_no_stderr(repo, receipt):
         and result.stderr == ""
     )
     assert json.loads(result.stdout)["data"]["merge_authorized"] is False
+
+
+@pytest.mark.parametrize("other", ["push", "stale"])
+def test_mixed_records_preserve_exact_pr_failure_exit(repo, snapshot, capsys, other):
+    def update(data):
+        runs = data["checks"][0]["runs"]
+        runs[0]["conclusion"] = "failure"
+        runs.append(
+            dict(
+                databaseId=43,
+                headSha=HEAD if other == "push" else "b" * 40,
+                event="push" if other == "push" else "pull_request",
+                status="completed",
+                conclusion="success",
+            )
+        )
+
+    change(snapshot, update)
+    result = inspect(repo, snapshot, capsys)
+    assert result["status"] == "FAIL" and result["exit_code"] == 4
+    assert result["data"]["expected_head_sha"] == HEAD
+    assert len(result["data"]["runs"]) == 2
+    assert not result["data"]["merge_authorized"]

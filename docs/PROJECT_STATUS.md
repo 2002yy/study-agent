@@ -8,6 +8,9 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-23 CLI-05B混合run失败出口回归。** 只绑定已提交#277核心修复；命令层补push/旧head两种混合记录用例，要求当前PR已知失败经入口保留FAIL/4、完整记录与被检head，merge_authorized仍false。输入只读，工具自身SHA与目标SHA继续分列；不发起gh/网络、不改workflow或产品src。下一门命名studyctl与实际CLI回执，CI只留一次观察不等完成。
+
+
 **2026-10-23 CLI候选#278主线重绑。** 初始head fddeae9a502b9516ad48ce8240a7c3a0a4d868e3，
 显式吸收已提交 7f3381a73539fafde3b86cea1e472bd09e730d61（refs/heads/codex/studyctl-ci-evidence-20261021）；不读取其他工作树WIP。
 远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
