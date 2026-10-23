@@ -81,6 +81,11 @@ jobs:
           python tools/ci_scope.py --paths-file "$changed_file_list" >> "$GITHUB_OUTPUT"
           echo "CI scope: $(grep '^scope=' "$GITHUB_OUTPUT" | tail -n 1), files: $(wc -l < "$changed_file_list")"
 
+      - name: Enforce product iteration policy discoverability
+        id: product_policy
+        continue-on-error: true
+        run: python tools/check_product_iteration_policy.py
+
       - name: Report L3 eligibility (never starts L3)
         shell: bash
         run: |
