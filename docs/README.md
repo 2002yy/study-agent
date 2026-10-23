@@ -9,6 +9,7 @@
 | 文档 | 职责 |
 |---|---|
 | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | 当前事实、证据、缺口和唯一下一步 |
+| [`PRODUCT_ITERATION_POLICY.md`](PRODUCT_ITERATION_POLICY.md) | 静态/动态双循环、产品优先级与真实体验验收的稳定合同（不拥有当前下一步） |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | 当前 runtime / application owner / 数据边界 |
 | [`../domain_models.md`](../domain_models.md) | 稳定领域对象、关系与生命周期 |
 | [`../state_invariants.md`](../state_invariants.md) | 重构后仍必须成立的硬约束 |
