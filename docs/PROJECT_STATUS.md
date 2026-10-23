@@ -159,6 +159,39 @@ src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，�
 新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
 验证目录 D:/study-agent-validation/studyctl-research-rebind-20261023/270/。
 下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
+**2026-10-20 本轮第二片：#257有界入口审阅修复。** 原head80912bb0281a6e00ed997f6f96c136a5628e097b / CI39389277406 SUCCESS有未解决审阅PRRT_kwDOSYWoX86uPjuj：FastAPI先解析正文再进入开关。新增5项负控在旧代码实际FAIL（日志D:/study-agent-validation/events-ingress-negative.log）；现不自动绑定请求model，先检查enabled，再以4KiB总量/2秒总读取期限读取JSON并验证身份字段，然后逐操作授权。默认关闭不读取正文；Content-Length非法400、超大413，实际分块累计也受限，不信伪造长度，停滞408；所有非法请求均不调用授权/额度/SDK。保留拒绝客户端历史/工具/预算/证据和显示流/取消/清理协议，自身30 PASS/21.36s，最终命名L1 conversation_events_routes **596 PASS/152.17s**，mypy122/128 NEW0、Ruff/format/diff-check PASS，候选密钥与新head CI以发布结果恢复。此片仅4文件增量，不改生产注册、schema、发布权威或用户配置，无真实付费调用、无本地L3。
+
+本轮第一片#249已重绑main069fc126，merge450614da及候选1c1c3a69234aa5380436ce7bf118d3ba5dac3e3a，命名L1 456 PASS/123.69s、mypy NEW0、Ruff/diff-check/secret findings0，7文件增量；PR base main，exact-head pull_request CI39421932157后台。root main已ff到069fc126且保留4个原ZIP。#256旧CI39388736380已定位：frontend 468 PASS/1 FAIL，ReadingWorkspace.test.tsx:157本地行跳转焦点期望line2但停line1；frontend代码不在该PR改动内，故记录相邻阻塞而非顺手改阅读功能或收窄CI规避失败。诊断D:/study-agent-validation/owned-binding-frontend-ci.log；gh大包下载4分钟无输出，终止已核实的该下载进程后改用带连接/读取timeout的requests下载成功（仅打印出现GBK编码错误，日志完整已保存），未改网络配置。#256不合并，真实模型质量/3–5秒首答/生产切换继续未验收。下一独立片：先处理#249最新审阅/CI并顺序整合自身#251，再补API宿主的操作生命周期；不等待CI才开发，不将旧head绿灯授予修复head。
+
+**2026-10-20 本轮两片发布收口。** #256（owned binding）head efcf71be937d1cf0084cb836d690257c463a0fc2 / PR CI39388736380仍后台；#257（可选SSE API）实现head358f330962bc9dc2b5d03abc5f0fa7175101e5cc / PR CI39389109743后台，两PR暂无审阅thread，本段仅文档随新head触发CI，不借旧head绿灯。#257命名L1 580 PASS/142.97s、mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0，7文件独立增量；两新功能工作树代码冻结且显式提交，未取其他窗口WIP。#248已合main069fc1267010580c2c74ba3c1bb92f0e459458a5，exact-main push CI39388835099 SUCCESS。根工作树仍在8a66eccf（仅4个原未跟踪ZIP）；Git HTTPS间歇TLS握手失败，功能分支已用命令级schannel/HTTP1.1成功推送，根main fetch尚未成功，未改全局配置。下一轮先恢复fetch并ff根main，再逐片重绑自身#249回答runner到main并补可选API宿主结算；新#256/#257待exact-head CI/审阅及各自父片成熟后再顺序合入，不等待CI才开发。
+
+**2026-10-20 CL-1I-2：默认关闭的可选SSE API（本轮第二新功能片）。** branch codex/conversation-events-api-20261020，基于自身第一片#256最终efcf71be937d1cf0084cb836d690257c463a0fc2（实现45e10ad0，后续仅文档），未取其他窗口WIP。create_conversation_events_router不自动注册生产app；宿主必须显式提供start_run、逐操作authorize和on_closed，并在服务器侧启用。POST /chat/threads/{thread_id}/turns/{turn_id}/agent-events只接受operation_id，禁止客户端历史/工具/预算/证据字段；默认404、未授权403、过期owned操作409、Last-Event-ID重放409，均在准入/SDK前拒绝。SSE保持provisional/unverified；正常结束、发送头失败、首帧断线和ASGI取消均关闭自有会话并调用一次宿主结束回调；清理等待上限1秒，超时取消而非无限持有HTTP。宿主仍负责原操作CAS结算、费用和正式发布，不在此写ChatTurn或放行证据门。
+
+最终命名L1 conversation_events_routes **580 PASS/142.97s**（自身14项真实ASGI/SDK假HTTP），mypy122/128 NEW0、Ruff/format/diff-check PASS；生产代码和门配置已冻结，文档更新不重跑联合门。无真实凭据/网络/付费调用、无生产入口切换/持久schema变化，无本地L3。候选SHA由本段提交恢复，PR和密钥检查另记发布结果。#256 head efcf71be / pull_request CI39388736380后台；#247已合main8a66eccf67993673c88455b97f096d5aabd634e8，exact-main push CI39386079662 SUCCESS；#248重绑main head035cffa5bb68ce81839b74d6b5be4f77215f2809，命名L1 299 PASS、mypy NEW0，exact-head PR CI39388341261 SUCCESS且无审阅finding后已squash合入。根main原有4个未跟踪ZIP保留。唯一下一执行片：逐片重绑自身已通过的回答生成候选到main，同时为可选API宿主补持久操作准入/结束结算；在这些边界和真实模型资格通过前不注册生产路由，不声称前3–5秒首答或完整产品验收。
+
+**2026-10-20 CL-1I-1最终候选。** owned绑定最终命名L1 conversation_owned_binding **566 PASS/136.06s**，自身14项（含SQLite WAL并发快照、只读不创建/不写入、真实SDK假HTTP绑定与取消），mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0。初次562 PASS/4 FAIL仅为测试路径/序列化假设，修复测试后14项及最终566项均通过，生产实现未因该错误更改。初始自身#255后合main8a66eccf，集成基线907d6600只恢复2个已合main上下文文件，逐字校验一致；新实现审阅范围907d6600..候选为7文件，PR相对#255另含这2个不变main依赖，无其他窗口WIP。候选SHA以本段提交恢复。下一片可选API基于此冻结成果继续，只有身份请求、显式宿主授权/结束回调，默认关闭、不自动注册生产app，不等CI才推进。
+
+**2026-10-20 CL-1I-1：服务端owned聊天操作绑定（本轮第一新功能片）。** branch codex/conversation-owned-binding-20261020，初始自身#255冻结15c10c03，合入自身已发布main8a66eccf后得到基线907d6600；仅恢复已合main的conversation_decision_context及其测试，二者与main逐字一致，loop保留自身已冻结可选生成器/handler实现，未取其他窗口WIP。SQLiteChatSnapshotReader通过mode=ro、query_only和单BEGIN读取thread/current/最近6条completed历史，关闭连接、不创建数据库或做恢复写入；WAL并发取消负控证明三次SELECT同快照，下一次读取能看到取消。OwnedConversationBinding只接thread/turn/operation身份，复用既有快照projection检查，服务器回调提供工具/研究/证据/额度与模型准入，执行前持续刷新，不接收客户端历史/预算/工具目录。此处不创建/完成/释放ChatTurn，不改正式发布门；调用者仍负责身份授权与操作生命周期。
+
+自身14项真实SQLite/SDK假HTTP已PASS/6.85s，mypy122/128 NEW0、Ruff/format PASS；初次联合562 PASS/4 FAIL是测试假设错误（decision wire history为role/content对象、upsert不写cancel字段），现改走现有request_turn_cancel CAS并验证accepted，生产代码未改变；最终命名门执行中，结果另记。未改schema/共享core模型/生产路由，无真实网络/付费调用，无本地L3。下一独立片：默认关闭、显式授权且只读身份请求的可选SSE router，由宿主提供操作结束回调，继续保持provisional/unverified。
+**2026-10-23 #257 合入前归档 #275 交接记录。** #275（codex/studyctl-event-pages-20261021，head 44b16f155）与 #280 不是祖先关系，其功能由 #276–#280 吸收并已随 #280 的合并提交 e4a3c779 进入 main；按superseded 收口，保留其原交接记录如下，便于追溯当时的门禁与skip 口径。
+
+
+**（归档）以下为 #275 的交接记录。其功能已被 #276–#280 吸收并随 #280 合并进入 main（合并提交 e4a3c779）；#275 与 #280 不是祖先关系，故按superseded 收口，保留原记录备查。**
+**2026-10-23 CLI候选#275主线重绑。** 初始head 9bd92f4f60b99ab74327cac4cc77bcd8d4aee8bf，
+显式吸收已提交 11cc5327ed0594a5856935951ec465ddf777df11（11cc5327ed0594a5856935951ec465ddf777df11）；不读取其他工作树WIP。
+远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
+不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
+保留本片独立功能；吸收冻结父片的目录游标存在性修复与已提交main，不吸收兄弟分支。
+已完成命名studyctl L1 306 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交6aa541a4085fc2842b4668c485c9a0bf4924016f。
+实际CLI 7类命令断言通过，输入hash不变；SQLite/修改记录为构造数据，历史B5不是新真实研究。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
+验证目录 D:/study-agent-validation/studyctl-followon-rebind-20261023/275/。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
+
 
 **2026-10-20 CL-1H-2：单次消费的显示进度流（本轮第二新功能片）。** branch codex/conversation-progress-stream-20261020，初始固定自身服务756f0eaa，已ff绑定其最终文档父片#254 dd17b5f11564159dd731421807bd8b0c846d57ac（仅交接，无生产变化）；未取其他窗口WIP。conversation_progress_stream立即claim原ConversationLoopSession，支持未读close、单次消费、拒绝并发读取、取消传播与内层资源释放。只投影计划focus、阶段/最终答案、澄清、工具状态和终态；不输出模型reason、原始工具正文、prompt/history或证据摘要。所有帧固定unverified/provisional，answered终态不授予发布/证据权威。root request_id关联同一run，sequence与哈希event_id仅本流显示去重，不提供持久恢复/重放权限；SSE采用单行JSON数据，正文换行不能注入event/data字段。缺失终态、源异常、SDK清理失败输出一个脱敏failed终态，调用者取消仍传播。
 
