@@ -8,6 +8,327 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-23 CLI候选#280主线重绑（第二次，面向当前main）。** 初始head 15d5bd62b99ad9418b6a87aa55202700c4b1a501，
+本次显式吸收已提交main 42992932e115568be54d6e85a34f4b68335d84ea（#255合并后），不读取其他工作树WIP。
+base已从 codex/studyctl-ci-live-20261021 改为 main：原base下 `refs/pull/280/merge` 只证明本片能合进#279分支，
+不构成对main的证据，故不能借用旧绿灯。
+源码冲突仅 docs/PROJECT_STATUS.md（追加式，双方新交接全部保留），tools/ci_scope.py、tests/test_ci_scope.py、
+tests/stage_gates.json 由Git自动合并，已两向核对：main侧147条/#280侧154条 -> 合并后157条，双方零丢失、悬空0；
+ci_scope main侧25条/#280侧36条 -> 39条，双方零丢失、悬空0。
+合并树组成精确等于 main 11 文件 + #280 20 文件，无额外增删；CLI 八片（#270/#273/#274/#276-#279/#280）逐片改动文件 0 缺失。
+本提交只补交接，不重复已被CI覆盖的相同测试；新head必须重新绑定CI，旧绿不授予新提交。
+
+**2026-10-23 CLI候选#280主线重绑。** 初始head e9886e00a8eb5a74a3dd1f46e458881c6f257f57，
+显式吸收已提交 0fa9b6b6d4ab38129cc3f002bb21c535e3a7887d（refs/heads/codex/studyctl-ci-live-20261021）；不读取其他工作树WIP。
+远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
+不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
+保留本片独立功能；吸收冻结父片的目录游标存在性修复与已提交main，不吸收兄弟分支。
+已完成命名studyctl L1 422 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交aae8da99045fcbd2dd4428d46a2e85a9ef4ef1fb。
+实际子进程核验 11类断言通过，输入hash不变；构造GitHub记录与真实只读采集分别标记，不授予merge_authorized。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
+一次真实GitHub只读采集：main ee89db18edb23da9cd35ab3a7afe6ac963b3319b，观察结果PASS，11次API；不是本分支CI或CLI全线合并许可。
+验证目录 D:/study-agent-validation/studyctl-live-rebind-20261023/280/。
+下一动作：逐片检查现有CLI候选完整审阅和exact-head CI，成熟片依赖顺序合main并重绑后继；不再增加诊断命令。完整真实研究run与质量验收仍待样本，不用构造数据代替。
+
+
+**2026-10-23 CLI候选#279主线重绑。** 初始head c2b5822e34a8360e88e4df84de566083e387f934，
+显式吸收已提交 59d27840e516ad90b7e44fad550f1125b3fb585c（59d27840e516ad90b7e44fad550f1125b3fb585c）；不读取其他工作树WIP。
+远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
+不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
+保留本片独立功能；吸收冻结父片的目录游标存在性修复与已提交main，不吸收兄弟分支。
+已完成命名studyctl L1 393 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交2bea2414932487b7f4abda016c1304b3247e4840。
+实际子进程核验 8类断言通过，输入hash不变；构造GitHub记录与真实只读采集分别标记，不授予merge_authorized。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
+验证目录 D:/study-agent-validation/studyctl-live-rebind-20261023/279/。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
+
+
+**2026-10-23 CLI-05B混合run失败出口回归。** 只绑定已提交#277核心修复；命令层补push/旧head两种混合记录用例，要求当前PR已知失败经入口保留FAIL/4、完整记录与被检head，merge_authorized仍false。输入只读，工具自身SHA与目标SHA继续分列；不发起gh/网络、不改workflow或产品src。下一门命名studyctl与实际CLI回执，CI只留一次观察不等完成。
+
+
+**2026-10-23 CLI候选#278主线重绑。** 初始head fddeae9a502b9516ad48ce8240a7c3a0a4d868e3，
+显式吸收已提交 7f3381a73539fafde3b86cea1e472bd09e730d61（refs/heads/codex/studyctl-ci-evidence-20261021）；不读取其他工作树WIP。
+远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
+不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
+保留本片独立功能；吸收冻结父片的目录游标存在性修复与已提交main，不吸收兄弟分支。
+已完成命名studyctl L1 351 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交be813aadb7424a52722c2d533a7dfa3fc065dde6。
+实际离线核验 8类断言通过，输入hash不变；离线快照/步骤回执只证明所给记录，不能授予合并资格。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
+验证目录 D:/study-agent-validation/studyctl-offline-rebind-20261023/278/。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
+
+
+**2026-10-23 CLI-05A失败按单条run归属修复。** 审阅P2确认：旧实现用全列表身份一致性决定失败归属，导致当前head的PR失败被无关push/旧head记录降成BLOCKED。改为逐run同时满足已匹配PR元数据、exact head、pull_request、completed及失败结论才FAIL/4；无关记录仍保留gap，不能掩盖已知失败，也不能将外部失败归给成功PR。新增8项回归，5个混合失败用例在旧代码均FAIL（负控），修复后核心32项通过。离线真实性/时效/required policy缺口与merge_authorized=false不变。一次错误工作目录的pytest收集失败已改从目标工作树运行，不改生产代码掩盖环境问题。下一门：本片完整命名L1与实际模块回执，再推送；后继CLI只绑定冻结提交。
+
+
+**2026-10-23 CLI候选#277主线重绑。** 初始head 6835a2b75300035a6c07ebd00e70e1e5ddaa2ba3，
+显式吸收已提交 200fd25029a9b966cce68094b833359c6c87de86（200fd25029a9b966cce68094b833359c6c87de86）；不读取其他工作树WIP。
+远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
+不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
+保留本片独立功能；吸收冻结父片的目录游标存在性修复与已提交main，不吸收兄弟分支。
+已完成命名studyctl L1 336 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交95d8e7c0c3ba87eb7dc65e564befbef832218bae。
+实际离线核验 7类断言通过，输入hash不变；离线快照/步骤回执只证明所给记录，不能授予合并资格。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
+验证目录 D:/study-agent-validation/studyctl-offline-rebind-20261023/277/。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
+
+
+**2026-10-23 CLI候选#276主线重绑。** 初始head 8f19c60cca76e9d3325d9fe5c084986fa6ad0567，
+显式吸收已提交 11cc5327ed0594a5856935951ec465ddf777df11（11cc5327ed0594a5856935951ec465ddf777df11）；不读取其他工作树WIP。
+远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
+不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
+保留本片独立功能；吸收冻结父片的目录游标存在性修复与已提交main，不吸收兄弟分支。
+已完成命名studyctl L1 304 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交3acb4532b4226e84291f7f058575bb7343f3492d。
+实际CLI 4类命令断言通过，输入hash不变；SQLite/修改记录为构造数据，历史B5不是新真实研究。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
+验证目录 D:/study-agent-validation/studyctl-followon-rebind-20261023/276/。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
+
+
+**2026-10-23 #274同步冻结分页修复。** 固定自身e9f09616，吸收已提交父片
+11bb263a4bf21cb907a28f4c833ff52bfac9a28d，仅交接冲突保留双方，SQLite查询/回归测试自动合入。
+src与main仍相同，不借父片旧全门；catalog/research/recording/CLI直接消费者
+73 PASS/1 SKIP，四工具mypy/Ruff/格式/diff通过，受测组合bebf6b7f97334690b8bd5d71c06d669cc3dfe24f。
+实际CLI四例跨父子分支证明未知边界2/合法末尾0，SQLite字节不变。
+本提交只补交接，src/tools/tests与受测树相同；推送新head不等CI，不重复L3。
+旧287全门只属于审阅修复前代码；此小修复按直接影响集验证，新headCI/审阅前不合main。
+证据 D:/study-agent-validation/studyctl-research-rebind-20261023/artifact-review-sync/。
+
+**2026-10-23 #273分页审阅修复。** finding4333785509 有效：同快照摘要但不存在的after
+会跳过真实run或返回空成功页。现在在同一内存快照以BINARY精确查边界，必须唯一存在才分页；
+不含边界的第一页不受影响，未知边界按原InvalidCursor映射参数错2，输入不变/不回显游标。
+三种边界负控（不存在/超出末尾/错误大小写）在旧代码均实际失败，修复后catalog/research/CLI
+直接影响集57 PASS/1 SKIP；三工具mypy/Ruff/格式/diff通过，src未变且122/128 NEW0复用。
+先前271项门属于修复前版本，不借给新head；此有界小修复仅跑直接影响集，不重复L3。
+证据 D:/study-agent-validation/studyctl-research-rebind-20261023/catalog-review-fix/。
+下一动作：推送本片并将同一冻结修复同步#274，重跑直接消费者；新head CI/审阅未完成不合main。
+
+
+**2026-10-23 CLI候选#274主线重绑。** 初始head 14087de6e614b2028752b4a8cd2c19a050961247，
+显式吸收已提交 7cd4ded5e938074f45b2e31cc9e5daf1a7e687d1（refs/heads/codex/studyctl-research-catalog-20261021）；不读取其他工作树WIP。
+远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
+不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
+生产研究/执行逻辑保持自身冻结实现，新main的DeepSeek/回答模块按已提交源码合入。
+已完成命名studyctl L1 287 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交a9e7c6c904ed3b9fe8e9de34795d5f71f1603c60。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
+验证目录 D:/study-agent-validation/studyctl-research-rebind-20261023/274/。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
+
+
+**2026-10-23 CLI候选#273主线重绑。** 初始head 15c6b2d8e410266829a94181769c17ba42aa83a7，
+显式吸收已提交 c955f34aaef57f0958e47b23b2348d45a7121070（refs/heads/codex/studyctl-research-inspect-20261021）；不读取其他工作树WIP。
+远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
+不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
+生产研究/执行逻辑保持自身冻结实现，新main的DeepSeek/回答模块按已提交源码合入。
+已完成命名studyctl L1 271 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交bea35939164ad0aa6fcb37c8033ac587c885bd54。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
+验证目录 D:/study-agent-validation/studyctl-research-rebind-20261023/273/。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
+
+
+**2026-10-23 CLI候选#270主线重绑。** 初始head 3741298283b2b8c4421f857eb168a1cfe3b461cf，
+显式吸收已提交 ee89db18edb23da9cd35ab3a7afe6ac963b3319b（refs/remotes/origin/main）；不读取其他工作树WIP。
+远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
+不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
+生产研究/执行逻辑保持自身冻结实现，新main的DeepSeek/回答模块按已提交源码合入。
+已完成命名studyctl L1 255 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交cbda32ef17d1e51105ca37d3a93776fdc6d63f20。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
+验证目录 D:/study-agent-validation/studyctl-research-rebind-20261023/270/。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
+**2026-10-20 本轮第二片：#257有界入口审阅修复。** 原head80912bb0281a6e00ed997f6f96c136a5628e097b / CI39389277406 SUCCESS有未解决审阅PRRT_kwDOSYWoX86uPjuj：FastAPI先解析正文再进入开关。新增5项负控在旧代码实际FAIL（日志D:/study-agent-validation/events-ingress-negative.log）；现不自动绑定请求model，先检查enabled，再以4KiB总量/2秒总读取期限读取JSON并验证身份字段，然后逐操作授权。默认关闭不读取正文；Content-Length非法400、超大413，实际分块累计也受限，不信伪造长度，停滞408；所有非法请求均不调用授权/额度/SDK。保留拒绝客户端历史/工具/预算/证据和显示流/取消/清理协议，自身30 PASS/21.36s，最终命名L1 conversation_events_routes **596 PASS/152.17s**，mypy122/128 NEW0、Ruff/format/diff-check PASS，候选密钥与新head CI以发布结果恢复。此片仅4文件增量，不改生产注册、schema、发布权威或用户配置，无真实付费调用、无本地L3。
+
+本轮第一片#249已重绑main069fc126，merge450614da及候选1c1c3a69234aa5380436ce7bf118d3ba5dac3e3a，命名L1 456 PASS/123.69s、mypy NEW0、Ruff/diff-check/secret findings0，7文件增量；PR base main，exact-head pull_request CI39421932157后台。root main已ff到069fc126且保留4个原ZIP。#256旧CI39388736380已定位：frontend 468 PASS/1 FAIL，ReadingWorkspace.test.tsx:157本地行跳转焦点期望line2但停line1；frontend代码不在该PR改动内，故记录相邻阻塞而非顺手改阅读功能或收窄CI规避失败。诊断D:/study-agent-validation/owned-binding-frontend-ci.log；gh大包下载4分钟无输出，终止已核实的该下载进程后改用带连接/读取timeout的requests下载成功（仅打印出现GBK编码错误，日志完整已保存），未改网络配置。#256不合并，真实模型质量/3–5秒首答/生产切换继续未验收。下一独立片：先处理#249最新审阅/CI并顺序整合自身#251，再补API宿主的操作生命周期；不等待CI才开发，不将旧head绿灯授予修复head。
+
+**2026-10-20 本轮两片发布收口。** #256（owned binding）head efcf71be937d1cf0084cb836d690257c463a0fc2 / PR CI39388736380仍后台；#257（可选SSE API）实现head358f330962bc9dc2b5d03abc5f0fa7175101e5cc / PR CI39389109743后台，两PR暂无审阅thread，本段仅文档随新head触发CI，不借旧head绿灯。#257命名L1 580 PASS/142.97s、mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0，7文件独立增量；两新功能工作树代码冻结且显式提交，未取其他窗口WIP。#248已合main069fc1267010580c2c74ba3c1bb92f0e459458a5，exact-main push CI39388835099 SUCCESS。根工作树仍在8a66eccf（仅4个原未跟踪ZIP）；Git HTTPS间歇TLS握手失败，功能分支已用命令级schannel/HTTP1.1成功推送，根main fetch尚未成功，未改全局配置。下一轮先恢复fetch并ff根main，再逐片重绑自身#249回答runner到main并补可选API宿主结算；新#256/#257待exact-head CI/审阅及各自父片成熟后再顺序合入，不等待CI才开发。
+
+**2026-10-20 CL-1I-2：默认关闭的可选SSE API（本轮第二新功能片）。** branch codex/conversation-events-api-20261020，基于自身第一片#256最终efcf71be937d1cf0084cb836d690257c463a0fc2（实现45e10ad0，后续仅文档），未取其他窗口WIP。create_conversation_events_router不自动注册生产app；宿主必须显式提供start_run、逐操作authorize和on_closed，并在服务器侧启用。POST /chat/threads/{thread_id}/turns/{turn_id}/agent-events只接受operation_id，禁止客户端历史/工具/预算/证据字段；默认404、未授权403、过期owned操作409、Last-Event-ID重放409，均在准入/SDK前拒绝。SSE保持provisional/unverified；正常结束、发送头失败、首帧断线和ASGI取消均关闭自有会话并调用一次宿主结束回调；清理等待上限1秒，超时取消而非无限持有HTTP。宿主仍负责原操作CAS结算、费用和正式发布，不在此写ChatTurn或放行证据门。
+
+最终命名L1 conversation_events_routes **580 PASS/142.97s**（自身14项真实ASGI/SDK假HTTP），mypy122/128 NEW0、Ruff/format/diff-check PASS；生产代码和门配置已冻结，文档更新不重跑联合门。无真实凭据/网络/付费调用、无生产入口切换/持久schema变化，无本地L3。候选SHA由本段提交恢复，PR和密钥检查另记发布结果。#256 head efcf71be / pull_request CI39388736380后台；#247已合main8a66eccf67993673c88455b97f096d5aabd634e8，exact-main push CI39386079662 SUCCESS；#248重绑main head035cffa5bb68ce81839b74d6b5be4f77215f2809，命名L1 299 PASS、mypy NEW0，exact-head PR CI39388341261 SUCCESS且无审阅finding后已squash合入。根main原有4个未跟踪ZIP保留。唯一下一执行片：逐片重绑自身已通过的回答生成候选到main，同时为可选API宿主补持久操作准入/结束结算；在这些边界和真实模型资格通过前不注册生产路由，不声称前3–5秒首答或完整产品验收。
+
+**2026-10-20 CL-1I-1最终候选。** owned绑定最终命名L1 conversation_owned_binding **566 PASS/136.06s**，自身14项（含SQLite WAL并发快照、只读不创建/不写入、真实SDK假HTTP绑定与取消），mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0。初次562 PASS/4 FAIL仅为测试路径/序列化假设，修复测试后14项及最终566项均通过，生产实现未因该错误更改。初始自身#255后合main8a66eccf，集成基线907d6600只恢复2个已合main上下文文件，逐字校验一致；新实现审阅范围907d6600..候选为7文件，PR相对#255另含这2个不变main依赖，无其他窗口WIP。候选SHA以本段提交恢复。下一片可选API基于此冻结成果继续，只有身份请求、显式宿主授权/结束回调，默认关闭、不自动注册生产app，不等CI才推进。
+
+**2026-10-20 CL-1I-1：服务端owned聊天操作绑定（本轮第一新功能片）。** branch codex/conversation-owned-binding-20261020，初始自身#255冻结15c10c03，合入自身已发布main8a66eccf后得到基线907d6600；仅恢复已合main的conversation_decision_context及其测试，二者与main逐字一致，loop保留自身已冻结可选生成器/handler实现，未取其他窗口WIP。SQLiteChatSnapshotReader通过mode=ro、query_only和单BEGIN读取thread/current/最近6条completed历史，关闭连接、不创建数据库或做恢复写入；WAL并发取消负控证明三次SELECT同快照，下一次读取能看到取消。OwnedConversationBinding只接thread/turn/operation身份，复用既有快照projection检查，服务器回调提供工具/研究/证据/额度与模型准入，执行前持续刷新，不接收客户端历史/预算/工具目录。此处不创建/完成/释放ChatTurn，不改正式发布门；调用者仍负责身份授权与操作生命周期。
+
+自身14项真实SQLite/SDK假HTTP已PASS/6.85s，mypy122/128 NEW0、Ruff/format PASS；初次联合562 PASS/4 FAIL是测试假设错误（decision wire history为role/content对象、upsert不写cancel字段），现改走现有request_turn_cancel CAS并验证accepted，生产代码未改变；最终命名门执行中，结果另记。未改schema/共享core模型/生产路由，无真实网络/付费调用，无本地L3。下一独立片：默认关闭、显式授权且只读身份请求的可选SSE router，由宿主提供操作结束回调，继续保持provisional/unverified。
+**2026-10-23 #257 合入前归档 #275 交接记录。** #275（codex/studyctl-event-pages-20261021，head 44b16f155）与 #280 不是祖先关系，其功能由 #276–#280 吸收并已随 #280 的合并提交 e4a3c779 进入 main；按superseded 收口，保留其原交接记录如下，便于追溯当时的门禁与skip 口径。
+
+
+**（归档）以下为 #275 的交接记录。其功能已被 #276–#280 吸收并随 #280 合并进入 main（合并提交 e4a3c779）；#275 与 #280 不是祖先关系，故按superseded 收口，保留原记录备查。**
+**2026-10-23 CLI候选#275主线重绑。** 初始head 9bd92f4f60b99ab74327cac4cc77bcd8d4aee8bf，
+显式吸收已提交 11cc5327ed0594a5856935951ec465ddf777df11（11cc5327ed0594a5856935951ec465ddf777df11）；不读取其他工作树WIP。
+远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
+不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
+保留本片独立功能；吸收冻结父片的目录游标存在性修复与已提交main，不吸收兄弟分支。
+已完成命名studyctl L1 306 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交6aa541a4085fc2842b4668c485c9a0bf4924016f。
+实际CLI 7类命令断言通过，输入hash不变；SQLite/修改记录为构造数据，历史B5不是新真实研究。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
+验证目录 D:/study-agent-validation/studyctl-followon-rebind-20261023/275/。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
+
+
+**2026-10-20 CL-1H-2：单次消费的显示进度流（本轮第二新功能片）。** branch codex/conversation-progress-stream-20261020，初始固定自身服务756f0eaa，已ff绑定其最终文档父片#254 dd17b5f11564159dd731421807bd8b0c846d57ac（仅交接，无生产变化）；未取其他窗口WIP。conversation_progress_stream立即claim原ConversationLoopSession，支持未读close、单次消费、拒绝并发读取、取消传播与内层资源释放。只投影计划focus、阶段/最终答案、澄清、工具状态和终态；不输出模型reason、原始工具正文、prompt/history或证据摘要。所有帧固定unverified/provisional，answered终态不授予发布/证据权威。root request_id关联同一run，sequence与哈希event_id仅本流显示去重，不提供持久恢复/重放权限；SSE采用单行JSON数据，正文换行不能注入event/data字段。缺失终态、源异常、SDK清理失败输出一个脱敏failed终态，调用者取消仍传播。
+
+最终命名L1 conversation_progress_stream **534 PASS/143.66s**（自身10项，含真实SDK服务完整初步→工具→最终显示），mypy122/128 NEW0、Ruff/format/diff-check PASS，候选密钥扫描另见发布结果。当前仅应用层DTO/SSE编码，不注册HTTP路由或写ChatTurn，不切生产聊天、费用或证据/发布权威，无真实网络/付费模型、无本地L3。候选SHA以本段提交恢复，下一片：把显式选择服务与owned聊天操作绑定到可选API入口，沿用原证据/发布门。
+
+本轮#246在e663d9a6 / CI39377648481 SUCCESS / 无finding后合main b6aee2b72e8904e0a382bd9a93469168f48bf71b，exact-main CI39381453432 SUCCESS，根main已ff且4外部ZIP保留。#247重绑main L1 413 PASS、mypy122/128，但head2c681ed6缺失新CI；追加交接head3bfefb2c已推送触发synchronize，必须绑定新head CI，不能借旧3390fafd绿灯。#253 URLfinding4321928343已修复并resolve，head835e0aad / CI39381952927后台、L1 515 PASS；#254服务headdd17b5f1 / CI39382951751后台、L1 524 PASS。两新功能片只基于自身冻结成果，不等CI才开发。
+
+**2026-10-20 CL-1H-1最终候选。** DeepSeek可选应用服务已吸收自身#253修复835e0aad（merge756f0eaa，仅交接冲突保留双方），最终命名L1 conversation_deepseek_service **524 PASS/140.58s**，自身9项SDK假HTTP，mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0；相对835e0aad独立7文件，候选SHA以本段提交恢复，未取其他窗口WIP。初始519仅为旧父片的初步证据，新联合门已覆盖URL canonical真实SDK回归。创建/claim/关闭未读run不建SDK，取消/关闭/终态都释放自有客户端，共享模型准入不因新service/session重启而自动重置；默认生产ChatService/HTTP不变。下一片安全进度流基于此自身冻结代码继续，本轮不等CI。
+
+**2026-10-20 CL-1H-1：DeepSeek可选应用服务（本轮第一新功能片）。** branch codex/conversation-deepseek-service-20261020，初始固定自身#253 7c39a460，发布前显式吸收本轮URL修复835e0aad；未取其他窗口WIP。DeepSeekConversationService.start把同一model admission用于决策及回答，返回单次消费ConversationLoopSession；只创建/claim/关闭未读run不会创建SDK或发送请求，实际消费时才进入owned DeepSeek会话并受控执行loop。阶段后关闭/调用者取消按内层loop→SDK顺序释放，终态返回前owned SDK已关闭，保留原脱敏/unknown/去重回执；只在应用层显式调用，不改ChatService/HTTP生产入口或发布权威。宿主继续负责所有权快照、工具权限与真实费用授权。
+
+初步命名L1 conversation_deepseek_service **519 PASS/125.32s**（自身9项真实SDK假HTTP），mypy122/128 NEW0、Ruff/format PASS；包括初步→工具→完整最终输入、未读关闭、阶段后关闭、取消SDK、过期不发送、重启同request不重复扣费、provider失败和单次claim。该初片本地冻结后吸收父片已验515项URL修复，再跑最终联合门；旧7c父片结果不授予最终候选。无真实凭据/网络/付费请求、生产切换或本地L3。下一独立片：消费此服务回执的安全进度投影，分离阶段答案、工具状态与终态，始终保留provisional/unverified边界。
+**2026-10-20 #253 审阅修复 / DeepSeek URL规范化。** finding4321928343有效：原校验rstrip后允许URL却存原字符串，SDK可能发/v1//chat/completions。新增4组尾斜杠负控在旧7c39a460均实际FAIL，保留日志D:/study-agent-validation/deepseek-url-negative.log；现冻结settings在验证后存canonical rstrip值，真实SDK假HTTP新增双斜杠路径回归，实际线缆路径保持/v1/chat/completions。最终命名L1 conversation_deepseek_session **515 PASS/151.91s**，mypy122/128 NEW0、Ruff/format/diff-check PASS；无SDK真实调用/配置修改/生产切换，无本地L3。新head以本段提交恢复，旧7c39a460 / CI39377762994 SUCCESS不能授予修复head。修复将显式带入本轮DeepSeek应用服务与进度流两个自身独立片，未取其他窗口WIP。
+
+**2026-10-20 本轮两片最终交付候选 / 仅DeepSeek。** 第一片#252 head2b9b9f5bc389d5e5e148aff91ed3c3f8c41423b3 / pull_request CI39377002020后台，命名L1 495 PASS/128.64s，暂无finding。第二片固定该自身父片，最终命名L1 conversation_deepseek_session **510 PASS/134.10s**，自身15项真实SDK/假HTTP PASS，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0，候选SHA以本段提交恢复；7文件独立增量，无其他窗口WIP。初次509 PASS/1 FAIL是SDK空header的断言错误，已修为验证不继承外部组织/项目值，并完成15项与最终510项复验；不是生产逻辑故障或未知原因，不触发全量。测试不使用真实凭据或网络，用户配置未改，未做真实付费/模型质量/首答延迟验收；生产聊天未切换，无本地L3。
+
+本轮#244在0f914244 / CI39296775208 SUCCESS无finding后合main5cd917ad，#245在226c0d31 / CI39376484599 SUCCESS且两finding已解决后合main9ae37d4caac71935b75fc85c1b93c75502e466e9；前main5cd917ad push CI39376017114 SUCCESS，新main push CI39377570868后台。#246已重绑该main，heade663d9a654b4dca3b139aa6da704de632ca2e212 / CI39377648481后台；生产/测试树与已验证d7102e3a完全相同，复用277 PASS/94.49s且不借旧CI授予新head。先前凭据问题已由用户“只要deepseek”明确解除；当前仅DeepSeek配置与端点，不使用OpenAI服务，不再阻塞。唯一下一执行片：将DeepSeek会话接入可选服务入口并验证请求生命周期，继续按最新head审阅/CI逐片合main。
+
+**2026-10-20 CL-1G-2：DeepSeek专属SDK会话（本轮第二新功能片）。** branch codex/conversation-deepseek-session-20261020，固定base自身#252 2b9b9f5bc389d5e5e148aff91ed3c3f8c41423b3，不取其他窗口WIP。用户已选定仅DeepSeek，先前凭据问题已解除，不选择或使用OpenAI服务。DeepSeekConversationSettings只读取显式传入的DEEPSEEK_API_KEY、DEEPSEEK_MODEL_FLASH/PRO_NAME与DEEPSEEK_BASE_URL映射；没有OPENAI_*或通用model回退，密钥repr隐藏，endpoint仅HTTPS api.deepseek.com根/v1。owned单次异步session不触碰共享客户端，默认HTTP关闭重定向/环境代理，显式空SDK组织/项目/webhook避免继承OPENAI_*元数据；关闭后已有transport/generator也不能发送。提供同一transport给决策和BoundedAnswerGenerator，不切生产路由。
+
+使用真实SDK与httpx.MockTransport（内存假HTTP）验证序列化、完整两次调用loop、503仅一次、不自动重试、期限取消、拒绝跨提供方重定向与客户端关闭；所有配置/凭据均为显式fake，未发起真实网络/付费请求，不修改用户凭据。初始断言误把“无外部组织值”写成“完全无header”：SDK对显式空字符串发送空header，现断言其值为空且不继承foreign环境值，15项自身用例全部PASS/6.87s；生产代码未因此改变。mypy122/128 NEW0，Ruff/format PASS，最终命名门发布前另记。精确登记模块/测试CI与消费者，无前缀通配或强制门缩小，无本地L3。下一片：DeepSeek会话与生产服务的显式选择接线及观察回执，真实模型质量/首答延迟和货币费用仍另有验收门。
+
+**2026-10-20 CL-1G-1：仅DeepSeek传输适配器（本轮第一新功能片）。** 用户已明确“不用openai，只要deepseek”，覆盖此前待选状态；不使用OpenAI服务/配置，不发起真实付费调用。branch codex/conversation-model-transport-20261020，固定base自身#251 9f0c1f14b8b8702bcc5e6b28205798604590efe7，不取其他窗口WIP。DeepSeekConversationTransport接受宿主注入客户端和model，统一支持现有ModelDecisionRequest/ModelAnswerRequest；决策JSON object、回答正文，固定thinking disabled、stream false、每次SDK副本max_retries=0，验证预算参数并拒绝无法禁用重试的客户端。只收单条stop完成且无refusal/tool_calls的非空有界正文，截断/多choice不自动修复或重试；沿用原runner的准入/期限/过期与错误脱敏。本模块不读环境、不创建客户端、不授予费用/证据/发布权威；下一片才做DeepSeek专属配置及owned SDK生命周期，明确禁止OPENAI_*回退。精确登记新模块和测试CI路径。命名L1 conversation_deepseek_transport **495 PASS/128.64s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0；候选SHA以本段提交恢复，未改生产聊天/业务schema，无本地L3。
+
+本轮另已合#244到main5cd917ad，#245重绑head226c0d31 / CI39376484599后台、L1 394 PASS；#246 head d7102e3a / CI39376553152 SUCCESS、L1 277 PASS，仍按依赖顺序主线重绑，不能合入未过门的父片。根main已ff同步，4外部ZIP保留。
+
+**2026-10-20 本轮两片最终收口 / CL-1F-2。** 第二片已吸收自身#249最终48e41f6c3763e332c7ee084291f15c455b6ebf00（merge e1d47e8f，仅交接冲突保留双方），最终命名L1 conversation_answer_generator **471 PASS/115.19s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0，工作树在本段所属提交后干净。第一片最终456 PASS/155.57s，负控旧候选失败已留证；远端finding4316987054确认同一期限缺陷，已在最终48e41f6c修复并resolve，CI39297650133绑定该head后台，旧1a5ad399不借绿灯。第二片增量仅9文件（相对48e41f6c），PR与新head由本段所属提交及GitHub恢复；未取其他窗口WIP。
+
+#242已在91af16b5 / CI39262262003 SUCCESS / finding已解决后合main ab1e5ab4fc562fc8a64e504dde20e4ccef06536f；根main已ff同步且保留4个外部ZIP，exact-main push CI39296224656后台，前main cf70e688 CI39261429543 SUCCESS。#244重绑main后的head0f9142442e0a15bee84a32a7d88a9112b7d88e96 / CI39296775208后台，L1 132 PASS，不借旧head。无本地L3、SDK/真实付费调用、生产聊天/证据或发布权威切换；单次transport控制流不代表真实模型质量或首答延迟合格。唯一下一执行片：现有提供方传输合同的离线接线资格与生成费用边界，继续在后台CI期间独立推进，成熟片按新head审阅和CI逐片合main。
+
+**2026-10-20 CL-1F-2：loop原生受控回答生成（本轮第二片）。** branch codex/conversation-answer-generator-20261020，初始冻结base自身#249 1a5ad399b4792f5551cc08ff3bdbb6b22d6fae59；发布前显式吸收本轮#249最终期限修复，不取其他窗口WIP。新增BoundedAnswerGenerator与脱敏AnswerGenerationError，loop可选answer_generator使用内部latest投影读当前快照，工具后的最终回答不会被raw root身份误判；与旧answer_handler互斥，默认路径不变。保留外层动作/总时限、预算、去重和取消，内层再做生成准入与精确fresh检查；失败停止，不把错误当回答、不触发后续tool。原dispatch失败回执仍保守handler_error/unknown，不把生成失败升级成已发布或证据权威。可共享决策和回答总额度；新模块/测试精确登记，未知范围仍扩大。无SDK/真实付费调用/生产路由/业务schema或发布资格切换，无本地L3。初步命名L1 conversation_answer_generator **470 PASS/171.18s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0；本地冻结初片，吸收父片最终期限修复后的联合门另记，不以旧父片结果授予最终候选。下一执行片：基于已有提供方传输合同做离线接线资格，不扩大到自动付费或正式回答发布。
+**2026-10-21 #269主线重绑与CI观察竞态修复。** #266与#267分别在20766b28/CI39459399448、eb68ad1b/CI39554111731 SUCCESS且完整review无阻断后expected-head合main，当前main9de6b4aea45c2624f4e2b9ec07ed1cf1182ad5fe / push39611131236最后in_progress。此分支从9dfae10c吸收该main（无树冲突/生产变化），显式取自身独立96047bfb测试修复：killpg之后最多2秒观察停止、保留全部清理断言、活进程负控和/proc删除竞态处理。Linux20次实际执行8次立即仍活但20次均停止，原#278 run39593484878仅此时序断言失败，非确认生产逃逸。源修复直接影响集208 PASS，最终窄增量32 PASS；本分支同生产/测试树复用该证据，Ruff/diff-check另验。新SHA以本段提交恢复，改PR base main并推送绑定新CI；旧9df或子片旧绿灯不得借用。无src/workflow改动、本地L3或模型调用；后续自身CLI候选继续显式吸收本片冻结修复。
+
+**2026-10-20 #249重绑main：有界回答生成片。** branch codex/conversation-answer-runner-20261020，原已审阅48e41f6c3763e332c7ee084291f15c455b6ebf00，吸收已合#248的main069fc1267010580c2c74ba3c1bb92f0e459458a5，merge450614da；仅docs/manifest/精确CI路径冲突，保留自身answer_runner登记及双方交接，不取其他窗口WIP。生产answer_runner及自身测试与48e41f6c逐字一致，已包含结束快照读取后再次检查deadline的已解决审阅修复；与main仍为7文件独立增量。最终命名L1 conversation_answer_runner **456 PASS/123.69s**，mypy122/128 NEW0、Ruff/diff-check PASS；密钥检查与exact-head CI另记发布结果，无本地L3。根main已ff到069fc126且仅4个原未跟踪ZIP。本轮并行修#257入口审阅问题：开关先于正文解析，正文4KiB/2秒有界，负控5项在旧head实际失败。#256旧CI39388736380因frontend required汇总失败，诊断下载中，未放行合并；#257旧head80912bb0 CI39389277406 SUCCESS不能授予新修复head。下一片：本候选推送/重绑main后继续自身#251生成器接线的逐片整合，研究/模型真实质量与生产切换仍未验收。
+
+**2026-10-20 #249 最终期限修复。** 自审新增负控slow_completion_snapshot：发送及返回都在限内，但第三次（完成时）快照读取耗时超过总期限。旧1a5ad399确实返回completed，负控1 FAIL/34 deselected，日志D:/study-agent-validation/answer-deadline-negative.log。修复在输出校验后、交付前再次验证总期限，超时正文不交付且标unknown；长度检查先于strip。该缺陷局限于新opt-in runner，无共享/持久/生产权威变更，按L1复验，不以明确负控失败为未知原因强制全量。mypy122/128 NEW0，Ruff/format PASS；最终命名L1 conversation_answer_runner **456 PASS/155.57s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0；新候选SHA以本段提交恢复。修复将显式带入第二片，旧1a5ad399 / CI39296855483不能授予修复head。
+
+**2026-10-20 CL-1F-1：回答生成的有界调用（本轮第一片）。** branch codex/conversation-answer-runner-20261020，固定base自身#248 39e38bd37116397312971f284b02d63e37d70a98，不取其他窗口WIP。新增AnswerLimits/ModelAnswerRequest/AnswerResult与generate_conversation_answer，注入单次transport，无SDK或真实调用。answer阶段身份独立命名空间且不随提议措辞/阶段分类/可变摘要改变；精确累计系统说明及JSON数据字符，预留输出token；复用准入协议和自有SQLite实现，不变更schema。预留前、实际发送前及返回后核验精确快照；过期/换题不发或不交付，所有准入不退款不重试。超时/调用者取消不等待忽略取消的transport，迟到结果丢弃；异常只返回脱敏状态。已有决策和回答可共享同一总额度，不能将此台账称为货币费用授权。注册模块与测试两个精确CI路径，保留未知范围扩大。未接loop/生产聊天/付费模型/发布权威，无本地L3。命名L1 conversation_answer_runner **455 PASS/128.90s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0；候选SHA由本段提交恢复。下一片把生成器作为可选loop适配器并接入内部派生fresh快照，避免宿主错误地用raw root身份验最终回答。
+
+#242在91af16b5 / pull_request CI39262262003 SUCCESS / 原finding已解决后expected-head合入main ab1e5ab4（完整SHA以Git恢复）；#244已重绑该main，生产源与已合main相同，正在验证独立CI范围。#247/#248原冻结head CI39262160573/39262581250均SUCCESS且暂无finding，仍需依赖顺序逐片主线重绑，不能直接整线打包。
+
+
+**2026-10-22 CLI parent-fix binding.** Frozen parent dd70dc0474c134d9e1c7a025188d2f261f4de8fe; previous candidate 1c2291155eb6fb76c0fdaa75eacf4768a54c3408. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+
+**2026-10-22 CLI parent-fix binding.** Frozen parent 3741298283b2b8c4421f857eb168a1cfe3b461cf; previous candidate 440e8705425c939ac68b6a2b57965d392cf1c90b. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+
+**2026-10-22 CLI parent-fix binding.** Frozen parent 15c6b2d8e410266829a94181769c17ba42aa83a7; previous candidate 407c2373cd12e51967c83adaa14228d2560f492c. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+
+**2026-10-22 CLI parent-fix binding.** Frozen parent 14087de6e614b2028752b4a8cd2c19a050961247; previous candidate 4ff20cde16da8359a5688cf6323f6bea672a9413. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+
+**2026-10-22 CLI parent-fix binding.** Frozen parent 8f19c60cca76e9d3325d9fe5c084986fa6ad0567; previous candidate 928b0760d3c969c9c8422272ac24cf83e373232c. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+
+**2026-10-22 CLI parent-fix binding.** Frozen parent 6835a2b75300035a6c07ebd00e70e1e5ddaa2ba3; previous candidate c67cfbb7e0c7d8c2181f97f22d84e87b64146e82. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+
+**2026-10-22 #280事件归属审阅4337733124。** 有效finding：同SHA但push/其他PR的failed check曾覆盖identity gap而误报当前PR FAIL。现先核对suite/event/PR，身份不符立即保留BLOCKED，不能接纳其failure；main遇PR失败同理。三个负控覆盖push→PR、其他PR、PR→main。直接影响集212 PASS/60.09s（自身42项），Ruff/format/工具mypy/diff-check通过；#279规则分页thread PRRT_kwDOSYWoX86uyvo5已修并解决，本轮event修复推送后解决#280 thread PRRT_kwDOSYWoX86uzC8L。最终head以本段提交恢复；子CLI吸收后需联合门，不能借旧390项作为最终新行为证据。src/workflow不变、无本地L3/模型调用。后续仅main整合、当前head review/CI与完整真实run验收。
+
+**2026-10-21 CLI-04E归档数值比较。** branch codex/studyctl-recording-compare-20261021 / worktree D:/study-agent-validation/studyctl-recording-compare-20261021，独立固定自身#274 407c2373cd12e51967c83adaa14228d2560f492c，与事件分页为同父片兄弟分支，不依赖对方WIP。新增research compare，复用B5有界JSON读取/既有摘要投影，一次读取每输入避免重复读造成来源变化；仅同schema/run/完整问题与reference_date相同时计算已记录计数right-left。缺项delta=null，原停止码/门状态/缺证据提示分别保留，问题正文不输出；同一文件标same_artifact，各侧artifact SHA256独立。未知模型/执行配置/完整事件/引用支持明确缺失，固定PARTIAL，不做质量优劣或发布判定；不同任务/日期/坏记录阻断。自身14项通过，最终联合门与静态证据收口补记；src/历史产物不改，无L3/模型请求，CI遵用户要求后查。两个兄弟片最终整合时需保留parser/影响集精确路径并集，不覆盖另一片。
+**2026-10-22 CLI parent-fix binding.** Frozen parent 15c6b2d8e410266829a94181769c17ba42aa83a7; previous candidate 407c2373cd12e51967c83adaa14228d2560f492c. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A = CLOSED ✅`；`Deep-4B = NO-GO`；`Learning State-1 L1 = CLOSED ✅`（authority `0de80751`）；`Learning State-1 L2–L6 = 未 CLOSED`（下一门 = 验收收尾）；`UI = 后置`（独立交互合同另开一 PR）。
+
+
+**2026-10-22 CLI-05可信采集与全CLI合流候选最终门。** #280 branch codex/studyctl-ci-collect-20261021 / worktree D:/study-agent-validation/studyctl-ci-collect-20261021；冻结父#279 c2b5822e34a8360e88e4df84de566083e387f934、分页兄弟#275 9bd92f4f60b99ab74327cac4cc77bcd8d4aee8bf，保留compare/分页/CI parser、精确CI路径和命名影响集并集，冲突仅docs/manifest/CI路径。最终命名studyctl **409 PASS/1 SKIP/210.12s**，日志D:/study-agent-validation/studyctl-github-unified-final-l1-20261022.log；Ruff、四个变更模块format、8工具mypy、diff-check及唯一20文件scope通过，无src/workflow变化、本地L3、模型或真实研究请求。skip仍为Windows symlink权限。受测代码提交2f509c63，后续仅docs，最终SHA以本段提交恢复；最后secret与clean/实际CLI回执在提交后执行，不重复同树门。
+
+已完成可信只读采集（collect指定PR、main指定当前main/push，required合同/完整规则与review分页/身份前后核对/预算/脱敏）和两个有效审阅修复：4337605902规则分页、4337733124错event失败归属。#279 thread PRRT_kwDOSYWoX86uyvo5已解决，#280 thread PRRT_kwDOSYWoX86uzC8L在最终推送后解决。命令级回执D:/study-agent-validation/studyctl-github-cli-final-e2e-20261022/manifest.json，按实际观察保留pending、错head、dry-run阻断，不授予merge_authorized。之前真实资格采集支持#266/#267/#269 expected-head合main，当前main2b3e27648719c1fda9f2486c6de4ec584f1199d1；push39641686708最后in_progress，不能声称CLI全线REMOTE GO。
+
+父片冻结重绑清单/一次CI：D:/study-agent-validation/studyctl-rebound-candidates-20261022.json、studyctl-rebound-ci-once-20261022.json；#270 base已main/head3741298283b2b8c4421f857eb168a1cfe3b461cf/CI39642003837最后in_progress，其余后续同样新head后台，不借旧绿灯。下一唯一执行片：检查#270当前head完整审阅及精确CI，通过后expected-head合main，逐片推进#273/#274/#275/#276/#277/#278/#279/#280；分支合流/main验收与完整真实run业务样本仍未完成。根目录四个未跟踪ZIP保留，其他开发工作未动。
+
+**2026-10-21 CLI-05D实时采集命令。** branch codex/studyctl-ci-collect-20261021 / worktree D:/study-agent-validation/studyctl-ci-collect-20261021，固定自身#279 a24b9daae934a296a80992541fc0d5668eaacad2。ci collect显式PR/repository/SHA；ci main验证当前main与push事件；required-check只声明项目要求，不修改服务器规则。dry-run零网络/零输出写入并BLOCKED，已有output在网络前拒绝，所有API异常脱敏，外层代码SHA与所查远端SHA分列。命名studyctl 386 PASS/1 SKIP/190.50s（自身13项）；Ruff与explicit-package-bases工具mypy通过。另显式吸收自身独立测试修复96047bfb的tests/test_studyctl_execution.py（不取其他WIP），纯测试增量单独重验32项，生产树不变。
+
+#266精确20766b28 / pull_request CI39459399448 SUCCESS / 完整review无阻断后合main5f0e616e518ca3deb193778d9a17780eacd393a6，push39609573752最后in_progress；#267精确eb68ad1b / pull_request CI39554111731 SUCCESS / 完整review无阻断后合main9de6b4aea45c2624f4e2b9ec07ed1cf1182ad5fe，push39611131236最后in_progress。均expected-head保护，不等待CI才继续开发；根目录四个ZIP原样保留。#278旧head CI失败不可合并，测试修复正在#269重新绑定main及后续候选。真实可信采集已可用，但CLI全线main整合、完整真实run验收仍未完成；下一片按新head审阅与CI逐片收口，不扩展更多命令。无模型/付费请求、workflow/src改动或本地L3。
+**2026-10-22 #280事件归属审阅4337733124。** 有效finding：同SHA但push/其他PR的failed check曾覆盖identity gap而误报当前PR FAIL。现先核对suite/event/PR，身份不符立即保留BLOCKED，不能接纳其failure；main遇PR失败同理。三个负控覆盖push→PR、其他PR、PR→main。直接影响集212 PASS/60.09s（自身42项），Ruff/format/工具mypy/diff-check通过；#279规则分页thread PRRT_kwDOSYWoX86uyvo5已修并解决，本轮event修复推送后解决#280 thread PRRT_kwDOSYWoX86uzC8L。最终head以本段提交恢复；子CLI吸收后需联合门，不能借旧390项作为最终新行为证据。src/workflow不变、无本地L3/模型调用。后续仅main整合、当前head review/CI与完整真实run验收。
+
+**2026-10-22 CLI parent-fix binding.** Frozen parent fddeae9a502b9516ad48ce8240a7c3a0a4d868e3; previous candidate 970fc710b51862918c5f9c32ccd4c4ce13d074ea. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+**2026-10-22 #279审阅修复4337605902。** 有效finding：rules/branches接口默认分页，原单请求可能漏后续required check/未知门。现复用10页/100条/总deadline预算读取全部规则，规则无独立id，完整JSON指纹用于重复页校验；不足或超限阻断。两个负控明确旧第一页行为PASS，而第二页新增required check/未知门必须BLOCKED；另验页数耗尽。直接影响集209 PASS/60.45s（自身39项），Ruff/format/工具mypy/diff-check通过；不重复此前373项不变层。另吸收自身96047bfb的完整执行测试修复，与已验208+最终32项的测试/执行器blob相同。下一步绑定已冻结父片后推新head并解决该thread，不借旧head CI。
+
+#269最新dd70dc0474c134d9e1c7a025188d2f261f4de8fe / pull_request CI39611831046 SUCCESS、完整review无阻断后expected-head合main2b3e27648719c1fda9f2486c6de4ec584f1199d1。CLI后续候选已逐片吸收其冻结测试修复，仅docs/执行测试变化；src/tools/其余tests/manifest完全不变，复用旧层验证而不机械全量。下一唯一门仍是各新head审阅/CI与main资格，不增加新CLI功能。
+
+**CLI-05C最终本地门。** 命名studyctl 373 PASS/1 SKIP/203.31s（自身36项），Ruff、独立工具mypy、diff-check通过；skip仍为Windows symlink权限。真实采集13次请求/PR、11次/main；#266按已采精确head20766b28与完整审阅检查expected-head合入main5f0e616e（完整SHA见Git），新main push CI单独记录，不借旧main绿灯。原根目录四个review ZIP保留。下一片基于本片冻结提交接CLI；#278原CI竞态单独修复，不修改门或忽略失败。
+
+**2026-10-21 CLI-05C可信GitHub采集核心。** branch codex/studyctl-ci-live-20261021 / worktree D:/study-agent-validation/studyctl-ci-live-20261021，固定自身#278 c67cfbb7e0c7d8c2181f97f22d84e87b64146e82。新增只读gh适配器：固定github.com、只允许GET与固定GraphQL查询，90秒/80请求/每响应2MiB/每流10页；不继承调试/其他host设置、不输出响应错误正文。采集保护设置/生效rules、全部check runs/statuses/actions、完整threads和reviews，前后核对PR与base/policy。404只有admin权限且branch明确unprotected才能解释为无保护；空server政策仍须显式project required checks，否则BLOCKED。检查绑定SHA/app/suite/event/PR，skip/neutral/未知规则/缺权限/分页耗尽/状态变化阻断；PASS只证明观察到的GitHub检查与审阅门，merge_authorized仍false，本地验收与expected-head合并由调用者负责。
+
+真实只读回执D:/study-agent-validation/studyctl-github-live-smoke-20261021：#266精确20766b28 PASS、main精确069fc126 PASS；#278精确c67cfbb7 FAIL，run39593484878（pull_request）仅失败test_timeout_after_parent_exit_still_cleans_descendant，5028 PASS/6 SKIP，不借绿灯合并。初步自身36+CI路由76共112 PASS；联合门最终证据补记。无workflow/src变化、L3、模型或付费请求。下一片接ci collect/main入口，并单独修复Linux子进程停止观察竞态，再按当前head收口CLI候选。
+**2026-10-22 CLI parent-fix binding.** Frozen parent 6835a2b75300035a6c07ebd00e70e1e5ddaa2ba3; previous candidate c67cfbb7e0c7d8c2181f97f22d84e87b64146e82. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+**2026-10-21 CLI-05B最终本地门。** 命名studyctl **337 PASS/1 SKIP/181.26s**，含父片24个证据判定和本片13个CLI接线用例；七工具mypy、Ruff/新模块format/diff-check PASS，无src/workflow变化、L3或live查询。父片#277 head928b0760d3c969c9c8422272ac24cf83e373232c；本片最终SHA由本段所属提交恢复。提交后读取旧本地CI快照和构造step回执做实际CLI回放，明确不是当前GitHub状态或真实合并资格，回执D:/study-agent-validation/studyctl-ci-offline-e2e-20261021/manifest.json。当前建设缺口清单已写STUDYCTL与外部实施计划；下一正式片可信live采集，不扩展更多诊断命令。用户要求不等CI，本轮仅发布PR，不查询/等待CI或合main。
+
+**2026-10-21 CLI-05B离线CI命令接线。** branch codex/studyctl-ci-cli-20261021 / worktree D:/study-agent-validation/studyctl-ci-cli-20261021，基于自身已提交CLI-05A，吸收冻结事件补强928b0760d3c969c9c8422272ac24cf83e373232c（无其他工作树WIP）。新增ci inspect --snapshot/--github-repo/--pr/--exact-head和ci outcomes --receipt/--exact-head/--run-id/--event；参数缺失先拒绝，输入错误脱敏，外层CLI代码SHA与被检head分列。离线snapshot不能获merge GO；raw outcomes仅复用已有门作记录回放，真实性/当前PR资格不在此命令内。自身13 PASS/10.52s，包含禁止gh/网络子进程、跨checkout来源、实际entrypoint JSON；联合门吸收父修复后收口补记。无GitHub/CI查询、workflow修改、L3或模型请求。下一正式片是live required policy/check contexts/review/main采集，不以此离线入口声称CLI-05整体完成；STUDYCTL文档已列Study和其余五仓库剩余方向。
+**2026-10-22 CLI parent-fix binding.** Frozen parent 8f19c60cca76e9d3325d9fe5c084986fa6ad0567; previous candidate 928b0760d3c969c9c8422272ac24cf83e373232c. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+**2026-10-21 CLI-05A事件元数据补强。** 最终人工检查补上workflow event的类型/已知名称白名单，避免未知对象在诊断输出中回显任意内容；自身CI模块24 PASS/6.07s，Ruff/format/mypy/diff-check PASS，既有failed_steps与下层未变，不重跑同树下层门。最终CLI分支吸收此冻结修复后跑完整命名studyctl联合门，不能仅借前置323结果；此片最终SHA由本段提交恢复，CI仍后查。
+
+**2026-10-21 CLI-05A最终本地门。** 已冻结代码34eb2916c4360a6663bbc2d3c80f049212726426，命名studyctl **323 PASS/1 SKIP/176.40s**，含23个CI证据/原始outcome用例及原CI规则直接影响集；既有Windows symlink权限跳过。mypy、Ruff/新模块format/diff-check PASS，src/CI workflow未变、无L3或网络查询。此后仅文档收口，不重复同树门。最终SHA由本段提交恢复；下一自身分支只基于此已提交候选接CLI，CI仍留后查。完整live required checks/main证据采集还没实现，离线快照不能授予merge GO。
+
+**2026-10-21 CLI-05A离线CI证据核心。** branch codex/studyctl-ci-evidence-20261021 / worktree D:/study-agent-validation/studyctl-ci-evidence-20261021，固定自身#276 4ff20cde16da8359a5688cf6323f6bea672a9413。新studyctl_ci只读2MiB JSON，兼容已存prs/checks查询快照，绑定仓库URL/PR/head/event与review分页，不复制评论正文；缺policy/check contexts/live freshness/main证据不能GO，同head明确failure可FAIL，旧head或未知结论仅BLOCKED。另复用既有failed_steps回放raw outcome，不被conclusion假绿覆盖，pytest_impact及可选frontend/browser语义不改；可选离线step回执身份head/run/event与routing必须完整。raw回放PASS只证明提供记录满足步骤门，不代表authenticity或合并许可。无live GitHub调用/CI等待/工作流修改；CLI下一片接线。自身＋直接outcomes初步60 PASS/14.57s，补未知conclusion负控后联合门收口补记；src未变，无L3/模型费用。
+**2026-10-22 CLI parent-fix binding.** Frozen parent 14087de6e614b2028752b4a8cd2c19a050961247; previous candidate 4ff20cde16da8359a5688cf6323f6bea672a9413. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+**2026-10-21 CLI-04E最终本地门。** 命名studyctl **300 PASS/1 SKIP/174.67s**（自身14 PASS/12.79s），六工具mypy、Ruff/新增模块format/diff-check PASS，src与历史B5文件未变，无L3/模型调用。最终候选SHA由本段提交恢复，提交后记录同一Git归档真实CLI自比较回执；same_artifact=true/各计数delta0也固定PARTIAL，不能当两次实验或质量通过。兄弟分页片#275 headb964344ae409b08ed5f0425d2a18cc06b6f3bbf9已独立发布，L1 302 PASS/1 SKIP；二者同父407c但未相互合并，后续联合时需保留parser/命名影响集并集。用户要求不等CI，本轮不查CI、不合main。下一执行片CLI-05 exact-head CI只读核验，复用现有outcome规则，缺必需证据则BLOCKED，不运行或轮询工作流。
+
+**2026-10-21 CLI-04E归档数值比较。** branch codex/studyctl-recording-compare-20261021 / worktree D:/study-agent-validation/studyctl-recording-compare-20261021，独立固定自身#274 407c2373cd12e51967c83adaa14228d2560f492c，与事件分页为同父片兄弟分支，不依赖对方WIP。新增research compare，复用B5有界JSON读取/既有摘要投影，一次读取每输入避免重复读造成来源变化；仅同schema/run/完整问题与reference_date相同时计算已记录计数right-left。缺项delta=null，原停止码/门状态/缺证据提示分别保留，问题正文不输出；同一文件标same_artifact，各侧artifact SHA256独立。未知模型/执行配置/完整事件/引用支持明确缺失，固定PARTIAL，不做质量优劣或发布判定；不同任务/日期/坏记录阻断。自身14项通过，最终联合门与静态证据收口补记；src/历史产物不改，无L3/模型请求，CI遵用户要求后查。两个兄弟片最终整合时需保留parser/影响集精确路径并集，不覆盖另一片。
+**2026-10-22 CLI parent-fix binding.** Frozen parent 14087de6e614b2028752b4a8cd2c19a050961247; previous candidate b964344ae409b08ed5f0425d2a18cc06b6f3bbf9. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+**2026-10-21 CLI-04D最终本地门。** 命名studyctl **302 PASS/1 SKIP/181.26s**，自身事件页16 PASS/16.07s；五工具mypy、Ruff/新增模块format/diff-check PASS，src与历史归档未动，无L3或模型请求。既有Windows symlink权限用例仍跳过，未隐藏其他失败。最终SHA由本段提交恢复，提交后记录构造SQLite的实际分页命令回执，不将其当真实模型质量验收。兄弟比较分支基于同父407c，不依赖本片WIP；后续整合保留二者parser与影响集登记，CI留后查。
+
+**2026-10-21 CLI-04D有界事件页。** branch codex/studyctl-event-pages-20261021 / worktree D:/study-agent-validation/studyctl-event-pages-20261021，固定自身#274提交407c2373cd12e51967c83adaa14228d2560f492c。SQLite inspect默认50条、显式1～100条，游标绑定snapshot SHA256/run_id/sequence，坏格式参数错，跨源/未知位置阻断。total_event_count/events_returned/has_more/next_event_cursor明确内容范围；覆盖判据仍来自整条已验证state.trace，不把分页面输出当完整记录。B5 summary拒绝事件选项，不伪造timeline。自身聚焦与联合门结果收口补记；src/持久schema不动，无新研究/费用或L3。下一片已有B5诊断的只读数值差异，保持PARTIAL且不作质量优劣裁决；CI遵用户要求留后查。
+**2026-10-22 CLI parent-fix binding.** Frozen parent 15c6b2d8e410266829a94181769c17ba42aa83a7; previous candidate 407c2373cd12e51967c83adaa14228d2560f492c. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+**2026-10-21 CLI-04C干净提交命令验收。** 生产候选b054a58c7e37672541a0333c9a3b8892ddf2ea9c上实际执行5类CLI业务样例，结果PASS/0（历史空库目录）、FAIL/2（limit0）、BLOCKED/3（归档run身份不匹配）、PARTIAL/3（Git B5真实诊断）、FAIL/4且child1（系统Python无pytest的环境失败）。每条stdout单JSON，argv/head/原始退出码和stderr分开保留；输入B5/历史DB的SHA256前后相同，无旁文件。回执D:/study-agent-validation/studyctl-business-examples-20261021/manifest.json；不是新模型实验或真实研究质量验收。后续只有本文档与使用说明变化，复用同src/tools/tests树的286 PASS/1 SKIP、mypy/Ruff/format证据，不重跑全套。目录片#273 head440e8705425c939ac68b6a2b57965d392cf1c90b、归档片最终head由本段提交恢复，两片独立推送，CI遵用户要求未查。下一片有界事件分页；CI/main合并资格后续按对应head独立核对。
+
+**2026-10-21 CLI-04C最终本地门。** 命名studyctl **286 PASS/1 SKIP/118.48s**，含16个归档JSON回放/坏输入/真样本断言，继承目录片270 PASS/1 SKIP。五工具mypy、Ruff/新增模块format/diff-check PASS，src与历史B5文件未改，无本地L3或新真实研究。最终候选SHA由本段提交恢复；Git归档回放仍为PARTIAL，不转成研究质量GO。下一动作记录干净候选实际CLI的成功/参数错/前提阻断/环境执行失败回执，独立PR、CI留后查。
+
+**2026-10-21 CLI-04C：消费Git已归档B5真实诊断。** branch codex/studyctl-recorded-research-20261021 / worktree D:/study-agent-validation/studyctl-recorded-research-20261021，固定自身目录片#273 440e8705425c939ac68b6a2b57965d392cf1c90b。按用户“找找git”检查main历史路径清单后未见数据库快照，但找到B5真实smoke JSON；实际producer创建run b5_active_searxng_smoke、完成后从同一run投影ui_progress并删除临时SQLite。因此新增--artifact仅接受既有v2 schema，和--database二选一；2MiB、重复key/非有限数/坏计数/跨run拒绝，不导入live producer、不重建数据库或伪造事件。仅回显既有run/门状态、停止码和数值摘要；身份字段仅关联、UI不是Evidence Gate；问题/答案摘要不输出，缺计数null而非0，缺完整trace/支持事件固定PARTIAL/3。真实已提交样本得到partial/evidence_budget_exhausted、7候选/0读取/0 eligible，events=[]；不是重新研究或新模型质量验收。自身16项通过，五工具mypy、Ruff/format通过，联合命名门收口后补记；src/历史产物保持不变，无L3/费用。用户要求不等CI，后续push不查CI。下一动作：记录最终候选的实际CLI多类结果回执，再继续有界事件分页或其他仓库局部G0。
+**2026-10-22 CLI parent-fix binding.** Frozen parent 3741298283b2b8c4421f857eb168a1cfe3b461cf; previous candidate 440e8705425c939ac68b6a2b57965d392cf1c90b. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+**2026-10-21 CLI-04B最终验证。** 命名studyctl **270 PASS/1 SKIP/115.92s**，新增目录16项、四工具mypy、Ruff/新增模块format/diff-check PASS，src未变、无L3或模型调用。提交与PR以本段所属Git提交恢复；CI遵从用户“不等CI，先做后续”暂不查询。用户答复“找找git”后，已对main跟踪文件和main历史object路径建有界清单（D:/study-agent-validation/studyctl-{git-evidence-files,main-object-paths}-20261021.txt），未找到跟踪的SQLite快照；找到已提交B5_ACTIVE_SEARXNG_SMOKE.json（blob e8b43a243b01051d90e4945d07709790d121638d，归档提交cbb6ba0a0ddceb0ac4eb314ab3119b505ab9e099），实际run为partial/evidence_budget_exhausted且仅含诊断摘要。下一片优先支持此既有JSON的只读兼容解释，保留缺时间线/支持事件的PARTIAL；事件分页后续另片，不把汇总伪造为完整trace或SQLite。
+
+**2026-10-21 CLI-04B离线运行目录。** branch codex/studyctl-research-catalog-20261021 / worktree D:/study-agent-validation/studyctl-research-catalog-20261021，基于自身已提交#270 1c2291155eb6fb76c0fdaa75eacf4768a54c3408，不依赖其他开发WIP。新增research list，显式离线快照，复用原只读内存连接/64MiB/2秒预算；只列run ID/status/stage/stop_reason，二进制顺序、1～100条分页，游标绑定文件SHA256，变化阻断。空目录PASS仅代表读取成功，不代表研究验收；坏metadata不静默跳过，未知/过期游标分参数错与快照前提不足。自身16项通过，最终联合门/静态检查以收口结果补记。没有修改src、数据库schema、真实用户设置或调用模型；CI按用户要求留后查。
+
+实际样本发现仅做有界路径检索：r1c-audit、async-r1c-isolated、r1c-test-hardening历史logs/runtime/study_agent.db均544768B、最后写入2026-10-17且无旁文件；新CLI只读内存目录三份均PASS/runs=[]，不依赖其WIP源码、不将这些空库说成真实研究质量通过。原始文件未执行SQLite连接、迁移/恢复/写入。真实run快照样本仍缺，已异步询问路径且不阻断独立开发；资格回执区分构造记录和真实任务。下一片：有界事件分页，复用此冻结目录片与既有研究状态校验，不新增研究调度器。
+**2026-10-22 CLI parent-fix binding.** Frozen parent dd70dc0474c134d9e1c7a025188d2f261f4de8fe; previous candidate 1c2291155eb6fb76c0fdaa75eacf4768a54c3408. Only handoff and the verified execution-test repair changed; all other src/tools/tests/gate trees are unchanged. Executor and complete execution-test blobs match 96047bfb (208 PASS impact set plus final 32 PASS); reuse the previous candidate's unchanged-layer gates. No local L3 or workflow/model calls. New exact-head CI/review is required; old green is not reused. Next: merge only after this candidate qualifies.
+
+**2026-10-21 八条审阅意见最终收口。** #267四个修复冻结eb68ad1bb68af5ceb4f543dc2454db857dcecfbb，L1 176 PASS/57.90s；#269执行修复4a440f386e48e7a9882cd3309f731e8b8ada4820吸收父片后代码merge c12a0ea9fef017ef58391dc8dfd0b0af85968ba7，L1 207 PASS/73.73s，最终文档收口9dfae10c16dd2c20d2e175b704ac988bedcb8510。#270自身SHA归属修复8a06d49324872ce858fb9a4bcafbac54ff80b999，吸收c12后merge29af0040c62178a8e608bc9e6f6bef4303eebeec，最终联合命名studyctl **254 PASS/1 SKIP/99.31s**（Windows symlink权限限制）；再吸收9df仅docs变化，已核对src/tools/tests树相对29af无变化，不重跑同树门。冲突仅handoff保留双方、parser保留research子命令并使用新显式L3预算，未重开合同。四个CLI/stage工具mypy、Ruff、新改模块format、diff-check PASS，src未动，secret扫描以本次外部报告恢复；无L3/真实模型/费用。BallWar #7折叠修复1f8d19bd412afe069a3b7e5ab551b7470931c85a，12runner/40设置断言通过且旧实现负控FAIL。所有修复推送后解决原八线程并仅查一次新head CI，未把旧绿灯授予新head；当前PR/CI快照另存D:/study-agent-validation/cli-review-fixes-closeout-20261021.json。最终本分支SHA由本段所属提交恢复，下一片既有离线研究快照的可用性验收，待成熟小片按新HEAD证据依序合main，保留原混合工作树。
+
+**2026-10-21 CLI-04审阅修复（#270来源SHA）。** 固定自身5c59eb8c775cc37d77e1b8d3a5f9b5c27bc11566初始clean；--repo仍可指向其他checkout，但research inspect的外层head_sha改用实际CLI ROOT提交，指定repo的SHA独立保存requested_repo_head_sha并列inspection_root，不和输入snapshot_sha256混用。新增两个不同真实Git checkout的回归验证归属；自身 **24 PASS/1 SKIP/17.63s**（既有Windows symlink权限跳过），初次新测试漏import引发NameError，仅补测试导入后通过，非产品异常。无真实研究/数据库写入。下一动作：吸收#267/#269冻结修复后跑联合命名门、静态检查并推送，最终SHA以本段提交恢复，不借旧CI或其他工作树WIP。
+
+**2026-10-21 CLI-04：只读research inspect候选。** branch codex/studyctl-research-inspect-20261021 / worktree D:/study-agent-validation/studyctl-research-inspect-20261021，固定自身#269提交807fdea6a0969c7889bd7fbafbc3aac0a9d3a122，不取其他开发工作树WIP。显式--run与--database，读取一致离线SQLite快照到内存，仅SELECT指定run，不调用RuntimeDatabase初始化/迁移/恢复；64MiB文件预算、JSON列2Mi字符预算、SQLite查询2秒预算，拒绝WAL/SHM/journal旁文件。复用known_research_evidence_ids/load_claim_engine_state，不新建EvidenceRuntime或质量门，不扫描答案或更改停止码。只投影记录事件，跨run timeline拒绝归属，搜索/读取/引用支持/停止四类缺失证据为PARTIAL/3，坏快照/JSON/缺列/缺run为BLOCKED/3；PASS只指检查记录完备，不授予答案或发布权威。输入快照SHA256和CLI head分开，在线/大库读取后续独立处理。
+
+前置CLI-03现为#269 head807fdea6；干净源码真实CLI执行conversation_decision_admission **114 PASS/32.29s**，回执D:/study-agent-validation/studyctl-run-venv-clean-e2e-20261021.json记录同SHA、前后tracked/untracked均0、uncommitted_source=false。曾误用系统Python3.14导致缺pytest，CLI正确返回FAIL/4并保留child_exit_code=1；改用项目既有venv后通过，未安装依赖或更改全局环境。本轮用户明确“CI回头查，先做后面的”：后续push不查询/等待CI，PR继续独立发布；不宣称REMOTE GO或main已合并。BallWar设置已修、迁移候选#7 head ecd582d1128b1dc5192b444ba66dc70d054c8e79，12原生runner/34设置断言通过，#8已合入该候选分支，尚未合main；本轮未追加CI轮询。原混合工作树保留。
+
+CLI-04联合命名studyctl **246 PASS/141.45s**，含CLI全栈、直接state/trace/memory与CI门合同；最终增加路径规范化/目录拒绝后仅重跑直接影响集，自身 **23 PASS/1 SKIP/26.87s**（Windows无symlink权限，真实软链接负控跳过），不重复未变更的下层合同门。三个CLI模块mypy PASS，src相对807f无变化，复用src122/128 NEW0；Ruff/新增模块format/diff-check PASS，无本地L3、真实模型或付费调用。最终SHA由本段提交恢复，远端CI待后查。下一执行片：基于既有离线研究快照做诊断可用性验收；CI与合并在后续统一核对，不建立新调度器、SDK或真实研究调用。
 **2026-10-21 #269主线重绑与CI观察竞态修复。** #266与#267分别在20766b28/CI39459399448、eb68ad1b/CI39554111731 SUCCESS且完整review无阻断后expected-head合main，当前main9de6b4aea45c2624f4e2b9ec07ed1cf1182ad5fe / push39611131236最后in_progress。此分支从9dfae10c吸收该main（无树冲突/生产变化），显式取自身独立96047bfb测试修复：killpg之后最多2秒观察停止、保留全部清理断言、活进程负控和/proc删除竞态处理。Linux20次实际执行8次立即仍活但20次均停止，原#278 run39593484878仅此时序断言失败，非确认生产逃逸。源修复直接影响集208 PASS，最终窄增量32 PASS；本分支同生产/测试树复用该证据，Ruff/diff-check另验。新SHA以本段提交恢复，改PR base main并推送绑定新CI；旧9df或子片旧绿灯不得借用。无src/workflow改动、本地L3或模型调用；后续自身CLI候选继续显式吸收本片冻结修复。
 
 **2026-10-21 #269最终父片合流。** 自身修复4a440f386e48e7a9882cd3309f731e8b8ada4820显式吸收已提交父片#267 eb68ad1bb68af5ceb4f543dc2454db857dcecfbb，merge c12a0ea9fef017ef58391dc8dfd0b0af85968ba7；仅Current Handoff冲突，保留双方，源码自动合并。最终联合命名studyctl **207 PASS/73.73s**，CLI/stage resolver三模块mypy、Ruff/format/diff-check PASS，src未变。旧实现的四个计划负控均实际FAIL；旧L3默认300秒在新增测试中错误启动执行器，负控实际FAIL。后续仅文档收口，不重复同树测试；最终推送SHA由本段提交恢复。下一片#270只吸收此冻结候选与自身来源SHA修复，不接其他窗口WIP。CI推送后一次记录，不等待才推进；无L3或真实模型调用。

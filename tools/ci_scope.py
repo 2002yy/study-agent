@@ -23,7 +23,7 @@ import sys
 _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "developer-cli",
-        ("tools/studyctl.py", "tools/studyctl_execution.py", "tests/test_studyctl.py", "tests/test_studyctl_plan.py", "tests/test_studyctl_execution.py"),
+        ("tools/studyctl.py", "tools/studyctl_execution.py", "tools/studyctl_research.py", "tools/studyctl_recording.py", "tools/studyctl_compare.py", "tools/studyctl_ci.py", "tools/studyctl_github.py", "tests/test_studyctl_github.py", "tests/test_studyctl_github_cli.py", "tests/test_studyctl.py", "tests/test_studyctl_plan.py", "tests/test_studyctl_execution.py", "tests/test_studyctl_research.py", "tests/test_studyctl_catalog.py", "tests/test_studyctl_recording.py", "tests/test_studyctl_compare.py", "tests/test_studyctl_ci.py", "tests/test_studyctl_ci_cli.py", "tests/test_studyctl_event_pages.py"),
     ),
     (
         "conversation-decision",
@@ -37,6 +37,14 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "src/application/conversation_loop_session.py",
             "src/application/conversation_observation_trail.py",
             "src/application/conversation_answer_input.py",
+            "src/application/conversation_answer_runner.py",
+            "src/application/conversation_answer_generator.py",
+            "src/application/conversation_deepseek_transport.py",
+            "src/application/conversation_deepseek_session.py",
+            "src/application/conversation_deepseek_service.py",
+            "src/application/conversation_progress_stream.py",
+            "src/application/conversation_owned_binding.py",
+            "src/api/routes/conversation_events_routes.py",
             "tests/test_conversation_decision.py",
             "tests/test_conversation_decision_runner.py",
             "tests/test_conversation_action_dispatch.py",
@@ -46,6 +54,14 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "tests/test_conversation_loop_session.py",
             "tests/test_conversation_observation_trail.py",
             "tests/test_conversation_answer_input.py",
+            "tests/test_conversation_answer_runner.py",
+            "tests/test_conversation_answer_generator.py",
+            "tests/test_conversation_deepseek_transport.py",
+            "tests/test_conversation_deepseek_session.py",
+            "tests/test_conversation_deepseek_service.py",
+            "tests/test_conversation_progress_stream.py",
+            "tests/test_conversation_owned_binding.py",
+            "tests/test_conversation_events_routes.py",
         ),
     ),
     (

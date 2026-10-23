@@ -12,12 +12,30 @@ from tools.ci_scope import classify, classify_path
 def test_studyctl_exact_paths_use_registered_cli_stack_and_unknown_stays_broad():
     from tools.run_stage_gate import load_manifest, resolve
 
-    scope = classify(["tools/studyctl.py", "tools/studyctl_execution.py", "tests/test_studyctl.py", "tests/test_studyctl_plan.py", "tests/test_studyctl_execution.py"])
+    scope = classify(["tools/studyctl.py", "tools/studyctl_execution.py", "tools/studyctl_research.py", "tests/test_studyctl.py", "tests/test_studyctl_plan.py", "tests/test_studyctl_execution.py", "tests/test_studyctl_research.py"])
     assert scope["impact_set"] == "studyctl"
     assert not scope["frontend_required"] and not scope["browser_required"]
     paths = resolve(load_manifest(), impact_set="studyctl")
     assert "tests/test_studyctl.py" in paths
     assert "tests/test_ci_scope.py" in paths
+    assert "tests/test_studyctl_research.py" in paths
+    assert "tests/test_research_quality_state.py" in paths
+    assert "tests/test_studyctl_catalog.py" in paths
+    assert classify(["tests/test_studyctl_catalog.py"])["impact_set"] == "studyctl"
+    assert "tests/test_studyctl_recording.py" in paths
+    assert "tests/test_studyctl_compare.py" in paths
+    assert "tests/test_studyctl_ci.py" in paths
+    assert "tests/test_studyctl_ci_cli.py" in paths
+    assert "tests/test_studyctl_github.py" in paths
+    assert "tests/test_studyctl_github_cli.py" in paths
+    assert classify(["tests/test_studyctl_github_cli.py"])["impact_set"] == "studyctl"
+    assert classify(["tools/studyctl_github.py", "tests/test_studyctl_github.py"])["impact_set"] == "studyctl"
+    assert classify(["tests/test_studyctl_ci_cli.py"])["impact_set"] == "studyctl"
+    assert classify(["tools/studyctl_ci.py", "tests/test_studyctl_ci.py"])["impact_set"] == "studyctl"
+    assert classify(["tools/studyctl_compare.py", "tests/test_studyctl_compare.py"])["impact_set"] == "studyctl"
+    assert "tests/test_studyctl_event_pages.py" in paths
+    assert classify(["tests/test_studyctl_event_pages.py"])["impact_set"] == "studyctl"
+    assert classify(["tools/studyctl_recording.py", "tests/test_studyctl_recording.py"])["impact_set"] == "studyctl"
     assert classify(["tools/studyctl_other.py"])["full_scope"]
 
 
@@ -41,6 +59,22 @@ def test_exact_conversation_decision_paths_select_their_registered_impact_set():
         "tests/test_conversation_observation_trail.py",
         "src/application/conversation_answer_input.py",
         "tests/test_conversation_answer_input.py",
+        "src/application/conversation_answer_runner.py",
+        "tests/test_conversation_answer_runner.py",
+        "src/application/conversation_answer_generator.py",
+        "tests/test_conversation_answer_generator.py",
+        "src/application/conversation_deepseek_transport.py",
+        "tests/test_conversation_deepseek_transport.py",
+        "src/application/conversation_deepseek_session.py",
+        "tests/test_conversation_deepseek_session.py",
+        "src/application/conversation_deepseek_service.py",
+        "tests/test_conversation_deepseek_service.py",
+        "src/application/conversation_progress_stream.py",
+        "tests/test_conversation_progress_stream.py",
+        "src/application/conversation_owned_binding.py",
+        "tests/test_conversation_owned_binding.py",
+        "src/api/routes/conversation_events_routes.py",
+        "tests/test_conversation_events_routes.py",
     ]
     for path in paths:
         result = classify([path])
@@ -73,6 +107,13 @@ def test_loop_mapping_covers_actual_modules_and_complete_registered_consumer_sta
         "conversation_loop_session",
         "conversation_observation_trail",
         "conversation_answer_input",
+        "conversation_answer_runner",
+        "conversation_answer_generator",
+        "conversation_deepseek_transport",
+        "conversation_deepseek_session",
+        "conversation_deepseek_service",
+        "conversation_progress_stream",
+        "conversation_owned_binding",
     ):
         module = f"src/application/{name}.py"
         test = f"tests/test_{name}.py"
