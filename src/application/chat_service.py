@@ -1650,6 +1650,8 @@ class ChatService:
                 command,
                 user_input=retry_parent.user_message,
                 thread_id=retry_parent.thread_id,
+                # Retry the original question with its server-validated attachments.
+                attachment_refs=[dict(ref) for ref in retry_parent.attachment_refs],
             )
         existing = self.repository.get_chat_turn(command.turn_id) if command.turn_id else None
         if existing is not None and command.thread_id and existing.thread_id != command.thread_id:

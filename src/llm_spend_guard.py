@@ -451,6 +451,17 @@ def _output_upper_bound(max_tokens: int | None) -> int:
     return DEFAULT_OUTPUT_TOKENS
 
 
+def enforce_output_limit(max_tokens: int | None) -> int | None:
+    """Give capped model requests the actual output limit used by the ledger."""
+    if spend_cap_cny() is None and not experiment_id():
+        return max_tokens
+    if max_tokens is not None and (
+        not isinstance(max_tokens, int) or isinstance(max_tokens, bool) or max_tokens <= 0
+    ):
+        raise SpendConfigurationError("capped model calls require a positive max_tokens")
+    return _output_upper_bound(max_tokens)
+
+
 def reservation_cny(*, prompt_chars: int, max_tokens: int | None, attempts: int) -> float:
     """Worst-case cost of one call and its bounded retries."""
 

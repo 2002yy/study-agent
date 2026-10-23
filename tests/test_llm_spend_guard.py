@@ -93,3 +93,84 @@ def test_vision_call_reserves_before_any_request(monkeypatch, tmp_path: Path):
     # The cap is exceeded, so the guard raises *before* any provider request.
     with pytest.raises(SpendLimitExceeded):
         describe_image_with_deepseek(image)
+
+
+def test_capped_request_uses_the_same_output_bound_on_wire_and_in_ledger(monkeypatch):
+    from src.llm_client import _build_request_kwargs
+    from src.llm_spend_guard import SpendConfigurationError
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("DEEPSEEK_MODEL_FLASH_NAME", "deepseek-flash")
+    _configure(monkeypatch, cap="1", input_price="0", output_price="1")
+    monkeypatch.setenv("LLM_SPEND_DEFAULT_MAX_TOKENS", "128")
+    base = dict(
+        messages=[{"role": "user", "content": "test"}],
+        temperature=0.0, model_profile="flash", provider_profile="deepseek",
+        task_name="regular_chat", max_tokens=None, timeout=5.0,
+        response_format=None, stream=False,
+    )
+    request = _build_request_kwargs(**base)
+    assert request["max_tokens"] == 128
+    assert spent_cny() >= 128 / 1_000_000
+    with pytest.raises(SpendConfigurationError, match="positive"):
+        _build_request_kwargs(**{**base, "max_tokens": 0})
+    monkeypatch.delenv("LLM_SPEND_CAP_CNY")
+    assert "max_tokens" not in _build_request_kwargs(**base)
+
+
+def test_tool_schemas_and_assistant_arguments_are_charged(monkeypatch):
+    from src.llm_client import _build_request_kwargs, _prompt_chars
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("DEEPSEEK_MODEL_FLASH_NAME", "deepseek-flash")
+    _configure(monkeypatch, cap="0.001", input_price="1", output_price="0")
+    base = dict(
+        temperature=0.0, model_profile="flash", provider_profile="deepseek",
+        task_name="tool_planner", max_tokens=16, timeout=5.0,
+        response_format=None, stream=False,
+    )
+    with pytest.raises(SpendLimitExceeded):
+        _build_request_kwargs(
+            **base, messages=[{"role": "user", "content": "hi"}],
+            tools=[{"type": "function", "function": {
+                "name": "query", "description": "x" * 5000,
+            }}],
+        )
+    reset_spend()
+    with pytest.raises(SpendLimitExceeded):
+        _build_request_kwargs(
+            **base, messages=[{"role": "assistant", "content": "",
+                "tool_calls": [{"id": "c1", "type": "function", "function": {
+                    "name": "query", "arguments": "x" * 5000,
+                }}]}],
+        )
+    assert _prompt_chars([{"role": "assistant", "tool_calls": [
+        {"function": {"arguments": "x" * 100}}]}]) > 100
+
+
+def test_tool_loop_rejects_oversized_schema_before_provider_call(monkeypatch):
+    from src.llm_client import run_tool_loop
+    from types import SimpleNamespace
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("DEEPSEEK_MODEL_FLASH_NAME", "deepseek-flash")
+    _configure(monkeypatch, cap="0.001", input_price="1", output_price="0")
+    sends = []
+    class Fake:
+        def create(self, **kwargs):
+            sends.append(kwargs)
+            raise AssertionError("budget check should run first")
+
+    monkeypatch.setattr("src.llm_client.get_client", lambda **_: SimpleNamespace(
+        chat=SimpleNamespace(completions=Fake()),
+    ))
+    with pytest.raises(SpendLimitExceeded):
+        run_tool_loop(
+            [{"role": "user", "content": "short"}],
+            tools=[{"type": "function", "function": {
+                "name": "huge", "description": "x" * 5000,
+            }}],
+            execute_tool=lambda name, args: {},
+            model_profile="flash", provider_profile="deepseek",
+        )
+    assert sends == []

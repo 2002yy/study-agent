@@ -150,3 +150,40 @@ def test_retry_does_not_replace_a_stored_binding(tmp_path):
     assert stored is not None and stored.attachment_refs[0]["attachment_id"] == first.id
     rebound = repository.bind_turn_attachments("turn-1", [{"attachment_id": second.id}])
     assert rebound.attachment_refs[0]["attachment_id"] == second.id
+
+
+@pytest.mark.parametrize("service_class", [
+    "src.application.chat_service.ChatService",
+    "src.application.policy_chat_service.PolicyChatService",
+])
+def test_retry_preserves_server_owned_attachment_refs(tmp_path, monkeypatch, service_class):
+    from importlib import import_module
+    from src.application.chat_service import ChatCommand
+
+    repository, attachments = _context(tmp_path)
+    ready = _ready(attachments, "thread-a", "original.md")
+    original = {"attachment_id": ready.id, "content_hash": ready.content_hash,
+                "filename": "original.md"}
+    repository.add_chat_turn(ChatTurn(
+        id="original-turn", thread_id="thread-a", user_message="original question",
+        status="failed", attachment_refs=(original,),
+    ))
+    module, name = service_class.rsplit(".", 1)
+    service = getattr(import_module(module), name)(repository)
+    command, existing, parent = service._validate_turn_command(ChatCommand(
+        user_input="untrusted new question", thread_id="thread-a",
+        retry_of_turn_id="original-turn",
+        attachment_refs=[{"attachment_id": "client-swapped"}],
+    ))
+    assert existing is None and parent is not None
+    assert command.user_input == "original question"
+    assert command.attachment_refs == [original]
+
+    repository.add_chat_turn(ChatTurn(
+        id="retried-turn", thread_id="thread-a", user_message=command.user_input,
+        status="pending", attachment_refs=tuple(command.attachment_refs),
+    ))
+    import src.application.runtime_repository as runtime_repository
+    monkeypatch.setattr(runtime_repository, "get_session_attachment_service", lambda: attachments)
+    material = _turn_attachment_material(repository, "retried-turn")
+    assert len(material) == 1 and material[0]["attachment_id"] == ready.id

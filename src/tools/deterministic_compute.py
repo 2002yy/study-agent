@@ -126,6 +126,8 @@ def _eval_binop(node: ast.BinOp, names: Mapping[str, float]) -> float:
             return _finite(left**right)
     except ZeroDivisionError as exc:
         raise ComputeError("division by zero") from exc
+    except OverflowError as exc:
+        raise ComputeError("arithmetic overflow") from exc
     raise ComputeError("unsupported operator")
 
 
@@ -138,9 +140,11 @@ def _eval_call(node: ast.Call, names: Mapping[str, float]) -> float:
     if not low <= len(node.args) <= high:
         raise ComputeError(f"{node.func.id} received an invalid number of arguments")
     args = [_eval_node(arg, names) for arg in node.args]
+    if node.func.id == "pow" and abs(float(args[1])) > MAX_POWER:
+        raise ComputeError("exponent is out of bounds")
     try:
         return _finite(func(*args))
-    except (TypeError, ValueError, statistics.StatisticsError) as exc:
+    except (TypeError, ValueError, OverflowError, ZeroDivisionError, statistics.StatisticsError) as exc:
         raise ComputeError(f"{node.func.id} failed: {exc}") from exc
 
 

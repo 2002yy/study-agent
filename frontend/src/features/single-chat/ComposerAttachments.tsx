@@ -116,6 +116,10 @@ export function ComposerAttachments({
     setBusyId(attachmentId);
     try {
       await deleteSessionAttachment(attachmentId);
+      // A deleted attachment must not remain in this message's selection.
+      if (onSelectionChange && selectedIds.includes(attachmentId)) {
+        onSelectionChange(selectedIds.filter(id => id !== attachmentId));
+      }
       await refresh();
     } catch {
       setError("附件删除失败");

@@ -152,4 +152,30 @@ describe("ComposerAttachments", () => {
     await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith(["a3"]));
     expect(await screen.findByRole("button", { name: "选择附件 pending.pdf" })).toBeDisabled();
   });
+
+  it("clears only a successfully deleted attachment from selection", async () => {
+    const remaining = attachment({ id: "a2", filename: "keep.pdf" });
+    listSessionAttachments.mockResolvedValue({
+      attachments: [attachment(), remaining], max_files_per_thread: 5, total_bytes: 4096,
+    });
+    deleteSessionAttachment.mockResolvedValue(undefined);
+    const onSelectionChange = vi.fn();
+    render(<ComposerAttachments sessionId="s1" selectedIds={["a1", "a2"]} onSelectionChange={onSelectionChange} />);
+    await screen.findByText("notes.pdf");
+    fireEvent.click(screen.getByRole("button", { name: "移除附件 notes.pdf" }));
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith(["a2"]));
+  });
+
+  it("leaves selection intact on failed deletion", async () => {
+    listSessionAttachments.mockResolvedValue({
+      attachments: [attachment()], max_files_per_thread: 5, total_bytes: 2048,
+    });
+    deleteSessionAttachment.mockRejectedValue(new Error("offline"));
+    const onSelectionChange = vi.fn();
+    render(<ComposerAttachments sessionId="s1" selectedIds={["a1"]} onSelectionChange={onSelectionChange} />);
+    await screen.findByText("notes.pdf");
+    fireEvent.click(screen.getByRole("button", { name: "移除附件 notes.pdf" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("附件删除失败");
+    expect(onSelectionChange).not.toHaveBeenCalled();
+  });
 });

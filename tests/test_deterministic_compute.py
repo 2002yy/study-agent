@@ -58,3 +58,19 @@ def test_non_finite_and_oversized_inputs_are_rejected():
         summarize([1, 2], ["bogus"])
     with pytest.raises(ComputeError):
         comparison_table({"A": list(range(5000))})
+
+
+@pytest.mark.parametrize("expression", [
+    "pow(2, 13)", "pow(2, -13)", "pow(2, 1000000000)",
+    "pow(10, 12 + 1)", "2 ** 13",
+])
+def test_callable_pow_enforces_same_exponent_limit_as_operator(expression):
+    with pytest.raises(ComputeError, match="exponent"):
+        evaluate_expression(expression)
+
+
+def test_pow_acceptable_exponent_and_overflow():
+    assert evaluate_expression("pow(2, 12)") == 4096
+    assert evaluate_expression("2 ** 12") == 4096
+    with pytest.raises(ComputeError):
+        evaluate_expression("pow(1e308, 12)")

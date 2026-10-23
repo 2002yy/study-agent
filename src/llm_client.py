@@ -423,6 +423,8 @@ def _build_request_kwargs(
     timeout: float | None,
     response_format: ResponseFormat | None,
     stream: bool,
+    extra_body: Mapping[str, Any] | None = None,
+    tools: list[dict] | None = None,
     request_key: str | None = None,
     request_max_retries: int | None = None,
 ) -> dict[str, Any]:
@@ -443,18 +445,24 @@ def _build_request_kwargs(
         ),
     }
 
-    resolved_max_tokens = _resolve_max_tokens(max_tokens, task_name)
+    from src.llm_spend_guard import enforce_output_limit, require_allowed_model, reserve_call
+
+    resolved_max_tokens = enforce_output_limit(_resolve_max_tokens(max_tokens, task_name))
     if resolved_max_tokens is not None:
         kwargs["max_tokens"] = resolved_max_tokens
 
     resolved_response_format = _resolve_response_format(response_format, task_name)
     if resolved_response_format is not None:
         kwargs["response_format"] = resolved_response_format
+    # Include the full wire payload in the reservation before sending.
+    if extra_body is not None:
+        kwargs["extra_body"] = dict(extra_body)
+    if tools is not None:
+        kwargs["tools"] = tools
+        kwargs["tool_choice"] = "auto"
 
     # Enforce the paid-run cap *before* the request leaves the process.  Retries
     # happen inside the SDK, so the reservation covers ``retries + 1`` attempts.
-    from src.llm_spend_guard import require_allowed_model, reserve_call
-
     # An experiment can pin the model ids it will pay for: a profile is not a
     # model, and the reservation was computed for a specific one.
     require_allowed_model(
@@ -462,7 +470,7 @@ def _build_request_kwargs(
         purpose=f"chat:{task_name or ('stream' if stream else 'call')}",
     )
     reserve_call(
-        prompt_chars=_prompt_chars(messages),
+        prompt_chars=_prompt_chars([kwargs]),
         max_tokens=resolved_max_tokens,
         attempts=_effective_attempts(provider_profile, request_max_retries),
         purpose=f"chat:{task_name or ('stream' if stream else 'call')}",
@@ -473,25 +481,11 @@ def _build_request_kwargs(
 
 
 def _prompt_chars(messages: list[dict]) -> int:
-    """Conservative upper bound on prompt size (evidence, not measurement)."""
+    """Conservative JSON character proxy, including tool calls, schemas and metadata.
 
-    total = 0
-    for message in messages:
-        content = message.get("content")
-        if isinstance(content, str):
-            total += len(content)
-        elif isinstance(content, list):
-            for part in content:
-                if not isinstance(part, dict):
-                    continue
-                text = part.get("text")
-                if isinstance(text, str):
-                    total += len(text)
-                image = part.get("image_url")
-                if isinstance(image, dict) and isinstance(image.get("url"), str):
-                    # A data URL's base64 payload is charged as a token proxy.
-                    total += len(image["url"])
-    return total
+    ASCII escaping counts non-ASCII text and structured content conservatively.
+    """
+    return len(json.dumps(messages, ensure_ascii=True, sort_keys=True, default=str))
 
 
 def _max_attempts(provider_profile: str | None) -> int:
@@ -551,11 +545,10 @@ def stream_chat(
         timeout=timeout,
         response_format=response_format,
         stream=True,
+        extra_body=extra_body,
         request_key=request_key,
         request_max_retries=request_max_retries,
     )
-    if extra_body is not None:
-        request_kwargs["extra_body"] = dict(extra_body)
     try:
         response = request_client.chat.completions.create(**request_kwargs)
     except Exception as e:
@@ -616,11 +609,10 @@ async def async_stream_chat(
         timeout=timeout,
         response_format=response_format,
         stream=True,
+        extra_body=extra_body,
         request_key=request_key,
         request_max_retries=request_max_retries,
     )
-    if extra_body is not None:
-        request_kwargs["extra_body"] = dict(extra_body)
     try:
         response = await request_client.chat.completions.create(**request_kwargs)
     except Exception as e:
@@ -678,11 +670,10 @@ def chat(
         timeout=timeout,
         response_format=response_format,
         stream=False,
+        extra_body=extra_body,
         request_key=request_key,
         request_max_retries=request_max_retries,
     )
-    if extra_body is not None:
-        request_kwargs["extra_body"] = dict(extra_body)
     try:
         response = request_client.chat.completions.create(**request_kwargs)
         return response.choices[0].message.content or ""
@@ -735,14 +726,13 @@ def run_tool_loop(
             timeout=timeout,
             response_format=None,
             stream=False,
+            tools=tools,
             # Every round is its own paid send, so it gets its own key.
             request_key=(
                 f"{request_key}#round{_round}" if request_key else None
             ),
             request_max_retries=request_max_retries,
         )
-        request_kwargs["tools"] = tools
-        request_kwargs["tool_choice"] = "auto"
         try:
             response = request_client.chat.completions.create(**request_kwargs)
         except Exception as exc:
