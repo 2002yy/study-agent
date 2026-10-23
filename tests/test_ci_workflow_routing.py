@@ -35,7 +35,7 @@ def test_enforcement_reads_browser_requirement_from_the_classifier():
     enforcer = _steps()[-1]
     assert enforcer["name"] == "Enforce required CI outcomes"
     assert enforcer["env"]["CI_BROWSER_REQUIRED"] == (
-        "${{ steps.ci_scope.outputs.browser_required }}"
+        "${{ steps.ci_scope.outputs.frontend_e2e_required }}"
     )
     assert enforcer["env"]["CI_FRONTEND_REQUIRED"] == (
         "${{ steps.ci_scope.outputs.frontend_required }}"
@@ -52,7 +52,7 @@ def test_no_step_routes_on_the_event_type():
 def test_browser_steps_follow_the_classifier():
     for step_id in ("playwright_install", "browser_e2e", "real_stack_browser_e2e"):
         condition = str(_by_id(step_id).get("if") or "")
-        assert "steps.ci_scope.outputs.browser_required == 'true'" in condition, step_id
+        assert "steps.ci_scope.outputs.frontend_e2e_required == 'true'" in condition, step_id
 
 
 def test_browser_gates_depend_on_installed_node_dependencies():
@@ -65,13 +65,13 @@ def test_browser_gates_depend_on_installed_node_dependencies():
 def test_node_toolchain_covers_frontend_or_browser_without_merging_them():
     condition = str(_by_id("node_deps")["if"])
     assert "frontend_required == 'true'" in condition
-    assert "browser_required == 'true'" in condition
+    assert "frontend_e2e_required == 'true'" in condition
     # The two tiers stay distinct: the toolchain condition is an OR, not a merge of outputs.
     setup_node = next(
         step for step in _steps() if str(step.get("uses") or "").startswith("actions/setup-node")
     )
     assert "frontend_required == 'true'" in setup_node["if"]
-    assert "browser_required == 'true'" in setup_node["if"]
+    assert "frontend_e2e_required == 'true'" in setup_node["if"]
 
 
 def test_frontend_gate_does_not_reinstall_dependencies():

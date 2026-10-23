@@ -71,6 +71,9 @@ jobs:
             echo "scope=full-fallback" >> "$GITHUB_OUTPUT"
             echo "impact_set=" >> "$GITHUB_OUTPUT"
             echo "frontend_required=true" >> "$GITHUB_OUTPUT"
+            echo "frontend_e2e_required=true" >> "$GITHUB_OUTPUT"
+            echo "frontend_e2e_specs=" >> "$GITHUB_OUTPUT"
+            echo "research_browser_required=true" >> "$GITHUB_OUTPUT"
             echo "browser_required=true" >> "$GITHUB_OUTPUT"
             echo "qualification_required=true" >> "$GITHUB_OUTPUT"
             echo "l3_eligible=true" >> "$GITHUB_OUTPUT"
@@ -96,12 +99,12 @@ jobs:
 
 
       - uses: actions/setup-node@v4
-        # The Node toolchain serves the frontend gates and the browser gates. ci_scope treats
-        # them as separate cost tiers - browser can be required with frontend false - so the
-        # toolchain is prepared when either is required, without merging the classifications.
+        # The Node toolchain serves the frontend gates and the E2E gates. ci_scope treats
+        # them as separate cost tiers, so the toolchain is prepared when either is
+        # required, without merging the classifications.
         if: >-
           steps.ci_scope.outputs.frontend_required == 'true' ||
-          steps.ci_scope.outputs.browser_required == 'true'
+          steps.ci_scope.outputs.frontend_e2e_required == 'true'
         with:
           node-version: "24"
           cache: npm
@@ -213,11 +216,12 @@ jobs:
       - name: Install frontend dependencies
         id: node_deps
         # npm ci runs whenever the Node toolchain is needed - the frontend gates or the
-        # browser gates. Without this, browser_required=true with frontend_required=false
-        # would launch Playwright against a missing node_modules and fail with exit 127.
+        # E2E gates. The two tiers are separate outputs and the OR is kept as defence in
+        # depth: a browser step must never launch against a missing node_modules, which
+        # fails with exit 127 rather than a useful error.
         if: >-
           steps.ci_scope.outputs.frontend_required == 'true' ||
-          steps.ci_scope.outputs.browser_required == 'true'
+          steps.ci_scope.outputs.frontend_e2e_required == 'true'
         continue-on-error: true
         timeout-minutes: 8
         working-directory: frontend
@@ -243,7 +247,7 @@ jobs:
           } > ../frontend.log 2>&1
 
       - name: Install Playwright browsers
-        if: steps.ci_scope.outputs.browser_required == 'true' && steps.node_deps.outcome == 'success'
+        if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.node_deps.outcome == 'success'
         id: playwright_install
         continue-on-error: true
         timeout-minutes: 20
@@ -253,7 +257,7 @@ jobs:
           npx playwright install --with-deps chromium firefox webkit > ../playwright-install.log 2>&1
 
       - name: Run browser Golden Journeys
-        if: steps.ci_scope.outputs.browser_required == 'true' && steps.playwright_install.outcome == 'success'
+        if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.playwright_install.outcome == 'success'
         id: browser_e2e
         continue-on-error: true
         timeout-minutes: 12
@@ -263,7 +267,7 @@ jobs:
           npm run test:e2e > ../browser-e2e.log 2>&1
 
       - name: Run real-stack browser gates
-        if: steps.ci_scope.outputs.browser_required == 'true' && steps.playwright_install.outcome == 'success'
+        if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.playwright_install.outcome == 'success'
         id: real_stack_browser_e2e
         continue-on-error: true
         timeout-minutes: 8
@@ -302,5 +306,11 @@ jobs:
           # Single source of truth: the classifier decides, not the event type. Re-deriving
           # "main push => browser" here is what made enforcement demand browser gates that the
           # classifier had not asked for.
-          CI_BROWSER_REQUIRED: ${{ steps.ci_scope.outputs.browser_required }}
+          #
+          # The browser tier is keyed to registered frontend interaction surfaces. The
+          # research web-fetch tier is reported separately and never gates the Playwright
+          # steps: a crawler change used to launch the frontend Golden Journeys purely
+          # because its path contained "browser".
+          CI_BROWSER_REQUIRED: ${{ steps.ci_scope.outputs.frontend_e2e_required }}
+          CI_RESEARCH_BROWSER_REQUIRED: ${{ steps.ci_scope.outputs.research_browser_required }}
         run: python tools/check_ci_outcomes.py

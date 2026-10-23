@@ -44,8 +44,14 @@ def main() -> int:
         steps = json.loads(os.environ["CI_STEP_RESULTS"])
         browser_required = os.environ["CI_BROWSER_REQUIRED"]
         frontend_required = os.environ.get("CI_FRONTEND_REQUIRED", "true")
+        # Reported, never gated: the research web-fetch tier has no separate workflow step,
+        # its coverage lives inside pytest. Keeping it out of the step list is the point of
+        # the split - a crawler change must not demand frontend Golden Journeys.
+        research_browser = os.environ.get("CI_RESEARCH_BROWSER_REQUIRED")
         if not isinstance(steps, dict) or browser_required not in {"true", "false"}:
             raise ValueError("Invalid CI outcomes input")
+        if research_browser is not None and research_browser not in {"true", "false"}:
+            raise ValueError("Invalid research browser requirement")
         failed = failed_steps(
             steps,
             browser_required=browser_required == "true",
@@ -57,7 +63,11 @@ def main() -> int:
     if failed:
         print("Required CI checks did not succeed: " + ", ".join(failed))
         return 1
-    print("All required CI checks passed")
+    print(
+        "All required CI checks passed"
+        f" (frontend_e2e_required={browser_required}"
+        f", research_browser_required={research_browser if research_browser is not None else 'n/a'})"
+    )
     return 0
 
 
