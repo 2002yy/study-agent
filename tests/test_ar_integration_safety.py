@@ -18,6 +18,87 @@ from tests.test_spend_production_wiring import (
 )
 
 
+def test_current_main_v24_upgrades_to_v26_without_losing_chat_data(
+    tmp_path, monkeypatch
+):
+    """Start from the real main v24 schema rather than a fabricated v25 baseline."""
+    path = tmp_path / "main-v24.db"
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            schema, "MIGRATIONS",
+            tuple(item for item in schema.MIGRATIONS if item[0] <= 24),
+        )
+        schema.RuntimeDatabase(path).initialize()
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT value FROM runtime_meta WHERE key='schema_version'"
+        ).fetchone()[0] == "24"
+        assert "attachment_refs" not in {
+            row[1] for row in connection.execute("PRAGMA table_info(chat_turns)")
+        }
+        connection.execute(
+            "INSERT INTO chat_threads(id, status, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?)",
+            ("existing-thread", "active", "2026-10-23", "2026-10-23"),
+        )
+        connection.execute(
+            "INSERT INTO chat_turns("
+            "id, thread_id, user_message, assistant_message, status, "
+            "created_at, updated_at"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "existing-turn", "existing-thread",
+                "preserve the original question",
+                "preserve the original answer", "completed",
+                "2026-10-23", "2026-10-23",
+            ),
+        )
+
+    schema.RuntimeDatabase(path).initialize()
+    schema.RuntimeDatabase(path).initialize()  # repeat upgrade must be safe
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT value FROM runtime_meta WHERE key='schema_version'"
+        ).fetchone()[0] == "26"
+        assert connection.execute(
+            "SELECT version, status FROM runtime_migrations "
+            "WHERE version IN (25, 26) ORDER BY version"
+        ).fetchall() == [(25, "completed"), (26, "completed")]
+        assert connection.execute(
+            "SELECT user_message, assistant_message, status, attachment_refs "
+            "FROM chat_turns WHERE id = ?", ("existing-turn",)
+        ).fetchone() == (
+            "preserve the original question",
+            "preserve the original answer", "completed", "[]",
+        )
+        assert connection.execute(
+            "SELECT id FROM chat_threads WHERE id = ?", ("existing-thread",)
+        ).fetchone() == ("existing-thread",)
+        tables = {
+            row[0] for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        assert {"llm_spend_experiments", "llm_spend_reservations"} <= tables
+
+    ledger = SpendLedger(path)
+    ledger.ensure_experiment(
+        "migration-regression", cap_micros=1_000_000,
+        pricing_fingerprint="frozen-pricing", now="2026-10-24",
+    )
+    args = {
+        "request_key": "one-send", "amount_micros": 200_000,
+        "purpose": "migration-test", "model": "fake-provider",
+        "identity": "existing-thread/existing-turn", "now": "2026-10-24",
+    }
+    reserved = ledger.reserve("migration-regression", **args)
+    assert reserved.remaining_micros == 800_000
+    with pytest.raises(SpendLedgerConflict):
+        ledger.reserve("migration-regression", **args)
+
+
 def test_v25_upgrade_failure_rolls_back_and_backup_remains_usable(
     tmp_path, monkeypatch
 ):
