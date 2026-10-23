@@ -115,7 +115,7 @@ def test_the_diagnostic_window_overflows_without_touching_the_records():
     assert len(context["revision_events"]) == MAX_RECORDED_EVENTS
     assert len(records) == 25
     summary = round_read_summary(records, context["revision_events"])
-    assert summary == [{"round": 1, "read": 25, "failed": 0, "recheck": 0}]
+    assert summary == [{"round": 1, "read": 25, "failed": 0, "recent_recheck": 0}]
 
 
 def test_the_round_summary_is_derived_from_records_not_from_the_event_window():
@@ -128,10 +128,10 @@ def test_the_round_summary_is_derived_from_records_not_from_the_event_window():
 
     summary = round_read_summary(records, events)
 
-    assert summary == [{"round": 2, "read": 30, "failed": 1, "recheck": 0}]
+    assert summary == [{"round": 2, "read": 30, "failed": 1, "recent_recheck": 0}]
 
 
-def test_recheck_is_only_counted_when_an_evaluation_raised_a_conflict():
+def test_recent_recheck_is_only_counted_when_an_evaluation_raised_a_conflict():
     records = [_record("https://example.com/a")]
     records[0]["read"]["round"] = 2
     quiet = round_read_summary(records, [])
@@ -142,8 +142,8 @@ def test_recheck_is_only_counted_when_an_evaluation_raised_a_conflict():
         detail={"urls": ["https://example.com/a"]},
     ).to_dict()
 
-    assert quiet[0]["recheck"] == 0
-    assert round_read_summary(records, [conflict])[0]["recheck"] == 1
+    assert quiet[0]["recent_recheck"] == 0
+    assert round_read_summary(records, [conflict])[0]["recent_recheck"] == 1
 
 
 def test_reading_material_does_not_by_itself_make_an_answer_supported():

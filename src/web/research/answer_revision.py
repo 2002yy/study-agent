@@ -204,11 +204,16 @@ def evaluate(
         # between "not checked" and "checked and allowed".
         if not read_evidence:
             return RevisionDecision(proposal, False, refusal="source_reads_unavailable")
-        from src.web.research.read_evidence import verify_bindings
+        from src.web.research.read_evidence import verify_publication_binding
 
-        refusal = verify_bindings(proposal.source_bindings, read_evidence)
-        if refusal:
-            return RevisionDecision(proposal, False, refusal=refusal)
+        # A replacement carries *new text into the published answer*, so a legacy
+        # quote-only binding is not enough: the binding must name the read it came
+        # from. Legacy bindings stay readable elsewhere; they simply cannot
+        # authorise publication.
+        for binding in proposal.source_bindings:
+            refusal = verify_publication_binding(binding, read_evidence)
+            if refusal:
+                return RevisionDecision(proposal, False, refusal=refusal)
     if proposal.strict and not proposal.source_bindings:
         return RevisionDecision(proposal, False, refusal="strict_requires_evidence")
     if refunds and proposal.source_refs and not proposal.source_bindings:

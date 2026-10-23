@@ -61,7 +61,23 @@ def _event(kind, **overrides):
     return MotionEvent(**values)
 
 
+READ_ID = "read-1"
+READ_EXCERPT = "GIMP batch export uses the command line interface."
+
+
 def _binding(url: str = "https://gimp.org/", quote: str = "batch export uses the command line"):
+    return {
+        "url": url,
+        "quote": quote,
+        "content_sha256": hashlib.sha256(quote.encode()).hexdigest(),
+        "read_id": READ_ID,
+        "read_excerpt_sha256": hashlib.sha256(READ_EXCERPT.encode()).hexdigest(),
+    }
+
+
+def _legacy_binding(url: str = "https://gimp.org/", quote: str = "batch export uses the command line"):
+    """A pre-AR-1C binding: it names a URL and a quote, not the read."""
+
     return {"url": url, "quote": quote, "content_sha256": hashlib.sha256(quote.encode()).hexdigest()}
 
 
@@ -71,7 +87,8 @@ def _reads():
     return (
         ReadEvidence.build(
             url="https://gimp.org/",
-            excerpt="GIMP batch export uses the command line interface.",
+            excerpt=READ_EXCERPT,
+            read_id=READ_ID,
         ),
     )
 
@@ -147,12 +164,48 @@ def test_a_conflict_withdraws_only_the_contested_statements():
         ]
     )
     proposals = proposals_for_event(
-        _event(EVIDENCE_CONFLICT, detail={"conflicting_urls": ["https://gimp.org/"]}), snapshot
+        _event(EVIDENCE_CONFLICT, detail=_verified(["https://gimp.org/"])), snapshot
     )
 
     assert [item.target_reply_id for item in proposals] == ["run1:research"]
     assert proposals[0].action == RETRACT
     assert proposals[0].replacement == ""
+
+
+def _verified(urls):
+    return {
+        "conflicting_urls": list(urls),
+        "target_reply_id": "run1:research",
+        "verified": True,
+    }
+
+
+def test_an_unverified_conflict_proposes_nothing():
+    """Only a checked claim earns a withdrawal right.
+
+    A model that says "these disagree" has named no read and no version, so the
+    event carries no `verified` and the shell must not act on it.
+    """
+
+    snapshot = _snapshot([_reply()])
+
+    assert (
+        proposals_for_event(
+            _event(EVIDENCE_CONFLICT, detail={"conflicting_urls": ["https://gimp.org/"]}),
+            snapshot,
+        )
+        == []
+    )
+    assert (
+        proposals_for_event(
+            _event(
+                EVIDENCE_CONFLICT,
+                detail={"conflicting_urls": ["https://gimp.org/"], "verified": True},
+            ),
+            snapshot,
+        )
+        == []
+    )
 
 
 def test_a_conflict_without_urls_retracts_nothing():
@@ -277,7 +330,7 @@ def test_applying_a_condition_event_marks_the_reply_stale_with_an_audit_trail():
 def test_applying_a_conflict_event_retracts_the_statement():
     replies, decisions, _ = apply_event(
         [_reply()],
-        _event(EVIDENCE_CONFLICT, detail={"conflicting_urls": ["https://gimp.org/"]}, cause="新来源否定"),
+        _event(EVIDENCE_CONFLICT, detail=_verified(["https://gimp.org/"]), cause="新来源否定"),
         now=NOW,
         run_id="run1",
         turn_id="turn1",
