@@ -56,7 +56,294 @@ def parser_for_cli() -> Parser:
     run.add_argument("--impact-set", default="")
     run.add_argument("--stage", default="")
     run.add_argument("--timeout", type=float)
+    research = children.add_parser("research", add_help=False)
+    common(research)
+    inspections = research.add_subparsers(dest="research_command")
+    inspect = inspections.add_parser("inspect", add_help=False)
+    common(inspect)
+    inspect.add_argument("--run", default="")
+    inspect.add_argument("--database", type=Path)
+    inspect.add_argument("--artifact", type=Path)
+    inspect.add_argument("--event-limit", type=int)
+    inspect.add_argument("--event-cursor", default="")
+    catalog = inspections.add_parser("list", add_help=False)
+    common(catalog)
+    catalog.add_argument("--database", type=Path)
+    catalog.add_argument("--limit", type=int, default=20)
+    catalog.add_argument("--cursor", default="")
+    comparison = inspections.add_parser("compare", add_help=False)
+    common(comparison)
+    comparison.add_argument("--left-artifact", type=Path)
+    comparison.add_argument("--right-artifact", type=Path)
+    comparison.add_argument("--run", default="")
+    ci = children.add_parser("ci", add_help=False)
+    common(ci)
+    ci_commands = ci.add_subparsers(dest="ci_command")
+    ci_inspect = ci_commands.add_parser("inspect", add_help=False)
+    common(ci_inspect)
+    ci_inspect.add_argument("--snapshot", type=Path)
+    ci_inspect.add_argument("--github-repo", default="")
+    ci_inspect.add_argument("--pr", type=int)
+    ci_inspect.add_argument("--exact-head", default="")
+    outcomes = ci_commands.add_parser("outcomes", add_help=False)
+    common(outcomes)
+    outcomes.add_argument("--receipt", type=Path)
+    outcomes.add_argument("--exact-head", default="")
+    outcomes.add_argument("--run-id", type=int)
+    outcomes.add_argument("--event", choices=("pull_request", "push"))
+    for name in ("collect", "main"):
+        live = ci_commands.add_parser(name, add_help=False)
+        common(live)
+        live.add_argument("--github-repo", default="")
+        live.add_argument("--exact-head", default="")
+        live.add_argument("--required-check", action="append", default=[])
+        if name == "collect":
+            live.add_argument("--pr", type=int)
     return parser
+
+
+def ci_evidence(options: argparse.Namespace) -> dict[str, Any]:
+    if __package__ in (None, ""):
+        sys.path.insert(0, str(ROOT))
+    import re
+    from tools.studyctl_ci import inspect_ci_snapshot, replay_outcomes, valid_sha
+
+    if options.ci_command in {"collect", "main"}:
+        from tools.studyctl_github import collect, valid_repository
+
+        if (
+            not valid_sha(options.exact_head)
+            or not valid_repository(options.github_repo)
+            or (
+                options.ci_command == "collect"
+                and (options.pr is None or options.pr <= 0)
+            )
+            or len(options.required_check) > 20
+            or any(
+                not x or len(x) > 150 or any(ord(c) < 32 for c in x)
+                for x in options.required_check
+            )
+        ):
+            raise CLIError(
+                2,
+                "invalid_github_selector",
+                "Select owner/repository, exact SHA and valid check names; collect also requires a positive PR.",
+            )
+        if getattr(options, "dry_run", False):
+            return dict(
+                status="BLOCKED",
+                exit_code=3,
+                merge_authorized=False,
+                repository=options.github_repo,
+                expected_head_sha=options.exact_head,
+                event="pull_request" if options.ci_command == "collect" else "push",
+                network="not_requested",
+                project_required_checks=options.required_check,
+                errors=[
+                    dict(
+                        code="live_collection_not_performed",
+                        message="Dry run only; no GitHub evidence collected.",
+                    )
+                ],
+            )
+        try:
+            return collect(
+                options.github_repo,
+                options.exact_head,
+                pr=options.pr if options.ci_command == "collect" else None,
+                project_checks=options.required_check,
+            )
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RecursionError,
+            OverflowError,
+        ):
+            raise CLIError(
+                3,
+                "github_evidence_unavailable",
+                "Complete current GitHub evidence with matching identities is required; permission, transport, budget or state changes can block collection.",
+            ) from None
+
+    if options.ci_command not in {"inspect", "outcomes"} or not valid_sha(
+        options.exact_head
+    ):
+        raise CLIError(
+            2,
+            "invalid_ci_arguments",
+            "Select ci inspect/outcomes and an exact 40-character head SHA.",
+        )
+    if options.ci_command == "inspect":
+        if (
+            options.snapshot is None
+            or options.pr is None
+            or options.pr <= 0
+            or re.fullmatch(
+                r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}", options.github_repo
+            )
+            is None
+        ):
+            raise CLIError(
+                2,
+                "invalid_ci_selector",
+                "Select a snapshot, owner/repository and positive PR number.",
+            )
+    elif (
+        options.receipt is None
+        or options.run_id is None
+        or options.run_id <= 0
+        or options.event is None
+    ):
+        raise CLIError(
+            2,
+            "invalid_outcome_selector",
+            "Select a receipt, positive run ID and explicit event.",
+        )
+    try:
+        return (
+            inspect_ci_snapshot(
+                options.snapshot, options.github_repo, options.pr, options.exact_head
+            )
+            if options.ci_command == "inspect"
+            else replay_outcomes(
+                options.receipt, options.exact_head, options.run_id, options.event
+            )
+        )
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+    ):
+        raise CLIError(
+            3,
+            "ci_evidence_unavailable",
+            "Compatible recorded CI evidence with matching identities is required.",
+        ) from None
+
+
+def inspect_research(options: argparse.Namespace) -> dict[str, Any]:
+    if options.research_command == "compare":
+        if (
+            options.left_artifact is None
+            or options.right_artifact is None
+            or not options.run
+            or len(options.run) > 256
+            or any(ord(c) < 32 for c in options.run)
+        ):
+            raise CLIError(
+                2,
+                "invalid_compare_arguments",
+                "Select two recorded artifacts and a bounded run ID.",
+            )
+        if __package__ in (None, ""):
+            sys.path.insert(0, str(ROOT))
+        from tools.studyctl_compare import compare_recordings
+
+        try:
+            return compare_recordings(
+                options.left_artifact, options.right_artifact, options.run
+            )
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RecursionError,
+            OverflowError,
+        ):
+            raise CLIError(
+                3,
+                "recordings_not_comparable",
+                "Compatible records with matching task context and run identity are required.",
+            ) from None
+    if options.research_command == "list":
+        if options.database is None or not 1 <= options.limit <= 100:
+            raise CLIError(
+                2,
+                "invalid_catalog_arguments",
+                "research list requires --database and a limit from 1 to 100.",
+            )
+        if __package__ in (None, ""):
+            sys.path.insert(0, str(ROOT))
+        import sqlite3
+        from tools.studyctl_research import InvalidCursor, list_snapshot
+
+        try:
+            return list_snapshot(options.database, options.limit, options.cursor)
+        except InvalidCursor:
+            raise CLIError(
+                2, "invalid_catalog_cursor", "Invalid catalog cursor."
+            ) from None
+        except (OSError, ValueError, TypeError, sqlite3.Error):
+            raise CLIError(
+                3,
+                "research_snapshot_unavailable",
+                "A compatible unchanged offline snapshot is required.",
+            ) from None
+    if (
+        options.research_command != "inspect"
+        or not options.run
+        or (options.database is None) == (options.artifact is None)
+    ):
+        raise CLIError(
+            2,
+            "missing_inspect_source",
+            "Select inspect, --run and exactly one offline --database or --artifact.",
+        )
+    if len(options.run) > 256 or any(ord(char) < 32 for char in options.run):
+        raise CLIError(2, "invalid_run_id", "Expected a bounded run identifier.")
+    if options.event_limit is not None and not 1 <= options.event_limit <= 100:
+        raise CLIError(2, "invalid_event_limit", "Event limit must be from 1 to 100.")
+    if options.artifact is not None and (
+        options.event_limit is not None or options.event_cursor
+    ):
+        raise CLIError(
+            2,
+            "recording_has_no_timeline",
+            "Recorded summaries have no event timeline to page.",
+        )
+    if __package__ in (None, ""):
+        sys.path.insert(0, str(ROOT))
+    import sqlite3
+    from tools.studyctl_research import InvalidCursor, inspect_snapshot
+    from tools.studyctl_recording import inspect_recording
+
+    try:
+        return (
+            inspect_recording(options.artifact, options.run)
+            if options.artifact is not None
+            else inspect_snapshot(
+                options.database,
+                options.run,
+                options.event_limit or 50,
+                options.event_cursor,
+            )
+        )
+    except InvalidCursor:
+        raise CLIError(2, "invalid_event_cursor", "Invalid event cursor.") from None
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+        sqlite3.Error,
+    ):
+        raise CLIError(
+            3,
+            "research_snapshot_unavailable",
+            "A compatible offline snapshot and uniquely identified run are required.",
+        ) from None
 
 
 def run_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
@@ -436,7 +723,20 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             result["command"] = "help"
             result["data"] = {
-                "commands": ["status", "doctor", "test plan", "test run", "help"],
+                "commands": [
+                    "status",
+                    "doctor",
+                    "test plan",
+                    "test run",
+                    "research inspect",
+                    "research list",
+                    "research compare",
+                    "ci inspect",
+                    "ci outcomes",
+                    "ci collect",
+                    "ci main",
+                    "help",
+                ],
                 "side_effects": "test run executes the selected gate and writes isolated logs; other commands are read-only unless --output is explicit",
             }
         else:
@@ -463,6 +763,22 @@ def main(argv: list[str] | None = None) -> int:
                             "message": "No single registered impact set covers these changes.",
                         }
                     ]
+            elif options.command == "research":
+                result["command"] = "research " + (options.research_command or "")
+                result["data"] = inspect_research(options)
+                result["data"]["requested_repo_head_sha"] = result["head_sha"]
+                result["data"]["inspection_root"] = str(ROOT)
+                _, result["head_sha"] = repository(ROOT)
+                for key in ("status", "exit_code", "errors"):
+                    result[key] = result["data"][key]
+            elif options.command == "ci":
+                result["command"] = "ci " + (options.ci_command or "")
+                result["data"] = ci_evidence(options)
+                result["data"]["requested_repo_head_sha"] = result["head_sha"]
+                result["data"]["inspection_root"] = str(ROOT)
+                _, result["head_sha"] = repository(ROOT)
+                for key in ("status", "exit_code", "errors"):
+                    result[key] = result["data"][key]
             elif options.command == "status":
                 result["data"] = read_status(root)
             else:
