@@ -8,6 +8,9 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-23 CLI-05A失败按单条run归属修复。** 审阅P2确认：旧实现用全列表身份一致性决定失败归属，导致当前head的PR失败被无关push/旧head记录降成BLOCKED。改为逐run同时满足已匹配PR元数据、exact head、pull_request、completed及失败结论才FAIL/4；无关记录仍保留gap，不能掩盖已知失败，也不能将外部失败归给成功PR。新增8项回归，5个混合失败用例在旧代码均FAIL（负控），修复后核心32项通过。离线真实性/时效/required policy缺口与merge_authorized=false不变。一次错误工作目录的pytest收集失败已改从目标工作树运行，不改生产代码掩盖环境问题。下一门：本片完整命名L1与实际模块回执，再推送；后继CLI只绑定冻结提交。
+
+
 **2026-10-23 CLI候选#277主线重绑。** 初始head 6835a2b75300035a6c07ebd00e70e1e5ddaa2ba3，
 显式吸收已提交 200fd25029a9b966cce68094b833359c6c87de86（200fd25029a9b966cce68094b833359c6c87de86）；不读取其他工作树WIP。
 远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，

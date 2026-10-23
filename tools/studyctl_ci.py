@@ -173,7 +173,10 @@ def inspect_ci_snapshot(
     if pending:
         gaps.append("recorded_workflow_pending")
     failed = any(
-        row["status"] == "completed"
+        matches
+        and row["head_sha"] == expected_head
+        and row["event"] == "pull_request"
+        and row["status"] == "completed"
         and row["conclusion"]
         in {
             "failure",
@@ -189,10 +192,9 @@ def inspect_ci_snapshot(
         row["status"] == "completed" and row["conclusion"] != "success" for row in rows
     ):
         gaps.append("recorded_workflow_not_successful")
-    trusted_identity = matches and not any(
-        item in gaps for item in ("workflow_head_mismatch", "workflow_event_mismatch")
-    )
-    code = 4 if failed and trusted_identity else 3
+    # Attribution belongs to each run. Unrelated evidence remains a gap but
+    # cannot erase a known failure from the requested PR head and event.
+    code = 4 if failed else 3
     return {
         "status": "FAIL" if code == 4 else "BLOCKED",
         "exit_code": code,

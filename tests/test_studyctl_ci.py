@@ -132,6 +132,71 @@ def test_exact_head_recorded_failure_is_reported_but_not_merge_authority(snapsho
     assert not result["merge_authorized"]
 
 
+@pytest.mark.parametrize(
+    ("other_head", "event", "conclusion", "status"),
+    [
+        (HEAD, "push", "success", "completed"),
+        (HEAD, "push", "failure", "completed"),
+        ("b" * 40, "pull_request", "success", "completed"),
+        ("b" * 40, "pull_request", "failure", "completed"),
+        (HEAD, "push", "", "in_progress"),
+    ],
+)
+def test_exact_pr_failure_survives_unrelated_run_evidence(
+    snapshot, other_head, event, conclusion, status
+):
+    def update(data):
+        runs = data["checks"][0]["runs"]
+        runs[0]["conclusion"] = "failure"
+        runs.append(
+            dict(
+                databaseId=43,
+                headSha=other_head,
+                event=event,
+                status=status,
+                conclusion=conclusion,
+            )
+        )
+
+    change(snapshot, update)
+    before = snapshot.read_bytes()
+    result = inspect(snapshot)
+    assert result["status"] == "FAIL" and result["exit_code"] == 4
+    assert len(result["runs"]) == 2 and not result["merge_authorized"]
+    assert "live_freshness_not_verified" in result["missing_evidence"]
+    assert snapshot.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("other_head", "event"), [(HEAD, "push"), ("b" * 40, "pull_request")]
+)
+def test_unrelated_failure_does_not_taint_exact_pr_success(snapshot, other_head, event):
+    def update(data):
+        data["checks"][0]["runs"].append(
+            dict(
+                databaseId=43,
+                headSha=other_head,
+                event=event,
+                status="completed",
+                conclusion="failure",
+            )
+        )
+
+    change(snapshot, update)
+    result = inspect(snapshot)
+    assert result["status"] == "BLOCKED" and result["exit_code"] == 3
+    assert not result["merge_authorized"]
+
+
+def test_mismatched_pr_metadata_still_blocks_exact_run_failure(snapshot):
+    def update(data):
+        data["prs"]["repository"]["p7"]["headRefOid"] = "b" * 40
+        data["checks"][0]["runs"][0]["conclusion"] = "failure"
+
+    change(snapshot, update)
+    assert inspect(snapshot)["status"] == "BLOCKED"
+
+
 def test_duplicate_runs_are_not_silently_collapsed(snapshot):
     change(
         snapshot,
