@@ -10,8 +10,11 @@
 
 **2026-10-23 #274同步冻结分页修复。** 固定自身e9f09616，吸收已提交父片
 11bb263a4bf21cb907a28f4c833ff52bfac9a28d，仅交接冲突保留双方，SQLite查询/回归测试自动合入。
-src与main仍相同，不借父片旧全门；待跑catalog/research/recording/CLI直接消费者，
-完成工具mypy/Ruff/格式/diff后推送新head，不等待CI，不重复L3。
+src与main仍相同，不借父片旧全门；catalog/research/recording/CLI直接消费者
+73 PASS/1 SKIP，四工具mypy/Ruff/格式/diff通过，受测组合bebf6b7f97334690b8bd5d71c06d669cc3dfe24f。
+实际CLI四例跨父子分支证明未知边界2/合法末尾0，SQLite字节不变。
+本提交只补交接，src/tools/tests与受测树相同；推送新head不等CI，不重复L3。
+旧287全门只属于审阅修复前代码；此小修复按直接影响集验证，新headCI/审阅前不合main。
 证据 D:/study-agent-validation/studyctl-research-rebind-20261023/artifact-review-sync/。
 
 **2026-10-23 #273分页审阅修复。** finding4333785509 有效：同快照摘要但不存在的after
