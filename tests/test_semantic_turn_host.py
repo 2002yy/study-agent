@@ -418,6 +418,13 @@ def test_permissions_must_be_an_immutable_set_so_they_cannot_be_widened(permitte
 
 
 def test_the_real_loop_reports_a_refusal_as_its_own_stop_reason():
+    """QD-2c keeps the refusal *record* intact while allowing one reselection.
+
+    The model below repeats the identical forbidden request. That is precisely what the
+    contract says must not be executed, so the loop stops with `refused_tool_repeated`
+    before dispatch - it does not reach the adapter a second time. The refusal itself is
+    still reported as `refused` with a known outcome, which is the QD-2b guarantee.
+    """
     async def scenario():
         host = FakeHost()
         handler = SemanticTurnHandler(
@@ -454,7 +461,7 @@ def test_the_real_loop_reports_a_refusal_as_its_own_stop_reason():
                 ctx,
                 current_context=lambda: ctx,
                 transport=transport,
-                decision_budget=DecisionBudget(2, 100_000, 800),
+                decision_budget=DecisionBudget(2, 100_000, 1_600),
                 action_budget=ActionBudget(2, 1),
                 handlers={ConversationAction.USE_TOOL: handler},
             ),
@@ -466,11 +473,15 @@ def test_the_real_loop_reports_a_refusal_as_its_own_stop_reason():
 
     events, host, session = asyncio.run(scenario())
 
+    refused = [event for event in events if getattr(event, "status", "") == "refused"]
+    assert len(refused) == 1
+    assert refused[0].refusal_kind == "permission_denied"
+    assert refused[0].outcome_unknown is False
+
     stopped = [event for event in events if isinstance(event, LoopStopped)]
     assert len(stopped) == 1
-    assert stopped[0].reason == "tool_refused", stopped[0]
-    assert stopped[0].detail == "refused"
-    # A permission stop is not an unknown outcome, and nothing was observed.
+    # The repeated identical request was blocked before dispatch, not re-run and re-refused.
+    assert stopped[0].reason == "refused_tool_repeated", stopped[0]
     assert stopped[0].outcome_unknown is False
     assert stopped[0].observations == 0
     assert host.calls == []

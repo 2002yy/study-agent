@@ -32,10 +32,22 @@ from typing import Any, Callable, Mapping
 from src.application.conversation_action_dispatch import (
     ActionInvocation,
     ActionRefusal,
+    RefusalKind,
 )
 from src.application.conversation_decision import ConversationAction
 from src.web.semantic_admission import validate_tool_call
 from src.web.semantic_research_host import SemanticResearchHost, TurnResult
+
+# ``validate_tool_call`` reports *why* it refused in prose. The loop needs the structured
+# classification to decide whether a reselection is safe, so the mapping is explicit here
+# and an unrecognised reason falls back to the most restrictive kind.
+_REFUSAL_KINDS: dict[str, RefusalKind] = {
+    "unknown_tool": RefusalKind.TOOL_UNAVAILABLE,
+    "action_not_tool_use": RefusalKind.TOOL_UNAVAILABLE,
+    "tool_not_permitted": RefusalKind.PERMISSION_DENIED,
+    "budget_exhausted": RefusalKind.TOOL_BUDGET_EXHAUSTED,
+    "arguments_not_a_mapping": RefusalKind.ARGUMENTS_REJECTED,
+}
 
 # ``validate_tool_call`` compares against the enum *member name* ("USE_TOOL"), while
 # ``ConversationAction``'s value is lowercase ("use_tool"). Mapping explicitly, instead of
@@ -134,4 +146,6 @@ class SemanticTurnHandler:
 
     def _refuse(self, reason: str) -> ActionRefusal:
         self.refusals.append(reason)
-        return ActionRefusal(reason)
+        return ActionRefusal(
+            reason, _REFUSAL_KINDS.get(reason, RefusalKind.PERMISSION_DENIED)
+        )
