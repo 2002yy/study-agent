@@ -70,6 +70,40 @@ def test_a_non_positive_window_is_refused(total: float):
         split(started=0.0, total_seconds=total)
 
 
+@pytest.mark.parametrize("total", [float("nan"), float("inf"), float("-inf")])
+def test_a_non_finite_window_is_refused(total: float):
+    """``nan <= 0`` is False, so a naive positivity check lets NaN through.
+
+    A NaN total would make every deadline comparison false and every phase look alive.
+    """
+
+    with pytest.raises(ValueError, match="window_total_must_be_positive"):
+        split(started=0.0, total_seconds=total)
+
+
+@pytest.mark.parametrize("started", [float("nan"), float("inf")])
+def test_a_non_finite_start_is_refused(started: float):
+    with pytest.raises(ValueError, match="window_started_not_a_number"):
+        split(started=started, total_seconds=10.0)
+
+
+@pytest.mark.parametrize("share", [float("nan"), float("inf")])
+def test_a_non_finite_share_is_refused(share: float):
+    with pytest.raises(ValueError, match="window_first_share_must_leave_a_reserve"):
+        split(started=0.0, total_seconds=10.0, first_share=share)
+
+
+@pytest.mark.parametrize(
+    "total,share", [(30.0, 0.6), (5.0, 0.5), (0.2, 0.8), (1.0, 0.99), (120.0, 0.1)]
+)
+def test_the_three_deadlines_are_strictly_ordered(total: float, share: float):
+    """The property the whole primitive exists for, checked as an ordering."""
+
+    window = split(started=1234.5, total_seconds=total, first_share=share)
+    assert window.started < window.first_deadline < window.overall_deadline
+    assert window.deadline_for(1) == window.overall_deadline
+
+
 def test_an_unknown_phase_is_refused_instead_of_defaulting_to_the_last_one():
     window = ActionWindow(started=0.0, total_seconds=10.0)
     with pytest.raises(ValueError, match="window_phase_out_of_range"):

@@ -18,6 +18,7 @@ deadline**, so the reserve is structural rather than a matter of the first phase
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 DEFAULT_FIRST_SHARE = 0.6
 # The reserve is never smaller than this, even for a very short window: a window too small
@@ -35,15 +36,25 @@ class ActionWindow:
     first_share: float = DEFAULT_FIRST_SHARE
 
     def __post_init__(self) -> None:
-        if not isinstance(self.started, (int, float)) or isinstance(self.started, bool):
+        if (
+            not isinstance(self.started, (int, float))
+            or isinstance(self.started, bool)
+            or not math.isfinite(self.started)
+        ):
             raise ValueError("window_started_not_a_number")
         if (
             not isinstance(self.total_seconds, (int, float))
             or isinstance(self.total_seconds, bool)
+            or not math.isfinite(self.total_seconds)
             or self.total_seconds <= 0
         ):
             raise ValueError("window_total_must_be_positive")
-        if not 0 < self.first_share < 1:
+        if (
+            not isinstance(self.first_share, (int, float))
+            or isinstance(self.first_share, bool)
+            or not math.isfinite(self.first_share)
+            or not 0 < self.first_share < 1
+        ):
             # A share of 1 would let the first phase own the whole window, which is exactly
             # the behaviour this module exists to prevent.
             raise ValueError("window_first_share_must_leave_a_reserve")
