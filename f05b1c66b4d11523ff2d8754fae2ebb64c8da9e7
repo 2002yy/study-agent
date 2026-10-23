@@ -475,7 +475,7 @@
       "note": "Single-test diagnostic; existing full-suite artifact teardown is expected to reject a partial run. Inspect the test result independently; this is not a green release gate."
     },
     "probe_30s": "refresh load timeout; preserve log, no increase applied to official config",
-    "user_exception": "2026-10-24: ignore the discussed Firefox first-answer refresh-load scenario; failure retained, not a test pass; no general waiver for returning-context or unrelated failures"
+    "user_exception": "2026-10-24 latest user instruction: all Firefox issues are record-only, non-blocking for this integration; do not spend more time reproducing. Failures and incomplete related artifacts retained, never relabeled as passed."
   },
   "ci": {
     "conclusion": null,
@@ -486,6 +486,837 @@
     "status": "in_progress"
   },
   "dynamic_evidence": "not_run; no paid/model traffic",
-  "decision": "Merge authorization received; qualification pending exact-head L3/CI and current review. First-answer Firefox scenario waived, other failures still require classification.",
-  "next": "Use #272 as the single integration landing PR, preserve original head in a remote snapshot, then complete exact-head gates. Archive #265/#259 only after actual integration; rebuild #282 last; preserve CL-M3 worktrees."
+  "decision": "Merge authorized subject to non-Firefox exact-head qualification and review. Firefox failures and their derivative missing artifacts are accepted exceptions, not passing evidence.",
+  "next": "Complete non-Firefox exact-head gates for ready #272, then merge with expected-head protection; no additional Firefox work. Archive #265/#259 after actual main integration; #282 last.",
+  "landing_pr": {
+    "baseRefName": "main",
+    "headRefName": "codex/ar1c3-publication",
+    "headRefOid": "f05b1c66b4d11523ff2d8754fae2ebb64c8da9e7",
+    "isDraft": true,
+    "mergeable": "MERGEABLE",
+    "number": 272,
+    "reviewDecision": "",
+    "url": "https://github.com/2002yy/study-agent/pull/272"
+  },
+  "pull_request_ci": {
+    "databaseId": 40005200567,
+    "event": "pull_request",
+    "headSha": "f05b1c66b4d11523ff2d8754fae2ebb64c8da9e7",
+    "status": "in_progress",
+    "conclusion": "",
+    "url": "https://github.com/2002yy/study-agent/actions/runs/40005200567",
+    "observation": "Queried once after fast-forwarding #272 integration head on 2026-10-24; not continuously polled."
+  },
+  "returning_context_diagnosis": {
+    "trace": "D:\\study-agent-validation\\ar-authoritative-integration-20261024\\frontend\\test-results\\artifacts\\golden-journeys-returning--eefc5-nues-in-one-explicit-choice-desktop-firefox\\trace.zip",
+    "calls": [
+      {
+        "type": "after",
+        "callId": "pw:api@200",
+        "endTime": 360857.912,
+        "annotations": [],
+        "error": {
+          "name": "",
+          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('本会话学习上下文', { exact: true })\u001b[22m\n",
+          "stack": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('本会话学习上下文', { exact: true })\u001b[22m\n\n    at D:\\study-agent-validation\\ar-authoritative-integration-20261024\\frontend\\e2e\\golden-journeys.spec.ts:68:50"
+        }
+      },
+      {
+        "type": "before",
+        "callId": "call@16",
+        "startTime": 317836.702,
+        "class": "Frame",
+        "method": "goto",
+        "params": {
+          "url": "/",
+          "waitUntil": "load"
+        },
+        "stepId": "pw:api@42",
+        "pageId": "page@7eb13f06a140b21761f143f0c4e4c37d",
+        "beforeSnapshot": "before@call@16"
+      }
+    ],
+    "network": [
+      {
+        "url": "http://127.0.0.1:5173/",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/main.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/@vite/client",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/@react-refresh",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react.js?v=399ff526",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/utils/uiLabels.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/App.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/WorkspaceProvider.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/single-chat/chatHistory.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/styles.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/practical-experience.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/task-intent-selector.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/product-boundary.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=39ab514d",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/session-navigation.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/trustworthy-learning-status.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/learning-closure.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/restore-card.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/progressive-disclosure.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/rag/sourcesPanel.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/accessibility-responsive.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/recovery-visibility.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=399ff526",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/node_modules/vite/dist/client/env.mjs",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/node_modules/.vite/deps/rolldown-runtime-B-1-B7_t.js?v=9d651e55",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/WorkspaceRuntime.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/workspaceReducer.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react-dom.js?v=399ff526",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/FireflyLessonContext.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/WorkspaceBootstrap.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/useEvidenceRuntime.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/useExtensionRuntime.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/useLearningSessionRuntime.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/useWorkspaceControllers.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/useWorkspaceRecovery.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/WorkspaceView.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/sessions/sessionSummary.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/serverQueryCache.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/workspaceDataLoader.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/rag/ragController.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/rag/uploadController.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/settings/SettingsPanel.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/web-lookup/webLookupController.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/useResetResearchSelectionOnSessionChange.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/operationRegistry.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/extensions/extensionDrawerContract.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/group-chat/groupChatController.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/tools/toolController.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/workflows/workflowController.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/activeQuerySelector.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/answer-ui/answerUiProtocol.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/chat/recoveryApi.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning-memory/memoryController.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/defaultFireflyLesson.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/learningResumeApi.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/roles/roleController.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/WorkspaceCoordinator.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/learningSessionViewModel.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/settings/settingsController.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/chat/chatController.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/WorkspacePersistence.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/AppShell.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/components/SlideOver.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/LearningStrip.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning-memory/MemoryPanel.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/rag/SourcesPanel.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/rag/UploadLearningPrompt.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/rag/uploadContract.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/settings/typographyPreference.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/settings/ExternalDataFirstUseNotice.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/single-chat/WorkspaceActions.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/task/taskContract.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/single-chat/ChatPanel.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/chat/MemoryConsentBadge.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/sessions/SessionNavigator.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/sessions/WorkspaceTransitionDialog.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/sessions/workspaceTransitionGuard.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/layout/GlobalNotices.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/app/ExtensionDrawers.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/reading/ReadingWorkspace.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/reading/PanelResizeHandle.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/components/StatusDot.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/api.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/components/RoleAvatar.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/roles/roleCatalog.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/settings/TypographySettings.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/settings/ExternalDataPolicySettings.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/web-lookup/webLookupControllerCore.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning-memory/closureApi.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/node_modules/.vite/deps/lucide-react.js?v=fdb884b8",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/fireflyLessonModel.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/evidence/evidenceHelpers.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/defaultDoupoLesson.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/web-lookup/researchApproach.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/web-lookup/researchReplies.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/web-lookup/researchTiming.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/pedagogy/pedagogyLabels.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/rag/evidenceEligibilityApi.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/rag/SessionAttachments.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/chat/turnStatusCopy.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/LearningPanel.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/LearningStripBase.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning-memory/LearningClosureReview.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/utils/format.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/reading/ReadingContext.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/extensions/ExtensionLauncher.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/reading/ReadingLibraryNavigation.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/sessions/SessionNavigatorBody.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/sessions/useSessionNavigator.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/components/MarkdownMessage.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/answer-ui/AnswerProgress.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/answer-ui/InteractiveComputation.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/evidence/EvidenceTrail.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/web-lookup/ChatResearchRecovery.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/single-chat/RestoreCard.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/single-chat/ChatRoleSettings.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/single-chat/ComposerAttachments.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/extensions/ExtensionLabPanel.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/tools/ToolPanel.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/reading/readingApi.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/wechat-workspace/WechatPanel.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/workflows/TimelinePanel.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/reading/DocumentReader.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/reading/readingWorkspace.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/reading/workspaceInterior.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/reading/workspacePolish.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/reading/chatAppearance.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/reading/panelResize.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/web-lookup/researchApi.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/rag/attachmentRules.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/evidence/DurableEvidenceTrail.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/FireflyDefaultLesson.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/trustworthyLearningStatus.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/sessions/sessionNavigation.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/sessions/sessionApi.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/node_modules/.vite/deps/remark-gfm.js?v=0fc129e1",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/answer-ui/AnswerCardView.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/components/ConsentImage.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/answer-ui/computation.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/evidence/ExternalDataDisclosure.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/evidence/evidenceTrail.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/web-lookup/researchStopReason.ts",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/wechat-workspace/wechatLookup.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/DoupoDefaultLesson.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react-markdown.js?v=c4c08d7c",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/FireflyMechanicsLesson.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/default-lesson.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/answer-ui/answerUi.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/answer-ui/AnswerLabs.tsx",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/firefly-lesson.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/src/features/learning/doupo-lesson.css",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react_jsx-runtime.js?v=399ff526",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "http://127.0.0.1:5173/node_modules/.vite/deps/lib-9qH3G_6W.js?v=9d651e55",
+        "status": 200,
+        "failure": null
+      },
+      {
+        "url": "ws://127.0.0.1:5173/?token=Eaaa-A_Jou2x",
+        "status": 101,
+        "failure": null
+      }
+    ],
+    "conclusion": "Returning-context locator timeout is separate from the waived first-answer reload; no assertion or timeout changes. Main equivalent case previously passed. Root cause not established."
+  },
+  "returning_context_isolated": {
+    "head_sha": "f05b1c66b4d11523ff2d8754fae2ebb64c8da9e7",
+    "process_exit": 1,
+    "seconds": 18.91,
+    "diagnostic_only": true,
+    "test_timeout_ms": 30000,
+    "note": "Isolated returning-context test to distinguish sequential/full-suite interaction from repeatable candidate failure. Original full-suite failures retained. Full artifact teardown rejects partial runs; this is not a replacement green suite."
+  },
+  "review_state": "Ready for review; no GitHub reviews at integration promotion. Composition and negative controls reviewed locally; not a remote approval."
 }
