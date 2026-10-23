@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const listSessionAttachments = vi.fn();
 const uploadSessionAttachment = vi.fn();
@@ -163,6 +163,31 @@ describe("ComposerAttachments", () => {
     render(<ComposerAttachments sessionId="s1" selectedIds={["a1", "a2"]} onSelectionChange={onSelectionChange} />);
     await screen.findByText("notes.pdf");
     fireEvent.click(screen.getByRole("button", { name: "移除附件 notes.pdf" }));
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith(["a2"]));
+  });
+
+  it("uses the latest selection when a deletion completes after a user change", async () => {
+    const remaining = attachment({ id: "a2", filename: "keep.pdf" });
+    listSessionAttachments.mockResolvedValue({
+      attachments: [attachment(), remaining], max_files_per_thread: 5, total_bytes: 4096,
+    });
+    let completeDeletion: (() => void) | undefined;
+    deleteSessionAttachment.mockImplementation(
+      () => new Promise<void>(resolve => { completeDeletion = resolve; }),
+    );
+    const onSelectionChange = vi.fn();
+    const { rerender } = render(
+      <ComposerAttachments sessionId="s1" selectedIds={["a1"]} onSelectionChange={onSelectionChange} />,
+    );
+    await screen.findByText("notes.pdf");
+    fireEvent.click(screen.getByRole("button", { name: "移除附件 notes.pdf" }));
+    expect(completeDeletion).toBeDefined();
+
+    // The user selected a2 while delete(a1) was still in flight.
+    rerender(
+      <ComposerAttachments sessionId="s1" selectedIds={["a1", "a2"]} onSelectionChange={onSelectionChange} />,
+    );
+    await act(async () => { completeDeletion?.(); });
     await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith(["a2"]));
   });
 

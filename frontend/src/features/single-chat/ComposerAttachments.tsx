@@ -36,6 +36,9 @@ export function ComposerAttachments({
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  // Async deletions must consult the latest parent-controlled selection.
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
 
   useEffect(() => {
     setResolvedSession(sessionId ?? "");
@@ -117,8 +120,9 @@ export function ComposerAttachments({
     try {
       await deleteSessionAttachment(attachmentId);
       // A deleted attachment must not remain in this message's selection.
-      if (onSelectionChange && selectedIds.includes(attachmentId)) {
-        onSelectionChange(selectedIds.filter(id => id !== attachmentId));
+      const currentSelection = selectedIdsRef.current;
+      if (onSelectionChange && currentSelection.includes(attachmentId)) {
+        onSelectionChange(currentSelection.filter(id => id !== attachmentId));
       }
       await refresh();
     } catch {
