@@ -207,8 +207,12 @@ async def run_conversation_loop(
                     yield LoopStopped(trail_error, steps, observations)
                     return
                 if event.status != "observed":
+                    # A refusal is a known, deliberate stop: the adapter declined before any
+                    # effect. Reporting it as `action_failed` would put a permission decision
+                    # and a crashed executor in the same bucket, so the receipt could not tell
+                    # a security stop from an outage.
                     yield LoopStopped(
-                        "action_failed",
+                        "tool_refused" if event.status == "refused" else "action_failed",
                         steps,
                         observations,
                         event.outcome_unknown,

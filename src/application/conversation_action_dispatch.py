@@ -53,7 +53,20 @@ class SteeringObservation:
     research_after: ActiveResearch
 
 
-ActionHandler = Callable[[ActionInvocation], Awaitable[str | SteeringObservation]]
+@dataclass(frozen=True)
+class ActionRefusal:
+    """A trusted adapter declining to execute, before any external effect.
+
+    This is not an error. The adapter checked a permission the dispatcher cannot check
+    itself (Q-11's tool name comes from the model) and stopped. Recording it as
+    ``handler_error`` would claim the outcome is unknown when nothing was attempted, and
+    would charge the action for a call that provably did not happen.
+    """
+
+    reason: str
+
+
+ActionHandler = Callable[[ActionInvocation], Awaitable[str | SteeringObservation | ActionRefusal]]
 
 
 @dataclass
@@ -67,6 +80,7 @@ class ActionBudget:
     max_actions: int
     max_tool_calls: int
     _claimed: set[str] = field(default_factory=set, init=False, repr=False)
+    _tool_costs: dict[str, int] = field(default_factory=dict, init=False, repr=False)
     _tool_calls: int = field(default=0, init=False, repr=False)
     _lock: threading.Lock = field(
         default_factory=threading.Lock, init=False, repr=False
@@ -97,8 +111,25 @@ class ActionBudget:
             ):
                 return "budget_exhausted"
             self._claimed.add(request_id)
+            self._tool_costs[request_id] = tool_cost
             self._tool_calls += tool_cost
             return "claimed"
+
+    def release_tool(self, request_id: str) -> str:
+        """Return a tool slot for a claim that provably never ran.
+
+        Only the tool slot is returned. The action claim is kept, so a model that keeps
+        proposing unauthorized tools still burns ``max_actions`` and cannot use refusals to
+        search forever. This is a live-executor counter, not a currency refund: any real
+        spend is the ledger's record, not this object's.
+        """
+
+        with self._lock:
+            cost = self._tool_costs.pop(request_id, 0)
+            if cost <= 0:
+                return "no_tool_reservation"
+            self._tool_calls -= cost
+            return "released"
 
 
 def _same_intent(left: DecisionContext, right: DecisionContext) -> bool:
@@ -240,7 +271,7 @@ async def dispatch_conversation_action(
             bound_handler: ActionHandler = handler,
             bound_stage: ConversationAction = stage,
             bound_deadline: float = deadline,
-        ) -> str | SteeringObservation:
+        ) -> str | SteeringObservation | ActionRefusal:
             nonlocal invoked
             if time.monotonic() >= bound_deadline:
                 raise TimeoutError("action deadline")
@@ -258,7 +289,7 @@ async def dispatch_conversation_action(
 
         task = asyncio.create_task(invoke())
         error = ""
-        content: str | SteeringObservation = ""
+        content: str | SteeringObservation | ActionRefusal = ""
         try:
             done, _ = await asyncio.wait(
                 {task}, timeout=max(0, deadline - time.monotonic())
@@ -289,6 +320,18 @@ async def dispatch_conversation_action(
                 stage,
                 outcome_unknown=invoked and error != "stale_context",
                 attempted=invoked,
+            )
+            return
+        if isinstance(content, ActionRefusal):
+            # Nothing ran: no unknown outcome, and the tool slot goes back so a refused
+            # proposal cannot spend the search budget. The action claim is not released.
+            budget.release_tool(checked.request_id)
+            yield ActionEvent(
+                checked.request_id,
+                "refused",
+                stage,
+                attempted=False,
+                outcome_unknown=False,
             )
             return
         completion_context = expected_context
