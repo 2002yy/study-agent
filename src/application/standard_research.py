@@ -49,9 +49,17 @@ class ModelStandardPlanner:
 
 
 class StandardResearchLoop:
-    def __init__(self, execution: StandardExecution, planner: Callable[[dict], dict]):
+    def __init__(
+        self,
+        execution: StandardExecution,
+        planner: Callable[[dict], dict],
+        approach_scheduler: Any = None,
+    ):
         self.execution = execution
         self.planner = planner
+        # Optional, off-path research-opening generation.  When absent the loop
+        # is unchanged; when present it is best-effort and never blocking.
+        self.approach_scheduler = approach_scheduler
 
     def _complete(self, reason: str) -> dict:
         execution = self.execution
@@ -62,6 +70,33 @@ class StandardResearchLoop:
             execution.clock(),
             reason,
         )
+
+    def _schedule_approach(self, query: str) -> None:
+        """Best-effort, off-path opening generation.  Never blocks the loop.
+
+        When the plan already yields a projection the coordinator reports
+        ``not_needed`` and makes zero model calls; the atomic write rejects any
+        late result that lost its identity/terminal race.
+        """
+
+        scheduler = self.approach_scheduler
+        if scheduler is None:
+            return
+        execution = self.execution
+        args = (execution.run_id, execution.thread_id, execution.operation_id)
+        try:
+            current = execution.journal.approach_snapshot(*args, execution.clock())
+            scheduler.schedule(
+                run_id=execution.run_id,
+                operation_id=execution.operation_id,
+                mode="standard",
+                query=str(query or ""),
+                current=current,
+                is_terminal=lambda: False,
+                sequence=1,
+            )
+        except Exception:
+            return
 
     def advance(self, gateway: Any, *, max_steps: int = 48) -> dict | None:
         """None means paused at a persisted step boundary, not research success."""
@@ -88,6 +123,7 @@ class StandardResearchLoop:
                     lambda: self.planner(request), planning["budget"]["deadline"]
                 )
                 execution.journal.save_research_plan(*args, execution.clock(), proposal)
+                self._schedule_approach(request["handoff"].get("query", ""))
             except ValueError:
                 return self._complete("planner_invalid")
             except Exception:

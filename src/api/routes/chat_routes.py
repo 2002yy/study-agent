@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import suppress
 from typing import Annotated, Any, AsyncIterator
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -30,6 +31,7 @@ from src.application.research_evidence import (
     research_run_provenance,
     research_sources_snapshot,
 )
+from src.web.research.research_approach import approach_event
 from src.application.runtime_repository import (
     get_chat_service,
     get_session_service,
@@ -121,8 +123,21 @@ async def chat_stream_endpoint(
     research_service: WebLookupServiceDependency,
     session_service: SessionServiceDependency,
 ) -> StreamingResponse:
+    # Establish the turn identity *before* preparation starts so a brand-new
+    # session (no session_id) can still have its opening streamed during
+    # research.  A continuation reuses its existing turn identity; only a
+    # genuinely new turn gets a pre-generated id, and retries still create a new
+    # turn because they carry neither a turn_id nor a continuation id.
+    effective_turn_id = chat_request.turn_id or chat_request.continuation_of_turn_id
+    command_request = chat_request
+    if effective_turn_id is None:
+        # Brand-new turn: pre-generate the identity so its research opening can be
+        # streamed during preparation.  The request object itself is left
+        # untouched so disconnect/cancel semantics for a new turn are unchanged.
+        effective_turn_id = f"turn_{uuid.uuid4().hex}"
+        command_request = chat_request.model_copy(update={"turn_id": effective_turn_id})
     try:
-        command = _chat_command(chat_request, research_service)
+        command = _chat_command(command_request, research_service)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -132,6 +147,9 @@ async def chat_stream_endpoint(
             asyncio.to_thread(service.start_turn, command)
         )
         observed_research_version: tuple[str, int] | None = None
+        # Bind progress strictly to *this* turn's identity: the previous turn's
+        # run can never be surfaced as the current question's opening, and two
+        # concurrent requests cannot cross-attribute.
 
         while not prepare_task.done():
             if chat_request.turn_id and await http_request.is_disconnected():
@@ -142,13 +160,9 @@ async def chat_stream_endpoint(
                 )
                 _settle_disconnected_preparation(prepare_task, service)
                 return
-            run = (
-                await asyncio.to_thread(
-                    research_service.latest_owned_by_turn,
-                    chat_request.turn_id,
-                )
-                if chat_request.turn_id
-                else None
+            run = await asyncio.to_thread(
+                research_service.latest_owned_by_turn,
+                effective_turn_id,
             )
             if run is not None and observed_research_version != (run.id, run.version):
                 observed_research_version = (run.id, run.version)
@@ -385,6 +399,19 @@ def _research_progress(run: Any) -> dict[str, Any]:
     ]
     notes = [note for note in deep.get("notes", []) if isinstance(note, dict)]
     last_step = steps[-1] if steps else None
+    owner = context.get("owner") if isinstance(context, dict) else None
+    turn_id = str(owner.get("turn_id") or "") if isinstance(owner, dict) else ""
+    lineage = context.get("lineage") if isinstance(context, dict) else None
+    # Bind the true lineage root for a child run; isolation still keys on the
+    # current run identity client-side.
+    root_run_id = (
+        str(lineage.get("root_run_id") or "") if isinstance(lineage, dict) else ""
+    ) or run.id
+    approach = approach_event(
+        context.get("approach") if isinstance(context, dict) else None,
+        root_run_id=root_run_id,
+        turn_id=turn_id,
+    )
     return {
         "run_id": run.id,
         "status": run.status,
@@ -401,6 +428,8 @@ def _research_progress(run: Any) -> dict[str, Any]:
         "active_phase": str(active_metrics.get("phase") or "") or None,
         "gate_status": str(active_brief.get("gate_status") or "") or None,
         "version": run.version,
+        # Research opening ("研究开场"): optional; legacy clients ignore it.
+        "approach": approach,
         # G18 deep-research journey fields.
         "round": int(deep.get("round_index") or 0) or None,
         "notes_count": len(notes),

@@ -505,6 +505,30 @@ class WebLookupService:
         if research_mode not in {"standard", "deep"}:
             raise ValueError(f"Unsupported research_mode: {research_mode}")
         context["research_mode"] = research_mode
+        # Research opening ("研究开场"): project the *lookup query plan* into a
+        # short, honest direction and persist it with the run so the everyday
+        # Lookup path actually shows an opening.  Deterministic, no model call,
+        # display-only; a failure keeps the pending seed and never blocks
+        # research.  See src/web/research/research_approach.py.
+        from src.web.research.research_approach import (
+            seed_approach,
+            summarize_lookup_query,
+        )
+
+        try:
+            context["approach"] = summarize_lookup_query(
+                query=normalized,
+                canonical_query=context.get("canonical_query", ""),
+                query_variants=context.get("query_variants") or (),
+                entity_aliases=context.get("entity_aliases") or (),
+                freshness_requested=bool(context.get("freshness_requested")),
+                mode=research_mode,
+                turn_id=owner_turn_id or "",
+            )
+        except Exception:
+            context["approach"] = seed_approach(
+                mode=research_mode, turn_id=owner_turn_id or ""
+            )
         # §143-P1 transport: express explicit reader-capability intent on the run
         # context. The read site owns routing authority; this layer only records
         # the canonical, adapter-validated declaration (never infers it).
@@ -670,6 +694,28 @@ class WebLookupService:
                 },
             }
         )
+        # Follow-up children project their **own** query plan into an opening
+        # (never the parent's possibly-stale text) so the child run is
+        # self-describing; failure keeps the pending seed.
+        from src.web.research.research_approach import (
+            seed_approach,
+            summarize_lookup_query,
+        )
+
+        try:
+            context["approach"] = summarize_lookup_query(
+                query=query,
+                canonical_query=context.get("canonical_query", ""),
+                query_variants=context.get("query_variants") or (),
+                entity_aliases=context.get("entity_aliases") or (),
+                freshness_requested=bool(context.get("freshness_requested")),
+                mode="standard",
+                turn_id=owner_turn_id or "",
+            )
+        except Exception:
+            context["approach"] = seed_approach(
+                mode="standard", turn_id=owner_turn_id or ""
+            )
         return self.repository.create_child(
             WebLookupRun(
                 query=query,
@@ -896,6 +942,19 @@ class WebLookupService:
         if not normalized:
             raise ValueError("Owner turn ID is required")
         runs = self.repository.list_by_owner_turn(normalized, limit=1)
+        return runs[0] if runs else None
+
+    def latest_owned_by_thread(self, thread_id: str) -> WebLookupRun | None:
+        """Newest run for a thread.
+
+        Lets the chat stream surface an opening during preparation (before the
+        turn id is known to the client) instead of only after the research ends.
+        """
+
+        normalized = thread_id.strip()
+        if not normalized:
+            return None
+        runs = self.repository.list_by_owner_thread(normalized, limit=1)
         return runs[0] if runs else None
 
     def lookup(self, query: str, *, max_items: int) -> WebLookupRun:
@@ -1501,7 +1560,28 @@ class WebLookupService:
             deep["round_index"] = round_index
             deep["plan"] = plan
             context["deep"] = deep
-            return self.repository.checkpoint(
+            # Research opening ("研究开场"): project the *real* plan sub-questions
+            # into a direction update, persisted inside this same checkpoint so no
+            # steering/observation data is lost and a terminal state cannot be
+            # overwritten by a late update.
+            try:
+                from src.web.research.research_approach import summarize_deep_plan
+
+                updated = summarize_deep_plan(
+                    query=run.query,
+                    sub_questions=[
+                        task.get("sub_question")
+                        for task in plan
+                        if isinstance(task, dict)
+                    ],
+                    previous=context.get("approach"),
+                    turn_id=str((context.get("owner") or {}).get("turn_id") or ""),
+                )
+                if updated is not None:
+                    context["approach"] = updated
+            except Exception:
+                pass
+            saved = self.repository.checkpoint(
                 run_id,
                 operation_id=operation_id,
                 research_context=context,
@@ -1514,6 +1594,15 @@ class WebLookupService:
                 stop_reason=reason,
                 answer_confidence=answer_confidence,
             )
+            # The checkpoint merges steering appended concurrently and returns the
+            # post-write row; refresh this executor's local view from it.
+            merged_deep = saved.research_context.get("deep")
+            if isinstance(merged_deep, dict) and isinstance(
+                merged_deep.get("steering"), list
+            ):
+                deep["steering"] = merged_deep["steering"]
+                context["deep"] = deep
+            return saved
 
         def set_stage(next_stage: str) -> None:
             nonlocal stage

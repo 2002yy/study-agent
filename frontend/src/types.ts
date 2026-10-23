@@ -563,6 +563,17 @@ export type WebLookupRunResponse = {
   completed_at?: string | null;
 };
 
+export type ChatResearchApproach = {
+  status: "pending" | "ready" | "failed";
+  summary: string;
+  focus: string[];
+  origin: "model_plan" | "model_generated" | "query_plan" | "fallback" | "direction_update" | string;
+  sequence: number;
+  mode: "lookup" | "standard" | "deep" | string;
+  root_run_id?: string;
+  turn_id?: string;
+};
+
 export type ChatResearchProgress = {
   run_id: string;
   status: "pending" | "running" | "completed" | "partial" | "failed" | "cancelled";
@@ -579,6 +590,8 @@ export type ChatResearchProgress = {
   active_phase?: string | null;
   gate_status?: string | null;
   version: number;
+  // Research opening ("研究开场"): display-only, optional; legacy servers omit it.
+  approach?: ChatResearchApproach | null;
   // G18 deep-research journey fields (present only for deep runs).
   round?: number | null;
   notes_count?: number | null;
