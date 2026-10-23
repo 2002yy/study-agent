@@ -1,0 +1,220 @@
+# 对话 Agent 循环开发计划
+
+日期：2026-10-18。本文为当前任务合同；阶段进度仍以 `PROJECT_STATUS.md` Current Handoff 为唯一入口。
+
+## 1. 目标与基线
+
+目标：理解用户意图 → 自主决定行动 → 调用工具 → 观察并整合证据 → 持续回答；模型可根据结果继续行动。
+模型决定行动，执行器负责预算、权限、工具能力校验、证据资格、持久化、恢复和终态。保留现有研究基础设施，不以增加过程标签替代有用内容。
+
+以下是用户确认的**产品开发分支状态，尚未合并主线**。已有实现不等于真实环境已验收，也不代表本工作树已包含其他窗口的未提交成果。
+
+| 核心能力 | 已有实现 | 尚未完整实现或验收 |
+| --- | --- | --- |
+| 自然聊天 | 多轮上下文、角色、历史会话、重试/继续 | 研究中自由换题与继续研究的交互 |
+| 自主搜索研究 | 规划、搜索、阅读、补查、来源机制 | 真实任务的分析、引用和答案质量 |
+| 边研究边交互 | 开场、过程播报、Deep 中途补充 | 更早输出有用的阶段性答案；Lookup/Standard 转向 |
+| 智能 UI | 表格、图表、计算与过程卡片 | 模型选择地图、滑块、棋盘等通用交互组件 |
+| 统一多模态 | 图片/文档输入、消息绑定、研究消费 | 完整真实模型联动验收 |
+| 工具型 Agent | 有界计算、隔离 Python、结果回填 | 真实模型自主选工具、观察结果并继续行动的质量验收 |
+
+## 2. 隔离与独立推进边界
+
+- 新分支：`codex/conversation-agent-loop-20261018`。
+- 新工作树：`D:/study-agent-validation/conversation-agent-loop-20261018`。
+- 产品基线：`codex/research-interim-analysis-20261018`，`0c8185151f694926941d3e5801f65f1df72fc65c`。
+- 与当前本地 main 的共同祖先：`335fc9b7875b848f202122362f2e0f8b5a9db0ee`。
+- **2026-10-18 合并范围调整：** 为执行“成功后合并 main”且不夹带整条未验收产品线，本分支已将自身 CL-1A/计划提交移植到上述 main。原产品基线与移植前完整分支保留在 `codex/conversation-agent-loop-product-base-20261018`，不丢弃原提交。当前交付代码仅依赖 main，不依赖产品分支文件。整线评估见 [PRODUCT_LINE_MATURITY_20261018.md](PRODUCT_LINE_MATURITY_20261018.md)。
+- 原工作树 `D:/study-agent-validation/chat-steer-attachments` 有未提交 IA-1A 增量回复、并发合并、终态冻结、浏览器计时等成果；本次没有复制、暂存、提交或修改这些成果。
+- **用户追加约束：不直接依赖其余开发中工作树的结果，另选方向独立推进。** 本分支只依赖上述固定已提交基线及本分支提交，不读取其他工作树作为运行时依赖，不导入其 WIP、不等待其提交或验收。后续如需集成，另做独立合并与合同验证。
+- 本分支按产品基线后的增量审阅；未来合并 main 时仍需审计完整候选，不能把基线全部算作本切片的新改动。
+
+## 3. 执行顺序与交付
+
+执行顺序调整：先独立推进 CL-1A 对话决策合同，随后 CL-1B 受控模型调用与失败语义；CL-0/CL-2 的过程输出与计时暂缓，避免与其他开发窗口重叠。阶段合同独立交付，不以其他分支完成作为前置条件。
+
+### CL-0：端到端基线（后续片，非前置依赖）
+
+固定输入：“比较 Photoshop 和开源替代品，重点考虑自动化编辑。”运行中补充：“再考虑 Agent 自动编辑。”使用可控 30 秒研究替身，不依赖旧截图或真实付费调用。
+
+仅基于届时本分支的已提交代码与测试构建场景，不依赖其他工作树的计时、回复或未提交验证成果。
+
+关联 session、turn、run、补充 request/steering 身份，追踪：收到输入、意图决策、计划变更、工具开始/结束、阶段分析生成、SSE 发送、浏览器呈现、答案与终态。前端延迟使用同一单调时钟；不得直接相减不同机器的时间戳。
+
+交付：带基线 SHA 的聚焦链路清单、可重复场景、时间线及具体阻塞位置。区分未生成、未传输、未渲染与尚未结束；桩件结果不得当作真实模型延迟。
+
+### CL-1：模型驱动的受控对话决策
+
+当前切片 **CL-1A**：新增独立、无 I/O 的模型输入/动作提议合同与校验器。只构造模型消息和校验结果，不调用模型、不执行工具、不写状态、不切换生产路由。现有 `router.py` 角色/模式选择、`task_contract.py` 任务分类及 Deep 转向规则均保持原样。
+
+模型输入包含当前消息、已有上下文、研究状态、已有证据和可用工具；输出受校验的行动及理由。CL-1A 将提议绑定 `request_id`，转向/排队还绑定当前 `run_id + revision`；执行前必须用最新上下文重新校验。校验只表明提议满足结构和能力条件，不证明模型已正确理解用户。
+
+新话题可直接回答/调用工具而保留原研究；排队仅表达独立后续任务。此切片只允许旧研究 `keep`，不授权取消、替换或暂停。执行器仍拥有真实队列、研究变更和费用预留；“通过校验”不得显示为“已执行”。
+
+**CL-1B 已实现（本地候选）：** `conversation_decision_runner.decide_conversation_action` 是异步、可注入的模型调用边界。显式共享 `DecisionBudget`，在提交前原子预留调用次数、提示字符、最大输出 token；同一 request 不自动重试。`DecisionLimits` 限制等待时间、输出 token 与响应字符；超时不等待吞掉取消的传输任务，迟到结果不再成为提议。外部取消向上传播，已提交预留不退还。模型输出严格 JSON、拒绝重复键/超长/非法合同；提交前与响应后核对当前上下文，请求或研究变化返回 `stale_context`。异常只给状态，不暴露提供商异常中的凭据/提示文本。
+
+调用约定：传入 `transport(ModelDecisionRequest) -> Awaitable[str]`、共享 budget 和 `current_context` 读取函数；返回 `DecisionResult`。`completed` 只表示得到有效提议，不执行工具、不写研究、不生成正式答案。`budget_exhausted`/`already_attempted`/`stale_context`/`context_unavailable`/`invalid_response` 均不给提议；提交后 `timeout`/`provider_error` 标记 `outcome_unknown`。取消以 `CancelledError` 传播；提交后的预算保留，不能把取消当作未计费。
+
+边界：传输适配器必须使用异步非阻塞 I/O、禁用隐藏重试，并在生产提供商调用前做持久费用预留。此模块的预算为进程内准入/输出上限，**不是人民币费用台账，也不是重启幂等存储**。未新增 SDK 入口、未选择/配置提供商、未调用真实付费模型，生产路由没有切换。真实 loopback HTTP 测试验证传输 → 响应 → 合同校验链，但不证明真实模型意图质量。
+
+**CL-1C 拆片状态：** #232 已实现独立调用/token 预留台账但尚未合并；本分支不依赖该 PR。当前 CL-1C-2a 新增 `conversation_decision_context.py`，从可信服务端 ChatThread/ChatTurn 快照投影输入：核对会话、活动操作、取消与当前 turn 一致性，只纳入当前 turn 之前最近六个 completed 轮次；每段历史有界，当前用户文本不静默裁切。request_id 由会话/turn/operation 的规范 JSON 摘要生成，同操作稳定，重试换 operation 或切会话隔离；活动研究须显式提供所属会话，工具能力与额度来自调用者服务端快照。
+
+此模块是只读纯投影，不自行读取数据库，不验证外部数据发送权限，也不保证调用者多次 DB 读取的原子性；真实生产接线仍需一致快照读取与执行前再核对，不得把投影通过当作工具执行授权。真实 SQLite 测试验证落库后 reload → 投影且行未修改。**当前已有非空 partial assistant_message 的轮次 fail closed**：v1 尚不能单独表示续答的当前部分回复，不允许静默丢弃；现有 ChatService 续答路径保持原样。后续 CL-1C-2b 再定义完整续答上下文、持久货币费用、原子快照读取与生产提供商适配，保持生产入口关闭；不增加无费用约束的 SDK 入口。
+**CL-1C-1（独立后续片，本地实现）：** 可注入准入协议与 `SqliteDecisionAdmission`，在独立自有 SQLite 文件中原子预留调用次数、提示字符、输出 token。重启后 request 去重和预留仍在，预算合同冻结，拒绝打开业务数据库；仅允许本调用独占创建的新文件初始化，预先存在的零字节文件或合法空 SQLite 同样不接管；初始化中断遗留文件无所有权时 fail closed，不自动清理。模型失败/超时不退款。模型 runner 的准入异常与非法状态统一 fail closed，不执行 transport。该台账不是人民币费用表，不改现有 runtime schema；没有接入提供商或切换生产权威。命名 L1 为 `conversation_decision_admission`，含真实 SQLite、独立 Python 进程重启与并发连接负控。
+
+后续 **CL-1C-2（未实现）**：生产接线与货币费用预留、权威请求身份、工具预算、上下文读取和竞态校验，再接入真实提供商。不能借接线悄悄增加无费用约束的 SDK 入口。
+
+行动集合：直接回答、先答再查、调用工具、澄清、调整当前任务、排队独立后续任务。自由换题必须与补充研究区分；对旧研究继续、暂停或取消必须有明确语义，不能因新话题自动丢掉原进度。
+
+执行器拒绝未知动作、越权工具和超预算计划；失败时给出可恢复状态，不能静默退回所有消息都搜索。阶段分析和执行回执保持不同语义。
+
+验收：知识足够时可直接回答；需要新证据时才调用工具；补充、纠正、换题、计算、独立后续任务能选择不同动作。既有上下文与证据不因转向丢失。
+
+### CL-2：前置分析与持续答案
+
+基于本分支已提交的阶段性判断接口，补齐“初步分析 → 已有出处的新发现 → 修正 → 最终答案”。本片暂缓，不依赖其他工作树的 IA-1A。分析说明补充如何改变判断、目前可判断什么、还需核实什么；不能用“正在研究”充数。
+
+初步知识性分析明确待核实边界；新发现须绑定实际读取材料；最终答案沿用证据门。纠正与来源失效可撤回或替代旧判断，普通新增约束不能把所有旧内容一律删除。内容有版本、归属和终态冻结，迟到事件不得重开已结束回复。
+
+验收：可控 30 秒场景中，目标为提交后 3～5 秒出现有用初步分析，研究后续有内容增量；分别测回执、分析、证据发现和答案延迟。真实模型需另报原始值与样本量，有足够样本才报告分布；不以模板、桩件或回执达标代替真实内容质量。
+
+### CL-3：补充执行闭环与三档能力
+
+补充在安全边界修订后续计划并保留有效进度；状态区分收到、计划已改变、相关动作已执行、答案已覆盖。基于 Deep 现有成果，分别定义并实现 Lookup/Standard 支持范围，能力未接通前明确反馈。
+
+验收：本场景的补充影响状态读取、局部编辑、结果验证、撤销恢复等比较维度，并可在实际计划/工具轨迹和答案中核对。独立问题不污染当前查询；取消、重复提交与恢复保持幂等。
+
+### CL-4：助手消息内的统一呈现
+
+初步分析、活动、发现、来源和最终答案归属具体助手回复；补充拥有对应的助手增量回复，与原研究保持关联。复用现有连续对话布局，保持用户已冻结的头像与交互约束。
+
+验收：用户能判断正在处理哪条要求、当前动作、排队内容和终态；重连、刷新、会话切换不串内容、不倒退版本、不重复消息。
+
+### CL-5：真实联动验收与后续能力
+
+CL-0 至 CL-4 最终构成可运行纵向切片，CL-1A 合同完成不等于完整对话循环实现。真实验收覆盖自然问答、先答再查、补充、纠正、自由换题、计算、附件、失败、取消及重连，并检验工具观察是否真实改变下一行动。
+
+通用地图/滑块/棋盘组件进入后续独立合同：先定义组件能力、模型选择协议、输入校验、可访问性和反馈回路；本批不直接扩建组件库。多模态与隔离 Python 复用已有实现，重点验收真实模型消费和自主选择质量。
+
+真实付费模型调用遵守已有费用授权边界。本次工作树/文档建立不产生模型或搜索调用，不构成费用授权。
+
+## 4. 验证与发布边界
+
+### CL-1D-6：多步流消费累计记录（独立小片，不切生产）
+
+loop将阶段回复和确定工具结果依次加入ObservationTrail；下一模型看到完整累计记录，原历史/证据保留。frame加入派生链后才调用下一决策，权限与研究版本仍使用fresh真实快照检查。达到记录容量时，先交付已完成的原文观察，再给observation_limit并关闭执行流，不启动后续模型/工具；容量不是证据权限，也不能据此退款或重放。
+
+命名conversation_loop_trail覆盖loop/trail/session/followup/step/dispatch/runner/admission/decision/阶段策略。验证多次工具与阶段回复、八步累积、累计提示只差一字符的准入负控、tool或初步回复处超容量、session终态。下一片为提供给可信回答handler的有界累计输入，避免最终正文仍需宿主自行拼接；实际模型和生产联动另验。
+
+### CL-1D-5：累计观察与阶段回复输入（独立小片，不切生产）
+
+每次工具记录后的额度上限按该帧before额度减一继续收紧，不能只按root减次数恢复并发消耗；源码与测试两个精确新路径映射完整共享影响集，不使用前缀通配。CI自身修改仍采用保守范围，普通后续trail改动才使用命名聚焦门。
+
+
+ObservationTrail保存root上下文与不可变ObservationFrame元组，单条必须为确定成功的工具观察或answer_then_research的阶段回复。验证同请求配对、连续派生身份和原意图/历史/研究以及累计额度，拒绝跨任务、重复或乱序记录。最多16阶段/16000个JSON序列化字符，未完成answer/tool配对不能发起下一决策；不截断正文。
+
+decide_with_observation_trail将全部记录作为额外JSON数据消息送入原受控决策器，区别assistant_preliminary与tool_observation并标记unverified；原history与evidence摘要保留，所有新增字符先准入。共用tool_observation_request_id提取旧身份算法，已持久化去重身份不改变。该片不执行动作；下一片CL-1D-6在loop中消费并定义观察容量耗尽的停止行为。
+
+### CI-CL-2：精确路径与消费者影响集（本轮第三片）
+
+登记的新增精确模块为conversation_action_dispatch、conversation_action_step、conversation_observation_followup、conversation_bounded_loop、conversation_loop_session及各自测试；与原decision/runner共14个路径映射conversation_decision_1b。不存在conversation_*通配排除，admission/context、共享domain/SQLite、生产路由/CI工具、资格门和未知路径仍保守扩大。workflow不变，也不删除强制L3或最终发布资格。
+
+可复用消费者清单（初始base自身150ae5ec，包含后续自身review修复，最终parent见Current Handoff）：dispatch门增补step/followup/loop/session；step门增补直接使用它的followup测试；followup门增补loop；loop门增补session；共享conversation_decision_1b继续保留整个链和SQLite账本测试。测试同时核对真实路径、manifest解析、新消费者子集以及混入未登记/持久路径的负控。
+
+命名L1 conversation_loop_ci_scope覆盖ci_scope、ci_workflow_routing、ci_outcomes、stage_gates_policy。下一功能片：有界累计工具观察与阶段回复输入，避免只看最近一次工具结果，保持未经验证数据与证据的区别。
+
+### CL-1D-4：单次消费与运行回执（独立小片，不切生产）
+
+ConversationLoopSession包装可信loop事件流，消费句柄只能claim一次；句柄关闭在首次读取前也有效。LoopReceipt不可变，不含提示/工具正文，区分stopped、closed、cancelled、failed；无结构化终态或计数不一致不能冒充成功。活动pull中断标记unknown，暂停关闭不自动重放，不能声称外部动作被回滚。跨进程持久恢复/完整断线续传另设门，本片仅进程内状态与消费权。
+
+下一片CI-CL-2登记明确路径与完整消费者影响集；随后再推进模型可见的有界累计观察/阶段答案，保持原证据权威。
+
+### CL-1D-3：有界多步事件流（独立小片，不切生产）
+
+工具回填后执行STEER必须保留派生请求身份；投影重建仅计算身份，必须返回真实fresh研究快照，让执行前检查与handler自身精确版本回执继续拒绝并发变化。不能回退raw root身份，也不能用历史研究版本伪装当前状态。
+
+
+LoopLimits 将一次运行限制为1–8次决策，并共享总时限、决策准入和动作/工具预算。run_conversation_loop流式输出原决策/观察，成功工具观察才触发下一决策；回答/澄清/转向/排队即收束。LoopStopped携停止原因、决策步数/成功观察数及失败detail/unknown，不把observed授予发布权威。消费者暂停计入期限，关闭/取消不执行后续阶段。服务端snapshot/工具额度仍是真实权威。
+
+下一片CL-1D-4增加单次消费的运行回执，明确关闭/取消的恢复边界；不做外部副作用自动重试。完整多观察累积/真实模型质量及生产接线仍待后续验收。
+
+### CL-1D-2：有界观察回填（独立小片，不切生产）
+
+基于自身#236冻结2ce7dbe7，新增decide_after_tool_observation及tool_followup_context。一次调用最多请求一个后续提议，仅接收同请求的成功确定工具观察，服务端额度必须真实扣减；请求/用户消息/历史/研究版本变化使旧观察失效。原证据摘要不被工具文本覆盖；工具观察独立标记unverified，序列化包最多8000字符，新增提示精确计入DecisionAdmission。新request_id仅按不可变source request_id与USE_TOOL阶段稳定派生（不纳入可刷新的上下文、提议措辞或结果正文），重复观察不获新准入身份，支持既有SQLite账本。
+
+回填函数不执行下一提议；宿主可复用公开投影交给受控分发器。没有自动循环/生产接线/答案或applied权威；模型与handler仍为注入接口。命名影响集conversation_observation_followup覆盖自身、step、dispatch、runner、admission、decision及阶段策略。下一小片CL-1D-3做受总预算约束的多步事件流与明确终止原因，再考虑生产适配与真实资格。
+
+### CL-1D-1：单步编排（独立小片，不切生产）
+
+基于自身冻结 #235/bcdaa4b7，新 API `run_conversation_step` 组合既有决策器与动作分发器，一次最多一个模型决策与一个提议，流式返回 DecisionResult/ActionEvent。决策成功先暴露提议，后续才启动 handler；初步答案与工具观察保持原顺序。总时限包含模型、动作与消费者暂停；嵌套流显式关闭，失败、换题或取消不继续动作。两个准入预算仍分别保留，不声称跨进程持久权威。
+
+命名影响集 conversation_action_step 包含自身与分发/决策/runner/阶段策略；不跑机械 L3。观察仍未验证，本片不自动发起后续模型调用。下一片 CL-1D-2 专门实现有界观察回填，之后再做生产适配与真实联动资格。
+
+### CL-1D：动作分发与观察（独立实现，不切生产）
+
+STEER 若自身更新研究版本，handler需返回 SteeringObservation 的事务回执：同run、版本前进、完成时精确快照匹配；原用户意图仍需一致。没有回执不能用任意新版本消除过期检查；回执不授予生产applied权威。
+
+
+
+当前分支直接基于已合并 main `5d4da728`，独立于 #232/#233。新增 `dispatch_conversation_action` 异步事件流，将已验证提议交给显式注册的服务端 handler：answer/clarify/use_tool/steer/queue 单阶段；answer_then_research 固定先 answer 再 use_tool，消费者能在工具启动前读到初步回复事件，关闭流不会继续启动后续阶段。
+
+执行前重复核对提议、当前意图/研究版本与能力；进程内 ActionBudget 原子 claim 防重复并限制动作/工具槽，失败和关闭不自动退款重试。新事件显式区分 attempted、outcome_unknown；超时先发送取消再产生事件，迟到输出不再成为观察。工具导致的预算/证据变化不被误判为用户意图变化，换题/取消等通过可信 current_context 的最新快照使旧动作失效。
+
+Handler 是可信服务端适配器，不能由模型提供代码；适配器仍须验证参数、持久执行身份、权限和费用。本模块没有生产 ToolService/聊天/SSE 接线，ActionBudget 不是跨进程幂等或持久租约，observed 也不是正式答案、已验证证据或已应用转向。fixture 模型 → 初步分析 → 本地真实加法 → 观察回传 → fixture 模型选择回答的测试，只证明编排顺序，不证明真实模型智能或产品验收。
+
+下一片 CL-1D-1：受控单步编排与观察回填，继续使用可注入模型/handler；持久费用、执行租约、完整续答与真实提供商资格仍为生产接线前置，不能绕过。
+
+- 每片先声明命名 L1 影响集：自身测试、直接消费者与下一层合同；复用 `tests/stage_gates.json`，不新增测试框架。
+- CL-0 先跑可控 HTTP/SSE/浏览器场景并检查计时与内容断言；CL-1 覆盖模型决策正负例和执行器拒绝；CL-2 覆盖增量、修正、并发、迟到和终态冻结。
+- 子阶段关闭跑 L2；L3 仅在 AGENTS.md 规定的最终候选/权威切换/强制触发条件下运行，并先通过 `tools/l3_preflight.py`。共享合同变化需评估强制触发。
+- 适用门包括 Ruff、格式、mypy 无新增错误、前端类型/构建、diff-check和范围审计；文档切片仅做比例适当的文档检查。
+- 本地测试、真实任务质量、exact-head CI、合并和部署分别记录。未经真实联动验收不得宣称六项能力闭环；未经最终审阅和所需 CI 不得宣称可合并或已交付。
+
+## 5. 当前结果
+
+CL-1A/CL-1B 已通过 #230 合入 main `0236160e`；#231（CI 路由）与 #232（持久准入）重绑 main 后后台验证。当前快照投影片直接基于 0236160e 独立开发，不依赖这两条待合并分支。按用户敏捷节奏，CI 不阻塞下一片；当前合并仍须精确 HEAD 的 CI/审阅门。整条产品线维持独立 NO-GO，不把三个小模块称作完整对话循环上线。
+CL-1A/CL-1B 为 #230 独立候选；CI 路由为 #231。**按用户敏捷节奏，不等待它们的 CI 才继续开发**：CL-1C-1 基于自身冻结 f706 提交另开独立工作树，不依赖 CI 路由分支或其他窗口 WIP。前一 PR 合并后重绑 main 基线再审阅/合并，不能绕过精确 HEAD 门。整条产品线仍按独立成熟度评估保持 NO-GO。
+
+### CL-1E-1：可信回答适配器输入
+
+AnswerInput仅接受ANSWER阶段与ANSWER/ANSWER_THEN_RESEARCH提议；初始输入绑定root，后续输入绑定完整trail的下一请求和未恢复的工具额度。64000字符是完整序列化数据上限（含JSON转义），不截断；prompt_chars另计固定系统说明，真实调用方必须据此预留自己的生成预算。完整观察标unverified，历史及证据摘要分开，阶段回复要求衔接；本模块不生成/发布、不授予Evidence Gate权威。下一片仅可选loop接线，保留原handler协议。
+
+### CL-1E-2：loop可选回答输入
+
+可选answer_handler覆盖本次loop的ANSWER阶段，原handler签名与默认路径不变。输入在dispatch执行可信handler时构造，绑定当前expected与已完成trail，避免只拿到末条观察或把自己尚未生成的回复加入输入。继承原动作预算/去重/过期拒绝/超时/关闭/取消，生成适配器仍须自行预留真实生成额度和校验输出；观察不是正式证据或已发布答案。无生产接线、SDK或自动付费调用。本片不是子阶段关闭/生产资格；下一片再独立定义生成调用准入，真实模型质量与前3–5秒初步答案保留实测验收门。
+
+### CL-1F-1：有界回答生成
+
+单次注入transport，AnswerLimits限制等待≤30秒、输出≤4000 tokens且≤8000字符。answer_request_id由固定schema+当前请求身份+ANSWER阶段派生，不包含可变内容/提议分类；与决策ID分开，可共享DecisionAdmission总额度。传输前后的精确上下文校验、无退款/重试、忽略迟到、调用者取消传播与脱敏失败是执行边界。SqliteDecisionAdmission仅复用现有自有库schema，不引入业务持久变更。该台账不等于货币预算，可信生产transport仍须禁用隐藏重试并预留真实花费。生成文本只是provisional结果，不是证据或发布许可。下一片loop可选接线必须使用内部派生的fresh上下文。
+
+### CL-1F-2：原生loop生成适配器
+
+BoundedAnswerGenerator仅在runner completed时返回正文；其余结果抛脱敏AnswerGenerationError给可信调用者。loop的可选answer_generator与旧answer_handler互斥；构造输入时使用当前expected/trail，生成期间读内部latest（含工具后派生请求身份），不要求宿主复制投影算法或改写快照来通过检查。保留外层deadline/动作预算/取消链，生成器拥有独立或共享准入台账；任何失败都不执行后续工具。dispatch继续保守报告handler_error/unknown，本片不修改公共动作回执语义。实际货币费用、SDK隐藏重试、内容/引用质量和正式发布仍由生产适配器及后续资格门负责。本片仍为opt-in，不是生产权威切换。
+
+### CL-1G-1：仅DeepSeek的单次传输
+
+用户选定DeepSeek。注入客户端的transport只翻译已有两个受控请求，不自行读取配置或创建网络客户端。明确设置max_retries=0、thinking disabled与stream false，决策加json_object；验证一次调用、期限/token/messages边界，只接受stop单choice且无refusal/tool_calls的有界正文。重试/修复/改提供方均不在本片。SDK异常交由既有runner脱敏，取消原样传播。下一片仅DEEPSEEK_*配置和owned异步SDK客户端；OpenAI兼容协议不意味着使用OpenAI服务，禁止OPENAI_*配置回退。
+
+### CL-1G-2：DeepSeek专属配置与owned SDK会话
+
+只消费显式DEEPSEEK_*映射，flash/pro模型必须分别配置，不从通用或OPENAI_*取值；仅允许HTTPS api.deepseek.com根/v1端点。默认SDK客户端使用自有HTTP client，禁用重试、重定向和环境代理，显式空organization/project/webhook避免SDK自动读其他服务元数据。async with只拥有自己的客户端，关闭后借出的transport/generator也失效。
+
+宿主先构造DeepSeekConversationSettings.from_environment(显式映射)，再async with DeepSeekConversationSession(settings)，将session.transport交给原loop作为决策transport，将session.answer_generator(共享或独立准入)作为answer_generator；停止流后退出会话。不修改旧llm_client全局缓存或.env，不自动切换生产入口；真实费用授权与证据发布仍由宿主负责。SDK包使用兼容协议，网络目标仅DeepSeek。测试使用MockTransport，不借用现有凭据或真实服务。
+
+### CL-1H-1：可选应用服务入口
+
+DeepSeekConversationService.start只捕获可信快照读取器、工具handler目录和显式共享模型准入/动作预算，返回单次消费会话；不读取环境或启动付费调用。实际读取时才创建owned SDK，并在结束/关闭/取消时先关闭loop再释放SDK。未读run、过期请求和重复请求均不发额外模型调用；会话回执不含正文，SDK清理失败不冒充完整成功。宿主仍负责真实费用/权限/证据/正式发布。本片只提供应用层入口，不切现有HTTP聊天或生产权威；下一片提供安全进度投影。
+
+### CL-1H-2：显示进度投影与SSE编码
+
+从单次消费会话投影计划状态、preliminary/final答案、clarification、工具元数据和终态；不转发模型reason/prompt/history/证据摘要或工具原文。固定unverified/provisional，不用answered终态绕过原证据/发布门。request_id关联同一owned操作，sequence与event_id仅本流显示标识，不支持持久恢复或执行重放。立即claim保证未读关闭可释放；拒绝并发读取，关闭/取消沿原会话释放SDK。缺失终态、源异常和清理失败各给一个脱敏failed终态，取消传播；SSE正文只在JSON单行data中，换行不会新增字段。宿主必须用aclosing消费，并自行把owned request关联到消息。本片不注册HTTP端点或改ChatTurn发布。
+
+### CL-1I-1：owned操作与一致只读快照
+
+SQLite读适配器以只读URI和单事务读取thread/current/最近6个completed prior turns，不初始化、迁移或恢复写入，不读取其他线程。binding复用已合main的context_from_chat_snapshots，严格拒绝取消/归档/换owner/完成/当前partial；始终由服务器回调决定能力、证据摘要和额度，模型调用前后及动作前重读。读适配器不创建、完成、释放操作或发布回复。宿主必须先授权调用者并拥有当前操作、持久费用准入和结束处理；下一片默认关闭的router仅接受身份，不接受客户端历史、工具或预算，也不自动注册生产app。
+
+### CL-1I-2：显式宿主策略与HTTP流生命周期
+
+入口修复约束：enabled检查必须早于正文读取/JSON/Pydantic绑定；启用后按实际累计字节限制4KiB、按整段读取限制2秒，再验证身份并调用宿主逐操作授权。Content-Length只是提前拒绝提示，不能替代实际分块限制；未授权调用者也不能触发无界JSON处理。默认关闭遇空、坏、额外字段或超大正文均404且零读取；无效JSON400、字段422、超大413、停滞408，均无模型准入。
+
+create_conversation_events_router默认关闭、不自动注册app；宿主必须提供逐操作授权、owned run创建和操作结束回调。请求仅thread/turn路径与operation_id正文，客户端历史、工具、预算或证据字段直接422；授权/身份失败与重放拒绝均不启动SDK。显示流继续固定provisional/unverified，不借event_id提供持久恢复。Response拥有已claim会话：即使发送头失败尚未读取，也会关闭；断线/取消沿原loop和SDK释放，再通知一次宿主。清理等待上限1秒，超时取消；宿主回调必须有界、按operation身份CAS处理并保留unknown，不得直接发布答案。此片不创建/完成ChatTurn，不变更全局生产入口或现有认证；下一片补可信宿主的持久操作结算，真实模型效果与3–5秒初答仍需单独验收。
