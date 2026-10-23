@@ -59,10 +59,40 @@ jobs:
               changed_file_list=""
             fi
           elif [ "${GITHUB_EVENT_NAME}" = "push" ]; then
-            # A main push is classified by the same diff, not defaulted to full.
+            # A single merge push only diffs against its immediate parent, so a batch of
+            # merges becomes N runs. The concurrency group cancels the first N-1, which
+            # leaves one run that sees "files: 1" and is still read as the batch verdict.
+            #
+            # Resolve a trusted batch start instead: the head of the last successful run
+            # of this workflow on main. tools/ci_batch_range.py proves that start is a real
+            # ancestor of the pushed commit and refuses to use anything it cannot prove;
+            # an unprovable batch widens to the full scope rather than quietly classifying
+            # only the last slice.
             before="${{ github.event.before }}"
-            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ]; then
-              git diff --name-only "$before" "${{ github.sha }}" > "$changed_file_list" || changed_file_list=""
+            if [ "$before" = "0000000000000000000000000000000000000000" ]; then
+              before=""
+            fi
+
+            batch_candidate="$(gh api \
+              "/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=1" \
+              --jq '.workflow_runs[0].head_sha' 2>/dev/null || true)"
+
+            batch_outcome="$(python tools/ci_batch_range.py \
+              --candidate "$batch_candidate" \
+              --head "${GITHUB_SHA}" \
+              --fallback "$before" 2>&1 || true)"
+            echo "$batch_outcome"
+            batch_mode="$(printf '%s\n' "$batch_outcome" | sed -n 's/^batch_mode=//p')"
+            batch_from="$(printf '%s\n' "$batch_outcome" | sed -n 's/^batch_from=//p')"
+            echo "batch_mode=${batch_mode}" >> "$GITHUB_OUTPUT"
+            echo "batch_from=${batch_from}" >> "$GITHUB_OUTPUT"
+
+            if [ "$batch_mode" = "widen" ] || [ -z "$batch_from" ]; then
+              echo "::warning::No provable batch range; widening to the full scope."
+              changed_file_list=""
+            else
+              git diff --name-only "$batch_from" "${GITHUB_SHA}" > "$changed_file_list" \
+                || changed_file_list=""
             fi
           fi
 
