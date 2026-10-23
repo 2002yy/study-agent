@@ -94,6 +94,13 @@ def list_snapshot(path: Path, limit: int, cursor: str = "") -> dict[str, Any]:
     digest = hashlib.sha256(raw).hexdigest()
     after = decode_cursor(cursor, digest)
     with snapshot_connection(raw) as connection:
+        if after:
+            boundary = connection.execute(
+                "SELECT id FROM web_lookup_runs WHERE id COLLATE BINARY = ? LIMIT 2",
+                (after,),
+            ).fetchall()
+            if len(boundary) != 1:
+                raise InvalidCursor("unknown cursor boundary")
         rows = connection.execute(
             "SELECT id, status, stage, stop_reason FROM web_lookup_runs "
             "WHERE (? = '' OR id COLLATE BINARY > ?) ORDER BY id COLLATE BINARY LIMIT ?",
