@@ -776,7 +776,8 @@
       "tests/test_learning_truth_repository.py",
       "tests/test_learning_semantic_closure.py",
       "tests/test_web_lookup_research_contract.py",
-      "tests/test_stage_gates_policy.py"
+      "tests/test_stage_gates_policy.py",
+      "tests/test_ar_integration_safety.py"
     ]
   },
   "stage_gates": {

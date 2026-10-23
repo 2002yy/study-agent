@@ -8,6 +8,17 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-24 权威AR隔离集成候选（未授权合main）。** 本树codex/ar-authoritative-integration-20261024从main `aeeeac0c8c3608f173e2671d6f3ed9497913f91f`起，按#265 `c07c7027`→#272 `3be77996`→#259 `a024d6cd`三个真实merge组成；三个PR与全部已归档非文档PR的完整head均为祖先，main历史完整保留。旧dgroup预演树18项暂存修改未碰，四个开放PR未改动；#282最后处理，CL-M3其他工作树未接管。本片owner=orchestration/persistence/infrastructure，loop=static，dynamic=not_run（无模型/付费授权），decision=engineering-only，产品NO-GO不变。
+
+冲突逐块裁定：ChatPanel保留main的nativeEvent.keyCode输入法保护、合入AR类型与回复行为，测试夹具去重；read_evidence保留公开read_excerpt及兼容包装，三处assessment仅排版差异；两次stage_gates冲突为结构化并集，main与三片登记零丢失、路径无悬空。main的ci_scope、阅读跳转源码/测试、代理setup/teardown blob不变；workflow保留G1路由，仅继承具名candidate_head证据hash例外及其正/负测试。完整组成见[evidence](evidence/ar-authoritative-integration-20261024.json)。
+
+当前本地证据：575 PASS/1 SKIP影响集；前端584 PASS与build PASS；Ruff/新测试format PASS；mypy124/128 NEW0。新增3项SQLite/费用控制PASS：25→26迁移故障回滚、旧版本拒绝打开26库/旧备份可恢复、已发请求超时或取消仍保留预留、重复键不再发送。初版测试误期望SpendLimitExceeded，实际明确接口为SpendLedgerConflict，已按接口修正，未改生产代码掩盖错误。SpendLedger只有保守持久预留/重复拒绝，无结算/退款API；CL-M3货币接线必须另行适配，不宣称已覆盖新宿主全部调用路径。
+
+浏览器完整轮77 PASS/2 Firefox FAIL并有截图清单后置错误，保留trace；正在对干净main及候选做相同Firefox对照，未提高超时或跳过失败。L3仅在干净精确候选预检后执行一次；最终候选SHA、全量/浏览器/CI实际结果归档D:/study-agent-validation/ar-integration-evidence-20261024/closeout.json，并用`git notes --ref=ar-integration-20261024 show HEAD`追加结果，避免为交接改写精确受测候选。当前不能宣称可合并；不复用三条旧PR的绿灯。
+
+唯一下一门：冻结候选后完成全量回归、真实后端假provider浏览器门及本候选CI，明确Firefox归因和其他失败；提交完整集成结果供决定现有PR落地方式，禁止自动合前三PR或提前改#282。成功迁移后的旧代码回滚须用迁移前备份，不能删除账本表或退还已提交预留。
+
+
 **2026-10-23 CLI候选#280主线重绑（第二次，面向当前main）。** 初始head 15d5bd62b99ad9418b6a87aa55202700c4b1a501，
 本次显式吸收已提交main 42992932e115568be54d6e85a34f4b68335d84ea（#255合并后），不读取其他工作树WIP。
 base已从 codex/studyctl-ci-live-20261021 改为 main：原base下 `refs/pull/280/merge` 只证明本片能合进#279分支，
