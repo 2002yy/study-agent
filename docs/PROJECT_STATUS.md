@@ -16,9 +16,14 @@
 远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
 不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
 保留本片独立功能；吸收冻结父片的目录游标存在性修复与已提交main，不吸收兄弟分支。
-本片将重跑命名studyctl L1、工具mypy/Ruff/格式/diff；不以旧头CI授予新头，不重复本地L3。
+已完成命名studyctl L1 336 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交95d8e7c0c3ba87eb7dc65e564befbef832218bae。
+实际离线核验 7类断言通过，输入hash不变；离线快照/步骤回执只证明所给记录，不能授予合并资格。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
 验证目录 D:/study-agent-validation/studyctl-offline-rebind-20261023/277/。
-下一动作：完成本片门、固定提交推送，并继续后继独立候选；不等待后台CI。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
 
 
 **2026-10-23 CLI候选#276主线重绑。** 初始head 8f19c60cca76e9d3325d9fe5c084986fa6ad0567，
