@@ -135,9 +135,8 @@ describe("reading workspace",()=>{
 describe("notebook reading navigation",()=>{
   it("locates only headings in the loaded window without another read",async()=>{
     vi.mocked(readDocument).mockResolvedValue({...response,text:"# 学习正文\n第一段\n```md\n# 示例代码\n```\n## 第二节\n正文"});
-    // Wait for document positioning effects before simulating user scrolling.
-    await act(async()=>{render(<Harness/>);fireEvent.click(screen.getByText("打开正文"))});
-    expect(screen.getByText("第一段")).toBeInTheDocument();
+    render(<Harness/>);fireEvent.click(screen.getByText("打开正文"));
+    await screen.findByText("第一段");
     const body=screen.getByLabelText("可滚动资料正文");body.scrollTop=77;
     fireEvent.click(screen.getByRole("button",{name:"本段目录"}));
     const outline=screen.getByRole("navigation",{name:"当前正文窗口目录"});
