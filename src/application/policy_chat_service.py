@@ -27,6 +27,7 @@ from src.application.chat_service import (
     _route_generation_calls,
     _session_settings,
     _tool_context,
+    _turn_attachment_material,
     _web_context_provenance,
 )
 from src.application.helpers import load_frontend_settings
@@ -359,6 +360,9 @@ class ExternalDataPolicyChatService(ChatService):
                     parent_turn_id=retry_parent.id if retry_parent else None,
                     operation_id=operation_id,
                     conversation_instruction=command.conversation_instruction,
+                    # D1: the production path must persist the same message-level
+                    # attachment identity the base service binds.
+                    attachment_refs=tuple(command.attachment_refs),
                     created_at=utc_now(),
                     updated_at=utc_now(),
                 )
@@ -521,8 +525,10 @@ class ExternalDataPolicyChatService(ChatService):
                     ),
                     owner_thread_id=thread.id,
                     owner_turn_id=turn_id,
+                    attachment_material=_turn_attachment_material(self.repository, turn_id),
                     research_intent=task_contract.task_intent == "research",
                     history_allowed=decision.history_allowed,
+                    deep_requested=(context_mode == "deep") or (command.performance_mode == "deep"),
                 )
             else:
                 web_tools = WebToolTrace(enabled=False)
@@ -533,6 +539,9 @@ class ExternalDataPolicyChatService(ChatService):
             web_tool_error = str(rag["web_tools"].get("error") or "")
             continuation_instruction = _continuation_instruction(command)
             context_blocks: list[str] = []
+            from src.web.research.research_interaction import steering_answer_instruction
+
+            effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
             web_context = "\n\n".join(
                 part
                 for part in (
@@ -682,7 +691,7 @@ class ExternalDataPolicyChatService(ChatService):
                 context_mode=context_mode,
                 rag_context="\n\n".join(context_blocks),
                 scene=command.scene,
-                conversation_instruction=command.conversation_instruction,
+                conversation_instruction=effective_instruction,
                 pedagogy_plan=model_pedagogy_plan,
                 learning_state=model_learning_state,
             )
@@ -716,7 +725,7 @@ class ExternalDataPolicyChatService(ChatService):
                 pedagogy_snapshot=pedagogy_snapshot,
                 parent_turn_id=retry_parent.id if retry_parent else None,
                 operation_id=operation_id,
-                conversation_instruction=command.conversation_instruction,
+                conversation_instruction=effective_instruction,
             )
             expected = "pending" if reserved_existing is None or reserved_existing.status == "pending" else "interrupted"
             streaming = self.repository.update_chat_turn(

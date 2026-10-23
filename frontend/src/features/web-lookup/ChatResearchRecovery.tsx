@@ -77,6 +77,7 @@ export function ChatResearchRecovery({
   useInChat,
   onRetry,
   onResume,
+  inlineStatusShown = false,
 }: {
   run: ResearchLookupResponse | null;
   progress?: ChatResearchProgress | null;
@@ -86,8 +87,14 @@ export function ChatResearchRecovery({
   useInChat: boolean;
   onRetry: () => void;
   onResume: () => void;
+  /**
+   * Research progress belongs to the conversation timeline.  When the inline
+   * research entry already carries this run's live/terminal status, this
+   * surface must not repeat it — only genuine recovery actions remain here.
+   */
+  inlineStatusShown?: boolean;
 }) {
-  if (progress && ["pending", "running"].includes(progress.status)) {
+  if (!inlineStatusShown && progress && ["pending", "running"].includes(progress.status)) {
     const isDeep = progress.round != null;
     return (
       <div className="memory-note" role="status">
@@ -118,7 +125,7 @@ export function ChatResearchRecovery({
       !["pending", "running"].includes(progress.status) &&
       (!run || run.run_id !== progress.run_id || run.version < progress.version),
   );
-  if (progress && progressIsNewer) {
+  if (!inlineStatusShown && progress && progressIsNewer) {
     const failed = progress.status === "failed";
     return (
       <div className={`memory-note ${failed ? "warn" : ""}`} role="status">
@@ -133,6 +140,23 @@ export function ChatResearchRecovery({
           <span>
             {terminalProgressDetail(progress)} {progressMetrics(progress)}。
           </span>
+        </div>
+      </div>
+    );
+  }
+  const runWarnings = (run?.warnings ?? []).filter(Boolean);
+  if (!inlineStatusShown && !progress && runWarnings.length) {
+    // A persisted run warning is the honest surface for "this result does not
+    // cover everything that was accepted". It is shown as-is, never summarised
+    // away, and it is the same text any API consumer sees.
+    return (
+      <div className="memory-note warn" role="status">
+        <div>
+          {runWarnings.map(warning => (
+            <span className="research-warning-line" key={warning}>
+              {warning}
+            </span>
+          ))}
         </div>
       </div>
     );

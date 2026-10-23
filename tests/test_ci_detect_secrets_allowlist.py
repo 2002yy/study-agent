@@ -4,6 +4,8 @@ import re
 
 CI_WORKFLOW = Path(".github/workflows/ci.yml")
 AUDIT_HASH = "ab" * 32
+#: A 40-hex value in an evidence file: a frozen run's target commit.
+COMMIT_SHA = "06e96286d98d76c38018ff972460f42528479723"  # pragma: allowlist secret -- public commit, verified in this repository
 
 
 def _exclude_lines_pattern() -> re.Pattern[str]:
@@ -32,6 +34,34 @@ def test_ci_detect_secrets_does_not_allow_arbitrary_sha256_fields() -> None:
     assert pattern.search(f'"arbitrary_sha256": "{AUDIT_HASH}"') is None
     assert pattern.search(f'"api_key": "{AUDIT_HASH}"') is None
     assert pattern.search(f'"token": "{AUDIT_HASH}"') is None
+
+
+def test_ci_detect_secrets_allows_the_named_evidence_commit_field() -> None:
+    """A frozen acceptance run pins its target commit by name."""
+
+    pattern = _exclude_lines_pattern()
+
+    assert pattern.search(f'"candidate_head": "{COMMIT_SHA}"') is not None
+
+
+def test_ci_detect_secrets_does_not_allow_arbitrary_commit_like_fields() -> None:
+    """Naming one field must not open a class of fields.
+
+    The value is a real commit SHA, but the allowlist is by *name*: an unnamed
+    40-hex field, a differently shaped key, or a credential-shaped one stays a
+    finding.
+    """
+
+    pattern = _exclude_lines_pattern()
+
+    assert pattern.search(f'"head": "{COMMIT_SHA}"') is None
+    assert pattern.search(f'"target_commit": "{COMMIT_SHA}"') is None
+    assert pattern.search(f'"api_key": "{COMMIT_SHA}"') is None
+    assert pattern.search(f'"token": "{COMMIT_SHA}"') is None
+    # ...and the 40-hex branch still demands lowercase hex.
+    # Derived, not a second literal: the uppercase form must not be a new
+    # hex-looking string in the repository.
+    assert pattern.search(f'"candidate_head": "{COMMIT_SHA.upper()}"') is None
 
 
 def test_ci_detect_secrets_audit_hash_allowlist_requires_64_lowercase_hex() -> None:

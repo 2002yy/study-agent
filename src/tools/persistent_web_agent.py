@@ -154,10 +154,22 @@ class PersistentWebToolAgent(WebToolAgent):
         owner_turn_id: str | None = None,
         research_intent: bool = False,
         history_allowed: bool = False,
+        attachment_material: list[dict[str, Any]] | None = None,
+        deep_requested: bool = False,
     ) -> WebToolTrace:
         if not _env_flag("WEB_TOOL_ENABLED", default=True):
             return WebToolTrace(enabled=False)
         from src.web.research.official_resolver import official_plan
+
+        # R0: an explicit deep selection is the user's own instruction, so it
+        # outranks the heuristic escalation and the semantic-recovery default.
+        if deep_requested and self.research_service is not None:
+            return self._resolve_deep_research(
+                user_input,
+                owner_thread_id=owner_thread_id,
+                owner_turn_id=owner_turn_id,
+                attachment_material=attachment_material,
+            )
 
         known_source = (getattr(self.gateway, "supports_official_metadata", False) is True
                         and official_plan(user_input) is not None)
@@ -172,12 +184,15 @@ class PersistentWebToolAgent(WebToolAgent):
                 user_input, conversation_context=conversation_context,
                 owner_thread_id=owner_thread_id, owner_turn_id=owner_turn_id,
                 history_allowed=history_allowed,
+                attachment_material=attachment_material,
+                research_intent=research_intent,
             )
         if _requires_deep_research(user_input) and self.research_service is not None:
             return self._resolve_deep_research(
                 user_input,
                 owner_thread_id=owner_thread_id,
                 owner_turn_id=owner_turn_id,
+                attachment_material=attachment_material,
             )
         focused_query = conversation_search_query(user_input, conversation_context)
         run = None
@@ -185,12 +200,21 @@ class PersistentWebToolAgent(WebToolAgent):
         persistence_error = ""
         if self.research_service is not None:
             try:
-                run = self.research_service.create(
-                    focused_query or user_input,
-                    owner_thread_id=owner_thread_id,
-                    owner_turn_id=owner_turn_id,
-                    run_kind="chat_tool_loop",
-                )
+                if attachment_material:
+                    run = self.research_service.create(
+                        focused_query or user_input,
+                        owner_thread_id=owner_thread_id,
+                        owner_turn_id=owner_turn_id,
+                        run_kind="chat_tool_loop",
+                        attachment_material=attachment_material,
+                    )
+                else:
+                    run = self.research_service.create(
+                        focused_query or user_input,
+                        owner_thread_id=owner_thread_id,
+                        owner_turn_id=owner_turn_id,
+                        run_kind="chat_tool_loop",
+                    )
                 operation_id = self.research_service.begin_tool_trace(run.id)
             except Exception as exc:
                 persistence_error = (
@@ -369,6 +393,7 @@ class PersistentWebToolAgent(WebToolAgent):
         *,
         owner_thread_id: str | None = None,
         owner_turn_id: str | None = None,
+        attachment_material: list[dict[str, Any]] | None = None,
     ) -> WebToolTrace:
         """G18 deep-research pipeline (decisions 1-16).
 
@@ -390,15 +415,34 @@ class PersistentWebToolAgent(WebToolAgent):
         assert self.research_service is not None
         research_service = self.research_service
         try:
-            run = research_service.create(
-                query,
-                owner_thread_id=owner_thread_id,
-                owner_turn_id=owner_turn_id,
-                run_kind="deep_research",
-                research_mode="deep",
-            )
+            if attachment_material:
+                run = research_service.create(
+                    query,
+                    owner_thread_id=owner_thread_id,
+                    owner_turn_id=owner_turn_id,
+                    run_kind="deep_research",
+                    research_mode="deep",
+                    attachment_material=attachment_material,
+                )
+            else:
+                run = research_service.create(
+                    query,
+                    owner_thread_id=owner_thread_id,
+                    owner_turn_id=owner_turn_id,
+                    run_kind="deep_research",
+                    research_mode="deep",
+                )
             completed = research_service.execute(run.id)
             deep = completed.research_context.get("deep") or {}
+            calls.append({"name": "research_steering", "arguments": {}, "result": {
+                "run_id": completed.id,
+                "effective_query": str(deep.get("effective_query") or query),
+                "entries": [
+                    {"content": entry.get("content", ""), "executed": entry.get("executed_in_round") is not None}
+                    for entry in deep.get("steering", []) if isinstance(entry, dict)
+                ],
+                "authority": "user_task_requirements_not_evidence",
+            }})
             for attempt in completed.query_attempts:
                 calls.append(
                     {
@@ -450,6 +494,8 @@ class PersistentWebToolAgent(WebToolAgent):
         self, user_input: str, *, conversation_context: str,
         owner_thread_id: str | None, owner_turn_id: str | None,
         history_allowed: bool,
+        attachment_material: list[dict[str, Any]] | None = None,
+        research_intent: bool = False,
     ) -> WebToolTrace:
         service = self.research_service
         assert service is not None
@@ -457,8 +503,13 @@ class PersistentWebToolAgent(WebToolAgent):
             return WebToolTrace(error="ResearchCancelled: Research cancelled by user")
         prior = service.active_semantic_episode(owner_thread_id or "") if history_allowed else None
         # No stored/assistant-generated evidence is imported into a new run.
-        run = service.create(user_input, owner_thread_id=owner_thread_id,
-                             owner_turn_id=owner_turn_id, run_kind="chat_tool_loop")
+        if attachment_material:
+            run = service.create(user_input, owner_thread_id=owner_thread_id,
+                                 owner_turn_id=owner_turn_id, run_kind="chat_tool_loop",
+                                 attachment_material=attachment_material)
+        else:
+            run = service.create(user_input, owner_thread_id=owner_thread_id,
+                                 owner_turn_id=owner_turn_id, run_kind="chat_tool_loop")
         operation_id = service.begin_tool_trace(run.id)
         episode = prior or ResearchEpisode(
             task_id=run.id, thread_id=owner_thread_id or "",
@@ -520,13 +571,26 @@ class PersistentWebToolAgent(WebToolAgent):
             # the old deterministic path. Unknown follow-ups never become queries.
             from src.web.conversation_query import is_research_resume
 
+            # D2: only a malformed *decision payload* may fall back to the
+            # deterministic planning/reading chain, and only for a turn the
+            # router already authorised as external research.  Cancellation,
+            # permission and security-validation failures never become a
+            # guessed subject.
+            payload_shape_failure = str(exc) in {
+                "decision_fields",
+                "decision_binding",
+                "query_binding",
+            }
             if service.tool_trace_cancel_requested(run.id, operation_id):
                 service.finish_tool_trace_cancel(run.id, operation_id)
                 return WebToolTrace(calls=tuple(calls), error="ResearchCancelled: Research cancelled by user", run_id=run.id)
             if prior and is_research_resume(user_input):
                 focused = prior.original_question
                 episode = prior
-            elif research_topic(user_input) and len(user_input.strip()) <= 4096:
+            elif (
+                research_topic(user_input)
+                or (research_intent and payload_shape_failure)
+            ) and len(user_input.strip()) <= 4096:
                 focused = user_input.strip()
                 episode = ResearchEpisode(
                     task_id=run.id, thread_id=owner_thread_id or "", original_question=focused,
@@ -537,7 +601,10 @@ class PersistentWebToolAgent(WebToolAgent):
             else:
                 error = f"SemanticRecovery blocked: {type(exc).__name__}: {exc}"
             calls.append({"name": "research_semantic_fallback", "arguments": {},
-                          "result": {"reason": type(exc).__name__, "known_subject": bool(focused)}})
+                          "result": {"reason": type(exc).__name__,
+                                     "detail": str(exc)[:200],
+                                     "known_subject": bool(focused),
+                                     "degraded_to_deterministic": bool(focused)}})
         if focused:
             # A newly interpreted topic cannot extend the deadline inherited from
             # the current run. A short new topic may reduce it to Lookup.

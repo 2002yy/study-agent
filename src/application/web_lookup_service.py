@@ -1,6 +1,7 @@
 """Application service for durable, resumable general-web research."""
 
 from __future__ import annotations
+from collections.abc import Mapping
 
 from dataclasses import asdict, dataclass
 import os
@@ -31,6 +32,24 @@ from src.web.tool_evidence import (
 )
 from src.web.research_recovery import recovery_summary
 from src.web.research.candidate_funnel import candidate_funnel
+from src.web.research.incremental_budget import (
+    authorize_goal, consume as consume_incremental_budget, initialize_budget,
+    load_incremental_policy, remaining as incremental_remaining, total_authorized,
+)
+from src.tools.python_isolation import isolated_python_available
+from src.web.research.interim_analysis import analysis_sources, interim_revision, validate_interim_analysis
+from src.web.research.steering_replies import (
+    LIFECYCLE_OPEN,
+    apply_analysis,
+    content_state,
+    apply_evidence,
+    attribute_analysis,
+    find_reply,
+    next_content_version,
+    reply_id_for_steering,
+    research_reply,
+    research_reply_id,
+)
 
 
 class WebLookupGateway(Protocol):
@@ -445,15 +464,27 @@ class WebLookupService:
         repository: WebLookupRepository,
         gateway: WebLookupGateway | None = None,
         planner: Any = None,
+        compute_registry: Any = None,
     ):
         self.repository = repository
         self.gateway = gateway or ResearchWebGateway()
+        # Slice B: compute tools reuse the shared tool registry; built lazily so
+        # a service without computation never pays for it.
+        self._compute_registry = compute_registry
         # G18: optional deep-research planner. Two callables are expected on
         # the object: ``plan(query, context) -> [sub_question]`` for initial
         # decomposition and ``revise(memo, notes, remaining) ->
         # {"done": bool, "additional": [sub_question]}`` for per-round gap
         # analysis. When absent, deterministic fallbacks are used.
         self.planner = planner
+
+    @property
+    def compute_registry(self) -> Any:
+        if self._compute_registry is None:
+            from src.tools.registry import create_default_tool_registry
+
+            self._compute_registry = create_default_tool_registry()
+        return self._compute_registry
 
     def create(
         self,
@@ -470,6 +501,7 @@ class WebLookupService:
         reader_capabilities: list[str] | None = None,
         reader_session_id: str | None = None,
         reader_setup_url: str | None = None,
+        attachment_material: list[dict[str, Any]] | None = None,
     ) -> WebLookupRun:
         normalized = query.strip()
         if not normalized:
@@ -485,6 +517,19 @@ class WebLookupService:
                 suggestion_status=suggestion_status,
             )
         context = build_research_context(normalized).to_dict()
+        # Message-level attachment material: user-provided task material only.
+        # It never becomes web evidence and never enters the source block.
+        if attachment_material:
+            context["attachments"] = [
+                {
+                    "attachment_id": str(item.get("attachment_id", "")),
+                    "filename": str(item.get("filename", "")),
+                    "content_hash": str(item.get("content_hash", "")),
+                    "text": str(item.get("text", ""))[:4_000],
+                }
+                for item in attachment_material[:4]
+                if str(item.get("text", "")).strip()
+            ]
         context.update(
             {
                 "source_truth_version": 2,
@@ -1252,7 +1297,10 @@ class WebLookupService:
                             **record,
                             "item": dict(record.get("item") or {}),
                             "assessment": assessment,
-                            "read": read_result,
+                            "read": {
+                                **read_result,
+                                "round": int(context.get("run_round") or 0),
+                            },
                         }
                         if record.get("evidence_state") == "inherited_candidate":
                             if read_result.get("status") == "read":
@@ -1264,6 +1312,13 @@ class WebLookupService:
                                 updated_record["evidence_state"] = "invalid_or_rejected"
                                 updated_record.pop("inherited_note_seed", None)
                         selected_sources[index] = updated_record
+                        self._record_read_event(
+                            context,
+                            run_id=run_id,
+                            records=selected_sources,
+                            record=updated_record,
+                            round_index=int(context.get("run_round") or 0),
+                        )
                         context["read_summary"] = _read_summary(
                             selected_sources,
                             budget,
@@ -1435,9 +1490,28 @@ class WebLookupService:
     _DEEP_STEPS_CAP = 200
     _DEEP_NOTE_FACTS_CHARS = 1_200
 
-    def steer(self, run_id: str, *, content: str) -> WebLookupRun:
-        """G18 decision 12: inject a mid-run steering message."""
-        steered = self.repository.append_steering(run_id, content=content)
+    def steer(
+        self,
+        run_id: str,
+        *,
+        content: str,
+        request_id: str | None = None,
+        attachment_refs: list[dict[str, Any]] | None = None,
+        attachment_material: list[dict[str, Any]] | None = None,
+    ) -> WebLookupRun:
+        """G18 decision 12: inject a mid-run steering message.
+
+        Text and attachments share one ``request_id`` so a retry is idempotent
+        and the attachment can never arrive on an unrelated path.
+        """
+
+        steered = self.repository.append_steering(
+            run_id,
+            content=content,
+            request_id=request_id,
+            attachment_refs=attachment_refs,
+            attachment_material=attachment_material,
+        )
         if steered is None:
             raise ValueError(
                 f"WebLookupRun cannot be steered (not running): {run_id}"
@@ -1451,19 +1525,416 @@ class WebLookupService:
         steps.append({"at": utc_now(), "kind": kind, "text": text[:300]})
         deep["steps"] = steps[-self._DEEP_STEPS_CAP :]
 
-    def _deep_consume_steering(self, deep: dict[str, Any], round_index: int) -> bool:
+    def _deep_apply_computation(
+        self,
+        deep: dict[str, Any],
+        *,
+        run_id: str,
+        round_index: int,
+        compute_raw: Any,
+        notes: list[dict[str, Any]],
+    ) -> None:
+        """Run one bounded planner compute decision and bind its result."""
+
+        from src.web.research.computation_step import (
+            MAX_COMPUTATIONS,
+            ComputeRequestError,
+            bind_source_refs,
+            execute_compute,
+            parse_compute_request,
+        )
+
+        try:
+            parsed = parse_compute_request(compute_raw)
+        except ComputeRequestError as exc:
+            self._deep_log(deep, "compute", f"计算请求被拒绝：{exc}")
+            return
+        if parsed is None:
+            return
+        if parsed["engine"] == "isolated_python" and incremental_remaining(deep, "python_runs") == 0:
+            self._deep_log(deep, "compute", "计算预算不足，隔离 Python 未执行。")
+            return
+        payload = execute_compute(
+            parsed,
+            registry=self.compute_registry,
+            run_id=run_id,
+            tool_run_id=new_id("tool"),
+            input_revision=round_index,
+            source_refs=bind_source_refs(notes),
+        )
+        # An execution attempt occupies the compute quota even when it fails or
+        # times out; a request that never started (isolation unavailable) does
+        # not count as an execution.
+        if parsed["engine"] == "isolated_python" and payload.get("status") in {"succeeded", "failed"}:
+            consume_incremental_budget(deep, "python_runs")
+        entries = [item for item in deep.get("computations", []) if isinstance(item, dict)]
+        entries.append({**payload, "round": round_index, "at": utc_now()})
+        deep["computations"] = entries[-MAX_COMPUTATIONS:]
+        # A recompute supplement is executed *by* the successful computation, so
+        # record that execution fact here instead of leaving a false "incorporated
+        # but never executed" receipt.
+        if payload.get("status") == "succeeded":
+            for entry in deep.get("steering", []):
+                if (
+                    isinstance(entry, dict)
+                    and entry.get("kind") == "recompute"
+                    and entry.get("incorporated_in_round") == round_index
+                    and entry.get("executed_in_round") is None
+                ):
+                    entry["executed_in_round"] = round_index
+        self._deep_log(deep, "compute", f"已执行计算（{payload.get('engine')}）：{payload.get('status')}")
+
+    def _deep_unexecuted_steering(self, deep: dict[str, Any]) -> bool:
+        """True when an accepted supplement still has no executed work."""
+
+        return any(
+            isinstance(entry, dict)
+            and entry.get("incorporated_in_round") is not None
+            and entry.get("executed_in_round") is None
+            for entry in deep.get("steering", [])
+        )
+
+    def _deep_revise_context(
+        self, deep: dict[str, Any], context: dict[str, Any], round_index: int
+    ) -> dict[str, Any]:
+        """Bounded, identity-only context for one revise decision.
+
+        The planner must be able to recognise an accepted supplement (e.g. the
+        E1/S1 -> E2/S5 correction) and its material, and see which computation
+        versions already exist, without being handed page bodies or answer text.
+        """
+
+        steering = []
+        understood = {
+            str(item.get("steering_id") or "")
+            for item in (context.get("steering_replies") or [])
+            if isinstance(item, dict) and item.get("analysis_state") == "ready"
+        }
+        entries = [entry for entry in (deep.get("steering") or []) if isinstance(entry, dict)]
+        # Supplements the model has not explained yet come first: a run that
+        # accepted four supplements must never silently drop the fourth.
+        uncovered = [entry for entry in entries if str(entry.get("id") or "") not in understood]
+        # Oldest first: a burst of supplements must not starve the earliest one.
+        for entry in (uncovered[:4] if uncovered else entries[-3:]):
+            steering.append(
+                {
+                    "id": str(entry.get("id") or ""),
+                    "content": str(entry.get("content", ""))[:300],
+                    "kind": entry.get("kind"),
+                    "task_id": entry.get("task_id"),
+                    "incorporated_in_round": entry.get("incorporated_in_round"),
+                    "executed_in_round": entry.get("executed_in_round"),
+                    "attachment_ids": [
+                        str(item.get("attachment_id"))
+                        for item in (entry.get("attachment_material") or [])
+                        if isinstance(item, dict) and item.get("attachment_id")
+                    ][:4],
+                }
+            )
+        attachments = [
+            {
+                "attachment_id": str(item.get("attachment_id")),
+                "filename": str(item.get("filename"))[:120],
+                "content_hash": str(item.get("content_hash"))[:80],
+            }
+            for item in (context.get("attachments") or [])[:4]
+            if isinstance(item, dict) and item.get("attachment_id")
+        ]
+        computations = [
+            {
+                "engine": item.get("engine"),
+                "status": item.get("status"),
+                "input_revision": item.get("input_revision"),
+                "tool_run_id": item.get("tool_run_id"),
+                "superseded_by_revision": item.get("superseded_by_revision"),
+            }
+            for item in (deep.get("computations") or [])[-4:]
+            if isinstance(item, dict)
+        ]
+        return {
+            "round": round_index,
+            "original_query": str(deep.get("original_query") or "")[:400],
+            "effective_query": str(deep.get("effective_query") or "")[:400],
+            "steering": steering,
+            "attachments": attachments,
+            "computations": computations,
+        }
+
+    def _deep_call_revise(
+        self,
+        revise: Any,
+        memo: str,
+        notes: list[dict[str, Any]],
+        remaining: list[str],
+        revise_context: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Call revise with the bounded context when the planner accepts it."""
+
+        import inspect
+
+        parameters: dict[str, Any]
+        try:
+            parameters = dict(inspect.signature(revise).parameters)
+        except (TypeError, ValueError):
+            parameters = {}
+        accepts_context = "context" in parameters or any(
+            parameter.kind is inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters.values()
+        )
+        if accepts_context:
+            return revise(memo, notes, remaining, context=revise_context) or {}
+        return revise(memo, notes, remaining) or {}
+
+    def _deep_consume_steering(
+        self, context: dict[str, Any], deep: dict[str, Any], round_index: int, run_id: str
+    ) -> bool:
         """Mark pending steering as incorporated; True when anything consumed."""
         consumed = False
+        merged_attachments = False
+        # Only what this pass really incorporated may affect existing replies:
+        # replaying every historical addition would make earlier and later
+        # supplements invalidate each other.
+        incorporated: list[dict[str, Any]] = []
         for entry in deep.get("steering", []):
             if isinstance(entry, dict) and entry.get("incorporated_in_round") is None:
+                # A receipt is applied only when it changes actual future work.
+                # Keep existing sources/notes and use the same round/read budgets.
+                from src.web.research.steering_plan import revise_deep_plan
+
+                if not revise_deep_plan(deep, entry, query=str(deep.get("original_query") or ""), cap=self._DEEP_PLAN_CAP):
+                    continue
+                entry["budget_grant"] = authorize_goal(deep, steering_id=str(entry.get("id") or entry.get("received_at")), task_id=entry["task_id"])
                 entry["incorporated_in_round"] = round_index
+                incorporated.append(
+                    {
+                        "id": str(entry.get("id") or entry.get("received_at") or ""),
+                        "kind": str(entry.get("kind") or ""),
+                        "round": round_index,
+                    }
+                )
                 consumed = True
+                # Mid-run attachments become task material for the same round,
+                # deduped by identity; they never become web evidence.
+                material = [
+                    item for item in (entry.get("attachment_material") or []) if isinstance(item, dict)
+                ]
+                if material:
+                    existing = context.setdefault("attachments", [])
+                    known = {str(item.get("attachment_id") or "") for item in existing}
+                    for item in material:
+                        if str(item.get("attachment_id") or "") not in known:
+                            existing.append(item)
+                            known.add(str(item.get("attachment_id") or ""))
+                    merged_attachments = True
                 self._deep_log(
                     deep,
                     "steering",
                     f"研究方向已更新：{str(entry.get('content', ''))[:120]}",
                 )
+        if merged_attachments:
+            self._deep_log(deep, "attachment", "补充消息中的附件已并入本轮任务材料")
+        if consumed:
+            self._deep_update_steering_replies(context, deep, run_id, incorporated)
         return consumed
+
+    def _record_read_event(
+        self,
+        context: dict[str, Any],
+        *,
+        run_id: str,
+        records: list[dict[str, Any]],
+        record: dict[str, Any],
+        round_index: int,
+    ) -> None:
+        """Record what one read attempt actually produced.
+
+        One event per attempt: the movement layer must be able to say which read
+        brought which material. A skipped page produced no attempt and gets no
+        event, and the event never claims the read changed a conclusion.
+        """
+
+        from src.web.research.motion_events import record_event
+        from src.web.research.read_evidence import build_read_event
+
+        interim = (
+            context.get("interim_state")
+            if isinstance(context.get("interim_state"), dict)
+            else {}
+        )
+        event = build_read_event(
+            run_id=run_id,
+            records=records,
+            record=record,
+            round_index=round_index,
+            notes=len((context.get("deep") or {}).get("notes") or [])
+            if isinstance(context.get("deep"), dict)
+            else 0,
+            revision=str(interim.get("revision") or ""),
+            at=utc_now(),
+        )
+        if event is not None:
+            record_event(context, event)
+
+    def _deep_update_steering_replies(
+        self,
+        context: dict[str, Any],
+        deep: dict[str, Any],
+        run_id: str,
+        incorporated: list[dict[str, Any]],
+    ) -> None:
+        """Apply the supplements *this pass* incorporated to their replies.
+
+        An addition only marks judgments older than its own round as not covering
+        the new condition; a correction supersedes the judgments that spoke about
+        the term it replaced.  Classification happens here, where the plan change
+        is real, never at receipt time, and history is never replayed.
+        """
+        replies = list(context.get("steering_replies") or [])
+        if not run_id or not replies or not incorporated:
+            return
+        incorporated_ids = {item["id"] for item in incorporated if item.get("id")}
+        corrections = [
+            item
+            for item in (deep.get("corrections") or [])
+            if isinstance(item, dict)
+            and str(item.get("steering_id") or "") in incorporated_ids
+        ]
+        # One writer: the coordinator performs the transition and records the
+        # event. It reproduces the legacy result field by field (pairing tests in
+        # tests/test_answer_coordinator.py), so this is a convergence, not a
+        # semantic change.
+        from src.web.research.answer_coordinator import coordinate
+        from src.web.research.motion_events import (
+            CONDITION_ADDED,
+            CONDITION_CORRECTED,
+            MotionEvent,
+            record_event,
+        )
+
+        turn_id = str((context.get("owner") or {}).get("turn_id") or "")
+        revision_state = (
+            context.get("interim_state") if isinstance(context.get("interim_state"), dict) else {}
+        )
+        revision = str(revision_state.get("revision") or "")
+        notes_count = len(deep.get("notes") or [])
+        if corrections:
+            event = MotionEvent(
+                kind=CONDITION_CORRECTED,
+                at=utc_now(),
+                round=int(corrections[0].get("round") or 0),
+                notes=notes_count,
+                revision=revision,
+                cause="用户纠正了被替换的术语",
+                detail={"old_terms": [str(item.get("old") or "") for item in corrections]},
+            )
+            result = coordinate(
+                replies,
+                event,
+                now=utc_now(),
+                run_id=run_id,
+                turn_id=turn_id,
+            )
+            replies = list(result.replies)
+            record_event(context, event)
+        for item in incorporated:
+            if item.get("kind") != "addition" or not item.get("id"):
+                continue
+            event = MotionEvent(
+                kind=CONDITION_ADDED,
+                at=utc_now(),
+                round=int(item.get("round") or 0),
+                notes=notes_count,
+                revision=revision,
+                cause="用户追加了新的研究条件",
+                detail={
+                    "keep_reply_id": reply_id_for_steering(run_id, str(item["id"])),
+                    "condition": str(item.get("id") or ""),
+                },
+            )
+            result = coordinate(
+                replies,
+                event,
+                now=utc_now(),
+                run_id=run_id,
+                turn_id=turn_id,
+            )
+            replies = list(result.replies)
+            record_event(context, event)
+        # Record the motion events that caused these state changes. The trace is
+        # The events were recorded by the coordinator above, in the same pass that
+        # produced the replies; recording them again here would double the trace.
+        context["steering_replies"] = replies
+
+    def _deep_publish_steering_replies(
+        self,
+        context: dict[str, Any],
+        deep: dict[str, Any],
+        verdict: Mapping[str, Any],
+        run_id: str,
+        round_index: int,
+    ) -> bool:
+        """Publish the model's task understanding and sourced provisional judgment.
+
+        Nothing here is authority: the task understanding may only describe the
+        task, and a sourced judgment is bound to a supplement only when every
+        citation was really read for a question that supplement created.
+        """
+        turn_id = str((context.get("owner") or {}).get("turn_id") or "")
+        if not run_id:
+            return False
+        now = utc_now()
+        replies = list(context.get("steering_replies") or [])
+        changed = False
+        for understanding in verdict.get("steering_understandings") or []:
+            if not isinstance(understanding, dict):
+                continue
+            reply_id = reply_id_for_steering(
+                run_id, str(understanding.get("steering_id") or "")
+            )
+            current = find_reply(replies, reply_id)
+            if current is None or current.get("lifecycle") != LIFECYCLE_OPEN:
+                continue
+            replies = apply_analysis(
+                replies,
+                reply_id=reply_id,
+                understanding=understanding,
+                now=now,
+                version=next_content_version(current),
+                state=content_state(round_index=round_index, notes=len(deep.get("notes") or [])),
+                based_on=int(current.get("content_version") or 0),
+            )
+            changed = True
+        analysis = deep.get("interim_analysis")
+        if isinstance(analysis, dict) and str(analysis.get("text") or "").strip():
+            target = research_reply_id(run_id)
+            for entry in deep.get("steering") or []:
+                if not isinstance(entry, dict):
+                    continue
+                if attribute_analysis(analysis, plan=deep.get("plan") or [], entry=entry):
+                    target = reply_id_for_steering(run_id, str(entry.get("id") or ""))
+                    break
+            current = find_reply(replies, target)
+            if current is None and target == research_reply_id(run_id):
+                replies.append(research_reply(run_id=run_id, turn_id=turn_id, now=now))
+                current = find_reply(replies, target)
+            if current is not None and current.get("lifecycle") == LIFECYCLE_OPEN:
+                replies = apply_evidence(
+                    replies,
+                    reply_id=target,
+                    analysis=analysis,
+                    now=now,
+                    version=next_content_version(current),
+                    state=content_state(
+                        round_index=round_index,
+                        notes=len(deep.get("notes") or []),
+                        revision=str(analysis.get("revision") or ""),
+                    ),
+                    based_on=int(current.get("content_version") or 0),
+                )
+                changed = True
+        if changed:
+            context["steering_replies"] = replies
+        return changed
 
     def _deep_default_plan(
         self, query: str, context: dict[str, Any]
@@ -1486,10 +1957,26 @@ class WebLookupService:
     def _deep_planner_plan(
         self, query: str, context: dict[str, Any]
     ) -> list[dict[str, Any]] | None:
+        tasks, _ = self._deep_planner_plan_with_opening(query, context)
+        return tasks
+
+    def _deep_planner_plan_with_opening(
+        self, query: str, context: dict[str, Any]
+    ) -> tuple[list[dict[str, Any]] | None, str]:
+        """The plan and the planner's optional general opening (one call)."""
+
+        opening_planner = getattr(self.planner, "plan_with_opening", None)
         plan_callable = getattr(self.planner, "plan", None)
-        if not callable(plan_callable):
-            return None
-        result = plan_callable(query, context)
+        if callable(opening_planner):
+            result, opening = opening_planner(query, context)
+        elif callable(plan_callable):
+            result, opening = plan_callable(query, context), ""
+        else:
+            return None, ""
+        return self._deep_plan_tasks(result), str(opening or "")
+
+    @staticmethod
+    def _deep_plan_tasks(result: Any) -> list[dict[str, Any]] | None:
         tasks = [
             {
                 "task_id": f"t{index + 1}",
@@ -1501,6 +1988,25 @@ class WebLookupService:
             if str(item).strip()
         ]
         return tasks or None
+
+    def _deep_publish_opening(
+        self, context: dict[str, Any], run_id: str, text: str
+    ) -> None:
+        """Publish the planner's general opening as the research reply."""
+
+        from src.web.research.steering_replies import apply_knowledge
+
+        if not run_id or not str(text or "").strip():
+            return
+        turn_id = str((context.get("owner") or {}).get("turn_id") or "")
+        replies = [
+            dict(item)
+            for item in (context.get("steering_replies") or [])
+            if isinstance(item, dict)
+        ]
+        context["steering_replies"] = apply_knowledge(
+            replies, run_id=run_id, turn_id=turn_id, text=text, now=utc_now()
+        )
 
     @staticmethod
     def _deep_rewrite_query(sub_question: str) -> str:
@@ -1546,9 +2052,24 @@ class WebLookupService:
         )
         budget = ResearchReadBudget.from_env()
         deep = dict(context.get("deep") or {})
+        deep["original_query"] = run.query
+        context["deep"] = deep
+        budget_clock = time.monotonic()
         plan = [dict(task) for task in deep.get("plan", []) if isinstance(task, dict)]
         notes = [dict(n) for n in deep.get("notes", []) if isinstance(n, dict)]
         memo = str(deep.get("memo") or "")
+        # Message-level attachments are user-provided task material, not web
+        # evidence.  They stay on the research context so planning can use them,
+        # but they must never enter the memo/source block or the Evidence Gate.
+        attachments = [
+            item for item in (context.get("attachments") or []) if isinstance(item, dict)
+        ]
+        if attachments:
+            self._deep_log(
+                deep,
+                "attachment",
+                f"已读取 {len(attachments)} 个消息附件作为任务材料（非网页证据）",
+            )
         round_index = int(deep.get("round_index") or 0)
 
         def persist() -> WebLookupRun:
@@ -1602,6 +2123,12 @@ class WebLookupService:
             ):
                 deep["steering"] = merged_deep["steering"]
                 context["deep"] = deep
+            # The checkpoint merges replies written by the API thread; adopt the
+            # post-write section so the next version is allocated against durable
+            # state instead of a stale local copy.
+            merged_replies = saved.research_context.get("steering_replies")
+            if isinstance(merged_replies, list):
+                context["steering_replies"] = merged_replies
             return saved
 
         def set_stage(next_stage: str) -> None:
@@ -1611,6 +2138,10 @@ class WebLookupService:
             ).stage
 
         def ensure_active() -> None:
+            nonlocal budget_clock
+            now = time.monotonic()
+            consume_incremental_budget(deep, "wall_seconds", max(0.0, now - budget_clock))
+            budget_clock = now
             if self.repository.cancel_requested(run_id, operation_id=operation_id):
                 raise ResearchCancelled("Research cancelled by user")
 
@@ -1618,29 +2149,67 @@ class WebLookupService:
             ensure_active()
 
             # ---- planning -------------------------------------------------
+            initialize_budget(deep, None if "incremental_budget" in deep else load_incremental_policy(python_isolation_available=isolated_python_available()))
             set_stage("planning")
+            opening = ""
             if not plan:
-                planned = self._deep_planner_plan(run.query, context)
+                if callable(getattr(self.planner, "plan", None)):
+                    if incremental_remaining(deep, "model_calls") == 0:
+                        raise ValueError("Initial planning budget is exhausted")
+                    consume_incremental_budget(deep, "model_calls")
+                planned, opening = self._deep_planner_plan_with_opening(run.query, context)
                 plan = planned or self._deep_default_plan(run.query, context)
                 deep["plan"] = plan
+            self._deep_publish_opening(context, run_id, opening)
             self._deep_log(deep, "planning", f"研究计划已生成（{len(plan)} 个子问题）")
             persist()
 
             search_method = getattr(self.gateway, "search", None)
             read_method = getattr(self.gateway, "read", None)
 
-            while round_index < max_rounds:
+            while round_index < max_rounds or (
+                isinstance(deep.get("incremental_budget"), dict) and round_index < 5
+                and any(isinstance(entry, dict) and entry.get("incorporated_in_round") is None for entry in deep.get("steering", []))
+            ):
                 ensure_active()
                 steered_this_round = self._deep_consume_steering(
-                    deep, round_index + 1
+                    context, deep, round_index + 1, run_id
                 )
+                ledger = deep.get("incremental_budget")
+                if isinstance(ledger, dict):
+                    deep_reads = min(40, int(total_authorized(ledger, "reads")))
+                    deep_total_chars = min(400_000, deep_reads * budget.max_chars_per_source)
+                    # Extensions buy only the next task batches, within the
+                    # existing global five-round ceiling. No round is reset.
+                    max_rounds = min(5, max(max_rounds, round_index + (sum(task.get("status") == "pending" for task in plan) + self._DEEP_TASKS_PER_ROUND - 1) // self._DEEP_TASKS_PER_ROUND))
+                    if incremental_remaining(deep, "wall_seconds") == 0:
+                        self._deep_log(deep, "budget", "本轮时间预算不足，新增要求尚未执行；可排队到下一轮。")
+                        break
+                # A correction invalidates only affected evidence. Retain its
+                # body in the archive, but do not publish it under the new scope.
+                corrections = deep.get("corrections", [])
+                affected = [note for note in notes if any(
+                    str(change["old"]).casefold() in str(note.get("sub_question", "")).casefold()
+                    for change in corrections
+                )]
+                if affected:
+                    affected_urls = {str(note.get("url", "")) for note in affected}
+                    deep.setdefault("superseded_notes", []).extend(affected)
+                    notes = [note for note in notes if note not in affected]
+                    superseded = [record for record in selected_sources if _source_url(record) in affected_urls]
+                    deep.setdefault("superseded_sources", []).extend(superseded)
+                    selected_sources = [record for record in selected_sources if _source_url(record) not in affected_urls]
+                    memo = "\n\n".join(f"[R{note['round']}] {note['title']}: {str(note['facts'])[:300]}" for note in notes)
                 pending_tasks = [
                     task
                     for task in plan
                     if isinstance(task, dict) and task.get("status") == "pending"
                 ]
                 batch = pending_tasks[: self._DEEP_TASKS_PER_ROUND]
-                if not batch:
+                # A steering round must still reach the gap-analysis/compute step
+                # even when the supplement adds no new search task (e.g. a pure
+                # recompute); otherwise the correction could never take effect.
+                if not batch and not steered_this_round:
                     break
 
                 round_index += 1
@@ -1655,12 +2224,13 @@ class WebLookupService:
                 persist()
 
                 read_state = _read_summary(selected_sources, budget)
-                used_chars = int(read_state.get("used_chars") or 0)
-                attempted_reads = int(read_state.get("attempted") or 0)
+                used_chars = max(int(read_state.get("used_chars") or 0), int(deep.get("consumed_chars") or 0))
+                attempted_reads = max(int(read_state.get("attempted") or 0), int(deep.get("consumed_reads") or 0))
 
                 for task in batch:
                     ensure_active()
                     sub_question = str(task.get("sub_question", ""))
+                    influenced = bool(task.get("steering_ids"))
                     queries = [sub_question]
                     rewritten = self._deep_rewrite_query(sub_question)
                     # Decision 15: always retry once, even when the rewrite is
@@ -1670,9 +2240,16 @@ class WebLookupService:
                     found_any = False
                     for candidate_query in queries:
                         ensure_active()
+                        if incremental_remaining(deep, "searches") == 0 or incremental_remaining(deep, "wall_seconds") == 0:
+                            self._deep_log(deep, "budget", "检索预算不足，这个研究目标未完成。")
+                            break
                         if not callable(search_method):
                             break
                         try:
+                            consume_incremental_budget(deep, "searches")
+                            for entry in deep.get("steering", []):
+                                if str(entry.get("id") or entry.get("received_at")) in task.get("steering_ids", []):
+                                    entry["executed_in_round"] = round_index
                             results = search_method(
                                 candidate_query, max_items=run.max_items
                             )
@@ -1689,7 +2266,8 @@ class WebLookupService:
                                 "run_attempt": context["run_attempt"],
                                 "operation_id": operation_id,
                                 "round": round_index,
-                                "influenced_by_steering": steered_this_round,
+                                "influenced_by_steering": influenced,
+                                "steering_ids": list(task.get("steering_ids", [])),
                             }
                         )
                         query_attempts.append(payload)
@@ -1698,8 +2276,9 @@ class WebLookupService:
                             for item in results:
                                 candidate = dict(item)
                                 candidate["round"] = round_index
-                                if steered_this_round:
+                                if influenced:
                                     candidate["influenced_by_steering"] = True
+                                    candidate["steering_ids"] = list(task.get("steering_ids", []))
                                 context.setdefault("candidate_items", []).append(
                                     candidate
                                 )
@@ -1726,9 +2305,7 @@ class WebLookupService:
                     ]
                     task_selected, task_rejected = assess_sources(
                         task_candidates,
-                        canonical_query=str(
-                            context.get("canonical_query") or run.query
-                        ),
+                        canonical_query=str(deep.get("effective_query") or context.get("canonical_query") or run.query),
                     )
                     known_urls = {_source_url(record) for record in selected_sources}
                     fresh = [
@@ -1746,6 +2323,8 @@ class WebLookupService:
                         set_stage("reading")
                         for record in fresh:
                             ensure_active()
+                            if incremental_remaining(deep, "reads") == 0 or incremental_remaining(deep, "wall_seconds") == 0:
+                                break
                             url = _source_url(record)
                             if (
                                 attempted_reads >= deep_reads
@@ -1760,6 +2339,7 @@ class WebLookupService:
                                 deep_total_chars - used_chars,
                             )
                             try:
+                                consume_incremental_budget(deep, "reads")
                                 raw_result = read_method(url, max_chars=source_limit)
                                 read_result, _ = _bounded_read_result(
                                     dict(raw_result or {}), max_chars=source_limit
@@ -1775,6 +2355,7 @@ class WebLookupService:
                                     "error": f"{type(exc).__name__}: {exc}",
                                 }
                             attempted_reads += 1
+                            deep["consumed_reads"] = attempted_reads
                             facts = str(read_result.get("content") or "")[
                                 : self._DEEP_NOTE_FACTS_CHARS
                             ]
@@ -1789,12 +2370,14 @@ class WebLookupService:
                                 "facts": facts,
                                 "influenced_by_steering": bool(
                                     record.get("influenced_by_steering")
-                                    or steered_this_round
+                                    or influenced
                                 ),
                             }
+                            note["steering_ids"] = list(task.get("steering_ids", []))
                             if read_result.get("status") == "read":
                                 notes.append(note)
                                 used_chars += len(facts)
+                                deep["consumed_chars"] = used_chars
                                 memo = (
                                     (memo + "\n\n" if memo else "")
                                     + f"[R{round_index}] {title}: "
@@ -1808,13 +2391,20 @@ class WebLookupService:
                                     + str(read_result.get("error") or "read_failed")
                                 )
                             record_read = dict(record)
-                            record_read["read"] = read_result
+                            record_read["read"] = {**read_result, "round": round_index}
                             for position, existing_record in enumerate(
                                 selected_sources
                             ):
                                 if _source_url(existing_record) == url:
                                     selected_sources[position] = record_read
                                     break
+                            self._record_read_event(
+                                context,
+                                run_id=run_id,
+                                records=selected_sources,
+                                record=record_read,
+                                round_index=round_index,
+                            )
                             context["read_summary"] = {
                                 **_read_summary(selected_sources, budget),
                                 "attempted": attempted_reads,
@@ -1829,11 +2419,35 @@ class WebLookupService:
                 # ---- gap analysis / plan revision (decision 9) ----------
                 revise = getattr(self.planner, "revise", None)
                 if callable(revise):
-                    verdict = revise(memo, notes, [
-                        str(task.get("sub_question", ""))
-                        for task in plan
-                        if isinstance(task, dict) and task.get("status") == "pending"
-                    ]) or {}
+                    if incremental_remaining(deep, "model_calls") == 0:
+                        self._deep_log(deep, "budget", "规划调用预算不足，保留未完成的研究目标。")
+                        break
+                    consume_incremental_budget(deep, "model_calls")
+                    verdict = self._deep_call_revise(
+                        revise,
+                        memo,
+                        notes,
+                        [
+                            str(task.get("sub_question", ""))
+                            for task in plan
+                            if isinstance(task, dict) and task.get("status") == "pending"
+                        ],
+                        self._deep_revise_context(deep, context, round_index),
+                    )
+                    analysis = validate_interim_analysis(verdict.get("interim_analysis"), analysis_sources(notes))
+                    if analysis is not None:
+                        deep["interim_analysis"] = {**analysis, "revision": interim_revision(deep)}
+                    else:
+                        deep.pop("interim_analysis", None)
+                    # Provisional replies: the model's task understanding for each
+                    # accepted supplement, plus one sourced judgment bound to a
+                    # supplement only when its citations really came from that
+                    # supplement's own questions. Persisted before synthesis so a
+                    # reader sees it while research is still running.
+                    self._deep_publish_steering_replies(
+                        context, deep, verdict, run_id, round_index
+                    )
+                    persist()
                     additional = [
                         str(item).strip()
                         for item in verdict.get("additional", [])
@@ -1853,14 +2467,43 @@ class WebLookupService:
                         self._deep_log(
                             deep, "revise", f"新增子问题：{sub_question[:80]}"
                         )
-                    if verdict.get("done"):
+                    # Slice B: a bounded compute decision from the planner. Only a
+                    # declarative request is accepted; never free-form code.
+                    if verdict.get("compute"):
+                        self._deep_apply_computation(
+                            deep,
+                            run_id=run_id,
+                            round_index=round_index,
+                            compute_raw=verdict["compute"],
+                            notes=notes,
+                        )
+                    pending_steering = any(
+                        isinstance(entry, dict) and entry.get("incorporated_in_round") is None
+                        for entry in deep.get("steering", [])
+                    )
+                    # An accepted supplement that has not been executed yet keeps
+                    # the run alive: the model's "done" must not override work the
+                    # user already had accepted.
+                    if (
+                        verdict.get("done")
+                        and not pending_steering
+                        and not self._deep_unexecuted_steering(deep)
+                    ):
                         break
                 remaining_pending = any(
                     task.get("status") == "pending"
                     for task in plan
                     if isinstance(task, dict)
                 )
-                if not remaining_pending:
+                pending_steering = any(
+                    isinstance(entry, dict) and entry.get("incorporated_in_round") is None
+                    for entry in deep.get("steering", [])
+                )
+                if (
+                    not remaining_pending
+                    and not pending_steering
+                    and not self._deep_unexecuted_steering(deep)
+                ):
                     break
 
             # ---- synthesizing ---------------------------------------------
@@ -1918,6 +2561,12 @@ class WebLookupService:
             )
             source_block = f"{memo_block}{notes_block}{base_block}"
 
+            # The honest terminal report (warning + partial status) is derived in
+            # WebLookupRepository.complete from the *merged* context, so a
+            # supplement accepted in the last moment is reported too.
+            # Replies are frozen by the terminal transition itself (see
+            # WebLookupRepository.complete): a checkpoint must never persist a
+            # closed reply while the run row is still running.
             persist()
             return self.repository.complete(
                 run_id,
@@ -1932,12 +2581,15 @@ class WebLookupService:
                 provider_status=provider_status,
                 stop_reason=reason,
                 answer_confidence=answer_confidence,
+                final_status=None,
             )
         except ResearchCancelled:
             return self.repository.finish_cancel(run_id, operation_id=operation_id)
         except Exception as exc:
             latest = self.get(run_id)
             if latest.status == "running" and latest.active_operation_id == operation_id:
+                # A failed run is terminal: WebLookupRepository.fail freezes the
+                # replies inside the same atomic status transition.
                 failed = self.repository.fail(
                     run_id,
                     str(exc),

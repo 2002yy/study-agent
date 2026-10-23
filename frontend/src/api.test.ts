@@ -16,6 +16,8 @@ import {
   queryRag,
   searchWechat,
   sendChatStream,
+  steerResearchRun,
+  queueResearchFollowup,
   sendWechatMessage,
   sendWechatMessageStream,
   uploadDocuments
@@ -58,6 +60,26 @@ function sseResponse(chunks: string[]): Response {
 describe("sendChatStream", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("sends supplement text and selected attachments in one idempotent request", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "run-live" }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await steerResearchRun("run-live", "use the diagram", { requestId: "steer-1", attachmentIds: ["att-1"] });
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({ content: "use the diagram", request_id: "steer-1", attachment_ids: ["att-1"] });
+  });
+
+  it("saves attachments with the queued question identity", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "run-live" }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await queueResearchFollowup("run-live", "later diagram", "queue-1", ["att-1"]);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({ content: "later diagram", request_id: "queue-1", attachment_ids: ["att-1"] });
   });
 
   it("parses backend SSE events that send route and rag as direct objects", async () => {

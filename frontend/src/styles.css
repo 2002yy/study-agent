@@ -1669,6 +1669,7 @@ button {
   align-items: center;
   gap: 8px;
   max-width: min(680px, calc(100vw - 32px));
+  width: min(680px, calc(100vw - 32px));
   border: 1px solid #f0c36c;
   border-radius: 8px;
   background: #fff8e7;
@@ -1683,6 +1684,12 @@ button {
   min-width: 0;
   display: grid;
   gap: 3px;
+}
+
+/* A failed send must leave the composer and its retry/stop controls reachable. */
+.operation-warning {
+  top: max(12px, env(safe-area-inset-top));
+  bottom: auto;
 }
 
 .global-notice-details summary {
@@ -1865,7 +1872,7 @@ button {
 
   .global-notice-actions {
     width: 100%;
-    margin-left: 24px;
+    margin-left: 0;
   }
 
   .workspace-transition-actions > button {

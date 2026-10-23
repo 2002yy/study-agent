@@ -78,6 +78,6 @@ describe("active query selector", () => {
     expect(declarationOwners).toEqual(["app/useExtensionRuntime.ts"]);
 
     expect(viewSource).not.toContain("onSearchSources=");
-    expect(viewSource).toContain("await chatController.send(question ?? ui.input.trim())");
+    expect(viewSource).toContain("await chatController.send(question ?? ui.input.trim()");
   });
 });

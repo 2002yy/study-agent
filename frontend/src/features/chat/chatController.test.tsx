@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { operationRegistry } from "../../app/operationRegistry";
 import { WorkspaceProvider } from "../../app/WorkspaceProvider";
-import type { ChatSettings, RagSettings } from "../../types";
+import type { ChatSettings, RagSettings, ChatResearchProgress } from "../../types";
 import { useChatController } from "./chatController";
 
 const apiMocks = vi.hoisted(() => ({
@@ -18,6 +18,10 @@ const apiMocks = vi.hoisted(() => ({
   createNewSession: vi.fn(),
   loadSessionDetail: vi.fn(),
   sendChatStream: vi.fn(),
+  steerResearchRun: vi.fn(),
+  queueResearchFollowup: vi.fn(),
+  completeResearchFollowup: vi.fn(),
+  loadResearchQueue: vi.fn().mockResolvedValue({ messages: [] }),
 }));
 
 vi.mock("../../api", () => apiMocks);
@@ -86,6 +90,178 @@ function controllerHarness(
   );
   return { result, onResearchRunDiscovered, setUseWebLookup };
 }
+
+describe("continuous research conversation", () => {
+  let callbacks: NonNullable<Parameters<typeof import("../../api").sendChatStream>[3]>;
+  let finish: () => void;
+  let signal: AbortSignal | undefined;
+  const progress = (overrides: Partial<ChatResearchProgress> = {}): ChatResearchProgress => ({
+    run_id: "run-live", status: "running", stage: "searching", provider_status: "",
+    stop_reason: "", error: "", query_attempt_count: 1, selected_source_count: 0,
+    version: 1, steering_supported: true, ...overrides,
+  });
+  beforeEach(() => {
+    operationRegistry.cancelAll();
+    vi.resetAllMocks();
+    apiMocks.loadResearchQueue.mockResolvedValue({ messages: [] });
+    apiMocks.sendChatStream.mockImplementation((_q, _h, _o, cb, request) => {
+      callbacks = cb;
+      signal = request.signal;
+      cb.onSession("chat-live", { turnId: "turn-live" });
+      cb.onResearch(progress());
+      return new Promise(resolve => { finish = () => resolve({
+        reply: "final answer", session_id: "chat-live", turn_id: "turn-live", route: {}, rag: {},
+      }); });
+    });
+    apiMocks.steerResearchRun.mockImplementation((_run, _question, request) => Promise.resolve({
+      id: "run-live", research_context: { claim_engine_steering: [{
+        id: "steer-1", request_id: request.requestId, content: "add omega", status: "pending",
+      }] },
+    }));
+  });
+
+  it("submits into the same run, keeps streaming to the assistant, and reflects application", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    let stream: ReturnType<typeof result.current.send>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    expect(result.current.canSteer).toBe(true);
+    await act(async () => { await result.current.send("add omega"); });
+    expect(apiMocks.steerResearchRun).toHaveBeenCalledWith("run-live", "add omega", { requestId: expect.stringMatching(/^steer_/) });
+    expect(apiMocks.sendChatStream).toHaveBeenCalledTimes(1);
+    expect(apiMocks.cancelChatTurn).not.toHaveBeenCalled();
+    expect(signal?.aborted).toBe(false);
+    expect(result.current.messages[result.current.messages.length - 1].researchSteering?.status).toBe("pending");
+    await act(async () => {
+      callbacks.onToken?.("continued output");
+      callbacks.onResearch?.(progress({ version: 2, steering: [{ id: "steer-1", content: "add omega", status: "applied" }] }));
+    });
+    expect(result.current.messages.find(message => message.role === "assistant" && message.content === "continued output")).toBeTruthy();
+    expect(result.current.messages[result.current.messages.length - 1].researchSteering?.status).toBe("applied");
+    await act(async () => { finish(); await stream!; });
+    expect(result.current.canSteer).toBe(false);
+  });
+
+  it("guards duplicate submits and discards receipts after a session transition", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    let stream: ReturnType<typeof result.current.send>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    let receive: (value: unknown) => void = () => {};
+    apiMocks.steerResearchRun.mockImplementation(() => new Promise(resolve => { receive = resolve; }));
+    let supplement: ReturnType<typeof result.current.send>;
+    await act(async () => {
+      supplement = result.current.send("add omega");
+      await result.current.send("duplicate");
+    });
+    expect(apiMocks.steerResearchRun).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      result.current.transitionSession("chat-other", [{ role: "user", content: "other session" }], null);
+      receive({ research_context: { deep: { steering: [{ id: "steer-1", content: "add omega" }] } } });
+      await supplement!;
+    });
+    expect(result.current.messages).toEqual([{ role: "user", content: "other session" }]);
+    expect(result.current.researchProgress).toBeNull();
+    await act(async () => { finish(); await stream!; });
+    expect(result.current.messages).toEqual([{ role: "user", content: "other session" }]);
+  });
+
+  it("keeps selected attachments and the request identity on a failed supplement retry", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    let stream: ReturnType<typeof result.current.send>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    apiMocks.steerResearchRun.mockRejectedValueOnce(new Error("response lost"));
+    let accepted: unknown;
+    await act(async () => {
+      accepted = await result.current.send("use these files", undefined, { attachmentIds: ["att-b", "att-a"] });
+    });
+    expect(accepted).toBe(false);
+    const firstRequest = apiMocks.steerResearchRun.mock.calls[0][2];
+    expect(firstRequest.attachmentIds).toEqual(["att-a", "att-b"]);
+    await act(async () => {
+      accepted = await result.current.send("use these files", undefined, { attachmentIds: ["att-a", "att-b", "att-a"] });
+    });
+    expect(accepted).toBe(true);
+    expect(apiMocks.steerResearchRun.mock.calls[1][2]).toEqual(firstRequest);
+    expect(apiMocks.sendChatStream).toHaveBeenCalledTimes(1);
+    expect(signal?.aborted).toBe(false);
+    await act(async () => { finish(); await stream!; });
+  });
+
+  it("uses a new request identity when the attachment selection changes after failure", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    let stream: ReturnType<typeof result.current.send>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    apiMocks.steerResearchRun.mockRejectedValue(new Error("response lost"));
+    await act(async () => {
+      await result.current.send("use this file", undefined, { attachmentIds: ["att-a"] });
+      await result.current.send("use this file", undefined, { attachmentIds: ["att-b"] });
+    });
+    const requests = apiMocks.steerResearchRun.mock.calls.map(call => call[2]);
+    expect(requests[1].requestId).not.toBe(requests[0].requestId);
+    expect(requests[1].attachmentIds).toEqual(["att-b"]);
+    await act(async () => { finish(); await stream!; });
+  });
+
+  it("never sends a new chat turn when the current executor cannot steer", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    let stream: ReturnType<typeof result.current.send>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    await act(async () => { callbacks.onResearch?.(progress({ version: 2, steering_supported: false })); });
+    expect(result.current.canSteer).toBe(false);
+    await act(async () => { await result.current.send("add omega"); });
+    expect(apiMocks.steerResearchRun).not.toHaveBeenCalled();
+    expect(apiMocks.sendChatStream).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(); await stream!; });
+  });
+
+  it("persists a queued next question without touching the active stream", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    apiMocks.queueResearchFollowup.mockResolvedValue({ id: "run-live" });
+    let stream: ReturnType<typeof result.current.send>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    await act(async () => { await result.current.queue("next question"); });
+    expect(apiMocks.queueResearchFollowup).toHaveBeenCalledWith("run-live", "next question", expect.stringMatching(/^queue_/), []);
+    expect(apiMocks.steerResearchRun).not.toHaveBeenCalled();
+    expect(apiMocks.sendChatStream).toHaveBeenCalledTimes(1);
+    expect(signal?.aborted).toBe(false);
+    expect(result.current.messages[result.current.messages.length - 1].researchQueued?.status).toBe("pending");
+    await act(async () => { finish(); await stream!; });
+  });
+
+  it("retries an attachment queue with the same identity and changes it for a new selection", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    let stream: ReturnType<typeof result.current.send>;
+    await act(async () => { stream = result.current.send("compare alpha"); });
+    apiMocks.queueResearchFollowup.mockRejectedValue(new Error("response lost"));
+    await act(async () => {
+      expect(await result.current.queue("next task", ["att-a"])).toBe(false);
+      expect(await result.current.queue("next task", ["att-a", "att-a"])).toBe(false);
+      expect(await result.current.queue("next task", ["att-b"])).toBe(false);
+    });
+    const calls = apiMocks.queueResearchFollowup.mock.calls;
+    expect(calls[0]).toEqual(calls[1]);
+    expect(calls[2][2]).not.toBe(calls[1][2]);
+    expect(calls[2][3]).toEqual(["att-b"]);
+    expect(apiMocks.sendChatStream).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(); await stream!; });
+  });
+
+  it("restores queued attachments and sends only that selection in the later turn", async () => {
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
+    apiMocks.loadSessionDetail.mockResolvedValue({ session_id: "chat-live", messages: [], turns: [] });
+    apiMocks.loadResearchQueue.mockResolvedValue({ messages: [{
+      run_id: "run-old", id: "queue-old", content: "use the saved file", status: "pending",
+      attachment_refs: [{ attachment_id: "att-saved", content_hash: "hash-saved" }],
+    }] });
+    apiMocks.getChatTurnStatus.mockRejectedValue(new Error("404 Not Found"));
+    await act(async () => { await result.current.hydrateSession("chat-live"); });
+    expect(result.current.messages[result.current.messages.length - 1]?.researchQueued?.attachmentIds).toEqual(["att-saved"]);
+    let delivery: Promise<void>;
+    await act(async () => { delivery = result.current.sendQueued("queue-old"); });
+    expect(apiMocks.sendChatStream.mock.calls[0][2].attachmentIds).toEqual(["att-saved"]);
+    expect(apiMocks.sendChatStream.mock.calls[0][2].turnId).toBe("turn_queue-old");
+    await act(async () => { finish(); await delivery!; });
+  });
+});
 
 describe("useChatController stop behavior", () => {
   beforeEach(() => {
@@ -159,7 +335,7 @@ describe("useChatController stop behavior", () => {
       { activeChatThreadId: "chat-stop" },
     );
 
-    let sendPromise: Promise<void> | undefined;
+    let sendPromise: ReturnType<typeof result.current.send> | undefined;
     await act(async () => {
       sendPromise = result.current.send("question");
       await Promise.resolve();

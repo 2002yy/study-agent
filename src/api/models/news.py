@@ -87,6 +87,17 @@ class ResearchFollowUpCandidateResponse(BaseModel):
 
 class ResearchSteerRequest(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
+    request_id: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")
+    # Mid-run attachments share the steering request identity.
+    attachment_ids: list[str] = Field(default_factory=list, max_length=8)
+
+
+class ResearchQueueRequest(ResearchSteerRequest):
+    request_id: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")
+
+
+class ResearchQueueCompleteRequest(BaseModel):
+    turn_id: str = Field(min_length=1, max_length=200)
 
 
 class NewsLookupResponse(BaseModel):

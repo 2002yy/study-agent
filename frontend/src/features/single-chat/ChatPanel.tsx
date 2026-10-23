@@ -3,6 +3,7 @@ import {
   ArrowUp,
   BookOpen,
   Clipboard,
+  Clock,
   Search,
   MessageSquare,
   PanelRight,
@@ -22,12 +23,14 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { AnswerProgress } from "../answer-ui/AnswerProgress";
-import { answerCopyText } from "../answer-ui/answerUiProtocol";
+import { InteractiveComputation } from "../answer-ui/InteractiveComputation";
+import { answerCopyText, safeLinkUrl } from "../answer-ui/answerUiProtocol";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { useReadingWorkspace } from "../reading/ReadingContext";
 import type {
   ChatMessage,
   ChatResearchProgress,
+  ChatResearchReply,
   ChatResponse,
   DrawerId,
   MemoryStatusResponse,
@@ -42,9 +45,11 @@ import {
   type TaskIntent,
 } from "../task/taskContract";
 import { ChatResearchRecovery } from "../web-lookup/ChatResearchRecovery";
+import { replyHeading, replyIsProvisional, replyStatusNote } from "../web-lookup/researchReplies";
 import type { ResearchLookupResponse } from "../web-lookup/researchApi";
 import { RestoreCard } from "./RestoreCard";
 import { ChatRoleSettings } from "./ChatRoleSettings";
+import { ComposerAttachments } from "./ComposerAttachments";
 
 // A search is an explicit chat request; no separate retrieval or task override.
 export function searchMessage(input: string): string {
@@ -66,6 +71,15 @@ export function latestMemorySection(
   return sections.length ? sections[sections.length - 1] : preview;
 }
 
+// Every steering receipt reflects a server fact; "pending" is the only
+// not-yet-applied state and must not read as if the search already changed.
+const steeringReceiptCopy: Record<string, string> = {
+  pending: "已纳入研究计划 · 等待相关搜索",
+  executing: "正在按补充要求执行研究",
+  applied: "已应用到后续研究",
+  late: "本轮未应用这条补充，请在下一轮继续",
+};
+
 type ChatPanelProps = {
   messages: ChatMessage[];
   sessionId?: string;
@@ -75,6 +89,11 @@ type ChatPanelProps = {
   selectedRole?: string;
   onSelectRole?: (role: string) => void;
   isSending: boolean;
+  canSteer?: boolean;
+  canQueue?: boolean;
+  onQueue?: (question: string) => void | Promise<void>;
+  onSendQueued?: (id: string) => void | Promise<void>;
+  isSteering?: boolean;
   onSubmit: (event: FormEvent, question?: string) => void | Promise<void>;
   onStop: () => void;
   streamRecovery: {
@@ -101,6 +120,13 @@ type ChatPanelProps = {
   isEndingSession?: boolean;
   researchRun: ResearchLookupResponse | null;
   researchProgress?: ChatResearchProgress | null;
+  researchReplies?: ChatResearchReply[];
+  /** Reported by the block itself, once per rendered content state. */
+  onReplyVisible?: (reply: ChatResearchReply, at: number) => void;
+  /** Reported by the element that renders the final answer. */
+  onAnswerVisible?: (turnId?: string) => void;
+  /** The turn whose answer visibility is being observed right now. */
+  answerTurnId?: string | null;
   isResearchBusy: boolean;
   canRetryResearch: boolean;
   canResumeResearch: boolean;
@@ -109,9 +135,70 @@ type ChatPanelProps = {
   onResumeResearch: () => void;
   firstUseNotice?: ReactNode;
   enterToSend?: boolean;
+  onEnsureSession?: () => Promise<string | undefined>;
+  /** This message's attachment selection (ids), owned by the workspace. */
+  attachmentSelection?: string[];
+  onAttachmentSelectionChange?: (ids: string[]) => void;
 };
 
 type CopyState = "idle" | "success" | "error";
+
+function ResearchReplyBlock({
+  reply,
+  onVisible,
+}: {
+  reply: ChatResearchReply;
+  onVisible?: (reply: ChatResearchReply, at: number) => void;
+}) {
+  useEffect(() => {
+    // The next frame after this content state is mounted is the first point at
+    // which the reader can see *this* stage - a receipt is not an analysis.
+    const frame = requestAnimationFrame(() => onVisible?.(reply, performance.now()));
+    return () => cancelAnimationFrame(frame);
+  }, [reply, onVisible]);
+  return (
+    <article className="research-reply" data-reply-id={reply.reply_id}>
+      <header className="research-reply-head">
+        <span className="research-reply-kind">{replyHeading(reply)}</span>
+        {replyIsProvisional(reply) ? (
+          <span className="research-reply-note">有来源，尚非结论</span>
+        ) : null}
+        {replyStatusNote(reply) ? (
+          <span className="research-reply-note">{replyStatusNote(reply)}</span>
+        ) : null}
+      </header>
+      <p className="research-reply-text">{reply.text}</p>
+      {reply.citations.length ? (
+        <ul className="research-reply-citations">
+          {reply.citations.map(citation => {
+            const href = safeLinkUrl(citation.url);
+            const label = citation.title || citation.url;
+            return (
+              <li key={`${citation.url}:${citation.quote}`}>
+                {href ? <a href={href} rel="noreferrer" target="_blank">{label}</a> : label}
+                <blockquote>{citation.quote}</blockquote>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </article>
+  );
+}
+
+/**
+ * Reports when the final answer is actually on screen. Mounted only for a
+ * completed assistant answer, so it is a render observation rather than an
+ * assumption that `done` implies visibility (the value is still a frame
+ * approximation, not a paint guarantee).
+ */
+function AnswerVisibilityProbe({ onVisible }: { onVisible?: () => void }) {
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => onVisible?.());
+    return () => cancelAnimationFrame(frame);
+  }, [onVisible]);
+  return <span aria-hidden="true" className="answer-visibility-probe" hidden />;
+}
 
 export function ChatPanel(props: ChatPanelProps) {
   const reading=useReadingWorkspace();
@@ -146,6 +233,8 @@ export function ChatPanel(props: ChatPanelProps) {
     firstUseNotice,
     enterToSend = true,
   } = props;
+  const [busyInputMode, setBusyInputMode] = useState<"steer" | "queue">("steer");
+  const canSubmit = !isSending || Boolean(!props.isSteering && (busyInputMode === "steer" ? props.canSteer : props.canQueue));
 
   const conversationRef = useRef<HTMLElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -192,6 +281,43 @@ export function ChatPanel(props: ChatPanelProps) {
             !message.turnId
           ),
       );
+  // Research progress lives in the conversation timeline; once the run's status
+  // is on screen inline, the standalone recovery surface must not repeat it.
+  const inlineResearchShown = Boolean(
+    researchProgress?.run_id &&
+      displayMessages.some((message) => message.researchProgress?.run_id === researchProgress.run_id),
+  );
+  // Provisional replies are display-only blocks. A supplement-scoped reply is
+  // bound to its own supplement message; the research-level one belongs to the
+  // run and is shown after the assistant message it explains.
+  const researchReplies = props.researchReplies ?? [];
+  const supplementReplies = new Map(
+    researchReplies
+      .filter(reply => reply.scope === "steering" && reply.steering_id)
+      .map(reply => [reply.steering_id, reply]),
+  );
+  // A research-level reply belongs to its own turn, never to "the last
+  // assistant message": that message may belong to an earlier, finished answer.
+  const replyOwnerIndex = (reply: ChatResearchReply): number => {
+    let found = -1;
+    displayMessages.forEach((message, index) => {
+      if (message.turnId && reply.turn_id && message.turnId === reply.turn_id) found = index;
+    });
+    return found;
+  };
+  const runRepliesByIndex = new Map<number, ChatResearchReply[]>();
+  const unownedRunReplies: ChatResearchReply[] = [];
+  for (const reply of researchReplies.filter(item => item.scope === "research")) {
+    const owner = replyOwnerIndex(reply);
+    if (owner < 0) {
+      unownedRunReplies.push(reply);
+      continue;
+    }
+    runRepliesByIndex.set(owner, [...(runRepliesByIndex.get(owner) ?? []), reply]);
+  }
+  const replyBlock = (reply: ChatResearchReply) => (
+    <ResearchReplyBlock key={reply.reply_id} reply={reply} onVisible={props.onReplyVisible} />
+  );
 
   const resetCopyFeedbackLater = (kind: "message" | "interrupted", index?: number) => {
     window.setTimeout(() => {
@@ -256,15 +382,16 @@ export function ChatPanel(props: ChatPanelProps) {
       : Boolean(event.ctrlKey || event.metaKey);
     if (!sendRequested) return;
     event.preventDefault();
-    if (!isSending && input.trim()) event.currentTarget.form?.requestSubmit();
+    if (canSubmit && input.trim()) event.currentTarget.form?.requestSubmit();
   };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (isSending || !input.trim()) return;
-    setIsAtBottom(true);
+    if (!canSubmit || !input.trim()) return;
+    if (!isSending) setIsAtBottom(true);
     clearPendingTaskIntentOverride();
-    await onSubmit(event, composerMode === "search" ? searchMessage(input) : input.trim());
+    if (isSending && busyInputMode === "queue") { await props.onQueue?.(input.trim()); return; }
+    await onSubmit(event, !isSending && composerMode === "search" ? searchMessage(input) : input.trim());
   };
 
   const handleRestoreEntry = (_intent: TaskIntent, prompt: string) => onQuickPrompt(prompt);
@@ -339,7 +466,7 @@ export function ChatPanel(props: ChatPanelProps) {
             const currentCopyState = messageCopy?.index === index ? messageCopy.state : "idle";
             const cancelNotice = message.cancelNotice ?? null;
             return (
-              <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
+              <article aria-label={`${label}的消息`} className={`message ${message.role}`} key={`${message.role}-${index}`}>
                 <RoleAvatar fallback={message.role === "user" ? "user" : "assistant"} roleId={avatarRole} />
                 <div className="message-header">
                   <span className="message-author">{label}</span>
@@ -356,27 +483,98 @@ export function ChatPanel(props: ChatPanelProps) {
                   ) : null}
                 </div>
                 <div className="message-body">
-                  <div className="message-bubble">
-                    {cancelNotice ? (
-                      <p aria-live="polite" className="turn-status-line tone-pending" role="status">
-                        {cancelNotice}
-                      </p>
-                    ) : null}
-                    {message.role === "assistant" && isSending && index === displayMessages.length - 1
-                      ? <AnswerProgress hasContent={!!message.content.trim()} progress={researchProgress} /> : null}
-                    <MarkdownMessage content={message.content} interactive={message.role === "assistant"}
-                      streaming={message.role === "assistant" && isSending && index === displayMessages.length - 1}
-                      onDraft={prompt => {
-                        setComposerMode("chat");
-                        setInput(input.trim() ? `${input}\n\n${prompt}` : prompt);
-                        composerRef.current?.focus();
-                      }} />
-                  </div>
+                  {message.researchQueued ? (
+                    <div className="research-queue-card" role="status">
+                      <header className="research-queue-head">
+                        <Clock aria-hidden size={14} />
+                        <span className="research-queue-title">下一轮任务</span>
+                        <span className="research-queue-count">已保存，待发送</span>
+                      </header>
+                      <p className="research-queue-body">{message.content}</p>
+                      {message.researchQueued.attachmentIds?.length ? (
+                        <p className="research-queue-note">附带 {message.researchQueued.attachmentIds.length} 个附件，将用于这条问题。</p>
+                      ) : null}
+                      <p className="research-queue-note">不会修改当前研究的搜索条件；研究完成后需手动发送。</p>
+                      {!isSending && props.onSendQueued ? (
+                        <button
+                          className="ghost-action compact"
+                          onClick={() => void props.onSendQueued?.(message.researchQueued!.id)}
+                          type="button"
+                        >
+                          发送排队问题
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="message-bubble">
+                      {cancelNotice ? (
+                        <p aria-live="polite" className="turn-status-line tone-pending" role="status">
+                          {cancelNotice}
+                        </p>
+                      ) : null}
+                      {message.role === "assistant" && (message.researchProgress || (isSending && !displayMessages.slice(index + 1).some(item => item.role === "assistant")))
+                        ? <AnswerProgress hasContent={!!message.content.trim()} progress={message.researchProgress ?? researchProgress} /> : null}
+                      <MarkdownMessage content={message.content} interactive={message.role === "assistant"}
+                        streaming={message.role === "assistant" && isSending && !displayMessages.slice(index + 1).some(item => item.role === "assistant")}
+                        onDraft={prompt => {
+                          setComposerMode("chat");
+                          setInput(input.trim() ? `${input}\n\n${prompt}` : prompt);
+                          composerRef.current?.focus();
+                        }} />
+                      {message.computation ? <InteractiveComputation payload={message.computation} /> : null}
+                      {message.researchSteering ? (
+                        <span className="research-steering-receipt" role="status">
+                          {steeringReceiptCopy[message.researchSteering.status] ?? steeringReceiptCopy.pending}
+                        </span>
+                      ) : null}
+                      {message.researchSteering?.effects?.questions?.map(question => (
+                        <span className="research-steering-effect" key={`${question.created}:${question.text}`}>
+                          {question.created ? "新增核查：" : "本次补充涉及的核查："}{question.text}
+                        </span>
+                      ))}
+                      {message.researchSteering?.effects?.sources?.length ? (
+                        <span className="research-steering-effect">
+                          关联已读材料（尚非结论）：
+                          {message.researchSteering.effects.sources.map((source, position) => {
+                            const href = safeLinkUrl(source.url);
+                            return (
+                              <span key={source.url}>
+                                {position ? "、" : ""}
+                                {href ? <a href={href} rel="noreferrer" target="_blank">{source.title}</a> : source.title}
+                              </span>
+                            );
+                          })}
+                        </span>
+                      ) : null}
+                    </div>
+                  )}
                   {message.role === "assistant" && message.evidence ? <EvidenceTrail evidence={message.evidence} /> : null}
+                  {message.role === "assistant" &&
+                  message.content.trim() &&
+                  message.turnStatus === "completed" &&
+                  Boolean(message.turnId) &&
+                  message.turnId === props.answerTurnId ? (
+                    <AnswerVisibilityProbe onVisible={() => props.onAnswerVisible?.(message.turnId)} />
+                  ) : null}
+                  {message.researchSteering && supplementReplies.get(message.researchSteering.id) ? (
+                    <section className="research-replies" aria-label="阶段性回复">
+                      {replyBlock(supplementReplies.get(message.researchSteering.id)!)}
+                    </section>
+                  ) : null}
+                  {runRepliesByIndex.get(index)?.length ? (
+                    <section className="research-replies" aria-label="阶段性回复">
+                      {runRepliesByIndex.get(index)!.map(reply => replyBlock(reply))}
+                    </section>
+                  ) : null}
                 </div>
               </article>
             );
           })}
+          {unownedRunReplies.length ? (
+            <section className="research-replies" aria-label="阶段性回复">
+              {unownedRunReplies.map(reply => replyBlock(reply))}
+            </section>
+          ) : null}
           <div />
         </section>
         {!isAtBottom ? (
@@ -405,6 +603,7 @@ export function ChatPanel(props: ChatPanelProps) {
       <ChatResearchRecovery
         run={researchRun}
         progress={researchProgress}
+        inlineStatusShown={inlineResearchShown}
         isBusy={isResearchBusy}
         canRetry={canRetryResearch}
         canResume={canResumeResearch}
@@ -415,20 +614,6 @@ export function ChatPanel(props: ChatPanelProps) {
 
       <form className="composer" onSubmit={handleSubmit}>
         <div className="composer-main">
-          <div className="composer-toolbar">
-          <div className="composer-modes" role="group" aria-label="输入方式">
-            <button type="button" aria-pressed={composerMode === "chat"} onClick={()=>setComposerMode("chat")}><MessageSquare size={15}/>对话</button>
-            <button type="button" aria-pressed={composerMode === "search"} onClick={()=>{setComposerMode("search");setRoleSettingsOpen(false);}}><Search size={15}/>搜索</button>
-          </div>
-          {composerMode === "chat" && props.onSelectRole ? <button className="chat-role-settings-toggle" type="button"
-            aria-label="对话设置" title="对话设置" aria-expanded={roleSettingsOpen} aria-controls={roleSettingsId}
-            ref={roleSettingsButtonRef} onClick={()=>setRoleSettingsOpen(open=>!open)}><Settings2 size={16}/></button> : null}
-          </div>
-          {composerMode === "chat" && roleSettingsOpen && props.onSelectRole ? <ChatRoleSettings
-            id={roleSettingsId} selectedRole={props.selectedRole ?? "auto"} disabled={isSending}
-            onSelect={role=>{props.onSelectRole?.(role);setRoleSettingsOpen(false);composerRef.current?.focus();}}
-            onClose={()=>{setRoleSettingsOpen(false);roleSettingsButtonRef.current?.focus();}}
-          /> : null}
           <textarea
             ref={composerRef}
             rows={1}
@@ -438,7 +623,8 @@ export function ChatPanel(props: ChatPanelProps) {
             onCompositionStart={() => { composingRef.current = true; }}
             onCompositionEnd={() => { composingRef.current = false; }}
             onKeyDown={handleComposerKeyDown}
-            placeholder={composerMode === "search" ? "搜索你想了解的问题…" : "输入问题，或继续对话…"}
+            placeholder={isSending ? busyInputMode === "queue" ? "写下下一条问题…" : props.canSteer ? "补充要求，或调整方向…" : "写下问题，回答完成后发送…" : composerMode === "search" ? "搜索你想了解的问题…" : "输入问题，或继续对话…"}
+            aria-describedby={isSending ? "research-composer-hint" : undefined}
             title={
               enterToSend
                 ? "回车键发送 · 按住上档键再按回车键换行"
@@ -446,7 +632,40 @@ export function ChatPanel(props: ChatPanelProps) {
             }
             value={input}
           />
+          <div className="composer-toolbar">
+          <ComposerAttachments
+            sessionId={sessionId}
+            onEnsureSession={props.onEnsureSession}
+            selectedIds={props.attachmentSelection ?? []}
+            onSelectionChange={props.onAttachmentSelectionChange}
+          />
+          {!isSending ? <div className="composer-modes" role="group" aria-label="输入方式">
+            <button type="button" aria-pressed={composerMode === "chat"} onClick={()=>setComposerMode("chat")}><MessageSquare size={15}/>对话</button>
+            <button type="button" aria-pressed={composerMode === "search"} onClick={()=>{setComposerMode("search");setRoleSettingsOpen(false);}}><Search size={15}/>搜索</button>
+          </div> : null}
+          {isSending && (props.canSteer || props.canQueue) ? <select
+            className="composer-research-mode" aria-label="追加方式" value={busyInputMode}
+            disabled={props.isSteering} onChange={event => setBusyInputMode(event.target.value as "steer" | "queue")}
+          >
+            <option value="steer" disabled={!props.canSteer}>调整当前研究</option>
+            <option value="queue" disabled={!props.canQueue}>完成后再做</option>
+          </select> : null}
+          {!isSending && composerMode === "chat" && props.onSelectRole ? <button className="chat-role-settings-toggle" type="button"
+            aria-label="对话设置" title="对话设置" aria-expanded={roleSettingsOpen} aria-controls={roleSettingsId}
+            ref={roleSettingsButtonRef} onClick={()=>setRoleSettingsOpen(open=>!open)}><Settings2 size={16}/></button> : null}
+          </div>
+          {!isSending && composerMode === "chat" && roleSettingsOpen && props.onSelectRole ? <ChatRoleSettings
+            id={roleSettingsId} selectedRole={props.selectedRole ?? "auto"} disabled={isSending}
+            onSelect={role=>{props.onSelectRole?.(role);setRoleSettingsOpen(false);composerRef.current?.focus();}}
+            onClose={()=>{setRoleSettingsOpen(false);roleSettingsButtonRef.current?.focus();}}
+          /> : null}
           <div className="composer-footer">
+            {isSending ? <span id="research-composer-hint" className={`research-composer-hint${(props.canSteer || props.canQueue) && !props.isSteering ? " visually-hidden" : ""}`}>
+              {props.isSteering ? "正在提交补充…" : busyInputMode === "queue" ? "完成后再做；不会修改当前研究的搜索条件" : props.canSteer ? "追加条件将在后续研究中处理" : "本轮暂不支持中途调整，可以选择完成后再做"}
+            </span> : null}
+            {isSending && input.trim() && (props.canSteer || props.canQueue) ? <button className="send-button" disabled={!canSubmit} title={busyInputMode === "queue" ? "加入下一轮" : "追加要求"} type="submit">
+              <ArrowUp size={20}/><span className="visually-hidden">{busyInputMode === "queue" ? "加入下一轮" : "追加要求"}</span>
+            </button> : null}
             {isSending ? (
               <button className="send-button stop-button" onClick={onStop} title="停止生成" type="button">
                 <Square size={16} />

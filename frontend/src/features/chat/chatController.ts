@@ -10,14 +10,20 @@ import {
   loadSessionDetail,
   sendChatStream,
   steerResearchRun,
+  queueResearchFollowup,
+  completeResearchFollowup,
+  loadResearchQueue,
 } from "../../api";
 import { operationRegistry } from "../../app/operationRegistry";
 import { mergeResearchProgress } from "../web-lookup/researchApproach";
+import { mergeResearchReplies } from "../web-lookup/researchReplies";
+import { emptyTiming, mergeTiming, type ResearchTimingState, type TimingEvent } from "../web-lookup/researchTiming";
 import { useWorkspace } from "../../app/WorkspaceProvider";
 import type { StreamRecoveryState } from "../../app/workspaceReducer";
 import type {
   ChatMessage,
   ChatResearchProgress,
+  ChatResearchReply,
   ChatResponse,
   ChatSettings,
   RagSettings,
@@ -71,6 +77,7 @@ type SendOptions = {
   retryOfTurnId?: string;
   partialReply?: string;
   turnId?: string;
+  attachmentIds?: string[];
 };
 
 export function createEmptyRag(): ChatResponse["rag"] {
@@ -93,6 +100,41 @@ export function useChatController(options: ControllerOptions) {
   const { state, dispatch } = useWorkspace();
   const [isSending, setIsSending] = useState(false);
   const [researchProgress, setResearchProgress] = useState<ChatResearchProgress | null>(null);
+  const [researchReplies, setResearchReplies] = useState<ChatResearchReply[]>([]);
+  const [isSteering, setIsSteering] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
+  const stoppingRef = useRef(false);
+  const steeringInFlightRef = useRef(false);
+  const sendingRef = useRef(false);
+  const researchProgressRef = useRef<ChatResearchProgress | null>(null);
+  const researchRepliesRef = useRef<ChatResearchReply[]>([]);
+  // Latency marks for the current turn, all from one browser monotonic clock.
+  const researchTimingRef = useRef<ResearchTimingState>(emptyTiming());
+  // The turn this window observes, so a previous answer cannot report into it.
+  const [answerTurnId, setAnswerTurnId] = useState<string | null>(null);
+  const noteTiming = (event: TimingEvent) => {
+    researchTimingRef.current = mergeTiming(researchTimingRef.current, event);
+  };
+  // Reported by the component that actually renders a reply, per content state.
+  const onReplyVisible = (reply: ChatResearchReply, at: number) => {
+    noteTiming({ kind: "reply_visible", at, reply });
+    publishTiming();
+  };
+  // Reported by the component that renders the final answer, not by the event.
+  const onAnswerVisible = (turnId?: string) => {
+    noteTiming({ kind: "answer_visible", at: performance.now(), turnId });
+    publishTiming();
+  };
+  const publishTiming = () => {
+    if (import.meta.env.DEV) {
+      (window as unknown as { __studyAgentTimings?: ResearchTimingState }).__studyAgentTimings =
+        researchTimingRef.current;
+    }
+  };
+
+  const steeringEpochRef = useRef(0);
+  const completedQueueTurnRef = useRef<string | null>(null);
+  const supplementAttemptRef = useRef<{ runId: string; content: string; id: string; kind: "steer" | "queue"; attachmentKey?: string } | null>(null);
   const activeTurnIdRef = useRef<string | null>(null);
   const activeOperationIdRef = useRef<string>("");
   // G18: the run id of an in-flight deep-research journey; while set, main
@@ -188,7 +230,21 @@ export function useChatController(options: ControllerOptions) {
     ) => {
       // Switching / restoring a session must not leak another run's research
       // opening into the new one.
+      operationRegistry.invalidate("chat");
+      sendingRef.current = false;
+      setIsSending(false);
+      stoppingRef.current = false;
+      setIsStopping(false);
       setResearchProgress(null);
+      researchProgressRef.current = null;
+      researchRepliesRef.current = [];
+      setResearchReplies([]);
+      deepRunIdRef.current = null;
+      steeringEpochRef.current += 1;
+      supplementAttemptRef.current = null;
+      completedQueueTurnRef.current = null;
+      steeringInFlightRef.current = false;
+      setIsSteering(false);
       return dispatch({
         type: "TRANSITION_CHAT_SESSION",
         threadId,
@@ -201,11 +257,16 @@ export function useChatController(options: ControllerOptions) {
   );
 
   const cancelWorkspaceRuns = useCallback(() => {
+    steeringEpochRef.current += 1;
+    deepRunIdRef.current = null;
+    steeringInFlightRef.current = false;
+    setIsSteering(false);
     const activeTurnId = activeTurnIdRef.current;
     if (activeTurnId) {
       cancelActiveResearch(activeTurnId);
     }
     operationRegistry.invalidate("chat");
+    sendingRef.current = false;
     setIsSending(false);
   }, [cancelActiveResearch]);
 
@@ -214,14 +275,36 @@ export function useChatController(options: ControllerOptions) {
     historyBase = state.chatMessages,
     extraOpts: SendOptions = {}
   ) => {
-    if (!question || isSending) return;
+    if (!question.trim()) return false;
+    if (sendingRef.current && stoppingRef.current) return false;
 
     // G18 decision 12: while a deep-research run is streaming, a message from
     // the main input becomes mid-run steering instead of a new chat turn.
-    if (deepRunIdRef.current) {
+    if (sendingRef.current && deepRunIdRef.current) {
+      if (steeringInFlightRef.current) return false;
       const runId = deepRunIdRef.current;
+      const epoch = steeringEpochRef.current;
+      const previousAttempt = supplementAttemptRef.current;
+      const attachmentIds = [...new Set(extraOpts.attachmentIds ?? [])].sort();
+      const attachmentKey = JSON.stringify(attachmentIds);
+      const requestId = previousAttempt?.kind === "steer" && previousAttempt.runId === runId && previousAttempt.content === question && previousAttempt.attachmentKey === attachmentKey
+        ? previousAttempt.id : `steer_${globalThis.crypto.randomUUID()}`;
+      supplementAttemptRef.current = { runId, content: question, id: requestId, kind: "steer", attachmentKey };
+      steeringInFlightRef.current = true;
+      setIsSteering(true);
+      // T0 is the moment the user submits, before any network or persistence
+      // time: measuring from the server's acknowledgement would understate it.
+      const submittedAt = performance.now();
       try {
-        await steerResearchRun(runId, question);
+        const response = await steerResearchRun(runId, question, { requestId, ...(attachmentIds.length ? { attachmentIds } : {}) });
+        if (steeringEpochRef.current !== epoch) return false;
+        const context = response.research_context ?? {};
+        const entries = (context.claim_engine_steering ?? (context.deep as { steering?: unknown[] } | undefined)?.steering ?? []) as
+          Array<{ id?: string; request_id?: string; content: string; received_at?: string; status?: "pending" | "applied" | "late"; incorporated_in_round?: number | null }>;
+        const receipt = entries.find(entry => entry.request_id === requestId);
+        if (!receipt) throw new Error("服务端未返回追加要求的接收记录");
+        const id = receipt.id ?? `${receipt.received_at ?? ""}:${receipt.content}`;
+        const streamedReceipt = researchProgressRef.current?.steering?.find(entry => entry.id === id);
         setMessages((current) => [
           ...current,
           {
@@ -229,18 +312,31 @@ export function useChatController(options: ControllerOptions) {
             content: question,
             avatarRole: "user" as const,
             transient: true,
-            turnStatus: "cancelling-registered",
+            turnId: activeTurnIdRef.current ?? undefined,
+            researchSteering: { runId, id, status: streamedReceipt?.status ?? receipt.status ??
+              (receipt.incorporated_in_round != null ? "applied" : "pending"),
+              ...(streamedReceipt?.effects ? { effects: streamedReceipt.effects } : {}) },
           },
         ]);
-        options.setInput("");
+        options.setInput(current => current.trim() === question.trim() ? "" : current);
         options.setOperationError("");
+        supplementAttemptRef.current = null;
+        noteTiming({ kind: "submit", at: submittedAt, steeringId: id });
+        return true;
       } catch (error) {
+        if (steeringEpochRef.current !== epoch) return false;
         options.setOperationError(
           `研究方向注入失败：${error instanceof Error ? error.message : "未知错误"}`
         );
+        return false;
+      } finally {
+        if (steeringEpochRef.current === epoch) {
+          steeringInFlightRef.current = false;
+          setIsSteering(false);
+        }
       }
-      return;
     }
+    if (sendingRef.current) return false;
 
     const operationOwner = state.activeChatThreadId;
     const { operationId, controller: abortController, generationId } = operationRegistry.start(
@@ -251,6 +347,16 @@ export function useChatController(options: ControllerOptions) {
       operationRegistry.isCurrent(operationId, generationId, operationOwner);
     const isOwned = () =>
       operationRegistry.isOwned(operationId, generationId, operationOwner);
+    steeringEpochRef.current += 1;
+    supplementAttemptRef.current = null;
+    sendingRef.current = true;
+    stoppingRef.current = false;
+    setIsStopping(false);
+    completedQueueTurnRef.current = null;
+    researchProgressRef.current = null;
+    researchRepliesRef.current = [];
+    setResearchReplies([]);
+    deepRunIdRef.current = null;
     const isContinuation = Boolean(extraOpts.continuationOfTurnId);
     const nextMessages: ChatMessage[] = isContinuation
       ? [...historyBase]
@@ -276,6 +382,10 @@ export function useChatController(options: ControllerOptions) {
     let activeTurnId =
       extraOpts.turnId ?? `turn_${globalThis.crypto.randomUUID()}`;
     activeTurnIdRef.current = activeTurnId;
+    // Each send is a new observation window: start it before anything can report.
+    noteTiming({ kind: "run_start", at: performance.now(), turnId: activeTurnId });
+    setAnswerTurnId(activeTurnId);
+    publishTiming();
     // G12 decision 20: the official client pre-allocates the operation handle
     // so cancellation can target (turn_id, expected_operation_id) even before
     // the server assigns its own operation id.
@@ -364,7 +474,8 @@ export function useChatController(options: ControllerOptions) {
           retryOfTurnId: extraOpts.retryOfTurnId,
           partialReply: extraOpts.partialReply ?? "",
           turnId: activeTurnId,
-          operationId: clientOperationId
+          operationId: clientOperationId,
+          attachmentIds: extraOpts.attachmentIds ?? []
         },
         {
           onSession: (sessionId, meta) => {
@@ -418,22 +529,51 @@ export function useChatController(options: ControllerOptions) {
             // Carry the research opening ("研究开场") forward: a progress event
             // without it (legacy server) or with a stale sequence must not erase
             // a known summary.
-            setResearchProgress((previous) => mergeResearchProgress(previous, progress));
+            const merged = mergeResearchProgress(researchProgressRef.current, progress)!;
+            researchProgressRef.current = merged;
+            setResearchProgress(merged);
+            // Provisional replies merge by content version only: a late or
+            // duplicated event can never overwrite newer content.
+            const nextReplies = mergeResearchReplies(researchRepliesRef.current, merged.replies);
+            if (nextReplies !== researchRepliesRef.current) {
+              researchRepliesRef.current = nextReplies;
+              setResearchReplies(nextReplies);
+            }
+            if (merged.replies?.length) {
+              noteTiming({ kind: "replies", at: performance.now(), replies: merged.replies });
+            }
+            setMessages(current => current.map((message, index) => {
+              if (index === assistantIndex) return { ...message, researchProgress: merged };
+              if (message.researchSteering?.runId !== merged.run_id) return message;
+              const receipt = merged.steering?.find(item => item.id === message.researchSteering?.id);
+              return receipt
+                ? { ...message, researchSteering: { ...message.researchSteering!, status: receipt.status,
+                    ...(receipt.effects ? { effects: receipt.effects } : {}) } }
+                : message;
+            }));
             // G18: a deep run (round field present) opens the steering
             // channel while it runs; terminal states close it.
-            if (progress.round != null) {
+            {
               deepRunIdRef.current =
                 ["completed", "partial", "failed", "cancelled"].includes(
-                  progress.status
-                ) || progress.status === "pending"
+                  merged.status
+                ) || stoppingRef.current || !(merged.steering_supported ?? (merged.round != null))
                   ? null
-                  : progress.run_id;
+                  : merged.run_id;
               if (deepRunIdRef.current === null) stopCancelPolling();
             }
             options.onResearchRunDiscovered(
               progress.run_id,
               ["completed", "partial", "failed", "cancelled"].includes(progress.status),
             );
+          },
+          onComputation: (payload) => {
+            // A server-validated computation result is bound to the owning
+            // assistant message; the renderer refuses anything unvalidated.
+            if (!isCurrent()) return;
+            setMessages(current => current.map((message, index) =>
+              index === assistantIndex ? { ...message, computation: payload } : message,
+            ));
           },
           onCancelled: (data) => {
             if (!isCurrent()) return;
@@ -469,6 +609,9 @@ export function useChatController(options: ControllerOptions) {
           },
           onDone: (done) => {
             if (!isCurrent()) return;
+            // The answer state is committed now; the next frame is the first
+            // point at which the reader can actually see it.
+            noteTiming({ kind: "answer_done", at: performance.now() });
             if (typeof done.session_id === "string") {
               activeSessionId = done.session_id;
               setThreadId(done.session_id);
@@ -525,6 +668,7 @@ export function useChatController(options: ControllerOptions) {
         )
       );
       await options.refresh();
+      if (isCurrent() && !cancelledSettledRef.current) completedQueueTurnRef.current = activeTurnId;
     } catch (error) {
       if (!isOwned()) return;
       const isAbort = error instanceof DOMException && error.name === "AbortError";
@@ -574,16 +718,88 @@ export function useChatController(options: ControllerOptions) {
         )
       );
     } finally {
-      stopCancelPolling();
+      if (isOwned()) stopCancelPolling();
       if (activeTurnIdRef.current === activeTurnId) {
         activeTurnIdRef.current = null;
         activeOperationIdRef.current = "";
       }
-      cancelMarkRef.current = null;
-      deepRunIdRef.current = null;
       const ownsSettlement = isOwned();
+      if (ownsSettlement) {
+        cancelMarkRef.current = null;
+        deepRunIdRef.current = null;
+        sendingRef.current = false;
+        steeringInFlightRef.current = false;
+        setIsSteering(false);
+      }
       operationRegistry.complete(operationId);
       if (ownsSettlement) setIsSending(false);
+    }
+  };
+
+  const queue = async (question: string, selectedIds: string[] = []) => {
+    const runId = researchProgressRef.current?.run_id;
+    if (!sendingRef.current || stoppingRef.current || !runId || steeringInFlightRef.current || !question.trim()) return false;
+    const epoch = steeringEpochRef.current;
+    const previousAttempt = supplementAttemptRef.current;
+    const attachmentIds = [...new Set(selectedIds)].sort();
+    const attachmentKey = JSON.stringify(attachmentIds);
+    const id = previousAttempt?.kind === "queue" && previousAttempt.runId === runId && previousAttempt.content === question && previousAttempt.attachmentKey === attachmentKey
+      ? previousAttempt.id : `queue_${globalThis.crypto.randomUUID()}`;
+    supplementAttemptRef.current = { runId, content: question, id, kind: "queue", attachmentKey };
+    steeringInFlightRef.current = true;
+    setIsSteering(true);
+    try {
+      await queueResearchFollowup(runId, question, id, attachmentIds);
+      if (steeringEpochRef.current !== epoch) return false;
+      setMessages(current => [...current, {
+        role: "user", content: question, avatarRole: "user", transient: true,
+        researchQueued: { runId, id, status: "pending", attachmentIds },
+      }]);
+      options.setInput(current => current.trim() === question.trim() ? "" : current);
+      options.setOperationError("");
+      supplementAttemptRef.current = null;
+      return true;
+    } catch (error) {
+      if (steeringEpochRef.current === epoch) options.setOperationError(`排队失败：${error instanceof Error ? error.message : "未知错误"}`);
+      return false;
+    } finally {
+      if (steeringEpochRef.current === epoch) { steeringInFlightRef.current = false; setIsSteering(false); }
+    }
+  };
+
+  const sendQueued = async (id: string) => {
+    if (sendingRef.current) return;
+    const message = state.chatMessages.find(item => item.researchQueued?.id === id);
+    if (!message?.researchQueued) return;
+    const { runId } = message.researchQueued;
+    const turnId = `turn_${id}`;
+    const epoch = steeringEpochRef.current;
+    let existing: Awaited<ReturnType<typeof getChatTurnStatus>> | undefined;
+    try { existing = await getChatTurnStatus(turnId); } catch (error) {
+      if (!(error instanceof Error && /^404\b/.test(error.message))) {
+        if (steeringEpochRef.current === epoch) options.setOperationError("无法核对排队问题的执行状态，请稍后重试。");
+        return;
+      }
+    }
+    if (steeringEpochRef.current !== epoch || sendingRef.current) return;
+    if (existing?.status === "completed") {
+      await completeResearchFollowup(runId, id, turnId);
+      if (steeringEpochRef.current !== epoch) return;
+      setMessages(current => current.filter(item => item.researchQueued?.id !== id));
+      return;
+    }
+    if (existing && ["pending", "streaming"].includes(existing.status)) {
+      options.setOperationError("这个排队问题已有执行中的回答，请恢复该会话后继续。");
+      return;
+    }
+    await send(message.content, state.chatMessages.filter(item => item !== message), {
+      ...(existing ? { retryOfTurnId: turnId } : { turnId }),
+      attachmentIds: message.researchQueued.attachmentIds ?? [],
+    });
+    if (completedQueueTurnRef.current) {
+      const deliveryEpoch = steeringEpochRef.current;
+      try { await completeResearchFollowup(runId, id, completedQueueTurnRef.current); }
+      catch (error) { if (steeringEpochRef.current === deliveryEpoch) options.setOperationError(`回答已完成，但排队记录尚未确认：${error instanceof Error ? error.message : "未知错误"}`); }
     }
   };
 
@@ -705,6 +921,30 @@ export function useChatController(options: ControllerOptions) {
       restoredLastChat,
       restoredRecovery
     );
+    const restoredEpoch = steeringEpochRef.current;
+    void loadResearchQueue(detail.session_id).then(response => {
+      if (steeringEpochRef.current !== restoredEpoch) return;
+      setMessages(current => [...current.flatMap(message => {
+        const progress = response.progress?.find(item => item.turn_id === message.turnId);
+        if (message.role !== "assistant" || !progress) return [message];
+        const restoredReplies = mergeResearchReplies(researchRepliesRef.current, progress.replies);
+        if (restoredReplies !== researchRepliesRef.current) {
+          researchRepliesRef.current = restoredReplies;
+          setResearchReplies(restoredReplies);
+        }
+        return [{ ...message, researchProgress: progress }, ...(progress.steering ?? []).map(receipt => ({
+          role: "user" as const, content: receipt.content, avatarRole: "user", transient: true,
+          turnId: message.turnId, researchSteering: { runId: progress.run_id, id: receipt.id, status: receipt.status,
+            ...(receipt.effects ? { effects: receipt.effects } : {}) },
+        }))];
+      }), ...response.messages.map(item => ({
+        role: "user" as const, content: item.content, avatarRole: "user", transient: true,
+        researchQueued: {
+          runId: item.run_id, id: item.id, status: "pending" as const,
+          attachmentIds: (item.attachment_refs ?? []).map(ref => ref.attachment_id),
+        },
+      }))]);
+    }).catch(() => undefined);
     const phases = phaseTrail(
       (detail.turns ?? [])
         .filter((turn) => turn.status === "completed")
@@ -794,6 +1034,23 @@ export function useChatController(options: ControllerOptions) {
     }
   };
 
+  // Slice C: a first multimodal question must not require sending an empty
+  // message first; the composer can create the session on demand.
+  const ensureSession = async (): Promise<string | undefined> => {
+    const existing = state.activeChatThreadId;
+    if (existing) return existing;
+    try {
+      const created = await createNewSession();
+      transitionSession(created.session_id, seedMessages, null);
+      return created.session_id;
+    } catch (error) {
+      options.setOperationError(
+        `无法创建会话：${error instanceof Error ? error.message : "未知错误"}`
+      );
+      return undefined;
+    }
+  };
+
   const startNewSession = async () => {
     options.setOperationError("");
     cancelWorkspaceRuns();
@@ -859,7 +1116,14 @@ export function useChatController(options: ControllerOptions) {
     lastChat: state.lastChat,
     streamRecovery: state.streamRecovery,
     isSending,
+    isSteering,
+    canSteer: isSending && !isStopping && Boolean(deepRunIdRef.current),
+    canQueue: isSending && !isStopping && Boolean(researchProgress?.run_id) && !["failed", "cancelled"].includes(researchProgress?.status ?? ""),
     researchProgress,
+    researchReplies,
+    onReplyVisible,
+    onAnswerVisible,
+    answerTurnId,
     setMessages,
     setLastChat,
     setStreamRecovery,
@@ -867,7 +1131,13 @@ export function useChatController(options: ControllerOptions) {
     transitionSession,
     applySessionDetail,
     send,
+    queue,
+    sendQueued,
     stop: () => {
+      if (stoppingRef.current) return;
+      stoppingRef.current = true;
+      setIsStopping(true);
+      deepRunIdRef.current = null;
       const activeTurnId = activeTurnIdRef.current;
       const operationId = activeOperationIdRef.current;
       if (activeTurnId) {
@@ -917,6 +1187,7 @@ export function useChatController(options: ControllerOptions) {
     hydrateSession,
     archiveCurrentSession,
     startNewSession,
+    ensureSession,
     cancelWorkspaceRuns,
   };
 }

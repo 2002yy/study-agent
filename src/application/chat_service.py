@@ -173,6 +173,35 @@ class TurnCancelled(Exception):
         self.operation_id = operation_id
 
 
+def _turn_attachment_material(
+    repository: Any, turn_id: str | None
+) -> list[dict[str, Any]]:
+    """Material for the attachments bound to this turn.
+
+    The durable turn binding is the single source of truth, so a retry or
+    continuation reuses exactly the attachments the original turn was given.
+    """
+
+    if not turn_id:
+        return []
+    try:
+        turn = repository.get_chat_turn(turn_id)
+    except Exception:
+        return []
+    refs = list(getattr(turn, "attachment_refs", ()) or ())
+    if not refs:
+        return []
+    try:
+        from src.application.runtime_repository import get_session_attachment_service
+
+        return get_session_attachment_service().attachment_material(
+            str(getattr(turn, "thread_id", "") or ""),
+            [str(ref.get("attachment_id", "")) for ref in refs],
+        )
+    except Exception:
+        return []
+
+
 @dataclass(frozen=True)
 class ChatCommand:
     user_input: str
@@ -203,6 +232,9 @@ class ChatCommand:
     operation_id: str | None = None
     answer_validation: dict[str, Any] | None = None
     review_prompt_turn_id: str | None = None
+    # Server-validated message-level attachment identity (id + content_hash),
+    # bound to the turn. Empty for plain-text turns.
+    attachment_refs: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -519,6 +551,7 @@ class ChatService:
                     parent_turn_id=retry_parent.id if retry_parent else None,
                     operation_id=operation_id,
                     conversation_instruction=command.conversation_instruction,
+                    attachment_refs=tuple(command.attachment_refs),
                     created_at=utc_now(),
                     updated_at=utc_now(),
                 )
@@ -647,8 +680,16 @@ class ChatService:
                 conversation_context=_tool_context(command.chat_history),
                 owner_thread_id=thread.id,
                 owner_turn_id=turn_id,
+                attachment_material=_turn_attachment_material(self.repository, turn_id),
+                research_intent=bool(
+                    (route.get("task_contract") or {}).get("task_intent") == "research"
+                ),
+                deep_requested=(context_mode == "deep") or (command.performance_mode == "deep"),
             )
             rag["web_tools"] = web_tools.to_dict()
+            from src.web.research.research_interaction import steering_answer_instruction
+
+            effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
             web_tool_error = str(rag["web_tools"].get("error") or "")
             rag["web_context"] = _web_context_provenance(
                 command.web_context,
@@ -691,7 +732,7 @@ class ChatService:
                 context_mode=context_mode,
                 rag_context="\n\n".join(context_blocks),
                 scene=command.scene,
-                conversation_instruction=command.conversation_instruction,
+                conversation_instruction=effective_instruction,
                 pedagogy_plan=pedagogy_plan,
                 learning_state=learning_state,
             )
@@ -724,7 +765,7 @@ class ChatService:
                 pedagogy_snapshot=pedagogy_snapshot,
                 parent_turn_id=retry_parent.id if retry_parent else None,
                 operation_id=operation_id,
-                conversation_instruction=command.conversation_instruction,
+                conversation_instruction=effective_instruction,
             )
             # --- 164-C1b-1 shadow read: DEAD END, telemetry only (docs 164.15) ---
             # Decision-input hashes are computed *before* the shadow call and passed
@@ -1257,10 +1298,37 @@ class ChatService:
         reply = f"{prepared.base_reply}{suffix}" if prepared.is_continuation else suffix
         gate_blocked_pedagogy = False
         if answer_validation_active(prepared) and prepared.answer_validation is None:
+            from src.web.research.answer_layers import strict_publication_requested
             from src.web.research.official_publication import publish_official_fields
 
+            # The reader's own attachment (and whether we really decoded it) and
+            # an explicit "verified only" request are part of the publication
+            # decision, so the answer never implies a read that did not happen.
+            attachment_refs = getattr(prepared.turn, "attachment_refs", ()) or ()
+            attachment_present = bool(attachment_refs)
+            screenshot_read = True
+            if attachment_present:
+                try:
+                    material = _turn_attachment_material(self.repository, prepared.turn.id)
+                except Exception:  # noqa: BLE001 - a missing material read must not block the answer
+                    material = []
+                screenshot_read = any(
+                    isinstance(item, dict)
+                    and str(item.get("description") or item.get("text") or "").strip()
+                    for item in (material or [])
+                )
+
             reply, field_audit = publish_official_fields(
-                prepared.turn.user_message, ((prepared.rag or {}).get("web_tools") or {}).get("calls") or [], reply)
+                prepared.turn.user_message,
+                ((prepared.rag or {}).get("web_tools") or {}).get("calls") or [],
+                reply,
+                attachment_present=attachment_present,
+                screenshot_read=screenshot_read,
+                strict=strict_publication_requested(prepared.turn.user_message),
+                tool_error=str(
+                    ((prepared.rag or {}).get("web_tools") or {}).get("error") or ""
+                ),
+            )
             field_audit["answer_generation_calls"] = _route_generation_calls(prepared.route)
             prepared = replace(prepared, rag={**deepcopy(prepared.rag), "official_field_publication": field_audit})
             published_rag = deepcopy(prepared.rag)

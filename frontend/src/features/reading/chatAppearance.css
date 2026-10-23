@@ -1,4 +1,4 @@
-/* Character messages keep portraits prominent without narrowing long answers. */
+/* Character portraits keep their established scale; the surrounding UI stays quiet. */
 .reading-layout .composer-main { min-width: 0; }
 .reading-layout .composer-footer { display: flex; justify-content: flex-end; margin-top: 4px; }
 .reading-layout .composer-footer .send-button { margin: 0; }
@@ -10,6 +10,7 @@
 }
 .reading-layout .message > .avatar { grid-row: 1; }
 .reading-layout .message.assistant > .avatar { grid-column: 1; }
+.reading-layout .message.user > .avatar, .reading-layout .message.user > .message-header { display: none; }
 .reading-layout .message-header {
   display: flex;
   align-items: center;
@@ -53,7 +54,7 @@
   transform: rotate(45deg);
 }
 .reading-layout .message-bubble .markdown-message { margin-top: 0; }
-.reading-layout .message.user { align-self: flex-end; width: min(720px, 92%); gap: 10px; }
+.reading-layout .message.user { align-self: flex-end; width: min(680px, 90%); gap: 8px; }
 .reading-layout .message.user .message-header { grid-column: 1; justify-content: flex-end; }
 .reading-layout .message.user .message-body { grid-column: 1 / -1; padding: 0; background: transparent; border-radius: 0; text-align: left; }
 .reading-layout .message.user .message-bubble {
@@ -89,4 +90,24 @@
 }
 @media (min-width: 901px) and (max-width: 1100px) {
   .app-shell:has(.reading-layout.has-document) { padding: 12px; background: #f0f4f3; }
+}
+
+/* Slice C: multimodal input unified into the conversation composer. */
+.reading-layout .composer-attachments { display: contents; }
+.reading-layout .composer-attach-button { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; min-height: 34px; padding: 0; border: 1px solid #dce4ea; border-radius: 10px; background: #fff; color: var(--muted); cursor: pointer; }
+.reading-layout .composer-attach-button:disabled { opacity: .5; cursor: default; }
+.reading-layout .composer-attachment-chips { display: flex; flex-wrap: wrap; flex: 0 1 auto; gap: 6px; margin: 0; padding: 0; list-style: none; min-width: 70px; max-width: 150px; }
+.reading-layout .composer-attachment-chips li { display: inline-flex; align-items: center; gap: 6px; max-width: 260px; padding: 3px 6px 3px 10px; border: 1px solid #dbe4ea; border-radius: 999px; background: #f8fafb; font-size: 12px; }
+/* Selected-for-this-message vs merely kept in the session. */
+.reading-layout .composer-attachment-chips li.is-selected { border-color: #b6cbbf; background: #f0f6f2; }
+.reading-layout .composer-attachment-pick { display: inline-flex; align-items: center; gap: 6px; min-width: 0; min-height: 28px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.reading-layout .composer-attachment-pick:disabled { cursor: default; opacity: .6; }
+.reading-layout .composer-attachment-count { color: var(--muted); font-size: 12px; }
+.reading-layout .composer-attachment-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reading-layout .composer-attachment-chips button:not(.composer-attachment-pick) { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 24px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.reading-layout .composer-attachment-pick .attachment-status-ready { display: none; }
+.reading-layout .composer-attachment-chips button:hover { background: #e8eef2; }
+.reading-layout .composer-attachment-error { flex: 1 1 100%; color: #8a1d1d; font-size: 12px; }
+@media (max-width: 600px) {
+  .reading-layout .composer-attach-button { width: 44px; height: 44px; min-height: 44px; }
 }

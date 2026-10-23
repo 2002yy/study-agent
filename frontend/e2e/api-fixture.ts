@@ -1,4 +1,5 @@
 import type { Page, Route } from "@playwright/test";
+import { fileURLToPath } from "node:url";
 
 export const FIRST_QUESTION = "什么是二分查找？";
 export const FIRST_REPLY = "二分查找会在有序序列中反复把候选范围缩小一半。";
@@ -489,8 +490,8 @@ export async function installApiFixture(
     if (path === "/assets/avatars/nahida.png") {
       await route.fulfill({
         status: 200,
-        contentType: "image/svg+xml",
-        body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="14" fill="#ddd"/></svg>',
+        contentType: "image/png",
+        path: fileURLToPath(new URL("../../assets/avatars/nahida.png", import.meta.url)),
       });
       return;
     }

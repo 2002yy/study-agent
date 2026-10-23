@@ -70,3 +70,87 @@
 @media (max-width: 600px) {
   .answer-external-image-consent > button { min-height: 44px; }
 }
+.research-narration { width: 100%; line-height: 1.7; }
+.research-narration summary { cursor: pointer; padding: 4px 0; color: var(--muted); }
+.research-narration ol { margin: 8px 0; padding-left: 20px; }
+.research-narration li + li { margin-top: 8px; }
+.answer-progress-status { font-weight: 500; }
+.answer-progress-counts { color: var(--muted); }
+.answer-progress-note { width: 100%; color: var(--muted); }
+.research-findings { width: 100%; min-width: 0; padding: 16px 0 4px; color: var(--text); font-size: 15px; line-height: 1.8; }
+.research-findings-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
+.research-findings-note { margin: 0; font-size: 12px; color: var(--muted); }
+.answer-progress .answer-progress-approach { width: 100%; font-size: 14px; font-weight: 400; line-height: 1.8; margin-bottom: 8px; color: #56616c; }
+.research-status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; width: 100%; font-size: 12px; }
+.research-status-line .answer-progress-status { font-weight: 400; }
+.research-findings ul { list-style: none; margin: 0; padding: 0; }
+.research-findings li + li { margin-top: 12px; }
+.research-finding-group + .research-finding-group { margin-top: 18px; }
+.research-finding-question { margin: 0 0 6px; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.research-reading-gaps { margin: 16px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.research-interim-analysis { width: 100%; min-width: 0; padding: 12px 0 24px; color: var(--text); }
+.research-interim-text { margin: 0 0 20px; font-size: 15px; font-weight: 400; line-height: 1.9; overflow-wrap: anywhere; }
+.research-interim-citations { font-size: 12px; color: var(--muted); }
+.research-interim-citations summary { cursor: pointer; padding: 8px 0; }
+.research-interim-citations ul { margin: 12px 0 0; padding-left: 18px; }
+.research-interim-citations li + li { margin-top: 12px; }
+.research-interim-citations a { color: var(--accent); overflow-wrap: anywhere; }
+.research-interim-citations blockquote { margin: 6px 0; padding-left: 10px; border-left: 2px solid var(--border); overflow-wrap: anywhere; }
+.research-findings a { color: var(--accent, #315d77); overflow-wrap: anywhere; }
+.research-findings blockquote { margin: 4px 0 0; padding-left: 12px; border-left: 2px solid var(--border, #dbe4ea); overflow-wrap: anywhere; white-space: pre-wrap; }
+/* A supplement receipt and what it changed stack under the message text. The
+   generic `.message-body span` rule is inline-flex, so these need the extra
+   specificity to stay block-level and non-bold. */
+.message-body .research-steering-receipt,
+.message-body .research-steering-effect {
+  display: block; width: 100%; margin-top: 6px; font-size: 12px; font-weight: 400;
+  line-height: 1.6; gap: 0; overflow-wrap: anywhere;
+}
+.message-body .research-steering-effect a { color: var(--accent, #315d77); }
+.research-composer-hint { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+/* A queued follow-up is its own timeline card; it never reads as the running
+   research and never implies the current search was changed. */
+.research-queue-card {
+  display: grid; gap: 6px; max-width: min(680px, 100%); padding: 12px 14px;
+  border: 1px solid #dbe4ea; border-radius: 14px; background: #f8fafb;
+  color: var(--text); font-size: 13px; line-height: 1.6;
+}
+.research-queue-head { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.research-queue-title { font-weight: 600; color: var(--text); }
+.research-queue-count { margin-left: auto; padding: 1px 8px; border-radius: 999px; background: #eef2f4; }
+.research-queue-body { margin: 0; overflow-wrap: anywhere; }
+.research-queue-note { margin: 0; color: var(--muted); font-size: 12px; }
+
+/* Slice B: server-validated interactive computation result. */
+.computation-card { display: grid; gap: 12px; margin: 12px 0 0; min-width: 0; }
+.computation-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.computation-view-toggle { display: inline-flex; gap: 4px; }
+.computation-view-toggle button { min-height: 32px; padding: 4px 10px; border: 1px solid #dce4ea; border-radius: 8px; background: #fff; color: var(--text); font-size: 12px; cursor: pointer; }
+.computation-view-toggle button[aria-pressed="true"] { background: #eaf1f6; border-color: #b9ccd9; }
+.computation-stale { margin-left: auto; color: #8a5a12; font-size: 12px; }
+.computation-bars { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.computation-bars li { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 12px; }
+.computation-bar-label { color: var(--muted); overflow-wrap: anywhere; }
+.computation-bar { height: 12px; border-radius: 6px; background: #527896; min-width: 2px; }
+.computation-bar-value { font-variant-numeric: tabular-nums; }
+.computation-line { display: block; width: 100%; height: 120px; color: #527896; }
+.computation-line polyline { stroke: currentColor; stroke-width: 2; }
+.computation-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.computation-table :is(th, td) { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e1e8ed; }
+.computation-parameters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.computation-parameters label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.computation-parameters input { width: 120px; min-height: 32px; padding: 4px 8px; border: 1px solid #dce4ea; border-radius: 8px; }
+.computation-parameters button { min-height: 34px; padding: 6px 10px; border: 1px solid #cad9e3; border-radius: 8px; background: #fff; cursor: pointer; }
+.computation-provenance { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.computation-note { color: var(--muted); font-size: 12px; }
+.computation-invalid { color: #8a1d1d; }
+
+/* Provisional assistant replies: display-only, never the turn's answer. */
+.research-replies { display: grid; gap: 10px; margin-top: 10px; max-width: min(720px, 100%); }
+.research-reply { display: grid; gap: 4px; }
+.research-reply-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 12px; color: var(--muted); }
+.research-reply-kind { font-weight: 500; }
+.research-reply-text { margin: 0; white-space: pre-wrap; line-height: 1.65; }
+.research-reply-citations { margin: 4px 0 0; padding-left: 14px; font-size: 12px; color: var(--muted); }
+.research-reply-citations a { color: var(--accent, #315d77); }
+.research-reply-citations blockquote { margin: 2px 0 0; padding-left: 10px; border-left: 2px solid var(--border, #dbe4ea); overflow-wrap: anywhere; }
