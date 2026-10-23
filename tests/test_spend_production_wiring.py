@@ -182,9 +182,10 @@ def test_raising_the_retry_budget_raises_the_reservation(monkeypatch, tmp_path):
 
     default = reserve_with("retry-default", None)
     six = reserve_with("retry-six", 5)
-    # 6 attempts versus the provider's configured attempts (2 retries -> 3): 2x.
+    # 6 attempts versus 3: exactly 2x before micro-CNY quantization.
+    # Rounding the final amount of each reservation can differ by one micro-CNY.
     assert six > default
-    assert six == default * 2
+    assert abs(six - default * 2) <= 1
 
 
 _CHILD = """

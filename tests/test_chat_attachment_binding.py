@@ -154,7 +154,7 @@ def test_retry_does_not_replace_a_stored_binding(tmp_path):
 
 @pytest.mark.parametrize("service_class", [
     "src.application.chat_service.ChatService",
-    "src.application.policy_chat_service.PolicyChatService",
+    "src.application.policy_chat_service.ExternalDataPolicyChatService",
 ])
 def test_retry_preserves_server_owned_attachment_refs(tmp_path, monkeypatch, service_class):
     from importlib import import_module

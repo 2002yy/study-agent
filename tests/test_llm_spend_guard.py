@@ -101,6 +101,7 @@ def test_capped_request_uses_the_same_output_bound_on_wire_and_in_ledger(monkeyp
 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setenv("DEEPSEEK_MODEL_FLASH_NAME", "deepseek-flash")
+    monkeypatch.setenv("DEEPSEEK_MODEL_PRO_NAME", "deepseek-v4-pro")
     _configure(monkeypatch, cap="1", input_price="0", output_price="1")
     monkeypatch.setenv("LLM_SPEND_DEFAULT_MAX_TOKENS", "128")
     base = dict(
@@ -123,6 +124,7 @@ def test_tool_schemas_and_assistant_arguments_are_charged(monkeypatch):
 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setenv("DEEPSEEK_MODEL_FLASH_NAME", "deepseek-flash")
+    monkeypatch.setenv("DEEPSEEK_MODEL_PRO_NAME", "deepseek-v4-pro")
     _configure(monkeypatch, cap="0.001", input_price="1", output_price="0")
     base = dict(
         temperature=0.0, model_profile="flash", provider_profile="deepseek",
@@ -154,6 +156,7 @@ def test_tool_loop_rejects_oversized_schema_before_provider_call(monkeypatch):
 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setenv("DEEPSEEK_MODEL_FLASH_NAME", "deepseek-flash")
+    monkeypatch.setenv("DEEPSEEK_MODEL_PRO_NAME", "deepseek-v4-pro")
     _configure(monkeypatch, cap="0.001", input_price="1", output_price="0")
     sends = []
     class Fake:
