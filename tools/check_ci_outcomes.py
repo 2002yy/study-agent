@@ -6,7 +6,7 @@ import json
 import os
 
 REQUIRED_STEPS = (
-    "pytest", "rag_quality", "ruff", "packaging", "secrets", "mypy_baseline", "frontend"
+    "product_policy", "pytest", "rag_quality", "ruff", "packaging", "secrets", "mypy_baseline", "frontend"
 )
 # The fast tier may run a bounded impact set instead of the full suite. Exactly one of
 # these must have succeeded, but which one is the caller's routing decision.
