@@ -74,3 +74,28 @@ def test_pow_acceptable_exponent_and_overflow():
     assert evaluate_expression("2 ** 12") == 4096
     with pytest.raises(ComputeError):
         evaluate_expression("pow(1e308, 12)")
+
+
+
+@pytest.mark.parametrize("expression", [
+    "pow(2, [13])",
+    "pow(2, (13,))",
+    "2 ** [13]",
+    "2 ** (13,)",
+    "pow(2, True)",
+    "2 ** True",
+])
+def test_power_rejects_non_scalar_exponents_as_compute_errors(expression):
+    with pytest.raises(ComputeError, match="exponent must be a finite number"):
+        evaluate_expression(expression)
+
+
+@pytest.mark.parametrize("expression", ["pow([2], 3)", "[2] ** 3"])
+def test_power_rejects_non_scalar_bases_as_compute_errors(expression):
+    with pytest.raises(ComputeError):
+        evaluate_expression(expression)
+
+
+def test_callable_and_operator_power_accept_bounded_negative_exponents():
+    assert evaluate_expression("pow(2, -12)") == pytest.approx(2 ** -12)
+    assert evaluate_expression("2 ** -12") == pytest.approx(2 ** -12)

@@ -36,7 +36,7 @@ export function ComposerAttachments({
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  // Async deletions must consult the latest parent-controlled selection.
+  // Async uploads/deletions must consult the latest parent-controlled selection.
   const selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
 
@@ -96,7 +96,7 @@ export function ComposerAttachments({
       await refresh();
       // A freshly uploaded file is part of this message by default.
       if (uploaded.length && onSelectionChange) {
-        onSelectionChange(Array.from(new Set([...selectedIds, ...uploaded])));
+        onSelectionChange(Array.from(new Set([...selectedIdsRef.current, ...uploaded])));
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "附件上传失败");

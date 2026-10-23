@@ -153,6 +153,35 @@ describe("ComposerAttachments", () => {
     expect(await screen.findByRole("button", { name: "选择附件 pending.pdf" })).toBeDisabled();
   });
 
+  it("keeps the latest selection when an in-flight upload completes", async () => {
+    const old = attachment();
+    const another = attachment({ id: "a2", filename: "another.pdf" });
+    const uploaded = attachment({ id: "a3", filename: "new.png" });
+    listSessionAttachments.mockResolvedValue({
+      attachments: [old, another, uploaded], max_files_per_thread: 5, total_bytes: 6144,
+    });
+    let completeUpload: ((created: SessionAttachmentInfo) => void) | undefined;
+    uploadSessionAttachment.mockImplementation(
+      () => new Promise<SessionAttachmentInfo>(resolve => { completeUpload = resolve; }),
+    );
+    const onSelectionChange = vi.fn();
+    const { rerender } = render(
+      <ComposerAttachments sessionId="s1" selectedIds={["a1"]} onSelectionChange={onSelectionChange} />,
+    );
+    await screen.findByText("notes.pdf");
+    selectFiles(document.querySelector('input[type="file"]') as HTMLInputElement, [
+      new File(["x"], "new.png", { type: "image/png" }),
+    ]);
+    await waitFor(() => expect(completeUpload).toBeDefined());
+
+    // The user selects a2 while the upload is still pending.
+    rerender(
+      <ComposerAttachments sessionId="s1" selectedIds={["a1", "a2"]} onSelectionChange={onSelectionChange} />,
+    );
+    await act(async () => { completeUpload?.(uploaded); });
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith(["a1", "a2", "a3"]));
+  });
+
   it("clears only a successfully deleted attachment from selection", async () => {
     const remaining = attachment({ id: "a2", filename: "keep.pdf" });
     listSessionAttachments.mockResolvedValue({

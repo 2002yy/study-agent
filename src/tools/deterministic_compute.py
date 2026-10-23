@@ -66,6 +66,14 @@ class ComputeError(ValueError):
     """Raised when an expression or a numeric input is not acceptable."""
 
 
+def _check_exponent(value: Any) -> None:
+    """Apply one scalar-only bound to both ** and the callable pow."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ComputeError("exponent must be a finite number")
+    if abs(value) > MAX_POWER:
+        raise ComputeError("exponent is out of bounds")
+
+
 def evaluate_expression(expression: str, variables: Mapping[str, float] | None = None) -> float:
     text = str(expression or "").strip()
     if not text:
@@ -121,13 +129,16 @@ def _eval_binop(node: ast.BinOp, names: Mapping[str, float]) -> float:
         if isinstance(node.op, ast.Mod):
             return _finite(left % right)
         if isinstance(node.op, ast.Pow):
-            if abs(float(right)) > MAX_POWER:
-                raise ComputeError("exponent is out of bounds")
+            _check_exponent(right)
             return _finite(left**right)
+    except ComputeError:
+        raise
     except ZeroDivisionError as exc:
         raise ComputeError("division by zero") from exc
     except OverflowError as exc:
         raise ComputeError("arithmetic overflow") from exc
+    except (TypeError, ValueError) as exc:
+        raise ComputeError(f"invalid operands: {exc}") from exc
     raise ComputeError("unsupported operator")
 
 
@@ -140,8 +151,8 @@ def _eval_call(node: ast.Call, names: Mapping[str, float]) -> float:
     if not low <= len(node.args) <= high:
         raise ComputeError(f"{node.func.id} received an invalid number of arguments")
     args = [_eval_node(arg, names) for arg in node.args]
-    if node.func.id == "pow" and abs(float(args[1])) > MAX_POWER:
-        raise ComputeError("exponent is out of bounds")
+    if node.func.id == "pow":
+        _check_exponent(args[1])
     try:
         return _finite(func(*args))
     except (TypeError, ValueError, OverflowError, ZeroDivisionError, statistics.StatisticsError) as exc:
