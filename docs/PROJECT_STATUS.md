@@ -13,9 +13,13 @@
 远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
 不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
 生产研究/执行逻辑保持自身冻结实现，新main的DeepSeek/回答模块按已提交源码合入。
-本片将重跑命名studyctl L1、工具mypy/Ruff/格式/diff；不以旧头CI授予新头，不重复本地L3。
+已完成命名studyctl L1 255 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交cbda32ef17d1e51105ca37d3a93776fdc6d63f20。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
 验证目录 D:/study-agent-validation/studyctl-research-rebind-20261023/270/。
-下一动作：完成本片门、固定提交推送，并继续后继独立候选；不等待后台CI。
+下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
 
 
 **2026-10-20 CL-1G-1：仅DeepSeek传输适配器（本轮第一新功能片）。** 用户已明确“不用openai，只要deepseek”，覆盖此前待选状态；不使用OpenAI服务/配置，不发起真实付费调用。branch codex/conversation-model-transport-20261020，固定base自身#251 9f0c1f14b8b8702bcc5e6b28205798604590efe7，不取其他窗口WIP。DeepSeekConversationTransport接受宿主注入客户端和model，统一支持现有ModelDecisionRequest/ModelAnswerRequest；决策JSON object、回答正文，固定thinking disabled、stream false、每次SDK副本max_retries=0，验证预算参数并拒绝无法禁用重试的客户端。只收单条stop完成且无refusal/tool_calls的非空有界正文，截断/多choice不自动修复或重试；沿用原runner的准入/期限/过期与错误脱敏。本模块不读环境、不创建客户端、不授予费用/证据/发布权威；下一片才做DeepSeek专属配置及owned SDK生命周期，明确禁止OPENAI_*回退。精确登记新模块和测试CI路径。命名L1 conversation_deepseek_transport **495 PASS/128.64s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0；候选SHA以本段提交恢复，未改生产聊天/业务schema，无本地L3。
