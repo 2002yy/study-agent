@@ -55,6 +55,9 @@ class ChatRequest(BaseModel):
     turn_id: str | None = None
     operation_id: str | None = None
     review_prompt_turn_id: str | None = None
+    # Message-level attachment identity: only ids the server validates against
+    # the session are accepted; the default keeps plain-text turns unchanged.
+    attachment_ids: list[str] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")
     def split_transient_turn_context(self) -> ChatRequest:

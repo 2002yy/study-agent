@@ -29,7 +29,20 @@ export function mergeResearchProgress(
   if (!previous || previous.run_id !== incoming.run_id) {
     return { ...incoming, approach: incoming.approach ?? null };
   }
-  return { ...incoming, approach: mergeApproach(previous.approach, incoming.approach) };
+  if (incoming.version < previous.version) return previous;
+  const blocks = new Map((previous.narration ?? []).map(block => [block.block_id, block]));
+  for (const block of incoming.narration ?? []) blocks.set(block.block_id, block);
+  return {
+    ...incoming,
+    approach: mergeApproach(previous.approach, incoming.approach),
+    narration: Array.from(blocks.values()).slice(-12),
+    // Findings are a snapshot: [] explicitly removes excerpts invalidated by
+    // steering. Legacy events that omit the field preserve the current view.
+    findings: incoming.findings ?? previous.findings,
+    reading_gaps: incoming.reading_gaps ?? previous.reading_gaps,
+    // null withdraws an invalidated analysis; undefined is an older event.
+    interim_analysis: incoming.interim_analysis === undefined ? previous.interim_analysis : incoming.interim_analysis,
+  };
 }
 
 /** The user-visible opening sentence, or null when there is nothing honest to show yet. */

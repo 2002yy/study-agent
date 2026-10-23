@@ -8,6 +8,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.models.news import (
+    ResearchQueueRequest,
+    ResearchQueueCompleteRequest,
     NewsLookupRequest,
     NewsLookupResponse,
     ResearchFollowUpCandidateResponse,
@@ -130,6 +132,19 @@ def list_research_runs(
     return list_web_lookup_runs(service=service, limit=limit)
 
 
+@router.get("/sessions/{thread_id}/research-queue")
+def pending_research_followups(thread_id: str, service: WebLookupServiceDependency) -> dict:
+    from src.api.routes.chat_routes import _research_progress
+
+    progress = []
+    for run in service.repository.list_by_owner_thread(thread_id, limit=100):
+        owner = run.research_context.get("owner") or {}
+        turn_id = owner.get("turn_id") if isinstance(owner, dict) else None
+        if turn_id:
+            progress.append({**_research_progress(run), "turn_id": turn_id})
+    return {"messages": service.repository.pending_followups(thread_id), "progress": progress}
+
+
 @router.post(
     "/research-runs/owners/turns/{turn_id}/cancel",
     response_model=WebLookupRunListResponse,
@@ -206,7 +221,61 @@ def steer_research_run(
 ) -> WebLookupRunResponse:
     """G18 decision 12: inject mid-run steering into an active deep-research run."""
     try:
-        return _response(service.steer(run_id, content=request.content))
+        attachment_refs: list[dict] = []
+        attachment_material: list[dict] = []
+        if request.attachment_ids:
+            run = service.get(run_id)
+            from src.application.runtime_repository import get_session_attachment_service
+
+            attachment_service = get_session_attachment_service()
+            thread_id = run.owner_thread_id or ""
+            _, problems = attachment_service.validate_selection(thread_id, request.attachment_ids)
+            if problems:
+                raise ValueError("附件不可用：" + "、".join(problems[:3]))
+            attachment_refs = attachment_service.selection_refs(thread_id, request.attachment_ids)
+            attachment_material = attachment_service.attachment_material(thread_id, request.attachment_ids)
+        return _response(service.steer(
+            run_id,
+            content=request.content,
+            request_id=request.request_id,
+            attachment_refs=attachment_refs,
+            attachment_material=attachment_material,
+        ))
+    except ValueError as exc:
+        raise _not_found_or_conflict(exc) from exc
+
+
+@router.post("/research-runs/{run_id}/queue", response_model=WebLookupRunResponse)
+def queue_research_followup(run_id: str, request: ResearchQueueRequest, service: WebLookupServiceDependency) -> WebLookupRunResponse:
+    try:
+        attachment_refs: list[dict] = []
+        if request.attachment_ids:
+            from src.application.runtime_repository import get_session_attachment_service
+
+            run = service.get(run_id)
+            attachment_service = get_session_attachment_service()
+            thread_id = run.owner_thread_id or ""
+            selected_ids, problems = attachment_service.validate_selection(thread_id, request.attachment_ids)
+            if problems:
+                raise ValueError("附件不可用：" + "、".join(problems[:3]))
+            attachment_refs = sorted(
+                attachment_service.selection_refs(thread_id, request.attachment_ids),
+                key=lambda item: item["attachment_id"],
+            )
+            if {ref["attachment_id"] for ref in attachment_refs} != set(selected_ids):
+                raise ValueError("附件状态已变化，请重新选择")
+        return _response(service.repository.queue_followup(
+            run_id, content=request.content, request_id=request.request_id,
+            attachment_refs=attachment_refs,
+        ))
+    except ValueError as exc:
+        raise _not_found_or_conflict(exc) from exc
+
+
+@router.post("/research-runs/{run_id}/queue/{request_id}/complete", response_model=WebLookupRunResponse)
+def complete_research_followup(run_id: str, request_id: str, request: ResearchQueueCompleteRequest, service: WebLookupServiceDependency) -> WebLookupRunResponse:
+    try:
+        return _response(service.repository.complete_followup(run_id, request_id=request_id, turn_id=request.turn_id))
     except ValueError as exc:
         raise _not_found_or_conflict(exc) from exc
 

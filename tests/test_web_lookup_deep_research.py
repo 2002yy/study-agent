@@ -14,6 +14,7 @@ import pytest
 from src.application.web_lookup_service import WebLookupService
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.web_lookup_repository import WebLookupRepository
+from src.tools.python_isolation import isolated_python_available
 
 
 class ScriptedGateway:
@@ -74,8 +75,281 @@ class ScriptedPlanner:
             return {
                 "done": verdict.get("done", False),
                 "additional": verdict.get("additional", []),
+                "compute": verdict.get("compute"),
             }
         return {"done": True, "additional": []}
+
+
+def test_mid_round_supplement_changes_future_queries_without_restarting(tmp_path):
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(["alpha"]))
+    created = service.create("compare alpha", research_mode="deep")
+    original_search = gateway.search
+    injected = False
+
+    def search(query, *, max_items=10):
+        nonlocal injected
+        if not injected:
+            injected = True
+            service.steer(created.id, content="add omega to comparison")
+        return original_search(query, max_items=max_items)
+
+    gateway.search = search
+    completed = service.execute(created.id)
+    assert completed.id == created.id
+    assert any("omega" in query for query in gateway.search_calls)
+    assert gateway.read_calls.count("https://example.org/alpha") == 1
+    receipt = completed.research_context["deep"]["steering"][0]
+    assert receipt["incorporated_in_round"] == 2
+
+
+def test_last_round_supplement_remains_unapplied(tmp_path, monkeypatch):
+    monkeypatch.setenv("WEB_RESEARCH_MAX_DEEP_ROUNDS", "1")
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(["alpha"]))
+    created = service.create("alpha", research_mode="deep")
+    original_search = gateway.search
+
+    def search(query, *, max_items=10):
+        service.steer(created.id, content="add omega")
+        return original_search(query, max_items=max_items)
+
+    gateway.search = search
+    completed = service.execute(created.id)
+    from src.web.research.research_interaction import interaction_event
+
+    assert not any("omega" in query for query in gateway.search_calls)
+    assert interaction_event(completed)["steering"][0]["status"] == "late"
+
+
+def test_explicit_keyword_correction_updates_search_and_archives_affected_evidence(tmp_path):
+    gateway = ScriptedGateway({
+        "4060": [_result("https://example.org/4060", "4060")],
+        "5060": [_result("https://example.org/5060", "5060")],
+    })
+    service = _service(tmp_path, gateway, ScriptedPlanner(["RTX 4060 memory"]))
+    created = service.create("RTX 4060 memory", research_mode="deep")
+    original_read = gateway.read
+    injected = False
+
+    def read(url, *, max_chars=6000):
+        nonlocal injected
+        if not injected:
+            injected = True
+            service.steer(created.id, content="不是 4060，是 5060")
+        return original_read(url, max_chars=max_chars)
+
+    gateway.read = read
+    completed = service.execute(created.id)
+    assert any("5060" in query and "4060" not in query for query in gateway.search_calls)
+    deep = completed.research_context["deep"]
+    assert deep["superseded_notes"]
+    assert deep["consumed_reads"] == 2
+    assert all("4060" not in note["url"] for note in deep["notes"])
+    assert "https://example.org/4060" not in completed.source_block
+
+
+def test_budget_grant_allows_extra_work_after_initial_round_limit(tmp_path, monkeypatch):
+    import json
+    from test_incremental_research_budget import policy
+
+    monkeypatch.setenv("WEB_RESEARCH_MAX_DEEP_ROUNDS", "1")
+    monkeypatch.setenv("WEB_RESEARCH_STEERING_BUDGET_POLICY", json.dumps(policy()))
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(["alpha"]))
+    created = service.create("compare alpha", research_mode="deep")
+    original_search = gateway.search
+    injected = False
+
+    def search(query, *, max_items=10):
+        nonlocal injected
+        if not injected:
+            injected = True
+            service.steer(created.id, content="add omega")
+        return original_search(query, max_items=max_items)
+
+    gateway.search = search
+    completed = service.execute(created.id)
+    assert any("omega" in query for query in gateway.search_calls)
+    ledger = completed.research_context["deep"]["incremental_budget"]
+    assert len(ledger["grants"]) == 1
+    assert ledger["consumed"]["searches"] == len(gateway.search_calls)
+    assert ledger["consumed"]["reads"] == len(gateway.read_calls)
+
+
+def test_planner_compute_decision_runs_bound_tool_without_restarting(tmp_path):
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(
+        ["alpha"], revisions=[{"done": True, "additional": [], "compute": {
+            "engine": "deterministic", "mode": "expression", "expression": "2 + 2",
+        }}],
+    ))
+    created = service.create("compare alpha", research_mode="deep")
+    completed = service.execute(created.id)
+
+    [entry] = completed.research_context["deep"]["computations"]
+    assert entry["status"] == "succeeded"
+    assert entry["engine"] == "deterministic"
+    assert entry["input_revision"] == 1
+    assert entry["source_refs"] == ["https://example.org/alpha"]
+    assert entry["result"]["rows"] == [[4]]
+    assert gateway.read_calls.count("https://example.org/alpha") == 1
+
+
+def test_isolated_expression_decision_never_falls_back_to_deterministic(tmp_path):
+    """An isolated-engine expression is refused; it is never quietly recomputed."""
+
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(
+        ["alpha"], revisions=[{"done": True, "additional": [], "compute": {
+            "engine": "isolated_python", "mode": "expression", "expression": "2 + 2",
+        }}],
+    ))
+    created = service.create("compare alpha", research_mode="deep")
+    completed = service.execute(created.id)
+
+    [entry] = completed.research_context["deep"]["computations"]
+    assert entry["engine"] == "isolated_python"
+    assert entry["status"] != "succeeded"
+    assert entry["result"] == {}
+    assert entry["reason"] == "isolation_unavailable" or "deterministic" in entry["reason"]
+
+
+@pytest.mark.skipif(
+    not isolated_python_available(),
+    reason="No usable OS-level isolation runtime for the real Python compute path",
+)
+def test_deep_isolated_python_decision_returns_bound_structured_result(tmp_path):
+    """Deep -> real isolated Python -> validated table -> stream payload."""
+
+    from src.api.routes.chat_routes import _latest_computation
+
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(
+        ["alpha"], revisions=[{"done": True, "additional": [], "compute": {
+            "engine": "isolated_python", "mode": "table", "statistic": "mean",
+            "series": {"A": [1, 3], "B": [2, 2]}, "unit": "s",
+        }}],
+    ))
+    created = service.create("compare alpha", research_mode="deep")
+    completed = service.execute(created.id)
+
+    [entry] = completed.research_context["deep"]["computations"]
+    assert entry["status"] == "succeeded", entry.get("reason")
+    assert entry["engine"] == "isolated_python"
+    assert entry["source_refs"] == ["https://example.org/alpha"]
+    assert entry["result"]["columns"] == ["方案", "mean"]
+    assert entry["result"]["rows"] == [["A", 2.0], ["B", 2.0]]
+    assert entry["result"]["unit"] == "s"
+    assert _latest_computation(completed)["tool_run_id"] == entry["tool_run_id"]
+
+
+def test_recompute_supplement_supersedes_results_without_restarting(tmp_path):
+    """A "按新配置重算" supplement retires old results and adds no search task."""
+
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(
+        ["alpha"], revisions=[
+            {"done": False, "additional": [], "compute": {
+                "engine": "deterministic", "mode": "expression", "expression": "2 + 2"}},
+            {"done": True, "additional": []},
+        ],
+    ))
+    created = service.create("compare alpha", research_mode="deep")
+    original_search = gateway.search
+    injected = False
+
+    def search(query, *, max_items=10):
+        nonlocal injected
+        if not injected:
+            injected = True
+            service.steer(created.id, content="按新配置重算")
+        return original_search(query, max_items=max_items)
+
+    gateway.search = search
+    completed = service.execute(created.id)
+
+    deep = completed.research_context["deep"]
+    statuses = [item["status"] for item in deep["computations"]]
+    assert "superseded" in statuses          # old result retires, history kept
+    assert deep["computations"][0]["result"]["rows"] == [[4]]
+    receipt = deep["steering"][0]
+    assert receipt["kind"] == "recompute"
+    assert receipt["incorporated_in_round"] is not None
+    # The recompute must not fabricate a research task for the phrase itself.
+    assert not any(
+        "重算" in str(task.get("sub_question", ""))
+        for task in deep["plan"]
+        if isinstance(task, dict)
+    )
+    assert gateway.read_calls.count("https://example.org/alpha") == 1
+
+
+def test_deep_research_consumes_attachment_material_without_making_it_evidence(tmp_path):
+    """Message attachments inform planning but never become web evidence."""
+
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    seen: dict = {}
+
+    class CapturingPlanner(ScriptedPlanner):
+        def plan(self, query, context):
+            seen["attachments"] = context.get("attachments")
+            return list(self.initial)
+
+    service = _service(tmp_path, gateway, CapturingPlanner(["alpha"]))
+    created = service.create(
+        "compare alpha", research_mode="deep",
+        attachment_material=[{
+            "attachment_id": "att1", "filename": "firefly.png",
+            "content_hash": "hash1", "text": "流萤：2 魂，光锥叠影 5",
+        }],
+    )
+    completed = service.execute(created.id)
+
+    assert [item["attachment_id"] for item in seen["attachments"]] == ["att1"]
+    kinds = [step["kind"] for step in completed.research_context["deep"]["steps"]]
+    assert "attachment" in kinds
+    # The material must never pose as web evidence in the published source block.
+    assert "流萤" not in completed.source_block
+    assert all("流萤" not in str(item) for item in completed.query_attempts)
+
+
+def test_mid_run_attachment_binds_to_the_supplement_and_merges_at_checkpoint(tmp_path):
+    """A mid-run attachment shares the supplement's request identity."""
+
+    gateway = ScriptedGateway({"alpha": [_result("https://example.org/alpha", "alpha")]})
+    service = _service(tmp_path, gateway, ScriptedPlanner(["alpha"]))
+    created = service.create("compare alpha", research_mode="deep")
+    original_search = gateway.search
+    injected = False
+    refs = [{"attachment_id": "att9", "content_hash": "h9", "filename": "shot.png"}]
+    material = [{"attachment_id": "att9", "filename": "shot.png", "content_hash": "h9",
+                 "text": "流萤：2 魂，光锥叠影 5"}]
+
+    def search(query, *, max_items=10):
+        nonlocal injected
+        if not injected:
+            injected = True
+            service.steer(created.id, content="按新配置重算", request_id="req-1",
+                          attachment_refs=refs, attachment_material=material)
+            # A retry of the same request must not duplicate the supplement.
+            service.steer(created.id, content="按新配置重算", request_id="req-1",
+                          attachment_refs=refs, attachment_material=material)
+        return original_search(query, max_items=max_items)
+
+    gateway.search = search
+    completed = service.execute(created.id)
+
+    context = completed.research_context
+    steering = context["deep"]["steering"]
+    assert len(steering) == 1
+    assert steering[0]["request_id"] == "req-1"
+    assert steering[0]["attachment_refs"][0]["attachment_id"] == "att9"
+    # The bound attachment is merged as task material, never as web evidence.
+    assert [item["attachment_id"] for item in context["attachments"]] == ["att9"]
+    assert "流萤" not in completed.source_block
+    kinds = [step["kind"] for step in context["deep"]["steps"]]
+    assert "attachment" in kinds
 
 
 def _service(

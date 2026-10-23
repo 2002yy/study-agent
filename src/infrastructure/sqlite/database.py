@@ -10,7 +10,7 @@ from typing import Callable
 from src.infrastructure.sqlite.learning_semantic_schema import LEARNING_SEMANTIC_MIGRATION_V18
 from src.infrastructure.sqlite.learning_truth_schema import LEARNING_TRUTH_MIGRATION_V17
 
-SCHEMA_VERSION = 24
+SCHEMA_VERSION = 26
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -549,6 +549,39 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             ON research_memory_revisions(
                 owner_thread_id, generated_at DESC, revision_id DESC
             );
+        """,
+    ),
+    (
+        25,
+        """
+        ALTER TABLE chat_turns ADD COLUMN attachment_refs TEXT NOT NULL DEFAULT '[]';
+        """,
+    ),
+    (
+        26,
+        """
+        CREATE TABLE llm_spend_experiments (
+            experiment_id TEXT PRIMARY KEY,
+            cap_micros INTEGER NOT NULL,
+            pricing_fingerprint TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE llm_spend_reservations (
+            reservation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            experiment_id TEXT NOT NULL,
+            request_key TEXT NOT NULL,
+            request_fingerprint TEXT NOT NULL,
+            purpose TEXT NOT NULL DEFAULT '',
+            model TEXT NOT NULL DEFAULT '',
+            identity TEXT NOT NULL DEFAULT '',
+            amount_micros INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(experiment_id, request_key)
+        );
+
+        CREATE INDEX idx_llm_spend_reservations_experiment
+            ON llm_spend_reservations(experiment_id);
         """,
     ),
 )

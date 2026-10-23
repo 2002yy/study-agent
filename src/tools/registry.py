@@ -136,7 +136,7 @@ class ToolRegistry:
         )
 
 
-def create_default_tool_registry() -> ToolRegistry:
+def create_default_tool_registry(python_runner: Any = None) -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(
         RegisteredTool(
@@ -165,6 +165,15 @@ def create_default_tool_registry() -> ToolRegistry:
             preview_handler=_preview_local_knowledge,
             call_handler=_call_local_knowledge,
         )
+    )
+    # Compute tools reuse this registry.  The isolated runner is resolved from
+    # the environment by default and fails closed when isolation is unavailable
+    # (see src/tools/python_isolation.py); it is never a host-Python fallback.
+    from src.tools.compute_tools import register_compute_tools
+    from src.tools.python_isolation import get_default_runner
+
+    register_compute_tools(
+        registry, python_runner if python_runner is not None else get_default_runner()
     )
     return registry
 

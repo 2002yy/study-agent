@@ -1,12 +1,28 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-11（多窗口现有结果合并收口；学习/研究资格边界不变）
-> 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
+> 更新：2026-10-18（补充要求显示它实际改了什么：只认创建者、不复述原问题；下一刀改为助手增量回复）
+> 产品定义：**Study Agent 是体验接近 GPT-6 Chat 的智能聊天与研究 Agent。自然聊天、自主研究、持续交互、智能 UI、统一多模态、工具执行是六项通用核心能力；长期学习与教学是其上的专业场景。**
 
 本文件只维护当前权威状态、可复核边界和唯一下一门。2026-10-06 本次收敛前的完整状态原样归档到 [`archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`](archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md)；更早历史继续由既有 archive 与 Git 历史持有。
 
 ## 0. Current Handoff（cold-start 入口）
+
+**2026-10-24 候选验证续记（纯审计字段修正）。** 首个精确候选67a8a55f的本地L3仅跑到约21%，进程退出且未生成最终结果，不能计为完整通过；进度中记录一项main原有5ms期限测试失败，单独复查结果另存，未改断言。改用独立隐藏后台进程重新执行完整门并保留旧日志，不伪造中断原因。第一版审计JSON有4个Git提交SHA被熵扫描拦截，已确认全为本库真实commit；改用现有base_sha/head_sha字段规范，不修改扫描白名单。此提交只改docs，src/tests/tools/frontend树与67a8a55f一致。新SHA作为最终精确候选重新绑定CI；旧CI不授予新头。
+
+Firefox对照：完整候选77/79，通过数不掩盖两项失败；干净main同样复现首次回答page.reload等待load超30秒。90秒单例诊断通过，但该轮套件约24秒，不能证明需要超过30秒；部分项目运行的截图清单后置拒绝是预期，不算套件绿灯。随后30秒单例仍复现刷新超时；real-stack首次尝试受5173端口占用阻断，两类问题分列，不归为模型调用慢。正式超时/用例/后置门未放宽。当前合并资格NO-GO，四个原PR保持不变。
+
+
+**2026-10-24 权威AR隔离集成候选（未授权合main）。** 本树codex/ar-authoritative-integration-20261024从main `aeeeac0c8c3608f173e2671d6f3ed9497913f91f`起，按#265 `c07c7027`→#272 `3be77996`→#259 `a024d6cd`三个真实merge组成；三个PR与全部已归档非文档PR的完整head均为祖先，main历史完整保留。旧dgroup预演树18项暂存修改未碰，四个开放PR未改动；#282最后处理，CL-M3其他工作树未接管。本片owner=orchestration/persistence/infrastructure，loop=static，dynamic=not_run（无模型/付费授权），decision=engineering-only，产品NO-GO不变。
+
+冲突逐块裁定：ChatPanel保留main的nativeEvent.keyCode输入法保护、合入AR类型与回复行为，测试夹具去重；read_evidence保留公开read_excerpt及兼容包装，三处assessment仅排版差异；两次stage_gates冲突为结构化并集，main与三片登记零丢失、路径无悬空。main的ci_scope、阅读跳转源码/测试、代理setup/teardown blob不变；workflow保留G1路由，仅继承具名candidate_head证据hash例外及其正/负测试。完整组成见[evidence](evidence/ar-authoritative-integration-20261024.json)。
+
+当前本地证据：575 PASS/1 SKIP影响集；前端584 PASS与build PASS；Ruff/新测试format PASS；mypy124/128 NEW0。新增3项SQLite/费用控制PASS：25→26迁移故障回滚、旧版本拒绝打开26库/旧备份可恢复、已发请求超时或取消仍保留预留、重复键不再发送。初版测试误期望SpendLimitExceeded，实际明确接口为SpendLedgerConflict，已按接口修正，未改生产代码掩盖错误。SpendLedger只有保守持久预留/重复拒绝，无结算/退款API；CL-M3货币接线必须另行适配，不宣称已覆盖新宿主全部调用路径。
+
+浏览器完整轮77 PASS/2 Firefox FAIL并有截图清单后置错误，保留trace；正在对干净main及候选做相同Firefox对照，未提高超时或跳过失败。L3仅在干净精确候选预检后执行一次；最终候选SHA、全量/浏览器/CI实际结果归档D:/study-agent-validation/ar-integration-evidence-20261024/closeout.json，并用`git notes --ref=ar-integration-20261024 show HEAD`追加结果，避免为交接改写精确受测候选。当前不能宣称可合并；不复用三条旧PR的绿灯。
+
+唯一下一门：冻结候选后完成全量回归、真实后端假provider浏览器门及本候选CI，明确Firefox归因和其他失败；提交完整集成结果供决定现有PR落地方式，禁止自动合前三PR或提前改#282。成功迁移后的旧代码回滚须用迁移前备份，不能删除账本表或退还已提交预留。
+
 
 **2026-10-23 CLI候选#280主线重绑（第二次，面向当前main）。** 初始head 15d5bd62b99ad9418b6a87aa55202700c4b1a501，
 本次显式吸收已提交main 42992932e115568be54d6e85a34f4b68335d84ea（#255合并后），不读取其他工作树WIP。
@@ -501,6 +517,148 @@ run_conversation_loop改为收集answer_then_research的阶段回复及每次成
 **CL-1A 验证：** 命名 L1 `conversation_decision_1a`（自身 + router + task_contract + research_interaction + stage_gates_policy）**99 PASS / 29.80s**；全仓 Ruff PASS、新文件 format-check PASS、mypy baseline **122/128 NEW0**、diff-check PASS。首轮 97 PASS/2 FAIL：无 active run 的两项负控仍携带 `keep`，先触发 disposition 拒绝而非预期的 run 拒绝；仅修测试输入为 `none` 后影响集通过，无旧测试未知失败。mypy 日志 `D:/study-agent-validation/conversation-agent-loop-20261018-mypy.log`，生成缓存移至工作树外保留；本片按显式路径提交后应干净。无 L3：新增隔离合同尚未成为共享生产权威；无 UI 改动，未启动浏览器/构建。无付费调用、推送、PR、新 CI、合并或部署。**唯一下一片 CL-1B：** 在本分支接可注入、受预算/超时控制的模型决策调用，验证响应 → 提议校验与失败语义；生产接线另设门，不等待其他分支的计时或增量回复成果。
 
 **2026-10-18 对话 Agent 循环：独立工作树与开发计划（本分支覆盖下方旧 NEXT）。** 用户确认六项通用核心能力的产品分支状态，并要求按“端到端基线 → 模型决策 → 阶段性答案 → 补充闭环 → 消息归属 → 真实联动验收”推进。任务合同见 [CONVERSATION_AGENT_LOOP_PLAN.md](CONVERSATION_AGENT_LOOP_PLAN.md)，能力表明确标注“产品开发分支、尚未合并主线”，不将已有实现等同真实验收。新 branch `codex/conversation-agent-loop-20261018`，worktree `D:/study-agent-validation/conversation-agent-loop-20261018`，产品 base `0c8185151f694926941d3e5801f65f1df72fc65c`（`codex/research-interim-analysis-20261018`），共同 main base `335fc9b7875b848f202122362f2e0f8b5a9db0ee`；当前文档提交 SHA 由本段所属 Git 提交恢复。仅新增计划与本段交接，生产代码不变。原 `chat-steer-attachments` 工作树存在未提交 IA-1A 回复/终态冻结/计时等成果，原样保留且未复制，本分支不冒称包含它们。**唯一下一片 CL-0：** 定向核对并复用 IA-1A，使用 Photoshop/开源替代品 + Agent 自动编辑补充的可控 30 秒场景建立端到端时间线，区分生成、传输、渲染和终态问题。3～5 秒为有用初步分析目标，不以回执或模板代替。当前仅文档范围与 diff-check 验证；未运行生产测试/L3，未新增付费调用，无新 CI/推送/PR/合并/部署。
+**2026-10-19 CI 失败归因与 secrets 白名单修复（集成分支，本地提交）** #234/#238 的 exact-head CI 在门禁步失败，失败项为 `secrets` 与 `browser_e2e`（main 的两次 push 运行均 success，故属本分支内容）。归因结论：**两项都不是 IA-1A 的两个提交引入的**。
+
+**`secrets`（detect-secrets）**：命中 `docs/evidence/real-acceptance-2026/scenarios.json` 第 6 行 `"candidate_head": "06e96286d98d76c38018ff972460f42528479723"`（Hex High Entropy String，熵 3.59 > 阈值 3.0）。该值经 `git cat-file -t` 验证为**本仓库真实存在的 commit 对象**（`chore(git): treat the acceptance evidence pack as binary fixtures`），且报告里的 `hashed_secret` 正是该值的 SHA-1。该文件在 `0c818515`（IA-1A 基线）与 `370e9026`（候选）**逐字节相同**（`git diff --quiet` 退出码 0），且由前置提交 `a80c1659` 引入 → **不是 IA-1A 新引入**。修复：在 CI 的 `--exclude-lines` 里**按字段名**补 `candidate_head`（与既有 `head_sha`/`base_sha` 同一约定），并新增负控断言任意 40-hex 字段（`head`/`target_commit`/`api_key`/`token`）与大写十六进制**仍被拦**（`tests/test_ci_detect_secrets_allowlist.py`）。
+
+**`browser_e2e`**：`frontend/e2e/chat-role-settings.spec.ts` 的布局断言 `panelBox.y + panelBox.height <= inputBox.y` 在 desktop-chromium 上 4 条全失败。**两个 HEAD 本地重跑（同一 CI 配置 `playwright.config.ts`，`--project=desktop-chromium`）都失败同样 4 条** → 按既定判据「两边失败 ⇒ 共同祖先问题」。结合 main 的 CI 通过，可定位为**本分支 40 个前置提交中的某个**（基线 `0c818515` 已含这 40 个、不含 IA-1A 的 2 个）。该 spec 在两个 HEAD 上内容一致，`ChatPanel.tsx`(+119)/`answerUi.css`(+10) 才是 IA-1A 的差异 → 但 IA-1A 的 2 个提交**不在失败区间内**。**未修复**：需在 40 个前置提交上做二分定位（下一步）。
+
+**诚实边界**：本地无法复现 CI 的 secrets 命中（本地扫描在两个 HEAD 上 residual 均为 0，插件直查该文件也不报），因此 secrets 的归因依据是**文件内容逐字节相同 + 值经验证为真实 commit**，不是本地复现；CI 报告（artifact `ci-diagnostics/detect-secrets-report.json`）是命中的直接证据。
+
+**2026-10-18 IA-1A 终态诚实报告（最后一刻接受的补充必须被明确告知，本地未提交，覆盖下方所有 IA-1A 记录数字）** 复审认可前一轮三项修复，但指出一个产品一致性问题：P1 测试证明补充记录与回复没丢，却没证明**最终答案是否明确告知该要求没有执行**；“未生成模型分析”与“未纳入最终研究结果”不是一回事。本轮只做这一件事，另附一项非阻断一致性收口。**未提交、未推送、未开 PR、未触发 CI、未运行 L3、未跑付费样本、未做费用账本。**
+
+**修复（全部发生在终态写入内部，基于合并后的上下文）**：仓储新增 `_unexecuted_supplements(context)`（判定条件与既有语义一致：`executed_in_round is None`）与常量 `UNEXECUTED_SUPPLEMENT_WARNING = "本轮研究结果未包含部分追加要求（已接受但未执行）；请排队下一轮继续。"`。`complete()` 每次 CAS 尝试都基于**合并后的**上下文判定：存在未执行补充时，状态由 `completed` 降为 `partial`（诚实状态），并把该警告写入 run 的 `warnings`（去重）；`_freeze_replies_for_terminal()` 同时给这些补充的回复打上 `result_state="not_included"`（新增 `mark_result_not_included()`，走 `advance_content` 递增版本）。服务端原先基于执行器**旧快照**的 `unapplied` 判断与重复告警已删除，判定与文案只有一处来源（仓储），避免旧快照漏报。
+
+**前端（数据库 → 界面）**：`ChatResearchReply` 新增 `result_state?: "not_included"`；`replyStatusNote()` 优先返回更强、更可执行的说明“本轮研究结果未包含此要求（已接受，未执行）；可排队下一轮继续”（优先于“本轮未生成模型分析”）；`ChatResearchRecovery` 新增渲染 run 的 `warnings`（原样展示、不做摘要），与任何 API 消费方看到的是同一句话。
+
+**非阻断一致性收口**：后端此前允许 `superseded` 回复继续更新正文，前端却冻结整条回复。现统一为“失效后正文不可变”：durable `superseded` 时，incoming 非 `superseded` 记 `superseded_reopen`，incoming 也是 `superseded` 但内容不同则记 `superseded_immutable`，两种情况都保留 durable，两层规则一致。
+
+**负控（数据库 → 用户界面）**：`test_a_supplement_accepted_before_completion_survives_it` 现同时断言 `status == "partial"`、`UNEXECUTED_SUPPLEMENT_WARNING in completed.warnings`、每条回复 `result_state == "not_included"`，以及 SSE 投影同样携带该字段；`test_a_steer_accepted_before_the_terminal_write_is_frozen_by_it` 断言 `closed_run_status == "partial"` 与警告存在；前端 `researchReplies.test.ts`、`ChatPanel.test.tsx`（回复块渲染该说明）、`ChatResearchRecovery.test.tsx`（渲染持久化警告行）各一条。另为 `ChatResearchRecovery.test.tsx` 补 `afterEach(cleanup)`，修掉测试间 DOM 泄漏（新断言暴露的既有测试卫生问题）。
+
+**验证（本轮重跑，最终候选）**：L1 `incremental_answer_1`（11 文件）**106 PASS / 39.57s**；前端 `npm test` **115 files / 553 tests PASS**；`tsc -b` 0 错、`vite build` PASS；浏览器四视口 **4 PASS / 16.2s**；Ruff PASS；mypy **current=122 / baseline=128 / resolved=6（NEW0）**；`git diff --check` PASS。
+
+**仍未做**：真实模型样本与延迟分布、持久化费用账本、L3/CI。**已知相邻问题（仅记录）**：前端全量单测存在负载敏感 flake（`ReadingWorkspace.test.tsx` 的 scrollTop 断言），单独运行 6/6 通过，不在本候选范围。**下一刀**：本轮通过后先做独立实验 ID 的持久化预算账本，再跑三条真实样本。
+
+**2026-10-18 IA-1A 复审三点收口（superseded 单向 / 终态补充历史 / 跨轮次计时，本地未提交，覆盖下方所有 IA-1A 记录数字）** 复审 NO-GO 后只做三项：防止 `superseded → open`、验证终态补充记录不丢失、过滤跨轮次计时事件。**未提交、未推送、未开 PR、未触发 CI、未运行 L3、未跑付费样本、未做费用账本**。
+
+**P0 `superseded` 被旧执行器重新打开（已复现→已修）**：复审给出的最小复现（durable `superseded` v3 / 新状态 incoming `open` v3）在本工作树得到同样结果 `open` v4（走 `same_version_race` 分支重新编号放行），违反 `open → superseded` 不可逆。修法：`merge_steering_replies()` 在**任何研究状态/版本比较之前**先保护 durable 的 `superseded`——incoming 不是 `superseded` 即拒绝，并记录 `last_conflict.reason="superseded_reopen"`（可审计），生命周期权威不再被更新的研究轮次覆盖。修复后同一复现输出 `superseded` v3 + `superseded_reopen`。负控：`tests/test_reply_persistence_consistency.py::test_a_superseded_reply_is_never_reopened_by_a_stale_executor`（先持久化纠正，再让持旧快照的执行器 `checkpoint`，回读数据库与 SSE 投影都必须仍是 `superseded`）。
+
+**P1 终态写入可能丢掉最后一刻接受的补充历史（已证实→已修）**：复审指出 `complete()` 只合并 `conversation_queue` 与 `steering_replies`，未合并 `deep["steering"]`。**已用真实数据库路径证实**：先做一次 checkpoint 并捕获执行器旧快照 → `service.steer` 接受第二个补充 → 用旧快照 `complete()`，修复前数据库中 `deep["steering"]` 只剩 1 条（补充历史被旧副本覆盖），修复后为 2 条。修法：`complete()` 与 `fail()` 都改用与 `checkpoint` 相同的合并链（`merge_active_steering_context` → `merge_deep_steering_context` → `merge_queued_followups` → `merge_steering_replies`），并保留有界 CAS 重试（`fail()` 同样加上重试）。负控三条（完成/失败/取消）：新 id 必须同时存在于 `deep["steering"]` 与 `steering_replies`，回复一律 `closed` + `run_terminal`，`closed_run_status` 分别为 `completed`/`failed`/`cancelled`，未覆盖的补充标 `not_generated`。
+
+**P2 新计时窗口仍接收旧轮次回复事件（已修）**：`researchTiming.ts` 新增 `inWindow()`，`replies`、`reply_visible`、`answer_visible` 三类事件统一按 `target_turn_id` 过滤；`target_turn_id === null`（本会话尚未 send，例如恢复的会话）不过滤，且此口径已写入注释。负控：新 send 后旧 run 的 `replies`/`reply_visible` 迟到事件被拒（`marks`/`visible` 保持为空），当前 run 事件正常进入；恢复会话（target 为 null）三类事件仍被观测。
+
+**审查包说明修正**：上一版 `ia1a-FIXES-b1b5.md` 的“先应用全量补丁再应用窄补丁”是错的（全量补丁已包含窄补丁内容）。正确用法：**从 base `0c818515` 起只应用全量补丁**；或**从 B1–B7 修复前的候选起只应用对应窄补丁**。本版说明已按此改正。
+
+**验证（本轮重跑，最终候选）**：L1 `incremental_answer_1`（11 文件）**106 PASS / 41.92s**；前端 `npm test` **115 files / 550 tests PASS**；`tsc -b` 0 错、`vite build` PASS；浏览器四视口 **4 PASS / 11.0s**；Ruff PASS；mypy **current=122 / baseline=128 / resolved=6（NEW0）**；`git diff --check` PASS。窄范围差异见 `D:/study-agent-validation/ia1a-fixes-superseded-terminal-timing.patch`。
+
+**已知相邻问题（未修，超出本轮范围）**：前端全量单测存在**负载敏感 flake**——`src/features/reading/ReadingWorkspace.test.tsx > notebook reading navigation > locates only headings in the loaded window without another read` 在整套并行运行时偶发失败（`body.scrollTop` 期望 77 实得 0），单独运行该文件 6/6 通过；该文件不在本候选改动范围内，按范围纪律仅记录不修。
+
+**仍未做**：真实模型样本与延迟分布、持久化费用账本、L3/CI。**下一刀**：本轮三点通过后，先做独立实验 ID 的持久化预算账本（原子累计、重启不清零、并发不超额），再跑三条真实样本。
+
+**2026-10-18 IA-1A 审查阻断修复（B1–B5，本地未提交，覆盖下方所有 IA-1A 记录的数字）** 审查裁定 NO-GO 后按 B1–B5 收口。branch `codex/research-interim-analysis-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base/HEAD `0c8185151f694926941d3e5801f65f1df72fc65c`（**仍无新 commit**）；**未推送、未开 PR、未触发 CI、未运行 L3、未跑付费样本**。
+
+**B1（P0）失效标记被合并器丢弃**：`mark_additions_stale`/`supersede_affected` 只增 `content_version` 而不更新 `based_on_version`，研究状态不变时合并器判 `stale_base` 并拒绝，导致“旧判断已过时”的更新落不了盘。新增 `advance_content(reply, now=...)`：任何**状态变更**都同时写入 `content_version+1` 与 `based_on_version=原版本`，使合法失效写入通过 CAS 校验，而陈旧写入方仍会被拒（`based_on < durable.content_version`）。`mark_analysis_not_covered`/`close_replies` 同样走该路径。**仓储级负控**（`tests/test_reply_persistence_consistency.py`，新）：走真实 `checkpoint` 合并链与 `_deep_update_steering_replies`，回读数据库断言 `stale is True` / `lifecycle == superseded` 且无 `last_conflict`，并断言 SSE 投影同样可见。
+
+**B2（P0）终态冻结不在同一次原子转移内**：原先执行器先 `_close_steering_replies(...)` + `persist()`，再 `complete()`/`fail()`，存在“回复已宣称结束、run 行仍是 running”的窗口。现冻结移入终态写入本身：仓储新增 `_freeze_replies_for_terminal(context, run_id=..., run_status=...)`，在 `complete()`/`fail()`/`finish_cancel()` 的**同一次 UPDATE** 内完成（含“本轮未生成模型分析”的标记），`run_status` 取**实际写入的终态**（`completed`/`partial`/`failed`/`cancelled`，不再是仍为 running 的旧行）；`complete()` 改为有界重试：每次重新读行、合并 durable 的 `steering_replies`、冻结、再按版本 CAS 提交，因此终态写入既不会丢弃并发追加的回复，也不会在 CAS 失败时留下冻结。服务端 `_close_steering_replies` 与其 logger 已删除（`close_replies`/`mark_analysis_not_covered` 导入一并清理）。负控：终态前 checkpoint 后回复仍为 `open`、完成后才 `closed`+`run_terminal`+`closed_run_status=completed`；CAS 持续失败时不落冻结且 run 仍 `running`；失败路径 `closed_run_status=failed`。
+
+**B3（P1）对 durable `closed` 无条件信任**：`prior_closed` 现要求 `lifecycle_closed_by == "run_terminal"`；无来源的 `closed` 可被合法更新覆盖，权威冻结仍然优先。负控：非法 `executor` 关闭被合法更新取代、权威关闭仍胜出（`test_reply_terminal_freeze.py::test_an_illegitimate_durable_close_is_not_kept`）。
+
+**B4（P1）可见计时被上一轮污染**：`ResearchTimingState` 增加 `target_turn_id`；新增 `run_start` 事件（每次 send 开新观测窗并清空旧标记）；`answer_visible` 只在 turnId 与目标轮次一致时生效；`ChatPanel` 的 `AnswerVisibilityProbe` 仅对**当前观测轮次**的已完成答案挂载（新增 `answerTurnId` 由 controller 透传）。负控：旧轮次答案上报被拒、`run_start` 清空历史标记、非目标轮次不挂探针。
+
+**B5（P1）G1 后到会擦除 G2 证据来源**：`apply_analysis` 在已有 G2 时不再改写 `content_state`（证据 provenance），改为把 G1 的 `{round,notes,revision}` 存入独立的 `analysis_provenance`；`content_fingerprint` 纳入该字段。负控：G2 的 `content_state`/`citations`/`text` 在 G1 后到后保持不变。
+
+**B6（P2）投影与前端对无来源关闭不一致**：`reply_projection(active=False)` 现显式写入 `lifecycle_closed_by="run_terminal"`（来源是权威 run 行）；前端 `mergeResearchReplies` 统一规则——首次恢复遇到无来源 `closed` 显示为 `open`（内容不丢、不误标冻结），合并路径仍完全忽略裸关闭声明。负控双向覆盖。
+
+**B7（P2）“可见”语义**：发布态新增 `visibility_source: "rendered_after_frame"`，明确该指标是“提交后第一帧”的渲染观测，**不等于**读者在滚动区域内真正读到；浏览器断言同步校验该字段。
+
+**验证（本轮重跑，最终候选）**：L1 `incremental_answer_1`（现 11 文件，已登记新负控）**102 PASS / 35.44s**；前端 `npm test` **115 files / 548 tests PASS**；`tsc -b` 0 错、`vite build` PASS；浏览器四视口 **4 PASS / 10.9s**；Ruff PASS；mypy **current=122 / baseline=128 / resolved=6（NEW0）**；`git diff --check` PASS。窄范围修复差异 `D:/study-agent-validation/ia1a-fixes-b1b5.patch`（16 文件，+643/−129），已在冻结候选的干净工作树上 `git apply --check` 通过。
+
+**仍未做**：真实模型样本与延迟分布（未批准）、持久化费用账本（审查通过后再做）、L3/CI。**下一刀**：审查通过后做独立实验 ID 的持久化预算账本（原子累计、重启不清零、并发不超额），再跑三条真实样本。
+
+**2026-10-18 IA-1A 审阅后修复轮（本地未提交，覆盖下方两条 IA-1A 记录的验证数字）** branch `codex/research-interim-analysis-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base `0c818515`；本轮**未提交、未推送、未开 PR、未触发 CI、未运行 L3、未新增付费模型调用**，改动全部留在工作区待审阅。审阅给出的 6 项必须修复已全部落地。
+
+**① 显示计时改为“按内容态”上报（原缺陷：回执渲染被当成模型分析）**：`frontend/src/features/web-lookup/researchTiming.ts` 重写为 `visible: ReplyVisibleMark[]`，键为 `reply_id@content_version:stage`（`visibleKey`/`visibleStageAt`/`firstVisibleAt`），首次观测为准、重放事件不得前移或后移；`leadBeforeAnswer`（对 `answer_done_ms`）与 `analysisLeadBeforeAnswer`（G1，仅 `stage="analysis"`）/`evidenceLeadBeforeAnswer`（G2）分离，**没有 G1 就是 `null`，绝不用 G2 顶替**。`chatController.ts` 的 `onReplyRendered` 删除，改为 `onReplyVisible(reply, at)` + `onAnswerVisible(turnId)`；**答案可见时间不再由 `done` 事件后下一帧推断**，改由真正渲染答案的组件上报。`ChatPanel.tsx` 抽出 `ResearchReplyBlock`（挂载即按当前内容态上报）与 `AnswerVisibilityProbe`（仅在“已完成且有正文”的助手气泡内挂载）。
+
+**② 研究级回复按精确轮次绑定（原缺陷：绑到“最后一条助手消息”）**：删除 `lastAssistantIndex`，改为 `message.turnId === reply.turn_id` 定位归属；无归属（该轮尚无消息）时进入尾部兜底区块，不冒充其他轮次。`frontend/src/features/web-lookup/researchReplies.ts` 客户端合并修正：**接受后端驱动的 `open → superseded`**（版本 `>=` 即生效，这是失效而非“更新内容”）、权威冻结（`lifecycle_closed_by === "run_terminal"`）在同版本也生效、**无 provenance 的 `closed` 声明继续被忽略**、已冻结不被重开。
+
+**③ 终态权威写入（后端）**：`src/application/web_lookup_service.py` 的 `_close_steering_replies` 改为**显式传入即将写入的终态**（`run_status="partial"|"completed"`、失败路径 `"failed"`）；此前它读 `self.get(run_id).status`，而该行此刻仍是 `running`，导致 `closed_run_status` 记录错误——属真实 provenance 缺陷，已修。冻结失败不再静默 `return`，改为 `_LOGGER.warning(..., exc_info=True)`（新增模块级 `_LOGGER`）。
+
+**验证（本轮全部重跑，最终候选）**：L1 `incremental_answer_1`（10 文件）**94 PASS / 35.03s**；`tests/test_reply_terminal_freeze.py` **7 PASS**（新增不变量：取消/失败/完成三条终态路径都写入 `lifecycle_closed_by="run_terminal"` 且 `closed_run_status` 分别等于 `cancelled`/`failed`/`completed`；无 provenance 或 `lifecycle_closed_by="executor"` 的 `closed` 声明完全无效；`close_replies` 会升版本且不重复盖章）；前端 `npm test`（= `vitest run src`）**115 files / 544 tests PASS**；`tsc -b` 0 错误、`vite build` PASS；浏览器 `playwright.conversation.config.ts` 桌面/手机/窄屏/平板 **4 PASS / 12.0s**（断言已改为新模型：回执与 G1 是不同内容态、`receipt < analysis < answer_visible`、G1/G2 lead 分别 > 0）；Ruff PASS；mypy 基线 **current=122 / baseline=128 / resolved=6（NEW0）**；`git diff --check` PASS。
+
+**本轮失败样本与根因（均为测试侧或已修）**：⑴ e2e 断言仍读旧形状 `mark.analysis_ms`，属测试未随生产 API 更新，已改为新模型断言；⑵ 出现 React “unique key” 警告——`key` 原先在 `replyBlock` 内部的 `<article>` 上，抽成组件后需落在组件调用处，已修；⑶ 我新加的绑定测试断言 `closest("article")` 命中的是回复块自身的 `<article>`（假失败），改为以 `.message` 为轮次容器，产品行为本身正确。**注意**：裸 `npx vitest run` 会把 `e2e/*.spec.ts` 当作 24 个失败套件，正确命令是 `npm test`（`vitest run src`），此前记录的前端数字差异源于此。
+
+**边界与风险（不因本轮修复而改变）**：G1 仍来自既有 `revise` 调用（本轮结束才产出），**不承诺 3–5 秒内出现模型分析**，也不得把“回执很快出现”宣传为“已实现快速智能分析”；G2 只证明“引用来自已读材料”，不等于论证成立；`AnswerVisibilityProbe` 仍是“下一帧”近似，不是 paint 保证。费用裁定未执行：`src/llm_spend_guard.py` 的 `_reserved_cny` 是**模块级全局**，进程重启即清零，因此“三个样本共 ¥10 硬上限”必须在同一进程内完成（或先把账本持久化），实际样本运行仍待批准。**下一刀**：按批准方案在同进程内跑三条可追踪样本，采集四项延迟与“G1/G2 是否早于 G4”，样本不足只报原始值。
+
+**2026-10-18 IA-1A 验收：三项风险修复 + 浏览器单时钟计时（本地未提交，覆盖下方 IA-1A 段）。** 用户裁定「保留未提交、批准设计测量方案、允许有限本地修复」，本轮**未提交、未推送、未触发 CI、未运行 L3、未新增付费模型调用**。三项风险检查结果：①**同版本冲突语义已修正**——原先“冲突后把写入方内容改到下一版本”会让陈旧执行器仅凭版本号覆盖更新内容；现改为**以研究状态为准**（`content_state = {round, notes, revision}`，即该内容由哪一轮、多少条笔记、哪个 interim revision 派生），旧状态永远不得覆盖，同状态同版本冲突保留**首次成功原子写**，只有更新的研究状态才以不冲突版本发布（`steering_replies.merge_steering_replies` + `state_key`）。②**终态冻结落盘**——`finish_cancel`（取消）与深研失败路径现在在同一原子写内 `close_replies`；成功/部分完成路径在最终 persist 前关闭；`checkpoint` 只接受 `status='running'`，取消/失败/完成后旧执行器根本无法写入；`pending`（已接受未启动）仍为活跃态、**不会**被误判终态（负控已覆盖）。③**G1/G2 是否早于 G4 已可测量**——新增浏览器单时钟标记（`researchTiming.ts`：submit/receipt/analysis/evidence/answer 全部取 `performance.now()`，首次观测为准），并给出 `leadBeforeAnswer`/`analysisLeadBeforeAnswer`，迟到即为 null、不伪造“边研究边回答”。
+
+验证（本轮重跑）：L1 `incremental_answer_1` **82 PASS / 32.49s**（新增 `tests/test_reply_terminal_freeze.py` 5 PASS：pending 非终态、取消落盘冻结且拒绝迟到 checkpoint、失败冻结、完成冻结、迟到 open 快照不得重开）；`test_steering_replies.py` + `test_steering_reply_merge.py` **19 PASS**（含“陈旧写入方不得靠高版本提升旧分析”“同状态同版本保留首次写”“更新状态以不冲突版本发布”）；前端 **170 PASS / 23 files**（含 `researchTiming.test.ts` 4 PASS：单时钟记录、重复事件不移动更早观测、迟到即 null）；浏览器四视口 **4 PASS / 13.6s**，新增断言用 `window.__studyAgentTimings` 证明「回执 < 模型分析 < 最终答案」的顺序（fixture 时间线，非真实模型证据）；Ruff PASS、mypy 基线门 **122/128 resolved=6（NEW0）**、`git diff --check` PASS、`tsc -b && vite build` PASS。
+
+**交付物**：审阅用补丁 `D:/study-agent-validation/ia1a-20261018.patch`（24 文件，2269 insertions / 15 deletions，含 9 个新增文件；`git apply --stat` 校验通过）。**未做**：真实模型样本与延迟分布（需另行批准费用）、IA-1B 快速分析调用、active claim-engine 接入。**下一刀**：按已批准方案跑三个领域各一条可追踪样本（Photoshop 自动化编辑、游戏攻略补充、编程问题补充），采集四项延迟与“G1/G2 是否早于 G4”，样本不足只报原始值。
+
+**2026-10-18 IA-1A：阶段性助手回复（本地未提交，覆盖下方旧 NEXT）。** branch `codex/research-interim-analysis-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base `0c818515`。用户裁定 Rev.2「有条件 GO，批准 IA-1A 最小实现」，并给出四项强制实现合同 A–D；本轮**未提交、未推送、未开 PR、未启动 L3、未新增付费模型调用**。改动 6 个新文件 + 14 个修改文件：`src/web/research/steering_replies.py`（新）、`tests/test_steering_replies.py`（新）、`tests/test_steering_reply_merge.py`（新）、`tests/test_incremental_answer.py`（新）、`frontend/src/features/web-lookup/researchReplies.ts`（新）、`researchReplies.test.ts`（新）；改 `deep_planner.py`、`interim_analysis.py`、`web_lookup_service.py`、`web_lookup_repository.py`、`chat_routes.py`、`types.ts`、`chatController.ts`、`ChatPanel.tsx`、`ChatPanel.test.tsx`、`WorkspaceView.tsx`、`answerUi.css`、`conversation-continuous.spec.ts`、`test_deep_planner_production.py`、`stage_gates.json`。
+
+**实现（对应合同 A–D）**：A 失效规则——`interim_revision` 变化不再等于整条回复失效：新增条件只把旧判断标 `stale`（“尚未覆盖后续新增的条件”）且保持 `open`，只有 `corrections` 里被替换的旧术语命中、或引用材料失效才 `superseded`；研究终态由权威 run 状态决定 `closed`（投影派生 + 落盘冻结双保险）。B 并发一致性——回复存 `context["steering_replies"]`，`checkpoint` 合并链新增 `merge_steering_replies`（同 `reply_id`：版本大者胜；**同版本不同内容判为冲突**，durable 保版本、写入方改到下一版本，绝不用 `updated_at` 静默决胜；终态冻结优先于版本）；`append_steering` 与回执回复在**同一次原子写**内完成，CAS 耗尽改为明确可重试的并发冲突错误，不再冒充“研究已停止”。C G1 模型合同——`revise` 新增结构化 `steering_understandings`（`steering_id/changed_focus/reason_to_check/questions_to_verify`），服务端校验字段、长度、真实补充 ID 并拒绝“已验证/已确认/verified”等断言口吻；上下文改为优先喂入**尚未被理解**的补充（上限 4），未被覆盖的补充在终态显式标 `not_generated`（“本轮未生成模型分析”），不静默丢弃。D G2 来源归属——`attribute_analysis` 要求**每一条**引用都来自该补充创建的任务、且读取轮次 ≥ 该补充进入计划的轮次；不满足则归入研究级回复（`<run_id>:research`，`scope=research`）。前端：补充级回复绑定到对应补充消息，研究级回复绑定 run（原助手气泡只留简洁状态）；引用沿用 `safeLinkUrl` 校验，`content_version` 严格递增、终态冻结。
+
+**验证**：命名 L1 `incremental_answer_1`（写入 `tests/stage_gates.json`）**75 PASS / 27.61s**；并发与不丢写负控 `test_steering_reply_merge.py` **5 PASS**（同一次写内落盘回执、陈旧执行器 checkpoint 不得擦除新回复、同 `request_id` 幂等、非运行态与冲突区分、同版本冲突改号）；投影与失效 `test_steering_replies.py` **12 PASS**；端到端 `test_incremental_answer.py` **2 PASS**（4 条补充全部有回复且无静默丢弃、补充前材料只能进研究级回复、补充后材料才可归属、回复文本不进入 `source_block`）；前端 **166 PASS / 22 files**（含回复渲染、`javascript:` 来源不成链接、同版本终态冻结、晚到事件不覆盖新内容）；浏览器 `playwright.conversation.config.ts` 桌面/手机/窄屏/平板 **4 PASS / 10.5s**，截图 `frontend/test-results/conversation-continuous/*/continuous-research.png`（补充消息下出现“初步分析/已收到补充”）与 `interim-analysis.png`（研究级“阶段性判断 · 有来源，尚非结论”＋引用）；Ruff PASS、`git diff --check` PASS、mypy 基线门 **current=122 / baseline=128 / resolved=6（NEW0）**，日志 `D:/study-agent-validation/ia1a-mypy.log`；`tsc -b && vite build` PASS。
+
+**边界与风险**：G1 仍来自既有 `revise`（本轮结束才产出），**不承诺 3–5 秒内出现模型分析**，也**不得**把“首条回执很快出现”宣传为“已实现快速智能分析”；本轮**未做延迟测量**（首条可见回执/首次模型分析/首次有来源分析/最终答案的中位数与 P95 仍待补，样本不足须注明）。G2 仍只证明“引用来自已读材料”，不等于论证成立。active claim-engine 未接入（`steering_replies` 仅在 Deep 路径产生，字段形状两条路径一致，便于后续接入）；取消路径依赖投影派生 `closed`，未落盘冻结。**下一刀 IA-1B**：先补真实延迟测量（含 Photoshop 自动化编辑、游戏攻略补充、编程问题补充三类样本），再据结果决定是否引入可取消、有预算、与研究并行的受控快速分析调用；普通新问题的直接回答/边答边查/深入研究分流仍属后续阶段。
+
+**2026-10-18 最新片：补充要求显示“它实际改了什么”（本地 commit，未合并/未推送；覆盖下方旧 NEXT）。** branch `codex/research-interim-analysis-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base `4b8fd6ad`，本片代码提交 **`873315d4`** `feat(research): expose durable steering effects in chat progress`（11 个文件：`src/web/research/research_interaction.py`、`tests/test_research_interaction.py`、`tests/stage_gates.json`、`frontend/src/types.ts`、`frontend/src/features/single-chat/ChatPanel.tsx`、`frontend/src/features/single-chat/ChatPanel.test.tsx`、`frontend/src/features/chat/chatController.ts`、`frontend/src/features/answer-ui/answerUiProtocol.ts`、`frontend/src/features/answer-ui/answerUi.css`、`frontend/e2e/conversation-continuous.spec.ts`，另含本状态文档）。用户反馈：截图里“再考虑 Agent 自动编辑”下面只有一行回执、其余留白，看不出第二句话是否被当成决策依据。本片把补充回执从“状态标签”扩成“状态 + 实际效果”，**纯展示投影，无新模型/工具调用，不写计划、不授予证据或答案权威，不改 schema/预算/Gate**。
+
+实现（含审阅后的事实边界修正）：`src/web/research/research_interaction.py` 新增 `_steering_effects()`——只从 durable 事实投影。`questions` 为 plan 任务中 `steering_ids` 命中该补充 id 的项（≤2、去重、各 ≤160 字），且**只有创建者（`steering_ids[0] == entry_id`）才标记 `created=true`**；仅被追加 id 的既有核查恒为 `created=false`，绝不冒充“新增”。`created=true` 时显示文本用 `_steering_question_text()` 去掉 planner 的“；新增研究目标：”拼接前缀，只显示该补充真正加的目标（不再复述原问题）；`created=false` 时原样显示完整核查问题。`sources` 为已读摘录中 `question` 与这些核查完全相等者（≤2，仅 title/url），只表示关联材料，不表示支持。未进计划的补充**不产生 effects 字段**（空投影即诚实答案）；`superseded/cancelled` 任务与旧术语修正过的问题不计入；沿用既有 `deep_steering_status()`，`executing` 仍只在 run 活跃时出现。前端：`types.ts` 两处类型补 `effects`；`answerUiProtocol.ts` 新增 `safeLinkUrl()`（仅 http/https、无凭据、无控制字符，否则回落纯文本，不生成可点击链接）；`ChatPanel.tsx` 按 `created` 渲染“新增核查：/本次补充涉及的核查：”，来源行为“关联已读材料（尚非结论）：”；`answerUi.css` 用 `.message-body .research-steering-*`（提高特异性，覆盖既有 `.message-body span{display:inline-flex}`）保证三行竖排、非加粗；`chatController.ts` 三处（乐观追加 / SSE 合并 / 恢复）透传 `effects`。
+
+验证：命名 L1 `research_steering_effects`（写入 `tests/stage_gates.json`）**94 PASS / 1 SKIP / 39.18s**；`test_research_interaction.py` 自身 **17 PASS**（含：未进计划无 effects、`created` 只认创建者、correction 追加到既有任务不称新增、去重与 160 字/2 条上限、effects 只含 text/created 与 title/url 无权威字段）；前端 `ChatPanel.test.tsx` + answer-ui 组 **61 PASS / 26 in ChatPanel**（含既有核查不得称新增、`javascript:` 来源不生成链接）；`tsc -b && vite build` PASS；浏览器 `playwright.conversation.config.ts` 桌面/手机/窄屏/平板 **4 PASS / 10.4s**（截图 `frontend/test-results/conversation-continuous/*/continuous-research.png`：三行竖排、只显示补充自己的目标）；Ruff PASS、`git diff --check` PASS、mypy 基线门 **current=122 / baseline=128 / resolved=6（NEW0）**，日志 `D:/study-agent-validation/steering-effects-mypy.log`。零 L3、无新 CI、未推送/未创建 PR/未合并。
+
+**边界**：effects 是“服务端从计划与已读材料投影出的展示事实”，不等于论证成立或推荐正确；引用存在性检查仍不是 entailment 判定。当前只覆盖 Deep（active claim-engine 补充仍只有状态，不虚构 effects）。**下一刀（用户已调整优先级，不再是补 active 展示）**：补充要求 → 助手自己的**增量回复** → 后台研究继续 → 新发现逐步更新。要分清两层：进度信息（本 commit 的成果）与分析内容（为什么这项补充改变了原问题、目前能判断什么、还需验证什么）。补充消息继续作为用户消息存在，但助手需要一条**独立且可持续更新**的回复，而不是把研究状态都挂在原助手气泡下。3～5 秒可作为初步交互目标，但不得为赶时间生成无依据结论。真实付费验收仍按既有预算授权边界。
+
+**2026-10-18 最新片：有出处的阶段性判断 + UI 留白（本地，未合并；覆盖下方旧 NEXT）。** branch `codex/research-interim-analysis-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base **`15302f84b2a774c37d51c34e406f91bc0b8a5a0e`**；本段所在 Git 提交即实现 head，审阅仅 base 后增量。复用 Deep 原有 revise 调用生成可选归纳，不新增调用/预算/执行器。要求先给具体发现、差别或有条件建议，说明对用户的意义；不能形成有用判断时返回 null，不用“继续核对”凑分析。服务端限制正文400字、1–3条引用，引用必须匹配已读材料 ID 与原文；checkpoint 在最终综合前保存。展示重新核对成功读取/资格/重定向及当前 steering revision；新补充、失效正文会撤回过时判断。保持原文段落，无独立持久化 schema 改动，不改变正式答案/Gate 权威。
+
+用户指出“毫无结论、AI味、仍然堆积”后，本片改为直接展示判断正文：有判断即收起开场计划/查询计数/重复标题，原文和过程合为一个默认折叠入口，阶段性边界说明移入其中；段间留白，无新增卡框。头像仍桌面96px、手机80px。脚本浏览器场景移除每次 steer 无条件发送的过程套话和未请求计算，计算覆盖移到明确请求数字比较的排队问题；这些是 mock 修正，不冒称生产模型已执行。
+
+验证：命名 L1 `research_interim_analysis` **99 PASS / 1 SKIP / 35.40s**；最后补段落保留后，自身+生产 planner+已读来源模块 **34 PASS / 10.88s**，未重复全量。前端上一版影响集62 PASS，本次反馈修复最终直接影响集 **32 PASS**，TypeScript/Vite build PASS；最终320/390/768/1440px浏览器 **4 PASS / 10.5s**（同SSE连续追加/排队失败重试、附件身份、出处折叠、查询行撤下、计算按需、原头像尺寸），人工查看390px截图判断正文与来源入口留白通过。Ruff PASS、mypy **122/128 NEW0**、diff-check PASS。Ruff首次误从frontend目录运行导致tests/tools路径不存在，已改repo根目录通过，非代码失败。日志 `D:/study-agent-validation/interim-analysis-{impact,final-focused,frontend,build,browser,mypy}.log`；截图 `frontend/test-results/conversation-continuous/*/interim-analysis.png`。本片零 L3；无新 CI/推送/PR/合并/部署，提交后预期干净，主目录不改。
+
+**边界与下一刀：** 引用存在性检查不等于论证成立/推荐正确；全部离线 fake 模型/工具与真实 SQLite/HTTP/SSE，不授予真实研究质量 GO。当前只覆盖 Deep；Standard 的增量判断仍未接通。下一执行片：用用户问题与阶段性判断组成小型内容验收集，核查“具体结论/证据适配/有用后果/无套话”，再决定是否扩展 Standard；真实付费验收沿用既有预算授权边界。
+
+**2026-10-18 最新片：已读资料按真实研究问题分组（本地，未合并；覆盖下方旧NEXT）。** branch `codex/research-question-groups-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base **`e167c6657306f3986f4ca96210f14443bb6ce231`**；本段所在Git提交即修复head，审阅仅base后的增量。改善六项能力中的搜索分析/边研究边交互：从既有Deep plan/notes/成功读取正文只读投影问题归属，最多3条摘录优先覆盖不同问题，避免比较题被单侧较多来源淹没；同网页可服务不同问题、身份不冲突。按全部合格读取材料计算`reading_gaps`，不把展示上限误作缺资料；done状态不能制造已读材料，纠正/取消的旧问题不再当作来源或缺口。UI沿用无外框分组与一条低强调的“暂无正文”提示，第二侧资料到达后撤掉对应提示、保留第一侧且不重复。旧事件可省略新增字段，显式空快照清除过期项，低版本/跨run隔离保持。
+
+验证：命名L1 `research_question_groups` **76 PASS / 1 SKIP / 30.35s**；新增展示上限负控后仅自身模块复验 **18 PASS / 4.60s**（未声称整个命名集重跑）；前端影响集 **60 PASS**；320/390/768/1440px focused浏览器 **4 PASS / 10.9s**，覆盖单侧缺资料→双侧出现/缺口消失/原资料不重复及附件补充/排队链路；build/Ruff/diff-check PASS，mypy122/128 NEW0。日志 `D:/study-agent-validation/question-groups-{backend,cap-check,frontend,browser,build,mypy}.log`，截图仍在既有conversation目录。只新增展示字段与投影，不写研究计划/证据资格/答案token，不新增模型或工具调用、不改schema/cursor/预算；未动头像与上一片布局，桌面96px/手机80px约束保持。无L3、新CI、推送/PR/合并/部署；提交后工作树干净。
+
+**唯一下一片：有来源的阶段性归纳。** 本片仍是组织原文材料，不等于模型已生成阶段性综合答案。下一片先复用已有模型综合/复核输出，接通研究中可阅读的归纳与其出处；不以更多过程标签替代内容，不增建独立研究状态机，不提前授予正式答案/研究质量GO。学习与教学仍为六项通用能力之上的专业场景。
+
+**2026-10-18 当前片：保持大头像比例的聊天UI收简（本地，未合并）。** 分支 `codex/chat-ui-restraint-20261018`，工作树 `D:/study-agent-validation/chat-steer-attachments`，base **`a9efb72212c40b84a86bdc4a4165d98ef3ba2140`**；提交由本段所在Git提交恢复，审阅只看该base之后。**用户明确约束：角色头像不能缩成小消息图标；桌面保持既有96px，手机保持既有80px及相对视觉比例。不得为了留白而缩小头像。** 原截图灰头像来自 `frontend/e2e/api-fixture.ts` 返回灰圆SVG，真实资源 `assets/avatars/nahida.png` 正常；测试改用真实512px图片，浏览器断言图片加载与原有外框尺寸。
+
+本片去掉助手正文气泡框和装饰尖角，用户消息仅留轻底色；研究状态合并一行、原文/结论边界文案收短；输入区改为上方文字、下方附件/方式/操作，同一入口保留研究调整与排队（原双按钮改为原生选择控件）。空输入不展示无用的追加按钮；通常说明保留给读屏，非冗余常驻标签。修复附件选择按钮被通用20px宽度覆盖而挤没文件名的问题。320px失败重试暴露底部错误提示遮挡发送按钮，已将操作错误提示移到顶部并修正窄屏宽度，未绕过错误或取消重试检查。
+
+验证：前端相关组件/聊天控制器 **56 PASS**，全局提示 **3 PASS**；最终focused浏览器 **4 PASS / 10.0s**（320/390/768/1440px、真实头像80/96px、附件名可见、输入区<170px、键盘Tab、附加/排队失败重试/恢复选择/原SSE不中断/手动发送）；TypeScript/Vite build、Ruff、diff-check PASS。头像尺寸首次断言误测图片内框（78/94px），已改为检查原80/96px外框，未更改头像尺寸或放宽容差。未改后端/预算/Gate，不重跑上一片后端影响集及mypy；本轮零L3，无新CI、未推送/PR/合并/部署。日志 `D:/study-agent-validation/chat-ui-restraint-{unit,notices,final-browser,build}.log`；截图在 `frontend/test-results/conversation-continuous/*/research-opening.png`。提交后工作树干净。
+
+**唯一下一片：阶段性资料按问题维度组织。** 保持当前UI与头像约束，在现有已读摘录上区分比较题的两侧/已知与缺口，让用户先获得有用内容；模型综合的阶段性答案仍未完成，不把摘录冒称已验证答案。不扩张学习系统，不重复全量回归。
+
+**2026-10-18 最新切片：研究未结束先显示已读资料摘录（本地，未合并）。** 分支 `codex/research-early-findings-20261018`，worktree `D:/study-agent-validation/chat-steer-attachments`，base `facb8f37062029df95276a52f29d2abf5e28281a`；提交由本段所在Git提交恢复。只读投影当前Deep笔记与成功读取正文：候选摘要、失败/不可用正文、私网/非法URL、无正文依据的笔记与已失效笔记均不展示。最多3条/每条280字、稳定身份、原文出处；SSE `findings` 快照在转向时清除失效项，低版本拒绝/跨run隔离，旧事件省略字段兼容。聊天中直接可读，标注仍在核对；不进入答案token/复制文本/证据权威，不新增模型或工具请求。Deep已读数量改用既有read_summary，Active计数优先不变。**这是阶段性来源摘录，不是完成了模型阶段性综合答案。**
+
+本片L1 `research_early_findings` **164 PASS / 1 SKIP / 152.83s**，前端影响集 **59 PASS**，桌面/移动浏览器 **2 PASS / 6.1s**（最终答案前可见出处和正文、原研究可继续插话），build/Ruff/diff-check PASS，mypy122/128 NEW0。真实SQLite checkpoint观察到运行中已有摘录；附件文本未混入网页摘录；无L3、无新CI/推送/PR/合并/部署。日志 `D:/study-agent-validation/early-findings-{backend,frontend,browser,build,mypy}.log`。本机/项目配置只读检查未发现 Guardian旧字段，未改用户配置。
+
+**最新用户反馈与唯一下一片（覆盖下方旧NEXT）：UI需要克制、疏朗；纳西妲头像不能是灰占位。** 检查真实头像/fixture差异，收敛消息头、研究状态和输入区的边框、体积与重复说明，保持已有选附件、追加/排队、停止、过程展开行为；用桌面/移动截图复核。这是六项通用能力中的智能UI与连续交互改进，非学习系统扩张。
+
+**2026-10-18 当前执行片：下一轮问题的附件保存/恢复/发送（本地，未合并）。** 分支 `codex/chat-queue-attachments-20261018`，工作树 `D:/study-agent-validation/chat-steer-attachments`，base 为上一片 **`1ecf7b47ce6352c6ebb11dda4d4fff3270126378`**；提交由本段所在 Git 提交恢复，审阅仅 `1ecf7b47..HEAD`。原 `codex/chat-steer-attachments-20261018` 分支停留在1ecf，保留独立切片。队列现在保存服务端附件身份（ID/hash/filename），不把附件放入当前研究；恢复后手动发送仅带该条选择，并重走本会话/ready检查。无效或绑定期间消失的附件拒绝整个入队；同请求ID改选附件拒绝；文本相同但附件ID/hash不同的已完成turn不能隐藏或完成队列。UI显示附件数量；失败保留选择、成功清除本次选择，网络重试保持身份。兼容旧无附件队列，无数据库迁移/新执行权威，未扩展当前研究的工具权限。验证与最新下一片见下方。
+
+**当前片证据：** 命名后端L1 `chat_queue_attachments` **72 PASS / 31.30s**（含真实SQLite重载/旧checkpoint合并、旧纯文字队列、同ID改附件拒绝、跨会话/未就绪/删除/绑定时消失负控、错误文件/同ID不同内容hash不能冒充已交付）；前端影响集 **75 PASS**（API载荷、失败重试身份、更改选择新身份、队列恢复与后续turn附件）；桌面+移动focused浏览器 **2 PASS / 7.3s**（入队503保留选择、重试同身份、只在后续turn发送该附件）；TypeScript/Vite build、全范围Ruff、diff-check PASS，mypy **122/128 NEW=0**。仅队列接线的有界L1，无L3；JSON已有队列条目增加可选refs，旧条目按空附件处理，未变schema/cursor/研究权威。运行日志 `D:/study-agent-validation/chat-queue-{impact,backend,browser,build,mypy}.log`；源码与交接在本提交后保持干净。无新远端CI、未推送/PR/合并/部署，不授予真实模型/研究质量GO。
+
+**上一片：完整聊天能力盘点 + 运行中附件补充修复（已本地提交，未合并）。** 分支 `codex/chat-steer-attachments-20261018`，base 为原产品线末端 `4ffa44521cb5ef2c1a50e73c6d03b0ce42710beb`，提交 `1ecf7b47ce6352c6ebb11dda4d4fff3270126378`。main 仍为 `335fc9b7875b848f202122362f2e0f8b5a9db0ee`，本片不是 main 已交付能力。独立 Async 候选 `2c58eb0eecc37ba004a7deb601e991091248bf1a`、原审计 `4a549f7d` 与测试修复线保持不变；本片不重新混入 Async 接线。用户要求以 GPT-6 式聊天、搜索分析、UI 为最终目的，按有界功能和影响集推进；本轮未运行 L3。
+
+| 用户要求 | 当前实现情况（原产品线，不等于 main/真实验收） | 尚未闭环 |
+| --- | --- | --- |
+| 自然智能聊天 | 已有多轮上下文、角色/模式、历史会话、重试/继续与答案流 | 未完成类 GPT-6 的综合体验验收；研究中插话目前按补充处理，仍需明确改变话题与继续研究的产品语义 |
+| 智能聊天 UI | Rev 3 同一对话承载答案、过程、补充回执、计算/图表卡片；有桌面/移动离线证据 | 模型通用选择地图/按钮/滑块/棋盘等富交互内容尚未闭环；移动附件 chip 显示空间偏窄，记为相邻 UI 债务 |
+| 搜索分析、边研究边讲 | 已有搜索/阅读/补查过程事件、来源与答案链路，Deep 过程入聊天 | 真实读取、来源复用、比较覆盖、答案引用质量仍需资格验收；A/B/C 整体未放行 |
+| 边研究边回答、连续交互 | 已有计划开场、过程播报/去重恢复，Deep安全边界、持久补充与回执；两片补齐运行中/下一轮的附件链路 | 过程播报不等于已有有用的阶段性答案；实质增量答案尚需补齐/验证，Lookup/Standard无同等转向能力，真实模型延迟及方向准确性待验收 |
+| 文件/多模态 | 已有消息级绑定、研究消费、补充附件后端与隔离校验；G1/G2 实现已完成，旧待办过期 | 真实视觉模型和研究联动复验、长期资料转正端到端验收 |
+| 工具、计算、图表 | 已有有界计算协议、结构化结果/图表、隔离 Python，历史容器负控证据保留 | 真实模型自主工具选择和完整任务质量未验收 |
+
+**本片修复与证据：** 原运行中补充丢弃 `attachmentIds`，失败返回也会清空输入区附件选择；现在文字/附件共用同一 steer 请求，失败保留选择，成功仅清除本次提交的附件。同内容/同附件集合重试复用 request ID；换附件则换 ID。3 项新增检查在旧代码上失败；修复后前端 L1 影响集 **72 PASS**，后端绑定/多模态联动/生产 policy 影响集 **36 PASS / 18.74s**，桌面+移动 focused 浏览器 **2 PASS / 5.7s**（含一次503失败、保留选择、同身份重试、空附件后续补充、不中断原 SSE），TypeScript/Vite build PASS，Ruff/diff-check PASS。浏览器首次使用全旅程配置及开发者诊断文本定位失败；已改用既有 `playwright.conversation.config.ts` 与用户可见错误提示，不更改全旅程门槛。日志 `D:/study-agent-validation/chat-steer-{negative,impact,backend,build,browser-focused}.log`；当前仅前端及交接变更，未改后端/迁移/预算/Gate。无新远端 CI、未推送/PR/合并/部署；真实供应商验收未重跑，原资格门保持关闭。
+
+**唯一下一slice：让研究中更早出现有用内容。** 对照已有过程播报与答案生产点，补齐有来源依据的阶段性发现展示并逐步补全，区分“正在搜索”与“已取得什么发现”；复用既有证据资格与来源身份，不将未验证的临时内容升级成正式答案/完成状态。继续独立小片和影响集；最终候选仍遵守 AGENTS.md 的发布/审阅门。
+
+**产品优先级（用户2026-10-18明确）：** P0可靠聊天/长期研究（Async-R1c）；P1自主搜索分析引用（M4-C5/RP-1/Arm C）；P2边查边讲/插话/增量答案；P3模型选用Python/计算/绘图；P4富交互UI；P5统一多模态/跨会话；P6学习和专业场景。P2–P5可以在安全底座稳定后独立推进，不以全部研究质量达标为界面开发前提。每项工程必须指出改善哪项可感知能力；优先快速出现有用内容、持续更新、不中断插话、保留已有成果、统一入口。租约/CI/证据系统是实现手段，不是产品定位。
 
 **2026-10-11 研究开场 + 过程播报（Research Approach）Slice A 后端合同（独立分支，未合并）：** 新分支 `codex/research-approach`，worktree `D:/study-agent-validation/research-approach`，基线 main `7a8b6d55`。新增展示合同 `ResearchApproach`（`schema=research-approach-v1`），**无证据权威**：不写 Evidence Gate、不使目标变 `supported`、不作答案引用、不喂回核验器；**不改动严格计划合同** `standard-research-plan-v1`（四键 envelope 原样）。落盘于 `research_context["approach"]`（SQLite `web_lookup_runs.research_context`，刷新不丢），经既有 `research` SSE 事件的可选 `approach` 字段发出，旧客户端忽略即可。起源优先级 `model_plan` > `model_generated` > `direction_update` > `fallback`；`status∈{pending,ready,failed}`，创建期 `pending` 种子（暂无开场时显示既有确定性工具进度）。保证：**开场失败不阻断研究**（`generate_approach_or_fallback` 吞掉超时/空/非法负载降级 fallback）、**不突破预算**（单次有界调用并回报是否计费）、**不走答案 token 流**（走 `research` 进度通道）、确定性校验（模式长度上限、空/超长、空泛过渡语、未验证完成宣称、与上一条重复）。接线：`WebLookupService.create()` 落种子；`chat_routes._research_progress()` 绑定 run 身份发出 `approach`。证据：`tests/test_research_approach.py` 18 PASS；L1 影响集 91 PASS（web_lookup_run / research_contract / dispatch / run_owner / answer_streaming / standard_research / pedagogy）；ruff、mypy 122/128 NEW0。文档 [RESEARCH_APPROACH.md](RESEARCH_APPROACH.md)。**下一刀（Slice B）**：把 Standard 规划保存后投影为 `model_plan` 开场、接线有界模型生成（含预算计费）、前端 `ChatResearchProgress.approach` 类型 + 控制器按 `(run,turn,sequence)` 去重/恢复 + `AnswerProgress`/`ChatPanel` 呈现 + 复制仅答案/取消显示已停止/会话隔离，以及真实 DeepSeek 延迟校准。**边界冻结**：不拥有 L/S/D 研究质量与完成率门、M4-C5 Evidence Gate/核验器/来源资格、模型调用上限与研究预算与计费口径、自动升档、学习状态/记忆/正式答案与引用权威、既有对话角色切换；生产 B OFF、RP-1/M5 NO-GO 不变。
 

@@ -1333,7 +1333,11 @@ def test_tools_and_workflow_endpoints_record_local_knowledge_call(monkeypatch, t
     run_response = client.get(f"/workflows/runs/{tool_run_id}")
 
     assert tools_response.status_code == 200
-    assert tools_response.json()["tools"][0]["name"] == "retrieve_local_knowledge"
+    assert [tool["name"] for tool in tools_response.json()["tools"]] == [
+        "deterministic_compute",
+        "isolated_python",
+        "retrieve_local_knowledge",
+    ]
     assert preview_response.status_code == 200
     assert preview_response.json()["status"] == "previewed"
     assert preview_response.json()["args"]["top_k"] == 1

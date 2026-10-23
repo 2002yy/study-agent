@@ -7,14 +7,22 @@ const REAL_STACK_TESTS = [
   // Boots its own real-stack webServer via playwright.g12-acceptance.config.ts.
   "**/g12-acceptance.spec.ts",
 ];
+/**
+ * Paid, real-model acceptance runs. They boot the real backend and the
+ * configured provider (see playwright.real-acceptance.config.ts), so the
+ * default suite must never collect them: this gate has no backend and no cost
+ * authorization, and a PR must not be able to trigger paid model calls.
+ */
+const PAID_ACCEPTANCE_TESTS = ["**/real-acceptance.spec.ts"];
+const DEFAULT_IGNORES = [...REAL_STACK_TESTS, ...PAID_ACCEPTANCE_TESTS];
 const STANDARD_FIXTURE_IGNORES = [
-  ...REAL_STACK_TESTS,
+  ...DEFAULT_IGNORES,
   "**/complex-content.spec.ts",
 ];
 
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: REAL_STACK_TESTS,
+  testIgnore: DEFAULT_IGNORES,
   globalSetup: "./e2e/global-setup.ts",
   globalTeardown: "./e2e/global-teardown.ts",
   fullyParallel: false,
@@ -62,7 +70,7 @@ export default defineConfig({
         "**/extension-lab-journeys.spec.ts",
         "**/recovery-visibility.spec.ts",
       ],
-      testIgnore: REAL_STACK_TESTS,
+      testIgnore: DEFAULT_IGNORES,
       use: {
         browserName: "chromium",
         channel: process.env.PLAYWRIGHT_USE_SYSTEM_CHROME ? "chrome" : undefined,
@@ -74,7 +82,7 @@ export default defineConfig({
     {
       name: "desktop-firefox",
       testMatch: ["**/golden-journeys.spec.ts"],
-      testIgnore: REAL_STACK_TESTS,
+      testIgnore: DEFAULT_IGNORES,
       use: {
         browserName: "firefox",
         viewport: { width: 1440, height: 900 },
@@ -83,7 +91,7 @@ export default defineConfig({
     {
       name: "desktop-webkit",
       testMatch: ["**/golden-journeys.spec.ts"],
-      testIgnore: REAL_STACK_TESTS,
+      testIgnore: DEFAULT_IGNORES,
       use: {
         browserName: "webkit",
         viewport: { width: 1440, height: 900 },

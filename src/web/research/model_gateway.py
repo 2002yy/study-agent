@@ -19,6 +19,12 @@ from typing import Any, Callable, Generic, Mapping, TypeVar
 from src.llm_client import ModelProfile, get_client, get_model_name, get_provider_settings
 
 RESEARCH_MODEL_AUDIT_SCHEMA_VERSION = "research-model-call-audit-v1"
+#: Every status ``complete_structured`` may write. ``from_dict`` accepts exactly
+#: this set, so an audit that can be serialized can also be restored - a budget
+#: stop must round-trip like any other outcome.
+RESEARCH_MODEL_AUDIT_STATUSES = frozenset(
+    {"completed", "attempt_failed", "budget_exhausted"}
+)
 MAX_RESEARCH_MODEL_ATTEMPTS = 2
 
 _JSON_OBJECT_CONTRACT_SUFFIX = (
@@ -247,7 +253,7 @@ class ResearchModelCallAudit:
         if data.get("schema_version") != RESEARCH_MODEL_AUDIT_SCHEMA_VERSION:
             raise ValueError("unsupported research model audit schema")
         status = _required_text(data.get("status"), 50, "status")
-        if status not in {"completed", "attempt_failed"}:
+        if status not in RESEARCH_MODEL_AUDIT_STATUSES:
             raise ValueError("invalid research model audit status")
         return cls(
             call_id=_required_text(data.get("call_id"), 300, "call_id"),
@@ -414,6 +420,29 @@ class ResearchModelGateway:
                 request_kwargs: dict[str, Any] = {}
                 if extra_body is not None:
                     request_kwargs["extra_body"] = dict(extra_body)
+                # Research structured calls are paid calls: reserve them under the
+                # same caps *before* the request, like every other provider call.
+                # Without this the experiment ledger would not cover them.
+                from src.llm_spend_guard import (
+                    SpendConfigurationError,
+                    SpendLimitExceeded,
+                    require_allowed_model,
+                    reserve_call,
+                )
+
+                require_allowed_model(model_name, purpose=f"research:{normalized_purpose}")
+
+                reserve_call(
+                    prompt_chars=(
+                        len(payload_json)
+                        + sum(len(str(item.get("content") or "")) for item in messages)
+                    ),
+                    max_tokens=max(1, min(int(max_tokens), 4000)),
+                    attempts=1,
+                    purpose=f"research:{normalized_purpose}",
+                    model=model_name,
+                    request_key=call_id,
+                )
                 response = self._request_client().chat.completions.create(
                     model=model_name,
                     messages=messages,
@@ -436,6 +465,12 @@ class ResearchModelGateway:
                 decoded = json.loads(_strip_json_fence(raw))
                 value = parse(decoded)
                 status = "completed"
+            except (SpendLimitExceeded, SpendConfigurationError) as exc:
+                # A budget stop (cap reached, or work not authorized for the
+                # experiment) is not a provider or schema failure: it must not be
+                # retried as one, and it must surface under its own reason.
+                error_type = type(exc).__name__
+                status = "budget_exhausted"
             except Exception as exc:  # provider + schema/parse errors share bounded retry
                 error_type = type(exc).__name__
 
@@ -472,6 +507,15 @@ class ResearchModelGateway:
                     status="completed",
                     value=value,
                     audits=tuple(audits),
+                )
+            if status == "budget_exhausted":
+                # Stop here: another attempt could only be refused again, and the
+                # caller must not read this as a model or parse failure.
+                return ResearchModelResult(
+                    status="unavailable",
+                    value=None,
+                    audits=tuple(audits),
+                    reason="budget_exhausted",
                 )
 
         return ResearchModelResult(
@@ -627,6 +671,7 @@ def _counts_tuple(value: Any, max_items: int) -> tuple[tuple[str, int], ...]:
 __all__ = [
     "MAX_RESEARCH_MODEL_ATTEMPTS",
     "RESEARCH_MODEL_AUDIT_SCHEMA_VERSION",
+    "RESEARCH_MODEL_AUDIT_STATUSES",
     "ResearchModelAttemptStart",
     "ResearchModelCallAudit",
     "ResearchModelGateway",

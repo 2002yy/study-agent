@@ -40,10 +40,15 @@ def test_default_tool_registry_lists_local_knowledge_tool():
 
     specs = registry.list_specs()
 
-    assert [spec.name for spec in specs] == ["retrieve_local_knowledge"]
-    assert specs[0].permissions == ("read",)
-    assert specs[0].requires_confirmation is False
-    assert "query" in specs[0].input_schema["required"]
+    assert [spec.name for spec in specs] == [
+        "deterministic_compute",
+        "isolated_python",
+        "retrieve_local_knowledge",
+    ]
+    local = next(spec for spec in specs if spec.name == "retrieve_local_knowledge")
+    assert local.permissions == ("read",)
+    assert local.requires_confirmation is False
+    assert "query" in local.input_schema["required"]
 
 
 def test_tool_registry_preview_blocks_unknown_args():

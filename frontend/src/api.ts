@@ -4,6 +4,7 @@ import type {
   ChatResponse,
   ChatResearchProgress,
   ChatSettings,
+  ComputationPayload,
   HealthResponse,
   MemoryCommitResponse,
   MemoryPreviewResponse,
@@ -88,6 +89,8 @@ type ChatRequestOptions = {
   partialReply?: string;
   turnId?: string;
   operationId?: string;
+  /** This message's attachment selection (validated server-side). */
+  attachmentIds?: string[];
   // G16 decision 6: frontend confirm-dialog consent for cross-session
   // memory (ask policy). Persisted server-side as a session-level grant.
   memoryConsent?: boolean;
@@ -100,6 +103,8 @@ type ChatStreamHandlers = {
   onRoute?: (route: Record<string, unknown>) => void;
   onRag?: (rag: ChatResponse["rag"]) => void;
   onResearch?: (progress: ChatResearchProgress) => void;
+  // Slice B: a server-validated, evidence-bound computation result.
+  onComputation?: (payload: ComputationPayload) => void;
   onToken?: (token: string) => void;
   onUsage?: (usage: Record<string, unknown>) => void;
   onDone?: (done: Record<string, unknown>) => void;
@@ -152,7 +157,9 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     retry_of_turn_id: options.retryOfTurnId ?? null,
     partial_reply: options.partialReply ?? "",
     turn_id: options.turnId ?? null,
-    operation_id: options.operationId ?? null
+    operation_id: options.operationId ?? null,
+    // Message-level attachment identity: only this message's selection.
+    attachment_ids: options.attachmentIds ?? []
   };
 }
 
@@ -842,17 +849,34 @@ export async function cancelChatResearchRuns(turnId: string): Promise<WebLookupR
 export async function steerResearchRun(
   runId: string,
   content: string,
-  requestOptions: { signal?: AbortSignal } = {}
+  requestOptions: { signal?: AbortSignal; requestId?: string; attachmentIds?: string[] } = {}
 ): Promise<WebLookupRunResponse> {
   return requestJson<WebLookupRunResponse>(
     `/research-runs/${encodeURIComponent(runId)}/steer`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, request_id: requestOptions.requestId, attachment_ids: requestOptions.attachmentIds ?? [] }),
       signal: requestOptions.signal
     }
   );
+}
+
+export async function queueResearchFollowup(runId: string, content: string, requestId: string, attachmentIds: string[] = []): Promise<WebLookupRunResponse> {
+  return requestJson<WebLookupRunResponse>(`/research-runs/${encodeURIComponent(runId)}/queue`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, request_id: requestId, attachment_ids: attachmentIds }),
+  });
+}
+
+export async function loadResearchQueue(threadId: string): Promise<{ messages: Array<{ run_id: string; id: string; content: string; status: "pending"; attachment_refs?: Array<{ attachment_id: string }> }>; progress?: Array<ChatResearchProgress & { turn_id: string }> }> {
+  return requestJson(`/sessions/${encodeURIComponent(threadId)}/research-queue`);
+}
+
+export async function completeResearchFollowup(runId: string, requestId: string, turnId: string): Promise<WebLookupRunResponse> {
+  return requestJson<WebLookupRunResponse>(`/research-runs/${encodeURIComponent(runId)}/queue/${encodeURIComponent(requestId)}/complete`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ turn_id: turnId }),
+  });
 }
 
 export type ChatTurnCancelOutcome =
@@ -974,6 +998,10 @@ export async function sendChatStream(
     }
     if (message.event === "research") {
       handlers.onResearch?.(message.data as ChatResearchProgress);
+      return;
+    }
+    if (message.event === "computation") {
+      handlers.onComputation?.(message.data as ComputationPayload);
       return;
     }
     if (message.event === "token") {

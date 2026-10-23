@@ -1,0 +1,63 @@
+{
+  "all_13_non_document_pr_heads_preserved": true,
+  "gate_inventory": [
+    {
+      "sets": 53,
+      "preserved": true,
+      "head_sha": "aeeeac0c8c3608f173e2671d6f3ed9497913f91f"
+    },
+    {
+      "sets": 41,
+      "preserved": true,
+      "head_sha": "c07c70275c615e37ae9efc500d5708e63725674a"
+    },
+    {
+      "sets": 41,
+      "preserved": true,
+      "head_sha": "3be77996d5195cc4500a54925debecc02d551835"
+    },
+    {
+      "sets": 42,
+      "preserved": true,
+      "head_sha": "a024d6cd8f89c3ee5b66df3fda7c72d46b07a42f"
+    }
+  ],
+  "gate_sets_final": 60,
+  "protected_main_blobs": [
+    "tools/ci_scope.py",
+    "tests/test_ci_scope.py",
+    "frontend/e2e/global-setup.ts",
+    "frontend/e2e/global-teardown.ts",
+    "frontend/src/features/reading/ReadingWorkspace.tsx",
+    "frontend/src/features/reading/ReadingWorkspace.test.tsx"
+  ],
+  "changed_file_count": 145,
+  "resolutions": {
+    "ChatPanel": "main nativeEvent.keyCode IME handling + incoming AR props; deduplicate merged test fixture",
+    "read_evidence": "public read_excerpt + compatibility wrapper, formatting only in other blocks",
+    "stage_gates": "structured union with no missing main/feature entries",
+    "ci_workflow": "main G1 routing retained; only inherited candidate_head evidence-hash exclusion and regression test added"
+  },
+  "schema": {
+    "main": 24,
+    "candidate": 26,
+    "migration": "v24 to v25 attachment_refs; v25 to v26 additive ledger tables",
+    "rollback": "failed migration is atomic; successful migration requires pre-upgrade backup for old-code rollback; no table dropping or automatic refunds"
+  },
+  "cost_port": "SpendLedger.reserve is durable conservative reservation, duplicate request raises SpendLedgerConflict; no settlement/refund API. CL-M3 monetary settlement adapter remains separate, not claimed wired.",
+  "base_sha": "aeeeac0c8c3608f173e2671d6f3ed9497913f91f",
+  "sources": [
+    {
+      "pr": "265",
+      "head_sha": "c07c70275c615e37ae9efc500d5708e63725674a"
+    },
+    {
+      "pr": "272",
+      "head_sha": "3be77996d5195cc4500a54925debecc02d551835"
+    },
+    {
+      "pr": "259",
+      "head_sha": "a024d6cd8f89c3ee5b66df3fda7c72d46b07a42f"
+    }
+  ]
+}

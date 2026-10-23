@@ -570,3 +570,39 @@ def test_archive_success_purges_attachments_failure_keeps_them(tmp_path):
     archived2 = session_service2.archive_session("thread_b")
     assert archived2 is not None and archived2.status == "archived"
 
+
+def test_message_selection_validates_ownership_and_readiness(tmp_path):
+    service = _service(tmp_path)
+    mine = _upload_sample(service, "thread-a")
+    other = _upload_sample(service, "thread-b")
+
+    accepted, problems = service.validate_selection(
+        "thread-a", [mine.id, other.id, "att_missing", mine.id]
+    )
+    assert accepted == [mine.id]  # duplicates collapse, foreign/unknown rejected
+    assert any(item.startswith("foreign_attachment:") for item in problems)
+    assert any(item.startswith("unknown_attachment:") for item in problems)
+
+
+def test_attachment_material_is_scoped_to_selected_ready_attachments(tmp_path):
+    service = _service(tmp_path)
+    first = _upload_sample(service, "thread-a")
+    second = service.upload(
+        "thread-a", "other.md", "第二条附件：与注意力无关的内容。".encode("utf-8"),
+        content_type="text/markdown",
+    )
+
+    material = service.attachment_material("thread-a", [first.id])
+    assert [item["attachment_id"] for item in material] == [first.id]
+    assert material[0]["filename"] == "attention.md"
+    assert material[0]["content_hash"] == first.content_hash
+    assert "注意力机制" in material[0]["text"]
+    assert "第二条附件" not in material[0]["text"]
+    assert "第二条附件" in service.attachment_material("thread-a", [second.id])[0]["text"]
+
+
+def test_attachment_material_never_crosses_threads(tmp_path):
+    service = _service(tmp_path)
+    mine = _upload_sample(service, "thread-a")
+    assert service.attachment_material("thread-b", [mine.id]) == []
+
