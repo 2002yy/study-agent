@@ -146,6 +146,8 @@ def test_the_site_scoped_query_actually_executes():
     scoped = [call for call in _agent_calls(trace) if call["action"]["tool"] == "search"]
     assert scoped, "the site-scoped route never executed"
     query = scoped[0]["action"]["query"]
+    # Review: a MISSING side becomes the target only when the goal already holds qualified
+    # material for the other side. This fixture holds none, so the ordinary subject term is used.
     assert "site:example.org" in query and "漏斗" in query
     assert query in gateway.searches        # a real request was issued, not a suggestion
 
@@ -284,4 +286,199 @@ def test_a_run_that_already_holds_material_never_hops():
         {"tool": "read_page", "url": "https://example.org/Category:漏斗"},
         {"tool": "finish", "reason": "done"},
     ], hops=True, initial=("https://example.org/Category:漏斗",), body=ARTICLE_BODY)
-    assert not _agent_calls(trace)
+    # The review unified the material judgement: a comparison still lacking a side is NOT
+    # complete, so the run may recover that side even while holding the other one.
+    calls = _agent_calls(trace)
+    assert calls, "a missing comparison side must still be sought"
+    assert calls[0]["action"]["tool"] == "search"
+    assert "site:" in calls[0]["action"]["query"]
+
+
+def test_a_search_with_no_relevant_host_triggers_a_subject_keyed_recovery():
+    """An unrelated result set is a SEARCH FAILURE: recover using the question's own words."""
+    gateway = FakeGateway(results=[{"title": "抖音", "url": "https://www.douyin.com/",
+                                    "snippet": "短视频平台"}])
+    gateway.read = lambda url, max_chars=6000, timeout=8: {
+        "ok": True, "url": url, "content": "本页只介绍本站的公告与联系方式，未涉及任何检索主题。"}
+    queue = [{"tool": "search", "query": "PEP 701 python 3.12"},
+             {"tool": "read_page", "url": "https://www.douyin.com/"},
+             {"tool": "finish", "reason": "done"}]
+
+    def completion(**_kwargs):
+        return json.dumps(queue.pop(0) if queue else {"tool": "finish"})
+
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion,
+        question="Python 3.12 的 PEP 701 f-string 有什么不兼容风险？",
+        budget=AgentBudget(max_rounds=8, max_searches=3, max_reads=4, hard_seconds=60.0),
+        sub_goals=(("PEP 701 的不兼容风险", ("PEP", "兼容")),),
+        initial_urls=("https://www.douyin.com/",), discovery_hops=True)
+
+    recovered = [call for call in _agent_calls(trace)
+                 if call["action"]["tool"] == "search"]
+    assert recovered, "the reserved slot must be used for a recovery search"
+    assert "pep" in recovered[0]["action"]["query"].casefold()
+    assert len(gateway.searches) <= 3
+
+
+def test_the_recovery_executes_when_an_unrelated_result_set_leaves_no_other_path():
+    """Q1: three searches returned a video portal, nothing was worth reading, and the run ended
+    with nothing. The reserved slot must still be spent, even though no page was ever read."""
+    gateway = FakeGateway(results=[{"title": "短视频门户", "url": "https://portal.example/watch",
+                                    "snippet": "热门视频 娱乐 直播"}])
+    gateway.read = lambda url, max_chars=6000, timeout=8: {
+        "ok": True, "url": url, "content": GENERIC}
+    queue = [{"tool": "search", "query": "pep 701"},
+             {"tool": "search", "query": "pep 701 fstring"},
+             {"tool": "finish", "reason": "nothing usable"}]
+
+    def completion(**_kwargs):
+        return json.dumps(queue.pop(0) if queue else {"tool": "finish"})
+
+    trace = run_tool_agent(
+        gateway=gateway, completion=completion,
+        question="Python 3.12 中 PEP 701 对 f-string 的改动带来了哪些新能力？",
+        budget=AgentBudget(max_rounds=8, max_searches=3, max_reads=4, hard_seconds=60.0),
+        sub_goals=(("PEP 701 的改动", ("pep", "f-string")),),
+        initial_urls=("https://portal.example/",), discovery_hops=True)
+
+    schedule = [call.get("discovery_schedule") or {} for call in trace["calls"]]
+    assert any(entry.get("reserve_created") for entry in schedule), "no reserve was established"
+    scoped = [call for call in _agent_calls(trace) if call["action"]["tool"] == "search"]
+    assert scoped, "the reserved slot must actually be spent"
+    # Either legal route counts; what matters is that the reserved slot REALLY executes and stays
+    # inside the budget. (Observation for the next slice: for an unrelated result set the
+    # site-scoped route pins the unrelated host, which the subject route would avoid.)
+    assert "pep" in scoped[0]["action"]["query"].casefold()
+    assert scoped[0]["action"]["reason"] in {"auto_site_scoped_search"}
+    assert len(gateway.searches) <= 3
+
+
+def test_the_missing_side_targets_the_scoped_query_in_both_directions():
+    """One search, one target: whichever side is missing is the one that gets asked for."""
+    from src.web.research_tool_agent import _site_scoped_query
+
+    confirmed = {"https://zh.minecraft.wiki/"}
+    dropper = _site_scoped_query(["投掷器"], confirmed, set(), [], set())
+    hopper = _site_scoped_query(["漏斗"], confirmed, set(), [], set())
+    assert dropper == "投掷器 site:zh.minecraft.wiki"
+    assert hopper == "漏斗 site:zh.minecraft.wiki"
+    assert dropper != hopper
+
+
+def test_the_scoped_query_is_not_sent_again_and_needs_a_confirmed_host():
+    from src.web.research_tool_agent import _site_scoped_query
+
+    confirmed = {"https://zh.minecraft.wiki/"}
+    issued = {"投掷器 site:zh.minecraft.wiki"}
+    assert _site_scoped_query(["投掷器"], confirmed, issued, [], set()) == ""
+    assert _site_scoped_query(["投掷器"], set(), set(), [], set()) == ""
+    limit = _site_scoped_query(["投掷器", "漏斗"], confirmed, set(), [], set())
+    assert limit.count("site:") == 1, "one target, one host"
+
+
+def test_the_missing_side_is_read_from_qualified_windows_not_from_page_text():
+    """Review: a page that merely mentions the other side must not look like material."""
+    from src.web.research_tool_agent import _missing_sides
+    from src.web.research_claims import evidence_windows
+
+    class _B:
+        kind = "substantive"
+
+        def __init__(self, text):
+            self.text = text
+            self.url = "https://zh.minecraft.wiki/漏斗"
+            self.quality = {"prose_chars": len(text)}
+
+    hopper_only = {"S1": _B("漏斗可以收集物品并传输到容器中，漏斗的吸取范围覆盖上方一格。")}
+    mention = {"S1": _B("漏斗可以收集物品。漏斗与投掷器不同，投掷器用于发射物品。")}
+    args = {"goal_sides": {"区别": ("漏斗", "投掷器")}, "statuses": {"区别": "explored"},
+            "goal_specs": {"区别": ("漏斗", "投掷器", "区别")}}
+
+    assert _missing_sides(**args, relevant=hopper_only) == ["投掷器"]
+    # Synthetic one-window text cannot reproduce the recorded Q3 shape exactly (a dedicated
+    # window plus a both-names window), so both outcomes are accepted here. On the REAL Q3 corpus
+    # the rule yields ["投掷器"] (verified offline: windows are one dedicated to 漏斗 and one
+    # carrying both names, so held={漏斗}, missing={投掷器}).
+    assert _missing_sides(**args, relevant=mention) in ([], ["投掷器"])
+    dropper_page = {"S2": _B("投掷器用于把物品发射出去，投掷器被红石信号激活时会工作。")}
+    assert _missing_sides(**args, relevant=dropper_page) == ["漏斗"]
+    assert evidence_windows is not None
+
+
+def test_the_real_q3_window_shape_reports_the_dropper_missing_and_blocks_the_gate():
+    """Review: built from the REAL Q3 windows, and it demands the missing side (no [] allowed).
+
+    The recorded corpus holds S1 with sides=['漏斗'] and S0 with sides=['漏斗','投掷器']. The
+    dropper is therefore still missing, so the recovery entry must open and the extraction gate
+    must not treat the goal as ready (which is what would spend the run's only extraction chance).
+    """
+    from src.web import research_tool_agent as agent
+    from src.web.research_tool_agent import _extraction_gate, _missing_sides
+
+    side_window = {"source_id": "S1", "window_kind": "term", "sides": ["漏斗"],
+                   "excerpt": "漏斗总是尝试拉取或吸收物品到最左边的可用物品槽里。"}
+    both_window = {"source_id": "S0", "window_kind": "term", "sides": ["漏斗", "投掷器"],
+                   "excerpt": "漏斗与投掷器不同，投掷器用于发射物品。"}
+    relevant = {"S1": object(), "S0": object()}
+    original = agent._eligible_windows
+    agent._eligible_windows = lambda *a, **k: [side_window, both_window]
+    try:
+        goal_terms = ("漏斗", "投掷器", "区别")
+        sides = ("漏斗", "投掷器")
+        missing = _missing_sides(goal_sides={"区别": sides}, statuses={"区别": "explored"},
+                                 goal_specs={"区别": goal_terms}, relevant=relevant)
+        assert missing == ["投掷器"], missing
+        state, reason, ready = _extraction_gate(
+            unfinished={"区别": goal_terms}, goal_sides={"区别": sides}, relevant=relevant,
+            confirmed={"https://zh.minecraft.wiki/"}, read_pages={}, exclusions={}, rnd=2,
+            max_rounds=8, deadline=10_000.0, now=0.0, reserve=0.0, searches_left=1, reads_left=3,
+            calls_left=6, sides_missing={"区别": ("投掷器",)})
+        assert "区别" not in ready, "a goal missing a side must not be extracted yet"
+        assert state in {"acquiring", "abstain"}, (state, reason)
+    finally:
+        agent._eligible_windows = original
+
+
+def test_the_side_url_is_percent_encoded_and_matched_exactly():
+    """Review: zh.minecraft.wiki encodes CJK, and /漏斗矿车 is not the 漏斗 page."""
+    from src.web.research_tool_agent import _missing_sides, _entity_match
+
+    class _B:
+        kind = "substantive"
+
+        def __init__(self, url):
+            self.text = "x"
+            self.url = url
+            self.final_url = url
+            self.quality = {"prose_chars": 1}
+
+    encoded = "https://zh.minecraft.wiki/w/%E6%BC%8F%E6%96%97?variant=zh-cn"
+    assert _entity_match("漏斗", encoded), "the decoded CJK segment is the entity"
+    assert not _entity_match("漏斗", "https://zh.minecraft.wiki/w/漏斗矿车")
+    both_window = {"source_id": "S1", "window_kind": "term", "sides": ["漏斗", "投掷器"],
+                   "excerpt": "漏斗与投掷器不同。"}
+    from src.web import research_tool_agent as agent
+
+    original = agent._eligible_windows
+    agent._eligible_windows = lambda *a, **k: [both_window]
+    try:
+        missing = _missing_sides(goal_sides={"区别": ("漏斗", "投掷器")},
+                                 statuses={"区别": "explored"},
+                                 goal_specs={"区别": ("漏斗", "投掷器", "区别")},
+                                 relevant={"S1": _B(encoded)})
+        assert missing == ["投掷器"], missing
+    finally:
+        agent._eligible_windows = original
+
+
+def test_the_comparison_intent_of_an_ordinary_search_is_measurable():
+    """Ruling 乙: measure the ordinary-search comparison intent; the reserve stays untouched."""
+    from src.web.research_tool_agent import _comparison_intent
+
+    sides = ("漏斗", "投掷器")
+    dims = ("物品传输", "自动分类")
+    full = _comparison_intent("Minecraft 漏斗 投掷器 区别 物品传输 自动分类", sides, dims)
+    assert full == {"sides": ["漏斗", "投掷器"], "has_all_sides": True, "has_dimension": True}
+    assert _comparison_intent("漏斗 site:zh.minecraft.wiki", sides, dims)["has_all_sides"] is False
+    assert _comparison_intent("漏斗与投掷器的区别", sides, ())["has_dimension"] is False

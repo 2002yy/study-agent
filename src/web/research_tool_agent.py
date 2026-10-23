@@ -10,6 +10,7 @@ stay outside this loop.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import json
 import re
 import time
@@ -262,8 +263,8 @@ def covered_indexes(label: str, verdicts: Iterable[Any],
 
 def _eligible_windows(terms: tuple[str, ...], bodies: Mapping[str, Any],
                       sides: tuple[str, ...] | None,
-                      selector: Callable[..., list[dict[str, Any]]] | None = None
-                      ) -> list[dict[str, Any]]:
+                      selector: Callable[..., list[dict[str, Any]]] | None = None,
+                      label: str = "") -> list[dict[str, Any]]:
     """Windows that could actually carry a checkable statement for this goal.
 
     A window qualifies when its OWN text states one of the goal's words, or when it is the
@@ -274,7 +275,11 @@ def _eligible_windows(terms: tuple[str, ...], bodies: Mapping[str, Any],
     rows: list[dict[str, Any]] = []
     sides_text = " ".join(side for side in (sides or ()) if side)
     choose = selector or candidate_windows
-    for window in choose(terms, bodies, sides=sides):
+    if selector is evidence_windows:
+        windows = evidence_windows(terms, bodies, sides=sides, label=label)
+    else:
+        windows = choose(terms, bodies, sides=sides)
+    for window in windows:
         excerpt = str(window.get("excerpt") or "")
         lowered = excerpt.casefold()
         if sides:
@@ -296,8 +301,106 @@ def _eligible_windows(terms: tuple[str, ...], bodies: Mapping[str, Any],
     return rows
 
 
+def _relevant_bodies(substantive: Mapping[str, Any], *,
+                     goal_specs: Mapping[str, tuple[str, ...]],
+                     goal_sides: Mapping[str, tuple[str, ...]],
+                     selector: Callable[..., list[dict[str, Any]]]) -> dict[str, Any]:
+    """Bodies that hold a QUALIFIED window for some goal.
+
+    The old test - a goal term appearing literally in the page text - fails on real pages whose
+    goal terms are n-gram fragments (上的, 与投), which silently made material_now, the side
+    judgement and the extraction gate all see no material at all. Relevance now shares the
+    selector's own notion of a usable window, so one judgement feeds every downstream decision.
+    """
+    out: dict[str, Any] = {}
+    for sid, body in substantive.items():
+        for label, terms in goal_specs.items():
+            if _eligible_windows(tuple(terms), {sid: body}, goal_sides.get(label),
+                                 selector=selector, label=label):
+                out[sid] = body
+                break
+    return out
+
+
+def _comparison_intent(query: str, sides: tuple[str, ...], dims: tuple[str, ...]) -> dict:
+    """Whether an ordinary search already asks the comparison the question asked for.
+
+    Ruling (乙): the released recovery reserve is never re-armed, so a comparison has to ride on
+    ordinary searching. This measures whether that happened; it plans nothing and changes no quota.
+    """
+    text = str(query or "").casefold()
+    wanted = [str(side) for side in sides if str(side)]
+    return {"sides": wanted,
+            "has_all_sides": bool(wanted) and all(str(side).casefold() in text
+                                                  for side in wanted),
+            "has_dimension": any(str(dim).casefold() in text for dim in dims if str(dim))}
+
+
+def _missing_sides(*, goal_sides: Mapping[str, tuple[str, ...]],
+                   statuses: Mapping[str, str],
+                   goal_specs: Mapping[str, tuple[str, ...]],
+                   relevant: Mapping[str, Any],
+                   diagnostics: dict[str, dict[str, Any]] | None = None) -> list[str]:
+    """The compared sides an unfinished goal's QUALIFIED material does not hold yet.
+
+    Availability is read from the goal's own qualified windows, never from a bare word
+    somewhere on a page: a hopper page that merely mentions the dropper in passing must
+    not count as having found it. A side is reported only when the goal already holds
+    qualified material for the other side (a true imbalance), so an untouched goal keeps
+    the ordinary subject terms as its target.
+    """
+    held: set[str] = set()
+    required: set[str] = set()
+    for label, pair in goal_sides.items():
+        if not pair or statuses.get(label) == "supported":
+            continue
+        _diag: dict[str, Any] = {"rows": 0, "held": [], "missing": [], "reason": ""}
+        rows = _eligible_windows(tuple(goal_specs.get(label) or ()), relevant, pair,
+                                 selector=evidence_windows, label=label)
+        wanted = {str(side) for side in pair if str(side)}
+        # A side is available when the run holds material ABOUT that side, not when a page merely
+        # carries its name. Qualification is therefore: a window selected for that side alone, or
+        # a window whose backing page is about that side (its URL names it, e.g. .../漏斗). The
+        # live Q3 page is a hopper page that mentions the dropper in passing: with a word test it
+        # looked like both sides were in hand and the run never asked for the dropper.
+        _diag["rows"] = len(rows)
+        if not rows:
+            _diag["reason"] = "no_qualified_window"
+        got = set()
+        for row in rows:
+            names = {str(side) for side in row.get("sides") or () if str(side)} & wanted
+            if not names:
+                continue
+            if len(names) == 1:
+                got |= names
+                continue
+            body = relevant.get(str(row.get("source_id")))
+            url = str(getattr(body, "final_url", "") or getattr(body, "url", "") or "")
+            # The URL is percent-encoded for CJK (zh.minecraft.wiki/w/%E6%BC%8F%E6%96%97), so a
+            # substring test never matches, and "/漏斗矿车" would falsely match "漏斗". The
+            # repository already decodes URLs and matches an entity against a whole path segment,
+            # so that is what decides here.
+            got |= {side for side in names if _entity_match(side, unquote(url))}
+        _diag["held"] = sorted(got)
+        if not got:
+            _diag["reason"] = "no_side_available"
+        if diagnostics is not None:
+            diagnostics[label] = _diag
+        if not got:
+            continue
+        held.update(got)
+        required.update(str(side) for side in pair if str(side))
+    missing = sorted(required - held)
+    if diagnostics is not None:
+        for label in list(diagnostics):
+            diagnostics[label]["missing"] = [side for side in missing]
+            diagnostics[label]["final_missing"] = missing
+    return missing
+
+
 def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
                      goal_sides: Mapping[str, tuple[str, ...]], relevant: Mapping[str, Any],
+                     sides_missing: Mapping[str, tuple[str, ...]] | None = None,
                      confirmed: set[str], read_pages: Mapping[str, int],
                      exclusions: Mapping[str, str], rnd: int, max_rounds: int, deadline: float,
                      now: float, reserve: float, searches_left: int, reads_left: int,
@@ -312,17 +415,14 @@ def _extraction_gate(*, unfinished: Mapping[str, tuple[str, ...]],
                  extract only the goals that DO hold material
     abstain      nothing checkable, or no room left to verify -> call nothing, say why
     """
-    eligible = {label: _eligible_windows(terms, relevant, goal_sides.get(label), selector=evidence_windows)
+    eligible = {label: _eligible_windows(terms, relevant, goal_sides.get(label), selector=evidence_windows, label=label)
                 for label, terms in unfinished.items()}
-    ready_goals = {label: rows for label, rows in eligible.items() if rows}
-    missing_side = False
-    for label, rows in ready_goals.items():
-        pair = goal_sides.get(label)
-        if not pair:
-            continue
-        text = " ".join(str(row.get("excerpt") or "").casefold() for row in rows)
-        if any(side and side.casefold() not in text for side in pair):
-            missing_side = True
+    # One shared judgement: a goal whose comparison side is still missing has NOT got its
+    # material, no matter how many words its windows happen to contain.
+    _missing = sides_missing or {}
+    ready_goals = {label: rows for label, rows in eligible.items()
+                   if rows and not _missing.get(label)}
+    missing_side = any(_missing.get(label) for label in eligible)
     # HARD floor, checked before any state: two model calls (extraction + verification) and
     # real time must be available, or the run abstains instead of starting a call it cannot
     # finish. A `ready` state is never allowed to skip this.
@@ -399,6 +499,25 @@ def _site_scoped_query(missing: list[str], confirmed: set[str], searched: set[st
         if candidate.casefold() not in {item.casefold() for item in searched}:
             return candidate
     return ""
+
+
+def _subject_recovery_query(missing: Iterable[str], sides: Iterable[str],
+                            question_words: Iterable[str],
+                            searched: Iterable[str]) -> str:
+    """The recovery query used when no host is worth pinning.
+
+    Built from the question's own subject words and the compared sides, so a
+    comparison that lost one side can legally ask for it. Empty when nothing is left
+    to ask or the query was already issued.
+    """
+    words = [str(word) for word in list(missing) + list(sides) + list(question_words)
+             if str(word)]
+    query = " ".join(dict.fromkeys(words))
+    if not query:
+        return ""
+    if query.casefold() in {str(item).casefold() for item in searched}:
+        return ""
+    return query
 
 
 def _auto_hop_target(*, confirmed: set[str], read_pages: Mapping[str, int],
@@ -567,6 +686,7 @@ def run_tool_agent(
     escalation_budget: AgentBudget | None = None,
     escalation_budgets: tuple[AgentBudget, ...] = (),
     evidence_loop: bool = False,
+    retry_empty_claims: bool | None = None,
     initial_urls: tuple[str, ...] = (),
     registry_sources: tuple[tuple[str, str], ...] = (),
     sub_goals: tuple[tuple[str, tuple[str, ...]], ...] = (),
@@ -764,10 +884,9 @@ def run_tool_agent(
         if evidence_loop and not loop_spent and monotonic() < deadline:
             substantive = {sid: body for sid, body in notebook.by_source.items()
                            if body.kind == "substantive"}
-            relevant = {sid: body for sid, body in substantive.items()
-                        if any(term and str(term).casefold()
-                               in unquote(body.text or "").casefold()
-                               for terms in goal_specs.values() for term in terms)}
+            relevant = _relevant_bodies(
+                substantive, goal_specs=goal_specs, goal_sides=goal_sides,
+                selector=evidence_windows)
             unfinished_all = {label: tuple(terms) for label, terms in goal_specs.items()
                               if sub_goal_state[label]["status"] != "supported"}
             if not goal_specs:
@@ -784,8 +903,14 @@ def run_tool_agent(
             else:
                 reserve = _loop_reserve_seconds(deadline - started, confirmed, read_pages,
                                                 entry_exclusions, goal_specs)
+                _sides_missing = {label: tuple(_missing_sides(
+                    goal_sides={label: goal_sides.get(label) or ()},
+                    statuses={label: sub_goal_state[label]["status"]},
+                    goal_specs={label: tuple(goal_specs.get(label) or ())},
+                    relevant=relevant)) for label in unfinished_all}
                 gate_state, reason, ready_goals = _extraction_gate(
                     unfinished=unfinished_all, goal_sides=goal_sides, relevant=relevant,
+                    sides_missing=_sides_missing,
                     confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
                     rnd=rnd, max_rounds=max_rounds, deadline=deadline, now=monotonic(),
                     reserve=reserve, searches_left=max_searches - searches,
@@ -793,7 +918,9 @@ def run_tool_agent(
                     calls_left=min(max_rounds + MAX_CORRECTIONS, HARD_MODEL_CALL_CAP) - model_calls)
                 extraction_gate = {"state": gate_state, "reason": reason,
                                    "goals": sorted(ready_goals), "at_call": model_calls,
-                                   "reserve_seconds": reserve}
+                                   "reserve_seconds": reserve,
+                                   "windows": {label: list(rows)
+                                               for label, rows in ready_goals.items()}}
                 if not ready_goals:
                     evidence_loop_skipped = reason or "no_eligible_window"
                 else:
@@ -841,12 +968,49 @@ def run_tool_agent(
                     def _capture_response(raw: str) -> None:
                         extraction_input["raw_response"] = str(raw)[:2000]
 
+                    def _capture_retry(raw: str) -> None:
+                        extraction_input["raw_response_retry"] = str(raw)[:2000]
+
+                    def _mark_retry_skipped() -> None:
+                        extraction_input["retry_skipped_budget"] = True
+
+                    def _mark_retry() -> None:
+                        extraction_input["retry_fired"] = True
+
+                    # G3: the run uses the windows the gate already qualified, so a later
+                    # parameter change cannot make scheduler and extractor disagree.
+                    window_snapshot = {label: list(rows) for label, rows in
+                                       (extraction_gate.get("windows") or {}).items()
+                                       if label in unfinished}
+                    if not window_snapshot:
+                        window_snapshot = {
+                            label: _eligible_windows(terms, bodies_view,
+                                                     goal_sides.get(label),
+                                                     selector=evidence_windows, label=label)
+                            for label, terms in unfinished.items()}
+                    extraction_input["windows_by_goal"] = window_snapshot
+                    # Independent switch, default OFF: satisfying the quota is not the same as
+                    # approving the experiment. Only an explicit opt-in enables the retry.
+                    _calls_left_now = min(max_rounds + MAX_CORRECTIONS,
+                                          HARD_MODEL_CALL_CAP) - model_calls
+                    # Explicit opt-in only (environment switch, default OFF): the experiment never
+                    # enables itself just because the quota would allow it.
+                    _retry_flag = retry_empty_claims if retry_empty_claims is not None else (
+                        str(os.environ.get("BSEARCH_RETRY_EMPTY_CLAIMS", "")).strip().lower()
+                        in {"1", "true", "yes"})
+                    _retry_ok = (bool(_retry_flag)
+                                 and _calls_left_now >= 3
+                                 and (deadline - monotonic()) >= 20.0)
                     claims = extract_claims(
                         goals=unfinished, bodies=bodies_view, completion=completion,
+                        windows_by_goal=window_snapshot, retry_empty=_retry_ok,
                         timeout=min(20.0, max(1.0, deadline - monotonic())),
                         on_call=_count_call, on_reject=_count_reject,
                         sides_by_goal=goal_sides, on_input=_capture_input,
-                        on_response=_capture_response)
+                        on_response=_capture_response,
+                        time_left=lambda: deadline - monotonic(),
+                        on_retry_response=_capture_retry, on_retry_fired=_mark_retry,
+                        on_retry_skipped=_mark_retry_skipped)
                     extraction_input["rejections_after"] = dict(
                         sorted(claim_rejections.items()))
                     verdicts = verify_claims(
@@ -1087,15 +1251,44 @@ def run_tool_agent(
                 % (max_rounds - rnd))
         substantive_now = {sid: body for sid, body in notebook.by_source.items()
                            if body.kind == "substantive"}
-        relevant_now = {sid: body for sid, body in substantive_now.items()
-                        if any(term and str(term).casefold()
-                               in unquote(body.text or "").casefold()
-                               for terms in goal_specs.values() for term in terms)}
-        material_now = any(
+        relevant_now = _relevant_bodies(
+            substantive_now, goal_specs=goal_specs, goal_sides=goal_sides,
+            selector=evidence_windows if evidence_loop else candidate_windows)
+        # Read-only: which layer actually blocks the side judgement (relevance filter vs the
+        # selector applied to a single body). No filter or selector behaviour is changed here.
+        rel_diag: dict[str, Any] = {
+            "substantive": len(substantive_now), "relevant": len(relevant_now),
+            "kinds": sorted({str(getattr(b, "kind", "")) for b in substantive_now.values()}),
+            "terms_sample": [], "single_body_windows": 0}
+        _first_label = next(iter(goal_specs), "")
+        if _first_label:
+            rel_diag["terms_sample"] = [str(t) for t in list(goal_specs[_first_label])[:3]]
+            _first_sid = next(iter(relevant_now), "")
+            if _first_sid:
+                rel_diag["single_body_windows"] = len(_eligible_windows(
+                    tuple(goal_specs[_first_label]), {_first_sid: relevant_now[_first_sid]},
+                    goal_sides.get(_first_label),
+                    selector=evidence_windows if evidence_loop else candidate_windows,
+                    label=_first_label))
+        # One shared judgement of comparison completeness, used by material_now, the recovery
+        # entry and the extraction gate, so the three cannot contradict each other.
+        sides_diag: dict[str, dict[str, Any]] = {}
+        missing_sides = _missing_sides(goal_sides=goal_sides,
+                                       statuses={label: state["status"] for label, state
+                                                 in sub_goal_state.items()},
+                                       goal_specs=goal_specs, relevant=relevant_now,
+                                       diagnostics=sides_diag)
+        _has_windows = any(
             _eligible_windows(terms, relevant_now, goal_sides.get(label),
-                              selector=evidence_windows if evidence_loop else None)
+                              selector=evidence_windows if evidence_loop else None,
+                              label=label)
             for label, terms in goal_specs.items()
             if sub_goal_state[label]["status"] != "supported")
+        # Two questions, deliberately separate: is there anything to work with at all (the hop
+        # gate, unchanged), and is the comparison complete (the recovery entry, now shared with
+        # the side judgement and the extraction gate).
+        material_for_hop = _has_windows
+        material_now = _has_windows and not missing_sides
         # Discovery recovery is triggered by EVIDENCE OF FAILURE, not by an open goal: the last
         # search must have returned no [article] while returning a related site entry. A run whose
         # search already yielded article URLs (the PostgreSQL shape) is therefore never nudged.
@@ -1107,23 +1300,77 @@ def run_tool_agent(
         # SEARCH RESERVE: decided here, BEFORE the model can spend the last slot. Waiting until
         # the results have been read would replay the measured failure of four homepage-only
         # searches, which is exactly why this eligibility must not depend on reads >= 1.
+        # TARGET CHOICE comes before the query is built. A comparison that holds one side in
+        # its QUALIFIED material and lacks the other must ask for the missing side alone:
+        # "one search, one target", and a single-target query is more likely to return pages
+        # about that target than a query holding both words. Availability is judged from the
+        # qualified windows, never from a bare word somewhere on a page - a hopper page that
+        # merely mentions the dropper in passing must not count as having found it.
         recovery_query = ""
         if (discovery_hops and not loop_spent and auto_hops == 0 and not material_now
-                and entry_only_search and searches < max_searches
-                and max_reads - reads >= 1):
+                and searches < max_searches and max_reads - reads >= 1
+                and (entry_only_search or search_signals.get("no_relevant_host"))):
             recovery_query = _site_scoped_query(
-                missing_entities, confirmed, searched_queries,
+                missing_sides or missing_entities, confirmed, searched_queries,
                 search_signals["entry_urls"], entry_exclusions)
+            if not recovery_query and search_signals.get("no_relevant_host"):
+                # No host worth pinning: ask again with the question's own subject words only,
+                # which spends the slot the reserve already holds (no budget change).
+                side_words = [str(side) for pair in (goal_sides or {}).values()
+                              for side in (pair or ()) if str(side)]
+                recovery_query = _subject_recovery_query(
+                    missing_sides or missing_entities, side_words, _question_words,
+                    searched_queries)
+        # A comparison may only reveal its missing side AFTER the first recovery was spent (Q3:
+        # the first read was empty, the useful pages arrived later). Within the SAME search quota
+        # one more side-targeted recovery is allowed - no budget is added anywhere.
+        sides_late = bool(missing_sides) and searches < max_searches and max_reads - reads >= 1
+        if sides_late and not recovery_query and discovery_hops and not loop_spent:
+            recovery_query = _site_scoped_query(
+                missing_sides, confirmed, searched_queries,
+                search_signals["entry_urls"], entry_exclusions) \
+                or _subject_recovery_query(missing_sides, (), _question_words, searched_queries)
         reserved_searches = 1 if recovery_query else 0
-        # Executing it stays gated on the agent having used the failed results once.
-        discovery_needed = (not material_now) and entry_only_search and reads >= 1
+        # Execution: the agent used the failed results once (entry-only), OR the search returned
+        # NOTHING worth reading at all - no related site entry exists, which is exactly Q1's
+        # shape, where demanding a read was a deadlock because there was nothing to read. An
+        # entry-only search keeps waiting for its read, so the reserve stays the LAST slot.
+        discovery_needed = (not material_now) and (
+            (entry_only_search and reads >= 1)
+            or (reads == 0 and not search_signals["entry_urls"])) or (
+            sides_late and recovery_query != "")
         auto_hop = "" if (loop_spent or not discovery_hops or not discovery_needed) else \
             _auto_hop_target(
                 confirmed=confirmed, read_pages=read_pages, exclusions=entry_exclusions,
                 basis=confirmed_basis, labels=link_labels, goals=goal_specs,
                 sides_by_goal=goal_sides, hops_used=auto_hops, hopped=hopped_entries,
                 searches=searches, reads_left=max_reads - reads,
-                remaining_seconds=deadline - monotonic(), has_material=material_now)
+                remaining_seconds=deadline - monotonic(), has_material=material_for_hop)
+        # The reserve DECISION had to be early (it protects the slot before the model can
+        # spend it), but WHAT it asks for is settled here, with the material in hand at
+        # execution time: the read this very round is what usually reveals the missing side.
+        # Observability for exactly this decision: which sides the run believes are still missing
+        # at execution time, and what the retarget produced (empty means the pre-computed query
+        # stood). Without these two fields the skip cannot be told from a failed query.
+        missing_sides_fresh: list[str] = []
+        fresh_diag: dict[str, dict[str, Any]] = {}
+        retargeted = ""
+        if recovery_query and discovery_needed and not auto_hop:
+            missing_sides_fresh = _missing_sides(
+                goal_sides=goal_sides,
+                statuses={label: state["status"] for label, state in sub_goal_state.items()},
+                goal_specs=goal_specs, relevant=relevant_now, diagnostics=fresh_diag)
+            if missing_sides_fresh:
+                retargeted = _site_scoped_query(
+                    missing_sides_fresh, confirmed, searched_queries,
+                    search_signals["entry_urls"], entry_exclusions)
+                if not retargeted:
+                    # No host can be confirmed for the missing side: ask for the side itself
+                    # instead of keeping a query about the side the run already holds.
+                    retargeted = _subject_recovery_query(
+                        missing_sides_fresh, (), _question_words, searched_queries)
+                if retargeted:
+                    recovery_query = retargeted
         auto_query = recovery_query if (discovery_needed and not auto_hop) else ""
         # Read reserve follows the PENDING path instead of a fixed two slots: a hop must download
         # the navigation page and then the article (two), while a site-scoped search downloads
@@ -1173,6 +1420,11 @@ def run_tool_agent(
         # Observable scheduling: why a recovery action did or did not fire this round.
         call["discovery_schedule"] = {
             "reserve": reserved_searches, "recovery_query": recovery_query,
+            "missing_sides_fresh": list(missing_sides_fresh), "retargeted": retargeted,
+            "sides_diag": sides_diag, "fresh_diag": fresh_diag, "rel_diag": rel_diag,
+            "notebook": {sid: {"kind": str(getattr(b, "kind", "")),
+                               "len": len(getattr(b, "text", "") or "")}
+                         for sid, b in notebook.by_source.items()},
             "auto_hop": auto_hop, "auto_query": auto_query,
             "entry_only_search": entry_only_search, "has_material": material_now,
             "no_target_article": search_signals.get("no_target_article"),
@@ -1306,6 +1558,21 @@ def run_tool_agent(
             search_signals["entry_urls"] = [
                 u for ptype, u in zip(page_types, shown_urls)
                 if ptype in {"home", "category"}]
+            # A result set whose hosts and titles never mention the subject is a search
+            # FAILURE, not evidence about the question (this is how an unrelated portal can
+            # fill the whole page and leave the run with nothing to read).
+            subject_words = [str(word).lower() for word in
+                             (list(_wanted) + _question_words) if str(word)]
+            relevant_hosts = []
+            for row, ptype in zip(rows, page_types):
+                host = urlsplit(str(row.get("url") or "")).netloc.casefold()
+                blob = (str(row.get("title") or "") + " "
+                        + str(row.get("snippet") or "")).casefold()
+                if any(word and (word in host or word in blob) for word in subject_words):
+                    relevant_hosts.append(host)
+            search_signals["relevant_hosts"] = sorted({h for h in relevant_hosts if h})
+            search_signals["no_relevant_host"] = bool(rows) and not search_signals[
+                "relevant_hosts"]
             brief = "\n".join(
                 f"- [{ptype}] {r.get('title')} | {r.get('url')} | {str(r.get('snippet'))[:160]}"
                 for ptype, r in zip(page_types, rows)
