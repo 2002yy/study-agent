@@ -186,7 +186,7 @@ describe("assertLocalProxyIsBypassed", () => {
   it("raises the documented sentence when loopback would go through the proxy", () => {
     let message = "";
     try {
-      assertLocalProxyIsBypassed({ HTTP_PROXY: "http://user:secret@127.0.0.1:50565" }, [
+      assertLocalProxyIsBypassed({ HTTP_PROXY: "http://user:secret@127.0.0.1:50565" }, [  // pragma: allowlist secret -- synthetic fixture, not a credential
         DEV_SERVER,
       ]);
     } catch (error) {
@@ -199,7 +199,7 @@ describe("assertLocalProxyIsBypassed", () => {
   it("never echoes proxy credentials", () => {
     let message = "";
     try {
-      assertLocalProxyIsBypassed({ HTTP_PROXY: "http://user:secret@127.0.0.1:50565" }, [
+      assertLocalProxyIsBypassed({ HTTP_PROXY: "http://user:secret@127.0.0.1:50565" }, [  // pragma: allowlist secret -- synthetic fixture, not a credential
         DEV_SERVER,
       ]);
     } catch (error) {
