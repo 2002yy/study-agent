@@ -10,7 +10,7 @@
     "source_unchanged": true,
     "l3_prior": "interrupted_without_summary"
   },
-  "scope": "main + frozen #265 + #272 + #259; original four PRs unchanged, no merge authorized",
+  "scope": "main + frozen #265 + #272 + #259; user authorized advancing qualified integration merge on 2026-10-24",
   "composition": {
     "main": "aeeeac0c8c3608f173e2671d6f3ed9497913f91f",
     "heads": {
@@ -474,7 +474,8 @@
       "diagnostic_only": true,
       "note": "Single-test diagnostic; existing full-suite artifact teardown is expected to reject a partial run. Inspect the test result independently; this is not a green release gate."
     },
-    "probe_30s": "refresh load timeout; preserve log, no increase applied to official config"
+    "probe_30s": "refresh load timeout; preserve log, no increase applied to official config",
+    "user_exception": "2026-10-24: ignore the discussed Firefox first-answer refresh-load scenario; failure retained, not a test pass; no general waiver for returning-context or unrelated failures"
   },
   "ci": {
     "conclusion": null,
@@ -485,6 +486,6 @@
     "status": "in_progress"
   },
   "dynamic_evidence": "not_run; no paid/model traffic",
-  "decision": "NO-GO for merge: incomplete qualification and unresolved Firefox navigation failures; main also reproduces one failure",
-  "next": "Read final detached L3 and real-stack results, classify failures before modifying candidate; CI check only as a later explicit follow-up. Do not merge originals or modify #282/CL-M3 worktrees."
+  "decision": "Merge authorization received; qualification pending exact-head L3/CI and current review. First-answer Firefox scenario waived, other failures still require classification.",
+  "next": "Use #272 as the single integration landing PR, preserve original head in a remote snapshot, then complete exact-head gates. Archive #265/#259 only after actual integration; rebuild #282 last; preserve CL-M3 worktrees."
 }
