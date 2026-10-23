@@ -100,6 +100,29 @@ CL-0 至 CL-4 最终构成可运行纵向切片，CL-1A 合同完成不等于完
 
 ## 4. 验证与发布边界
 
+### CL-1D-6：多步流消费累计记录（独立小片，不切生产）
+
+loop将阶段回复和确定工具结果依次加入ObservationTrail；下一模型看到完整累计记录，原历史/证据保留。frame加入派生链后才调用下一决策，权限与研究版本仍使用fresh真实快照检查。达到记录容量时，先交付已完成的原文观察，再给observation_limit并关闭执行流，不启动后续模型/工具；容量不是证据权限，也不能据此退款或重放。
+
+命名conversation_loop_trail覆盖loop/trail/session/followup/step/dispatch/runner/admission/decision/阶段策略。验证多次工具与阶段回复、八步累积、累计提示只差一字符的准入负控、tool或初步回复处超容量、session终态。下一片为提供给可信回答handler的有界累计输入，避免最终正文仍需宿主自行拼接；实际模型和生产联动另验。
+
+### CL-1D-5：累计观察与阶段回复输入（独立小片，不切生产）
+
+每次工具记录后的额度上限按该帧before额度减一继续收紧，不能只按root减次数恢复并发消耗；源码与测试两个精确新路径映射完整共享影响集，不使用前缀通配。CI自身修改仍采用保守范围，普通后续trail改动才使用命名聚焦门。
+
+
+ObservationTrail保存root上下文与不可变ObservationFrame元组，单条必须为确定成功的工具观察或answer_then_research的阶段回复。验证同请求配对、连续派生身份和原意图/历史/研究以及累计额度，拒绝跨任务、重复或乱序记录。最多16阶段/16000个JSON序列化字符，未完成answer/tool配对不能发起下一决策；不截断正文。
+
+decide_with_observation_trail将全部记录作为额外JSON数据消息送入原受控决策器，区别assistant_preliminary与tool_observation并标记unverified；原history与evidence摘要保留，所有新增字符先准入。共用tool_observation_request_id提取旧身份算法，已持久化去重身份不改变。该片不执行动作；下一片CL-1D-6在loop中消费并定义观察容量耗尽的停止行为。
+
+### CI-CL-2：精确路径与消费者影响集（本轮第三片）
+
+登记的新增精确模块为conversation_action_dispatch、conversation_action_step、conversation_observation_followup、conversation_bounded_loop、conversation_loop_session及各自测试；与原decision/runner共14个路径映射conversation_decision_1b。不存在conversation_*通配排除，admission/context、共享domain/SQLite、生产路由/CI工具、资格门和未知路径仍保守扩大。workflow不变，也不删除强制L3或最终发布资格。
+
+可复用消费者清单（初始base自身150ae5ec，包含后续自身review修复，最终parent见Current Handoff）：dispatch门增补step/followup/loop/session；step门增补直接使用它的followup测试；followup门增补loop；loop门增补session；共享conversation_decision_1b继续保留整个链和SQLite账本测试。测试同时核对真实路径、manifest解析、新消费者子集以及混入未登记/持久路径的负控。
+
+命名L1 conversation_loop_ci_scope覆盖ci_scope、ci_workflow_routing、ci_outcomes、stage_gates_policy。下一功能片：有界累计工具观察与阶段回复输入，避免只看最近一次工具结果，保持未经验证数据与证据的区别。
+
 ### CL-1D-4：单次消费与运行回执（独立小片，不切生产）
 
 ConversationLoopSession包装可信loop事件流，消费句柄只能claim一次；句柄关闭在首次读取前也有效。LoopReceipt不可变，不含提示/工具正文，区分stopped、closed、cancelled、failed；无结构化终态或计数不一致不能冒充成功。活动pull中断标记unknown，暂停关闭不自动重放，不能声称外部动作被回滚。跨进程持久恢复/完整断线续传另设门，本片仅进程内状态与消费权。
@@ -151,3 +174,47 @@ Handler 是可信服务端适配器，不能由模型提供代码；适配器仍
 
 CL-1A/CL-1B 已通过 #230 合入 main `0236160e`；#231（CI 路由）与 #232（持久准入）重绑 main 后后台验证。当前快照投影片直接基于 0236160e 独立开发，不依赖这两条待合并分支。按用户敏捷节奏，CI 不阻塞下一片；当前合并仍须精确 HEAD 的 CI/审阅门。整条产品线维持独立 NO-GO，不把三个小模块称作完整对话循环上线。
 CL-1A/CL-1B 为 #230 独立候选；CI 路由为 #231。**按用户敏捷节奏，不等待它们的 CI 才继续开发**：CL-1C-1 基于自身冻结 f706 提交另开独立工作树，不依赖 CI 路由分支或其他窗口 WIP。前一 PR 合并后重绑 main 基线再审阅/合并，不能绕过精确 HEAD 门。整条产品线仍按独立成熟度评估保持 NO-GO。
+
+### CL-1E-1：可信回答适配器输入
+
+AnswerInput仅接受ANSWER阶段与ANSWER/ANSWER_THEN_RESEARCH提议；初始输入绑定root，后续输入绑定完整trail的下一请求和未恢复的工具额度。64000字符是完整序列化数据上限（含JSON转义），不截断；prompt_chars另计固定系统说明，真实调用方必须据此预留自己的生成预算。完整观察标unverified，历史及证据摘要分开，阶段回复要求衔接；本模块不生成/发布、不授予Evidence Gate权威。下一片仅可选loop接线，保留原handler协议。
+
+### CL-1E-2：loop可选回答输入
+
+可选answer_handler覆盖本次loop的ANSWER阶段，原handler签名与默认路径不变。输入在dispatch执行可信handler时构造，绑定当前expected与已完成trail，避免只拿到末条观察或把自己尚未生成的回复加入输入。继承原动作预算/去重/过期拒绝/超时/关闭/取消，生成适配器仍须自行预留真实生成额度和校验输出；观察不是正式证据或已发布答案。无生产接线、SDK或自动付费调用。本片不是子阶段关闭/生产资格；下一片再独立定义生成调用准入，真实模型质量与前3–5秒初步答案保留实测验收门。
+
+### CL-1F-1：有界回答生成
+
+单次注入transport，AnswerLimits限制等待≤30秒、输出≤4000 tokens且≤8000字符。answer_request_id由固定schema+当前请求身份+ANSWER阶段派生，不包含可变内容/提议分类；与决策ID分开，可共享DecisionAdmission总额度。传输前后的精确上下文校验、无退款/重试、忽略迟到、调用者取消传播与脱敏失败是执行边界。SqliteDecisionAdmission仅复用现有自有库schema，不引入业务持久变更。该台账不等于货币预算，可信生产transport仍须禁用隐藏重试并预留真实花费。生成文本只是provisional结果，不是证据或发布许可。下一片loop可选接线必须使用内部派生的fresh上下文。
+
+### CL-1F-2：原生loop生成适配器
+
+BoundedAnswerGenerator仅在runner completed时返回正文；其余结果抛脱敏AnswerGenerationError给可信调用者。loop的可选answer_generator与旧answer_handler互斥；构造输入时使用当前expected/trail，生成期间读内部latest（含工具后派生请求身份），不要求宿主复制投影算法或改写快照来通过检查。保留外层deadline/动作预算/取消链，生成器拥有独立或共享准入台账；任何失败都不执行后续工具。dispatch继续保守报告handler_error/unknown，本片不修改公共动作回执语义。实际货币费用、SDK隐藏重试、内容/引用质量和正式发布仍由生产适配器及后续资格门负责。本片仍为opt-in，不是生产权威切换。
+
+### CL-1G-1：仅DeepSeek的单次传输
+
+用户选定DeepSeek。注入客户端的transport只翻译已有两个受控请求，不自行读取配置或创建网络客户端。明确设置max_retries=0、thinking disabled与stream false，决策加json_object；验证一次调用、期限/token/messages边界，只接受stop单choice且无refusal/tool_calls的有界正文。重试/修复/改提供方均不在本片。SDK异常交由既有runner脱敏，取消原样传播。下一片仅DEEPSEEK_*配置和owned异步SDK客户端；OpenAI兼容协议不意味着使用OpenAI服务，禁止OPENAI_*配置回退。
+
+### CL-1G-2：DeepSeek专属配置与owned SDK会话
+
+只消费显式DEEPSEEK_*映射，flash/pro模型必须分别配置，不从通用或OPENAI_*取值；仅允许HTTPS api.deepseek.com根/v1端点。默认SDK客户端使用自有HTTP client，禁用重试、重定向和环境代理，显式空organization/project/webhook避免SDK自动读其他服务元数据。async with只拥有自己的客户端，关闭后借出的transport/generator也失效。
+
+宿主先构造DeepSeekConversationSettings.from_environment(显式映射)，再async with DeepSeekConversationSession(settings)，将session.transport交给原loop作为决策transport，将session.answer_generator(共享或独立准入)作为answer_generator；停止流后退出会话。不修改旧llm_client全局缓存或.env，不自动切换生产入口；真实费用授权与证据发布仍由宿主负责。SDK包使用兼容协议，网络目标仅DeepSeek。测试使用MockTransport，不借用现有凭据或真实服务。
+
+### CL-1H-1：可选应用服务入口
+
+DeepSeekConversationService.start只捕获可信快照读取器、工具handler目录和显式共享模型准入/动作预算，返回单次消费会话；不读取环境或启动付费调用。实际读取时才创建owned SDK，并在结束/关闭/取消时先关闭loop再释放SDK。未读run、过期请求和重复请求均不发额外模型调用；会话回执不含正文，SDK清理失败不冒充完整成功。宿主仍负责真实费用/权限/证据/正式发布。本片只提供应用层入口，不切现有HTTP聊天或生产权威；下一片提供安全进度投影。
+
+### CL-1H-2：显示进度投影与SSE编码
+
+从单次消费会话投影计划状态、preliminary/final答案、clarification、工具元数据和终态；不转发模型reason/prompt/history/证据摘要或工具原文。固定unverified/provisional，不用answered终态绕过原证据/发布门。request_id关联同一owned操作，sequence与event_id仅本流显示标识，不支持持久恢复或执行重放。立即claim保证未读关闭可释放；拒绝并发读取，关闭/取消沿原会话释放SDK。缺失终态、源异常和清理失败各给一个脱敏failed终态，取消传播；SSE正文只在JSON单行data中，换行不会新增字段。宿主必须用aclosing消费，并自行把owned request关联到消息。本片不注册HTTP端点或改ChatTurn发布。
+
+### CL-1I-1：owned操作与一致只读快照
+
+SQLite读适配器以只读URI和单事务读取thread/current/最近6个completed prior turns，不初始化、迁移或恢复写入，不读取其他线程。binding复用已合main的context_from_chat_snapshots，严格拒绝取消/归档/换owner/完成/当前partial；始终由服务器回调决定能力、证据摘要和额度，模型调用前后及动作前重读。读适配器不创建、完成、释放操作或发布回复。宿主必须先授权调用者并拥有当前操作、持久费用准入和结束处理；下一片默认关闭的router仅接受身份，不接受客户端历史、工具或预算，也不自动注册生产app。
+
+### CL-1I-2：显式宿主策略与HTTP流生命周期
+
+入口修复约束：enabled检查必须早于正文读取/JSON/Pydantic绑定；启用后按实际累计字节限制4KiB、按整段读取限制2秒，再验证身份并调用宿主逐操作授权。Content-Length只是提前拒绝提示，不能替代实际分块限制；未授权调用者也不能触发无界JSON处理。默认关闭遇空、坏、额外字段或超大正文均404且零读取；无效JSON400、字段422、超大413、停滞408，均无模型准入。
+
+create_conversation_events_router默认关闭、不自动注册app；宿主必须提供逐操作授权、owned run创建和操作结束回调。请求仅thread/turn路径与operation_id正文，客户端历史、工具、预算或证据字段直接422；授权/身份失败与重放拒绝均不启动SDK。显示流继续固定provisional/unverified，不借event_id提供持久恢复。Response拥有已claim会话：即使发送头失败尚未读取，也会关闭；断线/取消沿原loop和SDK释放，再通知一次宿主。清理等待上限1秒，超时取消；宿主回调必须有界、按operation身份CAS处理并保留unknown，不得直接发布答案。此片不创建/完成ChatTurn，不变更全局生产入口或现有认证；下一片补可信宿主的持久操作结算，真实模型效果与3–5秒初答仍需单独验收。

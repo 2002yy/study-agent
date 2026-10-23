@@ -12,8 +12,11 @@ from src.application.conversation_action_dispatch import (
     ActionBudget,
     ActionEvent,
     ActionHandler,
+    ActionInvocation,
     dispatch_conversation_action,
 )
+from src.application.conversation_answer_generator import BoundedAnswerGenerator
+from src.application.conversation_answer_input import AnswerHandler, AnswerInput
 from src.application.conversation_decision import (
     ActionProposal,
     ConversationAction,
@@ -27,8 +30,12 @@ from src.application.conversation_decision_runner import (
     decide_conversation_action,
 )
 from src.application.conversation_observation_followup import (
-    decide_after_tool_observation,
     tool_followup_context,
+)
+from src.application.conversation_observation_trail import (
+    ObservationLimitError,
+    ObservationTrail,
+    decide_with_observation_trail,
 )
 
 
@@ -78,16 +85,30 @@ async def run_conversation_loop(
     action_budget: ActionBudget,
     handlers: Mapping[ConversationAction, ActionHandler],
     limits: LoopLimits = LoopLimits(),
+    answer_handler: AnswerHandler | None = None,
+    answer_generator: BoundedAnswerGenerator | None = None,
 ) -> AsyncGenerator[LoopEvent, None]:
     """Stream decisions/observations and one normal terminal event.
 
     Only successful tool observations can request another decision. All calls
     share the supplied budgets and total deadline, including consumer pauses.
+    An optional trusted answer handler receives bounded accumulated inputs; it
+    owns actual generation budgets and output/evidence validation. An optional
+    bounded generator instead uses the loop's projected fresh snapshots; the two
+    answer adapters are mutually exclusive.
     The host owns fresh snapshots and real tool consumption. Closing/cancelling
     stops this iterator; it does not assert rollback of admitted external work.
     """
+    if answer_handler is not None and not callable(answer_handler):
+        raise ValueError("invalid answer handler")
+    if answer_generator is not None and (
+        not isinstance(answer_generator, BoundedAnswerGenerator)
+        or answer_handler is not None
+    ):
+        raise ValueError("invalid or conflicting answer generator")
     deadline = time.monotonic() + limits.timeout_seconds
     frames: list[tuple[DecisionContext, ActionProposal, ActionEvent]] = []
+    trail = ObservationTrail(context)
     steps = observations = 0
 
     def latest() -> DecisionContext:
@@ -111,6 +132,20 @@ async def run_conversation_loop(
         return replace(fresh, active_research=actual_research)
 
     expected = context
+
+    async def answer(invocation: ActionInvocation) -> str:
+        # Dispatch owns admission, freshness, timeout and cancellation. Capture
+        # the current completed trail before this answer is appended to it.
+        value = AnswerInput(expected, invocation, trail)
+        if answer_generator is not None:
+            return await answer_generator.generate(value, current_context=latest)
+        if answer_handler is None:
+            raise ValueError("missing answer handler")
+        return await answer_handler(value)
+
+    selected_handlers = handlers
+    if answer_handler is not None or answer_generator is not None:
+        selected_handlers = {**handlers, ConversationAction.ANSWER: answer}
     decision = await decide_conversation_action(
         expected,
         transport=transport,
@@ -146,17 +181,31 @@ async def run_conversation_loop(
                 proposal,
                 expected,
                 current_context=latest,
-                handlers=handlers,
+                handlers=selected_handlers,
                 budget=action_budget,
                 timeout_seconds=min(remaining, limits.action_timeout_seconds),
             )
         ) as actions:
             async for event in actions:
+                trail_error = ""
                 if event.status == "observed":
                     observations += 1
                     if event.stage == ConversationAction.USE_TOOL:
                         tool_observation = event
+                    if event.stage == ConversationAction.USE_TOOL or (
+                        proposal.action == ConversationAction.ANSWER_THEN_RESEARCH
+                        and event.stage == ConversationAction.ANSWER
+                    ):
+                        try:
+                            trail = trail.append(expected, proposal, event)
+                        except ObservationLimitError:
+                            trail_error = "observation_limit"
+                        except (TypeError, ValueError):
+                            trail_error = "invalid_observation"
                 yield event
+                if trail_error:
+                    yield LoopStopped(trail_error, steps, observations)
+                    return
                 if event.status != "observed":
                     yield LoopStopped(
                         "action_failed",
@@ -202,10 +251,11 @@ async def run_conversation_loop(
         except (TypeError, ValueError):
             yield LoopStopped("invalid_observation", steps, observations)
             return
-        decision = await decide_after_tool_observation(
+        frames.append((expected, proposal, tool_observation))
+        expected = projected
+        decision = await decide_with_observation_trail(
             expected,
-            proposal,
-            tool_observation,
+            trail,
             current_context=latest,
             transport=transport,
             budget=decision_budget,
@@ -214,5 +264,3 @@ async def run_conversation_loop(
                 timeout_seconds=min(remaining, limits.decision.timeout_seconds),
             ),
         )
-        frames.append((expected, proposal, tool_observation))
-        expected = projected

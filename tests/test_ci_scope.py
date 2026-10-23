@@ -2,7 +2,41 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from tools.ci_scope import classify, classify_path
+
+
+def test_studyctl_exact_paths_use_registered_cli_stack_and_unknown_stays_broad():
+    from tools.run_stage_gate import load_manifest, resolve
+
+    scope = classify(["tools/studyctl.py", "tools/studyctl_execution.py", "tools/studyctl_research.py", "tests/test_studyctl.py", "tests/test_studyctl_plan.py", "tests/test_studyctl_execution.py", "tests/test_studyctl_research.py"])
+    assert scope["impact_set"] == "studyctl"
+    assert not scope["frontend_required"] and not scope["browser_required"]
+    paths = resolve(load_manifest(), impact_set="studyctl")
+    assert "tests/test_studyctl.py" in paths
+    assert "tests/test_ci_scope.py" in paths
+    assert "tests/test_studyctl_research.py" in paths
+    assert "tests/test_research_quality_state.py" in paths
+    assert "tests/test_studyctl_catalog.py" in paths
+    assert classify(["tests/test_studyctl_catalog.py"])["impact_set"] == "studyctl"
+    assert "tests/test_studyctl_recording.py" in paths
+    assert "tests/test_studyctl_compare.py" in paths
+    assert "tests/test_studyctl_ci.py" in paths
+    assert "tests/test_studyctl_ci_cli.py" in paths
+    assert "tests/test_studyctl_github.py" in paths
+    assert "tests/test_studyctl_github_cli.py" in paths
+    assert classify(["tests/test_studyctl_github_cli.py"])["impact_set"] == "studyctl"
+    assert classify(["tools/studyctl_github.py", "tests/test_studyctl_github.py"])["impact_set"] == "studyctl"
+    assert classify(["tests/test_studyctl_ci_cli.py"])["impact_set"] == "studyctl"
+    assert classify(["tools/studyctl_ci.py", "tests/test_studyctl_ci.py"])["impact_set"] == "studyctl"
+    assert classify(["tools/studyctl_compare.py", "tests/test_studyctl_compare.py"])["impact_set"] == "studyctl"
+    assert "tests/test_studyctl_event_pages.py" in paths
+    assert classify(["tests/test_studyctl_event_pages.py"])["impact_set"] == "studyctl"
+    assert classify(["tools/studyctl_recording.py", "tests/test_studyctl_recording.py"])["impact_set"] == "studyctl"
+    assert classify(["tools/studyctl_other.py"])["full_scope"]
 
 
 def test_exact_conversation_decision_paths_select_their_registered_impact_set():
@@ -11,6 +45,36 @@ def test_exact_conversation_decision_paths_select_their_registered_impact_set():
         "src/application/conversation_decision_runner.py",
         "tests/test_conversation_decision.py",
         "tests/test_conversation_decision_runner.py",
+        "src/application/conversation_action_dispatch.py",
+        "src/application/conversation_action_step.py",
+        "src/application/conversation_observation_followup.py",
+        "src/application/conversation_bounded_loop.py",
+        "src/application/conversation_loop_session.py",
+        "tests/test_conversation_action_dispatch.py",
+        "tests/test_conversation_action_step.py",
+        "tests/test_conversation_observation_followup.py",
+        "tests/test_conversation_bounded_loop.py",
+        "tests/test_conversation_loop_session.py",
+        "src/application/conversation_observation_trail.py",
+        "tests/test_conversation_observation_trail.py",
+        "src/application/conversation_answer_input.py",
+        "tests/test_conversation_answer_input.py",
+        "src/application/conversation_answer_runner.py",
+        "tests/test_conversation_answer_runner.py",
+        "src/application/conversation_answer_generator.py",
+        "tests/test_conversation_answer_generator.py",
+        "src/application/conversation_deepseek_transport.py",
+        "tests/test_conversation_deepseek_transport.py",
+        "src/application/conversation_deepseek_session.py",
+        "tests/test_conversation_deepseek_session.py",
+        "src/application/conversation_deepseek_service.py",
+        "tests/test_conversation_deepseek_service.py",
+        "src/application/conversation_progress_stream.py",
+        "tests/test_conversation_progress_stream.py",
+        "src/application/conversation_owned_binding.py",
+        "tests/test_conversation_owned_binding.py",
+        "src/api/routes/conversation_events_routes.py",
+        "tests/test_conversation_events_routes.py",
     ]
     for path in paths:
         result = classify([path])
@@ -32,11 +96,78 @@ def test_conversation_mapping_resolves_to_real_tests_and_covers_both_modules():
     assert "tests/test_conversation_decision_runner.py" in paths
 
 
+def test_loop_mapping_covers_actual_modules_and_complete_registered_consumer_stack():
+    from tools.run_stage_gate import load_manifest, resolve
+
+    paths = resolve(load_manifest(), impact_set="conversation_decision_1b")
+    root = Path(__file__).resolve().parents[1]
+    for name in (
+        "conversation_action_dispatch", "conversation_action_step",
+        "conversation_observation_followup", "conversation_bounded_loop",
+        "conversation_loop_session",
+        "conversation_observation_trail",
+        "conversation_answer_input",
+        "conversation_answer_runner",
+        "conversation_answer_generator",
+        "conversation_deepseek_transport",
+        "conversation_deepseek_session",
+        "conversation_deepseek_service",
+        "conversation_progress_stream",
+        "conversation_owned_binding",
+    ):
+        module = f"src/application/{name}.py"
+        test = f"tests/test_{name}.py"
+        assert (root / module).is_file() and (root / test).is_file()
+        assert test in paths
+        assert classify([module.replace("/", "\\"), test])["impact_set"] == "conversation_decision_1b"
+    # The ledger is a dependency, but changing its persistence code is not
+    # classified as an ordinary loop slice by this patch.
+    assert "tests/test_conversation_decision_admission.py" in paths
+
+
+@pytest.mark.parametrize("impact,consumers", [
+    ("conversation_action_dispatch", {
+        "tests/test_conversation_action_step.py", "tests/test_conversation_observation_followup.py",
+        "tests/test_conversation_bounded_loop.py", "tests/test_conversation_loop_session.py",
+    }),
+    ("conversation_action_step", {"tests/test_conversation_observation_followup.py"}),
+    ("conversation_observation_followup", {"tests/test_conversation_bounded_loop.py", "tests/test_conversation_observation_trail.py"}),
+    ("conversation_bounded_loop", {"tests/test_conversation_loop_session.py"}),
+])
+def test_named_development_gates_retain_new_direct_consumers(impact, consumers):
+    from tools.run_stage_gate import load_manifest, resolve
+
+    paths = resolve(load_manifest(), impact_set=impact)
+    assert consumers <= set(paths)
+
+
+@pytest.mark.parametrize("name", [
+    "conversation_action_dispatch", "conversation_action_step",
+    "conversation_observation_followup", "conversation_bounded_loop",
+    "conversation_loop_session",
+])
+@pytest.mark.parametrize("adjacent", [
+    "src/application/conversation_decision_admission.py",
+    "src/application/conversation_decision_context.py",
+    "src/infrastructure/sqlite/database.py", "src/domain/evidence.py",
+    "mystery/new.py",
+])
+def test_loop_slice_mixed_with_persistence_or_unregistered_paths_cannot_narrow(name, adjacent):
+    result = classify([f"src/application/{name}.py", adjacent])
+    assert result["impact_set"] == ""
+    assert classify_path(adjacent) != "conversation-decision"
+
+
 def test_conversation_prefix_is_not_a_blanket_subsystem_exclusion():
     for path in (
         "src/application/conversation_decision_new.py",
         "src/application/chat_service.py",
         "tests/test_conversation_decision_other.py",
+        "src/application/conversation_action_dispatch_new.py",
+        "src/application/conversation_bounded_loop_new.py",
+        "tests/test_conversation_loop_session_new.py",
+        "src/application/conversation_observation_trail_new.py",
+        "tests/test_conversation_observation_trail_new.py",
     ):
         result = classify(["src/application/conversation_decision.py", path])
         assert result["impact_set"] == ""
