@@ -194,3 +194,17 @@ BoundedAnswerGenerator仅在runner completed时返回正文；其余结果抛脱
 ### CL-1G-1：仅DeepSeek的单次传输
 
 用户选定DeepSeek。注入客户端的transport只翻译已有两个受控请求，不自行读取配置或创建网络客户端。明确设置max_retries=0、thinking disabled与stream false，决策加json_object；验证一次调用、期限/token/messages边界，只接受stop单choice且无refusal/tool_calls的有界正文。重试/修复/改提供方均不在本片。SDK异常交由既有runner脱敏，取消原样传播。下一片仅DEEPSEEK_*配置和owned异步SDK客户端；OpenAI兼容协议不意味着使用OpenAI服务，禁止OPENAI_*配置回退。
+
+### CL-1G-2：DeepSeek专属配置与owned SDK会话
+
+只消费显式DEEPSEEK_*映射，flash/pro模型必须分别配置，不从通用或OPENAI_*取值；仅允许HTTPS api.deepseek.com根/v1端点。默认SDK客户端使用自有HTTP client，禁用重试、重定向和环境代理，显式空organization/project/webhook避免SDK自动读其他服务元数据。async with只拥有自己的客户端，关闭后借出的transport/generator也失效。
+
+宿主先构造DeepSeekConversationSettings.from_environment(显式映射)，再async with DeepSeekConversationSession(settings)，将session.transport交给原loop作为决策transport，将session.answer_generator(共享或独立准入)作为answer_generator；停止流后退出会话。不修改旧llm_client全局缓存或.env，不自动切换生产入口；真实费用授权与证据发布仍由宿主负责。SDK包使用兼容协议，网络目标仅DeepSeek。测试使用MockTransport，不借用现有凭据或真实服务。
+
+### CL-1H-1：可选应用服务入口
+
+DeepSeekConversationService.start只捕获可信快照读取器、工具handler目录和显式共享模型准入/动作预算，返回单次消费会话；不读取环境或启动付费调用。实际读取时才创建owned SDK，并在结束/关闭/取消时先关闭loop再释放SDK。未读run、过期请求和重复请求均不发额外模型调用；会话回执不含正文，SDK清理失败不冒充完整成功。宿主仍负责真实费用/权限/证据/正式发布。本片只提供应用层入口，不切现有HTTP聊天或生产权威；下一片提供安全进度投影。
+
+### CL-1H-2：显示进度投影与SSE编码
+
+从单次消费会话投影计划状态、preliminary/final答案、clarification、工具元数据和终态；不转发模型reason/prompt/history/证据摘要或工具原文。固定unverified/provisional，不用answered终态绕过原证据/发布门。request_id关联同一owned操作，sequence与event_id仅本流显示标识，不支持持久恢复或执行重放。立即claim保证未读关闭可释放；拒绝并发读取，关闭/取消沿原会话释放SDK。缺失终态、源异常和清理失败各给一个脱敏failed终态，取消传播；SSE正文只在JSON单行data中，换行不会新增字段。宿主必须用aclosing消费，并自行把owned request关联到消息。本片不注册HTTP端点或改ChatTurn发布。

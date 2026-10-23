@@ -8,6 +8,16 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-23 CLI候选#280主线重绑（第二次，面向当前main）。** 初始head 15d5bd62b99ad9418b6a87aa55202700c4b1a501，
+本次显式吸收已提交main 42992932e115568be54d6e85a34f4b68335d84ea（#255合并后），不读取其他工作树WIP。
+base已从 codex/studyctl-ci-live-20261021 改为 main：原base下 `refs/pull/280/merge` 只证明本片能合进#279分支，
+不构成对main的证据，故不能借用旧绿灯。
+源码冲突仅 docs/PROJECT_STATUS.md（追加式，双方新交接全部保留），tools/ci_scope.py、tests/test_ci_scope.py、
+tests/stage_gates.json 由Git自动合并，已两向核对：main侧147条/#280侧154条 -> 合并后157条，双方零丢失、悬空0；
+ci_scope main侧25条/#280侧36条 -> 39条，双方零丢失、悬空0。
+合并树组成精确等于 main 11 文件 + #280 20 文件，无额外增删；CLI 八片（#270/#273/#274/#276-#279/#280）逐片改动文件 0 缺失。
+本提交只补交接，不重复已被CI覆盖的相同测试；新head必须重新绑定CI，旧绿不授予新提交。
+
 **2026-10-23 CLI候选#280主线重绑。** 初始head e9886e00a8eb5a74a3dd1f46e458881c6f257f57，
 显式吸收已提交 0fa9b6b6d4ab38129cc3f002bb21c535e3a7887d（refs/heads/codex/studyctl-ci-live-20261021）；不读取其他工作树WIP。
 远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
@@ -150,6 +160,26 @@ src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，�
 验证目录 D:/study-agent-validation/studyctl-research-rebind-20261023/270/。
 下一动作：当前提交推送后仅查一次CI并继续后继独立候选；远端新head门与审阅未收口前不合main。
 
+**2026-10-20 CL-1H-2：单次消费的显示进度流（本轮第二新功能片）。** branch codex/conversation-progress-stream-20261020，初始固定自身服务756f0eaa，已ff绑定其最终文档父片#254 dd17b5f11564159dd731421807bd8b0c846d57ac（仅交接，无生产变化）；未取其他窗口WIP。conversation_progress_stream立即claim原ConversationLoopSession，支持未读close、单次消费、拒绝并发读取、取消传播与内层资源释放。只投影计划focus、阶段/最终答案、澄清、工具状态和终态；不输出模型reason、原始工具正文、prompt/history或证据摘要。所有帧固定unverified/provisional，answered终态不授予发布/证据权威。root request_id关联同一run，sequence与哈希event_id仅本流显示去重，不提供持久恢复/重放权限；SSE采用单行JSON数据，正文换行不能注入event/data字段。缺失终态、源异常、SDK清理失败输出一个脱敏failed终态，调用者取消仍传播。
+
+最终命名L1 conversation_progress_stream **534 PASS/143.66s**（自身10项，含真实SDK服务完整初步→工具→最终显示），mypy122/128 NEW0、Ruff/format/diff-check PASS，候选密钥扫描另见发布结果。当前仅应用层DTO/SSE编码，不注册HTTP路由或写ChatTurn，不切生产聊天、费用或证据/发布权威，无真实网络/付费模型、无本地L3。候选SHA以本段提交恢复，下一片：把显式选择服务与owned聊天操作绑定到可选API入口，沿用原证据/发布门。
+
+本轮#246在e663d9a6 / CI39377648481 SUCCESS / 无finding后合main b6aee2b72e8904e0a382bd9a93469168f48bf71b，exact-main CI39381453432 SUCCESS，根main已ff且4外部ZIP保留。#247重绑main L1 413 PASS、mypy122/128，但head2c681ed6缺失新CI；追加交接head3bfefb2c已推送触发synchronize，必须绑定新head CI，不能借旧3390fafd绿灯。#253 URLfinding4321928343已修复并resolve，head835e0aad / CI39381952927后台、L1 515 PASS；#254服务headdd17b5f1 / CI39382951751后台、L1 524 PASS。两新功能片只基于自身冻结成果，不等CI才开发。
+
+**2026-10-20 CL-1H-1最终候选。** DeepSeek可选应用服务已吸收自身#253修复835e0aad（merge756f0eaa，仅交接冲突保留双方），最终命名L1 conversation_deepseek_service **524 PASS/140.58s**，自身9项SDK假HTTP，mypy122/128 NEW0、Ruff/format/diff-check PASS、候选secret findings0；相对835e0aad独立7文件，候选SHA以本段提交恢复，未取其他窗口WIP。初始519仅为旧父片的初步证据，新联合门已覆盖URL canonical真实SDK回归。创建/claim/关闭未读run不建SDK，取消/关闭/终态都释放自有客户端，共享模型准入不因新service/session重启而自动重置；默认生产ChatService/HTTP不变。下一片安全进度流基于此自身冻结代码继续，本轮不等CI。
+
+**2026-10-20 CL-1H-1：DeepSeek可选应用服务（本轮第一新功能片）。** branch codex/conversation-deepseek-service-20261020，初始固定自身#253 7c39a460，发布前显式吸收本轮URL修复835e0aad；未取其他窗口WIP。DeepSeekConversationService.start把同一model admission用于决策及回答，返回单次消费ConversationLoopSession；只创建/claim/关闭未读run不会创建SDK或发送请求，实际消费时才进入owned DeepSeek会话并受控执行loop。阶段后关闭/调用者取消按内层loop→SDK顺序释放，终态返回前owned SDK已关闭，保留原脱敏/unknown/去重回执；只在应用层显式调用，不改ChatService/HTTP生产入口或发布权威。宿主继续负责所有权快照、工具权限与真实费用授权。
+
+初步命名L1 conversation_deepseek_service **519 PASS/125.32s**（自身9项真实SDK假HTTP），mypy122/128 NEW0、Ruff/format PASS；包括初步→工具→完整最终输入、未读关闭、阶段后关闭、取消SDK、过期不发送、重启同request不重复扣费、provider失败和单次claim。该初片本地冻结后吸收父片已验515项URL修复，再跑最终联合门；旧7c父片结果不授予最终候选。无真实凭据/网络/付费请求、生产切换或本地L3。下一独立片：消费此服务回执的安全进度投影，分离阶段答案、工具状态与终态，始终保留provisional/unverified边界。
+**2026-10-20 #253 审阅修复 / DeepSeek URL规范化。** finding4321928343有效：原校验rstrip后允许URL却存原字符串，SDK可能发/v1//chat/completions。新增4组尾斜杠负控在旧7c39a460均实际FAIL，保留日志D:/study-agent-validation/deepseek-url-negative.log；现冻结settings在验证后存canonical rstrip值，真实SDK假HTTP新增双斜杠路径回归，实际线缆路径保持/v1/chat/completions。最终命名L1 conversation_deepseek_session **515 PASS/151.91s**，mypy122/128 NEW0、Ruff/format/diff-check PASS；无SDK真实调用/配置修改/生产切换，无本地L3。新head以本段提交恢复，旧7c39a460 / CI39377762994 SUCCESS不能授予修复head。修复将显式带入本轮DeepSeek应用服务与进度流两个自身独立片，未取其他窗口WIP。
+
+**2026-10-20 本轮两片最终交付候选 / 仅DeepSeek。** 第一片#252 head2b9b9f5bc389d5e5e148aff91ed3c3f8c41423b3 / pull_request CI39377002020后台，命名L1 495 PASS/128.64s，暂无finding。第二片固定该自身父片，最终命名L1 conversation_deepseek_session **510 PASS/134.10s**，自身15项真实SDK/假HTTP PASS，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0，候选SHA以本段提交恢复；7文件独立增量，无其他窗口WIP。初次509 PASS/1 FAIL是SDK空header的断言错误，已修为验证不继承外部组织/项目值，并完成15项与最终510项复验；不是生产逻辑故障或未知原因，不触发全量。测试不使用真实凭据或网络，用户配置未改，未做真实付费/模型质量/首答延迟验收；生产聊天未切换，无本地L3。
+
+本轮#244在0f914244 / CI39296775208 SUCCESS无finding后合main5cd917ad，#245在226c0d31 / CI39376484599 SUCCESS且两finding已解决后合main9ae37d4caac71935b75fc85c1b93c75502e466e9；前main5cd917ad push CI39376017114 SUCCESS，新main push CI39377570868后台。#246已重绑该main，heade663d9a654b4dca3b139aa6da704de632ca2e212 / CI39377648481后台；生产/测试树与已验证d7102e3a完全相同，复用277 PASS/94.49s且不借旧CI授予新head。先前凭据问题已由用户“只要deepseek”明确解除；当前仅DeepSeek配置与端点，不使用OpenAI服务，不再阻塞。唯一下一执行片：将DeepSeek会话接入可选服务入口并验证请求生命周期，继续按最新head审阅/CI逐片合main。
+
+**2026-10-20 CL-1G-2：DeepSeek专属SDK会话（本轮第二新功能片）。** branch codex/conversation-deepseek-session-20261020，固定base自身#252 2b9b9f5bc389d5e5e148aff91ed3c3f8c41423b3，不取其他窗口WIP。用户已选定仅DeepSeek，先前凭据问题已解除，不选择或使用OpenAI服务。DeepSeekConversationSettings只读取显式传入的DEEPSEEK_API_KEY、DEEPSEEK_MODEL_FLASH/PRO_NAME与DEEPSEEK_BASE_URL映射；没有OPENAI_*或通用model回退，密钥repr隐藏，endpoint仅HTTPS api.deepseek.com根/v1。owned单次异步session不触碰共享客户端，默认HTTP关闭重定向/环境代理，显式空SDK组织/项目/webhook避免继承OPENAI_*元数据；关闭后已有transport/generator也不能发送。提供同一transport给决策和BoundedAnswerGenerator，不切生产路由。
+
+使用真实SDK与httpx.MockTransport（内存假HTTP）验证序列化、完整两次调用loop、503仅一次、不自动重试、期限取消、拒绝跨提供方重定向与客户端关闭；所有配置/凭据均为显式fake，未发起真实网络/付费请求，不修改用户凭据。初始断言误把“无外部组织值”写成“完全无header”：SDK对显式空字符串发送空header，现断言其值为空且不继承foreign环境值，15项自身用例全部PASS/6.87s；生产代码未因此改变。mypy122/128 NEW0，Ruff/format PASS，最终命名门发布前另记。精确登记模块/测试CI与消费者，无前缀通配或强制门缩小，无本地L3。下一片：DeepSeek会话与生产服务的显式选择接线及观察回执，真实模型质量/首答延迟和货币费用仍另有验收门。
 
 **2026-10-20 CL-1G-1：仅DeepSeek传输适配器（本轮第一新功能片）。** 用户已明确“不用openai，只要deepseek”，覆盖此前待选状态；不使用OpenAI服务/配置，不发起真实付费调用。branch codex/conversation-model-transport-20261020，固定base自身#251 9f0c1f14b8b8702bcc5e6b28205798604590efe7，不取其他窗口WIP。DeepSeekConversationTransport接受宿主注入客户端和model，统一支持现有ModelDecisionRequest/ModelAnswerRequest；决策JSON object、回答正文，固定thinking disabled、stream false、每次SDK副本max_retries=0，验证预算参数并拒绝无法禁用重试的客户端。只收单条stop完成且无refusal/tool_calls的非空有界正文，截断/多choice不自动修复或重试；沿用原runner的准入/期限/过期与错误脱敏。本模块不读环境、不创建客户端、不授予费用/证据/发布权威；下一片才做DeepSeek专属配置及owned SDK生命周期，明确禁止OPENAI_*回退。精确登记新模块和测试CI路径。命名L1 conversation_deepseek_transport **495 PASS/128.64s**，mypy122/128 NEW0、Ruff/format/diff-check PASS、secret findings0；候选SHA以本段提交恢复，未改生产聊天/业务schema，无本地L3。
 
