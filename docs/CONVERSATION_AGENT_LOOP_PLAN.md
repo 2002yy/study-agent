@@ -182,3 +182,15 @@ AnswerInput仅接受ANSWER阶段与ANSWER/ANSWER_THEN_RESEARCH提议；初始输
 ### CL-1E-2：loop可选回答输入
 
 可选answer_handler覆盖本次loop的ANSWER阶段，原handler签名与默认路径不变。输入在dispatch执行可信handler时构造，绑定当前expected与已完成trail，避免只拿到末条观察或把自己尚未生成的回复加入输入。继承原动作预算/去重/过期拒绝/超时/关闭/取消，生成适配器仍须自行预留真实生成额度和校验输出；观察不是正式证据或已发布答案。无生产接线、SDK或自动付费调用。本片不是子阶段关闭/生产资格；下一片再独立定义生成调用准入，真实模型质量与前3–5秒初步答案保留实测验收门。
+
+### CL-1F-1：有界回答生成
+
+单次注入transport，AnswerLimits限制等待≤30秒、输出≤4000 tokens且≤8000字符。answer_request_id由固定schema+当前请求身份+ANSWER阶段派生，不包含可变内容/提议分类；与决策ID分开，可共享DecisionAdmission总额度。传输前后的精确上下文校验、无退款/重试、忽略迟到、调用者取消传播与脱敏失败是执行边界。SqliteDecisionAdmission仅复用现有自有库schema，不引入业务持久变更。该台账不等于货币预算，可信生产transport仍须禁用隐藏重试并预留真实花费。生成文本只是provisional结果，不是证据或发布许可。下一片loop可选接线必须使用内部派生的fresh上下文。
+
+### CL-1F-2：原生loop生成适配器
+
+BoundedAnswerGenerator仅在runner completed时返回正文；其余结果抛脱敏AnswerGenerationError给可信调用者。loop的可选answer_generator与旧answer_handler互斥；构造输入时使用当前expected/trail，生成期间读内部latest（含工具后派生请求身份），不要求宿主复制投影算法或改写快照来通过检查。保留外层deadline/动作预算/取消链，生成器拥有独立或共享准入台账；任何失败都不执行后续工具。dispatch继续保守报告handler_error/unknown，本片不修改公共动作回执语义。实际货币费用、SDK隐藏重试、内容/引用质量和正式发布仍由生产适配器及后续资格门负责。本片仍为opt-in，不是生产权威切换。
+
+### CL-1G-1：仅DeepSeek的单次传输
+
+用户选定DeepSeek。注入客户端的transport只翻译已有两个受控请求，不自行读取配置或创建网络客户端。明确设置max_retries=0、thinking disabled与stream false，决策加json_object；验证一次调用、期限/token/messages边界，只接受stop单choice且无refusal/tool_calls的有界正文。重试/修复/改提供方均不在本片。SDK异常交由既有runner脱敏，取消原样传播。下一片仅DEEPSEEK_*配置和owned异步SDK客户端；OpenAI兼容协议不意味着使用OpenAI服务，禁止OPENAI_*配置回退。
