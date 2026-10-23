@@ -114,6 +114,7 @@ async def run_conversation_loop(
     limits: LoopLimits = LoopLimits(),
     answer_handler: AnswerHandler | None = None,
     answer_generator: BoundedAnswerGenerator | None = None,
+    should_cancel: Callable[[], bool] = lambda: False,
 ) -> AsyncGenerator[LoopEvent, None]:
     """Stream decisions/observations and one normal terminal event.
 
@@ -125,9 +126,24 @@ async def run_conversation_loop(
     answer adapters are mutually exclusive.
     The host owns fresh snapshots and real tool consumption. Closing/cancelling
     stops this iterator; it does not assert rollback of admitted external work.
+
+    ``should_cancel`` is polled before every admitted model call and before every
+    dispatch, so a user cancel that lands while a tool thread is still winding down is
+    not followed by another paid decision. It is cooperative: it cannot reach inside a
+    handler that is already executing. A probe that raises stops the turn rather than
+    authorizing one more call - an unanswerable cancel question is not a "no".
     """
     if answer_handler is not None and not callable(answer_handler):
         raise ValueError("invalid answer handler")
+    if not callable(should_cancel):
+        raise ValueError("invalid cancel probe")
+
+    def cancelled() -> bool:
+        try:
+            return bool(should_cancel())
+        except Exception:
+            return True
+
     if answer_generator is not None and (
         not isinstance(answer_generator, BoundedAnswerGenerator)
         or answer_handler is not None
@@ -233,6 +249,11 @@ async def run_conversation_loop(
     selected_handlers = handlers
     if answer_handler is not None or answer_generator is not None:
         selected_handlers = {**handlers, ConversationAction.ANSWER: answer}
+    # Cancellation is checked before the first admission, not after it: a turn the user
+    # has already abandoned must not buy one more decision on the way to noticing.
+    if cancelled():
+        yield LoopStopped("cancelled", 0, 0, False, "before_decision")
+        return
     decision = await next_decision(limits.timeout_seconds)
     while True:
         steps += 1
@@ -262,6 +283,12 @@ async def run_conversation_loop(
         )
         if blocked:
             yield LoopStopped(blocked, steps, observations, False, proposal.action)
+            return
+        # Between the decision and the dispatch is exactly where a cancel most often
+        # arrives: the model just took seconds to answer. Spending a tool slot here would
+        # charge the user for work they cancelled before it started.
+        if cancelled():
+            yield LoopStopped("cancelled", steps, observations, False, proposal.action)
             return
         refused: ActionEvent | None = None
         tool_observation: ActionEvent | None = None
@@ -352,6 +379,11 @@ async def run_conversation_loop(
             except Exception:
                 yield LoopStopped("context_unavailable", steps, observations)
                 return
+            if cancelled():
+                yield LoopStopped(
+                    "cancelled", steps, observations, False, "after_refusal"
+                )
+                return
             decision = await next_decision(remaining)
             continue
         if tool_observation is None:
@@ -392,4 +424,12 @@ async def run_conversation_loop(
             return
         projection.append(("observation", (expected, proposal, tool_observation)))
         expected = projected
+        # A tool round can take most of the window; the user may have cancelled during it.
+        # The observation is kept (it is real work, already paid for) but no further
+        # decision is admitted.
+        if cancelled():
+            yield LoopStopped(
+                "cancelled", steps, observations, False, "after_observation"
+            )
+            return
         decision = await next_decision(remaining)

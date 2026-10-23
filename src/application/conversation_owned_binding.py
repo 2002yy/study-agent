@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import closing
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 import sqlite3
 from typing import Callable, Mapping
@@ -150,28 +150,59 @@ class OwnedConversationBinding:
             ) from None
 
     def start(
-        self, thread_id: str, turn_id: str, operation_id: str
+        self,
+        thread_id: str,
+        turn_id: str,
+        operation_id: str,
+        *,
+        should_cancel: Callable[[], bool] = lambda: False,
+        turn_window_seconds: float | None = None,
+        model_budget: DecisionAdmission | None = None,
     ) -> ConversationLoopSession:
-        """Bind identifiers only. Host controls snapshots, tools and budgets.
+        """Bind identifiers only. Host controls snapshots, tools, budgets and cancel.
 
         No turn/operation is created, completed, released or published here.
         The host must own that lifecycle and independently authorize callers.
+
+        ``should_cancel`` is the host's own answer to "has this turn been abandoned", in
+        production ``repository.turn_cancel_requested(turn_id, operation_id)``. Passing it
+        through rather than letting this binding poll a repository keeps the read-only
+        contract of this module intact.
+
+        ``turn_window_seconds`` replaces only the loop's *total* deadline - the one number
+        that is a property of the turn rather than of the run configuration. The decision
+        cap, the per-action window and the decision limits still come from the supplied
+        resources, so a caller cannot widen the safety bounds by asking for a longer turn.
+
+        ``model_budget`` likewise exists so the turn - not the snapshot - can hand down the
+        admission it intends to settle. Settling a different object than the loop reserved
+        on would leave every call open forever, and the only way to make that impossible is
+        to let the settlement owner pass its own admission in.
         """
         for value in (thread_id, turn_id, operation_id):
             _identity(value)
+        if not callable(should_cancel):
+            raise ValueError("invalid host cancel probe")
         snapshot = self._snapshot(thread_id, turn_id)
         context = self._context(snapshot, operation_id)
         resources = self.resources(snapshot)
         if not isinstance(resources, OwnedRunResources):
             raise ValueError("invalid host run resources")
+        loop_limits = resources.loop_limits
+        if turn_window_seconds is not None:
+            loop_limits = replace(loop_limits, timeout_seconds=turn_window_seconds)
+        admission = resources.model_budget if model_budget is None else model_budget
+        if not callable(getattr(admission, "reserve", None)):
+            raise ValueError("invalid host model admission")
         return self.service.start(
             context,
             current_context=lambda: self._context(
                 self._snapshot(thread_id, turn_id), operation_id
             ),
-            model_budget=resources.model_budget,
+            model_budget=admission,
             action_budget=resources.action_budget,
             handlers=resources.handlers,
-            loop_limits=resources.loop_limits,
+            loop_limits=loop_limits,
             answer_limits=resources.answer_limits,
+            should_cancel=should_cancel,
         )

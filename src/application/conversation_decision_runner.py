@@ -23,6 +23,16 @@ from src.application.conversation_decision import (
     validate_proposal,
 )
 
+# The real-cost track refused before the provider was touched. Q-10 wants the two tracks
+# distinguishable in the receipt, so "the money ran out" must not be reported as the
+# generic ``admission_unavailable`` (which is what a broken admission looks like).
+COST_LEDGER_REFUSED = "cost_ledger_refused"
+
+# Admission verdicts that are outcomes in their own right, not infrastructure failures.
+ADMISSION_OUTCOMES = frozenset(
+    {"already_attempted", "budget_exhausted", COST_LEDGER_REFUSED}
+)
+
 
 @dataclass(frozen=True)
 class DecisionLimits:
@@ -180,8 +190,7 @@ async def decide_conversation_action(
     if admission != "reserved":
         return DecisionResult(
             admission
-            if isinstance(admission, str)
-            and admission in {"already_attempted", "budget_exhausted"}
+            if isinstance(admission, str) and admission in ADMISSION_OUTCOMES
             else "admission_unavailable"
         )
     request = ModelDecisionRequest(
