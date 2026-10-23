@@ -8,6 +8,11 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-24 候选验证续记（纯审计字段修正）。** 首个精确候选67a8a55f的本地L3仅跑到约21%，进程退出且未生成最终结果，不能计为完整通过；进度中记录一项main原有5ms期限测试失败，单独复查结果另存，未改断言。改用独立隐藏后台进程重新执行完整门并保留旧日志，不伪造中断原因。第一版审计JSON有4个Git提交SHA被熵扫描拦截，已确认全为本库真实commit；改用现有base_sha/head_sha字段规范，不修改扫描白名单。此提交只改docs，src/tests/tools/frontend树与67a8a55f一致。新SHA作为最终精确候选重新绑定CI；旧CI不授予新头。
+
+Firefox对照：完整候选77/79，通过数不掩盖两项失败；干净main同样复现首次回答page.reload等待load超30秒。90秒单例诊断通过，但该轮套件约24秒，不能证明需要超过30秒；部分项目运行的截图清单后置拒绝是预期，不算套件绿灯。随后30秒单例仍复现刷新超时；real-stack首次尝试受5173端口占用阻断，两类问题分列，不归为模型调用慢。正式超时/用例/后置门未放宽。当前合并资格NO-GO，四个原PR保持不变。
+
+
 **2026-10-24 权威AR隔离集成候选（未授权合main）。** 本树codex/ar-authoritative-integration-20261024从main `aeeeac0c8c3608f173e2671d6f3ed9497913f91f`起，按#265 `c07c7027`→#272 `3be77996`→#259 `a024d6cd`三个真实merge组成；三个PR与全部已归档非文档PR的完整head均为祖先，main历史完整保留。旧dgroup预演树18项暂存修改未碰，四个开放PR未改动；#282最后处理，CL-M3其他工作树未接管。本片owner=orchestration/persistence/infrastructure，loop=static，dynamic=not_run（无模型/付费授权），decision=engineering-only，产品NO-GO不变。
 
 冲突逐块裁定：ChatPanel保留main的nativeEvent.keyCode输入法保护、合入AR类型与回复行为，测试夹具去重；read_evidence保留公开read_excerpt及兼容包装，三处assessment仅排版差异；两次stage_gates冲突为结构化并集，main与三片登记零丢失、路径无悬空。main的ci_scope、阅读跳转源码/测试、代理setup/teardown blob不变；workflow保留G1路由，仅继承具名candidate_head证据hash例外及其正/负测试。完整组成见[evidence](evidence/ar-authoritative-integration-20261024.json)。
