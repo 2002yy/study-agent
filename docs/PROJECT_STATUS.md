@@ -13,9 +13,15 @@
 远端main已由2b3e2764前进到ee89db18，可信采集对旧PR base/当前main不一致正确BLOCKED，
 不是网络/代理缺陷，不放宽版本一致性门。源码冲突只允许交接文档，双方新交接保留；
 保留本片独立功能；吸收冻结父片的目录游标存在性修复与已提交main，不吸收兄弟分支。
-本片将重跑命名studyctl L1、工具mypy/Ruff/格式/diff；不以旧头CI授予新头，不重复本地L3。
+已完成命名studyctl L1 422 PASS/1 SKIP（既有Windows symlink权限限制）、
+工具mypy/Ruff/格式/diff通过；受测代码提交aae8da99045fcbd2dd4428d46a2e85a9ef4ef1fb。
+实际子进程核验 11类断言通过，输入hash不变；构造GitHub记录与真实只读采集分别标记，不授予merge_authorized。
+src树与已提交main完全一致，统一复用本批src mypy 122/128 NEW0，未放宽baseline。
+本提交只补交接，src/tools/tests树与受测代码一致，不重复相同源码L1或本地L3。
+新head必须重新绑定CI/完整审阅；旧绿灯不授予新提交。
+一次真实GitHub只读采集：main ee89db18edb23da9cd35ab3a7afe6ac963b3319b，观察结果PASS，11次API；不是本分支CI或CLI全线合并许可。
 验证目录 D:/study-agent-validation/studyctl-live-rebind-20261023/280/。
-下一动作：完成本片门、固定提交推送，并继续后继独立候选；不等待后台CI。
+下一动作：逐片检查现有CLI候选完整审阅和exact-head CI，成熟片依赖顺序合main并重绑后继；不再增加诊断命令。完整真实研究run与质量验收仍待样本，不用构造数据代替。
 
 
 **2026-10-23 CLI候选#279主线重绑。** 初始head c2b5822e34a8360e88e4df84de566083e387f934，
