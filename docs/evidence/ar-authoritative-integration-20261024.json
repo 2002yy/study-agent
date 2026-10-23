@@ -39,9 +39,9 @@
     "ci_workflow": "main G1 routing retained; only inherited candidate_head evidence-hash exclusion and regression test added"
   },
   "schema": {
-    "main": 25,
+    "main": 24,
     "candidate": 26,
-    "migration": "additive ledger tables",
+    "migration": "v24 to v25 attachment_refs; v25 to v26 additive ledger tables",
     "rollback": "failed migration is atomic; successful migration requires pre-upgrade backup for old-code rollback; no table dropping or automatic refunds"
   },
   "cost_port": "SpendLedger.reserve is durable conservative reservation, duplicate request raises SpendLedgerConflict; no settlement/refund API. CL-M3 monetary settlement adapter remains separate, not claimed wired.",
