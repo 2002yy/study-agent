@@ -79,3 +79,27 @@ def test_frontend_gate_does_not_reinstall_dependencies():
     frontend_run = str(_by_id("frontend")["run"])
     assert "npm ci" not in frontend_run
     assert "npm ci" in str(_by_id("node_deps")["run"])
+
+
+def test_main_push_uses_a_proven_batch_range():
+    # G1-B: one merge push diffs against its parent, so the surviving run must classify the
+    # batch range instead of its own slice.
+    classify_step = _by_id("ci_scope")
+    run = str(classify_step["run"])
+    assert "tools/ci_batch_range.py" in run
+    assert 'batch_mode' in run
+    # An unprovable batch widens; it must never fall through to the single-slice range.
+    assert "No provable batch range" in run
+
+
+def test_batch_lookup_failure_widens_instead_of_degrading():
+    # A denied lookup is not the same as "there is no earlier run". Collapsing the two is
+    # how the batch silently returns to the single-slice range.
+    run = str(_by_id("ci_scope")["run"])
+    assert "Batch baseline lookup failed" in run
+    assert "batch_lookup" in run
+
+
+def test_workflow_may_read_actions_to_resolve_the_batch_start():
+    data = yaml.safe_load(io.open(WORKFLOW, encoding="utf-8"))
+    assert data["permissions"].get("actions") == "read"

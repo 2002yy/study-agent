@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  # Needed to resolve the trusted batch start (the head of the last successful run of this
+  # workflow on main). Without it the lookup is denied, and a silently empty answer would
+  # drop the batch back to the single-slice range this change exists to remove.
+  actions: read
 
 # Feature-branch pushes used to trigger both a push run and a PR run of the same
 # workflow at the same head. Only pull_request (plus main pushes and manual runs)
@@ -73,26 +77,41 @@ jobs:
               before=""
             fi
 
-            batch_candidate="$(gh api \
+            batch_candidate=""
+            if batch_candidate="$(gh api \
               "/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=1" \
-              --jq '.workflow_runs[0].head_sha' 2>/dev/null || true)"
+              --jq '.workflow_runs[0].head_sha' 2>/dev/null)"; then
+              batch_lookup="ok"
+            else
+              # A denied or failed lookup is not the same as "there is no earlier run".
+              # Treating them alike would quietly drop the batch back to the single-slice
+              # range, which is the defect this exists to remove.
+              batch_lookup="failed"
+              batch_candidate=""
+            fi
 
-            batch_outcome="$(python tools/ci_batch_range.py \
-              --candidate "$batch_candidate" \
-              --head "${GITHUB_SHA}" \
-              --fallback "$before" 2>&1 || true)"
-            echo "$batch_outcome"
-            batch_mode="$(printf '%s\n' "$batch_outcome" | sed -n 's/^batch_mode=//p')"
-            batch_from="$(printf '%s\n' "$batch_outcome" | sed -n 's/^batch_from=//p')"
-            echo "batch_mode=${batch_mode}" >> "$GITHUB_OUTPUT"
-            echo "batch_from=${batch_from}" >> "$GITHUB_OUTPUT"
-
-            if [ "$batch_mode" = "widen" ] || [ -z "$batch_from" ]; then
-              echo "::warning::No provable batch range; widening to the full scope."
+            if [ "$batch_lookup" = "failed" ]; then
+              echo "::warning::Batch baseline lookup failed; widening to the full scope."
               changed_file_list=""
             else
-              git diff --name-only "$batch_from" "${GITHUB_SHA}" > "$changed_file_list" \
-                || changed_file_list=""
+              batch_outcome="$(python tools/ci_batch_range.py \
+                --candidate "$batch_candidate" \
+                --head "${GITHUB_SHA}" \
+                --fallback "$before" 2>&1 || true)"
+              echo "$batch_outcome"
+              batch_mode="$(printf '%s\n' "$batch_outcome" | sed -n 's/^batch_mode=//p')"
+              batch_from="$(printf '%s\n' "$batch_outcome" | sed -n 's/^batch_from=//p')"
+              echo "batch_lookup=${batch_lookup}" >> "$GITHUB_OUTPUT"
+              echo "batch_mode=${batch_mode}" >> "$GITHUB_OUTPUT"
+              echo "batch_from=${batch_from}" >> "$GITHUB_OUTPUT"
+
+              if [ "$batch_mode" = "widen" ] || [ -z "$batch_from" ]; then
+                echo "::warning::No provable batch range; widening to the full scope."
+                changed_file_list=""
+              else
+                git diff --name-only "$batch_from" "${GITHUB_SHA}" > "$changed_file_list" \
+                  || changed_file_list=""
+              fi
             fi
           fi
 
