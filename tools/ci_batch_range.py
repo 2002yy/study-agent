@@ -14,9 +14,14 @@ start* and prove the range:
     start must not be head itself
 
 When all three hold, ``start..head`` is a superset of the single-push diff and is safe to
-classify. When they cannot be proven, this falls back to the ordinary single-push range -
-never to "the last slice is good enough". When even that fallback is unusable the caller
-must widen to the full scope.
+classify. When they do not, the batch range is unprovable and the caller **widens to the
+full scope**. It must never accept "the last slice is good enough".
+
+The single-push range survives as an explicitly justified exception, not as a default. It
+is only acceptable when the push range itself is *proven merge-free*: if ``before..head``
+contains no merge commits, this push introduced nothing but its own commits, so there is
+no unaccepted intermediate slice that the range could hide. A push range that contains
+merges, or one whose merge status cannot be proven, widens.
 
 The decision is a pure function so it can be tested without git or a runner; the git calls
 live in the CLI wrapper only.
@@ -44,12 +49,17 @@ def resolve(
     fallback: str | None = None,
     fallback_is_commit: bool = False,
     fallback_is_ancestor: bool = False,
+    fallback_range_merge_free: bool | None = None,
 ) -> tuple[str, str | None, str]:
     """Return ``(mode, start, reason)``.
 
     ``verified``  a proven batch start; classify ``start..head``
-    ``single``    the ordinary incremental range; classify ``start..head`` too
-    ``widen``     nothing usable; the caller must widen to the full scope
+    ``single``    the ordinary incremental range, only when it is *proven merge-free*
+    ``widen``     nothing provable; the caller must widen to the full scope
+
+    ``fallback_range_merge_free`` is tri-state on purpose: ``True`` means the push range was
+    proven to contain no merge commits, ``False`` means it does, and ``None`` means the
+    proof could not be obtained. Only ``True`` may unlock the incremental mode.
     """
 
     head = (head or "").strip()
@@ -71,8 +81,14 @@ def resolve(
     else:
         reason = "no-batch-start"
 
+    # The batch start is unprovable. An incremental range is acceptable only if it cannot
+    # be hiding an intermediate slice, which is exactly "the push introduced no merges".
     if fallback and fallback != head and fallback_is_commit and fallback_is_ancestor:
-        return SINGLE, fallback, f"{reason};incremental"
+        if fallback_range_merge_free is True:
+            return SINGLE, fallback, f"{reason};incremental-merge-free"
+        if fallback_range_merge_free is False:
+            return WIDEN, None, f"{reason};incremental-range-has-merges"
+        return WIDEN, None, f"{reason};incremental-range-unproven"
 
     return WIDEN, None, f"{reason};no-incremental-range"
 
@@ -89,6 +105,20 @@ def _is_ancestor(rev: str, head: str) -> bool:
     if not rev:
         return False
     return _git("merge-base", "--is-ancestor", rev, head).returncode == 0
+
+
+def _range_merge_free(start: str, head: str) -> bool | None:
+    """``True`` only when ``start..head`` is proven to contain no merge commits."""
+
+    if not start or not head:
+        return None
+    proc = _git("rev-list", "--merges", "--count", f"{start}..{head}")
+    if proc.returncode != 0:
+        return None
+    try:
+        return int(proc.stdout.strip() or "0") == 0
+    except ValueError:
+        return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -110,14 +140,22 @@ def main(argv: list[str] | None = None) -> int:
     candidate = _git("rev-parse", args.candidate).stdout.strip() if args.candidate else ""
     fallback = _git("rev-parse", args.fallback).stdout.strip() if args.fallback else ""
 
+    fallback_is_commit = _is_commit(fallback)
+    fallback_is_ancestor = _is_ancestor(fallback, head)
+
     mode, start, reason = resolve(
         candidate,
         head,
         candidate_is_commit=_is_commit(candidate),
         candidate_is_ancestor=_is_ancestor(candidate, head),
         fallback=fallback,
-        fallback_is_commit=_is_commit(fallback),
-        fallback_is_ancestor=_is_ancestor(fallback, head),
+        fallback_is_commit=fallback_is_commit,
+        fallback_is_ancestor=fallback_is_ancestor,
+        fallback_range_merge_free=(
+            _range_merge_free(fallback, head)
+            if fallback_is_commit and fallback_is_ancestor
+            else None
+        ),
     )
     print(f"batch_mode={mode}")
     print(f"batch_from={start or ''}")
