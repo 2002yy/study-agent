@@ -22,6 +22,10 @@ import sys
 # Ordered so the first match wins; most specific categories come first.
 _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
+        "developer-cli",
+        ("tools/studyctl.py", "tools/studyctl_execution.py", "tools/studyctl_research.py", "tools/studyctl_recording.py", "tools/studyctl_compare.py", "tools/studyctl_ci.py", "tools/studyctl_github.py", "tests/test_studyctl_github.py", "tests/test_studyctl_github_cli.py", "tests/test_studyctl.py", "tests/test_studyctl_plan.py", "tests/test_studyctl_execution.py", "tests/test_studyctl_research.py", "tests/test_studyctl_catalog.py", "tests/test_studyctl_recording.py", "tests/test_studyctl_compare.py", "tests/test_studyctl_ci.py", "tests/test_studyctl_ci_cli.py", "tests/test_studyctl_event_pages.py"),
+    ),
+    (
         "conversation-decision",
         (
             "src/application/conversation_decision.py",
@@ -167,6 +171,7 @@ _FRONTEND_CATEGORIES = frozenset({"frontend"})
 # path -> one research set" would look fast while silently narrowing what is verified, so
 # an unregistered subsystem deliberately falls through to the full scope instead.
 _IMPACT_SET_BY_CATEGORY: dict[str, str] = {
+    "developer-cli": "studyctl",
     "conversation-decision": "conversation_decision_1b",
     "standard": "standard_research_loop",
 }
