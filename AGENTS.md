@@ -4,6 +4,38 @@ This file defines repository-wide execution rules for Codex/agents working in th
 
 The goal is to preserve engineering quality while avoiding repeated context loading, redundant scans, repeated full-suite validation, oversized logs, duplicate CI watching, and rediscovery of already-frozen decisions.
 
+## 0. Mandatory product priority — two-loop iteration
+
+**For every newly started agent session, before choosing product work:**
+read this root `AGENTS.md`, then `docs/PROJECT_STATUS.md` §0 Current Handoff,
+and follow the stable product policy in
+[`docs/PRODUCT_ITERATION_POLICY.md`](docs/PRODUCT_ITERATION_POLICY.md).
+The handoff owns the current batch and exact state; this section owns the
+**permanent prioritization and acceptance rules**. Never infer the main branch
+state from another worktree, a feature branch, or old chat messages. Use
+the current checked-out commit and verify whether it contains this policy.
+
+**Two loops:** the Static Loop verifies deterministic code/UI/contract behavior
+without paid model calls; the Dynamic Loop uses consented, budgeted real user
+tasks to compare Study Agent with ChatGPT and independently verifiable truth.
+A static green CI is engineering evidence, **not** proof of user-task success.
+
+**Selection priority (highest first):** P0 safety/privacy/budget/data-integrity
+regressions; P1 real-user task completion blockers (e.g. empty final answer,
+lost image, prevented model call); P2 measurable answer/search/interaction
+quality deficits; P3 cosmetic polish and speculative new features.
+An explicit user-selected slice takes precedence within the safe priorities.
+Do not silently preempt an already-owned concurrent worktree; record the
+finding and request assignment when it is outside your slice.
+
+**Before claiming a product improvement:** classify the defect's owner
+(model / retrieval / orchestration-contract / UI), give a static regression
+test, and state whether an authorized dynamic comparison was actually run.
+Do not invent ChatGPT comparisons, final answers, screenshots, model traces,
+or cost evidence. Paid/model/API runs always require separate explicit
+authorization and a validated shared cost cap; routine CI stays offline.
+Never loosen evidence requirements or bypass security just to make a test pass.
+
 ## 1. Source of truth and cold start
 
 1. Treat `docs/PROJECT_STATUS.md` **Current Handoff** as the primary current-state entrypoint.
