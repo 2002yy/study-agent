@@ -331,6 +331,25 @@ def test_two_rounds_without_gain_stop_the_research_but_keep_the_findings(reposit
     assert state.stop_reason != ""
 
 
+def test_no_progress_stop_cannot_override_an_active_worker(repository):
+    """The policy cannot erase an in-flight lease from a worker it does not own."""
+    _create(repository)
+    _checkpoint(repository, index=0)
+    _checkpoint(repository, index=1)
+
+    claimed = repository.claim(RESEARCH, owner="live-worker")
+    assert repository.stop_if_no_progress(RESEARCH) is None
+    state = repository.load(RESEARCH)
+    assert state.status != STATE_STOPPED
+    assert state.lease_owner == "live-worker"
+    assert state.fencing_token == claimed.fencing_token
+
+    repository.release(RESEARCH, owner="live-worker", fencing_token=claimed.fencing_token)
+    stopped = repository.stop_if_no_progress(RESEARCH)
+    assert stopped is not None
+    assert stopped.status == STATE_STOPPED
+
+
 def test_a_round_with_gain_does_not_stop_the_research(repository):
     """The negative side: a research that is still learning must keep going.
 
