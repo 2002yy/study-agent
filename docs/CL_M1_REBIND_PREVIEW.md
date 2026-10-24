@@ -3252,3 +3252,234 @@ tier/upgrade 路由，`src/application/` 下**无任何** `approve(`/`apply_upgr
 所以这三处修复**当前没有生产暴露面**；但它们是**生产启用前的最后一道闸**，
 按用户裁定**必须在启用前修掉**——这正是"独立切片"的含义。
 
+
+### 34.11 费用账本兼容合同：两套语义的合并方案（本节只定合同，不含实现）
+
+§34.9 第 9 项记下了"接口形态已变"，但只写了一句"需要按 `spend_guard` 的实际 API
+重新设计一次"。本节把这件事落到**可执行的合同**，以便下一刀有据可依。
+
+本节的**全部结论来自源码与运行证据**，不来自 #259 原分支的设计文档。
+
+#### 34.11.1 两套账本语义，逐条对照
+
+main 侧（`a717d0c1` 合入，即 #272 的 AR/账本线）落地的是
+`src/infrastructure/sqlite/spend_ledger.py` 的 `SpendLedger`，其模块 docstring
+把规则写死为四条：
+
+```text
+money is integer micro-CNY; no float balance is ever compared
+the experiment's cap_micros is written once and is immutable
+a reservation is inserted inside BEGIN IMMEDIATE after reading the current total
+reservations are never refunded, so the cap bounds the reserved cost even across crashes
+a request_key may be reserved once
+```
+
+CL-M3 侧（QD-2d）声明的是 `src/web/semantic_admission.py` 的 `LedgerPort`：
+
+```text
+def reserve(self, request_id: str, *, model: str, max_output_tokens: int) -> str: ...
+def settle(self, request_id: str, *, outcome: str, cost_micros: int) -> None: ...
+```
+
+把两者放在一起，**四处不兼容**，其中第 4 处是语义冲突、其余三处是签名冲突：
+
+| # | 维度 | main（`SpendLedger`） | CL-M3（`LedgerPort`） |
+| --- | --- | --- | --- |
+| 1 | 预留首参 | `experiment_id` | `request_id` |
+| 2 | 关键字集合 | `request_key, amount_micros, purpose, model, identity, now` | `model, max_output_tokens` |
+| 3 | 预留返回 | `Reservation` 对象 | `str` verdict |
+| 4 | **生命周期** | **预留即终态，永不退款** | **预留 → 结算（settled / unresolved）** |
+
+**第 4 条是真正的冲突，其余三条是形状差异。** 形状差异可以用适配层吸收；
+生命周期冲突不能——main 的账本里**没有"结算"这个动作**，预留那一刻钱就已经计入了，
+`reserve` 之后不存在任何能改变已记金额的接口。
+
+**已核实的事实**（`grep` 全仓）：
+
+- `src/` 下 `SpendLedger` **没有** `settle` 方法，只有
+  `ensure_experiment` / `reserve` / `experiment_spend`；
+- `LedgerPort.settle` 在**整个代码库中只由测试 fake 实现**
+  （`tests/test_semantic_admission.py`、`tests/test_turn_lifecycle.py`），
+  **没有任何生产实现**；
+- `SpendGatedAdmission` 在 `src/` 中只被 `conversation_turn_lifecycle.py`
+  用于 `isinstance` 校验，**没有任何生产代码构造它**；
+- `TurnLifecycle` 在 `src/` 中**没有任何生产构造点**；
+- 生产 host `semantic_turn_host.py` / `semantic_research_host.py`
+  **只接入了 `validate_tool_call`**，没有接入 `TurnLifecycle` 或费用闸门。
+
+**结论**：`LedgerPort` / `AdmittedCompletion` / `SpendGatedAdmission`
+是一套**尚未装配的骨架**，它与 main 的冲突**目前没有生产暴露面**。
+这与 §34.10 的 R-6 情况同类：问题真实，但**尚未接线**。
+
+#### 34.11.2 裁定：账本层唯一真相 + 观测层两态标记
+
+**不把 `LedgerPort.settle` 映射到 `SpendLedger` 上。** 理由是语义性的，不是省事：
+
+main 的"预留即终态"**比** CL-M3 的两态结算**更保守**。CL-M3 之所以要区分
+settled 与 unresolved，是因为它要**对外报告**"这次调用花了多少钱"——
+结算失败时它必须能把这一笔留在 pending 里等重试或对账。
+main 不需要区分，因为钱在预留时就按最坏情况计入了，**报告"没花"永远不会被误报**。
+
+于是把两个诉求拆到两层，各自用正确的工具：
+
+- **账本层（钱的唯一真相）= main 的 `SpendLedger`，预留即终态，不新增任何退款/结算接口。**
+  这一层只回答"这次发送是否被允许、额度还剩多少"。任何"退钱"的想法在这里都是错的：
+  main 明确记录过"未经验证的退款会把上限变成事后估算，而这正是该模块要防止的事"。
+
+- **观测层（对外报告的形态）= CL-M3 的两态标记，但它**不是第二个账本**。
+  `settled` / `unresolved` 只作为**一次调用的结果标签**随回合收据上报，
+  **不参与任何金额计算、不写任何账本表**。
+
+这样两套语义各自的强项都保住了：钱的口径只有一个来源，
+而"这次调用到底成没成"仍然能被如实上报。
+
+#### 34.11.3 兼容合同（五条，逐条可判定）
+
+**C1 唯一账本。** 生产路径上的金额真相只来自 `SpendLedger`。
+`LedgerPort` **不得**在生产代码中出现第二个实现；
+`src/` 下若出现第二处金额计算或第二张余额表，即为违约。
+
+**C2 不新增退款。** 不得为 `SpendLedger` 增加 `settle` / `refund` / `release` 之类接口。
+CL-M3 需要的"结算"能力，若在生产接线时确实必需，
+必须先回答"这笔钱在 main 的预留即终态模型下如何被**如实**记账"，
+而不是补一个退款 API 了事。
+
+**C3 观测标签不是账本。** `settled` / `unresolved` 只作标签出现在回合收据里，
+**不写金额、不改余额**。判定标准：把标签换成任何字符串，账本余额必须**一字不变**。
+
+**C4 两态语义不得退化为"完成"。** 合同 §11.2 / Q-7 要求停止理由可区分；
+同理，回合收据里"无法归因的调用"必须记为 `unresolved`，
+**不得**默认记为"完成"或"已结算"。这条与 §34.10.5 的取消终态保护同源。
+
+**C5 形状适配走既有封装，不新造第三套 API。** `LedgerPort.reserve` 与
+`SpendLedger.reserve` 的签名差异，按 main 已有的
+`src/llm_spend_guard.py::reserve_call` 的形态吸收
+（`SpendScope` 提供 run/operation/experiment 与 `next_key(purpose)`，
+金额由 `reservation_cny(prompt_chars, max_tokens, attempts)` 预估）。
+**不新增**第三种账本调用形态。
+
+#### 34.11.4 与"接入生产"的边界
+
+**本节不定生产接线方案。** 生产接线涉及三个尚不存在的装配点
+（谁构造 `TurnLifecycle`、谁构造 `SpendGatedAdmission`、谁提供 `LedgerPort` 的真实对象），
+以及"回合收据"在 QD 的调用路径上落在哪里——
+这是一次**新的功能批次**，不是本轮的合同补强。
+
+按 §34.8 的既有口径，这一条**不改变**任何已有结论：
+"取消后不再产生模型调用"要的是**账本证据**，
+而账本这一层**至今没有接进 QD 的调用路径**——
+本节只是把"接进去之后必须长什么样"先定下来。
+
+#### 34.11.5 本节的边界声明
+
+- 本节**只定合同**，**不改代码**，**不加测试**；
+- 本节**不宣称**任何一项 §10.8 检查通过；
+- 本节**不解决**主线集成阻断（那是 §34.12 的事）；
+- 本节的五条合同**尚未被任何护栏强制执行**——
+  按用户的一贯要求，护栏必须由 pipeline 强制、不能依赖 agent memory，
+  所以这些合同在真正接线时必须各自配一条**能被牙齿检验**的用例。
+
+### 34.12 主线 CI 阻断的根因与修复（`3f41a1c0`）
+
+本节记录主线 CI 那两条失败**到底是什么**、怎么修的，以及**为什么这不是迁移编号冲突**。
+
+#### 34.12.1 失败现象与真实根因
+
+CI 连着三次以同样的两条失败告终（run `40110135901` / `40113625192` / `40116002968`）：
+
+```text
+FAILED tests/test_ar_integration_safety.py::test_current_main_v24_upgrades_to_v26_without_losing_chat_data - AssertionError: assert '29' == '26'
+FAILED tests/test_ar_integration_safety.py::test_v25_upgrade_failure_rolls_back_and_backup_remains_usable - AssertionError: assert '29' == '26'
+2 failed, 6140 passed, 13 skipped
+```
+
+**根因不是迁移编号冲突。** 这一条必须先钉死，否则会导向错误的修法
+（"把 27/28/29 改成别的号"），而那恰恰是 §34.11 之外**最坏**的选择——
+迁移编号是**永久分配**，复用会让两个分支在同一版本号下执行不同的 SQL。
+
+已核实的事实：
+
+```text
+origin/main 的 SCHEMA_VERSION = 26，迁移编号到 26 为止
+本分支占用 27 / 28 / 29 —— 在主线上是空闲的
+git diff origin/main -- tests/test_ar_integration_safety.py  →  空
+```
+
+**这个测试文件是从 main 原封不动搬过来的**，它的断言
+"从真实 main v24 升级后落到 26"在 main 上成立，在本分支必然不成立。
+换句话说：**不是编号撞车，是断言写死了一个别的分支会移动的常量**。
+
+#### 34.12.2 修法：把目标从魔数改成"构建自己声称支持的版本"
+
+修法不是把 `26` 改成 `29`——那只是把同一个错误推到下一次迁移。
+改为**从构建自身推导**：
+
+- 目标版本 = `schema.SCHEMA_VERSION`（`apply_migrations` 真正用来做降级判断的那个常量）；
+- **交叉校验** `declared[-1] == schema.SCHEMA_VERSION`
+  —— 这一条堵住"从 `MIGRATIONS` 删掉一个迁移却不动 `SCHEMA_VERSION`"；
+- **加强**：不仅校验 25/26，而是要求**全部已声明迁移**都记为 `completed`；
+- **加强**：降级被拒之后，数据库必须**一字未动**、账本表**仍在**
+  ——这才是"绝不抹掉已提交预留"的本意。
+
+仓库里已有的正确范式在 `tests/test_runtime_sqlite_repository.py:164-169`
+（"断言已声明的迁移，而不是 `range(1, SCHEMA_VERSION+1)`"），
+本次修法与它同源。
+
+#### 34.12.3 牙齿检验（四轮）
+
+| 变异 | 期望 | 实测 |
+| --- | --- | --- |
+| 删掉 head 迁移 29，保留 `SCHEMA_VERSION = 29` | 失败 | ✅ `assert '28' == '29'` |
+| `SCHEMA_VERSION` 虚标为 30（迁移只到 29） | 失败 | ✅ `assert '29' == '30'` |
+| 迁移 26 不再创建 ledger 表 | 失败 | ✅ `no such table: llm_spend_reservations` |
+| 恢复旧的硬编码 `"26"` | 失败 | ✅ `assert '29' == '26'` ×2（与 CI 日志逐字一致） |
+
+**第一轮牙齿检验暴露了我自己的一个弱点**：最初用 `declared[-1]` 作期望值，
+把 head 迁移换成空 SQL 后测试**仍然全过**——因为期望值跟着列表一起降级了。
+改成 `SCHEMA_VERSION` + 交叉校验后，三种变异才都被抓住。
+这一条记在这里，是因为**"改弱了但没察觉"比"改错了"更危险**。
+
+#### 34.12.4 一个与本次改动无关的既有 flaky（如实记录）
+
+跑回归时发现 `tests/test_runtime_sqlite_repository.py::test_concurrent_database_initialization_applies_each_migration_once`
+在本地 8 文件组合下稳定失败（`attempt to write a readonly database`）。
+
+**归属已用对照实验钉死**：
+
+| 条件 | 结果 |
+| --- | --- |
+| 基线（不含本次改动）4 轮 | **4/4 复现**，同一行、同一错误 |
+| 含本次改动 | 同样复现，频率一致 |
+| 单跑该测试 20 次 | 全过 |
+| 6 个两两组合 | 全过 |
+| Linux CI（run `40116002968`） | **通过**（`6140 passed`） |
+
+结论：**本地 Windows 环境的既有 flaky，与本次改动无关**，且在 CI 上不复现。
+按 §31.7 的既有做法如实记录，**不在本批处理**——
+它需要的是 Windows 上 SQLite 并发初始化的独立调查，混进本次集成收口会扩大范围。
+
+#### 34.12.5 #286 的归档（取代证据）
+
+#286（`fix/cl-m3-recovery-spend-review-20261024`，HEAD `0567be5e`）已关闭。
+关闭前逐项核实，证据如下（全部来自 git 对象）：
+
+| 核查项 | 结果 |
+| --- | --- |
+| 相对当前分支的差异 | **+23541 / −313** 行，120 个文件 |
+| 独有测试文件 | **0 个** |
+| 独有测试函数 | 4568 个中仅 **2 个**不在当前分支，且均为 CI 路由测试（与本 PR 主题无关）：一个被重命名、一个被重构并加强 |
+| 五大主题的实现 | 全局事件游标 `thread_events` / 一致性快照 `snapshot_parts` / 事件表 `RESEARCH_EVENT_MIGRATION_V28` / 保守费用分类 `llm_spend_guard` / 跨研究事件流 —— **全部在当前分支有实现** |
+| 唯一整文件缺失 `src/web/research/claims.py` | **已重构**为 `claim_planner.py` + `claim_conflict_assessment.py` + `claim_evidence_assessment.py`（拆分，非丢失） |
+| 剩余逐行差异 | 36 个文件、最大 83 行，经核为变量重命名与主线演进，无功能缺口 |
+
+**注意**：`patch-id` 比对在这个仓库**不可用**——仓库里有二进制文件（`.docx`），
+`git patch-id` 对其报 `unsupported filetype` 并使整个比对静默失真。
+本次改用**文件树差异 + 测试函数名集合差 + 逐文件行数差**三重交叉，
+这也是 §31.7 以来一直用的办法。
+
+#### 34.12.6 本节不做的事
+
+- 不改动迁移编号（27/28/29 保持不变）；
+- 不修改 `src/` 任何生产代码——本节**只改了一个测试文件**；
+- 不修 §34.12.4 的 Windows flaky；
+- 不宣称主线集成已完成——那要等本节修复后的 CI 在最终 HEAD 上跑绿。
