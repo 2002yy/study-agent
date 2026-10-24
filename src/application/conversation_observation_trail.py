@@ -124,9 +124,9 @@ class ObservationTrail:
         # Walk the identity when it exists, so a refusal's identity advance lands between
         # the right frames. Without it, the frames alone define the chain as they always
         # did - no refusal in the history means the two agree by construction.
+        plan: list[tuple[int, ObservationFrame | None]] = []
         if self.identity:
             remaining_frames = iter(self.frames)
-            plan = []
             for step in self.identity:
                 if step > 0:
                     plan.append((step, None))
