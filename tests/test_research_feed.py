@@ -88,12 +88,22 @@ def _create(repository, research_id=RESEARCH, *, thread_id=THREAD, question="wha
     )
 
 
-def _round(research_id, index, *, question="what is X?", evidence=()):
+def _round(research_id, index, *, question="what is X?", evidence=(), urls=()):
+    """One round.
+
+    ``urls`` is the source it observed. QD-3d froze the rule that an iteration
+    counts as progress only when it read a **new source** - a fact is an
+    opaque string, so the same source said differently is not new knowledge.
+    A round that has no source at all therefore reads nothing new, which is
+    what QD-3e's no-progress check acts on.
+    """
+
     return ResearchRound(
         research_id=research_id,
         round_index=index,
         question=question,
         queries=(f"query-{index}",),
+        observation_urls=tuple(urls),
         evidence=tuple(evidence),
     )
 
@@ -607,6 +617,11 @@ def test_every_round_the_coordinator_runs_publishes_an_event(repository, feed):
                 resume.state.research_id,
                 resume.next_round_index,
                 evidence=(f"fact-{resume.next_round_index}",),
+                # Each round reads its own source. Without one, the round
+                # observed nothing new - and QD-3e's no-progress rule would
+                # stop the research after the second round, which is a
+                # different test than the one this file is making here.
+                urls=(f"https://example.invalid/source-{resume.next_round_index}",),
             )
         )
 

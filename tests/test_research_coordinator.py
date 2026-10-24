@@ -222,34 +222,79 @@ def test_two_workers_never_advance_the_same_research_at_once(repository):
 
     Both coordinators discover the research. Exactly one claim may succeed, so
     exactly one round may be written by this pair.
+
+    **There are two ways to lose, and they are not the same event.** A worker
+    that scans *before* the winner claims sees the research as a candidate and
+    is refused by ``claim`` - the repository tells it so, and the refusal is
+    counted as ``leases_lost``. A worker that scans *after* the winner has
+    claimed never sees the research at all, because a live lease is not
+    offered, and it is simply skipped. Both are correct, and which one
+    happens depends on which scan reaches the database first.
+
+    So the assertion is about what the pair guarantees, not about which of
+    the two refusals occurred: **together they advance the research exactly
+    once**, and the loser never wrote a round of its own. Asserting a
+    particular counter instead would be asserting the scheduler, and it
+    failed on roughly half the runs.
     """
 
     _create(repository)
-    first = ResearchCoordinator(repository, executor=RecordingExecutor(), owner="worker-a")
-    second = ResearchCoordinator(repository, executor=RecordingExecutor(), owner="worker-b")
+    started = threading.Barrier(2)
+    a_scanned = threading.Event()
+    b_scanned = threading.Event()
+
+    class _HoldingExecutor(RecordingExecutor):
+        """An executor that stays inside the round until the other worker is done.
+
+        The wait happens **before** the round is produced, so the lease is
+        still held while the other worker scans. Waiting afterwards would be
+        too late: the coordinator hands the lease back as soon as the round
+        is written down.
+        """
+
+        def __init__(self, other_scanned: threading.Event):
+            super().__init__()
+            self._other_scanned = other_scanned
+
+        def __call__(self, resume, lease):
+            assert self._other_scanned.wait(timeout=30), (
+                "the other worker never scanned"
+            )
+            return super().__call__(resume, lease)
+
+    executor_a = _HoldingExecutor(b_scanned)
+    executor_b = _HoldingExecutor(a_scanned)
+    first = ResearchCoordinator(repository, executor=executor_a, owner="worker-a")
+    second = ResearchCoordinator(repository, executor=executor_b, owner="worker-b")
 
     results = []
     lock = threading.Lock()
 
-    def run(coordinator):
+    def run(coordinator, scanned):
+        started.wait(timeout=5)
         outcome = coordinator.scan_once()
         with lock:
             results.append(outcome)
+        scanned.set()
 
     threads = [
-        threading.Thread(target=run, args=(first,)),
-        threading.Thread(target=run, args=(second,)),
+        threading.Thread(target=run, args=(first, a_scanned)),
+        threading.Thread(target=run, args=(second, b_scanned)),
     ]
     for thread in threads:
         thread.start()
     for thread in threads:
-        thread.join()
+        thread.join(timeout=30)
 
     total_rounds = sum(result.rounds for result in results)
     assert total_rounds == 1
     assert len(repository.rounds(RESEARCH)) == 1
-    # Whoever lost was told so by the repository rather than by the other worker.
-    assert sum(result.leases_lost for result in results) == 1
+    # The loser did not write a round of its own. It was stopped by the
+    # database - either refused at the claim or never offered the research -
+    # and in both cases it is the repository, not the other worker, that
+    # decided. Which of the two refusals happened is not the point; the
+    # point is that the pair advanced the research exactly once.
+    assert len(executor_a.calls) + len(executor_b.calls) == 1
 
 
 def test_a_claimed_research_is_not_offered_to_another_worker(repository):
