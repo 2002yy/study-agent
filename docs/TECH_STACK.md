@@ -8,22 +8,13 @@
 
 ## 1. 项目定位
 
-Study Agent 是一个本地优先、教学法驱动、证据可追溯、支持长期记忆的 AI 学习工作台。
+Study Agent 的目标是本地优先、证据可追溯、可恢复的**通用 AI 聊天与研究 Agent**。自然聊天、自主研究、持续交互、智能 UI、统一多模态和工具执行是核心产品方向；教学法、源码学习、学习状态与长期记忆是建立在其上的专业能力。
 
-它不是简单的“输入 Prompt -> 返回答案”，而是将以下能力组织为可恢复的学习与研究流程：
+工程能力包括：任务意图与模型路由、研究分层与来源阅读、静态知识/动态修订、受控工具、可恢复会话与操作、附件绑定、SQLite 持久化、费用预留与用户数据外发控制。**上述模块的存在不代表新对话循环已成为生产主路径，更不代表真实任务质量达标。** CL-M3 宿主接线和真实动态验收状态见 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。
 
-- 任务意图识别；
-- 教学协议和学习状态机；
-- 学习者回答评估；
-- 本地 RAG；
-- 联网搜索和来源追溯；
-- 会话与运行状态恢复；
-- 用户确认后写入长期记忆；
-- 多 Provider 模型接入和外发数据控制。
+对外一句话（目标与现状分开表述）：
 
-对外一句话：
-
-> A local-first AI learning workbench built with React, FastAPI and SQLite, combining pedagogy-aware state machines, durable research/RAG runs, source-traceable evidence and user-confirmed long-term memory.
+> Study Agent is a local-first conversational and research agent built with React, FastAPI and SQLite. It integrates source-grounded research, durable conversation state, bounded tool execution and learning workflows; the new production agent loop and live end-to-end quality are still under validation.
 
 ## 2. 当前技术栈
 
@@ -32,7 +23,7 @@ Study Agent 是一个本地优先、教学法驱动、证据可追溯、支持�
 | Frontend | React 18 + TypeScript + Vite | 工作台、会话导航、学习状态、证据轨迹、设置和抽屉 UI |
 | Frontend state | Feature controllers + reducer + recovery hooks | 各功能 owner、异步 operation、刷新恢复和本地 UI 缓存 |
 | API | FastAPI + Pydantic | HTTP/SSE adapter、输入校验、响应合同 |
-| Application | Python application services | Chat、Group、News、Tool、Memory、RAG、WebLookup 等业务编排 |
+| Application | Python application services | Chat、Research/RAG、Tool、Memory 和学习场景编排；Group/News 为兼容或实验能力，并非独立主产品入口 |
 | Persistence | SQLite + ordered migrations | durable runs、会话、评估、索引状态和版本迁移 |
 | LLM | OpenAI-compatible client | OpenAI、DeepSeek、OpenRouter、SiliconFlow、本地兼容服务 |
 | Pedagogy | Protocol engine + PedagogyEvalRun | 苏格拉底、费曼、项目、直接讲解和证据化学习评估 |
@@ -251,7 +242,7 @@ CI 运行：
 
 ## 12. 对外项目亮点表述
 
-可以重点表达：
+对外先说明**通用聊天与研究目标**，再说明已有技术模块与未验收事项，避免把局部模块描述成产品已经达到 GPT-6 水平。以下可按实际实现和证据选择表达的工程亮点：
 
 1. 将通用聊天升级为教学法驱动的可恢复学习状态机；
 2. 用 PedagogyEvalRun 阻止模型失败或关键词命中导致的虚假掌握；
