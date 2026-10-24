@@ -4,7 +4,7 @@
 > 当前状态、缺口和下一步统一查看 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。  
 > 架构 owner 与兼容边界查看 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
 
-本文用于说明当前主架构、核心工程能力和对外项目表达。产品运行时为 React + FastAPI；旧 Streamlit UI 与运行依赖已移除。
+本文用于说明当前主架构、核心工程能力和对外项目表达。前端依赖以 `frontend/package.json` 为准（当前 React ^19.1.0、Vite ^8.0.16），产品运行时为 React + FastAPI；旧 Streamlit UI 与运行依赖已移除。
 
 ## 1. 项目定位
 
@@ -20,7 +20,7 @@ Study Agent 的目标是本地优先、证据可追溯、可恢复的**通用 AI
 
 | 层级 | 技术 / 模块 | 责任 |
 |---|---|---|
-| Frontend | React 18 + TypeScript + Vite | 工作台、会话导航、学习状态、证据轨迹、设置和抽屉 UI |
+| Frontend | React 19 + TypeScript + Vite 8 | 工作台、会话导航、学习状态、证据轨迹、设置和抽屉 UI |
 | Frontend state | Feature controllers + reducer + recovery hooks | 各功能 owner、异步 operation、刷新恢复和本地 UI 缓存 |
 | API | FastAPI + Pydantic | HTTP/SSE adapter、输入校验、响应合同 |
 | Application | Python application services | Chat、Research/RAG、Tool、Memory 和学习场景编排；Group/News 为兼容或实验能力，并非独立主产品入口 |
