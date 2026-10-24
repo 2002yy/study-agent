@@ -262,6 +262,14 @@ class ResearchFeed:
             research_id, after_event_seq=after_event_seq, limit=self.limit
         )
 
+    def thread_events_since(
+        self, thread_id: str, *, after_event_seq: int = 0
+    ) -> tuple[ResearchEvent, ...]:
+        """A single ordered global cursor across researches of one thread."""
+        return self.repository.thread_events(
+            thread_id, after_event_seq=after_event_seq, limit=self.limit
+        )
+
     def poll(
         self,
         subscription: ResearchSubscription,
