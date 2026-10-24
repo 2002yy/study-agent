@@ -2684,25 +2684,29 @@ test_concurrent_database_initialization_applies_each_migration_once`），
 | --- | --- |
 | 交付分支 | `codex/cl-m3-capability-20261023` |
 | **代码与测试的最终 SHA** | **`0f38269f`**（`0f38269fc3dcc3d046ce1cf83c1142849eec55af`） |
-| 文档提交 | `f5ee2d31`（只改 `docs/`，**逐字未改 `src/` 与 `tests/`**） |
+| 文档提交 | 在 `0f38269f` **之上**（只改 `docs/`；**逐字未改 `src/` 与 `tests/`**） |
 | 三个代码提交 | `04f05a14`（实现）→ `7145729e`（竞争测试修复）→ `0f38269f`（真回归 + 继承 flaky 修复） |
 | merge-base | `c391f482`（与 `origin/main` 的分叉点，main 领先 47 / 本分支领先 22） |
-| 远端 | 推送至 `origin/codex/cl-m3-capability-20261023`（`b0565443..0f38269f`，随后 `f5ee2d31`） |
-| 文档基线 | 本文档与 [`CL_M3_CAPABILITY_CONTRACT.md`](CL_M3_CAPABILITY_CONTRACT.md) **在 `f5ee2d31` 中首次被 Git 跟踪**（此前从未在任何分支存在） |
+| 远端 | 推送至 `origin/codex/cl-m3-capability-20261023`（`b0565443..0f38269f`，随后文档提交） |
+| 文档基线 | 本文档与 [`CL_M3_CAPABILITY_CONTRACT.md`](CL_M3_CAPABILITY_CONTRACT.md) **在本批中首次被 Git 跟踪**（此前从未在任何分支存在） |
 
-**"绑定同一最终 SHA"是怎么成立的——不是靠引用，是靠一个可复核的等式**：
+**"绑定同一最终 SHA"是怎么成立的——不是靠引用某个 SHA，而是靠一个可复核的等式**：
 
 ```
-git diff 0f38269f f5ee2d31 -- src/ tests/     → 空
+git diff 0f38269f HEAD -- src/ tests/     → 空
 ```
 
 文档提交**没有动一字节的源码或测试**，所以
-**在 `f5ee2d31` 上跑出来的结果与在 `0f38269f` 上跑出来的结果必然相同**——
+**在 HEAD 上跑出来的结果与在 `0f38269f` 上跑出来的结果必然相同**——
 这不是推断，是上面那行命令的直接推论。§34.4 的 152 passed 与 ruff 全绿
-**都是在 `f5ee2d31`（即含本节的 HEAD）上实测的**。
+**都是在 HEAD（= 含本节的这一版）上实测的**。
 
-因此本节的落款是：代码 = 测试 = 文档 = **同一个工作树状态**。
+因此本节的落款是：代码 = 测试 = 文档 = **同一个工作树状态**，
+锚点是 `0f38269f` 这个**代码提交**，而 HEAD 只在其上叠加了文档。
 如果这三者之间有任何一字节的差异，上面那条 `git diff` 就会打印出来。
+
+> 这一版刻意**不**在正文里写死文档提交的 SHA：那会形成"改一次 SHA 就再漂一次"的循环。
+> 锚点定在代码提交上，因为**代码提交是不再变动的那一个**。
 
 **关于文档基线（此前的一处风险，已处置）**：本文档此前只存在于 C 盘
 `codex/e2e-proxy-guard-20261023` 工作树，**从未被任何分支跟踪**，
@@ -2815,7 +2819,7 @@ tests/test_research_state_repository.py     29
 （`test_research_cancellation.py` 与 `test_research_routes.py` **不**在这 8 个之列；
 把它们也算进来是 **174**，两个数都对，但只有 152 是"QD 全套"这个固定口径。）
 
-**以上结果均在 `f5ee2d31`（含本节的 HEAD）上实测**，
+**以上结果均在 HEAD（含本节的这一版）上实测**，
 `src/` 与 `tests/` 相对 `0f38269f` 逐字未变（见 34.0 的 `git diff` 等式）。
 
 **两处修复，都不是"把断言改松"**：
