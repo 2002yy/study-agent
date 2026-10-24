@@ -423,6 +423,47 @@ def test_the_snapshot_counts_what_the_client_missed(repository, feed):
     assert len(snapshot.events) == 1
 
 
+def test_the_missed_count_is_a_count_and_not_a_subtraction(repository, feed):
+    """The sequence is global, so "total minus cursor" is the wrong arithmetic.
+
+    The cursor is global - it says how far into the whole log the client has
+    read - while the total is per research. Subtracting one from the other
+    counts the *other* researches' events that happen to sit in between, and
+    can even go negative.
+
+    The two formulas only differ when a thread holds more than one research,
+    which is exactly the case a single-research test cannot see. That is why
+    this test builds two.
+    """
+
+    _create(repository, RESEARCH, thread_id=THREAD)
+    _create(repository, "research-2", thread_id=THREAD)
+    # Two events for the first research, then one for the second.
+    _checkpoint(repository)
+    _checkpoint(repository, index=1)
+    other = repository.claim("research-2", owner="worker-2")
+    repository.checkpoint(
+        "research-2",
+        _round("research-2", 0, evidence=("fact-other",)),
+        owner="worker-2",
+        fencing_token=other.fencing_token,
+        expected_state_version=other.state_version,
+    )
+
+    # The client has read everything up to and including sequence 2.
+    cursor = 2
+
+    snapshot = feed.snapshot("research-2", after_event_seq=cursor)
+
+    # research-2 has exactly one event after the cursor.
+    assert snapshot.missed_events == 1
+    assert [event.kind for event in snapshot.events] == [EVENT_ROUND_COMPLETED]
+    # The subtraction would have said 1 - 2, i.e. nothing at all.
+    assert snapshot.missed_events != max(
+        0, repository.count_events("research-2") - cursor
+    )
+
+
 def test_a_client_that_never_disconnected_sees_no_missed_events(repository, feed):
     _create(repository)
     _checkpoint(repository)
