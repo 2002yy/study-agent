@@ -422,6 +422,45 @@ def test_a_reconnecting_client_resumes_from_its_cursor(repository, feed):
     assert [event.event_seq for event in seen_one] == [2]
 
 
+def test_snapshot_cannot_mix_rounds_committed_after_its_state_read(
+    repository, feed, monkeypatch
+):
+    """A concurrent checkpoint between SELECTs must not split one snapshot.
+
+    WAL lets a second writer commit while the reader holds its SQLite snapshot.
+    Without a single BEGIN, this returns round_index=1 alongside two rounds.
+    """
+    _create(repository)
+    _checkpoint(repository)
+    with repository.database.connect() as connection:
+        connection.execute("PRAGMA journal_mode=WAL")
+
+    writer = ResearchStateRepository(RuntimeDatabase(repository.database.path))
+    connect = repository.database.connect
+    wrote = False
+
+    def hooked_connect():
+        connection = connect()
+
+        def on_sql(statement):
+            nonlocal wrote
+            if "SELECT * FROM research_rounds" in statement and not wrote:
+                wrote = True
+                _checkpoint(writer, owner="other-worker", index=1)
+
+        connection.set_trace_callback(on_sql)
+        return connection
+
+    monkeypatch.setattr(repository.database, "connect", hooked_connect)
+    snapshot = feed.snapshot(RESEARCH)
+    assert wrote
+    assert snapshot.round_index == 1
+    assert [record.round_index for record in snapshot.rounds] == [0]
+    assert snapshot.missed_events == 1
+    assert [event.event_seq for event in snapshot.events] == [1]
+    assert writer.load(RESEARCH).round_index == 2
+
+
 def test_the_snapshot_counts_what_the_client_missed(repository, feed):
     _create(repository)
     _checkpoint(repository)

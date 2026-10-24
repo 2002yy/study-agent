@@ -98,13 +98,17 @@ class SpendGatedAdmission:
         self, request_id: str, *, cost_micros: int | None = None
     ) -> bool:
         """Settle one call the loop reported as completed. ``False`` = already settled."""
-        estimate = self._open.pop(request_id, None)
+        estimate = self._open.get(request_id)
         if estimate is None:
             return False
         cost = self._price(estimate) if cost_micros is None else cost_micros
         if type(cost) is not int or cost < 0:
             raise ValueError("invalid spend cost")
+        # The durable port must settle idempotently by request_id. A failure
+        # (including an ambiguous commit acknowledgement) cannot drop the
+        # pending identity: the host may retry or reconcile it.
         self._spend.settle(request_id, outcome=SETTLED, cost_micros=cost)
+        del self._open[request_id]
         return True
 
     def settle_unresolved(self) -> tuple[str, ...]:
@@ -115,8 +119,10 @@ class SpendGatedAdmission:
         """
         open_ids = tuple(self._open)
         for request_id in open_ids:
-            del self._open[request_id]
+            # The port is responsible for durable, request-idempotent settlement.
+            # Keep this identity on failure so the caller can retry settlement.
             self._spend.settle(request_id, outcome=UNRESOLVED, cost_micros=0)
+            del self._open[request_id]
         return open_ids
 
     @property

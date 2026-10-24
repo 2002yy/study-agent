@@ -516,7 +516,9 @@ class ResearchCoordinator:
             # ``failed`` - the research ended on purpose and what it found is
             # still true.
             try:
-                stopped = self.repository.stop_if_no_progress(research_id)
+                stopped = self.repository.stop_if_no_progress(
+                    research_id, owner=lease.owner, fencing_token=lease.fencing_token
+                )
             except Exception:
                 self.logger.exception("research coordinator progress check failed")
                 result.failures += 1

@@ -115,8 +115,8 @@ class ObservationTrail:
             # are counted - ``-1`` (preliminary answer) and ``0`` (tool observation).
             if sum(1 for step in self.identity if step <= 0) != len(self.frames):
                 raise ValueError("observation identity mismatch")
-        for frame in self.frames:
-            if not isinstance(frame, ObservationFrame):
+        for validated_frame in self.frames:
+            if not isinstance(validated_frame, ObservationFrame):
                 raise ValueError("invalid observation frame")
         request_id = self.root.request_id
         remaining_cap = self.root.remaining_tool_calls
@@ -124,23 +124,23 @@ class ObservationTrail:
         # Walk the identity when it exists, so a refusal's identity advance lands between
         # the right frames. Without it, the frames alone define the chain as they always
         # did - no refusal in the history means the two agree by construction.
+        plan: list[tuple[int, ObservationFrame | None]] = []
         if self.identity:
             remaining_frames = iter(self.frames)
-            plan = []
             for step in self.identity:
                 if step > 0:
                     plan.append((step, None))
                     continue
-                frame = next(remaining_frames, None)
+                candidate_frame = next(remaining_frames, None)
                 expected_step = (
                     -1
-                    if frame is not None
-                    and frame.event.stage == ConversationAction.ANSWER
+                    if candidate_frame is not None
+                    and candidate_frame.event.stage == ConversationAction.ANSWER
                     else 0
                 )
-                if frame is None or step != expected_step:
+                if candidate_frame is None or step != expected_step:
                     raise ValueError("observation identity mismatch")
-                plan.append((step, frame))
+                plan.append((step, candidate_frame))
         else:
             plan = [
                 (

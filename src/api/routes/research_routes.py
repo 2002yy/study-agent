@@ -139,17 +139,20 @@ async def stream_thread_research_events(
                 if await request.is_disconnected():
                     # The subscription ends here. The research does not.
                     return
+                # Do not advance a global cursor while iterating each research:
+                # research A's event 3 would conceal research B's event 2.
+                batch = feed.thread_events_since(thread_id, after_event_seq=cursor[0])
+                for event in batch:
+                    cursor[0] = event.event_seq
+                    since_heartbeat = 0.0
+                    yield _event_frame(event)
                 states = feed.repository.list_by_thread(thread_id)
-                for state in states:
-                    for event in feed.events_since(
-                        state.research_id, after_event_seq=cursor[0]
-                    ):
-                        if event.event_seq <= cursor[0]:
-                            continue
-                        cursor[0] = event.event_seq
-                        since_heartbeat = 0.0
-                        yield _event_frame(event)
-                if states and all(state.terminal for state in states):
+                # Drain paged events before declaring the thread idle.
+                if (
+                    states
+                    and all(state.terminal for state in states)
+                    and len(batch) < feed.limit
+                ):
                     yield "event: research_idle\ndata: {}\n\n"
                     return
                 since_heartbeat += POLL_SECONDS

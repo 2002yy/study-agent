@@ -436,6 +436,77 @@ def test_something_that_is_not_a_prepared_turn_is_refused():
         turn_identities(object())
 
 
+def test_failed_completed_settlement_keeps_identity_for_safe_retry():
+    class FlakySpend(RecordingSpend):
+        def __init__(self):
+            super().__init__()
+            self.fail_once = True
+
+        def settle(self, request_id, *, outcome, cost_micros):
+            if self.fail_once:
+                self.fail_once = False
+                raise OSError("ledger_unavailable")
+            super().settle(request_id, outcome=outcome, cost_micros=cost_micros)
+
+    spend = FlakySpend()
+    gate = SpendGatedAdmission(
+        DecisionBudget(4, 1000, 1000),
+        spend=spend,
+        model="m",
+        price_micros=lambda tokens: tokens,
+    )
+    assert gate.reserve("a", 1, 4) == "reserved"
+    with pytest.raises(OSError, match="ledger_unavailable"):
+        gate.settle_completed("a")
+    assert gate.open_request_ids == ("a",)
+    assert gate.settle_completed("a") is True
+    assert gate.settle_completed("a") is False
+    assert spend.settled == [("a", "settled", 4)]
+
+
+def test_failed_unresolved_settlement_keeps_pending_requests_for_retry():
+    class FlakySpend(RecordingSpend):
+        def __init__(self):
+            super().__init__()
+            self.fail_once = True
+
+        def settle(self, request_id, *, outcome, cost_micros):
+            if self.fail_once:
+                self.fail_once = False
+                raise OSError("ledger_unavailable")
+            super().settle(request_id, outcome=outcome, cost_micros=cost_micros)
+
+    spend = FlakySpend()
+    gate = SpendGatedAdmission(
+        DecisionBudget(4, 1000, 1000),
+        spend=spend,
+        model="m",
+        price_micros=lambda tokens: tokens,
+    )
+    assert gate.reserve("a", 1, 4) == "reserved"
+    assert gate.reserve("b", 1, 4) == "reserved"
+    with pytest.raises(OSError, match="ledger_unavailable"):
+        gate.settle_unresolved()
+    assert gate.open_request_ids == ("a", "b")
+    assert gate.settle_unresolved() == ("a", "b")
+    assert gate.open_request_ids == ()
+    assert spend.settled == [("a", "unresolved", 0), ("b", "unresolved", 0)]
+
+
+def test_a_reserve_only_ledger_is_refused_rather_than_inventing_settlement():
+    class NoSettlement:
+        def reserve(self, request_id, *, model, max_output_tokens):
+            return "reserved"
+
+    with pytest.raises(ValueError, match="invalid spend port"):
+        SpendGatedAdmission(
+            DecisionBudget(4, 1000, 1000),
+            spend=NoSettlement(),
+            model="m",
+            price_micros=lambda tokens: tokens,
+        )
+
+
 def test_the_gate_stops_reserving_once_the_turn_closes(tmp_path):
     spend = RecordingSpend()
     gate = SpendGatedAdmission(

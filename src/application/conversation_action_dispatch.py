@@ -259,7 +259,7 @@ def _same_intent(left: DecisionContext, right: DecisionContext) -> bool:
     )
 
 
-def _discard_late(task: asyncio.Task[str | SteeringObservation]) -> None:
+def _discard_late(task: asyncio.Task[str | SteeringObservation | ActionRefusal]) -> None:
     if not task.cancelled():
         task.exception()
 
