@@ -281,21 +281,53 @@ def test_two_workers_scanning_at_once_advance_one_round_between_them(repository)
     Both workers are started at the same time, and both are given the same
     research. The database decides which one gets it - not luck, and not the
     order the threads happened to be scheduled in.
+
+    **The lease has to be held, or this test measures the scheduler.** The
+    coordinator hands the lease back as soon as it has finished a round, so a
+    second worker that scans *after* the first one finished is not a
+    competitor - it is a successor, and running the next round is correct
+    behaviour. Asserting "exactly one round" without arranging for the two
+    scans to overlap therefore asserts something the system never promised,
+    and it fails whenever the threads happen to be scheduled one after the
+    other.
+
+    So the contention is *arranged* rather than hoped for: the worker that
+    wins the claim holds the lease inside its round until the other worker
+    has finished its own scan. A live lease is then neither offered to the
+    second worker nor claimable by it, so the arbitration is forced to
+    happen - and the assertion below becomes deterministic.
     """
 
     _create(repository)
     started = threading.Barrier(2)
-    executor_a = ScriptedExecutor([ScriptedStep(action="checkpoint")])
-    executor_b = ScriptedExecutor([ScriptedStep(action="checkpoint")])
+    a_scanned = threading.Event()
+    b_scanned = threading.Event()
+
+    def hold_until(other_scanned: threading.Event):
+        """Stay inside the round until the other worker has finished scanning."""
+
+        def observe(_resume, _lease):
+            assert other_scanned.wait(timeout=30), "the other worker never scanned"
+
+        return observe
+
+    executor_a = ScriptedExecutor(
+        [ScriptedStep(action="checkpoint", observe=hold_until(b_scanned))]
+    )
+    executor_b = ScriptedExecutor(
+        [ScriptedStep(action="checkpoint", observe=hold_until(a_scanned))]
+    )
     worker_a = ResearchCoordinator(repository, executor=executor_a, owner="worker-a")
     worker_b = ResearchCoordinator(repository, executor=executor_b, owner="worker-b")
 
-    def run(worker):
+    def run(worker, scanned: threading.Event):
         started.wait(timeout=5)
         worker.scan_once()
+        scanned.set()
 
     threads = [
-        threading.Thread(target=run, args=(worker,)) for worker in (worker_a, worker_b)
+        threading.Thread(target=run, args=(worker_a, a_scanned)),
+        threading.Thread(target=run, args=(worker_b, b_scanned)),
     ]
     for thread in threads:
         thread.start()
