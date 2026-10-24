@@ -639,11 +639,22 @@ class ResearchStateRepository:
                 "status = ?, stop_reason = ?, "
                 "lease_owner = '', lease_expires_at = '', "
                 "state_version = state_version + 1, updated_at = ? "
-                "WHERE research_id = ? AND status IN ('running', 'checkpointed')",
-                (STATE_STOPPED, STOP_REASON_NO_PROGRESS, utc_now(), research_id),
+                "WHERE research_id = ? AND state_version = ? AND round_index = ? "
+                "AND status IN ('running', 'checkpointed') "
+                "AND lease_owner = '' AND cancel_requested_at = ''",
+                (
+                    STATE_STOPPED,
+                    STOP_REASON_NO_PROGRESS,
+                    utc_now(),
+                    research_id,
+                    state.state_version,
+                    state.round_index,
+                ),
             )
             if cursor.rowcount != 1:
-                # Another writer moved the state; it will decide for itself.
+                # A new checkpoint, an active worker, an explicit cancel, or
+                # another terminal decision wins. Never overwrite that state
+                # with a policy verdict computed from stale rounds.
                 return None
             self._append_event(
                 connection,
