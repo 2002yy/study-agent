@@ -124,8 +124,10 @@ def test_an_upgrade_is_refused_while_the_request_is_still_pending(repository, db
         now=_now(),
     )
 
-    with pytest.raises(TierAuthorizationDenied):
+    with pytest.raises(TierAuthorizationDenied) as refused:
         repository.apply_upgrade(RESEARCH, operation_id=OPERATION, now=_now())
+
+    assert refused.value.reason == "no_authorization"
 
 
 # --- the approval is a user action --------------------------------------------------------
@@ -181,8 +183,10 @@ def test_a_denied_request_does_not_allow_the_upgrade(repository, db):
 
     repository.deny(request.request_id, approver="user-1", reason="too expensive", now=_now())
 
-    with pytest.raises(TierAuthorizationDenied):
+    with pytest.raises(TierAuthorizationDenied) as refused:
         repository.apply_upgrade(RESEARCH, operation_id=OPERATION, now=_now())
+
+    assert refused.value.reason == "no_authorization"
 
 
 # --- counter-example 2: expiry and identity -------------------------------------------------
@@ -217,8 +221,10 @@ def test_an_expired_authorisation_does_not_allow_the_upgrade(repository, db):
         now=_now(),
     )
 
-    with pytest.raises(TierAuthorizationDenied):
+    with pytest.raises(TierAuthorizationDenied) as refused:
         repository.apply_upgrade(RESEARCH, operation_id=OPERATION, now=_now(3600))
+
+    assert refused.value.reason == "authorization_expired"
 
 
 def test_an_authorisation_for_another_operation_does_not_allow_the_upgrade(
@@ -253,10 +259,12 @@ def test_an_authorisation_for_another_operation_does_not_allow_the_upgrade(
         now=_now(),
     )
 
-    with pytest.raises(TierAuthorizationDenied):
+    with pytest.raises(TierAuthorizationDenied) as refused:
         repository.apply_upgrade(
             "research-2", operation_id="operation-2", now=_now()
         )
+
+    assert refused.value.reason == "no_authorization"
 
 
 def test_an_authorisation_for_another_operation_identity_does_not_apply(
@@ -289,8 +297,10 @@ def test_an_authorisation_for_another_operation_identity_does_not_apply(
         now=_now(),
     )
 
-    with pytest.raises(TierAuthorizationDenied):
+    with pytest.raises(TierAuthorizationDenied) as refused:
         repository.apply_upgrade(RESEARCH, operation_id="a-different-operation", now=_now())
+
+    assert refused.value.reason == "operation_mismatch"
 
 
 # --- counter-example 3: no record at all ---------------------------------------------------
@@ -305,8 +315,10 @@ def test_a_missing_authorisation_does_not_allow_the_upgrade(repository, db):
 
     _create_research(db)
 
-    with pytest.raises(TierAuthorizationDenied):
+    with pytest.raises(TierAuthorizationDenied) as refused:
         repository.apply_upgrade(RESEARCH, operation_id=OPERATION, now=_now())
+
+    assert refused.value.reason == "no_authorization"
 
 
 def test_a_cancelled_research_cannot_be_upgraded(repository, db):
@@ -342,8 +354,10 @@ def test_a_cancelled_research_cannot_be_upgraded(repository, db):
     )
     states.cancel(RESEARCH, reason="user_cancelled")
 
-    with pytest.raises(TierAuthorizationDenied):
+    with pytest.raises(TierAuthorizationDenied) as refused:
         repository.apply_upgrade(RESEARCH, operation_id=OPERATION, now=_now())
+
+    assert refused.value.reason == "research_cancelled"
 
 
 # --- counter-example 4: the audit trail is not the authority ---------------------------------
@@ -489,8 +503,10 @@ def test_a_live_grant_cannot_be_marked_expired(repository, db):
         now=_now(),
     )
 
-    with pytest.raises(TierAuthorizationDenied):
+    with pytest.raises(TierAuthorizationDenied) as refused:
         repository.expire(request.request_id, now=_now())
+
+    assert refused.value.reason == "authorization_not_expired"
 
 
 def test_the_request_row_agrees_with_the_expired_authorisation(repository, db):
@@ -530,10 +546,24 @@ def test_the_request_row_agrees_with_the_expired_authorisation(repository, db):
 
 
 def test_a_grant_that_was_never_approved_has_nothing_to_expire(repository, db):
-    """Expiry ends a permission. There is no permission to end."""
+    """Expiry ends a permission. There is no permission to end.
+
+    Two different facts are refused here, and they are different facts:
+
+    - A request that was **never decided** has no row in the authorisation
+      table at all, so there is nothing to expire.
+    - A request that was **denied** has a row, and the row says "denied".
+      Expiring it would rewrite a decision the user already made.
+
+    The first one is where a weak guard hides. A test that only asserts
+    "this raises" passes on the ``row is None`` path and never reaches the
+    approval check at all - so the check could be deleted and the test would
+    still be green. These tests therefore assert the *reason*, because the
+    reason is what says which refusal actually happened.
+    """
 
     _create_research(db)
-    request = repository.request_upgrade(
+    pending = repository.request_upgrade(
         RESEARCH,
         operation_id=OPERATION,
         from_tier="standard",
@@ -544,8 +574,25 @@ def test_a_grant_that_was_never_approved_has_nothing_to_expire(repository, db):
         now=_now(),
     )
 
-    with pytest.raises(TierAuthorizationDenied):
-        repository.expire(request.request_id, now=_now(3600))
+    with pytest.raises(TierAuthorizationDenied) as undecided:
+        repository.expire(pending.request_id, now=_now(3600))
+    assert undecided.value.reason == "unknown_request"
+
+    denied = repository.request_upgrade(
+        RESEARCH,
+        operation_id=OPERATION,
+        from_tier="standard",
+        to_tier="deep",
+        reason="need more calls",
+        requested_calls=10,
+        requested_cost=1.25,
+        now=_now(),
+    )
+    repository.deny(denied.request_id, approver="user-1", reason="too expensive", now=_now())
+
+    with pytest.raises(TierAuthorizationDenied) as refused:
+        repository.expire(denied.request_id, now=_now(3600))
+    assert refused.value.reason == "authorization_not_approved"
 
 
 def test_an_expired_grant_does_not_allow_a_later_upgrade(repository, db):
@@ -578,5 +625,7 @@ def test_an_expired_grant_does_not_allow_a_later_upgrade(repository, db):
     )
     repository.expire(request.request_id, now=_now(3600))
 
-    with pytest.raises(TierAuthorizationDenied):
+    with pytest.raises(TierAuthorizationDenied) as refused:
         repository.apply_upgrade(RESEARCH, operation_id=OPERATION, now=_now(7200))
+
+    assert refused.value.reason == "no_authorization"

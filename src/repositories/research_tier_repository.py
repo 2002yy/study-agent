@@ -55,7 +55,19 @@ class TierAuthorizationDenied(ValueError):
     different operation, and one whose ceiling is too small - because the
     caller has one decision to make and the reason is for the log, not for the
     branch.
+
+    The reason is a **first-class attribute**, not just the message. The
+    refusals are different facts - "there is no record", "this grant was
+    never approved", "this grant has not expired" - and a caller that has to
+    tell them apart cannot do it from ``str(exc)`` alone without depending on
+    the exact wording. Keeping it as ``reason`` also makes the distinction
+    testable: a guard that refuses for the *wrong* reason is not the guard
+    that was written.
     """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 class ResearchTierRepository:
