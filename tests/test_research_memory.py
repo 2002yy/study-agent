@@ -12,7 +12,11 @@ import src.infrastructure.sqlite.database as sqlite_database
 from src.application.research_memory_service import ResearchMemoryService
 from src.domain.evidence import ClaimEvidenceLinkV1
 from src.domain.runtime_entities import WebLookupRun
-from src.infrastructure.sqlite.database import RuntimeDatabase, schema_version
+from src.infrastructure.sqlite.database import (
+    SCHEMA_VERSION,
+    RuntimeDatabase,
+    schema_version,
+)
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import (
     EvidenceCluster,
@@ -99,7 +103,10 @@ def memory(tmp_path):
 def test_migration_and_explicit_terminal_publication(memory):
     database, service = memory
     with database.connect() as connection:
-        assert schema_version(connection) == 24
+        # Tracked against the current version rather than a pinned number: migration
+        # versions are permanent allocations and this branch does not own every one of
+        # them, so a literal here would fail on any branch that adds a migration.
+        assert schema_version(connection) == SCHEMA_VERSION
     run = WebLookupRepository(database).create(_run("thread-1"))
     assert service.recall("thread-1", run.query, today=date(2026, 9, 27)) == ()
 
@@ -266,7 +273,7 @@ def test_v23_upgrade_preserves_existing_runs(tmp_path, monkeypatch):
             assert schema_version(connection) == 23
     database.initialize()
     with database.connect() as connection:
-        assert schema_version(connection) == 24
+        assert schema_version(connection) == SCHEMA_VERSION
         assert connection.execute(
             "SELECT COUNT(*) FROM sqlite_master WHERE name = 'research_memory_revisions'"
         ).fetchone()[0] == 1

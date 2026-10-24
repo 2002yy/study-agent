@@ -9,8 +9,9 @@ from typing import Callable
 
 from src.infrastructure.sqlite.learning_semantic_schema import LEARNING_SEMANTIC_MIGRATION_V18
 from src.infrastructure.sqlite.learning_truth_schema import LEARNING_TRUTH_MIGRATION_V17
+from src.infrastructure.sqlite.research_state_schema import RESEARCH_STATE_MIGRATION_V27
 
-SCHEMA_VERSION = 24
+SCHEMA_VERSION = 27
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -551,6 +552,10 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             );
         """,
     ),
+    # 25 and 26 are allocated outside this branch: 25 is ``chat_turns.attachment_refs``
+    # (the AR line) and 26 is #259's spend ledger. A migration number is permanent, so
+    # reusing one would make two branches apply different SQL under the same version.
+    (27, RESEARCH_STATE_MIGRATION_V27),
 )
 
 
