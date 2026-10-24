@@ -200,16 +200,12 @@ class ResearchFeed:
         simply finds the tail empty.
         """
 
-        state = self.repository.load(research_id)
-        if state is None:
-            raise ResearchNotFound("research_not_found")
-        rounds = self.repository.rounds(research_id)
-        events = self.repository.events(
+        # The repository obtains all four components from one read transaction.
+        # Four independent reads could straddle a checkpoint and contradict
+        # each other even though the checkpoint write itself is atomic.
+        state, rounds, events, missed = self.repository.snapshot_parts(
             research_id, after_event_seq=after_event_seq, limit=self.limit
         )
-        # A count, not ``total - cursor``: the sequence is global, so subtracting
-        # would count the other researches' events that sit in between.
-        missed = self.repository.count_events_after(research_id, after_event_seq)
         return ResearchSnapshot(
             research_id=state.research_id,
             thread_id=state.thread_id,
