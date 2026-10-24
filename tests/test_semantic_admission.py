@@ -10,7 +10,6 @@ from __future__ import annotations
 import pytest
 
 from src.web.semantic_admission import (
-    FAILED,
     REJECTED_LEDGER,
     SETTLED,
     UNRESOLVED,
@@ -199,14 +198,25 @@ def test_a_timeout_keeps_the_reservation_and_is_never_reported_as_a_refund():
     assert wrapper.calls[-1].outcome == UNRESOLVED
 
 
-def test_a_provider_error_is_settled_as_failed_not_as_unresolved():
+@pytest.mark.parametrize(
+    "error",
+    [
+        ConnectionResetError("connection_lost_after_send"),
+        RuntimeError("sdk_response_parse_error"),
+        TimeoutError("sdk_custom_timeout"),
+    ],
+)
+def test_a_provider_error_without_a_presend_receipt_keeps_money_reserved(error):
+    """Exceptions alone cannot prove the provider never received the request."""
+
     def broken(**_kwargs):
-        raise RuntimeError("upstream_500")
+        raise error
 
     wrapper, _, ledger = build(broken)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(type(error)):
         wrapper(messages=messages(), timeout=1, task_name=task(0))
-    assert ledger.settled == [(task(0), FAILED, 0)]
+    assert ledger.settled == [(task(0), UNRESOLVED, 0)]
+    assert wrapper.calls[-1].outcome == UNRESOLVED
 
 
 def test_settlement_happens_exactly_once_per_call():

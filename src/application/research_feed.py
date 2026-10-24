@@ -49,10 +49,7 @@ from src.domain.research_event import (
     ResearchSubscription,
 )
 from src.domain.research_state import ResearchRound
-from src.repositories.research_state_repository import (
-    ResearchNotFound,
-    ResearchStateRepository,
-)
+from src.repositories.research_state_repository import ResearchStateRepository
 
 _logger = logging.getLogger(__name__)
 
@@ -200,16 +197,12 @@ class ResearchFeed:
         simply finds the tail empty.
         """
 
-        state = self.repository.load(research_id)
-        if state is None:
-            raise ResearchNotFound("research_not_found")
-        rounds = self.repository.rounds(research_id)
-        events = self.repository.events(
+        # The repository obtains all four components from one read transaction.
+        # Four independent reads could straddle a checkpoint and contradict
+        # each other even though the checkpoint write itself is atomic.
+        state, rounds, events, missed = self.repository.snapshot_parts(
             research_id, after_event_seq=after_event_seq, limit=self.limit
         )
-        # A count, not ``total - cursor``: the sequence is global, so subtracting
-        # would count the other researches' events that sit in between.
-        missed = self.repository.count_events_after(research_id, after_event_seq)
         return ResearchSnapshot(
             research_id=state.research_id,
             thread_id=state.thread_id,
@@ -260,6 +253,14 @@ class ResearchFeed:
 
         return self.repository.events(
             research_id, after_event_seq=after_event_seq, limit=self.limit
+        )
+
+    def thread_events_since(
+        self, thread_id: str, *, after_event_seq: int = 0
+    ) -> tuple[ResearchEvent, ...]:
+        """A single ordered global cursor across researches of one thread."""
+        return self.repository.thread_events(
+            thread_id, after_event_seq=after_event_seq, limit=self.limit
         )
 
     def poll(

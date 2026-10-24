@@ -365,6 +365,74 @@ def test_the_event_stream_sends_the_events_of_the_thread(app, repository):
     assert "event: round_completed" in body
 
 
+def test_thread_event_stream_never_skips_interleaved_research_events(app, repository):
+    """The per-thread SSE cursor is global; each research's local order is insufficient.
+
+    A emits event 1, B emits event 2, then A emits event 3. The original
+    per-research loop read A's events first, set cursor=3, and dropped B's 2.
+    """
+    _create(repository, "research-a", thread_id=THREAD)
+    _create(repository, "research-b", thread_id=THREAD)
+    _create(repository, "research-foreign", thread_id=OTHER_THREAD)
+    _advance_one_round(repository, "research-a")
+    _advance_one_round(repository, "research-b")
+    _advance_one_round(repository, "research-foreign")
+    claimed = repository.claim("research-a", owner="worker-2")
+    repository.checkpoint(
+        "research-a",
+        ResearchRound(
+            research_id="research-a",
+            round_index=1,
+            question="what is X?",
+            queries=("query-1",),
+            evidence=("fact-1",),
+        ),
+        owner="worker-2",
+        fencing_token=claimed.fencing_token,
+        expected_state_version=claimed.state_version,
+    )
+    repository.release(
+        "research-a", owner="worker-2", fencing_token=claimed.fencing_token
+    )
+
+    expected = [
+        event.event_seq
+        for research_id in ("research-a", "research-b")
+        for event in repository.events(research_id)
+    ]
+    expected.sort()
+    messages = asyncio.run(
+        _drain_until(
+            app,
+            f"/sessions/{THREAD}/research/events",
+            until=lambda messages: _body_text(messages).count("event: round_completed") >= 3,
+        )
+    )
+    body = _body_text(messages)
+    event_ids = [
+        int(line.removeprefix("id: "))
+        for line in body.splitlines()
+        if line.startswith("id: ")
+    ]
+    assert event_ids == expected
+    assert "research-foreign" not in body
+
+    # Reconnection from the first event returns both later events in order.
+    messages = asyncio.run(
+        _drain_until(
+            app,
+            f"/sessions/{THREAD}/research/events?after_event_seq={expected[0]}",
+            until=lambda messages: _body_text(messages).count("event: round_completed") >= 2,
+        )
+    )
+    later = [
+        int(line.removeprefix("id: "))
+        for line in _body_text(messages).splitlines()
+        if line.startswith("id: ")
+    ]
+    assert later == expected[1:]
+
+
 def test_the_event_stream_resumes_from_a_cursor(app, repository):
     """Nothing new after the cursor, so no event frames - only heartbeats.
 
