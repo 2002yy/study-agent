@@ -721,7 +721,15 @@ class ResearchStateRepository:
             ") VALUES (?, ?, ?, ?)",
             (research_id, kind, _dump(dict(payload)), now),
         )
-        return int(cursor.lastrowid)
+        sequence = cursor.lastrowid
+        if sequence is None:
+            # An INSERT that reports no row id did not mint a sequence, so there
+            # is no sequence to return. This is not a number to invent: a
+            # caller that received a made-up sequence would hand it to a
+            # client as a cursor, and the client would then silently skip
+            # every event after it.
+            raise RuntimeError("research_event_sequence_unavailable")
+        return int(sequence)
 
     def append_event(
         self,
