@@ -1,45 +1,42 @@
 # Study Agent
 
-> **个人学习工作台**：长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”。
+> **面向通用聊天与研究的 AI Agent**：目标是提供接近 GPT-6 Chat 的自然对话、自主研究、持续交互、智能界面、多模态输入和工具执行体验；**长期学习与教学是其上的专业场景**，而不是全部产品定义。
 >
-> 当前进度唯一入口：[`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)。
->
-> **产品迭代优先级与双循环开发规则：** [`docs/PRODUCT_ITERATION_POLICY.md`](docs/PRODUCT_ITERATION_POLICY.md)。AI 执行入口见根目录 [`AGENTS.md`](AGENTS.md)，当前任务仍以项目状态交接为准。
+> [当前实际进度与唯一下一步](docs/PROJECT_STATUS.md) · [静态/动态双循环产品验收](docs/PRODUCT_ITERATION_POLICY.md) · [完整文档索引](docs/README.md) · [Agent 开发约束](AGENTS.md)
 
-Study Agent 不是把聊天记录长期堆积起来的 Chatbot，也不是让多个角色各自维护一套“记忆真相”的角色扮演系统。当前产品主线是把学习过程收敛为可恢复、可验证、可追溯的学习状态：
+## 产品目标与工程边界
+
+Study Agent 希望从“用户提问 → 生成文字”发展为可持续推进真实任务的 Agent：理解问题和后续补充，选择搜索、阅读和工具，结合证据更新回答，并以适当的交互界面呈现结果。
+
+六项通用能力方向：
+
+- **自然聊天**：多轮上下文、追问、纠错，以及中断后继续。
+- **自主研究**：按需搜索、阅读、比较与核实来源；区分已知、未证实和冲突。
+- **持续交互**：在任务执行中提供有用的阶段性内容，响应新增条件；阶段进度不能冒充正式答案。
+- **智能界面**：让表格、图表及受控交互组件服务于实际问题，不以静态展示替代可操作性。
+- **统一多模态**：将附件、文档、图片与消息正确关联；不能把“收到文件”当作“已理解文件”。
+- **工具型 Agent**：模型提出行动和研究策略，程序负责真正调用工具、权限、预算、状态和结果回填。
+
+**现状不是六项全都达到产品级验收。** 已有代码模块和自动测试只证明相应工程边界；新的对话循环尚需完成生产宿主接线（CL-M3），真实模型/搜索/工具/UI 联动的动态质量仍未取得产品 GO。进展、缺口、CI 和下一门只以 [PROJECT_STATUS](docs/PROJECT_STATUS.md) 为准，不能拿历史绿灯或展示视频推断当前体验。
+
+**责任分工**：模型负责语义、规划与研究/回答策略；程序负责读取、工具执行、证据与引用资格、可恢复状态、费用上限以及正式发布。静态知识快照和动态事件修订使用不同的证据合同。
+
+## 当前工程架构
 
 ```text
-教学 / 练习
-→ 资料与证据
-→ 理解验证
-→ 已确认 / 未解决
-→ 下一步
-→ 整理、恢复与继续学习
+React / TypeScript（聊天、研究、学习界面）
+    ↓ HTTP / SSE
+FastAPI（接口与服务端授权）
+    ↓
+应用服务 / 有界对话与研究模块
+├─ EvidenceRuntime（搜索、RAG、来源与证据）
+├─ LearningSessionRuntime（聊天、学习状态与恢复）
+└─ ExtensionRuntime（实验性工具与工作流）
+    ↓
+SQLite（会话、操作、证据与账本的持久状态）
 ```
 
-## 当前运行时
-
-```text
-React
-  ↓
-FastAPI
-  ↓
-Application Runtimes
-├─ EvidenceRuntime
-├─ LearningSessionRuntime
-└─ ExtensionRuntime
-  ↓
-SQLite durable entities
-```
-
-- **React**：当前交互面。
-- **FastAPI**：生产 API 与应用服务入口。
-- **SQLite durable entities**：运行时事实来源。
-- **EvidenceRuntime**：RAG、上传、外部研究、源码证据与恢复端口。
-- **LearningSessionRuntime**：会话、聊天、学习设置、记忆、LearningClosure 与学习恢复。
-- **ExtensionRuntime**：群聊、受控工具、工作流等实验能力；普通模式只通过单一 Lab 入口访问。
-
-详细 owner 边界见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+此图是主要层级，**不是所有新模块均已接管生产请求的声明**。研究模块有 Lookup / Standard / Deep 分层；通用新对话循环与现有 `/chat` 兼容路径的具体接线资格见 [架构](docs/ARCHITECTURE.md) 和 [当前状态](docs/PROJECT_STATUS.md)。
 
 ## 一键启动与人工验收
 
@@ -70,36 +67,23 @@ Windows 下可直接双击 [`tools/start-study-agent.bat`](tools/start-study-age
 
 SearXNG 的仓库配置、ignored secret/proxy layering、备份、回滚与 7 天 retained-container 清理流程见 [`docs/WEB_SEARCH_SETUP.md`](docs/WEB_SEARCH_SETUP.md)。
 
-## 已完成的核心学习闭环
+## 已整合能力与待验收边界
 
-P2-D 源码学习与验证、P2-E 自动化验收均已进入 `main`。核心原则：
+| 方向 | 已有工程能力 | 仍不能宣称 |
+| --- | --- | --- |
+| 聊天 / 生成 | 旧聊天兼容路径、受控模型生成、流式阶段事件与对话循环模块 | 新循环已经接管所有生产请求 |
+| 联网研究 / 答案 | Lookup / Standard / Deep、读取事件、证据绑定、静态知识与动态修订合同 | 每次研究都能交付正确完整的正式答案 |
+| 附件 / 工具 | 消息附件绑定与重试回归、受限计算及实验工具模块 | 所有图片、附件与工具均已通过真实模型联动 |
+| 费用 / 恢复 | SQLite 持久状态、保守费用预留、重复请求拒绝与回归测试 | 已有完整费用结算/退款链路 |
+| 智能 UI | 阅读、进度和受控交互组件，以及自动前端测试 | 已具有 ChatGPT 同级的模型驱动动态界面 |
 
-- `SourceEvidence` 固定到 exact commit / file / symbol / line，不被 CI 临时状态污染；
-- CI 是独立的 `ValidationObservation`，失败或不可用不自动使源码证据失效；
-- `LearningClaim` 使用受限 EvidenceSet：1 个 Primary + 0–4 个 Supporting；
-- 用户掌握、源码 freshness、记忆 retention 是三个不同维度；
-- 没有可靠 Primary Evidence 时只能形成 `LearningHypothesis`，不能伪装成正式 Claim；
-- Persona 只改变教学表达，不改变 truth、evidence、mastery 或 freshness；
-- GitHub / RAG / Web 都是 Evidence Provider，不存在全局“来源优先级”。
+工程成功与产品成功分别验收：静态循环用可重现的失败用例、测试和 CI 验证合同；动态循环需在用户授权与预算限制下跑真实任务，核对**用户真正看见的最终答案**，再与真实 ChatGPT 基准作公平比较。详见 [产品迭代规则](docs/PRODUCT_ITERATION_POLICY.md)。
 
-完整合同见 [`domain_models.md`](domain_models.md) 与 [`state_invariants.md`](state_invariants.md)。
+### 长期学习场景
 
-## 产品面
+作为专业场景，已有学习会话、证据化理解验证、长期状态恢复等能力。源码学习的 `SourceEvidence`、`LearningClaim`、`LearningHypothesis` 等对象受 [领域模型](domain_models.md) 与 [状态不变量](state_invariants.md) 约束。学习记忆和教学角色不能代替通用聊天的事实核验与工具结果，也不能反向修改已确认的证据事实。
 
-普通用户稳定入口：
-
-- 学习会话；
-- 资料与来源；
-- 学习成果；
-- 设置。
-
-实验能力：
-
-- 群聊；
-- 受控工具；
-- 开发者诊断。
-
-实验能力统一从 **Lab** 进入，默认休眠。旧 News 独立产品面与旧 Extension drawer 兼容 surface 已退出；仍保留的 durable workflow / capability 不等于独立产品面。
+常规学习界面与 Lab 中的群聊、受控工具、诊断入口应区分；**存在实验模块不等于已正式发布**。
 
 ## 文档入口
 
@@ -120,14 +104,12 @@ P2-D 源码学习与验证、P2-E 自动化验收均已进入 `main`。核心原
 
 旧 roadmap、旧迁移计划与旧架构文本统一保存在 [`docs/archive/`](docs/archive/)；它们只用于历史追溯，不再拥有当前进度或架构真值。
 
-## 文档治理规则
+## 文档治理与当前任务
 
-1. `docs/PROJECT_STATUS.md` 是唯一当前进度 owner。
-2. 不再新增并列的 `STATUS` / `ROADMAP` / `NEXT_PHASE` / `AUDIT` 长期入口。
-3. 当前架构事实进入 `docs/ARCHITECTURE.md`；领域语义进入 `domain_models.md`；硬约束进入 `state_invariants.md`。
-4. 专项文档只描述自己的子系统，不宣布全局当前阶段。
-5. 历史计划保留，但必须明确标记为 archive/reference。
+1. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) 是唯一当前进度与下一门入口。
+2. [`docs/PRODUCT_ITERATION_POLICY.md`](docs/PRODUCT_ITERATION_POLICY.md) 是静态/动态双循环与产品验收的稳定合同。
+3. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) 解释运行时与所有权；领域模型及不变量分别由对应文件维护。
+4. 专项方案、旧路线图和有日期的实验记录保留作历史依据，不覆盖当前进度；完整索引见 [文档导航](docs/README.md)。
 
-## 当前开发状态
+**接下来的工程门：CL-M3 生产宿主接线与真实行为验收。** 首先以不调用付费模型的替身检验实际路由、持久操作身份、中断/取消、恢复、费用预留及最终发布约束。只有在独立授权、持久预算和真实任务证据齐全后才进行动态比较。全量 L3 对最新 AR 集成仍是明确欠账；普通 CI 成功不等于 L3 或产品质量通过。
 
-P2-D 与 P2-E 自动化批次已经完成；实体手机、真实屏幕阅读器与视觉对比度仍待人工验收。Learner Model 目前只有只读派生 API，没有 UI 或长期画像写回。联网 provider 与快速查询预算已有自动证据，但 2026-08-26 实测发现明确研究意图仍可能落入零正文读取的摘要路径；当前按 SX1 → RQ1 → G17-LAN 顺序修复。实时基线、证据和下一切片只看 [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)。

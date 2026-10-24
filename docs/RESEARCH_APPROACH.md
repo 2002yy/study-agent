@@ -1,7 +1,6 @@
 # Research Approach — "研究开场 + 过程播报" contract
 
-Status: **Slice A (backend contract) + Slice B (frontend rendering) implemented (PR #225);
-plan projection + model generation still pending.**
+Historical slice note (PR #225): **Slice A (backend contract) + Slice B (frontend rendering) implemented; plan projection + model generation were pending at that snapshot.** This document specifies the ResearchApproach display contract, **not the current release or integration state**. Later research/answer changes may supersede the old pending list. Refer to [PROJECT_STATUS.md](PROJECT_STATUS.md) for today's production routing and dynamic acceptance.
 
 ## Purpose
 
