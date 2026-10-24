@@ -184,9 +184,12 @@ class ResearchStateRepository:
             ).fetchone()
             # COUNT(*) always returns exactly one row. Treat an absent row as
             # an invalid read, not an invented zero-event snapshot.
-            if missed is None or missed["total"] is None:
+            if missed is None:
                 raise RuntimeError("research_snapshot_count_unavailable")
-            missed_count = int(missed["total"])
+            count_value = missed["total"]
+            if count_value is None:
+                raise RuntimeError("research_snapshot_count_unavailable")
+            missed_count = int(count_value)
         return (
             _state_from_row(row),
             tuple(_round_from_row(item) for item in round_rows),
