@@ -173,6 +173,35 @@ def get_research_feed():
 
 
 @lru_cache(maxsize=1)
+def get_research_tier_repository():
+    """The durable record of a user's permission to spend more (QD-3d).
+
+    Its own repository, and its own tables, because an authorisation is a
+    decision with an author and an expiry - not an observation of a budget
+    that the next checkpoint is allowed to rewrite.
+    """
+
+    from src.repositories.research_tier_repository import ResearchTierRepository
+
+    return ResearchTierRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
+def get_research_coordinator():
+    """The production research worker, or ``None`` when it is not running.
+
+    QD-3e wired it up. It is ``None`` in the ordinary case, because the
+    worker is **off by default**: it needs an executor, an executor calls a
+    model, and a model call costs money. The factory is here so that the
+    wiring is a single import for whoever does supply an executor.
+    """
+
+    from src.application.research_production import start_research_coordinator
+
+    return start_research_coordinator(get_research_state_repository())
+
+
+@lru_cache(maxsize=1)
 def get_github_snapshot_service():
     from src.application.github_snapshot_service import GitHubSnapshotService
 

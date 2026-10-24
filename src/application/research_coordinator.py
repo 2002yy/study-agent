@@ -420,6 +420,38 @@ class ResearchCoordinator:
                 result.skipped += 1
                 return result
 
+            # **The cancellation check, before the call and not after it.**
+            # QD-3d made a cancellation a fact on the state row, and the executor
+            # is told what it may do through ``may_start_new_call``. The
+            # coordinator is the thing that asks the question, so this is where
+            # the question has to be asked: a cancellation that is only noticed
+            # after the next round has run is a cancellation that already spent
+            # another model call, which is the one thing R-3 forbids.
+            #
+            # The check reads the row again rather than trusting the ``resume``
+            # from the top of the scan, because a cancellation may have landed
+            # between two rounds - and that is exactly the window it lands in.
+            try:
+                current = self.repository.resume(research_id)
+            except Exception:
+                self.logger.exception("research coordinator resume failed")
+                self._release(lease)
+                result.failures += 1
+                result.skipped += 1
+                return result
+            if current is None:
+                self._release(lease)
+                result.skipped += 1
+                return result
+            if not current.may_start_new_call:
+                # Cancelled, or already terminal. Nothing more is started, and
+                # the round that was in flight is left as it is: the work was
+                # done, and the findings it produced are not thrown away.
+                result.skipped += 1
+                self._release(lease)
+                return result
+            resume = current
+
             try:
                 outcome = self.executor(resume, lease) if self.executor else None
             except Exception:
@@ -468,6 +500,29 @@ class ResearchCoordinator:
 
             rounds += 1
             if updated.terminal:
+                finished = 1
+                break
+
+            # **The no-progress check, after the round.** QD-3d put the rule in
+            # the repository: "the last two rounds produced no effective gain"
+            # is a question about the persisted rounds, and only the repository
+            # can answer it, because only the repository knows what every
+            # earlier round observed. The coordinator is what asks the
+            # question.
+            #
+            # This is deliberately *not* the executor's decision. The executor
+            # sees one round; the rule is about two rounds against all the
+            # ones before them. And the state it writes is ``stopped``, not
+            # ``failed`` - the research ended on purpose and what it found is
+            # still true.
+            try:
+                stopped = self.repository.stop_if_no_progress(research_id)
+            except Exception:
+                self.logger.exception("research coordinator progress check failed")
+                result.failures += 1
+                self._release(lease)
+                return result
+            if stopped is not None:
                 finished = 1
                 break
 
