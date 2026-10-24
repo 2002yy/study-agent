@@ -6,7 +6,7 @@ from contextlib import aclosing
 from dataclasses import dataclass, replace
 import math
 import time
-from typing import AsyncGenerator, Callable, Mapping
+from typing import AsyncGenerator, Callable, Mapping, cast
 
 from src.application.conversation_action_dispatch import (
     ActionBudget,
@@ -21,6 +21,7 @@ from src.application.conversation_action_dispatch import (
 from src.application.conversation_answer_generator import BoundedAnswerGenerator
 from src.application.conversation_answer_input import AnswerHandler, AnswerInput
 from src.application.conversation_decision import (
+    ActionProposal,
     ConversationAction,
     DecisionContext,
 )
@@ -178,10 +179,12 @@ async def run_conversation_loop(
         fresh = replace(fresh, active_research=context.active_research)
         for kind, payload in projection:
             if kind == "observation":
-                before, proposal, observation = payload  # type: ignore[misc]
+                before, proposal, observation = cast(
+                    tuple[DecisionContext, ActionProposal, ActionEvent], payload
+                )
                 fresh = tool_followup_context(before, fresh, proposal, observation)
             else:
-                before, index = payload  # type: ignore[misc]
+                before, index = cast(tuple[DecisionContext, int], payload)
                 fresh = refusal_followup_context(before, fresh, index=index)
         return replace(fresh, active_research=actual_research)
 
