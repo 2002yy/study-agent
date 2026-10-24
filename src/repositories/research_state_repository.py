@@ -184,13 +184,14 @@ class ResearchStateRepository:
             ).fetchone()
             # COUNT(*) always returns exactly one row. Treat an absent row as
             # an invalid read, not an invented zero-event snapshot.
-            if missed is None:
+            if missed is None or missed["total"] is None:
                 raise RuntimeError("research_snapshot_count_unavailable")
+            missed_count = int(missed["total"])
         return (
             _state_from_row(row),
             tuple(_round_from_row(item) for item in round_rows),
             tuple(_event_from_row(item) for item in event_rows),
-            int(missed["total"]),
+            missed_count,
         )
 
     def resumable(self, *, limit: int = 16, now: str | None = None) -> tuple[ResearchState, ...]:
@@ -588,7 +589,9 @@ class ResearchStateRepository:
             rounds_considered=len(rounds),
         )
 
-    def stop_if_no_progress(self, research_id: str) -> ResearchState | None:
+    def stop_if_no_progress(
+        self, research_id: str, *, owner: str = "", fencing_token: int | None = None
+    ) -> ResearchState | None:
         """Stop a research whose last two rounds produced no effective gain.
 
         Returns the new state when it stopped, and ``None`` when the research
@@ -607,6 +610,12 @@ class ResearchStateRepository:
         """
 
         _identity(research_id, "research_id")
+        if owner:
+            _identity(owner, "lease_owner")
+            if type(fencing_token) is not int or fencing_token < 1:
+                raise ValueError("invalid_fencing_token")
+        elif fencing_token is not None:
+            raise ValueError("fencing_token_without_owner")
         state = self.load(research_id)
         if state is None:
             raise ResearchNotFound("research_not_found")
@@ -641,7 +650,8 @@ class ResearchStateRepository:
                 "state_version = state_version + 1, updated_at = ? "
                 "WHERE research_id = ? AND state_version = ? AND round_index = ? "
                 "AND status IN ('running', 'checkpointed') "
-                "AND lease_owner = '' AND cancel_requested_at = ''",
+                "AND lease_owner = ? AND cancel_requested_at = '' "
+                "AND (? = '' OR fencing_token = ?)",
                 (
                     STATE_STOPPED,
                     STOP_REASON_NO_PROGRESS,
@@ -649,6 +659,9 @@ class ResearchStateRepository:
                     research_id,
                     state.state_version,
                     state.round_index,
+                    owner,
+                    owner,
+                    fencing_token if fencing_token is not None else 0,
                 ),
             )
             if cursor.rowcount != 1:

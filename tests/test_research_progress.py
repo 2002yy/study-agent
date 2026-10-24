@@ -335,7 +335,15 @@ def test_no_progress_stop_cannot_override_an_active_worker(repository):
     """The policy cannot erase an in-flight lease from a worker it does not own."""
     _create(repository)
     _checkpoint(repository, index=0)
-    _checkpoint(repository, index=1)
+    second = repository.claim(RESEARCH, owner="prior-worker")
+    repository.checkpoint(
+        RESEARCH,
+        _round(RESEARCH, 1, evidence=("fact-0",), urls=("https://source/0",)),
+        owner="prior-worker",
+        fencing_token=second.fencing_token,
+        expected_state_version=second.state_version,
+    )
+    repository.release(RESEARCH, owner="prior-worker", fencing_token=second.fencing_token)
 
     claimed = repository.claim(RESEARCH, owner="live-worker")
     assert repository.stop_if_no_progress(RESEARCH) is None
@@ -348,6 +356,26 @@ def test_no_progress_stop_cannot_override_an_active_worker(repository):
     stopped = repository.stop_if_no_progress(RESEARCH)
     assert stopped is not None
     assert stopped.status == STATE_STOPPED
+
+
+def test_no_progress_stop_can_finish_with_its_own_fenced_lease(repository):
+    """The QD-3e coordinator checks progress before releasing its own lease."""
+    _create(repository)
+    _checkpoint(repository, index=0)
+    second = repository.claim(RESEARCH, owner="progress-worker")
+    repository.checkpoint(
+        RESEARCH,
+        _round(RESEARCH, 1, evidence=("fact-0",), urls=("https://source/0",)),
+        owner="progress-worker",
+        fencing_token=second.fencing_token,
+        expected_state_version=second.state_version,
+    )
+    stopped = repository.stop_if_no_progress(
+        RESEARCH, owner="progress-worker", fencing_token=second.fencing_token
+    )
+    assert stopped is not None
+    assert stopped.status == STATE_STOPPED
+    assert stopped.lease_owner == ""
 
 
 def test_a_round_with_gain_does_not_stop_the_research(repository):
