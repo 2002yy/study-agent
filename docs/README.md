@@ -30,12 +30,21 @@
 - [`MOBILE_ACCEPTANCE_D4D.md`](MOBILE_ACCEPTANCE_D4D.md)：实体手机人工验收。
 - [`G12_ACCEPTANCE.md`](G12_ACCEPTANCE.md)：G12 人工验收证据。
 
+CL-M3 能力链的合同与执行记录保留在：
+
+- [`CL_M3_CAPABILITY_CONTRACT.md`](CL_M3_CAPABILITY_CONTRACT.md)：CL-M3 能力合同，
+  含 `CL-M3-RESEARCH-LIFECYCLE` 的验收口径（§10.8）与 R-3/R-4/R-6 的冻结语义（§11）。
+- [`CL_M1_REBIND_PREVIEW.md`](CL_M1_REBIND_PREVIEW.md)：CL-M1 重绑预演报告，
+  并作为 CL-M3 各切片的逐片执行记录（QD-1b～QD-3e）续写。
+- [`CL_M3_QD3E_SURVIVED_ARCHIVE.md`](CL_M3_QD3E_SURVIVED_ARCHIVE.md)：QD-3e 变异验证中
+  存活的变异逐项分类与风险裁定。
+
+它们描述合同与施工协议，不拥有“当前下一步”；当前执行权始终以 `PROJECT_STATUS.md` 为准。
+
 Research Quality 的设计合同保留在：
 
 - [`RESEARCH_QUALITY_CODEX_TASKBOOK.md`](RESEARCH_QUALITY_CODEX_TASKBOOK.md)
 - [`RESEARCH_QUALITY_OPENCODE_EXECUTION_PLAN.md`](RESEARCH_QUALITY_OPENCODE_EXECUTION_PLAN.md)
-
-它们描述合同与施工协议，不拥有“当前下一步”；当前执行权始终以 `PROJECT_STATUS.md` 为准。
 
 ## 3. 历史与非文档内容
 
