@@ -497,6 +497,99 @@ def test_the_state_is_read_from_the_state_table_not_from_the_events(repository, 
     assert len(snapshot.rounds) == 1
 
 
+def test_a_research_that_predates_the_event_log_keeps_its_authoritative_state(
+    repository, feed
+):
+    """Migration 28 creates an empty event table. It does not backfill one.
+
+    A research that ran rounds before the log existed has rounds in
+    ``research_rounds`` and a ``round_index`` in ``research_states``, and *no*
+    events. When it runs its next round after the upgrade, the log holds one
+    event and the state says three rounds. A snapshot that counted the log
+    instead of reading the state would tell the client the research is one
+    round old - and the client would stop drawing rounds that already exist.
+
+    This is not a hypothetical shape. It is the state of every research that was
+    running when the migration shipped, and the state of any developer database
+    that was already at version 27 when version 28 arrived.
+
+    The earlier test deletes *every* event, which is the weak case: a guard that
+    counts the log can short-circuit on an empty one and still pass. This one
+    leaves the log non-empty and short, which is where the two truths differ.
+    """
+
+    _create(repository)
+    _checkpoint(repository, index=0)
+    _checkpoint(repository, index=1)
+
+    # The upgrade. Migration 28 adds the table and fills it with nothing.
+    with repository.database.connect() as connection:
+        connection.execute("DELETE FROM research_events")
+
+    # The first round that runs after the upgrade writes the first event.
+    _checkpoint(repository, index=2)
+
+    snapshot = feed.snapshot(RESEARCH)
+
+    assert snapshot.round_index == 3
+    assert len(snapshot.rounds) == 3
+    assert snapshot.status == STATE_CHECKPOINTED
+    # The log is one event long and the state is three rounds. Both are true.
+    assert len(snapshot.events) == 1
+
+
+def test_a_pruned_event_log_does_not_change_what_the_research_is(repository, feed):
+    """A retention policy that drops old events must not rewrite the history.
+
+    The event log answers "what did this client miss" and nothing more. A
+    pruning job that keeps the newest events and drops the old ones - a normal
+    thing to do to an append-only log - leaves the log shorter than the
+    research's history. The rounds that finished are still finished, and the
+    state table still says how many of them there are.
+    """
+
+    _create(repository)
+    _checkpoint(repository, index=0)
+    _checkpoint(repository, index=1)
+    _checkpoint(repository, index=2)
+
+    # Keep the newest event, drop the older ones.
+    with repository.database.connect() as connection:
+        connection.execute(
+            "DELETE FROM research_events WHERE event_seq <= ("
+            "SELECT MAX(event_seq) - 1 FROM research_events)"
+        )
+
+    snapshot = feed.snapshot(RESEARCH)
+
+    assert snapshot.round_index == 3
+    assert len(snapshot.rounds) == 3
+    assert len(snapshot.events) == 1
+
+
+def test_a_pruned_finished_event_does_not_resurrect_a_stopped_research(repository, feed):
+    """A finished event that was pruned away must not un-finish the research.
+
+    The status lives in ``research_states``. If it were read from the log, then
+    a log that had lost its last event would report a stopped research as
+    running - and a client would offer to continue a research that is over.
+    """
+
+    _create(repository)
+    _checkpoint(repository, index=0, status=STATE_STOPPED)
+
+    # The log keeps its round event and loses the one that says it finished.
+    with repository.database.connect() as connection:
+        connection.execute(
+            "DELETE FROM research_events WHERE kind = 'research_finished'"
+        )
+
+    snapshot = feed.snapshot(RESEARCH)
+
+    assert snapshot.status == STATE_STOPPED
+    assert snapshot.round_index == 1
+
+
 def test_every_round_the_coordinator_runs_publishes_an_event(repository, feed):
     """The event comes from the checkpoint, not from a second write.
 
