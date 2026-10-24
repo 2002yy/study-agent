@@ -138,7 +138,7 @@ class ResearchProgress:
     """What one round observed that the research had not observed before.
 
     The empty case is the interesting one: ``has_gain`` is False exactly when
-    both differences are empty. A research that compares only the previous
+    the round learned nothing new. A research that compares only the previous
     round would find a difference whenever it oscillates, so both differences
     here are against *all* earlier rounds.
     """
@@ -151,12 +151,22 @@ class ResearchProgress:
     def has_gain(self) -> bool:
         """Whether this round taught the research something it did not know.
 
-        New *observations* count on their own: a source that was never read is
-        new knowledge even when the round could not extract a fact from it
-        yet, and the next round may.
+        A new *fact* is what counts. A source that was never read is worth
+        reporting - it was read, and a later round may learn from it - but on
+        its own it is not knowledge: the contract says "新观察不等于有效增量",
+        and a round that opens a page and comes back with no new fact has
+        produced a page-turn, not a finding.
+
+        Counting a bare new source would let a research read an endless supply
+        of fresh pages that say nothing, each one resetting the no-progress
+        counter - which is the "跑满时长" the contract forbids.
+
+        The two fields are not redundant: ``new_observation_urls`` says what
+        was read, ``new_evidence`` says what was learned, and only the second
+        one is an increment.
         """
 
-        return bool(self.new_evidence) or bool(self.new_observation_urls)
+        return bool(self.new_evidence)
 
     def as_dict(self) -> dict[str, Any]:
         return {

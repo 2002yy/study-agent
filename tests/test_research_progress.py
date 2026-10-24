@@ -243,6 +243,48 @@ def test_a_reworded_fact_is_not_new_evidence(repository):
 # --- counter-example 3: an empty result is not progress ----------------------------------
 
 
+def test_a_new_source_with_no_new_finding_is_not_progress(repository):
+    """A new URL is not the same thing as new knowledge.
+
+    The contract says it twice: "新观察不等于有效增量", and the first of the
+    three ways to count an increment is "新增**此前未掌握**、且与当前任务
+    **相关**的观察或证据" - new *and* relevant. It also says explicitly that
+    "没有新内容的执行状态" does not count.
+
+    So a round that reads a page it has not read before, and comes back with
+    no new fact, has not gained anything. If that counted as progress, a
+    research could read an endless supply of fresh pages that say nothing,
+    and each one would reset the no-progress counter - which is exactly the
+    "跑满时长" the contract forbids.
+
+    The source here *is* new. That is the point of the test: the newness of
+    the source must not be enough on its own.
+    """
+
+    _create(repository)
+    _checkpoint(repository, index=0)
+
+    claimed = repository.claim(RESEARCH, owner="worker-1")
+    repository.checkpoint(
+        RESEARCH,
+        _round(
+            RESEARCH,
+            1,
+            evidence=(),  # nothing new was learned
+            urls=("https://source/1",),  # but a page not read before
+        ),
+        owner="worker-1",
+        fencing_token=claimed.fencing_token,
+        expected_state_version=claimed.state_version,
+    )
+    repository.release(RESEARCH, owner="worker-1", fencing_token=claimed.fencing_token)
+
+    progress = repository.progress_since(RESEARCH)
+
+    assert progress.new_evidence == ()
+    assert progress.has_gain is False
+
+
 def test_an_empty_round_is_not_progress(repository):
     """A round that found nothing is not a round that found nothing new *and
     something else*. It found nothing at all.
@@ -299,6 +341,85 @@ def test_progress_comes_from_the_persisted_record_not_from_a_claim(repository):
 
 
 # --- counter-example 5: no gain means a stop, not a failure ------------------------------
+
+
+# --- counter-example 6: a fresh page with nothing new in it is not a reason to keep going ----
+
+
+def test_reading_fresh_but_empty_pages_stops_the_research(repository):
+    """The consequence of the rule, end to end: endless fresh-but-empty pages
+    must not extend the research.
+
+    This is the failure the rule exists to prevent. Before the fix, a round
+    that opened a page nobody had read before counted as an increment *on the
+    strength of the URL alone* - so a research could read an endless supply of
+    fresh pages that said nothing, and every one of them would reset the
+    no-progress counter. The research would run until the wall-clock budget
+    ran out, which is exactly what §10.4's R-4 forbids ("禁止为耗满时间而
+    循环").
+
+    So: three rounds, each opening a **page never read before**, each
+    learning **nothing**. The first round has something to show and is
+    exempt by the rule's own wording. The second and third are the two
+    consecutive rounds without gain, and the research must stop - keeping
+    what it found, and not fetching a fourth page.
+
+    The URLs here are all genuinely new. That is the point: the newness of
+    the source must not be what keeps the research alive.
+    """
+
+    _create(repository)
+    _checkpoint(repository, index=0)
+
+    for index in (1, 2):
+        claimed = repository.claim(RESEARCH, owner="worker-1")
+        repository.checkpoint(
+            RESEARCH,
+            _round(
+                RESEARCH,
+                index,
+                evidence=(),  # nothing new was learned
+                urls=(f"https://source/{index}",),  # but a page not read before
+            ),
+            owner="worker-1",
+            fencing_token=claimed.fencing_token,
+            expected_state_version=claimed.state_version,
+        )
+        repository.release(RESEARCH, owner="worker-1", fencing_token=claimed.fencing_token)
+
+    state = repository.stop_if_no_progress(RESEARCH)
+
+    assert state is not None
+    assert state.status == STATE_STOPPED
+    assert state.status != STATE_FAILED
+    # It stopped on purpose, and what it found is still true.
+    assert "fact-0" in repository.resume(RESEARCH).evidence
+
+
+def test_a_fresh_page_with_a_finding_still_keeps_the_research_running(repository):
+    """The other side of the same rule, so it cannot be "implemented" by
+    refusing to count any new source.
+
+    A page that is new **and** carries a new fact is an increment. The rule
+    removed the URL-only case; it did not remove progress.
+    """
+
+    _create(repository)
+    _checkpoint(repository, index=0)
+
+    claimed = repository.claim(RESEARCH, owner="worker-1")
+    repository.checkpoint(
+        RESEARCH,
+        _round(RESEARCH, 1, evidence=("fact-1",), urls=("https://source/1",)),
+        owner="worker-1",
+        fencing_token=claimed.fencing_token,
+        expected_state_version=claimed.state_version,
+    )
+    repository.release(RESEARCH, owner="worker-1", fencing_token=claimed.fencing_token)
+
+    assert repository.stop_if_no_progress(RESEARCH) is None
+    state = repository.load(RESEARCH)
+    assert state.status == STATE_CHECKPOINTED
 
 
 def test_two_rounds_without_gain_stop_the_research_but_keep_the_findings(repository):

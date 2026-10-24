@@ -642,7 +642,11 @@ class ResearchStateRepository:
             if index <= 0:
                 continue
             new_evidence, new_urls = _new_observations(rounds, index)
-            if new_evidence or new_urls:
+            if ResearchProgress(
+                new_evidence=new_evidence,
+                new_observation_urls=new_urls,
+                rounds_considered=index + 1,
+            ).has_gain:
                 return None
 
         with self.database.connect() as connection:
@@ -891,6 +895,22 @@ def _new_observations(
     So a fact attached to an already-read source is not new knowledge, and a
     round that brought no new source brings no new knowledge either.
 
+    **A new source on its own is not progress either.** The contract says it
+    twice: "新观察不等于有效增量", and the first of the three ways to count
+    an increment is "新增此前未掌握、**且与当前任务相关**的观察或证据" -
+    new *and* relevant. It also excludes "没有新内容的执行状态" from
+    counting. A round that opens a page it has not read before and comes
+    back with no new fact has produced a new *observation* and no new
+    *knowledge*. If that counted, a research could read an endless supply of
+    fresh pages that say nothing, and every one of them would reset the
+    no-progress counter - which is exactly the "跑满时长" the contract
+    forbids.
+
+    So the increment needs **both**: a source that was not read before, and
+    a fact that was not known before. The source is what makes the fact
+    countable (it is the only comparable proxy for relevance this system
+    has); the fact is what makes it knowledge rather than a page-turn.
+
     Both ``progress_since`` and ``stop_if_no_progress`` use this one
     function, because two rules for "what is new" would be two truths - and
     the second one would be the one nobody tested.
@@ -908,6 +928,11 @@ def _new_observations(
     if not new_urls:
         return (), ()
     new_evidence = tuple(item for item in current.evidence if item not in seen_evidence)
+    if not new_evidence:
+        # A new source and nothing new from it. The source is still worth
+        # reporting - it was read, and a later round may learn from it - but
+        # it is not an increment, so it does not reset the no-progress count.
+        return (), new_urls
     return new_evidence, new_urls
 
 
