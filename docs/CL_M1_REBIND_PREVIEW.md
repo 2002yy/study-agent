@@ -2861,7 +2861,7 @@ tests/test_research_state_repository.py     29
 | --- | --- | --- | --- | --- |
 | 1 | `no-progress-check-removed` | **DETECTED**（failed=2） | 护栏有效 | 否 |
 | 2 | `cancel-check-removed` | SURVIVED | **测试覆盖不足** | 否 |
-| 3 | `worker-starts-without-an-executor` | SURVIVED | **变异无效**（目标分支不可达） | 否 |
+| 3 | `worker-starts-without-an-executor` | SURVIVED | **覆盖不足**（`factory()` 返回 None 时可达，未测） | 否 |
 | 4 | `disabled-worker-starts-anyway` | SURVIVED | **测试覆盖不足** | 否 |
 | 5 | `broken-factory-starts-anyway` | SURVIVED | **测试覆盖不足** | 否 |
 | 6 | `factory-imports-eagerly` | SURVIVED | **变异无效**（测错了对象） | 否 |
@@ -2873,13 +2873,18 @@ tests/test_research_state_repository.py     29
   → 协调器在 `leases_lost += 1` 处直接 return → **第 2 轮从未开始**。
   该窗口在生产**可达**（取消可在两轮之间落地），但当前实现的检查位置是对的，
   **不构成可绕过的费用/安全缺陷**。
-- **#3（第二个 `if executor is None`）**：第一个检查在 `executor` 为 None 时必然 return，
-  **第二个分支不可达**。生产里 `coordinator.start()` 只有一个调用点，在两道门之后。
+- **#3（第二个 `if executor is None`）**：第一个检查在 `executor` 为 None 时通常先行 return，
+  但**`factory()` 自己返回 None 时，第二个分支是可达的**——
+  那条路径存在，只是**没有测试**构造它。
+  **这一项的分类已更正**（原判"变异无效 / 目标分支不可达"）：
+  "不可达"会排除风险，"可达但没测"只是留下风险未被发现，**两者不是一回事**。
+  当前行为仍是 `return None`（不启动、不花钱），所以**不构成可绕过的缺陷**；
+  但这个结论**依赖"第二个检查仍然 return None"这一实现事实，而它没有测试保护**。
 - **#6（工厂 eager import）**：变异把 `importlib.import_module` 插在**函数体内**——
   那是**调用时**导入，不是 import 时导入。**变异测错了对象**。
   实际行为符合承诺：`research_production.py` 顶层**没有** import 任何模型客户端。
 
-**结论：5 项中 2 项变异无效、3 项覆盖不足，无一证实为可绕过的生产安全/费用缺陷。**
+**结论：5 项中 1 项变异无效、4 项覆盖不足，无一证实为可绕过的生产安全/费用缺陷。**
 **就 3e 自身而言，实际阻断项 = 0。**
 
 ### 34.6 与 #287 的整合阻断项（**阻塞"主线可集成"，不阻塞 3e 自身收口**）
@@ -2955,30 +2960,137 @@ assert "research_states" in sql_by_version[27]          # 那是本分支的
 
 **合并带来的另一个事实：费用账本的接口形态变了**（详见 §34.9 第 8 项的补充）。
 
+### 34.6c 合入 #287：阻断项 A 已被对方解决，类型债务一并归零
+
+§34.6 记录的阻断项 A 是：#287 给 `stop_if_no_progress` 的 UPDATE 加了
+`AND lease_owner = ''`，而 3e 的协调器**在自己的租约持有期间**调用它 →
+条件永不满足 → **R-4 自停静默失效**。
+
+**这一项已由 #287 侧解决，不是本批绕过去的**：
+
+```text
+#287 的最终形态
+AND lease_owner = ? AND cancel_requested_at = ''
+AND (? = '' OR fencing_token = ?)
+```
+
+围栏从"常量空串"变成**参数化的 owner + fencing token**，
+协调器相应地传 `owner=lease.owner, fencing_token=lease.fencing_token`。
+**owner 为空时行为不变**（`? = ''` 成立），所以既有调用点也不受影响。
+
+对应的回归测试是 `test_no_progress_stop_can_finish_with_its_own_fenced_lease`：
+持有活跃租约时调用 `stop_if_no_progress`，断言 `stopped is not None` 且
+`status == stopped`——**这正是此前实测得到 `None`（未停止）的那个场景**。
+
+**护栏做了牙齿检验**：把 `AND lease_owner = ?` 从 WHERE 里去掉 →
+**3 个测试失败**，其中包含上述那条。护栏有效，不是摆设。
+
+**合并零冲突**（`git merge-tree` 退出码 0），且顺带解决了两件本分支自己的事：
+
+1. **类型债务归零**。合并前本分支相对 mypy baseline 有 **11 条新诊断**
+   （action dispatch 的回调签名、bounded loop 的推断类型、observation trail 的
+   frame union、事件序列转换）。#287 已经修了其中大部分，
+   合并后是 `current=124, baseline=128, resolved=4`——
+   **baseline 门禁通过，本分支不再新增自己的类型债**。
+2. **QD-3a 遗留的一处 mypy 缺陷**（`int(cursor.lastrowid)`，`lastrowid` 是
+   `int | None`）也在此修掉——它自 QD-3a 起就在，一直卡着 #287 的门禁。
+
+合并后的实测：**QD 口径 155 passed**（152 + #287 的 3 个 progress 测试）、
+**ruff 全绿**、**mypy baseline 通过**。
+
+### 34.6d 合同补强第一刀：R-4 的增量判定收紧（`5121f668`）
+
+**这是本轮做的第一件事，也是"停止扩张 QD-3e、转向集成收口"之后的第一刀**：
+不扩功能、不扩测试矩阵，只把**实现对齐到已经冻结的合同**。
+
+**问题（用户代码审查补充 2，P1）**：合同 §11.2 写的是
+「以**新观察 / 新证据**计数为准，但**新观察不等于有效增量**」，
+且计入增量的第一种情形是「新增**此前未掌握**、且与当前任务**相关**的观察或证据」；
+不计入的清单里明确包含「空结果、**没有新内容的执行状态**」。
+
+而实现在增量判定上是**更宽**的：`_new_observations()` 只要发现一轮带来了
+**此前没出现过的 `observation_url`**，就可能计入有效增量——
+**即使那一轮没有带来任何新事实**，也没有验证该来源与当前问题是否相关。
+
+**为什么这不是吹毛求疵**：旧判定下，一个研究可以**读无穷多个全新但空洞的页面**，
+每一页都重置一次"无进展"计数，于是 §10.4 的 R-4
+（「禁止为耗满时间而循环」）在**最坏的情况下无法生效**。
+3d 冻结的是「同一来源换措辞不算进展」，
+**没有**冻结「新 URL 单独算进展」——那是实现副产品，不是合同。
+
+**修法**：增量必须**同时**有新来源**和**新事实（`AND` 语义）。
+
+```text
+旧：has_gain = bool(new_evidence) or bool(new_observation_urls)
+新：has_gain = bool(new_evidence)
+```
+
+并且 `stop_if_no_progress()` 现在**走 `ResearchProgress.has_gain`**，
+不再自己重新推导一遍"是不是有新的东西"。
+`_new_observations` 是唯一定义点；两个真相意味着第二个没人测。
+
+**新来源仍然会被报告**：读过的页面仍进 `new_observation_urls`
+（它确实被读了，后面某轮可能从它学到东西），但它**不计入增量**、
+**不重置无进展计数**。
+
+**三条新负控**（`tests/test_research_progress.py`）：
+
+| 测试 | 作用 |
+| --- | --- |
+| `test_a_new_source_with_no_new_finding_is_not_progress` | URL 确实是新的，但**光有新来源不够** |
+| `test_reading_fresh_but_empty_pages_stops_the_research` | **端到端后果**：三轮各读一个全新页面、各自什么也没学到 → **必须自停**，不能去读第四页 |
+| `test_a_fresh_page_with_a_finding_still_keeps_the_research_running` | 另一侧：页面既新**又**带来新事实 → 仍然算增量（防止护栏被写成"任何新来源都不算"） |
+
+**牙齿检验**：把 `has_gain` 临时改回旧写法 → **前两条失败**，
+且第二条失败的方式**正是缺陷本身**（`assert None is not None`——研究没有自停）。
+第三条两种写法都通过（正面护栏应有的样子）。随后从备份恢复修复。
+
+修复后实测：**QD 口径 158 passed**（155 + 3）、**ruff 全绿**、
+**mypy baseline 通过**（`current=124, baseline=128, resolved=4`）。
+
+**这一刀没有触碰**：变异矩阵、DB 回归、费用账本、QD-4。
+用户明确要求「**不需要重新做 QD-3e**」，本节就是那条边界的落点。
+
 ### 34.7 三级验收口径的自评（第一层满足不自动推出第二、三层）
 
 | 层 | 判定 | 依据 |
 | --- | --- | --- |
 | **① 实现完成** | **达成** | 生产装配（`research_production.py` + `runtime_repository` + `app.py` lifespan）、真实进程终止恢复、可控假执行器及其测试均已提交 |
-| **② 工程验收通过** | **达成** | 完整回归（152 passed / ruff 全绿，**在合并 `main` 之后的树上实测**）、已知高风险变异审查完成（5 项 SURVIVED 逐项分类）、3e 的两处测试修复均经牙齿检验，合并引入的第三处断言改写经核对为**更严** |
-| **③ 主线可集成** | **部分达成** | 与 `main` 的合并冲突已全部解决（34.6b），三处机械、一处真失败已修；**但**与 #287 仍存在阻断项 A 的语义冲突，费用账本仍未适配 |
+| **② 工程验收通过** | **局部达成，完整验收待补** | 已达成：QD 套件 **158 passed**、ruff 全绿、mypy baseline 通过（均在合并 `main` 与 #287 之后的树上实测；158 = 155 + R-4 补强的 3 条）、5 项 SURVIVED 逐项分类、4 处修复均经牙齿检验。**未达成**：**95 文件 DB 回归未完成**（中途取消，无部分输出）、**主线集成 CI 尚无成功证据** |
+| **③ 主线可集成** | **部分达成** | 与 `main` 的合并冲突已全部解决（34.6b）；#287 已合入且其阻断项 A（租约围栏致 R-4 静默失效）**已由 #287 侧的围栏参数化解决**（34.6c）；**但**费用账本仍未适配，R-6 授权仍有三处待修（见下） |
 
-**② 成立不推出 ③**：#287 的整合冲突与费用账本兼容是**不同的门**，
+**② 的口径收紧（这一条是更正）**：此前把 ② 标为"达成"，而**同一文档**写着
+95 文件 DB 回归未完成、且当时主线集成 CI 尚无成功证据。
+**"局部测试通过"不等于"完整工程验收通过"**——
+局部绿只说明被跑过的那部分绿。准确说法是：
+**QD-3e 局部验收达成，完整工程验收待补**（缺 DB 回归与主线 CI 两项）。
+
+**② 成立不推出 ③**：#287 的整合、费用账本兼容、R-6 授权修复是**不同的门**，
 QD-3e 的交付、主线集成、费用账本兼容、产品验收是**四件事**。
 
-**③ 从"未达成"变成"部分达成"**：本批做完了"与 main 合并"这一件，
-它本来就是 ③ 的一部分；剩下的两件（#287 的语义裁定、费用账本适配）
+**③ 的进度**：本批做完了"与 main 合并"和"合入 #287"两件，
+后者还顺带**解决了此前记录的阻断项 A**；
+剩下的（费用账本适配、R-6 授权修复、DB 回归、主线 CI）
 **没有被本批解决，也不因合并而消失**。
 
 ### 34.8 本轮明确**不**做的事
 
 - **不宣称** §10.8 任何一项完整通过。R-3/R-4 在 3e 落地的是**运行时生效**，
   但 §10.8 第 2 项要求"**有账本证据**"——费用账本至今**没有接进 QD 的调用路径**。
-- **不合并** #287（CI 未通过，且与 3e 有语义冲突）。
+  （R-4 的**增量判定**已按合同收紧，见 34.6d；但"自停"要有**账本证据**这件事，
+  仍然没有。）
 - **不碰** 费用账本，不另造第二套账本（只记录它的形态变了，见 §34.9 第 8 项）。
 - **不进入 QD-4**，不启动付费 QE，不新开独立 PR。
 - **不重开大规模测试补强**（5 项 SURVIVED 的覆盖缺口单独排期，见 34.9）。
 - **不完成** DB 回归（被用户取消，无部分输出）——如实记为未完成，**不当作通过**。
+
+**已从本节移出的条目**（它们在本轮被解决了，留在"不做"里是错的）：
+
+| 原条目 | 现状 |
+| --- | --- |
+| 「不合并 #287」 | **已合并**（`7d95e6eb`，零冲突）。#287 的 mypy 失败已在 `82c199ed` 修掉；其阻断项 A 由 #287 侧的围栏参数化解决（34.6c） |
+| §34.9 第 6 项「#287 阻断项 A 的解法裁定」 | **不需要裁定**——对方已解 |
+| §34.9 第 7 项「#287 阻断项 B 的测试构造修正」 | **已修**（`82c199ed`，`int(cursor.lastrowid)`） |
 
 ### 34.9 遗留排期项
 
@@ -2988,10 +3100,11 @@ QD-3e 的交付、主线集成、费用账本兼容、产品验收是**四件事
 | 2 | 「关闭开关时不启动 worker」的用例 | 覆盖不足（#4） |
 | 3 | 「`factory()` 抛异常时不启动 worker」的用例 | 覆盖不足（#5） |
 | 4 | 「import 生产模块不导入模型客户端」的用例 | 变异无效（#6），需换测法 |
-| 5 | DB 回归（95 文件） | 未完成，需重跑 |
-| 6 | #287 阻断项 A 的解法裁定 | 需用户/审核裁定 |
-| 7 | #287 阻断项 B 的测试构造修正 | 需在 #287 内修正 |
+| 5 | **「`factory()` 返回 None 时 worker 不启动」的用例** | 覆盖不足（**#3，分类已更正**） |
+| 6 | DB 回归（95 文件） | 未完成，需重跑 |
+| 7 | **R-6 授权三处修复**（见 §34.10） | **P1，独立切片** |
 | 8 | 费用账本适配 | **接口形态已变，见下** |
+| 9 | 主线集成 CI 在最终 HEAD 上跑绿 + 记录精确 HEAD | 未完成 |
 
 **第 8 项的补充：费用账本的接口形态已经变了（合并 main 时发现）**
 
@@ -3020,3 +3133,80 @@ experiment_cap_cny()  /  remaining_cny()  /  spent_cny()
 
 **影响面**：§34.8"不宣称 §10.8 第 2 项完整通过"的结论**不变**——
 "取消后不再产生模型调用"要的是**账本证据**，而账本这一层至今没有接进 QD 的调用路径。
+
+### 34.10 R-6 授权安全切片：勘察结论与实施计划（下一刀）
+
+**用户裁定**：R-6 的三处问题**必须在生产启用前修复**，
+但**独立为一个授权安全切片**，**不混进已经反复修改的 #287**。
+本节记录勘察到的**事实**（不含实现），以便下一刀有据可依。
+
+#### 34.10.1 三处问题的精确落点
+
+| # | 问题 | 落点 | 事实 |
+| --- | --- | --- | --- |
+| **R6-1** | 批准记录可以缺少有效期与额度上限 | `src/repositories/research_tier_repository.py:151-173`（`approve()`）<br>`src/domain/research_authorization.py:287-296`（`covers()`）<br>`src/domain/research_authorization.py:122-123`（`_is_expired()`） | `valid_until=""` / `max_calls=0` / `max_cost=0.0` **全是默认值，无强制**；`covers()` 用 `if self.max_calls and ...`，**`max_calls=0` 时整段额度检查被短路跳过**；`_is_expired()` 在 `valid_until` 为空时**永不过期** |
+| **R6-2** | `apply_upgrade()` 未完整校验研究状态自身的操作身份 | `src/repositories/research_tier_repository.py:290-365`，其中 `:334` | 只比较 `authorization["operation_id"] != operation_id`（**授权行 vs 调用方传入参数**）。**从未**把授权行的 `research_id`/`operation_id` 与**研究状态行**的 `research_id`/`operation_id` 交叉比对——`state["operation_id"]` **从头到尾没有被读过** |
+| **R6-3** | 升档最终写入没有状态条件 | `src/repositories/research_tier_repository.py:353-358` | `UPDATE research_states SET tier = ?, ... WHERE research_id = ?`——WHERE **只有 `research_id`**。无 `status`、无 `cancel_requested_at`、无 `state_version`、无 `fencing_token`。与 `:315-324` 的读检查之间存在**竞态窗口** |
+
+#### 34.10.2 合同依据（§11.3 原文要点）
+
+> **升档前必须重新核验**（不是"请求过就行"）：
+> - 授权记录存在，且状态为 `approved`；
+> - 授权**未过期**；
+> - 授权关联的**操作身份**与当前研究一致；
+> - 授权的**费用/调用上限**足以覆盖这次升档。
+>
+> **一律不得升档的情形**：超时、取消、被拒绝、记录缺失。
+
+#### 34.10.3 仓库内已经存在的正确范式（同一张表、同一个仓库）
+
+`stop_if_no_progress()` 的最终 UPDATE（`src/repositories/research_state_repository.py:653-673`）
+**已经**是应有的形态：
+
+```sql
+WHERE research_id = ? AND state_version = ? AND round_index = ?
+  AND status IN ('running', 'checkpointed')
+  AND lease_owner = ? AND cancel_requested_at = ''
+  AND (? = '' OR fencing_token = ?)
+```
+
+并且 `rowcount != 1` 时**返回 None 而不是强行写入**。
+**R6-3 的修法不是发明新机制，而是把 `apply_upgrade()` 对齐到本仓库已有的范式。**
+
+#### 34.10.4 覆盖缺口（勘察确认，不是估计）
+
+| 缺口 | 事实 |
+| --- | --- |
+| `covers()` 的拒绝分支 | **全仓无任何测试**断言 `authorization_too_small`；14 处 `apply_upgrade()` 调用**全部未传** `calls=`/`cost=`，用默认 `0`/`0.0` → **拒绝分支从未被执行过** |
+| `approve()` 缺少三参 | **全仓无任何测试**断言缺少 `valid_until`/`max_calls`/`max_cost` 时应被拒绝；13 处 `approve()` 调用中 11 处传满，**2 处不传**（`tests/test_research_scenarios.py:631`、`:661`）——**缺有效期缺额度的批准目前是正常路径** |
+| 取消与升档的**写侧**竞态 | `tests/test_research_tier_authorization.py:324-360` 只覆盖**读侧**（cancel 之后**再**调 `apply_upgrade`）；**没有**覆盖"读检查通过之后、UPDATE 落地之前"发生取消的窗口 |
+
+#### 34.10.5 实施计划（本切片，四件事）
+
+1. **`approve()` 强制三要素**：`valid_until` 非空、`max_calls > 0`、`max_cost > 0`，
+   缺失则拒绝落库（不产生 `approved` 记录）。
+   合同要求"授权的**费用/调用上限**足以覆盖这次升档"——
+   **没有上限的授权等于没有上限的授权**。
+2. **`covers()` 去掉短路**：`max_calls == 0` / `max_cost == 0` 应视为
+   "**上限为零**"（即不覆盖任何额度），而不是"不检查上限"。
+   两者语义相反，而当前实现取的是后者。
+3. **`apply_upgrade()` 交叉校验身份**：把授权行的 `research_id`/`operation_id`
+   与研究状态行的 `research_id`/`operation_id` **双向比对**，
+   不再只信调用方传入的 `operation_id`。
+4. **`apply_upgrade()` 的 UPDATE 加条件**：照抄 §34.10.3 的范式
+   （`status` / `cancel_requested_at` / `state_version`），
+   `rowcount != 1` 时**拒绝升档**（而不是静默写入）。
+
+**取消终态保护**（用户优先级 2 明列）由第 4 项一并覆盖：
+`cancel_requested_at = ''` 与 `status NOT IN ('cancelled','failed','stopped')`
+进入 UPDATE 的 WHERE，取消与升档并发时**取消赢**。
+
+**本切片不做**：不扩到 API 路由、不接生产装配（`apply_upgrade()` 目前**没有生产调用方**）、
+不动费用账本、不动变异矩阵。
+
+**一个必须如实记录的前提**：R-6 授权链路**目前尚未接入生产**——
+`get_research_tier_repository()` 已备好但**无调用方**，`src/api/routes/` 下**无任何**
+tier/upgrade 路由，`src/application/` 下**无任何** `approve(`/`apply_upgrade(` 调用。
+所以这三处修复**当前没有生产暴露面**；但它们是**生产启用前的最后一道闸**，
+按用户裁定**必须在启用前修掉**——这正是"独立切片"的含义。
+

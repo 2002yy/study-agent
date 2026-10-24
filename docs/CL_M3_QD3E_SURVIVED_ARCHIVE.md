@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | 1 | `no-progress-check-removed` | **DETECTED**（failed=2） | 护栏有效 | 否 |
 | 2 | `cancel-check-removed` | SURVIVED | **覆盖不足**（检查存在但未被走到） | 否 |
-| 3 | `worker-starts-without-an-executor` | SURVIVED | **变异无效**（目标分支不可达） | 否 |
+| 3 | `worker-starts-without-an-executor` | SURVIVED | **覆盖不足**（`factory()` 返回 None 时可达，未测） | 否 |
 | 4 | `disabled-worker-starts-anyway` | SURVIVED | **覆盖不足**（关闭分支未被测） | 否 |
 | 5 | `broken-factory-starts-anyway` | SURVIVED | **覆盖不足**（另一条失败路径未被测） | 否 |
 | 6 | `factory-imports-eagerly` | SURVIVED | **变异无效**（变异测错了对象） | 否 |
@@ -49,20 +49,33 @@
   - **不构成生产安全或费用边界可被绕过的缺陷**——只是该检查缺一个专门的负控用例。
 - **阻断**：否。**遗留项**：补一个「取消发生在两轮之间」的用例（单独排期）。
 
-### 3. `worker-starts-without-an-executor` — SURVIVED ✗ 变异无效
+### 3. `worker-starts-without-an-executor` — SURVIVED ⚠️ 覆盖不足（原判"变异无效"，已更正）
 
 - **变异目标**：把 `start_research_coordinator` 里
   `if executor is None: ... return None` 改为「造一个空 executor 继续」。
 - **可达性分析**：该锚点命中的是函数里的**第二个** `if executor is None` 检查。
-  但第一个检查（`if executor is None:` → `load_executor_factory()`）在
+  第一个检查（`if executor is None:` → `load_executor_factory()`）在
   `executor` 为 None 时**必然 return None**（factory 为 None），
-  或给 `executor` 赋值。**第二个检查不可达**——
-  除非 `factory()` 自己返回 None，而那需要另一个测试场景。
-- **根因**：**变异无效**——变异挑了一个不可达的分支做目标，SURVIVED 不反映实现质量。
+  或给 `executor` 赋值。于是第二个检查**通常**不可达——
+  **但 `factory()` 自己返回 None 时它是可达的**：第一个检查会走进
+  `executor = factory()`，得到 None，然后落到第二个检查。
+- **根因**：**测试覆盖不足**（**这一条是更正**）。
+  此前把这一项归为"变异无效 / 目标分支不可达"，理由是第一个检查会先行 return。
+  但同一个分析里已经承认"除非 `factory()` 返回 None"——那条路径存在，
+  只是**没有测试**走到它。所以准确的说法是：
+  **变异的目标分支在特定输入下可达，而现有测试没有构造那个输入**，
+  于是 SURVIVED 反映的是覆盖缺口，不是不存在缺陷。
+  这是"分类"本身需要被修正的一例：**"不可达"与"可达但没测"是两件事**，
+  前者排除风险，后者只是留下风险未被发现。
 - **风险裁定**：生产里 `coordinator.start()` 只有**一个**调用点
   （`research_production.py:183`），它在「开关开启 + 拿到 executor」两道门之后。
-  无 executor 时协调器不会启动。**不可达分支不产生风险。**
-- **阻断**：否。
+  即便走到第二个检查，其行为也是 `return None`（不启动），
+  **不会产生费用**。所以**当前不构成可绕过的安全/费用缺陷**，
+  但**结论依赖"第二个检查仍然 return None"这一实现事实**，
+  而该事实**没有测试保护**——这正是覆盖缺口的实际含义。
+- **阻断**：否。**遗留项**：补一条「`factory()` 返回 None 时 worker 不启动」的用例
+  （与第 5 项的"factory 抛异常"用例相邻，但**不是同一条路径**：
+  一个是异常，一个是 None 返回）。
 
 ### 4. `disabled-worker-starts-anyway` — SURVIVED ⚠️ 覆盖不足
 
@@ -126,8 +139,13 @@
 ## 三、总结论
 
 - **5 项 SURVIVED 中没有一项证实为生产安全或费用边界可被绕过的缺陷。**
-  - 2 项是**变异本身无效**（第 3、6 项），SURVIVED 不反映实现质量。
-  - 3 项是**测试覆盖不足**（第 2、4、5 项），实现的检查位置与生效路径均正确。
+  - **1 项是变异本身无效**（第 6 项：锚点选在函数体内，测的是"调用时导入"而非
+    "import 时导入"），SURVIVED 不反映实现质量。
+  - **4 项是测试覆盖不足**（第 2、3、4、5 项），实现的检查位置与生效路径均正确。
+  - **第 3 项的分类已更正**（原判"变异无效 / 目标分支不可达"）：
+    `factory()` 返回 None 时那个分支**是可达的**，只是没有测试构造那个输入。
+    "不可达"会排除风险，"可达但没测"只是留下风险未被发现——两者不是一回事，
+    因此更正为**覆盖不足**。
 - **实际阻断项：0。**
 - **已修的 2 项**（本轮，非 SURVIVED 清单内）：
   - `test_research_feed.py::test_every_round_the_coordinator_runs_publishes_an_event`
