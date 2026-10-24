@@ -148,12 +148,13 @@ class AdmittedCompletion:
             value = self._completion(
                 messages=messages, timeout=timeout, task_name=task_name, **_kwargs
             )
-        except TimeoutError:
-            # The provider may or may not have billed. Keep the reservation.
-            self._settle(request_id, UNRESOLVED, 0)
-            raise
         except Exception:
-            self._settle(request_id, FAILED, 0)
+            # A provider or SDK exception does NOT establish that nothing was
+            # sent. Connection resets, custom SDK timeouts and response parse
+            # failures can happen after the provider accepted the request.
+            # Keep the reservation unless an upstream transport provides a
+            # positively verified, pre-send failure receipt (not available here).
+            self._settle(request_id, UNRESOLVED, 0)
             raise
         self._settle(request_id, SETTLED, self._price(self._estimate))
         return value
