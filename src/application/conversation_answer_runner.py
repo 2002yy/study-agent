@@ -17,7 +17,10 @@ from typing import Awaitable, Callable
 
 from src.application.conversation_answer_input import AnswerInput
 from src.application.conversation_decision import DecisionContext
-from src.application.conversation_decision_runner import DecisionAdmission
+from src.application.conversation_decision_runner import (
+    ADMISSION_OUTCOMES,
+    DecisionAdmission,
+)
 
 
 @dataclass(frozen=True)
@@ -63,18 +66,34 @@ class AnswerResult:
 AnswerTransport = Callable[[ModelAnswerRequest], Awaitable[str]]
 
 
+def answer_reservation_id(context_request_id: str) -> str:
+    """The admission identity an ANSWER stage for this turn will reserve under.
+
+    Exposed separately so a host that owns settlement can close the answer reservation
+    without reconstructing an ``AnswerInput`` - the identity must have exactly one
+    implementation, or the settled key and the reserved key can drift apart.
+    """
+    if (
+        not isinstance(context_request_id, str)
+        or not context_request_id.strip()
+        or len(context_request_id) > 160
+    ):
+        raise ValueError("invalid answer context id")
+    identity = json.dumps(
+        ["conversation-answer-v1", context_request_id, "answer"],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return "answer:" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
 def answer_request_id(value: AnswerInput) -> str:
     """Stable stage identity, independent of mutable content or model wording.
 
     Namespace differs from decision admission; both may share the same ledger.
     An admitted ANSWER stage cannot be recharged by changing its proposal phase.
     """
-    identity = json.dumps(
-        ["conversation-answer-v1", value.context.request_id, "answer"],
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
-    return "answer:" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    return answer_reservation_id(value.context.request_id)
 
 
 class _NotStarted(Exception):
@@ -132,8 +151,7 @@ async def generate_conversation_answer(
     if admission != "reserved":
         return result(
             admission
-            if isinstance(admission, str)
-            and admission in {"already_attempted", "budget_exhausted"}
+            if isinstance(admission, str) and admission in ADMISSION_OUTCOMES
             else "admission_unavailable"
         )
 

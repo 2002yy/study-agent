@@ -201,6 +201,9 @@ class ResearchSemanticSession:
         self.episode: ResearchEpisode | None = None
         self.decision: ResearchDecision | None = None
         self.body_questions: set[str] = set()
+        # Additive observation for the M3-QA adapter: the exact context that was sent.
+        # Nothing reads it inside this module, so behaviour is unchanged.
+        self.last_context: dict[str, Any] | None = None
 
     def request(self, stage: str, instruction: str, context: dict[str, Any]) -> Any:
         if stage in self.stages or len(self.stages) >= 3:
@@ -254,6 +257,7 @@ class ResearchSemanticSession:
                   active_task_exists: bool = True) -> ResearchDecision:
         context = episode_context(episode, latest, history=history if self.history_allowed else "",
                                   remaining_seconds=self.deadline - time.monotonic(), active_task_exists=active_task_exists)
+        self.last_context = context
         schema = {"task_id": episode.task_id, "intent": " | ".join(sorted(INTENTS)),
                   "subject": "topic name", "constraints_delta": {"focus": "optional preference"},
                   "unresolved_questions": [{"id": "rq-identity", "question": "subquestion"}],

@@ -57,10 +57,7 @@ class AnswerInput:
             {"schema": "conversation-decision-v1", **asdict(invocation.proposal)},
             self.context,
         )
-        if self.trail.frames:
-            self.trail.validate_next_context(self.context)
-        elif self.trail.root != self.context:
-            raise ValueError("answer root mismatch")
+        self.trail.validate_answer_context(self.context)
         if len(self.to_json()) > 64000:
             raise ValueError("answer input limit")
 

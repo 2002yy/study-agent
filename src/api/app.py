@@ -29,11 +29,22 @@ ASSETS_DIR = ROOT / "assets"
 
 @asynccontextmanager
 async def _deep_trigger_lifespan(_app: FastAPI):
-    """Start the background Deep trigger, best effort.
+    """Start the background workers, best effort.
+
+    Two workers, and they are independent: the Deep trigger, and - since
+    QD-3e - the persistent research coordinator.
 
     Deep recovery must never be a condition for serving chat: if the worker cannot start, the
     application still comes up and the next explicit start can retry. Shutdown is bounded and
     never waits out a running Deep call.
+
+    The research coordinator follows the same rule, and it has one more:
+    it only starts when an executor has been configured, because an
+    executor calls a model and a model call costs money. A coordinator with
+    no executor is a worker that scans forever and accomplishes nothing, so
+    the production path refuses to start one rather than pretending to be
+    alive. A research that was not advanced is still durable - it is in the
+    database, and the next start picks it up.
     """
 
     import logging
@@ -45,6 +56,15 @@ async def _deep_trigger_lifespan(_app: FastAPI):
         get_deep_trigger_runner().start()
     except Exception:
         logger.exception("deep trigger startup failed")
+
+    coordinator = None
+    try:
+        from src.application.runtime_repository import get_research_coordinator
+
+        coordinator = get_research_coordinator()
+    except Exception:
+        logger.exception("research coordinator startup failed")
+
     try:
         yield
     finally:
@@ -54,6 +74,15 @@ async def _deep_trigger_lifespan(_app: FastAPI):
             get_deep_trigger_runner().stop()
         except Exception:
             logger.exception("deep trigger shutdown failed")
+        if coordinator is not None:
+            try:
+                from src.application.research_production import (
+                    stop_research_coordinator,
+                )
+
+                stop_research_coordinator(coordinator)
+            except Exception:
+                logger.exception("research coordinator shutdown failed")
 
 
 
@@ -79,6 +108,7 @@ from .routes.rag_routes import router as _rag_router
 from .routes.chat_routes import router as _chat_router
 from .routes.web_lookup_routes import router as _web_lookup_router
 from .routes.reading_routes import router as _reading_router
+from .routes.research_routes import router as _research_router
 from .routes.github_routes import router as _github_router
 from .routes.github_review_routes import router as _github_review_router
 
@@ -95,6 +125,7 @@ app.include_router(_rag_router)
 app.include_router(_chat_router)
 app.include_router(_web_lookup_router)
 app.include_router(_reading_router)
+app.include_router(_research_router)
 app.include_router(_github_router)
 app.include_router(_github_review_router)
 

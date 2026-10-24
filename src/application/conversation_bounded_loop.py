@@ -6,14 +6,17 @@ from contextlib import aclosing
 from dataclasses import dataclass, replace
 import math
 import time
-from typing import AsyncGenerator, Callable, Mapping
+from typing import AsyncGenerator, Callable, Mapping, cast
 
 from src.application.conversation_action_dispatch import (
     ActionBudget,
     ActionEvent,
     ActionHandler,
     ActionInvocation,
+    RefusalRecord,
     dispatch_conversation_action,
+    forbidden_action,
+    refusal_allows_reselection,
 )
 from src.application.conversation_answer_generator import BoundedAnswerGenerator
 from src.application.conversation_answer_input import AnswerHandler, AnswerInput
@@ -36,7 +39,32 @@ from src.application.conversation_observation_trail import (
     ObservationLimitError,
     ObservationTrail,
     decide_with_observation_trail,
+    trail_extra_chars,
+    with_observation_trail,
 )
+from src.application.conversation_refusal_state import (
+    MAX_RESELECTIONS,
+    RefusalState,
+    refusal_extra_chars,
+    refusal_followup_context,
+    with_refusal_state,
+)
+
+
+@dataclass(frozen=True)
+class _PaddedAdmission:
+    """Charge the prompt for the messages appended after the decision context.
+
+    The appended payloads are real input tokens. Leaving them out of the reservation would
+    under-count every observation and every refusal, which is the kind of silent
+    under-billing the ledger exists to prevent.
+    """
+
+    delegate: DecisionAdmission
+    extra: int
+
+    def reserve(self, request_id: str, prompt_chars: int, output_tokens: int) -> str:
+        return self.delegate.reserve(request_id, prompt_chars + self.extra, output_tokens)
 
 
 @dataclass(frozen=True)
@@ -87,6 +115,7 @@ async def run_conversation_loop(
     limits: LoopLimits = LoopLimits(),
     answer_handler: AnswerHandler | None = None,
     answer_generator: BoundedAnswerGenerator | None = None,
+    should_cancel: Callable[[], bool] = lambda: False,
 ) -> AsyncGenerator[LoopEvent, None]:
     """Stream decisions/observations and one normal terminal event.
 
@@ -98,17 +127,38 @@ async def run_conversation_loop(
     answer adapters are mutually exclusive.
     The host owns fresh snapshots and real tool consumption. Closing/cancelling
     stops this iterator; it does not assert rollback of admitted external work.
+
+    ``should_cancel`` is polled before every admitted model call and before every
+    dispatch, so a user cancel that lands while a tool thread is still winding down is
+    not followed by another paid decision. It is cooperative: it cannot reach inside a
+    handler that is already executing. A probe that raises stops the turn rather than
+    authorizing one more call - an unanswerable cancel question is not a "no".
     """
     if answer_handler is not None and not callable(answer_handler):
         raise ValueError("invalid answer handler")
+    if not callable(should_cancel):
+        raise ValueError("invalid cancel probe")
+
+    def cancelled() -> bool:
+        try:
+            return bool(should_cancel())
+        except Exception:
+            return True
+
     if answer_generator is not None and (
         not isinstance(answer_generator, BoundedAnswerGenerator)
         or answer_handler is not None
     ):
         raise ValueError("invalid or conflicting answer generator")
     deadline = time.monotonic() + limits.timeout_seconds
-    frames: list[tuple[DecisionContext, ActionProposal, ActionEvent]] = []
+    # Observations and refusals both move the decision identity, and they can interleave
+    # (observe, then be refused, then observe again). Recording them as one ordered list is
+    # what keeps `latest()` rebuilding the same identity chain the loop actually walked; two
+    # separate lists would replay every frame before every refusal and break the chain.
+    projection: list[tuple[str, object]] = []
     trail = ObservationTrail(context)
+    refusal_state = RefusalState(context.request_id)
+    reselections = 0
     steps = observations = 0
 
     def latest() -> DecisionContext:
@@ -127,11 +177,67 @@ async def run_conversation_loop(
         # before dispatch can compare it with the exact completion receipt.
         actual_research = fresh.active_research
         fresh = replace(fresh, active_research=context.active_research)
-        for before, proposal, observation in frames:
-            fresh = tool_followup_context(before, fresh, proposal, observation)
+        for kind, payload in projection:
+            if kind == "observation":
+                before, proposal, observation = cast(
+                    tuple[DecisionContext, ActionProposal, ActionEvent], payload
+                )
+                fresh = tool_followup_context(before, fresh, proposal, observation)
+            else:
+                before, index = cast(tuple[DecisionContext, int], payload)
+                fresh = refusal_followup_context(before, fresh, index=index)
         return replace(fresh, active_research=actual_research)
 
     expected = context
+
+    async def next_decision(remaining_seconds: float) -> DecisionResult:
+        """Ask for the next proposal, appending exactly the state that exists.
+
+        Kept in one place because the payoff is in what is *not* here: a refusal never
+        reaches the observation trail. The two payloads are composed, each charged for its
+        own characters, and the plain paths stay exactly as they were so the verified
+        no-refusal behaviour is not re-derived through a new code path.
+        """
+
+        limits_for_call = replace(
+            limits.decision,
+            timeout_seconds=min(remaining_seconds, limits.decision.timeout_seconds),
+        )
+        if not refusal_state.records:
+            if not trail.frames:
+                return await decide_conversation_action(
+                    expected,
+                    transport=transport,
+                    budget=decision_budget,
+                    current_context=latest,
+                    limits=limits_for_call,
+                )
+            return await decide_with_observation_trail(
+                expected,
+                trail,
+                current_context=latest,
+                transport=transport,
+                budget=decision_budget,
+                limits=limits_for_call,
+            )
+        wrapped = transport
+        extra = 0
+        if trail.frames:
+            try:
+                trail.validate_next_context(expected)
+            except (TypeError, ValueError):
+                return DecisionResult("invalid_observation_trail")
+            wrapped = with_observation_trail(wrapped, trail)
+            extra += trail_extra_chars(trail)
+        wrapped = with_refusal_state(wrapped, refusal_state)
+        extra += refusal_extra_chars(refusal_state)
+        return await decide_conversation_action(
+            expected,
+            transport=wrapped,
+            budget=_PaddedAdmission(decision_budget, extra),
+            current_context=latest,
+            limits=limits_for_call,
+        )
 
     async def answer(invocation: ActionInvocation) -> str:
         # Dispatch owns admission, freshness, timeout and cancellation. Capture
@@ -146,18 +252,12 @@ async def run_conversation_loop(
     selected_handlers = handlers
     if answer_handler is not None or answer_generator is not None:
         selected_handlers = {**handlers, ConversationAction.ANSWER: answer}
-    decision = await decide_conversation_action(
-        expected,
-        transport=transport,
-        budget=decision_budget,
-        current_context=latest,
-        limits=replace(
-            limits.decision,
-            timeout_seconds=min(
-                limits.decision.timeout_seconds, limits.timeout_seconds
-            ),
-        ),
-    )
+    # Cancellation is checked before the first admission, not after it: a turn the user
+    # has already abandoned must not buy one more decision on the way to noticing.
+    if cancelled():
+        yield LoopStopped("cancelled", 0, 0, False, "before_decision")
+        return
+    decision = await next_decision(limits.timeout_seconds)
     while True:
         steps += 1
         yield decision
@@ -175,6 +275,25 @@ async def run_conversation_loop(
             yield LoopStopped("timeout", steps, observations)
             return
         proposal = decision.proposal
+        # A refusal already told us this exact request is off the table. Stopping here costs
+        # nothing; letting it reach dispatch would buy a tool slot back only to refuse again,
+        # and would let "the model rephrased it" look like a new attempt at a denied tool.
+        blocked = forbidden_action(
+            list(refusal_state.records),
+            action=proposal.action,
+            tool=proposal.tool,
+            focus=proposal.focus,
+        )
+        if blocked:
+            yield LoopStopped(blocked, steps, observations, False, proposal.action)
+            return
+        # Between the decision and the dispatch is exactly where a cancel most often
+        # arrives: the model just took seconds to answer. Spending a tool slot here would
+        # charge the user for work they cancelled before it started.
+        if cancelled():
+            yield LoopStopped("cancelled", steps, observations, False, proposal.action)
+            return
+        refused: ActionEvent | None = None
         tool_observation: ActionEvent | None = None
         async with aclosing(
             dispatch_conversation_action(
@@ -206,6 +325,12 @@ async def run_conversation_loop(
                 if trail_error:
                     yield LoopStopped(trail_error, steps, observations)
                     return
+                if event.status == "refused":
+                    # Stop draining: the adapter declined before any effect, so there is no
+                    # observation to collect. Whether the turn continues is decided below,
+                    # from the structured kind rather than from the reason text.
+                    refused = event
+                    break
                 if event.status != "observed":
                     yield LoopStopped(
                         "action_failed",
@@ -215,6 +340,55 @@ async def run_conversation_loop(
                         event.status,
                     )
                     return
+        if refused is not None:
+            # Whether the turn continues is decided here, from the structured kind. The
+            # contract's six cases collapse to: some refusals are about *this request*
+            # (argue again, differently), and some are about *the turn* (stop now).
+            kind = refused.refusal_kind
+            if not refusal_allows_reselection(kind):
+                yield LoopStopped("tool_refused", steps, observations, False, kind)
+                return
+            if reselections >= MAX_RESELECTIONS:
+                yield LoopStopped("refusal_limit", steps, observations, False, kind)
+                return
+            if steps >= limits.max_decisions:
+                yield LoopStopped("decision_limit", steps, observations)
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                yield LoopStopped("timeout", steps, observations)
+                return
+            # Execution state, never evidence. This is the whole difference between
+            # "we were refused" and "we searched and found nothing": the record goes to the
+            # refusal payload and to nowhere else, so it cannot reach the trail or the
+            # episode as a finding.
+            refusal_state = refusal_state.append(
+                RefusalRecord(
+                    request_id=refused.request_id,
+                    kind=kind,
+                    reason=refused.refusal_reason,
+                    tool=proposal.tool or "",
+                    focus=proposal.focus,
+                )
+            )
+            reselections += 1
+            projection.append(("refusal", (expected, reselections)))
+            # The identity chain grows with the refusal so a later answer (or a later
+            # observation) derives from it. Nothing is added to the entries: the trail's
+            # payload is still observations only.
+            trail = trail.advance_refusal(reselections)
+            try:
+                expected = latest()
+            except Exception:
+                yield LoopStopped("context_unavailable", steps, observations)
+                return
+            if cancelled():
+                yield LoopStopped(
+                    "cancelled", steps, observations, False, "after_refusal"
+                )
+                return
+            decision = await next_decision(remaining)
+            continue
         if tool_observation is None:
             reason = {
                 ConversationAction.ANSWER: "answered",
@@ -251,16 +425,14 @@ async def run_conversation_loop(
         except (TypeError, ValueError):
             yield LoopStopped("invalid_observation", steps, observations)
             return
-        frames.append((expected, proposal, tool_observation))
+        projection.append(("observation", (expected, proposal, tool_observation)))
         expected = projected
-        decision = await decide_with_observation_trail(
-            expected,
-            trail,
-            current_context=latest,
-            transport=transport,
-            budget=decision_budget,
-            limits=replace(
-                limits.decision,
-                timeout_seconds=min(remaining, limits.decision.timeout_seconds),
-            ),
-        )
+        # A tool round can take most of the window; the user may have cancelled during it.
+        # The observation is kept (it is real work, already paid for) but no further
+        # decision is admitted.
+        if cancelled():
+            yield LoopStopped(
+                "cancelled", steps, observations, False, "after_observation"
+            )
+            return
+        decision = await next_decision(remaining)

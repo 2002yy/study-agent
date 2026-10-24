@@ -159,9 +159,14 @@ def test_concurrent_database_initialization_applies_each_migration_once(tmp_path
         ]
 
     assert version == str(SCHEMA_VERSION)
-    assert ledger == [
-        (version, "completed") for version in range(1, SCHEMA_VERSION + 1)
-    ]
+    # Asserted against the declared migrations rather than ``range(1, SCHEMA_VERSION+1)``:
+    # migration numbers are permanent allocations shared by branches, so a gap (25 and 26
+    # belong to the AR and spend lines) is legitimate, while a declared-but-unapplied
+    # migration is still a failure. The last line keeps "declare a version and forget to
+    # bump SCHEMA_VERSION" caught.
+    declared = sorted(item[0] for item in MIGRATIONS)
+    assert ledger == [(item, "completed") for item in declared]
+    assert SCHEMA_VERSION == declared[-1]
     assert thread_columns.count("archived_at") == 1
 
 
