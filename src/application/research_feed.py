@@ -49,10 +49,7 @@ from src.domain.research_event import (
     ResearchSubscription,
 )
 from src.domain.research_state import ResearchRound
-from src.repositories.research_state_repository import (
-    ResearchNotFound,
-    ResearchStateRepository,
-)
+from src.repositories.research_state_repository import ResearchStateRepository
 
 _logger = logging.getLogger(__name__)
 
