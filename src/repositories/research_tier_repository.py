@@ -159,8 +159,31 @@ class ResearchTierRepository:
         max_cost: float = 0.0,
         now: str | None = None,
     ) -> TierAuthorization:
-        """Record the user's approval. The only path into ``approved``."""
+        """Record the user's approval. The only path into ``approved``.
 
+        **An approval must say when it ends and how much it allows.** The
+        contract's record for an authorisation decision carries "有效期、费用
+        上限" - an expiry and a cost ceiling - and §11.3 requires the ceiling
+        to be re-verified against every upgrade. An approval with neither is
+        not a bounded permission; it is a blank cheque.
+
+        This matters because the ceiling check used to be conditional on the
+        ceiling being there: ``if self.max_calls and calls > self.max_calls``
+        skips the comparison entirely when ``max_calls`` is 0. So the two
+        halves of the hole reinforced each other - an approval could be
+        recorded without a ceiling, and a ceiling of zero meant "no limit"
+        rather than "no allowance".
+
+        The refusal happens **before** anything is written. A malformed
+        approval must not leave a decision behind, and the request stays
+        ``pending`` - which is not the same thing as a denial, because the
+        user never said no.
+        """
+
+        if not valid_until:
+            raise TierAuthorizationDenied("authorization_missing_expiry")
+        if max_calls <= 0 or max_cost <= 0:
+            raise TierAuthorizationDenied("authorization_missing_ceiling")
         return self._decide(
             request_id,
             status=AUTHORIZATION_APPROVED,
@@ -303,6 +326,22 @@ class ResearchTierRepository:
         when it was granted may have expired, may belong to a different
         operation, or may not be big enough for what is being spent now.
 
+        **The identity is checked against the research, not against the
+        caller.** The authorisation's ``operation_id`` is compared to the
+        one the *research row* carries, and the one the caller passes must
+        match that row too. The old code compared the authorisation to the
+        caller's argument and never looked at the research's own
+        ``operation_id`` - so an approval made for a different operation
+        could be redeemed on a research that belonged to another one, as
+        long as the caller quoted the right string.
+
+        **The write carries the conditions, not just the read.** The checks
+        above are a read; the statement below is the write; a cancellation
+        that lands between them used to be invisible to both. The write
+        therefore repeats the conditions in its ``WHERE`` clause and refuses
+        to claim a row it did not actually change - the same shape as
+        ``stop_if_no_progress`` in the state repository.
+
         Returns the updated research state, or raises
         ``TierAuthorizationDenied`` - which is the *only* refusal this
         module produces, because a caller that has to distinguish "expired"
@@ -322,6 +361,9 @@ class ResearchTierRepository:
                 raise TierAuthorizationDenied("research_cancelled")
             if state["status"] in {"cancelled", "failed", "stopped"}:
                 raise TierAuthorizationDenied("research_terminal")
+            if state["operation_id"] != operation_id:
+                # The caller is not acting for this research's operation.
+                raise TierAuthorizationDenied("operation_mismatch")
 
             authorization = connection.execute(
                 "SELECT * FROM research_tier_authorizations "
@@ -331,7 +373,9 @@ class ResearchTierRepository:
             ).fetchone()
             if authorization is None:
                 raise TierAuthorizationDenied("no_authorization")
-            if authorization["operation_id"] != operation_id:
+            if authorization["operation_id"] != state["operation_id"]:
+                # The grant belongs to a different operation than the one
+                # this research is actually running under.
                 raise TierAuthorizationDenied("operation_mismatch")
 
             record = _authorization_from_row(authorization)
@@ -350,12 +394,37 @@ class ResearchTierRepository:
             if to_tier not in TIERS:
                 raise TierAuthorizationDenied("invalid_target_tier")
 
-            connection.execute(
+            # The conditions are repeated here on purpose. The read above
+            # and this write are separate statements, and a cancellation
+            # that lands between them must not be able to slip through.
+            cursor = connection.execute(
                 "UPDATE research_states SET tier = ?, tier_upgrade_authorized = 1, "
                 "state_version = state_version + 1, updated_at = ? "
-                "WHERE research_id = ?",
-                (to_tier, moment, research_id),
+                "WHERE research_id = ? AND state_version = ? "
+                "AND status IN ('running', 'checkpointed') "
+                "AND cancel_requested_at = ''",
+                (to_tier, moment, research_id, state["state_version"]),
             )
+            if cursor.rowcount != 1:
+                # A cancellation, a terminal decision or another writer won
+                # the race. The research keeps its old tier - the decision
+                # that arrived first is the one that stands.
+                #
+                # The reason is read back rather than guessed, because the
+                # refusals are different facts and a caller that cannot tell
+                # them apart will handle one of them by continuing.
+                current = connection.execute(
+                    "SELECT status, cancel_requested_at FROM research_states "
+                    "WHERE research_id = ?",
+                    (research_id,),
+                ).fetchone()
+                if current is None:
+                    raise TierAuthorizationDenied("research_not_found")
+                if current["cancel_requested_at"]:
+                    raise TierAuthorizationDenied("research_cancelled")
+                if current["status"] in {"cancelled", "failed", "stopped"}:
+                    raise TierAuthorizationDenied("research_terminal")
+                raise TierAuthorizationDenied("research_state_changed")
 
         from src.repositories.research_state_repository import ResearchStateRepository
 

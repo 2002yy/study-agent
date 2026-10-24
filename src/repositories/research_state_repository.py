@@ -490,6 +490,22 @@ class ResearchStateRepository:
         those observations when they decided to stop, and a cancellation that
         removed them would be indistinguishable from a research that never
         ran.
+
+        **A late cancellation does not rewrite an earlier terminal decision.**
+        The write is conditioned on the research still being live, so a
+        cancellation that arrives after the research already stopped (for
+        lack of progress), failed, or was cancelled is recorded as the fact
+        that it is - late - and the earlier decision stands.
+
+        That matters because the contract (Q-7) requires the stop reasons to
+        be **distinguishable**: evidence sufficient / budget exhausted / no
+        viable query / user cancelled. They are only distinguishable if the
+        one that actually happened is the one that survives. A research that
+        stopped for lack of progress and was then cancelled recorded
+        ``user_cancelled``, and the reason it really ended was lost.
+
+        The decision's own timestamp does not drift either: cancelling twice
+        keeps the first moment, because that is when the user decided.
         """
 
         _identity(research_id, "research_id")
@@ -500,11 +516,20 @@ class ResearchStateRepository:
                 "cancel_requested_at = ?, status = ?, stop_reason = ?, "
                 "lease_owner = '', lease_expires_at = '', "
                 "state_version = state_version + 1, updated_at = ? "
-                "WHERE research_id = ?",
+                "WHERE research_id = ? AND status IN ('running', 'checkpointed') "
+                "AND cancel_requested_at = ''",
                 (moment, STATE_CANCELLED, reason, moment, research_id),
             )
             if cursor.rowcount != 1:
-                raise ResearchNotFound("research_not_found")
+                # Either the research does not exist, or it has already
+                # reached a terminal state. Both are cases where this
+                # cancellation must not rewrite what is on record.
+                row = connection.execute(
+                    "SELECT status FROM research_states WHERE research_id = ?",
+                    (research_id,),
+                ).fetchone()
+                if row is None:
+                    raise ResearchNotFound("research_not_found")
         state = self.load(research_id)
         if state is None:  # pragma: no cover - the row cannot vanish mid-call
             raise ResearchNotFound("research_not_found")

@@ -285,13 +285,32 @@ class TierAuthorization:
         return True
 
     def covers(self, calls: int, cost: float) -> bool:
-        """Whether the grant is big enough for what is about to be spent."""
+        """Whether the grant is big enough for what is about to be spent.
+
+        **A ceiling of zero is a ceiling of zero, not the absence of a
+        ceiling.** The old form short-circuited on it - ``if self.max_calls
+        and calls > self.max_calls`` skips the comparison entirely when
+        ``max_calls`` is 0 - so a grant with no ceiling covered *everything*.
+        The two readings are opposites, and the permissive one is the one
+        that lets an unbounded grant through.
+
+        ``approve()`` now refuses to record an approval without a ceiling,
+        so a ceiling of zero should no longer be reachable through the
+        normal path. It is refused here as well because this method is the
+        last line before the money, and it must not be the one place that
+        assumes the record above it was well-formed.
+        """
 
         if calls < 0 or cost < 0:
             return False
-        if self.max_calls and calls > self.max_calls:
+        if self.max_calls <= 0 or self.max_cost <= 0:
+            # No ceiling means no allowance. A grant that states no limit
+            # covers nothing - which is the opposite of the reading the
+            # short-circuit used to give it.
             return False
-        if self.max_cost and cost > self.max_cost:
+        if calls > self.max_calls:
+            return False
+        if cost > self.max_cost:
             return False
         return True
 

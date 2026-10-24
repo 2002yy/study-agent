@@ -29,6 +29,7 @@ mutation harness.
 from __future__ import annotations
 
 import threading
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -74,6 +75,14 @@ def _create(repository, research_id=RESEARCH, *, question="what is the state of 
         question=question,
         tier="standard",
     )
+
+
+def _now(offset_seconds: float = 0.0) -> str:
+    """A timestamp for the authorisation's expiry, an hour out by default."""
+
+    return (
+        datetime.now(timezone.utc) + timedelta(seconds=offset_seconds)
+    ).isoformat()
 
 
 # --- scenario 1: the research is cancelled while the round is in flight --------
@@ -616,6 +625,12 @@ def test_a_tier_upgrade_after_a_user_decision_is_recorded(repository, db):
     The test asserts *who* decided and *when*, because §10.8's fourth
     criterion asks for a record of the user's authorisation, and a record
     that says "approved" but not "by whom" answers a different question.
+
+    The approval states an expiry and both ceilings, because §11.3's
+    authorisation record carries "有效期、费用上限" and the ceiling has to
+    be re-verified against every upgrade. Before the R-6 safety slice, an
+    approval without them was accepted - which is how "no expiry and no
+    ceiling" became a normal path rather than a hole.
     """
 
     _create(repository)
@@ -628,11 +643,22 @@ def test_a_tier_upgrade_after_a_user_decision_is_recorded(repository, db):
         to_tier="deep",
         reason="the standard tier cannot resolve this",
     )
-    decision = tiers.approve(request.request_id, approver="user-1", scope="this run")
+    decision = tiers.approve(
+        request.request_id,
+        approver="user-1",
+        scope="this run",
+        valid_until=_now(3600),
+        max_calls=10,
+        max_cost=1.25,
+        now=_now(),
+    )
 
     assert decision.status == "approved"
     assert decision.approver == "user-1"
     assert decision.decided_at != ""
+    assert decision.valid_until != ""
+    assert decision.max_calls == 10
+    assert decision.max_cost == 1.25
 
     state = tiers.apply_upgrade(RESEARCH, operation_id=OPERATION)
     assert state.tier == "deep"
@@ -658,7 +684,15 @@ def test_the_authorisation_does_not_outlive_the_operation_it_was_given_for(
         to_tier="deep",
         reason="the standard tier cannot resolve this",
     )
-    tiers.approve(request.request_id, approver="user-1", scope="this run")
+    tiers.approve(
+        request.request_id,
+        approver="user-1",
+        scope="this run",
+        valid_until=_now(3600),
+        max_calls=10,
+        max_cost=1.25,
+        now=_now(),
+    )
 
     with pytest.raises(Exception):
         tiers.apply_upgrade(RESEARCH, operation_id="a-different-operation")
