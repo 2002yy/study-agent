@@ -175,6 +175,10 @@ class ResearchStateRepository:
                 "WHERE research_id = ? AND event_seq > ?",
                 (research_id, after_event_seq),
             ).fetchone()
+            # COUNT(*) always returns exactly one row. Treat an absent row as
+            # an invalid read, not an invented zero-event snapshot.
+            if missed is None:
+                raise RuntimeError("research_snapshot_count_unavailable")
         return (
             _state_from_row(row),
             tuple(_round_from_row(item) for item in round_rows),
