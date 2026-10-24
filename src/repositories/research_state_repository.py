@@ -509,6 +509,34 @@ class ResearchStateRepository:
             ).fetchall()
         return tuple(_event_from_row(row) for row in rows)
 
+    def thread_events(
+        self,
+        thread_id: str,
+        *,
+        after_event_seq: int = 0,
+        limit: int = MAX_EVENTS_PER_READ,
+    ) -> tuple[ResearchEvent, ...]:
+        """One ordered cursor over *all* researches belonging to the thread.
+
+        Never iterate per-research event streams while advancing a shared cursor:
+        event_seq is global and a later event from research A can otherwise hide
+        an earlier event from research B.
+        """
+        _identity(thread_id, "thread_id")
+        if type(after_event_seq) is not int or after_event_seq < 0:
+            raise ValueError("invalid_after_event_seq")
+        if type(limit) is not int or limit < 1 or limit > MAX_EVENTS_PER_READ:
+            raise ValueError("invalid_event_limit")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT e.* FROM research_events AS e "
+                "JOIN research_states AS s ON s.research_id = e.research_id "
+                "WHERE s.thread_id = ? AND e.event_seq > ? "
+                "ORDER BY e.event_seq ASC LIMIT ?",
+                (thread_id, after_event_seq, limit),
+            ).fetchall()
+        return tuple(_event_from_row(row) for row in rows)
+
     def count_events(self, research_id: str) -> int:
         """How many events a research has in total."""
 
