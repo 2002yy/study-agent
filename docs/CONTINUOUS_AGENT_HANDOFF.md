@@ -2,7 +2,7 @@
 
 > 唯一职责：记录「连续 Agent 对话」方向的开发交接事实与缺口。
 > **不**替代 `docs/PROJECT_STATUS.md`、`tests/stage_gates.json` 或任何既有发布门；不在此维护阶段状态机。
-> 最近更新基线：`codex/conversation-continuous-p0p1` @ `20af1d99`（未合并 main）。
+> 历史取证基线（编写当时）：`codex/conversation-continuous-p0p1` @ `20af1d99`（当时未合并 main）。**本文不是当前开发交接入口**；2026-10-24 之后的实际 main 整合与 CL-M3 下一门统一见 [PROJECT_STATUS.md](PROJECT_STATUS.md)。本文件的“尚未验收/待合并”等句子仅对记录时的基线有效，保留原文供追溯。
 
 ## 0. 三条冻结规则
 
