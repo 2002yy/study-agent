@@ -26,6 +26,12 @@ from datetime import datetime, timedelta
 import sqlite3
 from typing import Any, Mapping
 
+from src.domain.research_event import (
+    EVENT_RESEARCH_FINISHED,
+    EVENT_ROUND_COMPLETED,
+    MAX_EVENTS_PER_READ,
+    ResearchEvent,
+)
 from src.domain.research_state import (
     MAX_FOLDED_FACTS,
     RESEARCH_REQUEST_SCHEMA,
@@ -374,10 +380,187 @@ class ResearchStateRepository:
             )
             if cursor.rowcount != 1:
                 raise StaleResearchWriter("research_state_superseded")
+
+            # The event is written in this same transaction as the round. If the
+            # round were committed and the event left for a second write, a crash
+            # between the two would leave a research whose client can never learn
+            # that the round happened - which is precisely the loss §10.8's first
+            # acceptance criterion is about.
+            self._append_event(
+                connection,
+                research_id,
+                kind=EVENT_ROUND_COMPLETED,
+                payload={
+                    "round_index": round_record.round_index,
+                    "status": status,
+                    "stop_reason": round_record.stop_reason if stop_reason is None else stop_reason,
+                },
+                now=moment,
+            )
+            if status in {"stopped", "cancelled", "failed"}:
+                self._append_event(
+                    connection,
+                    research_id,
+                    kind=EVENT_RESEARCH_FINISHED,
+                    payload={
+                        "round_index": round_record.round_index,
+                        "status": status,
+                        "stop_reason": round_record.stop_reason if stop_reason is None else stop_reason,
+                    },
+                    now=moment,
+                )
         state = self.load(research_id)
         if state is None:  # pragma: no cover
             raise ResearchNotFound("research_not_found")
         return state
+
+    # --- events --------------------------------------------------------------------
+
+    @staticmethod
+    def _append_event(
+        connection: sqlite3.Connection,
+        research_id: str,
+        *,
+        kind: str,
+        payload: Mapping[str, Any],
+        now: str,
+    ) -> int:
+        """Append one event and return its sequence.
+
+        The sequence comes from the database's ``AUTOINCREMENT`` counter, not from
+        the caller and not from a ``MAX() + 1`` read. Two reasons, both learned the
+        hard way:
+
+        - A read-then-insert would let two writers read the same maximum and mint
+          the same number, and the second insert would die on the unique
+          constraint. A cursor that skipped an event because of a write collision
+          is exactly the loss this table exists to prevent.
+        - The counter is global, not per research. A client watches a thread and
+          holds one cursor, so the events of several researches must share one
+          order; per-research numbering would make research B's event 1 look
+          older than research A's event 5 to that cursor.
+        """
+
+        cursor = connection.execute(
+            "INSERT INTO research_events ("
+            "research_id, kind, payload, created_at"
+            ") VALUES (?, ?, ?, ?)",
+            (research_id, kind, _dump(dict(payload)), now),
+        )
+        return int(cursor.lastrowid)
+
+    def append_event(
+        self,
+        research_id: str,
+        *,
+        kind: str,
+        payload: Mapping[str, Any] | None = None,
+        now: str | None = None,
+    ) -> ResearchEvent:
+        """Append one event outside a checkpoint.
+
+        Used for the events that are not about a round - a research that started, a
+        tier that was authorised. It is deliberately *not* how round events are
+        written: those go through ``checkpoint`` so that they share its transaction.
+        """
+
+        _identity(research_id, "research_id")
+        moment = now or utc_now()
+        with self.database.connect() as connection:
+            exists = connection.execute(
+                "SELECT 1 FROM research_states WHERE research_id = ?", (research_id,)
+            ).fetchone()
+            if exists is None:
+                raise ResearchNotFound("research_not_found")
+            event_seq = self._append_event(
+                connection,
+                research_id,
+                kind=kind,
+                payload=dict(payload or {}),
+                now=moment,
+            )
+        return ResearchEvent(
+            research_id=research_id,
+            event_seq=event_seq,
+            kind=kind,
+            payload=dict(payload or {}),
+            created_at=moment,
+        )
+
+    def events(
+        self,
+        research_id: str,
+        *,
+        after_event_seq: int = 0,
+        limit: int = MAX_EVENTS_PER_READ,
+    ) -> tuple[ResearchEvent, ...]:
+        """Events after a cursor, oldest first. The cursor is exclusive."""
+
+        _identity(research_id, "research_id")
+        if type(after_event_seq) is not int or after_event_seq < 0:
+            raise ValueError("invalid_after_event_seq")
+        if type(limit) is not int or limit < 0:
+            raise ValueError("invalid_event_limit")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM research_events WHERE research_id = ? AND event_seq > ? "
+                "ORDER BY event_seq ASC LIMIT ?",
+                (research_id, after_event_seq, limit),
+            ).fetchall()
+        return tuple(_event_from_row(row) for row in rows)
+
+    def count_events(self, research_id: str) -> int:
+        """How many events a research has in total."""
+
+        _identity(research_id, "research_id")
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) AS total FROM research_events WHERE research_id = ?",
+                (research_id,),
+            ).fetchone()
+        return int(row["total"])
+
+    def count_events_after(self, research_id: str, after_event_seq: int) -> int:
+        """How many of this research's events are newer than a cursor.
+
+        This is a count, not a subtraction. The sequence is global, so
+        ``total - cursor`` would subtract the events of *other* researches that
+        happen to sit between them - and a client that was told it missed three
+        events would be shown two. The count is the only number that means what
+        the client will read.
+        """
+
+        _identity(research_id, "research_id")
+        if type(after_event_seq) is not int or after_event_seq < 0:
+            raise ValueError("invalid_after_event_seq")
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) AS total FROM research_events "
+                "WHERE research_id = ? AND event_seq > ?",
+                (research_id, after_event_seq),
+            ).fetchone()
+        return int(row["total"])
+
+    def list_by_thread(
+        self, thread_id: str, *, limit: int = 20
+    ) -> tuple[ResearchState, ...]:
+        """The researches that belong to a thread, most recently touched first.
+
+        This is what a client reads when it opens a chat: the researches of *this*
+        thread and nothing else. A thread is the unit the user thinks in, so it is
+        also the unit a subscription is scoped to.
+        """
+
+        _identity(thread_id, "thread_id")
+        if type(limit) is not int or limit < 0:
+            raise ValueError("invalid_thread_limit")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM research_states WHERE thread_id = ? "
+                "ORDER BY updated_at DESC, research_id ASC LIMIT ?",
+                (thread_id, limit),
+            ).fetchall()
+        return tuple(_state_from_row(row) for row in rows)
 
 
 def _state_from_row(row: sqlite3.Row) -> ResearchState:
@@ -411,6 +594,16 @@ def _round_from_row(row: sqlite3.Row) -> ResearchRound:
         observation_urls=tuple(_load(row["observation_urls"], [])),
         evidence=tuple(_load(row["evidence"], [])),
         stop_reason=row["stop_reason"],
+        created_at=row["created_at"],
+    )
+
+
+def _event_from_row(row: sqlite3.Row) -> ResearchEvent:
+    return ResearchEvent(
+        research_id=row["research_id"],
+        event_seq=row["event_seq"],
+        kind=row["kind"],
+        payload=_load(row["payload"], {}),
         created_at=row["created_at"],
     )
 

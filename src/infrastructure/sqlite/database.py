@@ -9,9 +9,10 @@ from typing import Callable
 
 from src.infrastructure.sqlite.learning_semantic_schema import LEARNING_SEMANTIC_MIGRATION_V18
 from src.infrastructure.sqlite.learning_truth_schema import LEARNING_TRUTH_MIGRATION_V17
+from src.infrastructure.sqlite.research_event_schema import RESEARCH_EVENT_MIGRATION_V28
 from src.infrastructure.sqlite.research_state_schema import RESEARCH_STATE_MIGRATION_V27
 
-SCHEMA_VERSION = 27
+SCHEMA_VERSION = 28
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -556,6 +557,9 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     # (the AR line) and 26 is #259's spend ledger. A migration number is permanent, so
     # reusing one would make two branches apply different SQL under the same version.
     (27, RESEARCH_STATE_MIGRATION_V27),
+    # 28 is the durable research event log: the cursor a reconnecting client uses to
+    # learn what it missed while it was away.
+    (28, RESEARCH_EVENT_MIGRATION_V28),
 )
 
 

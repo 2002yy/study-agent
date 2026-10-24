@@ -142,6 +142,37 @@ def get_pedagogy_eval_repository() -> PedagogyEvalRepository:
 
 
 @lru_cache(maxsize=1)
+def get_research_state_repository():
+    """The durable research state. One instance, so the feed and the writer agree.
+
+    This is the *read* side of the persistent research (QD-3c). It is deliberately
+    not the coordinator: the coordinator's production wiring - a factory, a real
+    executor and the lifespan hook - belongs to QD-3e, and wiring it here would
+    make the research start running in production before it has been shown to
+    survive a process being killed.
+    """
+
+    from src.repositories.research_state_repository import ResearchStateRepository
+
+    return ResearchStateRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
+def get_research_feed():
+    """The read side of a persistent research: snapshots, events and subscriptions.
+
+    Cached, so that the subscription registry is shared: a subscription registered
+    by one request is visible to the next one, which is what makes "how many
+    clients are watching this research" a meaningful question rather than a
+    per-request fiction.
+    """
+
+    from src.application.research_feed import ResearchFeed
+
+    return ResearchFeed(get_research_state_repository())
+
+
+@lru_cache(maxsize=1)
 def get_github_snapshot_service():
     from src.application.github_snapshot_service import GitHubSnapshotService
 
