@@ -217,6 +217,19 @@ class ResearchState:
     fencing_token: int = 0
     created_at: str = ""
     updated_at: str = ""
+    # QD-3d. The moment the user cancelled, if they did. It is a fact about
+    # the research now, so it lives on the state row: the worker that picks
+    # the research up next is a different process, and it is the one that
+    # would otherwise start the next model call.
+    cancel_requested_at: str = ""
+    # Whether this research's tier was raised under a recorded authorisation.
+    # A receipt, not the authority - the authority is the authorisation row.
+    tier_upgrade_authorized: bool = False
+    # Calls that were dispatched and whose outcome is not yet known. Kept so a
+    # cancellation cannot make an in-flight request look like it never
+    # happened: it may have run on the server, and it may have been billed.
+    in_flight_calls: int = 0
+    observed_calls: int = 0
 
     def __post_init__(self) -> None:
         _identity(self.research_id, "research_id")
@@ -238,10 +251,30 @@ class ResearchState:
         if type(self.state_version) is not int or self.state_version < 1:
             raise ValueError("invalid_state_version")
         _count(self.fencing_token, "fencing_token")
-        for name in ("lease_owner", "lease_expires_at", "created_at", "updated_at"):
+        _count(self.in_flight_calls, "in_flight_calls")
+        _count(self.observed_calls, "observed_calls")
+        for name in (
+            "lease_owner",
+            "lease_expires_at",
+            "created_at",
+            "updated_at",
+            "cancel_requested_at",
+        ):
             value = getattr(self, name)
             if not isinstance(value, str) or len(value) > 200:
                 raise ValueError(f"invalid_{name}")
+
+    @property
+    def cancelled(self) -> bool:
+        """Whether the user has cancelled this research.
+
+        Read from the cancellation timestamp rather than from the status, so
+        that a research which was cancelled and whose status was later
+        written by something else is still recognised as cancelled. The
+        status is what the *world* sees; this is what the *decision* was.
+        """
+
+        return self.cancel_requested_at != ""
 
     @property
     def next_round_index(self) -> int:
@@ -299,3 +332,32 @@ class ResearchResume:
                 if query not in seen:
                     seen.append(query)
         return tuple(seen)
+
+    @property
+    def cancelled(self) -> bool:
+        """Whether this research was cancelled by the user."""
+
+        return self.state.cancelled
+
+    @property
+    def may_start_new_call(self) -> bool:
+        """Whether a worker may dispatch another external call for this research.
+
+        The single guard the executor checks before it spends anything. It is
+        a property of the durable state rather than of a parameter, so it
+        cannot be forgotten at one call site and remembered at another.
+        """
+
+        return not self.state.cancelled and not self.state.terminal
+
+    @property
+    def in_flight_calls(self) -> int:
+        """Calls that were dispatched and whose outcome is unknown."""
+
+        return self.state.in_flight_calls
+
+    @property
+    def observed_calls(self) -> int:
+        """Calls that were dispatched, whether or not they have come back."""
+
+        return self.state.observed_calls

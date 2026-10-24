@@ -9,10 +9,13 @@ from typing import Callable
 
 from src.infrastructure.sqlite.learning_semantic_schema import LEARNING_SEMANTIC_MIGRATION_V18
 from src.infrastructure.sqlite.learning_truth_schema import LEARNING_TRUTH_MIGRATION_V17
+from src.infrastructure.sqlite.research_authorization_schema import (
+    RESEARCH_TIER_MIGRATION_V29,
+)
 from src.infrastructure.sqlite.research_event_schema import RESEARCH_EVENT_MIGRATION_V28
 from src.infrastructure.sqlite.research_state_schema import RESEARCH_STATE_MIGRATION_V27
 
-SCHEMA_VERSION = 28
+SCHEMA_VERSION = 29
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -560,6 +563,9 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     # 28 is the durable research event log: the cursor a reconnecting client uses to
     # learn what it missed while it was away.
     (28, RESEARCH_EVENT_MIGRATION_V28),
+    # 29 is QD-3d's termination and authorisation: the cancellation timestamp, the
+    # in-flight call count, and the tier-upgrade request/authorisation tables.
+    (29, RESEARCH_TIER_MIGRATION_V29),
 )
 
 

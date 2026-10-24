@@ -26,6 +26,11 @@ from datetime import datetime, timedelta
 import sqlite3
 from typing import Any, Mapping
 
+from src.domain.research_authorization import (
+    STOP_REASON_CANCELLED,
+    STOP_REASON_NO_PROGRESS,
+    ResearchProgress,
+)
 from src.domain.research_event import (
     EVENT_RESEARCH_FINISHED,
     EVENT_ROUND_COMPLETED,
@@ -35,6 +40,8 @@ from src.domain.research_event import (
 from src.domain.research_state import (
     MAX_FOLDED_FACTS,
     RESEARCH_REQUEST_SCHEMA,
+    STATE_CANCELLED,
+    STATE_STOPPED,
     ResearchResume,
     ResearchRound,
     ResearchState,
@@ -414,6 +421,195 @@ class ResearchStateRepository:
             raise ResearchNotFound("research_not_found")
         return state
 
+    # --- cancellation and progress (QD-3d) ---------------------------------------
+
+    def cancel(self, research_id: str, *, reason: str = STOP_REASON_CANCELLED) -> ResearchState:
+        """Record the user's decision to stop this research.
+
+        Two things happen together, in one statement, because a cancellation
+        that is recorded in two steps has a window: a worker reading between
+        them would see a research that was cancelled but did not know it.
+
+        What is *not* done here is erasing anything. The finished rounds stay
+        finished and their observations stay readable - the user was reading
+        those observations when they decided to stop, and a cancellation that
+        removed them would be indistinguishable from a research that never
+        ran.
+        """
+
+        _identity(research_id, "research_id")
+        moment = utc_now()
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                "UPDATE research_states SET "
+                "cancel_requested_at = ?, status = ?, stop_reason = ?, "
+                "lease_owner = '', lease_expires_at = '', "
+                "state_version = state_version + 1, updated_at = ? "
+                "WHERE research_id = ?",
+                (moment, STATE_CANCELLED, reason, moment, research_id),
+            )
+            if cursor.rowcount != 1:
+                raise ResearchNotFound("research_not_found")
+        state = self.load(research_id)
+        if state is None:  # pragma: no cover - the row cannot vanish mid-call
+            raise ResearchNotFound("research_not_found")
+        return state
+
+    def note_call_started(
+        self,
+        research_id: str,
+        *,
+        owner: str,
+        fencing_token: int,
+        calls: int = 1,
+    ) -> ResearchState:
+        """Record that an external call has been dispatched.
+
+        This is what keeps a cancellation honest. A call that was sent may
+        have run on the server and may have been billed; if the research then
+        forgot about it, the ledger would be asked to reconcile a cost that
+        really happened but that nothing recorded.
+
+        The lease is checked, so only the worker that owns the research may
+        announce its calls.
+        """
+
+        _identity(research_id, "research_id")
+        _identity(owner, "lease_owner")
+        if type(calls) is not int or calls < 1:
+            raise ValueError("invalid_call_count")
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                "UPDATE research_states SET "
+                "in_flight_calls = in_flight_calls + ?, "
+                "observed_calls = observed_calls + ?, "
+                "updated_at = ? "
+                "WHERE research_id = ? AND lease_owner = ? AND fencing_token = ?",
+                (calls, calls, utc_now(), research_id, owner, fencing_token),
+            )
+            if cursor.rowcount != 1:
+                raise StaleResearchWriter("research_state_superseded")
+        state = self.load(research_id)
+        if state is None:  # pragma: no cover
+            raise ResearchNotFound("research_not_found")
+        return state
+
+    def progress_since(self, research_id: str) -> ResearchProgress:
+        """What the last round observed that the research had not observed before.
+
+        The difference is against **every** earlier round, not the previous
+        one. A research that alternates between two sets of findings would
+        otherwise look productive forever: each round differs from the one
+        before it, and nothing is ever learned.
+
+        **A fact counts as new only if its source is new.** The facts in this
+        system are opaque strings, so "the same finding said differently" is
+        not something a string comparison can detect - and comparing strings
+        would report a reworded fact as progress, which is precisely the
+        failure the contract names. What *is* comparable is the observation
+        the fact came from: a page that was already read has already said
+        what it says, whatever wording the round used this time.
+
+        So the rule is: a fact is new when it is attached to a source that
+        was not read before. A fact attached to an already-read source is
+        not new knowledge, and it does not count.
+        """
+
+        _identity(research_id, "research_id")
+        rounds = self.rounds(research_id)
+        if not rounds:
+            return ResearchProgress()
+
+        last = rounds[-1]
+        earlier = rounds[:-1]
+        if not earlier:
+            # The first round produced the research's first observations.
+            return ResearchProgress(
+                new_evidence=last.evidence,
+                new_observation_urls=last.observation_urls,
+                rounds_considered=1,
+            )
+
+        new_evidence, new_urls = _new_observations(rounds, len(rounds) - 1)
+        return ResearchProgress(
+            new_evidence=new_evidence,
+            new_observation_urls=new_urls,
+            rounds_considered=len(rounds),
+        )
+
+    def stop_if_no_progress(self, research_id: str) -> ResearchState | None:
+        """Stop a research whose last two rounds produced no effective gain.
+
+        Returns the new state when it stopped, and ``None`` when the research
+        is still learning. The caller does not have to know the rule - it only
+        has to ask.
+
+        "The last two rounds" means two consecutive rounds that each added
+        nothing to what the rounds before them had already observed. The
+        first round of a research is not evidence of learning by itself: if
+        the second round repeats it, the research is going in circles, and a
+        research that never learns anything should stop rather than spin.
+
+        The state is ``stopped``, not ``failed``: the research ended on
+        purpose, and what it found is still true. Marking it failed would
+        throw away the findings of every earlier round.
+        """
+
+        _identity(research_id, "research_id")
+        state = self.load(research_id)
+        if state is None:
+            raise ResearchNotFound("research_not_found")
+        if state.terminal:
+            return None
+        if state.cancelled:
+            return None
+
+        rounds = self.rounds(research_id)
+        if len(rounds) < 2:
+            # One round cannot be a pattern of no progress.
+            return None
+
+        # Each of the last two rounds is measured against everything before
+        # it. The earlier of the two is measured against the rounds before
+        # *it*, so a research that alternates between two sets of findings
+        # is caught too. The first round of a research is exempt: it has
+        # nothing to be measured against, and a research that started by
+        # repeating itself has not learned anything either.
+        for index in (len(rounds) - 1, len(rounds) - 2):
+            if index <= 0:
+                continue
+            new_evidence, new_urls = _new_observations(rounds, index)
+            if new_evidence or new_urls:
+                return None
+
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                "UPDATE research_states SET "
+                "status = ?, stop_reason = ?, "
+                "lease_owner = '', lease_expires_at = '', "
+                "state_version = state_version + 1, updated_at = ? "
+                "WHERE research_id = ? AND status IN ('running', 'checkpointed')",
+                (STATE_STOPPED, STOP_REASON_NO_PROGRESS, utc_now(), research_id),
+            )
+            if cursor.rowcount != 1:
+                # Another writer moved the state; it will decide for itself.
+                return None
+            self._append_event(
+                connection,
+                research_id,
+                kind=EVENT_RESEARCH_FINISHED,
+                payload={
+                    "round_index": state.round_index,
+                    "status": STATE_STOPPED,
+                    "stop_reason": STOP_REASON_NO_PROGRESS,
+                },
+                now=utc_now(),
+            )
+        updated = self.load(research_id)
+        if updated is None:  # pragma: no cover
+            raise ResearchNotFound("research_not_found")
+        return updated
+
     # --- events --------------------------------------------------------------------
 
     @staticmethod
@@ -563,6 +759,44 @@ class ResearchStateRepository:
         return tuple(_state_from_row(row) for row in rows)
 
 
+def _new_observations(
+    rounds: tuple[ResearchRound, ...], index: int
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """What the round at ``index`` observed that the rounds before it had not.
+
+    Returns ``(new_evidence, new_observation_urls)``.
+
+    **A fact counts as new only if its source is new.** The facts in this
+    system are opaque strings, so "the same finding said differently" is not
+    something a string comparison can detect - and comparing strings would
+    report a reworded fact as progress, which is precisely the failure the
+    contract names. What *is* comparable is the observation the fact came
+    from: a page that was already read has already said what it says,
+    whatever wording the round used this time.
+
+    So a fact attached to an already-read source is not new knowledge, and a
+    round that brought no new source brings no new knowledge either.
+
+    Both ``progress_since`` and ``stop_if_no_progress`` use this one
+    function, because two rules for "what is new" would be two truths - and
+    the second one would be the one nobody tested.
+    """
+
+    if index <= 0 or index >= len(rounds):
+        return (), ()
+    seen_evidence: set[str] = set()
+    seen_urls: set[str] = set()
+    for record in rounds[:index]:
+        seen_evidence.update(record.evidence)
+        seen_urls.update(record.observation_urls)
+    current = rounds[index]
+    new_urls = tuple(item for item in current.observation_urls if item not in seen_urls)
+    if not new_urls:
+        return (), ()
+    new_evidence = tuple(item for item in current.evidence if item not in seen_evidence)
+    return new_evidence, new_urls
+
+
 def _state_from_row(row: sqlite3.Row) -> ResearchState:
     return ResearchState(
         research_id=row["research_id"],
@@ -582,6 +816,10 @@ def _state_from_row(row: sqlite3.Row) -> ResearchState:
         fencing_token=row["fencing_token"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        cancel_requested_at=row["cancel_requested_at"],
+        tier_upgrade_authorized=bool(row["tier_upgrade_authorized"]),
+        in_flight_calls=row["in_flight_calls"],
+        observed_calls=row["observed_calls"],
     )
 
 
