@@ -119,8 +119,10 @@ class SpendGatedAdmission:
         """
         open_ids = tuple(self._open)
         for request_id in open_ids:
-            del self._open[request_id]
+            # The port is responsible for durable, request-idempotent settlement.
+            # Keep this identity on failure so the caller can retry settlement.
             self._spend.settle(request_id, outcome=UNRESOLVED, cost_micros=0)
+            del self._open[request_id]
         return open_ids
 
     @property
