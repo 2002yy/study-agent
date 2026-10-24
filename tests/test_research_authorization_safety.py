@@ -633,3 +633,222 @@ def test_a_cancellation_of_an_already_cancelled_research_is_idempotent(db):
     assert second.stop_reason == "user_cancelled"
     # The decision's timestamp is the first one, not a later one.
     assert second.cancel_requested_at == first.cancel_requested_at
+
+
+# --- hole 4: a ceiling that cannot be compared is not a ceiling ---------------------------
+
+
+def test_an_approval_with_an_infinite_cost_ceiling_is_refused(repository, db):
+    """``float('inf')`` is a real float, so the old checks accepted it.
+
+    ``max_cost <= 0`` is False for infinity, and ``value < 0`` is False for
+    infinity, so the ceiling check that was supposed to bound the grant let
+    it through. The consequence was not a large ceiling - it was an
+    *unbounded* one: every later comparison against infinity is False, so
+    ``cost > self.max_cost`` never fired and the grant covered every spend,
+    including spends larger than any budget the user could have imagined.
+
+    The contract says the ceiling must be "足以覆盖这次升档" - sufficient to
+    cover this upgrade. A ceiling that covers everything covers nothing in
+    particular, so it is not a ceiling at all.
+    """
+
+    _create_research(db)
+    request = _request(repository)
+
+    with pytest.raises(TierAuthorizationDenied) as refused:
+        repository.approve(
+            request.request_id,
+            approver="user-1",
+            scope="this research only",
+            valid_until=_now(3600),
+            max_calls=10,
+            max_cost=float("inf"),
+            now=_now(),
+        )
+
+    assert refused.value.reason == "authorization_non_finite_ceiling"
+
+
+def test_an_approval_with_a_nan_cost_ceiling_is_refused(repository, db):
+    """NaN is quieter than infinity, and that is why it needs its own case.
+
+    Every comparison against NaN is False - not just the upper one. So
+    ``max_cost <= 0`` is False, ``value < 0`` is False, and later
+    ``cost > self.max_cost`` is False as well. An infinity ceiling at least
+    fails one comparison somewhere; NaN fails every comparison, including
+    the ones a reviewer would reach for first.
+    """
+
+    _create_research(db)
+    request = _request(repository)
+
+    with pytest.raises(TierAuthorizationDenied) as refused:
+        repository.approve(
+            request.request_id,
+            approver="user-1",
+            scope="this research only",
+            valid_until=_now(3600),
+            max_calls=10,
+            max_cost=float("nan"),
+            now=_now(),
+        )
+
+    assert refused.value.reason == "authorization_non_finite_ceiling"
+
+
+def test_an_approval_with_an_infinite_call_ceiling_is_refused(repository, db):
+    """The call ceiling has the same shape and gets the same refusal.
+
+    ``max_calls`` is typed as an int, so infinity cannot arrive as an int -
+    but it can arrive as a float, and a float that happens to be integral
+    would otherwise be accepted. The check states the finiteness question
+    rather than relying on the annotation.
+    """
+
+    _create_research(db)
+    request = _request(repository)
+
+    with pytest.raises(TierAuthorizationDenied) as refused:
+        repository.approve(
+            request.request_id,
+            approver="user-1",
+            scope="this research only",
+            valid_until=_now(3600),
+            max_calls=float("inf"),
+            max_cost=1.25,
+            now=_now(),
+        )
+
+    assert refused.value.reason == "authorization_non_finite_ceiling"
+
+
+def test_a_refused_non_finite_approval_leaves_the_request_pending(repository, db):
+    """The refusal happens before anything is written.
+
+    A malformed approval must not leave a decision behind, and the request
+    stays ``pending`` - which is not the same as a denial, because the user
+    never said no.
+    """
+
+    _create_research(db)
+    request = _request(repository)
+
+    with pytest.raises(TierAuthorizationDenied):
+        repository.approve(
+            request.request_id,
+            approver="user-1",
+            scope="this research only",
+            valid_until=_now(3600),
+            max_calls=10,
+            max_cost=float("inf"),
+            now=_now(),
+        )
+
+    stored = repository.authorization(request.request_id)
+    assert stored is None
+    assert repository.requests_for(RESEARCH)[0].status == "pending"
+
+
+def test_a_record_with_an_infinite_ceiling_cannot_even_be_built():
+    """The domain object refuses a ceiling it cannot compare.
+
+    ``covers()`` is where the upgrade path finally asks "does this grant
+    cover this spend", but the record does not get that far: constructing it
+    with an infinite ceiling raises, because a ceiling that cannot be
+    compared is not a ceiling. The dataclass check is the *first* line -
+    a record with a non-finite ceiling cannot exist to be evaluated.
+
+    The assertion is on the construction, not on ``covers()``, because that
+    is the order the defence actually takes: refuse the value at the
+    boundary rather than reason about it later.
+    """
+
+    from src.domain.research_authorization import TierAuthorization
+
+    with pytest.raises(ValueError, match="invalid_max_cost"):
+        TierAuthorization(
+            request_id="request-1",
+            research_id=RESEARCH,
+            operation_id=OPERATION,
+            status="approved",
+            approver="user-1",
+            valid_until=_now(3600),
+            max_calls=10,
+            max_cost=float("inf"),
+        )
+
+
+def test_a_record_with_a_nan_ceiling_cannot_even_be_built():
+    """NaN fails every comparison, so it is refused at construction too."""
+
+    from src.domain.research_authorization import TierAuthorization
+
+    with pytest.raises(ValueError, match="invalid_max_cost"):
+        TierAuthorization(
+            request_id="request-1",
+            research_id=RESEARCH,
+            operation_id=OPERATION,
+            status="approved",
+            approver="user-1",
+            valid_until=_now(3600),
+            max_calls=10,
+            max_cost=float("nan"),
+        )
+
+
+def test_covers_refuses_a_non_finite_spend_even_under_a_finite_ceiling():
+    """The spend itself must be finite too, not only the ceiling.
+
+    A grant with a sane ceiling still has to answer "does this cover this
+    spend" about a spend that is not a number. ``cost=inf`` and
+    ``cost=nan`` both fail every comparison, so a guard that only checked
+    the ceiling would let them through - and an infinite cost is exactly
+    the case where the ceiling must refuse.
+    """
+
+    from src.domain.research_authorization import TierAuthorization
+
+    record = TierAuthorization(
+        request_id="request-1",
+        research_id=RESEARCH,
+        operation_id=OPERATION,
+        status="approved",
+        approver="user-1",
+        valid_until=_now(3600),
+        max_calls=10,
+        max_cost=1.25,
+    )
+
+    assert record.covers(1, 0.5) is True
+    assert record.covers(1, float("inf")) is False
+    assert record.covers(1, float("nan")) is False
+    assert record.covers(float("inf"), 0.5) is False
+    assert record.covers(float("nan"), 0.5) is False
+
+
+def test_a_normal_ceiling_still_covers_a_spend_inside_it(repository, db):
+    """The guard must not be "implemented" by refusing everything.
+
+    A finite ceiling still covers what it says it covers, and the amount
+    that is refused is still refused. If this test fails, the guard has
+    become a blanket denial.
+    """
+
+    from src.domain.research_authorization import TierAuthorization
+
+    record = TierAuthorization(
+        request_id="request-1",
+        research_id=RESEARCH,
+        operation_id=OPERATION,
+        status="approved",
+        approver="user-1",
+        valid_until=_now(3600),
+        max_calls=10,
+        max_cost=1.25,
+    )
+
+    assert record.covers(1, 0.5) is True
+    assert record.covers(10, 1.25) is True
+    assert record.covers(11, 1.25) is False
+    assert record.covers(10, 1.26) is False

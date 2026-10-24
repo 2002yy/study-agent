@@ -35,6 +35,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import math
 import re
 from typing import Any
 
@@ -91,8 +92,28 @@ def _count(value: Any, name: str) -> int:
     return value
 
 
+def is_finite_number(value: Any) -> bool:
+    """Whether a number can actually be compared against a bound.
+
+    ``float('inf')`` and ``float('nan')`` are both real floats, so an
+    ``isinstance`` check accepts them - but neither can bound anything.
+    Every comparison against ``nan`` is False, and every comparison
+    against ``inf`` in the upper direction is False, so a limit expressed
+    as one of them silently stops limiting. ``bool`` is excluded because
+    it is an ``int`` and ``True`` would otherwise read as the ceiling 1.
+    """
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(float(value))
+
+
 def _money(value: Any, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"invalid_{name}")
+    if not math.isfinite(float(value)):
+        # An infinite or NaN amount is not an amount. Accepting it here would
+        # store a ceiling that can never refuse a spend.
         raise ValueError(f"invalid_{name}")
     if value < 0:
         raise ValueError(f"invalid_{name}")
@@ -299,8 +320,24 @@ class TierAuthorization:
         normal path. It is refused here as well because this method is the
         last line before the money, and it must not be the one place that
         assumes the record above it was well-formed.
+
+        **A non-finite number is not a ceiling, it is the end of the
+        comparison.** ``float('inf')`` and ``float('nan')`` both pass a
+        ``value < 0`` check, and every comparison against them is False -
+        so ``cost > self.max_cost`` would never fire and an infinite or
+        NaN ceiling would cover *every* spend, including one that is not
+        finite either. ``nan`` is the quieter of the two: it fails every
+        comparison rather than only the upper one. A ceiling that cannot be
+        compared cannot bound anything, so it is refused here, where the
+        question "does this grant cover this spend" is finally answered.
         """
 
+        if not is_finite_number(calls) or not is_finite_number(cost):
+            return False
+        if not is_finite_number(self.max_calls) or not is_finite_number(
+            self.max_cost
+        ):
+            return False
         if calls < 0 or cost < 0:
             return False
         if self.max_calls <= 0 or self.max_cost <= 0:

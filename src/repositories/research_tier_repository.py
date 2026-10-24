@@ -42,6 +42,7 @@ from src.domain.research_authorization import (
     TIERS,
     TierAuthorization,
     TierUpgradeRequest,
+    is_finite_number,
 )
 from src.domain.runtime_entities import utc_now
 from src.infrastructure.sqlite.database import RuntimeDatabase
@@ -184,6 +185,14 @@ class ResearchTierRepository:
             raise TierAuthorizationDenied("authorization_missing_expiry")
         if max_calls <= 0 or max_cost <= 0:
             raise TierAuthorizationDenied("authorization_missing_ceiling")
+        # A ceiling of infinity is not a ceiling, and NaN is worse: it fails
+        # every comparison, so `cost > max_cost` would never fire and the
+        # grant would cover every spend. `max_cost <= 0` cannot catch either
+        # - `inf <= 0` is False and every comparison against NaN is False -
+        # so the refusal has to state the finiteness question itself. The
+        # refusal happens before anything is written, like the two above.
+        if not is_finite_number(max_calls) or not is_finite_number(max_cost):
+            raise TierAuthorizationDenied("authorization_non_finite_ceiling")
         return self._decide(
             request_id,
             status=AUTHORIZATION_APPROVED,
