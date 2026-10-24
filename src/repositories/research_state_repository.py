@@ -142,6 +142,57 @@ class ResearchStateRepository:
             return None
         return ResearchResume(state, self.rounds(research_id))
 
+    def snapshot_parts(
+        self,
+        research_id: str,
+        *,
+        after_event_seq: int = 0,
+        limit: int = MAX_EVENTS_PER_READ,
+    ) -> tuple[ResearchState, tuple[ResearchRound, ...], tuple[ResearchEvent, ...], int]:
+        """Read state, rounds, event tail and missed count from ONE SQLite snapshot.
+
+        A checkpoint commits state + round + event atomically. Separate read
+        connections can still straddle that commit and report a state from before
+        it alongside rounds from after it. BEGIN anchors all four SELECTs to
+        the same consistent snapshot without taking an immediate writer lock.
+        """
+        _identity(research_id, "research_id")
+        if type(after_event_seq) is not int or after_event_seq < 0:
+            raise ValueError("invalid_after_event_seq")
+        if type(limit) is not int or limit < 1 or limit > MAX_EVENTS_PER_READ:
+            raise ValueError("invalid_event_limit")
+        with self.database.connect() as connection:
+            connection.execute("BEGIN")
+            row = connection.execute(
+                "SELECT * FROM research_states WHERE research_id = ?", (research_id,)
+            ).fetchone()
+            if row is None:
+                raise ResearchNotFound("research_not_found")
+            round_rows = connection.execute(
+                "SELECT * FROM research_rounds WHERE research_id = ? "
+                "ORDER BY round_index ASC", (research_id,)
+            ).fetchall()
+            event_rows = connection.execute(
+                "SELECT * FROM research_events WHERE research_id = ? AND event_seq > ? "
+                "ORDER BY event_seq ASC LIMIT ?",
+                (research_id, after_event_seq, limit),
+            ).fetchall()
+            missed = connection.execute(
+                "SELECT COUNT(*) AS total FROM research_events "
+                "WHERE research_id = ? AND event_seq > ?",
+                (research_id, after_event_seq),
+            ).fetchone()
+            # COUNT(*) always returns exactly one row. Treat an absent row as
+            # an invalid read, not an invented zero-event snapshot.
+            if missed is None:
+                raise RuntimeError("research_snapshot_count_unavailable")
+        return (
+            _state_from_row(row),
+            tuple(_round_from_row(item) for item in round_rows),
+            tuple(_event_from_row(item) for item in event_rows),
+            int(missed["total"]),
+        )
+
     def resumable(self, *, limit: int = 16, now: str | None = None) -> tuple[ResearchState, ...]:
         """Research that may be claimed right now. A live lease is not offered."""
         if type(limit) is not int or limit < 0:
@@ -702,6 +753,34 @@ class ResearchStateRepository:
                 "SELECT * FROM research_events WHERE research_id = ? AND event_seq > ? "
                 "ORDER BY event_seq ASC LIMIT ?",
                 (research_id, after_event_seq, limit),
+            ).fetchall()
+        return tuple(_event_from_row(row) for row in rows)
+
+    def thread_events(
+        self,
+        thread_id: str,
+        *,
+        after_event_seq: int = 0,
+        limit: int = MAX_EVENTS_PER_READ,
+    ) -> tuple[ResearchEvent, ...]:
+        """One ordered cursor over *all* researches belonging to the thread.
+
+        Never iterate per-research event streams while advancing a shared cursor:
+        event_seq is global and a later event from research A can otherwise hide
+        an earlier event from research B.
+        """
+        _identity(thread_id, "thread_id")
+        if type(after_event_seq) is not int or after_event_seq < 0:
+            raise ValueError("invalid_after_event_seq")
+        if type(limit) is not int or limit < 1 or limit > MAX_EVENTS_PER_READ:
+            raise ValueError("invalid_event_limit")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT e.* FROM research_events AS e "
+                "JOIN research_states AS s ON s.research_id = e.research_id "
+                "WHERE s.thread_id = ? AND e.event_seq > ? "
+                "ORDER BY e.event_seq ASC LIMIT ?",
+                (thread_id, after_event_seq, limit),
             ).fetchall()
         return tuple(_event_from_row(row) for row in rows)
 
