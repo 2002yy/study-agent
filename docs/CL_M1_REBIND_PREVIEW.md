@@ -2683,11 +2683,26 @@ test_concurrent_database_initialization_applies_each_migration_once`），
 | 项 | 值 |
 | --- | --- |
 | 交付分支 | `codex/cl-m3-capability-20261023` |
-| **最终 SHA** | **`0f38269f`**（`0f38269fc3dcc3d046ce1cf83c1142849eec55af`） |
-| 三个提交 | `04f05a14`（实现）→ `7145729e`（竞争测试修复）→ `0f38269f`（真回归 + 继承 flaky 修复） |
+| **代码与测试的最终 SHA** | **`0f38269f`**（`0f38269fc3dcc3d046ce1cf83c1142849eec55af`） |
+| 文档提交 | `f5ee2d31`（只改 `docs/`，**逐字未改 `src/` 与 `tests/`**） |
+| 三个代码提交 | `04f05a14`（实现）→ `7145729e`（竞争测试修复）→ `0f38269f`（真回归 + 继承 flaky 修复） |
 | merge-base | `c391f482`（与 `origin/main` 的分叉点，main 领先 47 / 本分支领先 22） |
-| 远端 | 已推送至 `origin/codex/cl-m3-capability-20261023`（`b0565443..0f38269f`） |
-| 文档基线 | 本文档与 [`CL_M3_CAPABILITY_CONTRACT.md`](CL_M3_CAPABILITY_CONTRACT.md) **在本提交中首次被 Git 跟踪**（此前从未在任何分支存在） |
+| 远端 | 推送至 `origin/codex/cl-m3-capability-20261023`（`b0565443..0f38269f`，随后 `f5ee2d31`） |
+| 文档基线 | 本文档与 [`CL_M3_CAPABILITY_CONTRACT.md`](CL_M3_CAPABILITY_CONTRACT.md) **在 `f5ee2d31` 中首次被 Git 跟踪**（此前从未在任何分支存在） |
+
+**"绑定同一最终 SHA"是怎么成立的——不是靠引用，是靠一个可复核的等式**：
+
+```
+git diff 0f38269f f5ee2d31 -- src/ tests/     → 空
+```
+
+文档提交**没有动一字节的源码或测试**，所以
+**在 `f5ee2d31` 上跑出来的结果与在 `0f38269f` 上跑出来的结果必然相同**——
+这不是推断，是上面那行命令的直接推论。§34.4 的 152 passed 与 ruff 全绿
+**都是在 `f5ee2d31`（即含本节的 HEAD）上实测的**。
+
+因此本节的落款是：代码 = 测试 = 文档 = **同一个工作树状态**。
+如果这三者之间有任何一字节的差异，上面那条 `git diff` 就会打印出来。
 
 **关于文档基线（此前的一处风险，已处置）**：本文档此前只存在于 C 盘
 `codex/e2e-proxy-guard-20261023` 工作树，**从未被任何分支跟踪**，
@@ -2774,10 +2789,34 @@ worker **默认关闭**。打开开关还不足以花钱：**executor 就是模�
 
 | 门 | 结果 |
 | --- | --- |
-| QD 全套（8 个文件，含 progress） | **152 passed** |
-| `ruff check src/ tests/` | **All checks passed** |
+| QD 全套（8 个文件，**清单见下**） | **152 passed**（86.46s） |
+| `ruff check src/ tests/` | **All checks passed!** |
 | 变异验证 | 6 项：1 DETECTED / 5 SURVIVED（分类见 34.5） |
 | DB 回归（95 文件） | **未完成**——运行 5 分钟后被用户取消，无部分输出 |
+
+QD 全套的 8 个文件（**写清楚是为了让这个数字可复现**）：
+
+```text
+tests/test_research_scenarios.py            17
+tests/test_research_production.py           12
+tests/test_research_sigkill.py               3
+tests/test_research_coordinator.py          32
+tests/test_research_feed.py                 35
+tests/test_research_progress.py              8
+tests/test_research_tier_authorization.py   16
+tests/test_research_state_repository.py     29
+                                          ────
+                                          152
+```
+
+这一组是 QD-3a～3e 各自引入的测试文件（3a/3b/3c/3d/3e 的提交各自新增或修改其中若干）。
+**口径的唯一性是核验过的**：在 QD 相关的 10 个文件里枚举全部子集，
+**恰好**只有这一个组合的和等于 152。
+（`test_research_cancellation.py` 与 `test_research_routes.py` **不**在这 8 个之列；
+把它们也算进来是 **174**，两个数都对，但只有 152 是"QD 全套"这个固定口径。）
+
+**以上结果均在 `f5ee2d31`（含本节的 HEAD）上实测**，
+`src/` 与 `tests/` 相对 `0f38269f` 逐字未变（见 34.0 的 `git diff` 等式）。
 
 **两处修复，都不是"把断言改松"**：
 
