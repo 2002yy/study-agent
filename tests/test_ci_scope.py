@@ -277,16 +277,101 @@ def test_mixed_change_unions_the_categories():
 def test_stable_fields_are_all_present():
     result = classify(['src/web/research/runtime.py'])
     for key in (
-        'scope', 'frontend_required', 'browser_required', 'qualification_required',
+        'scope', 'frontend_required', 'frontend_e2e_required', 'frontend_e2e_specs',
+        'research_browser_required', 'browser_required', 'qualification_required',
         'l3_eligible', 'l3_required_for_merge', 'full_scope',
     ):
         assert key in result, key
 
 
-def test_browser_required_only_for_browser_or_unknown():
-    assert classify(['src/web/research/runtime.py'])['browser_required'] is False
-    assert classify(['src/web/research/crawl4ai_worker.py'])['browser_required'] is True
-    assert classify(['mystery/x.bin'])['browser_required'] is True
+def test_research_crawler_requires_research_browser_but_never_frontend_e2e():
+    # The whole point of the split: a path containing "browser" describes the research
+    # crawler, not the frontend, so it must not demand Playwright Golden Journeys.
+    crawler = classify(['src/web/research/crawl4ai_worker.py'])
+    assert crawler['research_browser_required'] is True
+    assert crawler['frontend_e2e_required'] is False
+    assert crawler['frontend_required'] is False
+    assert crawler['frontend_e2e_specs'] == []
+    # The deprecated alias now tracks the frontend E2E tier, not the crawler category.
+    assert crawler['browser_required'] is False
+
+    plain = classify(['src/web/research/runtime.py'])
+    assert plain['research_browser_required'] is False
+
+    unknown = classify(['mystery/x.bin'])
+    assert unknown['frontend_e2e_required'] is True
+    assert unknown['research_browser_required'] is True
+
+
+def test_registered_interaction_surfaces_require_their_own_e2e_specs():
+    chat = classify(['frontend/src/features/single-chat/ChatPanel.tsx'])
+    assert chat['frontend_required'] is True
+    assert chat['frontend_e2e_required'] is True
+    assert 'e2e/answer-interactions.spec.ts' in chat['frontend_e2e_specs']
+    assert chat['research_browser_required'] is False
+
+    reader = classify(['frontend/src/features/reading/DocumentReader.tsx'])
+    assert reader['frontend_e2e_required'] is True
+    assert 'e2e/reading-panels.spec.ts' in reader['frontend_e2e_specs']
+    # A reader-only change must not drag in the chat specs.
+    assert 'e2e/chat-search-equivalence.spec.ts' not in reader['frontend_e2e_specs']
+
+
+def test_unregistered_frontend_paths_keep_the_cheap_tier_only():
+    # Not every frontend edit may be upgraded to the most expensive gate.
+    for path in ('frontend/src/App.tsx', 'frontend/src/features/evidence/EvidenceTrail.tsx'):
+        result = classify([path])
+        assert result['frontend_required'] is True, path
+        assert result['frontend_e2e_required'] is False, path
+        assert result['frontend_e2e_specs'] == [], path
+
+    ignored = classify(['frontend/e2e/reading-panels.spec.ts'])
+    assert ignored['frontend_e2e_required'] is False
+
+
+def test_every_registered_surface_and_spec_exists_on_disk():
+    from pathlib import Path
+
+    from tools.ci_scope import _FRONTEND_E2E_SURFACES
+
+    root = Path(__file__).resolve().parents[1]
+    features = root / 'frontend' / 'src' / 'features'
+    for pattern, specs in _FRONTEND_E2E_SURFACES:
+        relative = pattern.split('frontend/', 1)[1]
+        assert list((root / 'frontend').glob(relative)), f'dead surface registration: {pattern}'
+        for spec in specs:
+            assert (root / 'frontend' / spec).is_file(), f'missing spec: {spec}'
+    assert features.is_dir()
+
+
+def test_every_frontend_feature_directory_is_registered_or_declared():
+    # Adding a feature must force a routing decision instead of silently shipping with no
+    # browser contract. Both lists are explicit; the union has to match what exists.
+    from pathlib import Path
+
+    from tools.ci_scope import _FRONTEND_E2E_SURFACES, _FRONTEND_E2E_UNREGISTERED
+
+    root = Path(__file__).resolve().parents[1]
+    discovered = {
+        path.name for path in (root / 'frontend' / 'src' / 'features').iterdir() if path.is_dir()
+    }
+    registered = {
+        pattern.rsplit('/', 2)[-2] for pattern, _ in _FRONTEND_E2E_SURFACES
+    }
+    assert discovered == registered | _FRONTEND_E2E_UNREGISTERED
+    assert not (registered & _FRONTEND_E2E_UNREGISTERED)
+
+
+def test_router_change_cannot_narrow_its_own_gates():
+    # A change to the routing machinery must not be the one change that runs the fewest
+    # gates, or the router becomes the cheapest way to weaken every other gate.
+    for path in ('.github/workflows/ci.yml', 'tools/ci_scope.py', 'tools/check_ci_outcomes.py'):
+        result = classify([path])
+        assert result['frontend_required'] is True, path
+        assert result['frontend_e2e_required'] is True, path
+        assert result['research_browser_required'] is True, path
+        # The fast-tier pytest path is what the router change is tested by, so it stays.
+        assert result['full_scope'] is False, path
 
 
 def test_qualification_required_only_for_qualification_or_unknown():
@@ -312,10 +397,13 @@ def test_ci_tooling_paths_are_recognised():
         assert classify_path(path) == 'ci-tooling', path
 
 
-def test_ci_tooling_does_not_require_frontend_or_l3():
-    result = classify(['tools/ci_scope.py', '.github/workflows/ci.yml'])
+def test_generic_ci_tooling_does_not_require_frontend_or_l3():
+    # Ordinary CI tooling stays cheap; only the routing machinery itself widens its gates
+    # (see test_router_change_cannot_narrow_its_own_gates).
+    result = classify(['tests/test_l3_preflight.py', '.github/workflows/ci-l3.yml'])
     assert result['frontend_required'] is False
-    assert result['browser_required'] is False
+    assert result['frontend_e2e_required'] is False
+    assert result['research_browser_required'] is False
     assert result['l3_eligible'] is False
     assert result['full_scope'] is False
 
@@ -334,7 +422,10 @@ def test_a_real_ci_tooling_change_set_is_not_unknown_and_not_full():
     result = classify(paths)
     assert result['unknown_paths'] == []
     assert result['full_scope'] is False
-    assert result['frontend_required'] is False
+    # The set includes the router itself, so the frontend-side tiers are requested: a
+    # change to the classifier must not be the change that skips the most gates.
+    assert result['frontend_required'] is True
+    assert result['frontend_e2e_required'] is True
     assert result['scope'] == 'tiered'
 
 

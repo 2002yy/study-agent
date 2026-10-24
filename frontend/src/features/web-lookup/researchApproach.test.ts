@@ -36,6 +36,34 @@ function progress(overrides: Partial<ChatResearchProgress> = {}): ChatResearchPr
 }
 
 describe("researchApproach merge", () => {
+  it("withdraws provisional analysis on null without reviving stale or other-run content", () => {
+    const analysis = { status: "provisional" as const, text: "Tentative result", citations: [{ url: "https://example.org", title: "Source", quote: "Exact original statement" }] };
+    const previous = progress({ interim_analysis: analysis });
+    expect(mergeResearchProgress(previous, progress({ version: 4 }))?.interim_analysis).toEqual(analysis);
+    const withdrawn = mergeResearchProgress(previous, progress({ version: 4, interim_analysis: null }));
+    expect(withdrawn?.interim_analysis).toBeNull();
+    expect(mergeResearchProgress(withdrawn, previous)?.interim_analysis).toBeNull();
+    expect(mergeResearchProgress(previous, progress({ run_id: "other" }))?.interim_analysis).toBeUndefined();
+  });
+  it("keeps legacy omissions but clears invalidated excerpts and isolates runs", () => {
+    const previous = progress({ findings: [{ id: "f1", kind: "source_excerpt", title: "source", url: "https://example.org", text: "old source text" }], reading_gaps: ["old question"] });
+    expect(mergeResearchProgress(previous, progress({ version: 4 }))?.findings).toEqual(previous.findings);
+    const cleared = mergeResearchProgress(previous, progress({ version: 4, findings: [], reading_gaps: [] }));
+    expect(cleared?.findings).toEqual([]);
+    expect(cleared?.reading_gaps).toEqual([]);
+    expect(mergeResearchProgress(previous, progress({ version: 4 }))?.reading_gaps).toEqual(["old question"]);
+    expect(mergeResearchProgress(cleared, previous)?.findings).toEqual([]);
+    expect(mergeResearchProgress(previous, progress({ run_id: "other" }))?.findings).toBeUndefined();
+    expect(mergeResearchProgress(previous, progress({ run_id: "other" }))?.reading_gaps).toBeUndefined();
+  });
+  it("rejects stale progress and retains process blocks across checkpoints", () => {
+    const previous = progress({ version: 3, narration: [{ block_id: "first", text: "first read" }] });
+    const merged = mergeResearchProgress(previous, progress({ version: 4, narration: [{ block_id: "next", text: "additional search" }] }));
+    expect(merged?.narration?.map(block => block.block_id)).toEqual(["first", "next"]);
+    expect(mergeResearchProgress(merged, progress({ version: 2 }))).toEqual(merged);
+    expect(mergeResearchProgress(merged, progress({ version: 5, narration: [{ block_id: "next", text: "additional search" }] }))?.narration).toHaveLength(2);
+    expect(mergeResearchProgress(merged, progress({ run_id: "other" }))?.narration).toBeUndefined();
+  });
   it("carries the opening forward when an event omits it", () => {
     const previous = progress({ approach: approach() });
     const merged = mergeResearchProgress(previous, progress({ version: 4 }));

@@ -32,8 +32,11 @@ from src.application.research_evidence import (
     research_sources_snapshot,
 )
 from src.web.research.research_approach import approach_event
+from src.web.research.research_interaction import interaction_event
+from src.web.research.steering_replies import reply_projection
 from src.application.runtime_repository import (
     get_chat_service,
+    get_session_attachment_service,
     get_session_service,
     get_web_lookup_service,
 )
@@ -147,6 +150,7 @@ async def chat_stream_endpoint(
             asyncio.to_thread(service.start_turn, command)
         )
         observed_research_version: tuple[str, int] | None = None
+        observed_computation: str | None = None
         # Bind progress strictly to *this* turn's identity: the previous turn's
         # run can never be surfaced as the current question's opening, and two
         # concurrent requests cannot cross-attribute.
@@ -167,6 +171,10 @@ async def chat_stream_endpoint(
             if run is not None and observed_research_version != (run.id, run.version):
                 observed_research_version = (run.id, run.version)
                 yield sse_event("research", _research_progress(run))
+                computation = _latest_computation(run)
+                if computation and computation["tool_run_id"] != observed_computation:
+                    observed_computation = str(computation["tool_run_id"])
+                    yield sse_event("computation", computation)
             await asyncio.wait({prepare_task}, timeout=0.05)
 
         try:
@@ -194,6 +202,10 @@ async def chat_stream_endpoint(
         )
         if run is not None and observed_research_version != (run.id, run.version):
             yield sse_event("research", _research_progress(run))
+            computation = _latest_computation(run)
+            if computation and computation["tool_run_id"] != observed_computation:
+                observed_computation = str(computation["tool_run_id"])
+                yield sse_event("computation", computation)
 
         reply_parts: list[str] = []
         stream = service.stream_async(prepared)
@@ -388,9 +400,9 @@ def _research_progress(run: Any) -> dict[str, Any]:
         if isinstance(candidate, dict):
             active_brief = candidate
 
-    def count(name: str) -> int:
+    def count(name: str, fallback: Any = 0) -> int:
         try:
-            return max(0, int(active_metrics.get(name) or 0))
+            return max(0, int(active_metrics.get(name, fallback) or 0))
         except (TypeError, ValueError):
             return 0
 
@@ -398,6 +410,8 @@ def _research_progress(run: Any) -> dict[str, Any]:
         step for step in deep.get("steps", []) if isinstance(step, dict)
     ]
     notes = [note for note in deep.get("notes", []) if isinstance(note, dict)]
+    read_summary = context.get("read_summary") if isinstance(context, dict) else None
+    successful_reads = read_summary.get("successful", 0) if isinstance(read_summary, dict) else 0
     last_step = steps[-1] if steps else None
     owner = context.get("owner") if isinstance(context, dict) else None
     turn_id = str(owner.get("turn_id") or "") if isinstance(owner, dict) else ""
@@ -422,7 +436,7 @@ def _research_progress(run: Any) -> dict[str, Any]:
         "query_attempt_count": len(run.query_attempts),
         "selected_source_count": len(run.selected_sources),
         "candidate_count": count("candidate_count"),
-        "read_count": count("read_count"),
+        "read_count": count("read_count", successful_reads),
         "cluster_count": count("cluster_count"),
         "open_critical_gap_count": count("open_critical_gap_count"),
         "active_phase": str(active_metrics.get("phase") or "") or None,
@@ -435,6 +449,36 @@ def _research_progress(run: Any) -> dict[str, Any]:
         "notes_count": len(notes),
         "last_step_kind": (last_step or {}).get("kind"),
         "last_step_text": (last_step or {}).get("text"),
+        # Provisional assistant replies (task understanding and sourced
+        # judgments). Display-only: they are never the turn's answer.
+        "replies": reply_projection(
+            context if isinstance(context, dict) else {},
+            run_id=run.id,
+            turn_id=turn_id,
+            active=run.status in {"pending", "running"},
+        ),
+        **interaction_event(run),
+    }
+
+
+def _latest_computation(run: Any) -> dict[str, Any] | None:
+    """The newest authoritative computation on a run, if it is bound/valid."""
+
+    context = getattr(run, "research_context", None)
+    deep = context.get("deep") if isinstance(context, dict) else None
+    entries = deep.get("computations") if isinstance(deep, dict) else None
+    if not isinstance(entries, list) or not entries:
+        return None
+    latest = entries[-1]
+    if not isinstance(latest, dict) or not latest.get("schema_version"):
+        return None
+    return {
+        key: latest[key]
+        for key in (
+            "schema_version", "run_id", "tool_run_id", "status",
+            "input_revision", "source_refs", "engine", "reason", "result",
+        )
+        if key in latest
     }
 
 
@@ -710,7 +754,27 @@ def abandon_interrupted_turn_endpoint(
 def _chat_command(
     request: ChatRequest,
     research_service: WebLookupService | None = None,
+    attachment_service: Any = None,
 ) -> PolicyChatCommand:
+    # Message-level attachment identity: validated against *this* session and
+    # bound before any research starts, so an invalid selection can never spawn
+    # a research task or leak another thread's material.
+    attachment_refs: list[dict[str, Any]] = []
+    if request.attachment_ids:
+        if attachment_service is None:
+            # Resolved lazily from the same DI factory the attachment routes use,
+            # so the endpoint signature stays stable for existing callers.
+            attachment_service = get_session_attachment_service()
+        if not request.session_id:
+            raise ValueError("附件需要先有会话：请先在会话中发送，再添加附件")
+        _, problems = attachment_service.validate_selection(
+            request.session_id, request.attachment_ids
+        )
+        if problems:
+            raise ValueError("附件不可用：" + "、".join(problems[:3]))
+        attachment_refs = attachment_service.selection_refs(
+            request.session_id, request.attachment_ids
+        )
     web_context = request.web_context
     web_context_run_id = request.web_context_run_id
     research_sources: dict[str, Any] | None = None
@@ -770,4 +834,5 @@ def _chat_command(
         partial_reply=request.partial_reply,
         turn_id=request.turn_id,
         operation_id=request.operation_id,
+        attachment_refs=attachment_refs,
     )

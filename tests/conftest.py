@@ -101,6 +101,22 @@ def default_chat_dependencies() -> ChatDependencies:
 
 
 @pytest.fixture(autouse=True)
+def _hermetic_deployment_env(monkeypatch):
+    """A developer/deployment .env must never change test behaviour.
+
+    The incremental steering budget is an acceptance-run deployment policy; if a
+    local .env enables it, Deep rounds extend and unrelated expectations break.
+    Cases that need it set the env explicitly.
+    """
+
+    for name in (
+        "WEB_RESEARCH_STEERING_BUDGET_POLICY",
+        "WEB_DEEP_MODEL_PLANNER",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def runtime_test_context(tmp_path, monkeypatch):
     # Local developer .env files may enable a loopback SearXNG instance. Tests
     # remain hermetic unless a case explicitly opts a provider back in.

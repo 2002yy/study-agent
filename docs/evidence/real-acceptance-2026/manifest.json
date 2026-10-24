@@ -1,0 +1,15 @@
+{
+  "note": "Frozen inputs for the real-model acceptance gate; synthetic, no real game data.",
+  "files": [
+    {
+      "name": "reference-notes.pdf",
+      "sha256": "e0a3937a1d091dfcca843c93f7064fda5c7bc2f9414322d2c727773362b431dd",
+      "bytes": 1019
+    },
+    {
+      "name": "screenshot-firefly.png",
+      "sha256": "282e876aa785496f1cfd1ac7b066e8e396fdcfd42f78ecde57372f2b256de13c",
+      "bytes": 39015
+    }
+  ]
+}

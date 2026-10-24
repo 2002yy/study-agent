@@ -277,4 +277,8 @@ def test_v23_upgrade_preserves_existing_runs(tmp_path, monkeypatch):
         assert connection.execute(
             "SELECT COUNT(*) FROM sqlite_master WHERE name = 'research_memory_revisions'"
         ).fetchone()[0] == 1
+        # The v25 upgrade adds the message-level attachment binding column.
+        assert connection.execute(
+            "SELECT COUNT(*) FROM pragma_table_info('chat_turns') WHERE name = 'attachment_refs'"
+        ).fetchone()[0] == 1
     assert WebLookupRepository(database).get(old.id).query == "legacy run"

@@ -1,0 +1,44 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 474 >>
+stream
+BT
+/F1 12 Tf
+72 760 Td
+16 TL
+(Firefly - Reference Notes \(synthetic fixture, not real game data\)) Tj T*
+() Tj T*
+(1. Super Break damage scales with Break Effect and with the number) Tj T*
+(   of break instances landed in the same turn.) Tj T*
+(2. Traces grant +37.3% Break Effect at level 10.) Tj T*
+(3. Eidolon 2 delays the broken enemy's action by 20%.) Tj T*
+(4. Light cone superimposition raises the passive multiplier from) Tj T*
+(   8% \(S1\) to 16% \(S5\).) Tj T*
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000311 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+836
+%%EOF

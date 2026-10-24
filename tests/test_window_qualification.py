@@ -134,3 +134,144 @@ def test_a_foreign_source_is_annotated_for_the_reader():
     assert attribution_of(mysql_page, terms) == "foreign_subject"
     # The gate really is wired to the reader-visible caveat channel.
     assert "attribution_unconfirmed" in inspect.getsource(agent)
+
+
+def test_the_subject_recovery_query_names_missing_and_compared_terms():
+    """Q3: the legal route to the lost side must actually name that side."""
+    from src.web.research_tool_agent import _subject_recovery_query
+
+    query = _subject_recovery_query(["对局"], ["让子棋", "分先棋"], ["go"], [])
+    assert query == "对局 让子棋 分先棋 go"
+    assert _subject_recovery_query([], [], [], []) == ""
+    assert _subject_recovery_query(["对局"], ["让子棋"], [], ["对局 让子棋"]) == ""
+
+
+def test_the_extraction_retries_once_only_after_a_well_formed_empty_answer():
+    """Reviewer ruling (b): one bounded retry, same snapshot, only for a valid empty list."""
+    import json
+
+    from src.web.research_claims import extract_claims
+
+    windows = {"G": [{"source_id": "S1", "excerpt": "漏斗传输物品", "span_start": 0,
+                      "span_end": 6, "window_kind": "term", "sides": ["漏斗"]}]}
+    bodies = {"S1": type("B", (), {"text": "漏斗传输物品"})()}
+
+    def run(replies):
+        calls = []
+        state = {"raw": list(replies)}
+
+        def completion(**_kwargs):
+            calls.append(1)
+            return state["raw"].pop(0)
+
+        claims = extract_claims(goals={"G": ("漏斗",)}, bodies=bodies, completion=completion,
+                                windows_by_goal=windows, retry_empty=True)
+        return calls, claims
+
+    empty = json.dumps({"claims": []})
+    good = json.dumps({"claims": [{"goal_id": "G", "source_id": "S1",
+                                   "claim": "漏斗传输物品", "quote": "漏斗传输物品"}]})
+
+    calls, claims = run([empty, empty])
+    assert len(calls) == 2, "a valid empty answer is retried exactly once"
+    assert claims == []
+
+    calls, claims = run([empty, good])
+    assert len(calls) == 2 and claims, "the retried answer must actually be accepted"
+    assert claims[0].source_id == "S1"
+
+    calls, claims = run(["not json", good])
+    assert len(calls) == 1, "an unparseable answer is never retried"
+
+    def boom(**_kwargs):
+        calls.append(1)
+        raise TimeoutError("slow")
+
+    calls = []
+    claims = extract_claims(goals={"G": ("漏斗",)}, bodies=bodies, completion=boom,
+                            windows_by_goal=windows, retry_empty=True)
+    assert len(calls) == 1 and claims == [], "a timeout is never retried"
+
+
+def test_a_comparison_goal_gets_a_window_where_both_names_appear():
+    """Audited Q3 cause: two single-side windows, so no difference could be stated."""
+    from src.web.research_claims import evidence_windows
+
+    class _B:
+        kind = "substantive"
+
+        def __init__(self, text):
+            self.text = text
+            self.url = "https://zh.minecraft.wiki/w/漏斗"
+            self.quality = {"prose_chars": len(text)}
+
+    bodies = {
+        "S1": _B("漏斗能吸取上方的物品并传输到容器中，漏斗在接收到红石信号时会停止工作。"),
+        "S2": _B("投掷器可以储存物品，投掷器在被红石信号激活时会发射物品。"),
+        "S3": _B("漏斗与投掷器的区别在于：漏斗把物品传入容器，而投掷器把物品发射出去。"),
+    }
+    rows = evidence_windows(("漏斗", "投掷器"), bodies, sides=("漏斗", "投掷器"), label="区别")
+    assert rows, "the comparison must produce windows"
+    both = [row for row in rows
+            if len({str(side) for side in row.get("sides") or ()}) >= 2]
+    assert both, "a window where both names appear must be selected"
+    assert rows[0] is both[0], "it is taken first, not last"
+    assert _B is not None
+
+
+def test_a_both_side_window_never_squeezes_out_the_missing_side_page():
+    """Review: the co-occurrence window may live on the other side's page and only mention this one."""
+    from src.web.research_claims import evidence_windows
+
+    class _B:
+        kind = "substantive"
+
+        def __init__(self, text, url):
+            self.text = text
+            self.url = url
+            self.quality = {"prose_chars": len(text)}
+
+    hopper = ("漏斗能吸取上方的物品并传输到容器中。漏斗与投掷器不同，投掷器用于把物品发射出去。"
+              "漏斗在接收到红石信号时会停止工作。")
+    dropper = ("投掷器可以储存物品。投掷器在被红石信号激活时会发射物品，投掷器拥有九格储存空间。"
+               "漏斗与投掷器不同，投掷器用于把物品发射出去，而不是把物品传入容器。")
+    bodies = {"S1": _B(hopper, "https://zh.minecraft.wiki/w/漏斗"),
+              "S4": _B(dropper, "https://zh.minecraft.wiki/w/投掷器")}
+    rows = evidence_windows(("漏斗", "投掷器"), bodies, sides=("漏斗", "投掷器"), label="区别")
+    sources = {str(row.get("source_id")) for row in rows}
+    assert "S4" in sources, "the dropper page must stay represented"
+    assert "S1" in sources or any(
+        len({str(s) for s in row.get("sides") or ()}) >= 2 for row in rows), "the hopper side stays"
+
+
+def test_the_retry_is_clamped_to_the_time_that_is_left():
+    """Review precondition: a retry must not start if it could outlast the verification."""
+    import json as _json
+
+    from src.web.research_claims import extract_claims
+
+    windows = {"G": [{"source_id": "S1", "excerpt": "漏斗传输物品", "span_start": 0,
+                      "span_end": 6, "window_kind": "term", "sides": ["漏斗"]}]}
+    bodies = {"S1": type("B", (), {"text": "漏斗传输物品"})()}
+    empty = _json.dumps({"claims": []})
+    seen = []
+
+    def completion(**_kwargs):
+        seen.append(_kwargs.get("timeout"))
+        return empty
+
+    skipped = []
+    extract_claims(goals={"G": ("漏斗",)}, bodies=bodies, completion=completion,
+                   windows_by_goal=windows, retry_empty=True,
+                   time_left=lambda: 20.0, on_retry_skipped=lambda: skipped.append(1))
+    assert len(seen) == 2, "with room for a short retry it proceeds"
+    assert seen[1] <= 8.0, "the retry timeout is clamped to the room left after the reserve"
+    assert skipped == []
+
+    seen.clear()
+    skipped.clear()
+    extract_claims(goals={"G": ("漏斗",)}, bodies=bodies, completion=completion,
+                   windows_by_goal=windows, retry_empty=True,
+                   time_left=lambda: 11.0, on_retry_skipped=lambda: skipped.append(1))
+    assert len(seen) == 1, "no room means no retry"
+    assert skipped == [1], "and the skip is recorded, not silent"

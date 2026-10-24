@@ -526,8 +526,20 @@ def get_web_lookup_service():
     from src.application.research_web_lookup_dispatch import (
         ClaimEngineDispatchWebLookupService,
     )
+    from src.web.research.deep_planner import ModelDeepPlanner
 
-    return ClaimEngineDispatchWebLookupService(get_web_lookup_repository())
+    # P1: the Deep pipeline needs a real planner in production, otherwise query
+    # decomposition and the compute decision are unreachable (WEB_DEEP_MODEL_PLANNER=0
+    # disables it for a deployment that wants the deterministic fallback only).
+    enabled = (os.getenv("WEB_DEEP_MODEL_PLANNER", "1") or "1").strip().lower() not in {
+        "0",
+        "false",
+        "off",
+    }
+    planner = ModelDeepPlanner() if enabled else None
+    return ClaimEngineDispatchWebLookupService(
+        get_web_lookup_repository(), planner=planner
+    )
 
 
 @lru_cache(maxsize=1)

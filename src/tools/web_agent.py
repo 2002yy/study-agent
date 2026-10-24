@@ -347,6 +347,7 @@ class WebToolAgent:
         model_profile: ModelProfile = "flash",
         conversation_context: str = "",
         research_intent: bool = False,
+        deep_requested: bool = False,
     ) -> WebToolTrace:
         if not _env_flag("WEB_TOOL_ENABLED", default=True):
             return WebToolTrace(enabled=False)
@@ -528,12 +529,14 @@ def resolve_web_tools(
     model_profile: ModelProfile = "flash",
     conversation_context: str = "",
     research_intent: bool = False,
+    deep_requested: bool = False,
 ) -> WebToolTrace:
     return _default_agent.resolve(
         user_input,
         model_profile=model_profile,
         conversation_context=conversation_context,
         research_intent=research_intent,
+        deep_requested=deep_requested,
     )
 
 

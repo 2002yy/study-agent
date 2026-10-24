@@ -2,7 +2,7 @@
 
 > **唯一当前进度入口：[`PROJECT_STATUS.md`](PROJECT_STATUS.md)。**
 
-仓库文档只保留三类内容：当前状态、稳定合同、专项说明。历史方案不参与当前事实投票。
+仓库文档按**当前状态、稳定合同、专项说明、历史阶段材料**区分。Study Agent 当前定位是通用智能聊天与研究 Agent，长期学习为专业场景；入口 README 和架构文档必须与这一定位一致。历史方案不参与当前事实投票。
 
 ## 1. 当前事实与稳定合同
 
@@ -15,6 +15,7 @@
 | [`../state_invariants.md`](../state_invariants.md) | 重构后仍必须成立的硬约束 |
 | [`STATE_MODEL.md`](STATE_MODEL.md) | durable / ephemeral / derived state 所有权 |
 | [`TESTING.md`](TESTING.md) | 自动门禁、Golden Journey 与真实链路验收 |
+| [`../README.md`](../README.md) | 对外产品目标、当前工程能力和启动入口 |
 
 ## 2. 专项文档
 
@@ -29,6 +30,12 @@
 - [`TECH_STACK.md`](TECH_STACK.md)：当前技术栈参考。
 - [`MOBILE_ACCEPTANCE_D4D.md`](MOBILE_ACCEPTANCE_D4D.md)：实体手机人工验收。
 - [`G12_ACCEPTANCE.md`](G12_ACCEPTANCE.md)：G12 人工验收证据。
+
+静态/动态回答语义与交互研究专项：
+- [`ANSWER_SEMANTICS_AR1.md`](ANSWER_SEMANTICS_AR1.md)：静态知识、动态事件及修订/发布语义；以 `PROJECT_STATUS.md` 为准判断实际集成资格。
+- [`CONVERSATION_AGENT_LOOP_PLAN.md`](CONVERSATION_AGENT_LOOP_PLAN.md)：2026-10-18 起的分阶段开发合同；**旧分支和“待合并”描述是历史快照**，非当前下一门。
+- [`INTERACTIVE_ANSWER_DESIGN.md`](INTERACTIVE_ANSWER_DESIGN.md)：受控智能 UI 的设计和历史实现证据。
+- [`RESEARCH_APPROACH.md`](RESEARCH_APPROACH.md)：研究开场与过程播报的专项合同；旧 pending 切片不作当前进度判断。
 
 CL-M3 能力链的合同与执行记录保留在：
 
@@ -49,6 +56,7 @@ Research Quality 的设计合同保留在：
 ## 3. 历史与非文档内容
 
 - [`archive/`](archive/)：旧 roadmap、旧架构、旧迁移计划，仅用于追溯。
+- `PRODUCT_LINE_MATURITY_20261018.md` 等带日期的文档是**当日评估快照**；后续 main 整合可改变原结论，不能将历史“NO-GO/尚未合并”直接当成今天的状态。
 - 根目录 [`../CHANGELOG.md`](../CHANGELOG.md)：版本历史。旧 `README_v*` 快照已从工作树移除，Git 历史本身即为完整版本来源。
 - `memory/`、`memory.example/`：运行记忆与示例数据。
 - `roles/`、`templates/`：产品角色、提示词与运行模板。

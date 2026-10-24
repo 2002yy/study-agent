@@ -63,6 +63,9 @@ class ChatTurn:
     route_snapshot: dict[str, Any] = field(default_factory=dict)
     rag_snapshot: dict[str, Any] = field(default_factory=dict)
     pedagogy_snapshot: dict[str, Any] = field(default_factory=dict)
+    # Message-level attachment identity bound by the server (id + content_hash),
+    # never the raw client strings.
+    attachment_refs: tuple[dict[str, Any], ...] = ()
     parent_turn_id: str | None = None
     operation_id: str | None = None
     conversation_instruction: str = ""

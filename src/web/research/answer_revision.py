@@ -1,0 +1,364 @@
+"""Answer revision: keep, mark stale, retract or replace one displayed judgment.
+
+A provisional reply is a statement the reader may already have acted on. When a
+new condition or a contradicting read arrives, the system has to say which of
+those statements still stands - and it must never "revise" by appending new text
+to the old text, or by collapsing retraction into a soft ``stale`` flag.
+
+This module is the deterministic half: it decides *whether* a proposed revision
+is allowed to touch a reply, not whether a model thinks two sentences contradict
+each other. Every proposal is a **request**, never a publication permit:
+
+* ``keep``    - the statement is unaffected; nothing changes.
+* ``stale``   - we cannot yet tell whether it still holds; it may not be read as
+               a current conclusion.
+* ``retract`` - it must no longer be used as a conclusion; the text and the
+               reason stay visible for traceability.
+* ``replace`` - new content replaces the old one, but only after it passes the
+               same evidence rules as any other publication (and, in strict
+               mode, only when it is evidence-backed).
+
+Guards, all deterministic:
+
+* the proposal must name the exact content version it was derived from, so a
+  concurrent writer cannot be overwritten (same rule as ``based_on_version``);
+* the proposal must not be derived from an *older* research state than the reply
+  already reflects (``round``/``notes`` are monotone; the interim revision hash is
+  an identity, never an ordering);
+* a reply that is retracted or superseded is terminal for that reply: a late
+  writer cannot revive it, and the merge treats both the same way;
+* applying the same proposal twice is refused (the version has moved);
+* a replacement that makes a claim without a source binding is refused.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import hashlib
+from typing import Any, Iterable, Mapping, Sequence
+
+from src.web.research.answer_layers import claims_need_evidence
+
+KEEP = "keep"
+STALE = "stale"
+RETRACT = "retract"
+REPLACE = "replace"
+
+#: The actions a proposal may ask for.
+ACTIONS = frozenset({KEEP, STALE, RETRACT, REPLACE})
+
+#: How many past contents a reply keeps so a retraction stays explainable.
+MAX_REVISION_HISTORY = 5
+
+RETRACTED_TEXT_SUFFIX = "（这条判断已撤回，不再作为当前结论）"
+
+
+class RevisionProposalError(ValueError):
+    """A proposal is malformed; nothing is applied."""
+
+
+@dataclass(frozen=True)
+class RevisionProposal:
+    target_reply_id: str
+    target_content_version: int
+    action: str
+    reason: str
+    research_revision: str = ""
+    research_round: int = 0
+    research_notes: int = 0
+    replacement: str = ""
+    #: Bare urls, kept for audit and back-compat. Not evidence on their own.
+    source_refs: tuple[str, ...] = ()
+    #: Verified reads the replacement is bound to: ``{"url", "quote",
+    #: "content_sha256"}``. A bare URL list is not enough to publish new text.
+    source_bindings: tuple[Mapping[str, Any], ...] = ()
+    strict: bool = False
+    #: Deterministic rules or a model may propose; only the rules decide.
+    proposed_by: str = "deterministic"
+
+    def __post_init__(self) -> None:
+        if self.action not in ACTIONS:
+            raise RevisionProposalError(f"unknown revision action: {self.action!r}")
+        if not str(self.target_reply_id or "").strip():
+            raise RevisionProposalError("target_reply_id is required")
+        if int(self.target_content_version) < 0:
+            raise RevisionProposalError("target_content_version must be >= 0")
+        if not str(self.reason or "").strip():
+            raise RevisionProposalError("reason is required")
+        if self.action == REPLACE and not str(self.replacement or "").strip():
+            raise RevisionProposalError("replace requires a replacement")
+        for binding in self.source_bindings:
+            if not isinstance(binding, Mapping):
+                raise RevisionProposalError("source binding must be a mapping")
+            if not str(binding.get("url") or "").strip():
+                raise RevisionProposalError("source binding requires a url")
+            quote = str(binding.get("quote") or "")
+            # quote_sha256 hashes the quote; content_sha256 is the legacy name for
+            # the same field. read_excerpt_sha256 names the read, never the quote.
+            digest = str(
+                binding.get("quote_sha256") or binding.get("content_sha256") or ""
+            )
+            if not quote or not digest:
+                raise RevisionProposalError(
+                    "source binding requires quote + quote_sha256"
+                )
+            if hashlib.sha256(quote.encode("utf-8")).hexdigest() != digest:
+                raise RevisionProposalError("source binding digest does not match its quote")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "target_reply_id": self.target_reply_id,
+            "target_content_version": int(self.target_content_version),
+            "action": self.action,
+            "reason": str(self.reason)[:300],
+            "research_revision": str(self.research_revision),
+            "research_round": int(self.research_round),
+            "research_notes": int(self.research_notes),
+            "replacement": str(self.replacement)[:1200],
+            "source_refs": list(self.source_refs),
+            "source_bindings": [dict(item) for item in self.source_bindings],
+            "strict": bool(self.strict),
+            "proposed_by": self.proposed_by,
+        }
+
+
+@dataclass(frozen=True)
+class RevisionDecision:
+    proposal: RevisionProposal
+    accepted: bool
+    applied: str = ""
+    refusal: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "proposal": self.proposal.to_dict(),
+            "accepted": self.accepted,
+            "applied": self.applied,
+            "refusal": self.refusal,
+        }
+
+
+def _state_key(reply: Mapping[str, Any]) -> tuple[int, int]:
+    state = reply.get("content_state")
+    if not isinstance(state, Mapping):
+        return (0, 0)
+
+    def _int(value: Any) -> int:
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    return (_int(state.get("round")), _int(state.get("notes")))
+
+
+def _version(reply: Mapping[str, Any]) -> int:
+    try:
+        return int(reply.get("content_version") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _terminal_lifecycle(reply: Mapping[str, Any]) -> str:
+    lifecycle = str(reply.get("lifecycle") or "")
+    if lifecycle in {"retracted", "superseded", "closed"}:
+        return lifecycle
+    return ""
+
+
+def evaluate(
+    proposal: RevisionProposal,
+    reply: Mapping[str, Any],
+    *,
+    read_evidence: Sequence[Any] = (),
+) -> RevisionDecision:
+    """Decide whether one proposal may touch one reply. No side effects."""
+
+    if str(reply.get("reply_id") or "") != proposal.target_reply_id:
+        return RevisionDecision(proposal, False, refusal="wrong_target")
+    if _terminal_lifecycle(reply) in {"retracted", "superseded"}:
+        # A withdrawn statement is history: a late writer cannot revive it.
+        return RevisionDecision(proposal, False, refusal="terminal_lifecycle")
+    if _version(reply) != int(proposal.target_content_version):
+        return RevisionDecision(proposal, False, refusal="stale_target_version")
+    if (int(proposal.research_round), int(proposal.research_notes)) < _state_key(reply):
+        return RevisionDecision(proposal, False, refusal="older_research_state")
+    if proposal.action == KEEP:
+        return RevisionDecision(proposal, True, applied=KEEP)
+    if proposal.action == STALE:
+        if reply.get("stale") is True:
+            # Already marked: say so instead of pretending to change something.
+            return RevisionDecision(proposal, False, refusal="already_stale")
+        return RevisionDecision(proposal, True, applied=STALE)
+    if proposal.action == RETRACT:
+        return RevisionDecision(proposal, True, applied=RETRACT)
+    # replace: the new text must pass the ordinary publication rules, and it must
+    # be bound to reads whose quotes really match the recorded digest - a bare URL
+    # list would let new text inherit "verified" status it never earned.
+    refunds = claims_need_evidence(proposal.replacement)
+    if refunds and not proposal.source_bindings:
+        return RevisionDecision(proposal, False, refusal="replacement_unbacked_claim")
+    if proposal.source_bindings:
+        # A binding without the run's read records is an assertion, not evidence.
+        # Refusing here (instead of skipping verification) is the difference
+        # between "not checked" and "checked and allowed".
+        if not read_evidence:
+            return RevisionDecision(proposal, False, refusal="source_reads_unavailable")
+        from src.web.research.read_evidence import verify_publication_binding
+
+        # A replacement carries *new text into the published answer*, so a legacy
+        # quote-only binding is not enough: the binding must name the read it came
+        # from. Legacy bindings stay readable elsewhere; they simply cannot
+        # authorise publication.
+        for binding in proposal.source_bindings:
+            refusal = verify_publication_binding(binding, read_evidence)
+            if refusal:
+                return RevisionDecision(proposal, False, refusal=refusal)
+    if proposal.strict and not proposal.source_bindings:
+        return RevisionDecision(proposal, False, refusal="strict_requires_evidence")
+    if refunds and proposal.source_refs and not proposal.source_bindings:
+        return RevisionDecision(proposal, False, refusal="unverified_binding")
+    return RevisionDecision(proposal, True, applied=REPLACE)
+
+
+def _append_history(reply: Mapping[str, Any], entry: Mapping[str, Any]) -> list[dict[str, Any]]:
+    history = [dict(item) for item in (reply.get("revision_history") or []) if isinstance(item, dict)]
+    history.append(dict(entry))
+    return history[-MAX_REVISION_HISTORY:]
+
+
+def apply_decision(
+    reply: Mapping[str, Any], decision: RevisionDecision, *, now: str
+) -> dict[str, Any]:
+    """Apply one accepted decision to one reply (pure; returns a new dict)."""
+
+    if not decision.accepted:
+        raise RevisionProposalError(f"refused decision: {decision.refusal}")
+    from src.web.research.steering_replies import (
+        LIFECYCLE_OPEN,
+        LIFECYCLE_RETRACTED,
+        advance_content,
+    )
+
+    current = dict(reply)
+    action = decision.applied
+    from_version = _version(current)
+    if action == KEEP:
+        return current
+    if action == STALE:
+        if current.get("stale"):
+            return current
+        from src.web.research.steering_replies import STALE_TEXT_SUFFIX
+
+        text = str(current.get("text") or "")
+        if not text.endswith(STALE_TEXT_SUFFIX):
+            text = f"{text}{STALE_TEXT_SUFFIX}"[:1200]
+        updated = {**current, "stale": True, "text": text}
+        updated = advance_content(updated, now=now)
+        updated["last_revision"] = {
+            "action": STALE,
+            "reason": decision.proposal.reason[:300],
+            "at": now,
+            "from_version": from_version,
+            "research_revision": decision.proposal.research_revision,
+        }
+        updated["revision_history"] = _append_history(current, updated["last_revision"])
+        return updated
+    if action == RETRACT:
+        text = str(current.get("text") or "")
+        if not text.endswith(RETRACTED_TEXT_SUFFIX):
+            text = f"{text}{RETRACTED_TEXT_SUFFIX}"[:1200]
+        updated = {
+            **current,
+            "lifecycle": LIFECYCLE_RETRACTED,
+            "stale": True,
+            "text": text,
+        }
+        updated = advance_content(updated, now=now)
+        updated["last_revision"] = {
+            "action": RETRACT,
+            "reason": decision.proposal.reason[:300],
+            "at": now,
+            "from_version": from_version,
+            "research_revision": decision.proposal.research_revision,
+        }
+        updated["revision_history"] = _append_history(current, updated["last_revision"])
+        return updated
+    # replace: keep the previous body traceable, then publish the new one.
+    kept = {
+        "text": str(current.get("text") or "")[:1200],
+        "content_version": from_version,
+        "stage": str(current.get("stage") or ""),
+    }
+    # The new text carries the citations it was actually bound to; it may never
+    # keep the previous body's evidence.
+    citations = [
+        {
+            "url": str(binding.get("url") or ""),
+            "quote": str(binding.get("quote") or ""),
+            "title": str(binding.get("title") or ""),
+        }
+        for binding in decision.proposal.source_bindings
+    ]
+    # A replacement backed by a read may clear the stale flag and adopt the
+    # research state it was produced under; a claim-free replacement has nothing
+    # to prove and may too. Anything else keeps the flag and says why -
+    # "replaced" must not be claimed before the new body has evidence of its own.
+    from src.web.research.answer_layers import claims_need_evidence
+
+    backed = bool(decision.proposal.source_bindings) or not claims_need_evidence(
+        str(decision.proposal.replacement)
+    )
+    updated = {
+        **current,
+        "lifecycle": LIFECYCLE_OPEN,
+        "text": str(decision.proposal.replacement)[:1200],
+        "citations": citations,
+        "stale": not backed,
+        "stale_reason": "" if backed else "replacement_pending_verification",
+    }
+    if backed:
+        updated["content_state"] = {
+            "round": int(decision.proposal.research_round),
+            "notes": int(decision.proposal.research_notes),
+            "revision": str(decision.proposal.research_revision),
+        }
+    updated = advance_content(updated, now=now)
+    updated["last_revision"] = {
+        "action": REPLACE,
+        "reason": decision.proposal.reason[:300],
+        "at": now,
+        "from_version": from_version,
+        "research_revision": decision.proposal.research_revision,
+        "source_refs": list(decision.proposal.source_refs),
+    }
+    history = _append_history(current, updated["last_revision"])
+    history.append(kept)
+    updated["revision_history"] = history[-MAX_REVISION_HISTORY:]
+    return updated
+
+
+def apply_proposals(
+    replies: Sequence[Any],
+    proposals: Iterable[RevisionProposal],
+    *,
+    now: str,
+    read_evidence: Sequence[Any] = (),
+) -> tuple[list[dict[str, Any]], list[RevisionDecision]]:
+    """Evaluate and apply proposals in order; return the replies and the audit."""
+
+    current = [dict(item) for item in replies if isinstance(item, dict)]
+    decisions: list[RevisionDecision] = []
+    for proposal in proposals:
+        index = next(
+            (i for i, reply in enumerate(current) if reply.get("reply_id") == proposal.target_reply_id),
+            None,
+        )
+        if index is None:
+            decisions.append(RevisionDecision(proposal, False, refusal="unknown_reply"))
+            continue
+        decision = evaluate(proposal, current[index], read_evidence=read_evidence)
+        decisions.append(decision)
+        if decision.accepted:
+            current[index] = apply_decision(current[index], decision, now=now)
+    return current, decisions

@@ -2940,4 +2940,32 @@ QD-3e 的交付、主线集成、费用账本兼容、产品验收是**四件事
 | 5 | DB 回归（95 文件） | 未完成，需重跑 |
 | 6 | #287 阻断项 A 的解法裁定 | 需用户/审核裁定 |
 | 7 | #287 阻断项 B 的测试构造修正 | 需在 #287 内修正 |
-| 8 | #259 费用账本适配（`LedgerPort`/`AdmittedCompletion`/`SpendGatedAdmission`） | 待接口确认 |
+| 8 | 费用账本适配 | **接口形态已变，见下** |
+
+**第 8 项的补充：费用账本的接口形态已经变了（合并 main 时发现）**
+
+3d 当时记下的适配目标是 `LedgerPort` / `AdmittedCompletion` / `SpendGatedAdmission`
+（§29.3、§29.4）。那三个名字来自 **#259 的原分支**。
+把 `main` 并进来之后，费用账本**已经以另一种形态落地**——
+`src/llm_spend_guard.py`（来自 `a717d0c1`，即 #272 合入的 AR/账本线）提供的是：
+
+```text
+spend_scope(...)  /  push_scope(...)  /  pop_scope(...)
+require_allowed_model(model, purpose=...)
+experiment_cap_cny()  /  remaining_cny()  /  spent_cny()
+```
+
+也就是 **scope / context-manager 形态**，不是 **注入式 `LedgerPort.settle` 形态**：
+`grep -c "LedgerPort\|AdmittedCompletion\|SpendGatedAdmission" src/llm_spend_guard.py` = **0**。
+
+因此这一项的**内容也变了**，不是"等 #259 接口确认"那么一句：
+
+- `src/web/semantic_admission.py` 里那套 `LedgerPort`（含 `settle`）与 `AdmittedCompletion`，
+  仍然是**建立在不存在的接口上**的（§29.4 的结论未变）；
+- 但它要适配的目标**不再是 #259 的原形态**，而是 `spend_guard` 的 scope 形态；
+- `conversation_spend_gate.SpendGatedAdmission`（§29.3 新增）同理，需要按新形态重做；
+- 这三处的重做**不在本批**，且**不因"接口确认"而自动解冻**——
+  需要按 `spend_guard` 的实际 API 重新设计一次。
+
+**影响面**：§34.8"不宣称 §10.8 第 2 项完整通过"的结论**不变**——
+"取消后不再产生模型调用"要的是**账本证据**，而账本这一层至今没有接进 QD 的调用路径。

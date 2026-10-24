@@ -538,13 +538,27 @@ def test_creating_the_same_research_twice_is_refused(tmp_path):
 
 def test_the_schema_version_covers_the_allocation_gap():
     # 25 and 26 belong to the AR and spend lines; this branch must not reuse them.
+    #
+    # What this branch must not do is *redefine* them. It originally asserted
+    # that 25 and 26 were absent, because at that point the other lines had not
+    # landed yet and this branch left the numbers as a gap. Now that those lines
+    # have landed, 25 and 26 exist - and the allocation is still not this
+    # branch's to change. So the assertion is about ownership, not existence:
+    # the SQL at 25 and 26 is the AR and spend lines' SQL, and the SQL at 27 is
+    # this branch's. Reusing the numbers here would make two branches apply
+    # different SQL under the same version, which is what the check is for.
     from src.infrastructure.sqlite.database import MIGRATIONS, SCHEMA_VERSION
 
     versions = [version for version, _ in MIGRATIONS]
     assert versions == sorted(versions)
     assert version_in(versions, 27)
     assert SCHEMA_VERSION == max(versions)
-    assert not version_in(versions, 25) and not version_in(versions, 26)
+
+    sql_by_version = dict(MIGRATIONS)
+    assert "attachment_refs" in sql_by_version[25]
+    assert "llm_spend_reservations" in sql_by_version[26]
+    # 27 is this branch's own: the durable research state and its checkpoints.
+    assert "research_states" in sql_by_version[27]
 
 
 def version_in(versions, target):

@@ -765,9 +765,9 @@ class RuntimeRepository:
                     id, thread_id, user_message, assistant_message, status, role, mode, model,
                     route_snapshot, rag_snapshot, pedagogy_snapshot, parent_turn_id, operation_id,
                     conversation_instruction, created_at, updated_at,
-                    cancel_requested_at, cancel_stage, cancel_reason
+                    cancel_requested_at, cancel_stage, cancel_reason, attachment_refs
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     turn.id,
@@ -789,6 +789,7 @@ class RuntimeRepository:
                     turn.cancel_requested_at,
                     turn.cancel_stage,
                     turn.cancel_reason,
+                    _dump([dict(item) for item in turn.attachment_refs]),
                 ),
             )
             connection.execute(
@@ -856,6 +857,28 @@ class RuntimeRepository:
         if stored is None:
             raise ValueError(f"Chat turn was not persisted: {turn.id}")
         return stored
+
+    def bind_turn_attachments(
+        self, turn_id: str, refs: list[dict[str, Any]]
+    ) -> ChatTurn:
+        """Persist the server-validated attachment identity for one turn.
+
+        Retries and continuations must reuse the stored binding, so this is the
+        only writer of ``chat_turns.attachment_refs``.
+        """
+
+        payload = _dump([dict(item) for item in refs])
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                "UPDATE chat_turns SET attachment_refs = ?, updated_at = ? WHERE id = ?",
+                (payload, utc_now(), turn_id),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError(f"ChatTurn not found: {turn_id}")
+            row = connection.execute(
+                "SELECT * FROM chat_turns WHERE id = ?", (turn_id,)
+            ).fetchone()
+        return _chat_turn_from_row(row)
 
     def update_chat_turn(
         self,
@@ -1083,6 +1106,7 @@ def _chat_turn_from_row(row: sqlite3.Row) -> ChatTurn:
         route_snapshot=_load_object(row["route_snapshot"]),
         rag_snapshot=_load_object(row["rag_snapshot"]),
         pedagogy_snapshot=_load_object(row["pedagogy_snapshot"]),
+        attachment_refs=_load_refs(row["attachment_refs"]),
         parent_turn_id=row["parent_turn_id"],
         operation_id=row["operation_id"],
         conversation_instruction=row["conversation_instruction"],
@@ -1092,6 +1116,18 @@ def _chat_turn_from_row(row: sqlite3.Row) -> ChatTurn:
         cancel_stage=row["cancel_stage"],
         cancel_reason=row["cancel_reason"],
     )
+
+
+def _load_refs(raw: Any) -> tuple[dict[str, Any], ...]:
+    """Parse the durable attachment-ref list; malformed data degrades to empty."""
+
+    try:
+        value = json.loads(raw or "[]")
+    except (TypeError, ValueError):
+        return ()
+    if not isinstance(value, list):
+        return ()
+    return tuple(dict(item) for item in value if isinstance(item, dict))
 
 
 def _chat_thread_from_row(row: sqlite3.Row) -> ChatThread:

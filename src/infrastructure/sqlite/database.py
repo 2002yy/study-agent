@@ -556,6 +556,39 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             );
         """,
     ),
+    (
+        25,
+        """
+        ALTER TABLE chat_turns ADD COLUMN attachment_refs TEXT NOT NULL DEFAULT '[]';
+        """,
+    ),
+    (
+        26,
+        """
+        CREATE TABLE llm_spend_experiments (
+            experiment_id TEXT PRIMARY KEY,
+            cap_micros INTEGER NOT NULL,
+            pricing_fingerprint TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE llm_spend_reservations (
+            reservation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            experiment_id TEXT NOT NULL,
+            request_key TEXT NOT NULL,
+            request_fingerprint TEXT NOT NULL,
+            purpose TEXT NOT NULL DEFAULT '',
+            model TEXT NOT NULL DEFAULT '',
+            identity TEXT NOT NULL DEFAULT '',
+            amount_micros INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(experiment_id, request_key)
+        );
+
+        CREATE INDEX idx_llm_spend_reservations_experiment
+            ON llm_spend_reservations(experiment_id);
+        """,
+    ),
     # 25 and 26 are allocated outside this branch: 25 is ``chat_turns.attachment_refs``
     # (the AR line) and 26 is #259's spend ledger. A migration number is permanent, so
     # reusing one would make two branches apply different SQL under the same version.
