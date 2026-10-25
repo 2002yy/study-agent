@@ -77,7 +77,8 @@ def test_reconnect_resumes_after_the_last_seen_step(tmp_path, monkeypatch):
     assert ids == [int(step["seq"]) for step in steps]
     kinds = {json.loads(_field(block, "data"))["kind"] for block in full_steps}
     assert {"planning", "read", "revise"} <= kinds
-    assert "event: research_idle" in full_text
+    idle = [block for block in _frames(full_text) if _field(block, "event") == "research_idle"]
+    assert idle and json.loads(_field(idle[0], "data"))["status"] == "completed"
 
     # Reconnect from the first step: no replay of it, only later steps.
     with client.stream(

@@ -32,9 +32,11 @@ WebLookupServiceDependency = Annotated[
 
 # The stage feed reads what the run already persisted; it never advances or
 # mutates the run. A reconnect costs no research and starts no send.
-TERMINAL_RUN_STATUSES = frozenset({"completed", "failed", "cancelled"})
+TERMINAL_RUN_STATUSES = frozenset(
+    {"completed", "partial", "failed", "cancelled"}
+)
 STEP_POLL_SECONDS = 0.05
-STEP_IDLE_TIMEOUT_SECONDS = 30.0
+STEP_IDLE_TIMEOUT_SECONDS = 300.0
 STEP_HEARTBEAT_SECONDS = 10.0
 
 
@@ -225,11 +227,19 @@ async def stream_research_run_events(
     async def frames() -> AsyncIterator[str]:
         idle = 0.0
         since_heartbeat = 0.0
+
+        def idle_frame(status: str) -> str:
+            return (
+                "event: research_idle\ndata: "
+                + json.dumps({"run_id": run_id, "status": status}, ensure_ascii=False)
+                + "\n\n"
+            )
+
         while True:
             try:
                 run = service.get(run_id)
             except ValueError:
-                yield "event: research_idle\ndata: {}\n\n"
+                yield idle_frame("unknown")
                 return
             wrote = False
             for seq, step in _run_steps(run):
@@ -251,7 +261,7 @@ async def stream_research_run_events(
                 idle = 0.0
                 since_heartbeat = 0.0
             if run.status in TERMINAL_RUN_STATUSES and not wrote:
-                yield "event: research_idle\ndata: {}\n\n"
+                yield idle_frame(run.status)
                 return
             if await request.is_disconnected():
                 return
@@ -261,7 +271,7 @@ async def stream_research_run_events(
                 since_heartbeat = 0.0
             idle += STEP_POLL_SECONDS
             if idle >= STEP_IDLE_TIMEOUT_SECONDS:
-                yield "event: research_idle\ndata: {}\n\n"
+                yield idle_frame(run.status)
                 return
             await asyncio.sleep(STEP_POLL_SECONDS)
 
