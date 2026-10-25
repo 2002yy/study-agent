@@ -228,7 +228,7 @@ _scope: ContextVar[SpendScope | None] = ContextVar("llm_spend_scope", default=No
 # answer. The authorization is a signed, single-use record of the *bounds* that
 # were reserved, not a bare key - a key proves nothing about whether a
 # reservation exists or how large the real request may be.
-_active_authorization: ContextVar[SendAuthorization | None] = ContextVar(
+_active_authorization: ContextVar[object] = ContextVar(
     "llm_spend_send_authorization", default=None
 )
 _consumed_authorizations: set[str] = set()
@@ -252,9 +252,11 @@ class SpendAuthorizationError(SpendConfigurationError):
 class SendAuthorization:
     """Proof that one send was reserved, and within which bounds.
 
-    Issued only after a durable reservation succeeded. The token is an HMAC over
-    the fields, so a hand-built instance cannot pass :func:`pre_reserved_send`;
-    the guard keeps a consumption set, so one authorization authorizes one send.
+    Issued only after reading the committed reservation row: the fields describe
+    what the ledger stored, not what the caller claimed. The token is an HMAC
+    over them, so a hand-built instance cannot pass :func:`pre_reserved_send`;
+    the guard consumes it exactly once, and the send slot inside it admits
+    exactly one transport check.
     """
 
     experiment_id: str
@@ -265,6 +267,14 @@ class SendAuthorization:
     attempts: int
     reserved_cny: float
     token: str = ""
+
+
+@dataclass
+class _SendSlot:
+    """The mutable half of an authorization: one transport check, no more."""
+
+    authorization: SendAuthorization
+    used: bool = False
 
 
 def _authorization_payload(
@@ -300,32 +310,48 @@ def authorize_send(
     prompt_chars: int,
     max_tokens: int,
     attempts: int,
-    reserved_cny: float,
 ) -> SendAuthorization:
-    """Issue the single-use authorization for a send that was just reserved."""
+    """Issue the authorization for a send **only if its reservation exists**.
 
+    The amount and the model come from the committed row, not from this call's
+    arguments. A signature over unchecked numbers would prove that the signer
+    can compute an HMAC, which is not the question.
+    """
+
+    reservation = _ledger().reserved_send(experiment_id, request_key)
+    if reservation is None:
+        raise SpendAuthorizationError("reservation_not_found")
+    if reservation.amount_micros <= 0 or reservation.model != str(model or ""):
+        # Either the row pays nothing, or it was reserved for a different model
+        # than the one about to be sent. Both mean the authorization cannot
+        # describe this send.
+        raise SpendAuthorizationError("reservation_mismatch")
     payload = _authorization_payload(
-        experiment_id=experiment_id,
-        request_key=request_key,
-        model=model,
+        experiment_id=reservation.experiment_id,
+        request_key=reservation.request_key,
+        model=reservation.model,
         prompt_chars=prompt_chars,
         max_tokens=max_tokens,
         attempts=attempts,
-        reserved_cny=reserved_cny,
+        reserved_cny=reservation.amount_micros / MICROS_PER_CNY,
     )
     return SendAuthorization(
-        experiment_id=experiment_id,
-        request_key=request_key,
-        model=model,
+        experiment_id=reservation.experiment_id,
+        request_key=reservation.request_key,
+        model=reservation.model,
         prompt_chars=int(prompt_chars),
         max_tokens=int(max_tokens),
         attempts=int(attempts),
-        reserved_cny=float(reserved_cny),
-        token=hmac.new(_AUTHORIZATION_SECRET, payload.encode("utf-8"), hashlib.sha256).hexdigest(),
+        reserved_cny=reservation.amount_micros / MICROS_PER_CNY,
+        token=hmac.new(
+            _AUTHORIZATION_SECRET, payload.encode("utf-8"), hashlib.sha256
+        ).hexdigest(),
     )
 
 
-def _verify_authorization(authorization: object) -> SendAuthorization:
+def _verified_authorization(authorization: object) -> SendAuthorization:
+    """Check the signature only. Pure: no consumption, no state."""
+
     if not isinstance(authorization, SendAuthorization):
         raise SpendAuthorizationError("send_authorization_missing")
     payload = _authorization_payload(
@@ -342,24 +368,35 @@ def _verify_authorization(authorization: object) -> SendAuthorization:
     ).hexdigest()
     if not hmac.compare_digest(expected_token, str(authorization.token or "")):
         raise SpendAuthorizationError("send_authorization_forged")
-    if authorization.token in _consumed_authorizations:
-        raise SpendAuthorizationError("send_authorization_consumed")
     return authorization
+
+
+def _consume_authorization(authorization: object) -> SendAuthorization:
+    """Verify and consume in one critical section.
+
+    Checking the consumed set outside the lock would let two threads verify the
+    same token, both find it unused, and both send.
+    """
+
+    verified = _verified_authorization(authorization)
+    with _lock:
+        if verified.token in _consumed_authorizations:
+            raise SpendAuthorizationError("send_authorization_consumed")
+        _consumed_authorizations.add(verified.token)
+    return verified
 
 
 @contextmanager
 def pre_reserved_send(authorization: SendAuthorization) -> Iterator[SendAuthorization]:
     """Authorize exactly one send inside the reservation it was issued for.
 
-    Entry consumes the authorization. A forged token, a second use, or a call
-    outside the reserved bounds is refused by :func:`reserve_call` *before* the
-    transport sends anything.
+    Entry consumes the authorization atomically. Inside the scope, exactly one
+    :func:`reserve_call` may pass; a second is a second send and is refused
+    rather than silently admitted without its own reservation.
     """
 
-    verified = _verify_authorization(authorization)
-    with _lock:
-        _consumed_authorizations.add(verified.token)
-    token = _active_authorization.set(verified)
+    verified = _consume_authorization(authorization)
+    token = _active_authorization.set(_SendSlot(verified))
     try:
         yield verified
     finally:
@@ -674,8 +711,11 @@ def reserve_call(
     # transport may send, but only within the reserved bounds, and it must not
     # reserve a second time. An explicit *different* key is another send and is
     # refused rather than merged.
-    active = _active_authorization.get()
-    if active is not None:
+    slot = _active_authorization.get()
+    if slot is not None:
+        if not isinstance(slot, _SendSlot):
+            raise SpendAuthorizationError("send_authorization_missing")
+        active = slot.authorization
         if request_key is not None and request_key != active.request_key:
             raise SpendAuthorizationError("send_authorization_key_mismatch")
         if str(model or "") != active.model:
@@ -686,6 +726,12 @@ def reserve_call(
             raise SpendAuthorizationError("send_authorization_bound_exceeded")
         if max(1, int(attempts)) > active.attempts:
             raise SpendAuthorizationError("send_authorization_bound_exceeded")
+        # One authorization admits one transport check. Without this, a caller
+        # could loop inside the scope and send repeatedly for one reservation.
+        with _lock:
+            if slot.used:
+                raise SpendAuthorizationError("send_authorization_consumed")
+            slot.used = True
         return 0.0
 
     if cap is None and experiment_cap is None:

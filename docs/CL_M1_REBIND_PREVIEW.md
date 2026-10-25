@@ -4049,3 +4049,65 @@ HMAC-SHA256（进程内密钥）。签发只有一个入口：适配器在**持�
 留给 S2-B 的事实不变：`SpendGatedAdmission` 的会话循环尚未 claim 授权
 （它还没有生产构造）；`attachment_vision` 与直接调用 `llm_client` 的旧路径
 仍需统一或显式关闭。两者都不能因为本节的机制存在而被默认为安全。
+
+### 34.20 S2-A-R2：签发要看预留行，一次性要落在真实发送上（2026-10-25）
+
+**触发**：review #5643361756 的两项 P1 与一项 P2。§34.19 的 `authorize_send()`
+能对调用者给的字段直接签名——只要持有进程内密钥，就能为一个**不存在**的预留键
+造出数学上有效的授权；`pre_reserved_send` 消耗的是"进入上下文"，同一上下文里
+反复调用 `reserve_call()` 仍会返回 `0.0`；适配器固定签发 `attempts=1`，与
+`llm_client` 的提供商重试配置没有对齐。
+
+#### 34.20.1 P1-1：签发前必须读到已提交的预留
+
+`SpendLedger` 新增只读 `reserved_send(experiment_id, request_key)`。
+`authorize_send()` 现在的顺序是：
+
+1. 读预留行；没有 → `reservation_not_found`；
+2. 行金额必须为正、行的 `model` 必须等于即将发送的模型，否则
+   `reservation_mismatch`；
+3. 授权里的 `reserved_cny` 取**行里的金额**（微元换算），不是调用者给的数；
+4. 对上述已验证字段签名。
+
+因此"有密钥"不再等于"有预留"：签名只是给已验证的事实加封条。
+负控：无预留键签发 → `reservation_not_found`；用另一个模型签发 →
+`reservation_mismatch`；伪造/篡改字段 → `send_authorization_forged`。
+
+#### 34.20.2 P1-2：一次性落在传输层准入检查上
+
+两层限制，各自回答不同问题：
+
+- **跨上下文一次性**：`_consume_authorization()` 在**同一把锁内**完成签名校验、
+  "是否已消耗"判断与登记。旧的"锁外判断 + 锁内登记"允许两个线程同时通过判断。
+- **同一上下文只准一次发送**：上下文里放的是可变槽位 `_SendSlot`；
+  `reserve_call` 在槽位上做"检查并置位"，第二次调用直接
+  `send_authorization_consumed`，不再返回 `0.0`。
+
+并发负控的写法要说明清楚：GIL 让"锁外判断"的窗口小到无法用普通竞态稳定复现
+（20 轮 × 8 线程的竞争测试在变异版本上仍然通过）。所以另加一条**机制探针**：
+测试线程持有 guard 锁时，另一条线程的授权消耗必须被阻塞；移除锁的变异会稳定
+失败。竞争测试保留，用来表达意图与发现回归。
+
+#### 34.20.3 P2：重试上界与预留保持一致
+
+- 适配器新增 `attempts` 配置（默认 1），该值同时用于
+  `reserve_call(attempts=...)`（预留金额按最坏情况乘上尝试次数）与授权字段；
+- 传输层若以更多尝试次数调用，`attempts > authorization.attempts` →
+  `send_authorization_bound_exceeded`，不会悄悄放宽、也不会产生第二笔预留；
+- S2-B1 必须把提供商的真实重试配置与本值统一。**统一的方式是配置对齐，不是
+  放宽校验**；不一致时请求被拒是期望行为，不是缺陷。
+
+负控：`attempts=2` 的授权允许 2 次、拒绝 3 次，且预留表只增加两行。
+
+#### 34.20.4 验证与边界
+
+- `tests/test_spend_admission_boundary.py` 18 → **23 条**；
+- 影响集 **183 passed**；Ruff 干净；mypy baseline `124/128, resolved=4`；
+- 变异 **4/4 KILLED**：跳过预留行校验、锁外消耗、同一上下文多次发送、
+  忽略重试上界；
+- 未接生产装配、未调用付费模型、未跑 L3、未合并 main。
+
+**接线时必须核对的一点**：`authorize_send()` 通过 `LLM_SPEND_LEDGER_DB`
+（默认运行时库）读取预留行；适配器的结算仓储也指向同一个库。S2-B 装配时若两者
+指向不同数据库，签发会失败为 `reservation_not_found`——这是 fail-closed，
+但必须显式配置一致，不能靠默认值碰运气。

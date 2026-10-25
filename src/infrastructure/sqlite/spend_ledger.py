@@ -125,6 +125,23 @@ class Reservation:
         return max(0, self.cap_micros - self.reserved_total_micros)
 
 
+@dataclass(frozen=True)
+class ReservedSend:
+    """One committed reservation, as the ledger stored it.
+
+    The authorization is issued from this row, not from the caller's claims: a
+    signature over numbers nobody checked would prove only that the signer can
+    compute an HMAC.
+    """
+
+    experiment_id: str
+    request_key: str
+    amount_micros: int
+    model: str
+    purpose: str
+    identity: str
+
+
 class SpendLedger:
     """SQLite-backed reservation ledger. One instance per database path."""
 
@@ -417,6 +434,37 @@ class SpendLedger:
             connection.close()
 
     # -- reporting ----------------------------------------------------------
+    def reserved_send(
+        self, experiment_id: str, request_key: str
+    ) -> ReservedSend | None:
+        """Read the committed reservation for one send, or ``None``.
+
+        Read-only, and deliberately exact: this is what a send authorization is
+        allowed to be based on.
+        """
+
+        connection = self._connect()
+        try:
+            self._require_tables(connection)
+            row = connection.execute(
+                "SELECT experiment_id, request_key, amount_micros, model, purpose, "
+                "identity FROM llm_spend_reservations "
+                "WHERE experiment_id = ? AND request_key = ?",
+                (experiment_id, request_key),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            return None
+        return ReservedSend(
+            experiment_id=str(row["experiment_id"]),
+            request_key=str(row["request_key"]),
+            amount_micros=int(row["amount_micros"]),
+            model=str(row["model"]),
+            purpose=str(row["purpose"]),
+            identity=str(row["identity"]),
+        )
+
     def experiment_spend(self, experiment_id: str) -> dict[str, int]:
         """Read-only totals for acceptance evidence (no reset, ever)."""
 

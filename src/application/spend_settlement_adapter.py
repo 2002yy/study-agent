@@ -63,13 +63,20 @@ class SettlementLedgerAdapter:
         *,
         purpose: str = "conversation",
         allow_offline_fixture: bool = False,
+        attempts: int = 1,
     ) -> None:
         if not callable(getattr(settlements, "settle", None)):
             raise ValueError("invalid settlement repository")
         if not isinstance(purpose, str) or not purpose.strip():
             raise ValueError("invalid settlement purpose")
+        if type(attempts) is not int or attempts < 1:
+            raise ValueError("invalid attempts")
         self._settlements = settlements
         self._purpose = purpose
+        # The retry budget the reservation pays for. The provider's real retry
+        # configuration must be the same number here, or the transport refuses -
+        # silently widening the authorization is not an option.
+        self._attempts = attempts
         # Offline fixtures are honest in tests and worthless in production: a
         # fixture proves only that the caller can type. The default refuses them,
         # and only a test harness should turn this on.
@@ -111,6 +118,7 @@ class SettlementLedgerAdapter:
             amount_cny = reserve_call(
                 prompt_chars=prompt_chars,
                 max_tokens=max_output_tokens,
+                attempts=self._attempts,
                 purpose=self._purpose,
                 model=model,
                 request_key=request_id,
@@ -142,17 +150,15 @@ class SettlementLedgerAdapter:
             return COST_LEDGER_REFUSED
         self._experiments[request_id] = experiment
         # The authorization is issued only here, after the durable reservation
-        # exists, and it carries the bounds that reservation paid for. The
-        # transport can verify all three facts (exists, unused, covers this
-        # request) without trusting a bare key.
+        # exists, and it re-reads that row: the bounds below describe what was
+        # stored, and the amount is the stored amount.
         self._authorizations[request_id] = authorize_send(
             experiment_id=experiment,
             request_key=request_id,
             model=str(model or ""),
             prompt_chars=int(prompt_chars),
             max_tokens=int(max_output_tokens or 0),
-            attempts=1,
-            reserved_cny=float(amount_cny),
+            attempts=self._attempts,
         )
         return RESERVED
 

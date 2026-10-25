@@ -299,15 +299,13 @@ def test_a_send_without_a_reservation_has_no_authorization(monkeypatch, database
 
 def test_a_forged_authorization_cannot_authorize_a_send(monkeypatch, database):
     _configure(monkeypatch, database)
-    genuine = authorize_send(
-        experiment_id=EXPERIMENT,
-        request_key="send-1",
-        model="deepseek-chat",
-        prompt_chars=1000,
-        max_tokens=100,
-        attempts=1,
-        reserved_cny=0.001,
-    )
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+    genuine = adapter.claim_send_authorization("send-1")
+    assert genuine is not None
     forged = SendAuthorization(
         experiment_id=genuine.experiment_id,
         request_key=genuine.request_key,
@@ -324,7 +322,49 @@ def test_a_forged_authorization_cannot_authorize_a_send(monkeypatch, database):
     assert refused.value.reason == "send_authorization_forged"
 
 
-def test_an_authorization_authorizes_exactly_one_send(monkeypatch, database):
+def test_an_authorization_cannot_be_signed_for_a_missing_reservation(
+    monkeypatch, database
+):
+    """P1-1: the signature must be based on a committed row, not on arguments."""
+
+    _configure(monkeypatch, database)
+    with pytest.raises(SpendAuthorizationError) as refused:
+        authorize_send(
+            experiment_id=EXPERIMENT,
+            request_key="never-reserved",
+            model="deepseek-chat",
+            prompt_chars=100,
+            max_tokens=100,
+            attempts=1,
+        )
+    assert refused.value.reason == "reservation_not_found"
+
+
+def test_an_authorization_cannot_name_a_model_the_reservation_did_not_pay_for(
+    monkeypatch,
+    database,
+):
+    _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+    with pytest.raises(SpendAuthorizationError) as refused:
+        authorize_send(
+            experiment_id=EXPERIMENT,
+            request_key="send-1",
+            model="a-cheaper-model",
+            prompt_chars=100,
+            max_tokens=100,
+            attempts=1,
+        )
+    assert refused.value.reason == "reservation_mismatch"
+
+
+def test_one_authorization_admits_one_transport_check(monkeypatch, database):
+    """P1-2: the scope admits one send, not "as many as the caller loops"."""
+
     _configure(monkeypatch, database)
     adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
     with _identity():
@@ -334,11 +374,91 @@ def test_an_authorization_authorizes_exactly_one_send(monkeypatch, database):
     authorization = adapter.claim_send_authorization("send-1")
     assert authorization is not None
     with pre_reserved_send(authorization):
-        reserve_call(prompt_chars=10, max_tokens=10, model="deepseek-chat")
-    with pytest.raises(SpendAuthorizationError) as refused:
+        assert reserve_call(prompt_chars=10, max_tokens=10, model="deepseek-chat") == 0.0
+        with pytest.raises(SpendAuthorizationError) as refused:
+            reserve_call(prompt_chars=10, max_tokens=10, model="deepseek-chat")
+    assert refused.value.reason == "send_authorization_consumed"
+    assert _count(database, "llm_spend_reservations") == 1
+
+
+def test_consumption_runs_under_the_guard_lock(monkeypatch, database):
+    """The check and the add share the guard lock, observably.
+
+    A timed race cannot be forced reliably under the GIL (the window is a set
+    lookup), so this asserts the mechanism the race depends on: while another
+    holder owns the guard lock, an authorization cannot be consumed at all.
+    """
+
+    import src.llm_spend_guard as guard
+
+    _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+    authorization = adapter.claim_send_authorization("send-1")
+    assert authorization is not None
+
+    completed = threading.Event()
+
+    def consume():
         with pre_reserved_send(authorization):
             pass
-    assert refused.value.reason == "send_authorization_consumed"
+        completed.set()
+
+    thread = threading.Thread(target=consume)
+    with guard._lock:
+        thread.start()
+        assert not completed.wait(0.3), "consumed without acquiring the guard lock"
+    thread.join(timeout=10)
+    assert completed.is_set()
+
+
+def test_concurrent_entry_consumes_the_authorization_exactly_once(
+    monkeypatch, database
+):
+    """Consumption is atomic: verification alone must not decide the winner.
+
+    Each round releases several threads at once and requires exactly one to enter.
+    A single round is a weak probe - the check and the add are microseconds apart
+    - so the test repeats the race; a non-atomic implementation loses at least one
+    round with overwhelming probability.
+    """
+
+    _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+
+    for round_index in range(20):
+        key = f"race-{round_index}"
+        with _identity():
+            assert adapter.reserve(
+                key, model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+            ) == RESERVED
+        authorization = adapter.claim_send_authorization(key)
+        assert authorization is not None
+
+        barrier = threading.Barrier(8)
+        outcomes: list[str] = []
+        lock = threading.Lock()
+
+        def enter(auth=authorization, gate=barrier):
+            gate.wait(timeout=10)
+            try:
+                with pre_reserved_send(auth):
+                    outcome = "ok"
+            except SpendAuthorizationError:
+                outcome = "consumed"
+            with lock:
+                outcomes.append(outcome)
+
+        threads = [threading.Thread(target=enter) for _ in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=20)
+
+        assert outcomes.count("ok") == 1, f"round {round_index}: {outcomes}"
 
 
 def test_the_transport_still_reserves_when_no_outer_layer_holds_the_key(
@@ -489,6 +609,42 @@ def test_the_admission_bound_is_measured_like_the_transport(monkeypatch, databas
     assert real <= authorization.prompt_chars
     with pre_reserved_send(authorization):
         assert reserve_call(prompt_chars=real, max_tokens=100, model="deepseek-chat") == 0.0
+
+
+def test_the_retry_budget_is_what_the_reservation_paid_for(monkeypatch, database):
+    """P2: retries are priced into the reservation and bounded by it.
+
+    The adapter's configured attempt count is what the ledger charged and what
+    the authorization admits. A transport that would retry more is refused -
+    widening the authorization instead would under-reserve the worst case.
+    """
+
+    _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database), attempts=2)
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+    authorization = adapter.claim_send_authorization("send-1")
+    assert authorization is not None and authorization.attempts == 2
+    with pre_reserved_send(authorization):
+        assert reserve_call(
+            prompt_chars=10, max_tokens=10, attempts=2, model="deepseek-chat"
+        ) == 0.0
+
+    with _identity():
+        assert adapter.reserve(
+            "send-2", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+    single = adapter.claim_send_authorization("send-2")
+    assert single is not None
+    with pytest.raises(SpendAuthorizationError) as refused:
+        with pre_reserved_send(single):
+            reserve_call(
+                prompt_chars=10, max_tokens=10, attempts=3, model="deepseek-chat"
+            )
+    assert refused.value.reason == "send_authorization_bound_exceeded"
+    assert _count(database, "llm_spend_reservations") == 2
 
 
 # -- 3. evidence strength ------------------------------------------------------------
