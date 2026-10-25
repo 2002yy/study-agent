@@ -263,6 +263,63 @@ def test_chat_service_routes_a_turn_through_the_chain(monkeypatch, tmp_path):
     assert SpendLedger(database).experiment_spend(EXPERIMENT)["calls"] == 1
 
 
+def test_a_research_session_uses_the_operation_quota(monkeypatch, tmp_path):
+    """Research: one operation, its own quota file, round-scoped stage names."""
+
+    import json
+    import time
+
+    from src.application.admitted_chat import admitted_completion_for
+    from src.web.semantic_recovery import ResearchSemanticSession
+
+    database = tmp_path / "runtime.sqlite"
+    RuntimeDatabase(database).initialize()
+    monkeypatch.setenv(ASSEMBLY_FLAG, "1")
+    monkeypatch.setenv("LLM_SPEND_LEDGER_DB", str(database.resolve()))
+    monkeypatch.setenv("LLM_SPEND_EXPERIMENT_ID", EXPERIMENT)
+    monkeypatch.setenv("LLM_SPEND_EXPERIMENT_CAP_CNY", "10")
+    monkeypatch.setenv("LLM_SPEND_INPUT_CNY_PER_MTOK", "1")
+    monkeypatch.setenv("LLM_SPEND_OUTPUT_CNY_PER_MTOK", "1")
+    admission = build_settlement_admission(
+        model=MODEL, kind="research", scope_id="op-1"
+    )
+    assert admission is not None
+    assert _rows(admission) == 0
+
+    def base_completion(*, messages, timeout, task_name, **kwargs):
+        reserve_call(
+            prompt_chars=10,
+            max_tokens=100,
+            purpose="research",
+            model=MODEL,
+            request_key=task_name,
+        )
+        return json.dumps({"intent": "ANSWER"})
+
+    admitted = admitted_completion_for(
+        base_completion, admission, estimate_output_tokens=100
+    )
+    session = ResearchSemanticSession(
+        admitted,
+        deadline=time.monotonic() + 5.0,
+        should_cancel=lambda: False,
+        task_identity=lambda stage: f"op-1#r1#{stage}",
+    )
+    with spend_identity(
+        run_id="run-1", operation_id="op-1", invocation="1", experiment=EXPERIMENT
+    ):
+        assert session.request("research_turn_interpretation", "x", {}) == {
+            "intent": "ANSWER"
+        }
+
+    assert _rows(admission) == 1
+    record = admission.settlements.current(
+        EXPERIMENT, "op-1#r1#research_turn_interpretation"
+    )
+    assert record is not None and record.settled is True
+    assert admission.logical.usage().calls == 1
+
+
 def test_chat_service_keeps_the_old_path_when_the_flag_is_off(monkeypatch, tmp_path):
     from types import SimpleNamespace
 

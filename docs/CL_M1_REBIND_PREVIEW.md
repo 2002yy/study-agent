@@ -4412,3 +4412,37 @@ fresh/issued/consumed。负控：签发 → `reset_spend()` → 同一 token 进
 
 **仍未做**：研究运行时按操作接线、B1-2d 装配级验收（断流、超时后 worker 继续、
 SQLite 写失败、进程重启、发送前拒绝）。
+
+### 34.28 B1-2b：研究语义轮按操作接线（2026-10-25）
+
+#### 34.28.1 接线点
+
+研究语义轮的生产构造在 `src/tools/persistent_web_agent.py::_resolve_semantic`，
+那里已经 `begin_tool_trace(run.id)` 得到 `operation_id`——正是"一次研究操作"的
+稳定身份。开关开启时：
+
+- `build_settlement_admission(model=get_model_name("flash"), kind="research",
+  scope_id=operation_id)` 建该操作的额度文件（12/240000/24000）；
+- `admitted_completion_for(...)` 用**真实 prompt 字符 + 输出上界**按账本价目估算
+  观测成本（不再是只看输出 token 的粗估）；
+- `ResearchSemanticSession(task_identity=lambda stage: f"{operation_id}#r1#{stage}")`
+  使发送身份满足准入门要求的 `operation#round#stage`。
+
+开关关闭时三者都不介入，`self.semantic_completion` 原样传入。
+
+#### 34.28.2 验证
+
+- 新增研究侧用例：一次 `research_turn_interpretation` → 1 笔预留、1 条
+  `settled` 观测、逻辑调用计数 1，任务名 `op-1#r1#research_turn_interpretation`；
+- 影响集 **326 passed**（含 chat 三路、双轨工厂、隔离、账本/预算、语义与会话）；
+- Ruff 干净；mypy `124/128, resolved=4`；
+- 开关默认 OFF；未调用付费模型、未跑 L3、未合并 main。
+
+#### 34.28.3 B1-2d 现状（未完成项要如实保留）
+
+已覆盖：流提前关闭 → `unresolved`；额度文件跨重开不可放宽；费用超界阻断且不退
+逻辑消耗；实验模式下未接线直接调用 → `send_not_admitted`。
+
+**未覆盖**：异步流在事件循环关闭时的清理、研究 worker 超时后仍在运行且不再发起
+新发送、SQLite 写入失败的恢复路径、进程被强杀后重启的装配级验证。这些属于
+B1-2d，不得因为上述用例通过而视为已完成。

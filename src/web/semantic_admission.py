@@ -153,6 +153,7 @@ class AdmittedCompletion:
         model: str,
         price_micros: Callable[[int], int],
         estimate_output_tokens: int = 1400,
+        cost_micros_for: Callable[[int, int], int] | None = None,
     ) -> None:
         self._completion = completion
         self._logical = logical
@@ -160,6 +161,10 @@ class AdmittedCompletion:
         self._model = model
         self._price = price_micros
         self._estimate = estimate_output_tokens
+        # Optional richer estimate: (prompt_chars, output_tokens) -> micros. The
+        # output-only price cannot see the prompt, so a caller that knows both
+        # should pass this to keep the observation honest.
+        self._cost_micros_for = cost_micros_for
         self.calls: list[AdmittedCall] = []
 
     def __call__(
@@ -234,7 +239,9 @@ class AdmittedCompletion:
         self._settle(
             request_id,
             SETTLED,
-            self._price(self._estimate),
+            self._cost_micros_for(prompt_chars, self._estimate)
+            if self._cost_micros_for is not None
+            else self._price(self._estimate),
             COST_BASIS_ESTIMATED,
             # A host receipt, not a provider attestation: the execution boundary
             # recorded that this send returned. It is labelled as such, and the

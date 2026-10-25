@@ -77,6 +77,39 @@ def _estimate_cost(admission, messages: list[dict[str, Any]], max_tokens: int | 
     return resolved_max, price
 
 
+def admitted_completion_for(
+    base_completion: Callable[..., str],
+    admission,
+    *,
+    estimate_output_tokens: int = DEFAULT_OUTPUT_TOKENS,
+):
+    """An `AdmittedCompletion` for a caller that knows the attempt budget.
+
+    The settled cost is estimated from the real prompt size and the output
+    estimate, priced by the ledger's own function, so the observation is not a
+    token-only guess.
+    """
+
+    def cost_micros_for(prompt_chars: int, output_tokens: int) -> int:
+        return cny_to_micros(
+            reservation_cny(
+                prompt_chars=prompt_chars,
+                max_tokens=output_tokens,
+                attempts=admission.attempts,
+            )
+        )
+
+    return AdmittedCompletion(
+        base_completion,
+        logical=admission.logical,
+        ledger=admission.adapter,
+        model=admission.model,
+        price_micros=lambda tokens: cost_micros_for(0, tokens),
+        estimate_output_tokens=estimate_output_tokens,
+        cost_micros_for=cost_micros_for,
+    )
+
+
 def admitted_chat(
     base_chat: Callable[..., str],
     admission,

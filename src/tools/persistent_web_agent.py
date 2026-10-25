@@ -523,11 +523,40 @@ class PersistentWebToolAgent(WebToolAgent):
             budget = current_budget
         started = time.monotonic()
         answer_deadline = started + budget.hard_seconds
+        settlement_admission = None
+        semantic_completion = self.semantic_completion
+        task_identity = None
+        from src.application.spend_admission_factory import (
+            build_settlement_admission,
+            settlement_admission_enabled,
+        )
+
+        if settlement_admission_enabled():
+            from src.application.admitted_chat import admitted_completion_for
+            from src.llm_client import get_model_name
+
+            settlement_admission = build_settlement_admission(
+                model=get_model_name("flash"),
+                kind="research",
+                scope_id=operation_id,
+            )
+            if settlement_admission is not None:
+                semantic_completion = admitted_completion_for(
+                    self.semantic_completion,
+                    settlement_admission,
+                    estimate_output_tokens=1400,
+                )
+                # One operation, one quota file; each stage is a send inside that
+                # operation. Round 1 is the interpreter and its bounded
+                # follow-ups, not a second operation.
+                def task_identity(stage: str) -> str:
+                    return f"{operation_id}#r1#{stage}"
         session = ResearchSemanticSession(
-            self.semantic_completion,
+            semantic_completion,
             deadline=answer_deadline - budget.finalization_reserve,
             should_cancel=lambda: service.tool_trace_cancel_requested(run.id, operation_id),
             history_allowed=history_allowed,
+            task_identity=task_identity,
         )
         calls: list[dict[str, Any]] = []
         error = ""
