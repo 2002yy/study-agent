@@ -4376,3 +4376,39 @@ fresh/issued/consumed。负控：签发 → `reset_spend()` → 同一 token 进
 `kind="chat"`, `scope_id=turn.id`），以及研究运行时（每操作
 `kind="research"`, `scope_id=operation.id`）；流式授权必须覆盖实际网络调用与
 消费；随后是 B1-2d 装配级验收。
+
+### 34.27 B1-2b：聊天三路接线（非流式 / 同步流 / 异步流）（2026-10-25）
+
+#### 34.27.1 适配层
+
+新增 `src/application/admitted_chat.py`：
+
+- `admitted_chat`：把 `chat(messages, model_profile=…, max_tokens=…)` 的调用
+  形态转成 `AdmittedCompletion` 的 `messages/timeout/task_name` 形态，
+  请求身份为 `turn#r1#<stage>`；空消息列表不预留、不发送（传输层本来就返回空）。
+- `admitted_stream_chat` / `admitted_async_stream_chat`：**授权覆盖迭代而不是
+  创建迭代器**。首次取 token 时才做逻辑预留、费用预留、领取授权；
+  迭代正常结束 → `settled`；中途关闭或异常 → `unresolved`（费用保留），
+  不会把"没读完"写成"已结算"。
+
+#### 34.27.2 宿主接线
+
+`ChatService`：
+
+- `_chat_within_scope` 在开关开启时使用每回合的双轨准入（按 `turn.id` 缓存），
+  否则原样调用旧依赖；
+- `_stream_source` / `_async_stream_source` 同样按回合包装同步/异步流；
+- 开关关闭时执行路径与之前逐字相同。
+
+研究运行时（每操作 `kind="research"`）仍未接线，留在下一段。
+
+#### 34.27.3 验证
+
+- 新增 `tests/test_admitted_chat.py` 8 条：非流式闭环、空消息不预留、
+  流完整消费 → `settled`、流提前关闭 → `unresolved` 且预留保留、
+  异步流闭环、轮次身份透传、`ChatService` 开启时走链、关闭时走旧路径；
+- 影响集 **317 passed**；Ruff 干净；mypy `124/128, resolved=4`；
+- 开关默认 OFF；未调用付费模型、未跑 L3、未合并 main。
+
+**仍未做**：研究运行时按操作接线、B1-2d 装配级验收（断流、超时后 worker 继续、
+SQLite 写失败、进程重启、发送前拒绝）。

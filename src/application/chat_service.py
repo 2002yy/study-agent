@@ -1019,9 +1019,47 @@ class ChatService:
 
         def call(*args, **kwargs):
             with self._spend_scope(prepared):
-                return self.dependencies.chat(*args, **kwargs)
+                admission = self._chat_settlement_admission(prepared)
+                if admission is None:
+                    return self.dependencies.chat(*args, **kwargs)
+                from src.application.admitted_chat import admitted_chat
+
+                return admitted_chat(
+                    self.dependencies.chat, admission, scope=prepared.turn.id
+                )(*args, **kwargs)
 
         return call
+
+    def _chat_settlement_admission(self, prepared: PreparedChatTurn):
+        """The per-turn dual-track admission, or ``None`` when the chain is off.
+
+        Built once per turn and cached: the quota file is keyed by the turn, and
+        reopening it for every call would re-verify the same file while making it
+        easy to hand out a second budget after a retry.
+        """
+
+        from src.application.spend_admission_factory import (
+            build_settlement_admission,
+            settlement_admission_enabled,
+        )
+
+        if not settlement_admission_enabled():
+            return None
+        cache = getattr(self, "_settlement_admissions", None)
+        if cache is None:
+            cache = {}
+            self._settlement_admissions = cache
+        turn_id = prepared.turn.id
+        if turn_id in cache:
+            return cache[turn_id]
+        from src.llm_client import get_model_name
+
+        model = get_model_name(prepared.route.get("model_profile"))
+        admission = build_settlement_admission(
+            model=model, kind="chat", scope_id=turn_id
+        )
+        cache[turn_id] = admission
+        return admission
 
     def _scope_for(self, prepared: PreparedChatTurn):
         """The experiment scope of one turn's paid calls.
@@ -1046,6 +1084,28 @@ class ChatService:
             experiment=experiment_id(),
         )
 
+    def _stream_source(self, prepared: PreparedChatTurn):
+        """The streaming callable for this turn: admitted when the chain is on."""
+
+        admission = self._chat_settlement_admission(prepared)
+        if admission is None:
+            return self.dependencies.stream_chat
+        from src.application.admitted_chat import admitted_stream_chat
+
+        return admitted_stream_chat(
+            self.dependencies.stream_chat, admission, scope=prepared.turn.id
+        )
+
+    def _async_stream_source(self, prepared: PreparedChatTurn):
+        admission = self._chat_settlement_admission(prepared)
+        if admission is None:
+            return self.dependencies.async_stream_chat
+        from src.application.admitted_chat import admitted_async_stream_chat
+
+        return admitted_async_stream_chat(
+            self.dependencies.async_stream_chat, admission, scope=prepared.turn.id
+        )
+
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
         remaining_seconds(prepared.research_deadline)
         if answer_validation_active(prepared) and prepared.answer_validation is None:
@@ -1058,7 +1118,7 @@ class ChatService:
         with self._spend_scope(prepared):
             yield from bounded_stream(
                 prepared.research_deadline,
-                self.dependencies.stream_chat(
+                self._stream_source(prepared)(
                     prepared.messages,
                     model_profile=prepared.route["model_profile"],
                     max_tokens=max_tokens,
@@ -1085,7 +1145,7 @@ class ChatService:
         scope_token = push_scope(self._scope_for(prepared))
         try:
             async with asyncio.timeout(remaining_seconds(prepared.research_deadline)):
-                async for token in self.dependencies.async_stream_chat(
+                async for token in self._async_stream_source(prepared)(
                     prepared.messages,
                     model_profile=prepared.route["model_profile"],
                     max_tokens=max_tokens,
