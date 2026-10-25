@@ -90,6 +90,7 @@ __all__ = [
     "push_scope",
     "authorize_send",
     "serialized_request_chars",
+    "spend_ledger_path",
     "current_identity",
     "current_scope",
     "experiment_spend",
@@ -516,9 +517,13 @@ def reset_spend() -> None:
     experiment means a new ``LLM_SPEND_EXPERIMENT_ID``.
     """
 
-    global _reserved_cny
+    global _reserved_cny, _AUTHORIZATION_SECRET
     with _lock:
         _reserved_cny = 0.0
+        # A reset must invalidate credentials, not just forget that they were
+        # used: clearing the consumed set without rotating the secret would make
+        # an already-spent token pass verification again.
+        _AUTHORIZATION_SECRET = secrets.token_bytes(32)
         # Authorizations are process-local and single-use; a reset (tests, a new
         # experiment) starts a new generation of them.
         _consumed_reservations.clear()
@@ -609,6 +614,16 @@ def _ledger_path() -> str:
     from src.application.runtime_repository import runtime_database_path
 
     return str(Path(runtime_database_path()).expanduser().resolve())
+
+
+def spend_ledger_path() -> str:
+    """The absolute ledger path, shared by the reservation and settlement stores.
+
+    Exposed so a factory can prove both stores point at the same file instead of
+    assuming two environment reads agree.
+    """
+
+    return _ledger_path()
 
 
 _ledger_cache: dict[str, SpendLedger] = {}

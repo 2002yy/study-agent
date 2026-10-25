@@ -795,6 +795,32 @@ def test_an_authorization_does_not_cross_a_process_restart(monkeypatch, database
     assert repository.current(EXPERIMENT, "send-1") is None
 
 
+def test_reset_spend_invalidates_credentials_instead_of_forgetting_them(
+    monkeypatch, database
+):
+    """P2 (B1): clearing the consumed set must rotate the key, not just forget.
+
+    If reset only emptied the set, a token that had already been spent would
+    verify again - a reset would turn a used credential back into a live one.
+    """
+
+    _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+    authorization = adapter.claim_send_authorization("send-1")
+    assert authorization is not None
+
+    reset_spend()
+
+    with pytest.raises(SpendAuthorizationError) as refused:
+        with pre_reserved_send(authorization):
+            pass
+    assert refused.value.reason == "send_authorization_forged"
+
+
 # -- 3. evidence strength ------------------------------------------------------------
 
 

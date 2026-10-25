@@ -4235,3 +4235,51 @@ B1 第二段仍未做：`B1-2a` 生产工厂与统一身份（默认 OFF、同�
 模型/价格/重试配置）、`B1-2b` 聊天/研究/决策与回答接线、`B1-2c` 视觉与旧直调
 路径的隔离证据、`B1-2d` 装配级离线测试（断流、超时后 worker 继续、写失败、
 进程重启、发送前拒绝）。
+
+### 34.24 S2-B1 第二段（2a + 2b 首条闭环）：默认 OFF 的装配与离线链路（2026-10-25）
+
+#### 34.24.1 先修 P2：`reset_spend()` 必须作废凭证
+
+清空已消费集合而不轮换密钥，会让**已用过的 token 重新通过验证**。
+`reset_spend()` 现在在同一把锁内轮换 `_AUTHORIZATION_SECRET`，再清空
+fresh/issued/consumed。负控：签发 → `reset_spend()` → 同一 token 进入上下文 →
+`send_authorization_forged`。
+
+#### 34.24.2 B1-2a：生产装配工厂（默认 OFF）
+
+新增 `src/application/spend_admission_factory.py`，是唯一允许构造结算适配器的
+地方。规则：
+
+- 开关 `STUDY_AGENT_SETTLEMENT_ADMISSION` 只有 `1/true/on/yes` 才算开启；
+  未设置、空串、`0`、`no`、`off` 一律返回 `None`。**返回 `None` 而不是空实现**：
+  空实现会被下游当成"可用的费用门"。
+- 装配前逐项校验：experiment、cap>0、价格可计算、模型被实验允许、
+  `attempts>=1`、预留账本与审计表指向**同一个绝对路径**。
+- 适配器必须提供可调用的 `claim_send_authorization`；缺失即
+  `adapter_cannot_authorize`，**不允许静默降级**为无授权发送。
+- 失败原因是一等属性（`experiment_not_configured`、`cap_not_configured`、
+  `pricing_not_configured`、`model_not_allowed`、`attempts_invalid`、
+  `adapter_cannot_authorize`、`ledger_path_mismatch`）。
+
+#### 34.24.3 B1-2b 首条闭环：一次发送 → 一笔预留 → 一条观测（离线）
+
+`tests/test_settlement_chain_offline.py` 用工厂装配真实 SQLite + 假传输
+（completion 内部按序列化请求调 `reserve_call`，模拟 `llm_client`）：
+
+- 普通聊天一次发送：预留 1 行、观测 1 条、`unwritten()` 为空、
+  证据为 `worker_receipt:<request_id>#...`；
+- 聊天 + 研究语义轮各一次：两笔预留、两条观测，研究轮的任务名为
+  `op-1#r2#research_turn_interpretation`（跨线程身份 + 轮次格式同时生效）；
+- 传输层的 `reserve_call` 返回 `0.0`（"已被准入层预留"），
+  预留表仍只有 1 行——这就是"同一次发送不会预留两次"的装配级证据。
+
+#### 34.24.4 验证与剩余
+
+- 新增用例：工厂 18 条 + 离线链路 5 条 + `reset` 1 条；
+- 影响集 **266 passed**；Ruff 干净；mypy `124/128, resolved=4`；
+- 未接生产调用点（工厂尚未被应用调用）、未调用付费模型、未跑 L3、未合并 main。
+
+**仍未做**：`B1-2b` 把工厂接到真实聊天/流式回答与最终回答（含"授权覆盖实际网络
+调用而非只包住迭代器创建"）；`B1-2c` 视觉与旧直调路径在实验模式下的发送前拒绝
+证据；`B1-2d` 断流、超时后 worker 继续运行、SQLite 写失败、进程重启、
+发送前拒绝的装配级验收。
