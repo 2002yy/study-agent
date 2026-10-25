@@ -48,3 +48,30 @@ def test_the_research_thread_sees_the_callers_spend_identity():
         }
 
     assert seen == [("run-1", "op-1", "exp-1")]
+
+
+def test_the_research_thread_uses_the_round_scoped_task_name():
+    """The admission layer requires ``operation#round#stage``, not a bare stage.
+
+    Copying the context makes the identity visible; it does not make the name a
+    send identity. The host supplies the formatter, and the worker must receive
+    the formatted name.
+    """
+
+    seen = []
+
+    def completion(*, messages, timeout, task_name, **_kwargs):
+        seen.append(task_name)
+        return PAYLOAD
+
+    session = ResearchSemanticSession(
+        completion,
+        deadline=time.monotonic() + 5.0,
+        should_cancel=lambda: False,
+        task_identity=lambda stage: f"op-1#r1#{stage}",
+    )
+
+    assert session.request("research_turn_interpretation", "sys", {"x": 1}) == {
+        "intent": "ANSWER"
+    }
+    assert seen == ["op-1#r1#research_turn_interpretation"]

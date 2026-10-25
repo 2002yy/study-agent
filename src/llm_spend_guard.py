@@ -237,6 +237,11 @@ _active_authorization: ContextVar[object] = ContextVar(
 # credential for money that was reserved once.
 _issued_reservations: set[tuple[str, str]] = set()
 _consumed_reservations: set[tuple[str, str]] = set()
+# Reservations written by *this* process and not yet authorized. Issuance is a
+# capability of the reservation operation that just happened, not of a query for
+# a historical row: after a restart this set is empty, so an old reservation
+# cannot be turned into a fresh credential.
+_fresh_reservations: set[tuple[str, str]] = set()
 _AUTHORIZATION_SECRET = secrets.token_bytes(32)
 
 
@@ -331,6 +336,12 @@ def authorize_send(
         # than the one about to be sent. Both mean the authorization cannot
         # describe this send.
         raise SpendAuthorizationError("reservation_mismatch")
+    budget = _ledger().experiment_budget(reservation.experiment_id)
+    if budget is None or budget.pricing_fingerprint != _pricing_fingerprint():
+        # The reservation was priced under different prices than this process is
+        # configured with. Signing now would authorize a send whose cost cannot be
+        # compared with what was reserved.
+        raise SpendAuthorizationError("pricing_mismatch")
     # The bounds being authorized must be payable by the amount that was actually
     # reserved, priced with the ledger's own function. A signature over bounds the
     # row cannot cover would be a permission larger than the money behind it.
@@ -348,6 +359,13 @@ def authorize_send(
             # for the same row - even with different bounds - would be a second
             # credential for the same money.
             raise SpendAuthorizationError("send_already_authorized")
+        if identity not in _fresh_reservations:
+            # The row exists, but this process did not just write it. Re-issuing
+            # from a historical reservation is how a restart turns an abandoned
+            # send into a fresh credential; the rule is that a retry is a new
+            # send with a new key.
+            raise SpendAuthorizationError("reservation_not_issued_here")
+        _fresh_reservations.discard(identity)
         _issued_reservations.add(identity)
     payload = _authorization_payload(
         experiment_id=reservation.experiment_id,
@@ -505,6 +523,7 @@ def reset_spend() -> None:
         # experiment) starts a new generation of them.
         _consumed_reservations.clear()
         _issued_reservations.clear()
+        _fresh_reservations.clear()
 
 
 def _float_env(name: str) -> float | None:
@@ -826,6 +845,10 @@ def reserve_call(
                 # Callers already handle one "the cap stopped this call" signal.
                 raise SpendLimitExceeded(str(exc)) from exc
         _reserved_cny += reservation
+        if experiment and experiment_cap is not None and request_key:
+            # Written by this process, in this call: the only thing that may be
+            # authorized below.
+            _fresh_reservations.add((experiment, str(request_key)))
     return reservation
 
 

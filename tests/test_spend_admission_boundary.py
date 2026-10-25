@@ -652,11 +652,10 @@ def test_an_authorization_cannot_exceed_the_reserved_amount(monkeypatch, databas
     """P1-1 (R3): bounds must be payable by the row, not just signed over."""
 
     _configure(monkeypatch, database)
-    ledger = SpendLedger(database)
-    ledger.ensure_experiment(
-        EXPERIMENT, cap_micros=CAP_MICROS, pricing_fingerprint="p", now=NOW
-    )
-    _reserve(ledger, key="raw-1", amount=500)
+    with _identity():
+        reserve_call(
+            prompt_chars=10, max_tokens=10, model="deepseek-chat", request_key="raw-1"
+        )
 
     with pytest.raises(SpendAuthorizationError) as refused:
         authorize_send(
@@ -678,18 +677,17 @@ def test_an_authorization_cannot_exceed_the_reserved_amount(monkeypatch, databas
         max_tokens=10,
         attempts=1,
     )
-    assert accepted.reserved_cny * 1_000_000 == pytest.approx(500, abs=1)
+    assert accepted.reserved_cny > 0
 
 
 def test_the_same_reservation_cannot_be_authorized_twice(monkeypatch, database):
     """One row, one credential - a second signature is not a second budget."""
 
     _configure(monkeypatch, database)
-    ledger = SpendLedger(database)
-    ledger.ensure_experiment(
-        EXPERIMENT, cap_micros=CAP_MICROS, pricing_fingerprint="p", now=NOW
-    )
-    _reserve(ledger, key="raw-2", amount=5_000_000)
+    with _identity():
+        reserve_call(
+            prompt_chars=10, max_tokens=10, model="deepseek-chat", request_key="raw-2"
+        )
     authorize_send(
         experiment_id=EXPERIMENT,
         request_key="raw-2",
@@ -703,11 +701,67 @@ def test_the_same_reservation_cannot_be_authorized_twice(monkeypatch, database):
             experiment_id=EXPERIMENT,
             request_key="raw-2",
             model="deepseek-chat",
-            prompt_chars=20,
-            max_tokens=20,
+            prompt_chars=10,
+            max_tokens=10,
             attempts=1,
         )
     assert refused.value.reason == "send_already_authorized"
+
+
+def test_a_historical_reservation_cannot_be_authorized_after_a_restart(
+    monkeypatch, database
+):
+    """P1 (R4): the capability comes from the write, not from the row.
+
+    A new process can read every old reservation. If that were enough to sign a
+    credential, "a retry is a new send with a new key" would be false after every
+    crash.
+    """
+
+    _configure(monkeypatch, database)
+    with _identity():
+        reserve_call(
+            prompt_chars=10, max_tokens=10, model="deepseek-chat", request_key="raw-3"
+        )
+    reset_spend()  # a new process: no in-memory record of that write
+
+    with pytest.raises(SpendAuthorizationError) as refused:
+        authorize_send(
+            experiment_id=EXPERIMENT,
+            request_key="raw-3",
+            model="deepseek-chat",
+            prompt_chars=10,
+            max_tokens=10,
+            attempts=1,
+        )
+    assert refused.value.reason == "reservation_not_issued_here"
+    assert _count(
+        database, "llm_spend_reservations", "request_key = ?", ("raw-3",)
+    ) == 1
+
+
+def test_an_authorization_refuses_prices_that_changed_since_the_reservation(
+    monkeypatch, database
+):
+    """P2 (R4): the price identity is part of the authorization, not ambient."""
+
+    _configure(monkeypatch, database)
+    with _identity():
+        reserve_call(
+            prompt_chars=10, max_tokens=10, model="deepseek-chat", request_key="raw-4"
+        )
+    monkeypatch.setenv("LLM_SPEND_INPUT_CNY_PER_MTOK", "2")
+
+    with pytest.raises(SpendAuthorizationError) as refused:
+        authorize_send(
+            experiment_id=EXPERIMENT,
+            request_key="raw-4",
+            model="deepseek-chat",
+            prompt_chars=10,
+            max_tokens=10,
+            attempts=1,
+        )
+    assert refused.value.reason == "pricing_mismatch"
 
 
 def test_an_authorization_does_not_cross_a_process_restart(monkeypatch, database):

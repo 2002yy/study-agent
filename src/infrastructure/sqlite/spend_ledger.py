@@ -433,6 +433,27 @@ class SpendLedger:
         finally:
             connection.close()
 
+    def experiment_budget(self, experiment_id: str) -> ExperimentBudget | None:
+        """The stored budget, including the prices it was created under."""
+
+        connection = self._connect()
+        try:
+            self._require_tables(connection)
+            row = connection.execute(
+                "SELECT * FROM llm_spend_experiments WHERE experiment_id = ?",
+                (experiment_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            return None
+        return ExperimentBudget(
+            experiment_id=str(row["experiment_id"]),
+            cap_micros=int(row["cap_micros"]),
+            pricing_fingerprint=str(row["pricing_fingerprint"]),
+            created_at=str(row["created_at"]),
+        )
+
     # -- reporting ----------------------------------------------------------
     def reserved_send(
         self, experiment_id: str, request_key: str

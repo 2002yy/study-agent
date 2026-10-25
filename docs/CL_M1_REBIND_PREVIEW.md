@@ -4186,3 +4186,52 @@ worker: missing
 仍未做的（第二段）：把上表每一行接成唯一所有者、为无法统一的入口留下"关闭证据"，
 并补"一次发送对应一笔预留与一条可审计观测"的装配级测试。在此之前功能开关保持
 **OFF**。
+
+### 34.23 S2-B1 安全收口：签发来自刚完成的写入（2026-10-25）
+
+**触发**：review #5643693002 的 P1/P2。
+
+#### 34.23.1 P1：重启后不能从历史预留重新签发
+
+`_issued_reservations` / `_consumed_reservations` 是进程内集合；密钥轮换只让旧
+token 失效，**新进程仍可读到旧预留行并重新签发一张新 token**——这正好绕过
+"崩溃后重试必须用新 `request_key`"的规则。
+
+修法（最小修复，不加持久化栅栏）：新增 `_fresh_reservations`。只有
+`reserve_call()` **在本进程刚写完持久预留**之后才把
+`(experiment_id, request_key)` 放进去；`authorize_send()` 要求身份在集合里，
+否则 `reservation_not_issued_here`，并随即把身份从 fresh 移入 issued。
+签发能力因此来自"刚刚发生的合法写入"，而不是"查到一行历史"。
+
+负控：`reserve_call` 写入 → `reset_spend()`（等价新进程）→ 对同一键签发 →
+`reservation_not_issued_here`，同时断言预留行仍在。原跨重启测试（轮换密钥 →
+旧 token 失效）保留，两者合起来覆盖"旧 token 不可用"与"不能造新 token"。
+
+若将来确认存在多进程共享同一实验预算的真实需求，再引入 SQLite 持久化签发栅栏；
+当前进程即写入者的架构下不需要。
+
+#### 34.23.2 P2：价格身份必须一致
+
+`authorize_send()` 读取实验的 `pricing_fingerprint`，与当前环境的
+`_pricing_fingerprint()` 比较；不一致 → `pricing_mismatch`。
+负控：预留后修改 `LLM_SPEND_INPUT_CNY_PER_MTOK`，再签发 → 拒绝。
+
+#### 34.23.3 B1-2b 的前置：研究语义轮的任务身份
+
+`ResearchSemanticSession.request()` 过去把 `task_name=stage` 直接交给 completion，
+而 `AdmittedCompletion.request_id_for()` 要求 `operation#rN#stage`。
+新增可选 `task_identity: Callable[[str], str]`：宿主提供格式化器，worker 收到的
+是 `op-1#r1#research_turn_interpretation`。默认保持旧名字，供永远不进入准入层的
+调用方使用。负控见 `tests/test_semantic_thread_identity.py`。
+
+#### 34.23.4 验证与剩余
+
+- 边界 + 线程身份用例 **30 条**；影响集 **242 passed**；
+- Ruff 干净；mypy `124/128, resolved=4`；
+- 变异 **2/2 KILLED**：取消"fresh 才能签发"、忽略价格身份；
+- 未接生产、未调用付费模型、未跑 L3、未合并 main。
+
+B1 第二段仍未做：`B1-2a` 生产工厂与统一身份（默认 OFF、同一 SQLite 库、固定
+模型/价格/重试配置）、`B1-2b` 聊天/研究/决策与回答接线、`B1-2c` 视觉与旧直调
+路径的隔离证据、`B1-2d` 装配级离线测试（断流、超时后 worker 继续、写失败、
+进程重启、发送前拒绝）。

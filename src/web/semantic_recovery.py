@@ -192,11 +192,17 @@ class ResearchSemanticSession:
     """One interpreter call and two batched relevance calls; workers return values only."""
 
     def __init__(self, completion: Callable[..., str], *, deadline: float,
-                 should_cancel: Callable[[], bool], history_allowed: bool = False) -> None:
+                 should_cancel: Callable[[], bool], history_allowed: bool = False,
+                 task_identity: Callable[[str], str] | None = None) -> None:
         self.completion = completion
         self.deadline = deadline
         self.should_cancel = should_cancel
         self.history_allowed = history_allowed
+        # The admission layer identifies a send as ``operation#round#stage``.
+        # A bare stage name is not a send identity, so a host that uses the paid
+        # path must supply the formatter; the default keeps the old name for
+        # callers that never reach the admission layer.
+        self._task_identity = task_identity
         self.events: list[dict[str, Any]] = []
         self.stages: set[str] = set()
         self.episode: ResearchEpisode | None = None
@@ -233,6 +239,9 @@ class ResearchSemanticSession:
         # sees an unbound identity and the paid call is refused (or, worse, is
         # charged to no one once the gate is wired).
         submitted = contextvars.copy_context()
+        call_name = (
+            self._task_identity(stage) if self._task_identity is not None else stage
+        )
         future = pool.submit(
             submitted.run,
             self.completion,
@@ -241,7 +250,7 @@ class ResearchSemanticSession:
                 {"role": "user", "content": payload},
             ],
             timeout=timeout,
-            task_name=stage,
+            task_name=call_name,
         )
         expires = time.monotonic() + timeout
         try:
