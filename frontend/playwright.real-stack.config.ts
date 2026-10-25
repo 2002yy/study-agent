@@ -6,6 +6,7 @@ export default defineConfig({
     "real-stack.spec.ts",
     "real-stack-recovery.spec.ts",
     "real-stack-research.spec.ts",
+    "real-stack-deep-journey.spec.ts",
   ],
   fullyParallel: false,
   workers: 1,

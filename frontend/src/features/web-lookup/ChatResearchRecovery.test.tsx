@@ -285,4 +285,29 @@ describe("ChatResearchRecovery", () => {
     expect(container).toHaveTextContent("新来源 2");
     expect(container).toHaveTextContent("已失效/排除 1");
   });
+
+  it("offers a completed deep run as the next chat's evidence", () => {
+    const payload = {
+      ...run("completed"),
+      provider_status: "found",
+      source_block: "deep source block",
+      research_context: { run_kind: "deep_research", research_mode: "deep" },
+      query_attempts: [{ status: "found" }, { status: "found" }],
+      selected_sources: [{}, {}],
+    } as ResearchLookupResponse;
+    const { container } = render(
+      <ChatResearchRecovery
+        run={payload}
+        isBusy={false}
+        canRetry={false}
+        canResume={false}
+        useInChat
+        onRetry={vi.fn()}
+        onResume={vi.fn()}
+      />,
+    );
+
+    expect(container).toHaveTextContent("联网研究已恢复");
+    expect(container).toHaveTextContent("恢复结果已设为下一轮聊天资料");
+  });
 });

@@ -4634,3 +4634,39 @@ C3（回答/来源/事件闭环）与 C4（前端旅程）尚未开始。开关�
 - 仍未覆盖/未完成：真实供应商网络中断；`/chat/stream` 的 token 流本身不是可续传
   端点（重连依赖已持久化的 run 事件流与回合快照，C4 前端需按此接线）；
   C4 前端旅程尚未开始。开关仍 OFF；未调用付费模型、未跑 L3、未合并 main。
+
+### 34.34 S2-C4：真实前端深度研究旅程（2026-10-26）
+
+**运行形态**：真实 FastAPI 路由、真实应用服务、真实 SQLite 与真实 React 前端；
+只有模型回答、搜索/读取网关和 deep planner 是确定性的假实现。
+`tools/real_stack_research_test_server.py` 增加 `请深度研究：` 入口：deep planner 只有在
+第一轮 note 正文中读到 `DEEP-OBSERVATION-42` 时才追加
+`FOLLOWUP DEEP-OBSERVATION-42 second round`，第二轮真实执行。
+
+**前端修正**：`ChatResearchRecovery` 之前只把 `run_kind=chat_tool_loop` 视为可用于
+下一轮聊天的研究。deep run 的 `run_kind` 是 `deep_research`，因此完成后界面不显示
+“恢复结果已设为下一轮聊天资料”，用户看不到证据已被选入下一轮。现在两种来源都显示
+该状态（`standalone` 仍不显示），并有对应单测。
+
+**新旅程**（`frontend/e2e/real-stack-deep-journey.spec.ts`，桌面 + 移动）：
+
+| 旅程 | 断言 |
+| --- | --- |
+| 深度研究 → 回答 → 来源 | 研究进行中可见进度；结束后可见“已读资料摘录”与真实 URL、正文标记；显示“恢复结果已设为下一轮聊天资料”；随后发送基于资料的追问，出现 `DEEP-ANSWER-OK` 回答；刷新后回答仍在；API 中 run 为 `completed`、`research_mode=deep`、查询轮次 `{1,2}`、第二条查询含 `FOLLOWUP` |
+| 停止 → 刷新 → 重试 | 停止后 API run 变为 `cancelled`；等待 800ms 后 `query_attempts` 数量不变（取消后不再新增发送）；刷新后仍显示“研究已停止”且 run id 不变；点击“重试研究”后 run 回到 `completed`，轮次仍含 1、2 |
+
+**验证**：
+
+- 上述 Playwright 旅程 **4 passed**（desktop + mobile 各 2 条）
+- 既有 `real-stack-research.spec.ts` **2 passed**（停止/刷新/重试未回归）
+- 前端 Vitest 全量 **589 passed**（含新增 deep recovery 单测）
+- `npm run build` 通过（仅既有 chunk 体积警告）
+- Ruff 干净（后端 tools 改动）
+
+**已知噪音**：取消/刷新期间浏览器控制台会出现一次
+`Chat turn operation ownership lost`；服务端拒绝该请求，属于既有的恢复竞态，
+不会产生新的付费发送，但会造成一条客户端错误提示。C4 的取消验收以服务端
+`cancelled` + 查询数冻结为准；该提示留作后续 UI 清理项。
+
+C4 完成；S2-C 全部四个切片已落地。开关仍 OFF；未调用付费模型、未跑 L3、
+未合并 main。

@@ -169,6 +169,14 @@ INTERRUPT_REPLY = (
 )
 FAIL_ONCE_QUESTION = "请触发一次可重试的确定性失败"
 RETRY_REPLY = "重试成功：这次回答只提交一次，并保留失败父回合作为可审计记录。"
+DEEP_QUESTION_PREFIX = "请深度研究："
+DEEP_REPLY = (
+    "深度研究回答完成：DEEP-ANSWER-OK，已依据本轮实际读取的正文整理。"
+)
+DEEP_ANSWER_REPLY = (
+    "根据这次研究读取的正文：DEEP-ANSWER-OK，OMEGA 协议的延迟对比已完成。"
+)
+DEEP_OBSERVATION_MARKER = "DEEP-OBSERVATION-42"
 
 _failure_attempts: dict[str, int] = {}
 # G12 acceptance gate: injectable slow retrieval (decision 4).
@@ -264,6 +272,11 @@ def _continuation_partial(messages: list[dict[str, Any]]) -> str:
 
 def _reply_for(messages: list[dict[str, Any]]) -> str:
     user_input = _last_user_message(messages).strip()
+    joined = "\n".join(str(message.get("content") or "") for message in messages)
+    if DEEP_OBSERVATION_MARKER in joined:
+        return DEEP_ANSWER_REPLY
+    if user_input.startswith(DEEP_QUESTION_PREFIX):
+        return DEEP_REPLY
     if user_input == INTERRUPT_QUESTION:
         return INTERRUPT_REPLY
     if user_input == FAIL_ONCE_QUESTION:
