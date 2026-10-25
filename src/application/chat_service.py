@@ -300,6 +300,27 @@ def _poll_cancel(repository: RuntimeRepository, turn_id: str, operation_id: str)
     return poll
 
 
+def _has_task_contract(route: dict[str, Any]) -> bool:
+    contract = route.get("task_contract")
+    return isinstance(contract, dict) and bool(contract.get("task_intent"))
+
+
+def _research_resume_requested(command: ChatCommand) -> bool:
+    """A short continuation of an earlier explicit research request.
+
+    History supplies the topic only; it never authorizes new data. Without a
+    lead there is nothing to resume, so no search is started.
+    """
+
+    from src.web.conversation_query import is_research_resume, research_query_lead
+
+    if not command.chat_history:
+        return False
+    if not is_research_resume(str(command.user_input or "")):
+        return False
+    return bool(research_query_lead(list(command.chat_history)))
+
+
 def _observe_turn_shadow(
     service: Any,
     *,
@@ -588,6 +609,27 @@ class ChatService:
                 keep_current_role=command.keep_current_role,
             )
             learning_state = LearningState.from_dict(thread.learning_state)
+            # C1b: every turn must leave this entrypoint with a complete task
+            # contract, even when the injected router is the legacy one. The
+            # contract is what the web gate reads, so a missing one would silently
+            # turn "static question" into an unclassified one.
+            if not _has_task_contract(route):
+                from src.task_contract import resolve_turn_task_contract
+
+                route = {
+                    **route,
+                    "task_contract": resolve_turn_task_contract(
+                        user_input=command.user_input,
+                        state=learning_state,
+                        persisted_route=(
+                            existing.route_snapshot
+                            if is_continuation and existing is not None
+                            else retry_parent.route_snapshot
+                            if retry_parent is not None
+                            else None
+                        ),
+                    ).to_dict(),
+                }
             # 164.33/I6: the C1 observer must compare the PRE-adjudication legacy value,
             # otherwise enabling Phase 2 masks legacy-vs-durable divergence.
             legacy_learning_state = learning_state
@@ -681,19 +723,34 @@ class ChatService:
             rag = rag_result.to_dict()
             rag["query_plan"] = retrieval_plan.to_dict()
             cancel_check("web_tools")
-            web_tools = self.dependencies.resolve_web_tools(
-                command.user_input,
-                model_profile=route["model_profile"],
-                conversation_context=_tool_context(command.chat_history),
-                owner_thread_id=thread.id,
-                owner_turn_id=turn_id,
-                attachment_material=_turn_attachment_material(self.repository, turn_id),
-                research_intent=bool(
-                    (route.get("task_contract") or {}).get("task_intent") == "research"
-                ),
-                deep_requested=(context_mode == "deep") or (command.performance_mode == "deep"),
+            from src.external_data_policy import decide_web_use
+
+            policy = route.get("external_data_policy")
+            policy = policy if isinstance(policy, dict) else {}
+            web_use = decide_web_use(
+                contract=route.get("task_contract") or {},
+                user_input=command.user_input,
+                web_allowed=policy.get("web_allowed") is not False,
+                policy_reason=str(policy.get("reason", "allowed")),
+                research_resume=_research_resume_requested(command),
             )
-            rag["web_tools"] = web_tools.to_dict()
+            if web_use.run_tools:
+                web_tools = self.dependencies.resolve_web_tools(
+                    command.user_input,
+                    model_profile=route["model_profile"],
+                    conversation_context=_tool_context(command.chat_history),
+                    owner_thread_id=thread.id,
+                    owner_turn_id=turn_id,
+                    attachment_material=_turn_attachment_material(self.repository, turn_id),
+                    research_intent=bool(
+                        (route.get("task_contract") or {}).get("task_intent") == "research"
+                    ),
+                    deep_requested=(context_mode == "deep")
+                    or (command.performance_mode == "deep"),
+                )
+            else:
+                web_tools = WebToolTrace(enabled=False)
+            rag["web_tools"] = {**web_tools.to_dict(), "policy_reason": web_use.reason}
             from src.web.research.research_interaction import steering_answer_instruction
 
             effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
@@ -704,6 +761,15 @@ class ChatService:
             )
             continuation_instruction = _continuation_instruction(command)
             context_blocks: list[str] = []
+            if (
+                not web_use.run_tools
+                and (route.get("task_contract") or {}).get("task_intent") == "research"
+                and not command.web_context.strip()
+            ):
+                context_blocks.append(
+                    "本轮没有执行联网检索（用户或策略未允许）。不得声称已经搜索、"
+                    "查证或依据联网结果；如需最新信息，请提示用户允许联网。"
+                )
             evidence_units = build_evidence_units(
                 rag=rag,
                 web_context="\n\n".join(

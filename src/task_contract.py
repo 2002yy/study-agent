@@ -72,7 +72,23 @@ _RESEARCH_PATTERNS = (
     ),
     re.compile(r"(?:搜|查)(?:一下|一查|查看).{0,12}(?:最新|最近|发布|官网|公开)"),
     re.compile(r"(?:最新|最近).{0,16}(?:消息|进展|发布|版本|报道|新闻)"),
+    re.compile(
+        r"(?:什么|啥|哪)(?:时候|天|年|月).{0,12}(?:发布|上线|推出|发售|更新)"
+    ),
+    re.compile(r"(?:发布|上线|推出|发售)(?:时间|日期)"),
+    # A question anchored to "today/this week/now" plus a fast-changing noun
+    # needs current evidence even when the user did not write "最新". Without
+    # this, "今天的 DeepSeek 新闻有哪些？" fell through to quick_answer and the
+    # web gate (C1b) then withheld the search it actually needed.
+    re.compile(
+        r"(?:今天|今日|现在|当前|今年|本周|这周|本月|最近|最新).{0,20}"
+        r"(?:新闻|消息|动态|进展|报道|发布|版本|更新|政策|行情|价格|报价)"
+    ),
     re.compile(r"(?:公开信息|官方消息|官网资料|新闻来源)"),
+    re.compile(
+        r"\b(?:latest|current|today|recent|news|release notes?|changelog)\b",
+        re.I,
+    ),
 )
 _ORGANIZE_MARKERS = (
     "整理这次学习",

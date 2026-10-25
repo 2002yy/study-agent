@@ -39,7 +39,7 @@ def test_a_static_language_question_is_not_research():
 
 
 def test_a_question_about_today_is_research():
-    contract = _route("今天的 DeepSeek 新闻有哪些？帮我查一下最新消息")["task_contract"]
+    contract = _route("今天的 DeepSeek 新闻有哪些？")["task_contract"]
 
     assert contract["task_intent"] == "research"
     assert contract["source_policy"] == "web_only"
@@ -52,3 +52,11 @@ def test_an_explicit_research_request_is_research():
 
     assert contract["task_intent"] == "research"
     assert contract["source_policy"] == "web_only"
+
+
+def test_today_without_a_freshness_noun_stays_a_quick_answer():
+    """The new freshness rule is a conjunction, not the word "today" alone."""
+
+    contract = _route("今天我想理解 JVM 的垃圾回收")["task_contract"]
+
+    assert contract["task_intent"] == "quick_answer"

@@ -74,9 +74,16 @@ async def _consume_stream(
     *,
     turn_id: str | None = None,
     session_service=None,
+    user_input: str = "question",
+    chat_history: list[dict] | None = None,
 ) -> str:
     response = await chat_stream_endpoint(
-        ChatRequest(user_input="question", session_id=session_id, turn_id=turn_id),
+        ChatRequest(
+            user_input=user_input,
+            chat_history=chat_history or [],
+            session_id=session_id,
+            turn_id=turn_id,
+        ),
         request,
         service,
         research_service,
@@ -155,6 +162,8 @@ def test_failed_research_emits_visible_notice_before_model_tokens(runtime_test_c
             ConnectedRequest(),
             "failed-research-visible-notice",
                 session_service=runtime_test_context.session_service,
+            user_input="快去",
+            chat_history=[{"role": "user", "content": "请联网研究：opus5.5"}],
         )
     )
 
@@ -220,6 +229,8 @@ def test_candidate_only_search_emits_truthful_notice_before_model_tokens(
             ConnectedRequest(),
             "candidate-only-visible-notice",
             session_service=runtime_test_context.session_service,
+            user_input="快去",
+            chat_history=[{"role": "user", "content": "请联网研究：opus5.5"}],
         )
     )
 
@@ -276,6 +287,8 @@ def test_successful_research_emits_source_preview_before_model_tokens(
             ConnectedRequest(),
             "successful-research-visible-preview",
                 session_service=runtime_test_context.session_service,
+            user_input="快去",
+            chat_history=[{"role": "user", "content": "请联网研究：opus5.5"}],
         )
     )
 

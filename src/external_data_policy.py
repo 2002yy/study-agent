@@ -7,6 +7,8 @@ are actually allowed for this turn.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from typing import Literal
 
@@ -123,3 +125,63 @@ def decide_external_data(
         local_evidence_to_model_allowed=local_context_allowed,
         reason=reason,
     )
+
+
+# -- whether this turn actually searches -------------------------------------------
+#
+# `web_allowed` answers "may this turn use the web at all". It must not answer
+# "should it search": `quick_answer` carries `local_and_web`, so treating the
+# permission as an instruction made every static question pay for a web call.
+# `decide_web_use` is the second, narrower gate at the tool boundary.
+
+_NO_WEB_INSTRUCTION = re.compile(
+    r"(?:不要|别|不用|无需|不需要|不必)\s*(?:联网|上网|搜|查网|查网上|用网)"
+    r"|(?:只|仅)(?:用|使用)?本地(?:资料|知识|内容|文件)?"
+    r"|(?:不|别)(?:要)?(?:联网|上网|搜索|查网上)"
+)
+_WEB_ONLY_SOURCES = {"web_only"}
+
+
+@dataclass(frozen=True)
+class WebUseDecision:
+    """The tool-boundary answer: run the web agent, and why (or why not)."""
+
+    run_tools: bool
+    reason: str
+
+
+def explicit_no_web_instruction(user_input: str) -> bool:
+    """A user instruction that forbids network access for this turn.
+
+    Only ever narrows permission. A setting or a mode can never override it.
+    """
+
+    return bool(_NO_WEB_INSTRUCTION.search(user_input or ""))
+
+
+def decide_web_use(
+    *,
+    contract: Mapping[str, object] | None,
+    user_input: str = "",
+    web_allowed: bool = True,
+    policy_reason: str = "allowed",
+    research_resume: bool = False,
+) -> WebUseDecision:
+    """Decide whether the web agent should run for this turn.
+
+    Order matters: an explicit "don't go online" wins over a research intent,
+    over deep mode, and over the saved web policy. A permission that is already
+    denied keeps the permission decision's own reason so the audit trail does
+    not blame the task contract for a user setting.
+    """
+
+    if explicit_no_web_instruction(user_input):
+        return WebUseDecision(False, "web_disabled_by_user")
+    if not web_allowed:
+        return WebUseDecision(False, policy_reason or "task_does_not_allow_web")
+    snapshot = contract or {}
+    intent = str(snapshot.get("task_intent", ""))
+    source_policy = str(snapshot.get("source_policy", ""))
+    if intent == "research" or source_policy in _WEB_ONLY_SOURCES or research_resume:
+        return WebUseDecision(True, "task_requires_web")
+    return WebUseDecision(False, "task_does_not_require_web")

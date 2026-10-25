@@ -4492,3 +4492,46 @@ B1-2d，不得因为上述用例通过而视为已完成。
 - 影响集 **333 passed**；Ruff 干净；mypy `124/128, resolved=4`。
 
 S2-C 的 C1–C4（自动路由、多轮研究反馈、回答/事件闭环、前端旅程）尚未开始。
+
+### 34.31 S2-C1b：静态问题不搜索（2026-10-26）
+
+**产品裁定（B）**：保留 `quick_answer` 的 `local_and_web`。任务类型、可用数据源、
+本轮是否真的联网是三个不同概念。`web_allowed` 只表示许可；新增
+`decide_web_use()` 在 `resolve_web_tools()` 边界决定是否真的发起外部调用。
+
+**规则与顺序**：
+
+1. 用户明确禁网（“不要联网 / 别搜 / 只用本地”等）→ 不搜索，原因
+   `web_disabled_by_user`；任何模式（含 deep）都不能覆盖。
+2. 既有策略拒绝（`web_policy=off/ask` 未同意）→ 不搜索，保留策略自身原因。
+3. 合同 `task_intent=research`、`source_policy=web_only`，或“继续研究”的短追问
+   （历史中存在明确研究线索）→ 搜索，原因 `task_requires_web`。
+4. 其余（典型 `quick_answer` + `local_and_web`）→ 不搜索，原因
+   `task_does_not_require_web`；本地知识检索照常可用。
+
+**合同补齐**：`ChatService.start_turn` 在路由后检查合同；注入的路由器只返回
+旧版 `route_request` 结果时，用 `resolve_turn_task_contract()` 补齐并随
+`route_snapshot` 持久化（续写/重试复用原合同）。生产宿主原本已用
+`route_request_with_task_contract`，本项使基础服务与测试宿主同样可靠。
+
+**时效识别补强**：`今天的…新闻`、`什么时候发布`、英文
+`latest/current/release notes` 等现在归入 `research`；`今天我想理解 JVM…`
+这类无时效名词的句子仍是 `quick_answer`（负例已固定）。
+
+**验证**：
+
+- 新增 `tests/test_chat_search_gating.py`（11 条）：真实 `ChatService` 与
+  真实 `ExternalDataPolicyChatService`；静态问题 0 次搜索、今天新闻 1 次、
+  显式查文档可搜索、禁网优先于研究与 deep、缺合同时回合入口补齐并持久化、
+  短追问仅在有历史研究线索时恢复搜索。
+- `tests/test_chat_search_routing.py` 增加“今天 + 无时效名词”负例。
+- 反向变异：把门控改成恒真 → 4 条用例失败；去掉合同补齐 → 持久化用例失败；
+  删除“今天”时效规则 → 2 条搜索路径用例失败（均已还原）。
+- 影响集：聊天/路由/外部数据/研究恢复等 **361 passed**；费用装配相邻集
+  **285 passed**；Ruff 干净；mypy `124/128, resolved=4`。
+- 已知环境问题：本地 `logs/runtime/study_agent.db` 迁移状态陈旧，导致
+  `test_deep_trigger_integration` 在默认库上失败；改用新的
+  `STUDY_AGENT_RUNTIME_DB` 后 11 条全部通过，与本次改动无关。
+
+未开始：C2 多轮观察反馈、C3 回答/事件闭环、C4 前端旅程。开关仍 OFF；
+未调用付费模型、未跑 L3、未合并 main。

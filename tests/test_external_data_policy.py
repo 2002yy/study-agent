@@ -244,20 +244,19 @@ def test_auto_with_local_evidence_allows_full_context(tmp_path):
     )
 
     message_args = captured["messages"][0]
-    assert captured["web_calls"] == 1
-    assert captured["web_context"] == "user: RECENT HISTORY"
-    assert captured["owner_thread_id"] == "chat-full"
-    assert captured["owner_turn_id"] == prepared.turn.id
+    assert captured["web_calls"] == 0
     assert message_args["chat_history"] == [
         {"role": "user", "content": "RECENT HISTORY"}
     ]
     assert message_args["memory_bundle"] == {"summary": "PRIVATE MEMORY"}
     assert "LOCAL SECRET EVIDENCE" in message_args["rag_context"]
-    assert "Official docs" in message_args["rag_context"]
+    assert "Official docs" not in message_args["rag_context"]
+    # Option B: the static turn still holds permission, it just does not act on it.
     assert prepared.route["external_data_policy"]["web_allowed"] is True
+    assert prepared.rag["web_tools"]["policy_reason"] == "task_does_not_require_web"
     execution = prepared.rag["external_data_policy"]
     assert execution == prepared.route["external_data_policy"]
-    assert execution["web_search_performed"] is True
+    assert execution["web_search_performed"] is False
     assert execution["history_sent_to_model"] is False
     assert execution["learning_state_sent_to_model"] is False
     assert execution["memory_context_sent_to_model"] is False
@@ -271,7 +270,7 @@ def test_auto_with_local_evidence_allows_full_context(tmp_path):
     assert execution["memory_context_sent_to_model"] is True
     assert execution["local_evidence_sent_to_model"] is True
     assert execution["local_evidence_chunk_count"] == 1
-    assert prepared.web_context_used is True
+    assert prepared.web_context_used is False
     answer_call = next(
         call
         for call in execution["external_calls"]
@@ -486,6 +485,7 @@ def test_research_task_does_not_query_local_knowledge(tmp_path):
     assert captured["research_intent"] is True
     assert prepared.route["task_contract"]["source_policy"] == "web_only"
     assert prepared.rag["result_count"] == 0
+    assert "Official docs" in captured["messages"][0]["rag_context"]
 
 
 @pytest.mark.parametrize("context_policy,expected", [("question_only", False), ("recent_chat", True)])
