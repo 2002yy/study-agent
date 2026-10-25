@@ -320,6 +320,88 @@ def test_a_research_session_uses_the_operation_quota(monkeypatch, tmp_path):
     assert admission.logical.usage().calls == 1
 
 
+def test_a_stream_reservation_covers_the_transport_request(monkeypatch, tmp_path):
+    """S2-C0: the bound is the transport's, not just the message bodies."""
+
+    from src.llm_spend_guard import serialized_request_chars
+
+    admission = _chain(monkeypatch, tmp_path)
+
+    def base_stream(messages, *, task_name=None, timeout=None, **kwargs):
+        transport_chars = serialized_request_chars(
+            [
+                {
+                    "model": MODEL,
+                    "messages": messages,
+                    "temperature": 0.7,
+                    "stream": True,
+                    "timeout": 30.0,
+                    "max_tokens": kwargs.get("max_tokens"),
+                    "response_format": {"type": "text"},
+                    "extra_body": {"trace": "x" * 500},
+                }
+            ]
+        )
+        reserve_call(
+            prompt_chars=transport_chars,
+            max_tokens=kwargs.get("max_tokens") or 100,
+            model=MODEL,
+            request_key=task_name,
+        )
+        yield "a"
+
+    call = admitted_stream_chat(base_stream, admission, scope="turn-1")
+    with spend_identity(
+        run_id="run-1", operation_id="op-1", invocation="1", experiment=EXPERIMENT
+    ):
+        assert list(
+            call(
+                [{"role": "user", "content": "hi"}],
+                task_name="chat",
+                max_tokens=100,
+            )
+        ) == ["a"]
+
+    record = admission.settlements.current(EXPERIMENT, "turn-1#r1#chat")
+    assert record is not None and record.settled is True
+
+
+def test_a_stream_beyond_the_reserved_bound_is_still_refused(monkeypatch, tmp_path):
+    """The fix widens the bound to the transport's unit, not past the check."""
+
+    from src.llm_spend_guard import (
+        SpendAuthorizationError,
+        serialized_request_chars,
+    )
+
+    admission = _chain(monkeypatch, tmp_path)
+
+    def base_stream(messages, *, task_name=None, timeout=None, **kwargs):
+        transport_chars = serialized_request_chars(
+            [{"model": MODEL, "messages": messages, "extra_body": {"x": "y" * 200_000}}]
+        )
+        reserve_call(
+            prompt_chars=transport_chars,
+            max_tokens=100,
+            model=MODEL,
+            request_key=task_name,
+        )
+        yield "a"
+
+    call = admitted_stream_chat(base_stream, admission, scope="turn-1")
+    with spend_identity(
+        run_id="run-1", operation_id="op-1", invocation="1", experiment=EXPERIMENT
+    ):
+        with pytest.raises(SpendAuthorizationError) as refused:
+            list(call([{"role": "user", "content": "hi"}], task_name="chat"))
+    assert refused.value.reason == "send_authorization_bound_exceeded"
+    # One reservation exists (the send was admitted), but nothing was settled as
+    # complete; the unknown outcome is recorded as unresolved.
+    assert _rows(admission) == 1
+    record = admission.settlements.current(EXPERIMENT, "turn-1#r1#chat")
+    assert record is not None and record.outcome == "unresolved"
+
+
 def test_chat_service_keeps_the_old_path_when_the_flag_is_off(monkeypatch, tmp_path):
     from types import SimpleNamespace
 

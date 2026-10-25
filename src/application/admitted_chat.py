@@ -34,7 +34,10 @@ from src.llm_spend_guard import (
     reservation_cny,
     serialized_request_chars,
 )
-from src.web.semantic_admission import AdmittedCompletion
+from src.web.semantic_admission import (
+    TRANSPORT_REQUEST_OVERHEAD_CHARS,
+    AdmittedCompletion,
+)
 
 
 def _send_identity(scope: str, task_name: str | None) -> str:
@@ -61,8 +64,25 @@ def _send_identity(scope: str, task_name: str | None) -> str:
     return f"{scope_id}#r1#{stage}"
 
 
-def _estimate_cost(admission, messages: list[dict[str, Any]], max_tokens: int | None):
-    prompt_chars = serialized_request_chars({"messages": messages})
+def _estimate_cost(
+    admission, messages: list[dict[str, Any]], max_tokens: int | None, model: str
+):
+    """The reservation's input bound and the observation's price.
+
+    The bound must cover what the transport will actually price. `llm_client`
+    hashes the whole serialized request - model, temperature, timeout, output
+    limit, response format, extra body - not just the message bodies. Measuring
+    only `messages` produced a smaller reservation than the send, and the
+    transport then refused its own already-authorized send. Same accounting, same
+    overhead allowance as the non-streaming path.
+    """
+
+    prompt_chars = (
+        serialized_request_chars(
+            {"messages": messages, "model": model, "max_tokens": int(max_tokens or DEFAULT_OUTPUT_TOKENS)}
+        )
+        + TRANSPORT_REQUEST_OVERHEAD_CHARS
+    )
     resolved_max = int(max_tokens or DEFAULT_OUTPUT_TOKENS)
 
     def price(tokens: int) -> int:
@@ -74,7 +94,7 @@ def _estimate_cost(admission, messages: list[dict[str, Any]], max_tokens: int | 
             )
         )
 
-    return resolved_max, price
+    return prompt_chars, resolved_max, price
 
 
 def admitted_completion_for(
@@ -121,8 +141,8 @@ def admitted_chat(
     def call(messages, *, task_name: str | None = None, timeout=None, **kwargs):
         if not messages:
             return base_chat(messages, **kwargs)
-        resolved_max, price = _estimate_cost(
-            admission, messages, kwargs.get("max_tokens")
+        _, resolved_max, price = _estimate_cost(
+            admission, messages, kwargs.get("max_tokens"), admission.model
         )
         admitted = AdmittedCompletion(
             base_chat,
@@ -152,15 +172,13 @@ def admitted_stream_chat(
 
     def call(messages, *, task_name: str | None = None, timeout=None, **kwargs):
         request_id = _send_identity(scope, task_name)
-        resolved_max, price = _estimate_cost(
-            admission, messages, kwargs.get("max_tokens")
+        prompt_chars, resolved_max, price = _estimate_cost(
+            admission, messages, kwargs.get("max_tokens"), admission.model
         )
 
         def stream() -> Iterator[str]:
             verdict = admission.logical.reserve(
-                request_id,
-                serialized_request_chars({"messages": messages}),
-                resolved_max,
+                request_id, prompt_chars, resolved_max
             )
             if verdict != "reserved":
                 raise _refused(verdict)
@@ -168,7 +186,7 @@ def admitted_stream_chat(
                 request_id,
                 model=admission.model,
                 max_output_tokens=resolved_max,
-                prompt_chars=serialized_request_chars({"messages": messages}),
+                prompt_chars=prompt_chars,
             ) != "reserved":
                 raise _refused("cost_ledger_refused")
             authorization = _claim(admission, request_id)
@@ -214,15 +232,13 @@ def admitted_async_stream_chat(
 
     def call(messages, *, task_name: str | None = None, timeout=None, **kwargs):
         request_id = _send_identity(scope, task_name)
-        resolved_max, price = _estimate_cost(
-            admission, messages, kwargs.get("max_tokens")
+        prompt_chars, resolved_max, price = _estimate_cost(
+            admission, messages, kwargs.get("max_tokens"), admission.model
         )
 
         async def stream() -> AsyncIterator[str]:
             verdict = admission.logical.reserve(
-                request_id,
-                serialized_request_chars({"messages": messages}),
-                resolved_max,
+                request_id, prompt_chars, resolved_max
             )
             if verdict != "reserved":
                 raise _refused(verdict)
@@ -230,7 +246,7 @@ def admitted_async_stream_chat(
                 request_id,
                 model=admission.model,
                 max_output_tokens=resolved_max,
-                prompt_chars=serialized_request_chars({"messages": messages}),
+                prompt_chars=prompt_chars,
             ) != "reserved":
                 raise _refused("cost_ledger_refused")
             authorization = _claim(admission, request_id)
