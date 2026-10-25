@@ -443,7 +443,26 @@ class PersistentWebToolAgent(WebToolAgent):
                 ],
                 "authority": "user_task_requirements_not_evidence",
             }})
+            # Project the run's own persistent facts into the shared tool-trace
+            # shape. A deep note is a page this run really read; its round's
+            # search discovered the URL. Summary-shaped calls were silently
+            # dropped by trusted_tool_calls(), so the answer never saw the
+            # research it paid for. Nothing is added for a note that does not
+            # exist, and a failed/empty search keeps an empty candidate list.
+            notes_by_round: dict[int, list[dict[str, Any]]] = {}
+            for note in deep.get("notes", []):
+                if isinstance(note, dict) and str(note.get("url") or "").strip():
+                    notes_by_round.setdefault(int(note.get("round") or 0), []).append(note)
             for attempt in completed.query_attempts:
+                attempt_round = int(attempt.get("round") or 0)
+                candidates = [
+                    {
+                        "title": str(note.get("title") or note.get("url") or ""),
+                        "url": str(note.get("url") or ""),
+                    }
+                    for note in notes_by_round.get(attempt_round, [])
+                ]
+                status = str(attempt.get("status") or "")
                 calls.append(
                     {
                         "name": "web_search",
@@ -455,21 +474,29 @@ class PersistentWebToolAgent(WebToolAgent):
                             ),
                         },
                         "result": {
-                            "status": str(attempt.get("status") or ""),
+                            "status": "ok" if candidates else status,
+                            "reason": "deep_round_candidates" if candidates else "",
+                            "results": candidates,
                             "result_count": int(attempt.get("result_count") or 0),
                         },
                     }
                 )
             for note in deep.get("notes", []):
                 if isinstance(note, dict):
+                    url = str(note.get("url") or "")
+                    facts = str(note.get("facts") or "")
+                    if not url or not facts.strip():
+                        continue
                     calls.append(
                         {
                             "name": "web_read",
-                            "arguments": {"url": note.get("url", "")},
+                            "arguments": {"url": url, "round": note.get("round")},
                             "result": {
+                                "ok": True,
                                 "status": "read",
-                                "title": note.get("title", ""),
-                                "facts_excerpt": str(note.get("facts", ""))[:300],
+                                "url": url,
+                                "title": str(note.get("title") or url),
+                                "content": facts[:4000],
                             },
                         }
                     )
