@@ -604,3 +604,189 @@ context["omitted"] += ["history_snippets", "attempts", "source_leads"]   # :171-
   第 1、5 项已在数据与语义层具备条件但需真实模型的多轮研究。
 - 本节的语义裁定**不需要**运行付费模型来验证——验证靠负控测试与不变量。
 
+## 12. 费用结算：账本权威与观测审计（2026-10-25 冻结）
+
+**裁定依据**：PR #288 的 `5d041db3`。本节只冻结**结算合同**，不含实现；实现属独立的静态切片。
+本节**替代** §34.11.3 的 C3 表述（见 §12.8），不与之并存竞争。
+
+### 12.1 两种事实，两种强度
+
+费用系统里有两种**强度不同**的事实，混用就会撒谎：
+
+| 事实 | 性质 | 能不能改 |
+| --- | --- | --- |
+| **预留**（`llm_spend_reservations.amount_micros`） | 额度事实："最多已允许花多少" | **永不退、永不改** |
+| **结算**（本节新增） | 观察事实："后来究竟确认了什么" | 可**凭证据**更正一次 |
+
+**判据**：观测永远不能改变任何金额；金额也永远不能替观测下结论。
+**反例**：用实际费用回写预留（把上限变成事后估算）；因为没有观测记录就断言"调用成功"；
+把"预留已扣"读成"费用已确认"。
+
+### 12.2 三个状态，外加一个由差集推出的状态
+
+| 名称 | 含义 | 存储形态 |
+| --- | --- | --- |
+| `settlement_unwritten` | 有预留，但**没有任何**观测事件 | **不落库**：由"预留 ∖ 观测"的差集推出 |
+| `unresolved` | 明确知道"尚未知道"（超时、断网、取消、SDK 异常、进程被杀） | 一只观测行 |
+| `settled` | 有**可信完成凭据** | 一只观测行 |
+| `failed` | 有**充分证据**确认这次调用失败 | 一只观测行 |
+
+三者的费用保护相同（预留全部保留），**审计含义完全不同**。
+`settlement_unwritten` 不是可持久化的断言：数据库不可写时，"我记录了未写入"本身就是假话，
+所以它只能由恢复扫描的差集产生。
+
+**`failed` 的门槛**：只有拿到可核对的失败凭据（例如提供商明确的错误响应并绑定本次调用）
+才允许记为 `failed`。普通超时、连接重置、SDK 异常一律 `unresolved`（C4 的延伸）。
+
+**冻结状态机**：
+
+```text
+（无观测） → unresolved | settled | failed
+unresolved → settled        （唯一允许的更正：恰好一次，必须带 evidence_ref）
+```
+
+**一律拒绝**：`settled → *`、`failed → *`、`unresolved → failed`、
+`settled(estimated) → settled(measured_usage)`。
+最后一条是本期明确不做的成本对账能力；将来若要做，必须另立"不覆盖历史"的规则。
+
+**判据**：系统里不存在把 `unresolved` 自动改成 `settled` 的代码路径。
+**反例**：回合结束即推定成功；同一 `request_id`、时间接近、模型"觉得跑完了"当作凭据。
+
+### 12.3 观测记录：append-only，按修订号追加
+
+只新增一张表，不再建"当前状态表"：
+
+```text
+llm_spend_settlements(
+    experiment_id  TEXT NOT NULL,
+    request_key    TEXT NOT NULL,
+    revision       INTEGER NOT NULL,   -- 从 1 开始
+    outcome        TEXT NOT NULL,      -- unresolved | settled | failed
+    cost_micros    INTEGER NULL,       -- 未知必须是 NULL，不是 0
+    cost_basis     TEXT NULL,          -- estimated | measured_usage | NULL
+    evidence_ref   TEXT NOT NULL DEFAULT '',
+    observed_at    TEXT NOT NULL,
+    PRIMARY KEY (experiment_id, request_key, revision),
+    FOREIGN KEY (experiment_id, request_key)
+        REFERENCES llm_spend_reservations(experiment_id, request_key)
+)
+```
+
+- **当前状态 = 最大 `revision`**；历史行不允许 `UPDATE`、不允许 `DELETE`。
+- **幂等**：同一键重复提交**完全相同**的 `(outcome, cost_micros, cost_basis, evidence_ref)`
+  → 不追加修订，返回成功且无变化。
+- **冲突**：同一键提交**不同**观测 → 显式拒绝（`SpendSettlementConflict`），
+  不静默覆盖、不 upsert。唯一例外是 §12.2 的那一次 `unresolved → settled`。
+- **修订号分配**与状态校验**在同一事务内**完成（§12.6），不是"先查再写"。
+
+**判据**：同一调用的观测链必须有唯一的"最新修订"，且旧修订可逐条重放。
+**反例**：把 `settled` 行改写成 `unresolved`；用 `INSERT OR REPLACE` 实现"结算"；
+以时间戳代替修订号决定最新状态。
+
+### 12.4 成本口径：未知不是零
+
+| 情况 | `cost_micros` | `cost_basis` |
+| --- | --- | --- |
+| 费用未知（`unresolved`、进程被杀、无凭据） | `NULL` | `NULL` |
+| 调用完成，只有估算 | 非负整数 | `estimated` |
+| 拿到可信 token usage 后按价目表计算 | 非负整数 | `measured_usage` |
+
+- `cost_micros=0` 只表示"确实为零"，**不得**用作"未知"的占位。
+  现有代码在 `unresolved` 时传 `0`（`conversation_spend_gate.py:124`），
+  新适配层必须把它映射为 `NULL`，不能永久写成零费用。
+- 即便 `cost_basis=measured_usage`，也只是**按价目表算出的估值**，
+  **不得**宣称为提供商实际账单金额。真正对账需要提供商账单，属另一批次。
+- `LedgerPort.settle(cost_micros: int)` 需要演进为可表达"未知"（`int | None`）；
+  演进发生在适配层与协议上，**不改变**账本层签名。
+
+**判据**：观测表里不存在 `cost_basis IS NULL AND cost_micros IS NOT NULL`（无口径的金额），
+也不存在把未知写成 `cost_micros = 0` 的行。
+
+### 12.5 请求身份：一次真实发送，只绑一次
+
+`LedgerPort` 用 `request_id`，账本用 `(experiment_id, request_key)`。这两种身份必须在
+**预留时**绑定成同一个真实发送，`settle()` **不得重新生成键**。
+
+- 同一次发送只允许**一次** `reserve`。如果 `SpendGatedAdmission` 与底层模型客户端
+  **各自**调用一次 `reserve_call()`，同一次发送就会被重复预留——这是违约，不是"更保守"。
+- 新发送用新键；同一发送的回放**不得**重新购买额度。
+- 适配器负责把 `request_id → (experiment_id, request_key)` 的绑定持久化在预留行里
+  （`request_key` 即 `request_id`；`experiment_id` 来自 `SpendScope`）。
+
+**判据**：对一次真实发送，`llm_spend_reservations` 恰好一行。
+**反例**：`settle()` 里按 `observed_at` 或随机串生成新键；把重试当成新发送而不带新键。
+
+### 12.6 并发、迟到结果与崩溃恢复
+
+**并发更正必须在同一事务内。** "先读到 `unresolved`、放锁、再插入 `settled`"允许两个写者同时通过。
+要求：`BEGIN IMMEDIATE` → 核对预留身份 → 读取最后 `revision` → 校验转换 → 分配 `revision` → 追加。
+
+- 重复的 `unresolved`（完全相同观测）幂等返回，不新增修订。
+- `settled` 已提交后，迟到的 `unresolved` **不得降级**；必须被识别为冲突并留下可诊断的错误。
+- 两个并发 "unresolved → settled" 更正：**恰好一个**成功，另一个是冲突。
+
+**崩溃恢复**：进程可能在"预留成功"与"写入观测"之间被杀。恢复扫描用
+`llm_spend_reservations` 左连接 `llm_spend_settlements` 的差集识别 `settlement_unwritten`，
+输出欠账清单并保留证据；**不得**补写一条"其实不知道"的 `unresolved` 假装它被观测过。
+费用保护上三者一致：预留全部保留。
+
+**判据**：任意杀进程点之后重启，欠账清单能列出所有"有预留、无观测"的调用。
+**反例**：启动时把缺失观测批量补成 `settled`；或补成 `unresolved` 后声称"已对账"。
+
+### 12.7 不变量：结算前后，账本四个数字一字不变
+
+以 `experiment_spend()` 的四个权威数字为准：`cap_micros`、`reserved_micros`、
+`remaining_micros`、`calls`。**任何结算写入前后，它们必须完全相同**
+（在无并发新预留的可控测试条件下）。
+
+**上界失效必须报告，不能掩盖。** 一旦可信观测费用**超过该调用原始预留上界**：
+
+- 报告 `cost_upper_bound_invalidated`（该调用的观测事实，不是对预留的修改）；
+- 由**派生条件**（存在该 experiment 的超界观测）阻止该 experiment 的**后续付费调用**；
+- **不得**改写预留金额、不得扩大 cap、不得把差额"补记"成新预留来完成对齐。
+
+该阻止在适配器的 `reserve` 入口执行。**声明其边界**：绕过适配器直接调用
+`SpendLedger.reserve` 的路径不在保护范围内；接线切片必须保证所有付费路径都经过适配器。
+
+### 12.8 与 §34.11 C1–C5 的关系（C3 被替代）
+
+| 条 | 状态 |
+| --- | --- |
+| C1 唯一账本 | **保留** |
+| C2 不新增退款 | **保留**（`SpendLedger` 仍不得有 `settle`/`refund`/`release`） |
+| C3 观测标签不是账本 | **被本节替代**，新文本见下 |
+| C4 两态不得退化为"完成" | **保留**，并由 §12.2 的 `failed` 门槛加强 |
+| C5 形状适配走既有封装 | **保留**，并由 §12.5 的身份绑定加强 |
+
+**C3（新，替代旧文本）**：
+
+> 观测层允许保存**有明确来源口径**的成本估值，但**不得**以该值参与额度准入、余额计算、
+> 预留金额更新或退款。账本层依旧拥有唯一金额权威。
+
+旧 C3 的"不写金额、不改余额"与新口径字面冲突（新口径允许保存估值），
+所以这里是**替代**，不是兼容：以本节为准，§34.11.3 的旧 C3 仅作历史记录。
+
+### 12.9 迁移与验收
+
+- 新增迁移 **30**（当前 `SCHEMA_VERSION = 29`），**增量**操作，不改动
+  `llm_spend_experiments` / `llm_spend_reservations` 的结构与语义。
+- 验证：从 v29 升级、重复初始化（幂等）、迁移中途失败回滚、
+  既有预留与预算完整性、并发结算。
+- **不承诺原地降级**：v30 数据库不能由 v29 程序直接运行；回退须使用迁移前备份。
+- 必须存在的负控：
+  1. 重复结算不追加重复记录；
+  2. 非法状态转换不能覆盖已确认状态；
+  3. 并发更正只有一次成功；
+  4. 凭据不匹配、无预留记录、跨 experiment 请求一律拒绝；
+  5. 进程在预留后或事件写入前被杀，重启仍能发现欠账（差集）；
+  6. 结算前后 `experiment_spend()` 四个数字不变；
+  7. 观测费用超界时报 `cost_upper_bound_invalidated` 并阻止后续付费调用，
+     且预留金额与 cap 一字未变。
+
+### 12.10 本节明确未宣称
+
+- 本节**只冻结合同**：不含实现、不含生产接线、不改任何现有金额算法；
+- 不宣称 §10.8 任何一项通过；
+- 不运行付费模型；
+- 合同本身**尚未被护栏强制执行**；每条规则在实现切片里必须配一条**能被牙齿检验**的用例。
+

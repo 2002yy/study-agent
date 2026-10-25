@@ -3108,7 +3108,7 @@ QD-3e 的交付、主线集成、费用账本兼容、产品验收是**四件事
 | 7 | **R-6 授权三处修复 + 取消终态保护** | **已完成，见 §34.10.6**（`cd7a73b6`） |
 | 7b | **R-6 第四个洞：非有限上限（`Infinity`/`NaN`）** | **已完成，见 §34.14**（P1 输入边界） |
 | 8 | **R-6 授权链路接入生产装配** | 未做（`apply_upgrade()` 目前**无生产调用方**，`src/api/routes/` 下**无** tier 路由） |
-| 9 | 费用账本适配 | **合同已定，见 §34.11**（C1–C5）；实现属另一批次 |
+| 9 | 费用账本适配 | **合同已冻结，见合同 §12 / 本节 §34.15**（原 §34.11 C1–C5，C3 已被替代）；**实现未开始**，属独立静态切片 |
 | 10 | **主线集成 CI 在最终 HEAD 上跑绿 + 记录精确 HEAD** | **已完成，见 §34.12.6**（run `40120074936`，HEAD `c7c1236b`，6142 passed） |
 
 **第 9 项的补充：费用账本的接口形态已经变了（合并 main 时发现）**
@@ -3116,6 +3116,7 @@ QD-3e 的交付、主线集成、费用账本兼容、产品验收是**四件事
 > **本节已被 §34.11 取代**：那一节把"需要重新设计一次"落成了五条可判定的合同
 > （C1 唯一账本 / C2 不新增退款 / C3 观测标签不是账本 / C4 两态不得退化为"完成" /
 > C5 形状适配走既有封装），并补上了本节没查到的事实——
+> **注意：其中 C3 已于 2026-10-25 被合同 §12.8 的新 C3 替代（见 §34.15），此处的列举仅作历史记录。**
 > `LedgerPort.settle` 在**全仓只有测试 fake 实现**，`TurnLifecycle` 与
 > `SpendGatedAdmission` **都没有生产构造点**。以下原文保留作为勘察记录。
 
@@ -3356,6 +3357,11 @@ CL-M3 需要的"结算"能力，若在生产接线时确实必需，
 
 **C3 观测标签不是账本。** `settled` / `unresolved` 只作标签出现在回合收据里，
 **不写金额、不改余额**。判定标准：把标签换成任何字符串，账本余额必须**一字不变**。
+
+> **已被替代（2026-10-25）**：本条"不写金额"的表述由合同 §12.8 的新 C3 取代——
+> 观测层**可以**保存有明确来源口径的成本估值（`cost_micros` / `cost_basis`），
+> 但**不得**参与额度准入、余额计算、预留金额更新或退款。
+> C1 / C2 / C4 / C5 继续有效。裁定依据：PR #288 `5d041db3`；执行记录见 §34.15。
 
 **C4 两态语义不得退化为"完成"。** 合同 §11.2 / Q-7 要求停止理由可区分；
 同理，回合收据里"无法归因的调用"必须记为 `unresolved`，
@@ -3704,3 +3710,83 @@ NaN 的任何比较都是 False——所以拒绝必须**自己陈述有限性�
 - **不接生产装配**——`apply_upgrade()` 仍无生产调用方（§34.9 第 8 项未变）；
 - 不宣称任何一项 §10.8 检查通过；
 - QD 口径 **184 → 192 passed**（+8）；mypy baseline `current=124, baseline=128, resolved=4`（未新增类型债）。
+
+### 34.15 费用结算合同冻结：账本不可退，观测可更正（2026-10-25）
+
+本节记录**结算合同的冻结**，裁定依据是 PR #288 的 `5d041db3`。
+合同正文已写入 `docs/CL_M3_CAPABILITY_CONTRACT.md` §12；本节是执行记录，不复述条款细节。
+
+#### 34.15.1 起点：先核对，再提合同
+
+草案不是从设计文档推出来的，而是先核对了五个尚未接线的对象：
+
+| 事实 | 位置 |
+| --- | --- |
+| `SpendLedger` 只有 `ensure_experiment` / `reserve` / `experiment_spend`，**没有** `settle` | `src/infrastructure/sqlite/spend_ledger.py:152,230,384` |
+| `LedgerPort.settle` 只在 fake 里存在，`src/` 无任何实现 | `src/web/semantic_admission.py:52-57` |
+| `settled` / `unresolved` 只活在内存里，`TurnSettlement` 无消费者 | `src/application/conversation_turn_lifecycle.py:150-207` |
+| `SpendGatedAdmission` / `TurnLifecycle` / `AdmittedCompletion` 无生产构造 | `git grep` 仅命中测试 |
+| 结算成本是**估算**：`self._price(estimate)`；会话/研究路径无 token usage | `src/application/conversation_spend_gate.py:104` |
+
+结论：§34.11 的 C1–C5 方向仍然有效，但 **C3 的"不写金额"今天既没被违反、也没被满足**——
+因为观测标签根本没有落库，也没有任何消费者。"可审计"这一层是空的。
+
+#### 34.15.2 两个分歧的裁定（用户）
+
+| 分歧 | 裁定 |
+| --- | --- |
+| `unresolved` 能否更正 | **(b)**：允许且仅允许一次**有证据**的 `unresolved → settled` 更正；不得自动更正，不得由回合结束推定 |
+| 审计形态 | **append-only 事件表**，当前状态取最新 `revision`；不采用单行覆盖 |
+
+理由记在合同 §12.1：预留是**不可逆的额度事实**，调用结果是**可能逐渐被确认的观察事实**；
+观察变化不能重写历史。
+
+#### 34.15.3 五项收紧（相对草案 S1–S9）
+
+1. **C3 明确替代而非兼容。** 旧 C3 说"不写金额"，新口径允许保存成本估值，
+   两者字面冲突。§34.11.3 的 C3 已就地标注"已被替代"，新文本在合同 §12.8。
+2. **`cost_micros=0` 不等于未知。** 未知必须是 `NULL`/`NULL`；
+   现有 `settle_unresolved` 传 `0` 只是占位，适配层必须映射为 `NULL`。
+   `measured_usage` 也只是按价目表算出的估值，不得称为提供商账单。
+3. **"没写事件"与"写了 unresolved"分开。** 前者是 `settlement_unwritten`，
+   由"预留 ∖ 观测"的差集在恢复扫描时推出，**不可持久化**；
+   DB 不可写时不能宣称"已记录未写入"。
+4. **并发升级必须单事务。** `BEGIN IMMEDIATE` 内完成：核对预留身份 → 读最后修订 →
+   校验转换 → 分配修订 → 追加。迟到的 `unresolved` 不得降级已提交的 `settled`。
+5. **两套请求身份必须绑定一次。** `LedgerPort.request_id` 与
+   `(experiment_id, request_key)` 在**预留时**绑定；`settle()` 不得重新生成键；
+   同一次发送只允许一次 `reserve`（两个组件各自 `reserve_call()` 是重复预留，不是更保守）。
+
+#### 34.15.4 冻结后的数据形状
+
+```text
+llm_spend_settlements(
+    experiment_id, request_key, revision,
+    outcome, cost_micros NULL, cost_basis NULL, evidence_ref, observed_at,
+    PRIMARY KEY (experiment_id, request_key, revision),
+    FOREIGN KEY (experiment_id, request_key)
+        REFERENCES llm_spend_reservations(experiment_id, request_key)
+)
+```
+
+`llm_spend_reservations` 已有 `UNIQUE(experiment_id, request_key)`（迁移 26），
+外键可以直接引用，不需要改预留表结构。
+
+状态机：`（无） → unresolved | settled | failed`；`unresolved → settled` 恰好一次。
+本期**不做** `settled(estimated) → settled(measured_usage)`：那属于独立的成本对账扩展。
+
+#### 34.15.5 迁移与验收口径
+
+- 迁移 **30**（当前 `SCHEMA_VERSION = 29`），增量；不改预留表语义；
+- 验 v29 升级、重复初始化、迁移中途失败回滚、既有预留与预算完整、并发结算；
+- **不承诺原地降级**：v30 库回退到 v29 程序须用迁移前备份；
+- 负控清单（7 组）写在合同 §12.9，其中最重要的一条是
+  "结算前后 `experiment_spend()` 四个数字一字不变"。
+
+#### 34.15.6 本节的边界
+
+- **只冻结合同**：不改代码、不加测试、不接生产装配；
+- 不运行付费模型；不修改现有预留金额算法；
+- 不合并 `main`；全量 L3 欠账保留；
+- 合同本身**尚未被护栏强制执行**——每条规则要在实现切片里配一条能被牙齿检验的用例，
+  否则它只是一段描述。下一刀是**独立的静态实现切片**。
