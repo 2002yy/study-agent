@@ -231,7 +231,12 @@ _scope: ContextVar[SpendScope | None] = ContextVar("llm_spend_scope", default=No
 _active_authorization: ContextVar[object] = ContextVar(
     "llm_spend_send_authorization", default=None
 )
-_consumed_authorizations: set[str] = set()
+# One reservation is one send, in this process. Issuing and consuming are tracked
+# by reservation identity rather than by token: a second signature over different
+# bounds for the same reservation would otherwise be a second executable
+# credential for money that was reserved once.
+_issued_reservations: set[tuple[str, str]] = set()
+_consumed_reservations: set[tuple[str, str]] = set()
 _AUTHORIZATION_SECRET = secrets.token_bytes(32)
 
 
@@ -326,6 +331,24 @@ def authorize_send(
         # than the one about to be sent. Both mean the authorization cannot
         # describe this send.
         raise SpendAuthorizationError("reservation_mismatch")
+    # The bounds being authorized must be payable by the amount that was actually
+    # reserved, priced with the ledger's own function. A signature over bounds the
+    # row cannot cover would be a permission larger than the money behind it.
+    required_micros = cny_to_micros(
+        reservation_cny(
+            prompt_chars=prompt_chars, max_tokens=max_tokens, attempts=attempts
+        )
+    )
+    if required_micros > reservation.amount_micros:
+        raise SpendAuthorizationError("authorization_exceeds_reservation")
+    identity = (reservation.experiment_id, reservation.request_key)
+    with _lock:
+        if identity in _issued_reservations:
+            # One reservation, one authorization, one send. A second signature
+            # for the same row - even with different bounds - would be a second
+            # credential for the same money.
+            raise SpendAuthorizationError("send_already_authorized")
+        _issued_reservations.add(identity)
     payload = _authorization_payload(
         experiment_id=reservation.experiment_id,
         request_key=reservation.request_key,
@@ -379,10 +402,11 @@ def _consume_authorization(authorization: object) -> SendAuthorization:
     """
 
     verified = _verified_authorization(authorization)
+    identity = (verified.experiment_id, verified.request_key)
     with _lock:
-        if verified.token in _consumed_authorizations:
+        if identity in _consumed_reservations:
             raise SpendAuthorizationError("send_authorization_consumed")
-        _consumed_authorizations.add(verified.token)
+        _consumed_reservations.add(identity)
     return verified
 
 
@@ -479,7 +503,8 @@ def reset_spend() -> None:
         _reserved_cny = 0.0
         # Authorizations are process-local and single-use; a reset (tests, a new
         # experiment) starts a new generation of them.
-        _consumed_authorizations.clear()
+        _consumed_reservations.clear()
+        _issued_reservations.clear()
 
 
 def _float_env(name: str) -> float | None:

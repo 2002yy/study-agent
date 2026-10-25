@@ -19,6 +19,7 @@ unit tests of the pieces:
 
 from __future__ import annotations
 
+import secrets
 import sqlite3
 import threading
 from pathlib import Path
@@ -645,6 +646,99 @@ def test_the_retry_budget_is_what_the_reservation_paid_for(monkeypatch, database
             )
     assert refused.value.reason == "send_authorization_bound_exceeded"
     assert _count(database, "llm_spend_reservations") == 2
+
+
+def test_an_authorization_cannot_exceed_the_reserved_amount(monkeypatch, database):
+    """P1-1 (R3): bounds must be payable by the row, not just signed over."""
+
+    _configure(monkeypatch, database)
+    ledger = SpendLedger(database)
+    ledger.ensure_experiment(
+        EXPERIMENT, cap_micros=CAP_MICROS, pricing_fingerprint="p", now=NOW
+    )
+    _reserve(ledger, key="raw-1", amount=500)
+
+    with pytest.raises(SpendAuthorizationError) as refused:
+        authorize_send(
+            experiment_id=EXPERIMENT,
+            request_key="raw-1",
+            model="deepseek-chat",
+            prompt_chars=10_000_000,
+            max_tokens=100,
+            attempts=1,
+        )
+    assert refused.value.reason == "authorization_exceeds_reservation"
+
+    # Bounds the row can pay for are still accepted.
+    accepted = authorize_send(
+        experiment_id=EXPERIMENT,
+        request_key="raw-1",
+        model="deepseek-chat",
+        prompt_chars=10,
+        max_tokens=10,
+        attempts=1,
+    )
+    assert accepted.reserved_cny * 1_000_000 == pytest.approx(500, abs=1)
+
+
+def test_the_same_reservation_cannot_be_authorized_twice(monkeypatch, database):
+    """One row, one credential - a second signature is not a second budget."""
+
+    _configure(monkeypatch, database)
+    ledger = SpendLedger(database)
+    ledger.ensure_experiment(
+        EXPERIMENT, cap_micros=CAP_MICROS, pricing_fingerprint="p", now=NOW
+    )
+    _reserve(ledger, key="raw-2", amount=5_000_000)
+    authorize_send(
+        experiment_id=EXPERIMENT,
+        request_key="raw-2",
+        model="deepseek-chat",
+        prompt_chars=10,
+        max_tokens=10,
+        attempts=1,
+    )
+    with pytest.raises(SpendAuthorizationError) as refused:
+        authorize_send(
+            experiment_id=EXPERIMENT,
+            request_key="raw-2",
+            model="deepseek-chat",
+            prompt_chars=20,
+            max_tokens=20,
+            attempts=1,
+        )
+    assert refused.value.reason == "send_already_authorized"
+
+
+def test_an_authorization_does_not_cross_a_process_restart(monkeypatch, database):
+    """Recovery rule: authorizations are process-local and die with the process.
+
+    The reservation does not: it stays in the ledger and shows up as
+    ``settlement_unwritten`` until the turn is reconciled. A retry after a crash
+    is a new send and needs a new key - never a replay of the old credential.
+    """
+
+    import src.llm_spend_guard as guard
+
+    _configure(monkeypatch, database)
+    repository = SpendSettlementRepository(database)
+    adapter = SettlementLedgerAdapter(repository)
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+    authorization = adapter.claim_send_authorization("send-1")
+    assert authorization is not None
+
+    monkeypatch.setattr(guard, "_AUTHORIZATION_SECRET", secrets.token_bytes(32))
+
+    with pytest.raises(SpendAuthorizationError) as refused:
+        with pre_reserved_send(authorization):
+            pass
+    assert refused.value.reason == "send_authorization_forged"
+    # The money fact survives the process; only the credential does not.
+    assert repository.unwritten() == ((EXPERIMENT, "send-1"),)
+    assert repository.current(EXPERIMENT, "send-1") is None
 
 
 # -- 3. evidence strength ------------------------------------------------------------
