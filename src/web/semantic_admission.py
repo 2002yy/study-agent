@@ -29,16 +29,27 @@ second time.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Protocol
 
+from src.domain.spend_settlement import (
+    COST_BASIS_ESTIMATED,
+    EVIDENCE_PROVIDER_RESULT,
+    SETTLEMENT_FAILED,
+    SETTLEMENT_SETTLED,
+    SETTLEMENT_UNRESOLVED,
+    evidence_ref,
+)
 from src.web.semantic_planner import PlanningIdentity
 
 # Settlement outcomes. ``unresolved`` is distinct from ``failed`` on purpose: failed means
 # the provider answered with an error we can price, unresolved means we never learned.
-SETTLED = "settled"
-FAILED = "failed"
-UNRESOLVED = "unresolved"
+# The aliases keep the historical import surface (``SETTLED``/``UNRESOLVED``) while the
+# vocabulary itself lives in the domain module.
+SETTLED = SETTLEMENT_SETTLED
+UNRESOLVED = SETTLEMENT_UNRESOLVED
+FAILED = SETTLEMENT_FAILED
 
 REJECTED_ALREADY_ATTEMPTED = "already_attempted"
 REJECTED_BUDGET = "budget_exhausted"
@@ -50,11 +61,33 @@ class AdmissionRefused(RuntimeError):
 
 
 class LedgerPort(Protocol):
-    """The real-cost track. Satisfied by the spend-ledger work; never reimplemented here."""
+    """The real-cost track, satisfied by the settlement-aware adapter.
 
-    def reserve(self, request_id: str, *, model: str, max_output_tokens: int) -> str: ...
+    ``reserve`` takes the prompt size as well as the output bound: a reservation
+    computed from the output alone would be an under-reservation, and an
+    under-reserved cap is not a cap. ``settle`` distinguishes an unknown cost
+    (``None``) from a zero one, and carries the evidence binding that a
+    ``settled`` claim needs.
+    """
 
-    def settle(self, request_id: str, *, outcome: str, cost_micros: int) -> None: ...
+    def reserve(
+        self,
+        request_id: str,
+        *,
+        model: str,
+        max_output_tokens: int,
+        prompt_chars: int,
+    ) -> str: ...
+
+    def settle(
+        self,
+        request_id: str,
+        *,
+        outcome: str,
+        cost_micros: int | None,
+        cost_basis: str | None = None,
+        evidence_ref: str = "",
+    ) -> None: ...
 
 
 class LogicalPort(Protocol):
@@ -92,7 +125,7 @@ class AdmittedCall:
 
     request_id: str
     outcome: str
-    cost_micros: int
+    cost_micros: int | None
 
 
 class AdmittedCompletion:
@@ -136,12 +169,15 @@ class AdmittedCompletion:
         # stops the call; the stricter track decides.
         verdict = self._logical.reserve(request_id, prompt_chars, self._estimate)
         if verdict != "reserved":
-            self.calls.append(AdmittedCall(request_id, verdict, 0))
+            self.calls.append(AdmittedCall(request_id, verdict, None))
             raise AdmissionRefused(verdict)
         if self._ledger.reserve(
-            request_id, model=self._model, max_output_tokens=self._estimate
+            request_id,
+            model=self._model,
+            max_output_tokens=self._estimate,
+            prompt_chars=prompt_chars,
         ) != "reserved":
-            self.calls.append(AdmittedCall(request_id, REJECTED_LEDGER, 0))
+            self.calls.append(AdmittedCall(request_id, REJECTED_LEDGER, None))
             raise AdmissionRefused(REJECTED_LEDGER)
 
         try:
@@ -151,16 +187,38 @@ class AdmittedCompletion:
         except Exception:
             # A provider or SDK exception does NOT establish that nothing was
             # sent. Connection resets, custom SDK timeouts and response parse
-            # failures can happen after the provider accepted the request.
-            # Keep the reservation unless an upstream transport provides a
-            # positively verified, pre-send failure receipt (not available here).
-            self._settle(request_id, UNRESOLVED, 0)
+            # failures can happen after the provider accepted the request, so the
+            # only honest observation is "we do not know yet".
+            self._settle(request_id, UNRESOLVED, None)
             raise
-        self._settle(request_id, SETTLED, self._price(self._estimate))
+        self._settle(
+            request_id,
+            SETTLED,
+            self._price(self._estimate),
+            COST_BASIS_ESTIMATED,
+            evidence_ref(
+                kind=EVIDENCE_PROVIDER_RESULT,
+                request_key=request_id,
+                receipt=hashlib.sha256(value.encode("utf-8")).hexdigest()[:16],
+            ),
+        )
         return value
 
-    def _settle(self, request_id: str, outcome: str, cost_micros: int) -> None:
-        self._ledger.settle(request_id, outcome=outcome, cost_micros=cost_micros)
+    def _settle(
+        self,
+        request_id: str,
+        outcome: str,
+        cost_micros: int | None,
+        cost_basis: str | None = None,
+        evidence: str = "",
+    ) -> None:
+        self._ledger.settle(
+            request_id,
+            outcome=outcome,
+            cost_micros=cost_micros,
+            cost_basis=cost_basis,
+            evidence_ref=evidence,
+        )
         self.calls.append(AdmittedCall(request_id, outcome, cost_micros))
 
 

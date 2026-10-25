@@ -22,6 +22,14 @@ Until #259 merges there is no production ``LedgerPort``. That is handled by cons
 rather than by a stub: :class:`~src.application.conversation_turn_lifecycle.TurnLifecycle`
 refuses to build without a spend port, so the failure mode is "the turn does not start"
 and never "the turn runs unmetered".
+
+**Update (CL-M3-S1).** A ``LedgerPort`` implementation now exists
+(``src/application/spend_settlement_adapter.py``): it reserves through the existing
+``reserve_call`` entry point and appends observations to the settlement audit. It is
+deliberately **not** constructed by any production host yet - wiring the turn lifecycle
+is a separate slice. What changed here is the port's vocabulary: a completed call must
+carry an evidence reference, and an unresolved one reports an unknown cost (``None``)
+instead of zero.
 """
 
 from __future__ import annotations
@@ -32,6 +40,7 @@ from src.application.conversation_decision_runner import (
     COST_LEDGER_REFUSED,
     DecisionAdmission,
 )
+from src.domain.spend_settlement import COST_BASIS_ESTIMATED
 from src.web.semantic_admission import SETTLED, UNRESOLVED, LedgerPort
 
 
@@ -77,7 +86,10 @@ class SpendGatedAdmission:
             return verdict
         try:
             spend_verdict = self._spend.reserve(
-                request_id, model=self._model, max_output_tokens=output_tokens
+                request_id,
+                model=self._model,
+                max_output_tokens=output_tokens,
+                prompt_chars=prompt_chars,
             )
         except Exception:
             # An unreachable ledger is not free money. Propagating makes the runner report
@@ -95,9 +107,21 @@ class SpendGatedAdmission:
     # --- settlement, called by the host exactly once per turn --------------------------
 
     def settle_completed(
-        self, request_id: str, *, cost_micros: int | None = None
+        self,
+        request_id: str,
+        *,
+        evidence_ref: str,
+        cost_micros: int | None = None,
     ) -> bool:
-        """Settle one call the loop reported as completed. ``False`` = already settled."""
+        """Settle one call the loop reported as completed. ``False`` = already settled.
+
+        ``evidence_ref`` is not optional: a completed call is a claim that needs a
+        receipt naming this send (contract §12.2). ``cost_micros=None`` means
+        "price the reservation's estimate", not "unknown" - an unknown outcome is
+        settled by :meth:`settle_unresolved`, and the two must not share a
+        default.
+        """
+
         estimate = self._open.get(request_id)
         if estimate is None:
             return False
@@ -107,7 +131,13 @@ class SpendGatedAdmission:
         # The durable port must settle idempotently by request_id. A failure
         # (including an ambiguous commit acknowledgement) cannot drop the
         # pending identity: the host may retry or reconcile it.
-        self._spend.settle(request_id, outcome=SETTLED, cost_micros=cost)
+        self._spend.settle(
+            request_id,
+            outcome=SETTLED,
+            cost_micros=cost,
+            cost_basis=COST_BASIS_ESTIMATED,
+            evidence_ref=evidence_ref,
+        )
         del self._open[request_id]
         return True
 
@@ -115,13 +145,17 @@ class SpendGatedAdmission:
         """Close the turn. Every still-open call never reported an outcome.
 
         Returns the ids, so the caller can record in the turn receipt which calls are
-        unresolved instead of asserting that everything was priced.
+        unresolved instead of asserting that everything was priced. The cost is
+        ``None`` rather than ``0``: unknown is not free (contract §12.4).
         """
+
         open_ids = tuple(self._open)
         for request_id in open_ids:
             # The port is responsible for durable, request-idempotent settlement.
             # Keep this identity on failure so the caller can retry settlement.
-            self._spend.settle(request_id, outcome=UNRESOLVED, cost_micros=0)
+            self._spend.settle(
+                request_id, outcome=UNRESOLVED, cost_micros=None, cost_basis=None
+            )
             del self._open[request_id]
         return open_ids
 

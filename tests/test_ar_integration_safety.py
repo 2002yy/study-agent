@@ -182,7 +182,15 @@ def test_v25_upgrade_failure_rolls_back_and_backup_remains_usable(
             row[0] for row in connection.execute(
                 "SELECT name FROM sqlite_master WHERE name LIKE 'llm_spend_%'"
             )
-        } == {"llm_spend_experiments", "llm_spend_reservations"}
+        } == {
+            "llm_spend_experiments",
+            "llm_spend_reservations",
+            # Migration 30: the settlement audit and its append-only guards.
+            "llm_spend_settlements",
+            "llm_spend_settlement_epoch",
+            "llm_spend_settlements_append_only_update",
+            "llm_spend_settlements_append_only_delete",
+        }
     with sqlite3.connect(backup) as connection:
         assert (
             connection.execute(
@@ -212,7 +220,15 @@ def test_v25_upgrade_failure_rolls_back_and_backup_remains_usable(
             row[0] for row in connection.execute(
                 "SELECT name FROM sqlite_master WHERE name LIKE 'llm_spend_%'"
             )
-        } == {"llm_spend_experiments", "llm_spend_reservations"}
+        } == {
+            "llm_spend_experiments",
+            "llm_spend_reservations",
+            # Migration 30: the settlement audit and its append-only guards.
+            "llm_spend_settlements",
+            "llm_spend_settlement_epoch",
+            "llm_spend_settlements_append_only_update",
+            "llm_spend_settlements_append_only_delete",
+        }
 
 
 @pytest.mark.parametrize("failure", [TimeoutError, asyncio.CancelledError])

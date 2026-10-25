@@ -1,4 +1,4 @@
-"""M3-QD-2d: one production turn - start, cancel, disconnect, settle once.
+﻿"""M3-QD-2d: one production turn - start, cancel, disconnect, settle once.
 
 These drive the real ``OwnedConversationBinding`` over real SQLite snapshots and a real
 SDK pointed at fake HTTP, because the question under test is precisely whether the host
@@ -63,11 +63,19 @@ class RecordingSpend:
         self.reserved: list[tuple[str, str, int]] = []
         self.settled: list[tuple[str, str, int]] = []
 
-    def reserve(self, request_id, *, model, max_output_tokens):
+    def reserve(self, request_id, *, model, max_output_tokens, prompt_chars):
         self.reserved.append((request_id, model, max_output_tokens))
         return "refused" if self.refuse else "reserved"
 
-    def settle(self, request_id, *, outcome, cost_micros):
+    def settle(
+        self,
+        request_id,
+        *,
+        outcome,
+        cost_micros,
+        cost_basis=None,
+        evidence_ref="",
+    ):
         self.settled.append((request_id, outcome, cost_micros))
 
     @property
@@ -318,7 +326,7 @@ def test_an_admitted_call_that_never_reported_is_closed_as_unresolved(tmp_path):
         turn = lifecycle(binding, gate)
         await drain(turn.stream(snapshot))
 
-        assert ("reselect:stranded", "unresolved", 0) in spend.settled
+        assert ("reselect:stranded", "unresolved", None) in spend.settled
         assert turn.settlement.unresolved == ("reselect:stranded",)
         assert not turn.settlement.complete
         assert gate.open_request_ids == ()
@@ -442,11 +450,19 @@ def test_failed_completed_settlement_keeps_identity_for_safe_retry():
             super().__init__()
             self.fail_once = True
 
-        def settle(self, request_id, *, outcome, cost_micros):
+        def settle(
+            self, request_id, *, outcome, cost_micros, cost_basis=None, evidence_ref=""
+        ):
             if self.fail_once:
                 self.fail_once = False
                 raise OSError("ledger_unavailable")
-            super().settle(request_id, outcome=outcome, cost_micros=cost_micros)
+            super().settle(
+                request_id,
+                outcome=outcome,
+                cost_micros=cost_micros,
+                cost_basis=cost_basis,
+                evidence_ref=evidence_ref,
+            )
 
     spend = FlakySpend()
     gate = SpendGatedAdmission(
@@ -457,10 +473,10 @@ def test_failed_completed_settlement_keeps_identity_for_safe_retry():
     )
     assert gate.reserve("a", 1, 4) == "reserved"
     with pytest.raises(OSError, match="ledger_unavailable"):
-        gate.settle_completed("a")
+        gate.settle_completed("a", evidence_ref="worker_receipt:a#test")
     assert gate.open_request_ids == ("a",)
-    assert gate.settle_completed("a") is True
-    assert gate.settle_completed("a") is False
+    assert gate.settle_completed("a", evidence_ref="worker_receipt:a#test") is True
+    assert gate.settle_completed("a", evidence_ref="worker_receipt:a#test") is False
     assert spend.settled == [("a", "settled", 4)]
 
 
@@ -470,11 +486,19 @@ def test_failed_unresolved_settlement_keeps_pending_requests_for_retry():
             super().__init__()
             self.fail_once = True
 
-        def settle(self, request_id, *, outcome, cost_micros):
+        def settle(
+            self, request_id, *, outcome, cost_micros, cost_basis=None, evidence_ref=""
+        ):
             if self.fail_once:
                 self.fail_once = False
                 raise OSError("ledger_unavailable")
-            super().settle(request_id, outcome=outcome, cost_micros=cost_micros)
+            super().settle(
+                request_id,
+                outcome=outcome,
+                cost_micros=cost_micros,
+                cost_basis=cost_basis,
+                evidence_ref=evidence_ref,
+            )
 
     spend = FlakySpend()
     gate = SpendGatedAdmission(
@@ -490,7 +514,7 @@ def test_failed_unresolved_settlement_keeps_pending_requests_for_retry():
     assert gate.open_request_ids == ("a", "b")
     assert gate.settle_unresolved() == ("a", "b")
     assert gate.open_request_ids == ()
-    assert spend.settled == [("a", "unresolved", 0), ("b", "unresolved", 0)]
+    assert spend.settled == [("a", "unresolved", None), ("b", "unresolved", None)]
 
 
 def test_a_reserve_only_ledger_is_refused_rather_than_inventing_settlement():
@@ -516,7 +540,7 @@ def test_the_gate_stops_reserving_once_the_turn_closes(tmp_path):
         price_micros=lambda tokens: tokens,
     )
     assert gate.reserve("a", 1, 1) == "reserved"
-    assert gate.settle_completed("a") is True
-    assert gate.settle_completed("a") is False
+    assert gate.settle_completed("a", evidence_ref="worker_receipt:a#test") is True
+    assert gate.settle_completed("a", evidence_ref="worker_receipt:a#test") is False
     assert gate.settle_unresolved() == ()
     assert gate.open_request_ids == ()

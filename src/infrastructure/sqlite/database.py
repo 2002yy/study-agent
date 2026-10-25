@@ -14,8 +14,11 @@ from src.infrastructure.sqlite.research_authorization_schema import (
 )
 from src.infrastructure.sqlite.research_event_schema import RESEARCH_EVENT_MIGRATION_V28
 from src.infrastructure.sqlite.research_state_schema import RESEARCH_STATE_MIGRATION_V27
+from src.infrastructure.sqlite.spend_settlement_schema import (
+    LLM_SPEND_SETTLEMENT_MIGRATION_V30,
+)
 
-SCHEMA_VERSION = 29
+SCHEMA_VERSION = 30
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -599,6 +602,10 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     # 29 is QD-3d's termination and authorisation: the cancellation timestamp, the
     # in-flight call count, and the tier-upgrade request/authorisation tables.
     (29, RESEARCH_TIER_MIGRATION_V29),
+    # 30 is CL-M3-S1's settlement audit: what was later learned about each send. It
+    # appends observations and never moves money - the reservation tables are untouched
+    # (see the contract's §12 and the module docstring for the epoch watermark).
+    (30, LLM_SPEND_SETTLEMENT_MIGRATION_V30),
 )
 
 

@@ -49,13 +49,28 @@ class FakeLedger:
         self.reserved: list[str] = []
         self.settled: list[tuple[str, str, int]] = []
 
-    def reserve(self, request_id: str, *, model: str, max_output_tokens: int) -> str:
+    def reserve(
+        self,
+        request_id: str,
+        *,
+        model: str,
+        max_output_tokens: int,
+        prompt_chars: int,
+    ) -> str:
         if self.refuse:
             return "refused"
         self.reserved.append(request_id)
         return "reserved"
 
-    def settle(self, request_id: str, *, outcome: str, cost_micros: int) -> None:
+    def settle(
+        self,
+        request_id: str,
+        *,
+        outcome: str,
+        cost_micros: int | None,
+        cost_basis: str | None = None,
+        evidence_ref: str = "",
+    ) -> None:
         self.settled.append((request_id, outcome, cost_micros))
 
 
@@ -194,7 +209,7 @@ def test_a_timeout_keeps_the_reservation_and_is_never_reported_as_a_refund():
     wrapper, _, ledger = build(timing_out)
     with pytest.raises(TimeoutError):
         wrapper(messages=messages(), timeout=1, task_name=task(0))
-    assert ledger.settled == [(task(0), UNRESOLVED, 0)]
+    assert ledger.settled == [(task(0), UNRESOLVED, None)]
     assert wrapper.calls[-1].outcome == UNRESOLVED
 
 
@@ -215,7 +230,7 @@ def test_a_provider_error_without_a_presend_receipt_keeps_money_reserved(error):
     wrapper, _, ledger = build(broken)
     with pytest.raises(type(error)):
         wrapper(messages=messages(), timeout=1, task_name=task(0))
-    assert ledger.settled == [(task(0), UNRESOLVED, 0)]
+    assert ledger.settled == [(task(0), UNRESOLVED, None)]
     assert wrapper.calls[-1].outcome == UNRESOLVED
 
 

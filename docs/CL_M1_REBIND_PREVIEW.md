@@ -3108,7 +3108,7 @@ QD-3e 的交付、主线集成、费用账本兼容、产品验收是**四件事
 | 7 | **R-6 授权三处修复 + 取消终态保护** | **已完成，见 §34.10.6**（`cd7a73b6`） |
 | 7b | **R-6 第四个洞：非有限上限（`Infinity`/`NaN`）** | **已完成，见 §34.14**（P1 输入边界） |
 | 8 | **R-6 授权链路接入生产装配** | 未做（`apply_upgrade()` 目前**无生产调用方**，`src/api/routes/` 下**无** tier 路由） |
-| 9 | 费用账本适配 | **合同已冻结，见合同 §12 / 本节 §34.15**（原 §34.11 C1–C5，C3 已被替代）；**实现未开始**，属独立静态切片 |
+| 9 | 费用账本适配 | **合同已冻结（合同 §12 / 本节 §34.15）；离线结算审计已实现（§34.16）**；**生产接线未做** |
 | 10 | **主线集成 CI 在最终 HEAD 上跑绿 + 记录精确 HEAD** | **已完成，见 §34.12.6**（run `40120074936`，HEAD `c7c1236b`，6142 passed） |
 
 **第 9 项的补充：费用账本的接口形态已经变了（合并 main 时发现）**
@@ -3790,3 +3790,79 @@ llm_spend_settlements(
 - 不合并 `main`；全量 L3 欠账保留；
 - 合同本身**尚未被护栏强制执行**——每条规则要在实现切片里配一条能被牙齿检验的用例，
   否则它只是一段描述。下一刀是**独立的静态实现切片**。
+
+### 34.16 CL-M3-S1：结算审计的离线实现（2026-10-25）
+
+合同 §12 冻结后的第一个实现切片。**没有接生产执行入口**：这一刀只让
+"预留 / 发送 / 观察"三件事各自可核实，不让 Study Agent 开始花钱。
+
+#### 34.16.1 交付物
+
+| 层 | 文件 | 内容 |
+| --- | --- | --- |
+| 迁移 | `src/infrastructure/sqlite/spend_settlement_schema.py` | 迁移 30：`llm_spend_settlements`、`llm_spend_settlement_epoch`、两个 append-only 触发器、outcome 索引 |
+| 存储 | `src/infrastructure/sqlite/spend_settlement.py` | `SpendSettlementRepository`：原子追加、按内容幂等、冲突拒绝、单次更正、欠账差集、超界派生 |
+| 适配 | `src/application/spend_settlement_adapter.py` | `SettlementLedgerAdapter`：`reserve` 走既有 `reserve_call`，`settle` 只写观测表 |
+| 词汇 | `src/domain/spend_settlement.py` | 状态 / 成本口径 / 证据语法与状态机白名单 |
+| 端口 | `src/web/semantic_admission.py`、`src/application/conversation_spend_gate.py`、`conversation_turn_lifecycle.py` | `LedgerPort` 表达"未知成本"与证据；完成调用必须带证据；unresolved 传 `None` 而非 `0` |
+
+预留金额算法、`SpendLedger` 的 `reserve` / `experiment_spend`、cap 语义**一字未改**。
+
+#### 34.16.2 五条实现边界的落点
+
+1. **并发幂等统一**：判定"同一次观察"按内容 `(outcome, cost, basis, evidence)`，
+   时间戳不参与比较。于是两次并发提交**相同**的 `unresolved → settled`：
+   一次追加 revision 2，另一次读到同内容后幂等成功；只有内容不同才抛
+   `SettlementConflict`。§12.3 与 §12.6 的措辞冲突由这条实现规则统一。
+2. **无真实预算一律拒绝**：`reserve_call` 在未配置 cap 时返回 `0.0`；
+   适配器把它、以及"账本说成功但读不回正数预留行"都判为 `cost_ledger_refused`。
+   没有 experiment、没有持久行、金额为 0，都不算预留成功。
+3. **约束在存储层生效**：写连接显式 `PRAGMA foreign_keys = ON`（外键指向
+   `llm_spend_reservations(experiment_id, request_key)`）；`UPDATE` / `DELETE`
+   由触发器 `RAISE(ABORT)`；负控直接用裸连接执行这两种语句，断言
+   `append-only`。
+4. **凭据必须绑定本次发送**：`evidence_ref` 语法
+   `<kind>:<request_key>#<receipt>`，`kind` 闭集
+   `{provider_result, worker_receipt, offline_fixture}`；键不匹配即
+   `evidence_not_bound_to_request`。`settled` 与 `failed` 都必须带凭据，
+   空串连数据库 CHECK 都过不去。离线测试使用 `offline_fixture`。
+5. **历史预留不是欠账**：迁移 30 记录 `audited_from_reservation_id =
+   MAX(reservation_id)`；恢复扫描只统计其后的预留。v29 库升级时既有预留
+   保持原样，且不出现在欠账清单里。
+
+#### 34.16.3 状态与成本口径的负控（48 条新用例）
+
+`tests/test_spend_settlement.py`：
+
+| 组 | 条数 | 断言要点 |
+| --- | --- | --- |
+| 迁移 | 6 | 新库到 30、v29 升级保留预留且不误报、重复初始化、迁移中途失败回滚、外键真实生效 |
+| 成本 | 5 | 未知 = `NULL/NULL`；`0` 是事实且必须带 basis；金额与 basis 必须同时存在；负数 / bool / float / 字符串拒绝 |
+| 凭据 | 6 | 无凭据、错键、空 receipt、自由文本、未知 kind、带空格 receipt 全部拒绝且不落行 |
+| 幂等 / 更正 | 6 | 重放不加修订；`unresolved → settled` 恰好一次；`settled` 不得回退、不得二次更正为 `measured_usage`；`failed` 终态 |
+| 身份 | 2 | 无预留、跨 experiment 一律拒绝且零行 |
+| append-only | 2 | 裸连接 `UPDATE` / `DELETE` 被触发器拒绝 |
+| 并发 | 2 | 相同更正：两调用都成功、只多一条修订；不同更正：恰好一个成功、另一个 `SettlementConflict` |
+| 金额不变量 | 2 | 结算前后 `experiment_spend()` 四个数字相同；预留行逐字段不变 |
+| 欠账扫描 | 3 | 有预留无观测即欠账；结算后消失；**真实子进程在预留后 `os._exit(7)`，重启仍能发现** |
+| 超界 | 3 | 观测超过预留即超界；不改预留与 cap；界内不算超界 |
+| 适配器 | 7 | 无预算拒绝；一次发送只留一行；同键二次预留拒绝；适配器结算落库；未知请求拒绝；同键跨 experiment 歧义拒绝；超界阻断后续预留 |
+
+#### 34.16.4 变异验证（三类护栏确实有牙）
+
+对仓库实现做定点变异，只跑对应用例，随后恢复：
+
+| 变异 | 结果 |
+| --- | --- |
+| 删除"同内容即幂等"分支 | **KILLED**：重放与并发相同更正两条用例失败 |
+| 结算时顺便改写预留金额（模拟把观测当账本） | **KILLED**：四个数字不变量与预留行不变两条用例失败 |
+| 删除状态转换白名单 | **KILLED**：回退、二次更正、`failed` 终态共 4 条用例失败 |
+
+#### 34.16.5 验证与边界
+
+- L1 影响集（新增文件 + admission/turn/lifecycle + 账本/预算 + 迁移/版本相关 13 个文件）：
+  **213 passed**；
+- Ruff 干净；mypy baseline 门禁通过（`current=124, baseline=128, resolved=4`）；
+- **不运行全量 L3**，不调用付费模型，不接生产装配，不合并 `main`；
+- 合同 §12.7 的适配器超界保护只覆盖"经过适配器"的路径；绕过适配器直接调用
+  `SpendLedger.reserve` 仍不受保护——这是**接线切片**必须解决的问题，本节不宣称已解决。

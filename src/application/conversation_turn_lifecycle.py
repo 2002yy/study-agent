@@ -39,6 +39,7 @@ from src.application.conversation_decision_runner import DecisionResult
 from src.application.conversation_loop_session import ConversationLoopSession
 from src.application.conversation_owned_binding import OwnedConversationBinding
 from src.application.conversation_spend_gate import SpendGatedAdmission
+from src.domain.spend_settlement import EVIDENCE_WORKER_RECEIPT, evidence_ref
 from src.web.action_window import MAX_ACTION_SECONDS, ActionTimePolicy
 
 # ``LoopLimits`` refuses anything above this, so the host caps rather than constructs an
@@ -213,8 +214,19 @@ class TurnLifecycle:
         """Book the calls this event proves completed. Everything else stays open."""
         if isinstance(event, DecisionResult):
             if event.status == "completed" and event.proposal is not None:
-                if self._gate.settle_completed(event.proposal.request_id):
-                    self._settled.append(event.proposal.request_id)
+                identity = event.proposal.request_id
+                # The loop's own decision result is the receipt for this send: it
+                # names the request it belongs to, so the audit cannot attach it to
+                # a different call.
+                if self._gate.settle_completed(
+                    identity,
+                    evidence_ref=evidence_ref(
+                        kind=EVIDENCE_WORKER_RECEIPT,
+                        request_key=identity,
+                        receipt=f"decision:{event.status}",
+                    ),
+                ):
+                    self._settled.append(identity)
             return
         if isinstance(event, ActionEvent) and event.stage == ConversationAction.ANSWER:
             if event.status != "observed" or self._session is None:
@@ -223,7 +235,14 @@ class TurnLifecycle:
             # successful answer would otherwise close as "unresolved" - conservative for
             # the budget and wrong for the report.
             identity = answer_reservation_id(self._session.receipt.request_id)
-            if self._gate.settle_completed(identity):
+            if self._gate.settle_completed(
+                identity,
+                evidence_ref=evidence_ref(
+                    kind=EVIDENCE_WORKER_RECEIPT,
+                    request_key=identity,
+                    receipt="answer:observed",
+                ),
+            ):
                 self._settled.append(identity)
 
     async def stream(self, prepared: object) -> AsyncGenerator[LoopEvent, None]:
