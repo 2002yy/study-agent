@@ -4535,3 +4535,47 @@ S2-C 的 C1–C4（自动路由、多轮研究反馈、回答/事件闭环、前
 
 未开始：C2 多轮观察反馈、C3 回答/事件闭环、C4 前端旅程。开关仍 OFF；
 未调用付费模型、未跑 L3、未合并 main。
+
+### 34.32 S2-C2：第二轮查询由第一轮观察决定（2026-10-26）
+
+**链路**（全部离线；假模型 + 假搜索 + 真实 SQLite + 真实路由）：
+
+```
+ExternalDataPolicyChatService.start_turn
+  → decide_web_use（C1b 门控，research → 允许）
+  → PersistentWebToolAgent.resolve
+      → 自动升级判定 should_use_deep_research（未传 deep 参数）
+      → _resolve_deep_research
+          → WebLookupService（真实 WebLookupRepository / SQLite）
+              round 1：search → read → notes / memo
+              revise(memo, notes, remaining)：读取第一轮正文
+              round 2：执行 revise 追加的子问题
+```
+
+**测试**：`tests/test_research_observation_feedback.py`（2 条）。
+
+| 用例 | 断言 |
+| --- | --- |
+| 观察驱动的第二轮 | 第一轮搜索初始子问题并读取页面；planner 的 `notes` 确实包含第一轮正文中的标记 `OMEGA-42`；planner 据此产出 `OMEGA-42 follow up baseline`；该查询真的成为第二轮搜索；持久化 `WebLookupRun.query_attempts` 的 round 集合为 `{1, 2}`；聊天回合的 `rag_snapshot.web_tools.run_id` 指向同一运行；`research_mode == "deep"` 由系统自动升级，而非调用方指定 |
+| 无观察负控 | 第一轮页面不含标记时 planner 不追加查询：只有 1 次搜索、round 集合 `{1}`、不存在含标记的查询 |
+
+关键点：假 planner **没有预先写死第二轮查询**，它只能从 `notes` 正文里提取标记后生成；
+因此“第二轮查询含标记”等价于“第一轮观察确实抵达 planner 且结果被真正执行”。
+
+**反向变异**（均已还原）：
+
+- 把 `revise` 的 `notes` 参数改为空列表 → 观察驱动用例失败；
+- 忽略 `verdict["additional"]`、不追加子问题 → 第二轮搜索用例失败。
+
+影响集 **315 passed, 1 skipped**（研究运行、深度研究、协调器、聊天门控、外部数据策略、
+恢复与语义相关）；Ruff 干净。
+
+**发现并留到 C3 的前置缺陷**：`_resolve_deep_research` 返回的
+`web_search`/`web_read` 调用只是摘要形状（`status: read`、`facts_excerpt`，且 search
+没有 `results` 列表），不满足 `trusted_tool_calls()` 的证据口径。因此深度研究虽然
+真实读过正文并驱动了第二轮，但 `web_tools["calls"]`/`context_block()`/`used` 目前为空，
+最终回答拿不到这些证据。C3 必须先修正深度证据的投影（可追溯 URL + 已读正文），
+不得把“深度研究跑过”误当成“回答有证据”。
+
+C3（回答/来源/事件闭环）与 C4（前端旅程）尚未开始。开关仍 OFF；未调用付费模型、
+未跑 L3、未合并 main。
