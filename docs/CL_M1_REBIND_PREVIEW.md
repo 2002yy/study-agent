@@ -4146,3 +4146,43 @@ HMAC-SHA256（进程内密钥）。签发只有一个入口：适配器在**持�
   跨重启失效各一条）；
 - 影响集 **186 passed**；Ruff 干净；mypy `124/128, resolved=4`；
 - 变异 **3/3 KILLED**：去掉成本核算、去掉"一预留一授权"、接受跨重启旧 token。
+
+### 34.22 S2-B1（第一段）：入口归属冻结与研究线程身份（2026-10-25）
+
+S2-B1 的第一段只做两件事：冻结"谁拥有这笔钱"，并修掉一个已核实的跨线程身份缺口。
+**未接生产、默认关闭、不调用付费模型。**
+
+#### 34.22.1 入口归属（冻结，接线前不得更改而不记录）
+
+| 调用入口 | 目标费用所有者 | 现状 | S2-B1 待办 |
+| --- | --- | --- | --- |
+| 普通聊天 / 流式回答 | 宿主统一准入（`AdmittedCompletion` 之上的宿主层） | `llm_client` 传输层自行预留，无观测 | 绑定发送身份与观测；关闭新路径上的传输层独立预留（`pre_reserved_send`） |
+| 研究语义轮 | `AdmittedCompletion` | 经由 `configured_completion`，传输层预留，无观测 | `task_name` 规范为 `operation#round#stage`；核对线程费用上下文 |
+| 研究决策 / 最终回答 | `SpendGatedAdmission` + `TurnLifecycle` | 组件存在，无生产构造 | 让 `TurnLifecycle` 真正 claim 并消费授权；回合结束结算 |
+| 图片描述 | 独立受控视觉准入 | `attachment_vision` 直接 `reserve_call`，无观测 | 能统一则统一；未接线前在受控实验模式**关闭** |
+| 多轮工具调用 | 每次真实发送独立准入 | 未接 | 每轮独立 `request_key` / 预留 / 观测，不共用一张单次授权 |
+
+硬约束（与合同一致）：一次真实发送 = 一笔预留 = 一条观测。
+无法统一的入口必须**显式关闭或隔离**，不能默认为安全。
+
+#### 34.22.2 已核实的跨线程缺口与修复
+
+`ResearchSemanticSession.request` 通过 `ThreadPoolExecutor.submit(...)` 调用
+completion，而费用身份是 `ContextVar`。线程池**不继承**提交线程的上下文：
+
+```text
+main:   set-in-main
+worker: missing
+```
+
+后果有两层：传输层在 worker 里读不到身份，付费调用被拒（fail closed，但研究轮
+直接失败）；接线后更危险的是"预留按一个身份、观测归不到任何身份"。
+
+修法：提交 `contextvars.copy_context().run`，把提交时的上下文带进 worker。
+负控 `tests/test_semantic_thread_identity.py` 在 worker 内读取
+`current_identity()` 并断言等于主线程绑定值；去掉 `copy_context` 后 worker 读到
+`None`，用例失败（已实测）。
+
+仍未做的（第二段）：把上表每一行接成唯一所有者、为无法统一的入口留下"关闭证据"，
+并补"一次发送对应一笔预留与一条可审计观测"的装配级测试。在此之前功能开关保持
+**OFF**。
