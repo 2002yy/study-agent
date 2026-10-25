@@ -56,6 +56,8 @@ from typing import Iterator
 
 from src.infrastructure.sqlite.spend_ledger import (
     MICROS_PER_CNY,
+    AdmissionGuard,
+    SpendAdmissionRefused,
     SpendCapExceeded,
     SpendLedger,
     SpendLedgerConflict,
@@ -69,6 +71,7 @@ __all__ = [
     "SpendCapExceeded",
     "SpendConfigurationError",
     "SpendIdentity",
+    "SpendAdmissionRefused",
     "SpendLedgerConflict",
     "SpendLedgerError",
     "SpendLedgerUnavailable",
@@ -78,6 +81,7 @@ __all__ = [
     "compose_request_key",
     "new_scope",
     "pop_scope",
+    "pre_reserved_call",
     "push_scope",
     "current_identity",
     "current_scope",
@@ -210,6 +214,31 @@ class SpendScope:
 
 
 _scope: ContextVar[SpendScope | None] = ContextVar("llm_spend_scope", default=None)
+
+# The admission layer that owns the reservation for a send binds its key here for
+# the duration of the actual call. The transport is then allowed to send, but not
+# to reserve again: two reservations for one send is two charges for one answer.
+_pre_reserved: ContextVar[str | None] = ContextVar(
+    "llm_spend_pre_reserved", default=None
+)
+
+
+@contextmanager
+def pre_reserved_call(request_key: str) -> Iterator[str]:
+    """Mark one send as already reserved by an outer admission layer.
+
+    ``reserve_call`` inside this scope does not write a reservation. It also
+    refuses to proceed under a *different* explicit key, because that would be a
+    second send hiding inside the first one's authority.
+    """
+
+    if not isinstance(request_key, str) or not request_key:
+        raise SpendConfigurationError("pre_reserved_call needs a request key")
+    token = _pre_reserved.set(request_key)
+    try:
+        yield request_key
+    finally:
+        _pre_reserved.reset(token)
 
 
 def new_scope(
@@ -484,6 +513,7 @@ def reserve_call(
     model: str = "",
     request_key: str | None = None,
     identity: SpendIdentity | None = None,
+    admission_guard: AdmissionGuard | None = None,
 ) -> float:
     """Reserve the worst case before a request; raise when it cannot fit.
 
@@ -500,6 +530,20 @@ def reserve_call(
     cap = spend_cap_cny()
     experiment = experiment_id()
     experiment_cap = experiment_cap_cny() if experiment else None
+
+    # Already reserved by the admission layer for this exact send. Sending is
+    # allowed; reserving a second time is not. An explicit *different* key is
+    # refused rather than merged: it names another send, and letting it through
+    # would bill twice for one answer.
+    pre_reserved = _pre_reserved.get()
+    if pre_reserved is not None:
+        if request_key is not None and request_key != pre_reserved:
+            raise SpendConfigurationError(
+                "this send is already reserved under a different request key; "
+                "a second reservation would buy the same call twice"
+            )
+        return 0.0
+
     if cap is None and experiment_cap is None:
         return 0.0
     if experiment and experiment_cap is None:
@@ -561,6 +605,7 @@ def reserve_call(
                     model=model,
                     identity=(resolved_identity.describe() if resolved_identity else ""),
                     now=_utc_now(),
+                    admission_guard=admission_guard,
                 )
             except SpendCapExceeded as exc:
                 # Callers already handle one "the cap stopped this call" signal.

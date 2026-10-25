@@ -154,6 +154,26 @@ def _same_observation(left: SettlementRecord, right: SettlementRecord) -> bool:
     )
 
 
+# One predicate, used by the reporting read and by the in-transaction admission
+# guard. Two copies of "what counts as an overrun" would eventually disagree, and
+# the disagreement would show up as money.
+_OVERRUN_SELECT = (
+    "SELECT r.experiment_id, r.request_key, r.amount_micros "
+    "FROM llm_spend_reservations r "
+    "JOIN llm_spend_settlements s "
+    "  ON s.experiment_id = r.experiment_id "
+    " AND s.request_key = r.request_key "
+    "WHERE r.experiment_id = ? "
+    "  AND s.cost_micros IS NOT NULL "
+    "  AND s.cost_micros > r.amount_micros "
+    "  AND s.revision = ("
+    "    SELECT MAX(x.revision) FROM llm_spend_settlements x "
+    "    WHERE x.experiment_id = s.experiment_id "
+    "      AND x.request_key = s.request_key"
+    "  )"
+)
+
+
 class SpendSettlementRepository:
     """Append observations about real sends. Never touches the money tables."""
 
@@ -535,20 +555,7 @@ class SpendSettlementRepository:
         try:
             self._require_tables(connection)
             rows = connection.execute(
-                "SELECT r.experiment_id, r.request_key, r.amount_micros "
-                "FROM llm_spend_reservations r "
-                "JOIN llm_spend_settlements s "
-                "  ON s.experiment_id = r.experiment_id "
-                " AND s.request_key = r.request_key "
-                "WHERE r.experiment_id = ? "
-                "  AND s.cost_micros IS NOT NULL "
-                "  AND s.cost_micros > r.amount_micros "
-                "  AND s.revision = ("
-                "    SELECT MAX(x.revision) FROM llm_spend_settlements x "
-                "    WHERE x.experiment_id = s.experiment_id "
-                "      AND x.request_key = s.request_key"
-                "  ) "
-                "ORDER BY r.reservation_id ASC",
+                _OVERRUN_SELECT + " ORDER BY r.reservation_id ASC",
                 (_identifier(experiment_id),),
             ).fetchall()
         finally:
@@ -561,3 +568,22 @@ class SpendSettlementRepository:
             )
             for row in rows
         )
+
+    def admission_guard(
+        self, connection: sqlite3.Connection, experiment_id: str
+    ) -> str | None:
+        """The refusal reason for a new send, evaluated in the caller's transaction.
+
+        Passed to :meth:`SpendLedger.reserve` so the read happens inside the
+        ``BEGIN IMMEDIATE`` that is about to insert the reservation, on the same
+        connection. That is what closes the race: an observation committed before
+        the transaction is visible here, and one committed after it is serialised
+        after the reservation. A check performed before the transaction sees a
+        stale snapshot, and the write proceeds anyway.
+        """
+
+        row = connection.execute(
+            "SELECT 1 FROM (" + _OVERRUN_SELECT + ") LIMIT 1",
+            (_identifier(experiment_id),),
+        ).fetchone()
+        return None if row is None else "cost_upper_bound_invalidated"

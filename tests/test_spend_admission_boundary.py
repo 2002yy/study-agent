@@ -1,0 +1,420 @@
+"""CL-M3-S2-A: the paid-entry boundary - one reservation, one check, one send.
+
+Three properties are tested here, each with a failure shape that is invisible to
+unit tests of the pieces:
+
+1. **One send reserves once.** The admission layer reserves; the transport (which
+   also knows how to reserve) must not reserve a second time under its own key.
+   Otherwise one answer is charged twice, and both charges look individually
+   correct.
+2. **The overrun check and the reservation are one decision.** A check performed
+   before the write transaction reads a stale snapshot; an overrun observation
+   that commits in between is invisible and the reservation is written anyway.
+   The test forces that ordering with a second connection holding an uncommitted
+   overrun, not with a thread lock.
+3. **Evidence has a declared strength.** A fixture proves that a caller can type;
+   it must not confirm a completion in a production adapter. A host receipt is
+   accepted, and is labelled as host-attested rather than provider-billed.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+import threading
+from pathlib import Path
+
+import pytest
+
+from src.application.spend_settlement_adapter import (
+    COST_UPPER_BOUND_INVALIDATED,
+    RESERVED,
+    SettlementLedgerAdapter,
+)
+from src.domain.spend_settlement import (
+    COST_BASIS_ESTIMATED,
+    COST_BASIS_MEASURED_USAGE,
+    EVIDENCE_LEVEL_HOST_ATTESTED,
+    EVIDENCE_LEVEL_TEST_ONLY,
+    SETTLEMENT_SETTLED,
+    SettlementEvidenceError,
+    evidence_level,
+    evidence_ref,
+)
+from src.infrastructure.sqlite.database import RuntimeDatabase
+from src.infrastructure.sqlite.spend_ledger import (
+    SpendAdmissionRefused,
+    SpendLedger,
+)
+from src.infrastructure.sqlite.spend_settlement import SpendSettlementRepository
+from src.llm_spend_guard import (
+    SpendConfigurationError,
+    pre_reserved_call,
+    reset_spend,
+    reserve_call,
+    spend_identity,
+)
+from src.web.semantic_admission import AdmittedCall, AdmittedCompletion, SETTLED
+
+NOW = "2026-10-25T00:00:00+00:00"
+EXPERIMENT = "admission-experiment"
+CAP_MICROS = 10_000_000
+
+
+@pytest.fixture(autouse=True)
+def _clean_spend(monkeypatch):
+    reset_spend()
+    for name in (
+        "LLM_SPEND_CAP_CNY",
+        "LLM_SPEND_INPUT_CNY_PER_MTOK",
+        "LLM_SPEND_OUTPUT_CNY_PER_MTOK",
+        "LLM_SPEND_DEFAULT_MAX_TOKENS",
+        "LLM_SPEND_EXPERIMENT_ID",
+        "LLM_SPEND_EXPERIMENT_CAP_CNY",
+        "LLM_SPEND_LEDGER_DB",
+        "LLM_EXPERIMENT_ALLOWED_MODELS",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    yield
+    reset_spend()
+
+
+@pytest.fixture
+def database(tmp_path):
+    path = tmp_path / "runtime.sqlite"
+    RuntimeDatabase(path).initialize()
+    return path
+
+
+@pytest.fixture
+def ledger(database):
+    instance = SpendLedger(database, busy_timeout_ms=8_000)
+    instance.ensure_experiment(
+        EXPERIMENT, cap_micros=CAP_MICROS, pricing_fingerprint="p", now=NOW
+    )
+    return instance
+
+
+def _reserve(ledger, key="key-1", amount=500, **kwargs):
+    return ledger.reserve(
+        EXPERIMENT,
+        request_key=key,
+        amount_micros=amount,
+        purpose="chat:deep_planner",
+        model="deepseek-chat",
+        identity="run=run1 op=op1 inv=1",
+        now=NOW,
+        **kwargs,
+    )
+
+
+def _configure(monkeypatch, database: Path) -> None:
+    monkeypatch.setenv("LLM_SPEND_LEDGER_DB", str(database.resolve()))
+    monkeypatch.setenv("LLM_SPEND_EXPERIMENT_ID", EXPERIMENT)
+    monkeypatch.setenv("LLM_SPEND_EXPERIMENT_CAP_CNY", "10")
+    monkeypatch.setenv("LLM_SPEND_INPUT_CNY_PER_MTOK", "1")
+    monkeypatch.setenv("LLM_SPEND_OUTPUT_CNY_PER_MTOK", "1")
+
+
+def _identity():
+    return spend_identity(
+        run_id="run1", operation_id="op1", invocation="1", experiment=EXPERIMENT
+    )
+
+
+def _count(path: Path, table: str, where: str = "1=1", parameters: tuple = ()) -> int:
+    with sqlite3.connect(path) as connection:
+        return connection.execute(
+            f"SELECT COUNT(*) FROM {table} WHERE {where}", parameters
+        ).fetchone()[0]
+
+
+# -- 2. the check and the write are one decision -----------------------------------
+
+
+def test_the_guard_refuses_inside_the_reservation_transaction(ledger, database):
+    def refuse(connection, experiment_id):
+        assert experiment_id == EXPERIMENT
+        return "cost_upper_bound_invalidated"
+
+    with pytest.raises(SpendAdmissionRefused) as refused:
+        _reserve(ledger, key="key-2", amount=100, admission_guard=refuse)
+
+    assert refused.value.reason == "cost_upper_bound_invalidated"
+    assert _count(database, "llm_spend_reservations") == 0
+
+
+def test_an_overrun_committed_during_the_reservation_window_still_blocks(
+    ledger, database
+):
+    """The P1 race, forced with two real connections.
+
+    Connection B holds an uncommitted overrun for ``key-1``. The reserving thread
+    starts while B still holds the write lock, so any check made *outside* the
+    transaction reads the old state and lets the reservation through. The guard
+    inside ``BEGIN IMMEDIATE`` waits for B, then sees the committed row.
+    """
+
+    _reserve(ledger, key="key-1", amount=500)
+    repository = SpendSettlementRepository(database)
+    blocker = sqlite3.connect(database, timeout=10.0)
+    blocker.execute("PRAGMA foreign_keys = ON")
+    blocker.execute("BEGIN IMMEDIATE")
+    blocker.execute(
+        "INSERT INTO llm_spend_settlements("
+        "experiment_id, request_key, revision, outcome, cost_micros, cost_basis, "
+        "evidence_ref, observed_at"
+        ") VALUES (?, ?, 1, 'settled', ?, ?, ?, ?)",
+        (
+            EXPERIMENT,
+            "key-1",
+            900,
+            COST_BASIS_MEASURED_USAGE,
+            "provider_result:key-1#receipt",
+            NOW,
+        ),
+    )
+
+    results: list[tuple[str, object]] = []
+    started = threading.Event()
+
+    def reserve_while_blocked():
+        try:
+            started.set()
+            _reserve(ledger, key="key-2", amount=100,
+                    admission_guard=repository.admission_guard)
+            results.append(("ok", None))
+        except Exception as exc:  # noqa: BLE001 - the test inspects the type
+            results.append(("error", exc))
+
+    thread = threading.Thread(target=reserve_while_blocked)
+    thread.start()
+    assert started.wait(timeout=5)
+    # Give the thread time to reach the check (or the write) before B commits.
+    thread.join(timeout=0.4)
+    blocker.commit()
+    blocker.close()
+    thread.join(timeout=20)
+
+    assert not thread.is_alive()
+    assert [status for status, _ in results] == ["error"]
+    error = results[0][1]
+    assert isinstance(error, SpendAdmissionRefused)
+    assert error.reason == "cost_upper_bound_invalidated"
+    assert _count(
+        database, "llm_spend_reservations", "request_key = ?", ("key-2",)
+    ) == 0
+    assert _count(database, "llm_spend_settlements") == 1
+
+
+def test_without_the_guard_the_same_window_admits_the_reservation(ledger, database):
+    """The negative control for the test above: the race is real, not assumed."""
+
+    _reserve(ledger, key="key-1", amount=500)
+    blocker = sqlite3.connect(database, timeout=10.0)
+    blocker.execute("BEGIN IMMEDIATE")
+    blocker.execute(
+        "INSERT INTO llm_spend_settlements("
+        "experiment_id, request_key, revision, outcome, cost_micros, cost_basis, "
+        "evidence_ref, observed_at"
+        ") VALUES (?, 'key-1', 1, 'settled', 900, 'measured_usage', ?, ?)",
+        (EXPERIMENT, "provider_result:key-1#receipt", NOW),
+    )
+    errors: list[Exception] = []
+
+    def reserve_while_blocked():
+        try:
+            _reserve(ledger, key="key-2", amount=100)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    thread = threading.Thread(target=reserve_while_blocked)
+    thread.start()
+    thread.join(timeout=0.4)
+    blocker.commit()
+    blocker.close()
+    thread.join(timeout=20)
+
+    # No guard means the pre-transaction state is what counts: the reservation is
+    # admitted even though the overrun is committed before it lands.
+    assert errors == []
+    assert _count(
+        database, "llm_spend_reservations", "request_key = ?", ("key-2",)
+    ) == 1
+
+
+# -- 1. one send reserves once -------------------------------------------------------
+
+
+def test_a_pre_reserved_send_does_not_reserve_a_second_time(monkeypatch, database):
+    _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+        assert _count(database, "llm_spend_reservations") == 1
+        # The transport reserves too, unless it is told this send already is.
+        with pre_reserved_call("send-1"):
+            assert reserve_call(prompt_chars=10, max_tokens=10) == 0.0
+        assert _count(database, "llm_spend_reservations") == 1
+
+
+def test_the_transport_still_reserves_when_no_outer_layer_holds_the_key(
+    monkeypatch, database
+):
+    _configure(monkeypatch, database)
+    with _identity():
+        reserve_call(prompt_chars=10, max_tokens=10, request_key="send-2")
+    assert _count(database, "llm_spend_reservations") == 1
+
+
+def test_a_second_key_inside_a_pre_reserved_send_is_refused(monkeypatch, database):
+    _configure(monkeypatch, database)
+    with _identity():
+        reserve_call(prompt_chars=10, max_tokens=10, request_key="send-1")
+        with pytest.raises(SpendConfigurationError, match="different request key"):
+            with pre_reserved_call("send-1"):
+                reserve_call(prompt_chars=10, max_tokens=10, request_key="send-2")
+    assert _count(
+        database, "llm_spend_reservations", "request_key = ?", ("send-2",)
+    ) == 0
+
+
+class _Logical:
+    def reserve(self, request_id, prompt_chars, output_tokens):
+        return "reserved"
+
+
+def test_an_admitted_completion_charges_the_answer_once(monkeypatch, database):
+    """The whole A1 shape: adapter + transport in one call, one row."""
+
+    _configure(monkeypatch, database)
+    repository = SpendSettlementRepository(database)
+    adapter = SettlementLedgerAdapter(repository)
+    seen: list[str] = []
+
+    def completion(*, messages, timeout, task_name, **_kwargs):
+        # This is what src/llm_client does for every paid request.
+        reserve_call(prompt_chars=10, max_tokens=100, purpose="chat:answer")
+        seen.append(task_name)
+        return "the answer"
+
+    admitted = AdmittedCompletion(
+        completion,
+        logical=_Logical(),
+        ledger=adapter,
+        model="deepseek-chat",
+        price_micros=lambda tokens: tokens * 2,
+        estimate_output_tokens=100,
+    )
+    with _identity():
+        assert admitted(messages=[{"role": "user", "content": "q"}],
+                        timeout=5.0, task_name="op1#r1#answer") == "the answer"
+
+    assert seen == ["op1#r1#answer"]
+    assert _count(database, "llm_spend_reservations") == 1
+    assert _count(database, "llm_spend_settlements") == 1
+    assert admitted.calls == [AdmittedCall("op1#r1#answer", SETTLED, 200)]
+
+
+# -- 3. evidence strength ------------------------------------------------------------
+
+
+def test_evidence_levels_are_declared():
+    assert evidence_level("offline_fixture") == EVIDENCE_LEVEL_TEST_ONLY
+    assert evidence_level("worker_receipt") == EVIDENCE_LEVEL_HOST_ATTESTED
+    assert evidence_level("provider_result") == EVIDENCE_LEVEL_HOST_ATTESTED
+
+
+def test_a_production_adapter_refuses_offline_fixture_evidence(
+    monkeypatch, database
+):
+    _configure(monkeypatch, database)
+    repository = SpendSettlementRepository(database)
+    adapter = SettlementLedgerAdapter(repository)
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+        with pytest.raises(SettlementEvidenceError) as refused:
+            adapter.settle(
+                "send-1",
+                outcome=SETTLEMENT_SETTLED,
+                cost_micros=100,
+                cost_basis=COST_BASIS_ESTIMATED,
+                evidence_ref=evidence_ref(
+                    kind="offline_fixture", request_key="send-1", receipt="r1"
+                ),
+            )
+    assert refused.value.reason == "evidence_fixture_not_allowed"
+    assert _count(database, "llm_spend_settlements") == 0
+
+
+def test_a_test_harness_may_opt_into_offline_fixtures(monkeypatch, database):
+    _configure(monkeypatch, database)
+    repository = SpendSettlementRepository(database)
+    adapter = SettlementLedgerAdapter(repository, allow_offline_fixture=True)
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+        adapter.settle(
+            "send-1",
+            outcome=SETTLEMENT_SETTLED,
+            cost_micros=100,
+            cost_basis=COST_BASIS_ESTIMATED,
+            evidence_ref=evidence_ref(
+                kind="offline_fixture", request_key="send-1", receipt="r1"
+            ),
+        )
+    assert _count(database, "llm_spend_settlements") == 1
+
+
+def test_a_host_receipt_is_accepted_in_production(monkeypatch, database):
+    _configure(monkeypatch, database)
+    repository = SpendSettlementRepository(database)
+    adapter = SettlementLedgerAdapter(repository)
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+        adapter.settle(
+            "send-1",
+            outcome=SETTLEMENT_SETTLED,
+            cost_micros=100,
+            cost_basis=COST_BASIS_ESTIMATED,
+            evidence_ref=evidence_ref(
+                kind="worker_receipt", request_key="send-1", receipt="completed:abc"
+            ),
+        )
+    record = repository.current(EXPERIMENT, "send-1")
+    assert record is not None and record.settled is True
+
+
+def test_the_adapter_reports_the_guard_refusal_as_an_overrun(monkeypatch, database):
+    """End-to-end through the adapter: the guard's reason survives the mapping."""
+
+    _configure(monkeypatch, database)
+    ledger = SpendLedger(database)
+    ledger.ensure_experiment(
+        EXPERIMENT, cap_micros=CAP_MICROS, pricing_fingerprint="p", now=NOW
+    )
+    _reserve(ledger, key="key-1", amount=500)
+    repository = SpendSettlementRepository(database)
+    repository.settle(
+        EXPERIMENT,
+        "key-1",
+        outcome=SETTLEMENT_SETTLED,
+        cost_micros=900,
+        cost_basis=COST_BASIS_MEASURED_USAGE,
+        evidence_ref="provider_result:key-1#receipt",
+        observed_at=NOW,
+    )
+    adapter = SettlementLedgerAdapter(repository)
+    with _identity():
+        assert adapter.reserve(
+            "key-2", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == COST_UPPER_BOUND_INVALIDATED
+    assert _count(
+        database, "llm_spend_reservations", "request_key = ?", ("key-2",)
+    ) == 0

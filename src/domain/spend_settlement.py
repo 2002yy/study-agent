@@ -39,6 +39,31 @@ EVIDENCE_KINDS = frozenset(
     {EVIDENCE_PROVIDER_RESULT, EVIDENCE_WORKER_RECEIPT, EVIDENCE_OFFLINE_FIXTURE}
 )
 
+# How strong the binding is, stated rather than implied. ``host_attested`` means
+# a trusted execution boundary recorded the outcome of this send; it is not a
+# provider invoice, a signature, or proof of what was billed. ``test_only`` is a
+# fixture whose trust is whatever the test harness says it is, so a production
+# adapter must refuse it.
+EVIDENCE_LEVEL_HOST_ATTESTED = "host_attested"
+EVIDENCE_LEVEL_TEST_ONLY = "test_only"
+EVIDENCE_LEVELS = {
+    EVIDENCE_PROVIDER_RESULT: EVIDENCE_LEVEL_HOST_ATTESTED,
+    EVIDENCE_WORKER_RECEIPT: EVIDENCE_LEVEL_HOST_ATTESTED,
+    EVIDENCE_OFFLINE_FIXTURE: EVIDENCE_LEVEL_TEST_ONLY,
+}
+PRODUCTION_EVIDENCE_KINDS = frozenset(
+    {EVIDENCE_PROVIDER_RESULT, EVIDENCE_WORKER_RECEIPT}
+)
+
+
+def evidence_level(kind: str) -> str:
+    """The declared strength of one evidence kind (refuses an unknown kind)."""
+
+    try:
+        return EVIDENCE_LEVELS[kind]
+    except KeyError:
+        raise SettlementEvidenceError("evidence_kind_unknown") from None
+
 # Exactly one correction, once. ``settled`` is final for this phase: measured
 # usage arriving later is a separate reconciliation, not a rewrite of history.
 ALLOWED_TRANSITIONS = frozenset({(SETTLEMENT_UNRESOLVED, SETTLEMENT_SETTLED)})
@@ -69,16 +94,23 @@ def evidence_ref(*, kind: str, request_key: str, receipt: str) -> str:
 
 
 def parse_evidence(reference: object, request_key: str) -> tuple[str, str]:
-    """Return ``(kind, receipt)``, or refuse because it is not this send's."""
+    """Return ``(kind, receipt)``, or refuse because it is not this send's.
+
+    The separator is the **last** ``#``: a request key may legitimately contain
+    one (``operation#round#stage`` is the admission layer's shape), while a
+    receipt may not. Splitting on the first ``#`` would read that key as
+    ``operation`` and reject its own evidence.
+    """
 
     if not isinstance(reference, str) or not reference:
         raise SettlementEvidenceError("evidence_missing")
     kind, separator, rest = reference.partition(":")
     if not separator or kind not in EVIDENCE_KINDS:
         raise SettlementEvidenceError("evidence_kind_unknown")
-    bound_key, separator, receipt = rest.partition("#")
-    if not separator or not receipt:
+    cut = rest.rfind("#")
+    if cut <= 0 or cut == len(rest) - 1:
         raise SettlementEvidenceError("evidence_receipt_missing")
+    bound_key, receipt = rest[:cut], rest[cut + 1 :]
     if bound_key != request_key:
         raise SettlementEvidenceError("evidence_not_bound_to_request")
     if any(character.isspace() for character in receipt) or len(receipt) > 200:

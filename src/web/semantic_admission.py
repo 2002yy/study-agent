@@ -35,12 +35,13 @@ from typing import Any, Callable, Mapping, Protocol
 
 from src.domain.spend_settlement import (
     COST_BASIS_ESTIMATED,
-    EVIDENCE_PROVIDER_RESULT,
+    EVIDENCE_WORKER_RECEIPT,
     SETTLEMENT_FAILED,
     SETTLEMENT_SETTLED,
     SETTLEMENT_UNRESOLVED,
     evidence_ref,
 )
+from src.llm_spend_guard import pre_reserved_call
 from src.web.semantic_planner import PlanningIdentity
 
 # Settlement outcomes. ``unresolved`` is distinct from ``failed`` on purpose: failed means
@@ -181,9 +182,13 @@ class AdmittedCompletion:
             raise AdmissionRefused(REJECTED_LEDGER)
 
         try:
-            value = self._completion(
-                messages=messages, timeout=timeout, task_name=task_name, **_kwargs
-            )
+            # The cost reservation for this send is already held by the adapter.
+            # The transport may send, but must not reserve a second time under its
+            # own key - that would charge one answer twice.
+            with pre_reserved_call(request_id):
+                value = self._completion(
+                    messages=messages, timeout=timeout, task_name=task_name, **_kwargs
+                )
         except Exception:
             # A provider or SDK exception does NOT establish that nothing was
             # sent. Connection resets, custom SDK timeouts and response parse
@@ -196,10 +201,14 @@ class AdmittedCompletion:
             SETTLED,
             self._price(self._estimate),
             COST_BASIS_ESTIMATED,
+            # A host receipt, not a provider attestation: the execution boundary
+            # recorded that this send returned. It is labelled as such, and the
+            # digest binds the record to the value it observed; it is not proof
+            # of what the provider billed.
             evidence_ref(
-                kind=EVIDENCE_PROVIDER_RESULT,
+                kind=EVIDENCE_WORKER_RECEIPT,
                 request_key=request_id,
-                receipt=hashlib.sha256(value.encode("utf-8")).hexdigest()[:16],
+                receipt=f"completed:{hashlib.sha256(value.encode('utf-8')).hexdigest()[:16]}",
             ),
         )
         return value

@@ -840,7 +840,7 @@ def test_settling_through_the_adapter_appends_the_observation(monkeypatch, datab
             outcome=SETTLEMENT_SETTLED,
             cost_micros=400,
             cost_basis=COST_BASIS_ESTIMATED,
-            evidence_ref=_evidence(),
+            evidence_ref=_evidence(kind="worker_receipt"),
         )
     record = repository.current(EXPERIMENT, "key-1")
     assert record is not None and record.outcome == SETTLEMENT_SETTLED

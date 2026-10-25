@@ -28,8 +28,13 @@ refuses when the key names no reservation or names more than one.
 from __future__ import annotations
 
 from src.domain.runtime_entities import utc_now
-from src.domain.spend_settlement import COST_BASES
-from src.infrastructure.sqlite.spend_ledger import SpendLedgerError
+from src.domain.spend_settlement import (
+    COST_BASES,
+    PRODUCTION_EVIDENCE_KINDS,
+    SettlementEvidenceError,
+    parse_evidence,
+)
+from src.infrastructure.sqlite.spend_ledger import SpendAdmissionRefused, SpendLedgerError
 from src.infrastructure.sqlite.spend_settlement import (
     SettlementError,
     SettlementIdentityRejected,
@@ -55,6 +60,7 @@ class SettlementLedgerAdapter:
         settlements: SpendSettlementRepository,
         *,
         purpose: str = "conversation",
+        allow_offline_fixture: bool = False,
     ) -> None:
         if not callable(getattr(settlements, "settle", None)):
             raise ValueError("invalid settlement repository")
@@ -62,6 +68,10 @@ class SettlementLedgerAdapter:
             raise ValueError("invalid settlement purpose")
         self._settlements = settlements
         self._purpose = purpose
+        # Offline fixtures are honest in tests and worthless in production: a
+        # fixture proves only that the caller can type. The default refuses them,
+        # and only a test harness should turn this on.
+        self._allow_offline_fixture = bool(allow_offline_fixture)
         # request_id -> experiment_id, from the reserve that actually happened.
         self._experiments: dict[str, str] = {}
 
@@ -100,6 +110,17 @@ class SettlementLedgerAdapter:
                 purpose=self._purpose,
                 model=model,
                 request_key=request_id,
+                # The overrun check runs inside the reservation's own write
+                # transaction. Checking it here, before the call, would leave a
+                # window in which an overrun observation commits unseen - the P1
+                # shape the contract's :12.7 forbids.
+                admission_guard=self._settlements.admission_guard,
+            )
+        except SpendAdmissionRefused as refused:
+            return (
+                COST_UPPER_BOUND_INVALIDATED
+                if refused.reason == COST_UPPER_BOUND_INVALIDATED
+                else COST_LEDGER_REFUSED
             )
         except (SpendLimitExceeded, SpendConfigurationError, SpendLedgerError, SettlementError):
             # A refusal is a refusal: no model call follows it.
@@ -131,6 +152,10 @@ class SettlementLedgerAdapter:
 
         if cost_micros is not None and cost_basis not in COST_BASES:
             raise ValueError("invalid_cost_basis")
+        if evidence_ref:
+            kind, _receipt = parse_evidence(evidence_ref, request_id)
+            if kind not in PRODUCTION_EVIDENCE_KINDS and not self._allow_offline_fixture:
+                raise SettlementEvidenceError("evidence_fixture_not_allowed")
         experiment = self._experiment_for(request_id)
         self._settlements.settle(
             experiment,

@@ -3108,7 +3108,7 @@ QD-3e 的交付、主线集成、费用账本兼容、产品验收是**四件事
 | 7 | **R-6 授权三处修复 + 取消终态保护** | **已完成，见 §34.10.6**（`cd7a73b6`） |
 | 7b | **R-6 第四个洞：非有限上限（`Infinity`/`NaN`）** | **已完成，见 §34.14**（P1 输入边界） |
 | 8 | **R-6 授权链路接入生产装配** | 未做（`apply_upgrade()` 目前**无生产调用方**，`src/api/routes/` 下**无** tier 路由） |
-| 9 | 费用账本适配 | **合同已冻结（合同 §12 / 本节 §34.15）；离线结算审计已实现（§34.16）**；**生产接线未做** |
+| 9 | 费用账本适配 | **合同已冻结（合同 §12 / 本节 §34.15）；离线结算审计已实现（§34.16）；超界判定与准入边界已加固（§34.17 / §34.18）**；**生产接线未做** |
 | 10 | **主线集成 CI 在最终 HEAD 上跑绿 + 记录精确 HEAD** | **已完成，见 §34.12.6**（run `40120074936`，HEAD `c7c1236b`，6142 passed） |
 
 **第 9 项的补充：费用账本的接口形态已经变了（合并 main 时发现）**
@@ -3917,3 +3917,85 @@ totals:   {'cap_micros': 10000000, 'reserved_micros': 500, ...}
 - **准入竞态**：`overruns()` 与 `reserve_call()` 不在同一事务。若超界观测恰好在
   两者之间提交，仍有一次预留窗口。接线时必须把"检查超界 + 预留"放进同一临界区，
   并核对**全部**付费调用入口都经过适配器。
+
+### 34.18 CL-M3-S2-A：费用安全边界（2026-10-25）
+
+S2 的第一刀只做一件事：**任何真实发送都不能绕过费用检查，也不能为同一次发送预留两次。**
+不做生产装配，不改金额算法。
+
+#### 34.18.1 A1 付费入口盘点（`cf7332f5` + 本切片前）
+
+| 路径 | 位置 | 谁预留 | 谁发送 | 谁写观测 |
+| --- | --- | --- | --- | --- |
+| 普通聊天 / 研究 / 回答 | `src/llm_client.py:472` `reserve_call(...)` | **传输层**，键由 `compose_request_key` 或 `scope.next_key` 生成 | `chat.completions.create` | **无** |
+| 图片描述（多模态） | `src/application/attachment_vision.py:79` | 同一入口，独立 `request_key` | OpenAI 视觉调用 | **无** |
+| 研究语义轮 | `src/web/semantic_recovery.py:181` `configured_completion` → `src.llm_client.chat` | 传输层（同上） | 传输层 | **无** |
+| 结算适配器 | `src/application/spend_settlement_adapter.py:97` | **准入层**，键 = `LedgerPort.request_id` | 不发送 | 观测表 |
+| 会话门 | `SpendGatedAdmission.reserve` → `LedgerPort.reserve` | 准入层（经适配器） | 循环发送 | 观测表 |
+| 研究 worker / 协调器 | QD-3e 生产工厂（默认关闭） | 未接线 | 未接线 | 未接线 |
+
+**盘点发现的真缺陷（本切片修复）**：一旦把 `AdmittedCompletion`（准入层）接到
+`configured_completion`（传输层），同一次发送会被预留两次——准入层用
+`request_id`，传输层用 `scope.next_key` 生成的**另一个**键。两个键都合法，账本无法
+识别它们属于同一次发送，结果是一条回答扣两次钱。这不是理论问题：
+`configured_completion` 的整条路径都会经过 `llm_client.reserve_call`。
+
+修法：`pre_reserved_call(request_key)` 上下文（`src/llm_spend_guard.py`）。
+准入层在真正发送期间绑定自己持有的键；`reserve_call` 在作用域内**不再写预留**，
+若调用方显式传入**不同的**键则直接拒绝（`SpendConfigurationError`）——不同键意味着
+另一次发送，不能借用本次发送的额度。传输层没被标记时行为不变。
+
+#### 34.18.2 A2 超界检查与预留合并为一个事务
+
+**旧结构**：`overruns()`（读）→ 并发观测提交超界 → `reserve_call()`（写）。
+两者之间是一个真实的窗口。
+
+**新结构**：`SpendLedger.reserve(..., admission_guard=...)`。guard 在
+`_reserve_once` 的 `BEGIN IMMEDIATE` 事务内、用**同一条连接**执行；返回拒绝原因时
+回滚并抛 `SpendAdmissionRefused(reason)`。`reserve_call` 透传 guard，
+适配器传入 `SpendSettlementRepository.admission_guard`。金额计算、cap 不可变、
+预留不可退**均未改**；guard 只会拒绝，不会写入。
+
+**竞态负控**（`tests/test_spend_admission_boundary.py`）：
+
+- 连接 B `BEGIN IMMEDIATE` 并插入一条**未提交**的超界观测（900 > 500）；
+- 线程在 B 仍持锁时发起新预留；
+- B 提交后线程才拿到写锁——因此任何"事务外预检"都读到旧快照并放行；
+- 断言：`SpendAdmissionRefused`，且 `key-2` 没有任何预留行。
+
+**对照组**（同一时序、不传 guard）：预留被放行 → 证明窗口真实存在，测试不是顺序单测。
+**变异**：把 guard 移到事务外 → 该用例失败（KILLED）。
+
+#### 34.18.3 A3 凭据来源与信任等级
+
+`evidence_ref` 的语法从未等于来源可信。本切片把"等级"写成数据：
+
+| kind | 等级 | 含义 |
+| --- | --- | --- |
+| `provider_result` | `host_attested` | 可信执行边界记录了提供商响应；**不是**签名回执或账单 |
+| `worker_receipt` | `host_attested` | 可信执行边界记录了本次发送已返回 |
+| `offline_fixture` | `test_only` | 测试夹具；生产适配器**默认拒绝**（`evidence_fixture_not_allowed`） |
+
+- 生产适配器 `SettlementLedgerAdapter` 默认只接受 `PRODUCTION_EVIDENCE_KINDS`；
+  只有测试显式 `allow_offline_fixture=True` 才可用夹具。
+- `AdmittedCompletion` 不再声称 `provider_result`：它是宿主边界，改为
+  `worker_receipt:<request_id>#completed:<digest>`。摘要只绑定记录与所观察到的值，
+  **不构成**"提供商已完成/已计费"的证明；文档与代码注释均如此标注。
+- 解析器修正一个真实边界：`request_id` 形如 `op#r1#answer`，旧实现按**第一个**
+  `#` 切分会把键读成 `op` 并拒绝自己的凭据；现按**最后一个** `#` 切分
+  （receipt 禁止包含 `#`）。
+
+#### 34.18.4 验证与边界
+
+- 新增 `tests/test_spend_admission_boundary.py` **12 条**（一次发送只预留一次、
+  预置键冲突拒绝、单事务竞态、无 guard 对照、证据等级、夹具拒绝/测试放行、
+  适配器超界映射）；
+- 影响集（结算 + 准入 + 账本/预算 + 传输 + 会话）**172 passed**；
+- Ruff 干净；mypy baseline `current=124, baseline=128, resolved=4`；
+- 变异 3/3 KILLED：guard 移出事务、传输层重复预留、生产接受夹具；
+- **未接生产装配、未调用付费模型、未跑 L3、未合并 main**。
+
+剩下的生产门槛（留给 S2-B）：把适配器与 `TurnLifecycle` / 研究协调器接起来时，
+必须证明**每一条**真实发送都经过准入层；`attachment_vision` 与任何直接调用
+`llm_client` 的旧路径目前仍是"传输层自行预留、无观测"，属于接线时必须统一或
+显式豁免的入口。

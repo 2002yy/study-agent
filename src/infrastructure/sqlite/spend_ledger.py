@@ -29,6 +29,7 @@ import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 MICROS_PER_CNY = 1_000_000
 
@@ -47,6 +48,24 @@ class SpendCapExceeded(SpendLedgerError):
 
 class SpendLedgerConflict(SpendLedgerError):
     """The request re-used a key with a different identity, model or amount."""
+
+
+class SpendAdmissionRefused(SpendLedgerError):
+    """A guard inside the reservation transaction refused this send.
+
+    Distinct from ``SpendCapExceeded``: the cap is a rule the ledger owns, while
+    this reason comes from an observation the ledger only reports. The caller
+    needs to tell "the budget is full" from "the budget was proven wrong".
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+# A guard runs inside the write transaction with the connection that is about to
+# insert the reservation. It returns a refusal reason, or ``None`` to admit.
+AdmissionGuard = Callable[[sqlite3.Connection, str], str | None]
 
 
 class _BusyDatabase(SpendLedgerError):
@@ -237,6 +256,7 @@ class SpendLedger:
         model: str,
         identity: str,
         now: str,
+        admission_guard: AdmissionGuard | None = None,
     ) -> Reservation:
         """Atomically reserve ``amount_micros`` for one paid call.
 
@@ -245,6 +265,12 @@ class SpendLedger:
         a new key, because the first one may already have been billed. Presenting
         a key twice is refused, so a retry can neither borrow a reservation nor
         hide a second charge behind the first one.
+
+        ``admission_guard`` runs **inside** the same write transaction that
+        inserts the reservation. A guard evaluated before the transaction is a
+        guess: an observation committed between the check and the insert is
+        invisible to it, and the reservation is written anyway. Passing it here
+        is what makes the check and the write one decision.
         """
 
         if not request_key:
@@ -269,6 +295,7 @@ class SpendLedger:
                     identity=identity,
                     fingerprint=fingerprint,
                     now=now,
+                    admission_guard=admission_guard,
                 )
             except _BusyDatabase as exc:
                 last_error = exc
@@ -289,6 +316,7 @@ class SpendLedger:
         identity: str,
         fingerprint: str,
         now: str,
+        admission_guard: AdmissionGuard | None = None,
     ) -> Reservation:
         connection = self._connect()
         try:
@@ -337,6 +365,14 @@ class SpendLedger:
                     f"experiment {experiment_id} would exceed its cap: "
                     f"reserved={reserved_total} next={amount_micros} cap={cap_micros} micro-CNY"
                 )
+            if admission_guard is not None:
+                # Inside BEGIN IMMEDIATE, on this connection: an observation that
+                # commits after this read is serialised after this write, so the
+                # check and the insert cannot disagree about what was known.
+                reason = admission_guard(connection, experiment_id)
+                if reason:
+                    connection.rollback()
+                    raise SpendAdmissionRefused(str(reason))
             connection.execute(
                 """
                 INSERT INTO llm_spend_reservations(
