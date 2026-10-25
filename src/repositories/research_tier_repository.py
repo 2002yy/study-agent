@@ -86,7 +86,7 @@ class ResearchTierRepository:
         operation_id: str,
         from_tier: str,
         to_tier: str,
-        reason: str = "",
+        reason: str,
         requested_calls: int = 0,
         requested_cost: float = 0.0,
         request_id: str = "",
@@ -96,23 +96,45 @@ class ResearchTierRepository:
 
         This grants nothing. The row it writes says ``pending``, and pending
         is the state in which an upgrade is refused.
+
+        **Validation finishes before the write, and the write returns the very
+        object it validated.** The fields are checked by *constructing the
+        record* and inserting only that instance. An earlier shape validated
+        the tiers and the counts here, inserted the row, and then built
+        ``TierUpgradeRequest`` - so the record's own checks (a finite
+        ``requested_cost``, a non-empty ``reason``, identifiers, the
+        timestamp) ran after the commit. ``requested_cost=inf`` or the empty
+        default ``reason`` therefore raised with the request already stored: a
+        caller saw a failure it could retry, and the retry collided with a
+        request that had never been successfully made. Checking fields one by
+        one here would keep drifting out of step with the record; building the
+        record is the check.
+
+        ``reason`` is required and non-empty because it is the part of the
+        request the user answers. A request that cannot say why it wants more
+        budget is not a question a user can decide.
         """
 
-        if from_tier not in TIERS:
-            raise ValueError("invalid_from_tier")
-        if to_tier not in TIERS:
-            raise ValueError("invalid_to_tier")
-        if type(requested_calls) is not int or requested_calls < 0:
-            raise ValueError("invalid_requested_calls")
-        if isinstance(requested_cost, bool) or not isinstance(requested_cost, (int, float)):
-            raise ValueError("invalid_requested_cost")
-        if requested_cost < 0:
-            raise ValueError("invalid_requested_cost")
         moment = now or utc_now()
         identifier = request_id or f"tierreq-{research_id}-{moment}"
+        # Constructing the record is the validation: every field is checked by
+        # the domain's own rules, and nothing reaches the database until it
+        # has passed all of them.
+        request = TierUpgradeRequest(
+            request_id=identifier,
+            research_id=research_id,
+            operation_id=operation_id,
+            from_tier=from_tier,
+            to_tier=to_tier,
+            reason=reason,
+            requested_calls=requested_calls,
+            requested_cost=requested_cost,
+            status=AUTHORIZATION_PENDING,
+            requested_at=moment,
+        )
         with self.database.connect() as connection:
             exists = connection.execute(
-                "SELECT 1 FROM research_states WHERE research_id = ?", (research_id,)
+                "SELECT 1 FROM research_states WHERE research_id = ?", (request.research_id,)
             ).fetchone()
             if exists is None:
                 raise TierAuthorizationDenied("research_not_found")
@@ -122,30 +144,19 @@ class ResearchTierRepository:
                 "requested_calls, requested_cost, status, requested_at"
                 ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    identifier,
-                    research_id,
-                    operation_id,
-                    from_tier,
-                    to_tier,
-                    reason,
-                    requested_calls,
-                    float(requested_cost),
-                    AUTHORIZATION_PENDING,
-                    moment,
+                    request.request_id,
+                    request.research_id,
+                    request.operation_id,
+                    request.from_tier,
+                    request.to_tier,
+                    request.reason,
+                    request.requested_calls,
+                    float(request.requested_cost),
+                    request.status,
+                    request.requested_at,
                 ),
             )
-        return TierUpgradeRequest(
-            request_id=identifier,
-            research_id=research_id,
-            operation_id=operation_id,
-            from_tier=from_tier,
-            to_tier=to_tier,
-            reason=reason,
-            requested_calls=requested_calls,
-            requested_cost=float(requested_cost),
-            status=AUTHORIZATION_PENDING,
-            requested_at=moment,
-        )
+        return request
 
     # --- decisions ----------------------------------------------------------------
 
