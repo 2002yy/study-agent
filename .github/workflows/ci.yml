@@ -24,7 +24,10 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pin the supported runner image for Playwright's Chromium/Firefox/WebKit system deps.
+    # ubuntu-latest moved to 26.04; the 2026-10-25 CI run stalled while apt fetched
+    # 185 packages from that image and timed out before any browser test started.
+    runs-on: ubuntu-24.04
     env:
       PYTHONPATH: .
     steps:
@@ -306,7 +309,9 @@ jobs:
         working-directory: frontend
         run: |
           set -o pipefail
-          npx playwright install --with-deps chromium firefox webkit > ../playwright-install.log 2>&1
+          # Keep install progress visible in the Actions job as well as diagnostics.
+          # `set -o pipefail` still fails the step when the installer fails.
+          npx playwright install --with-deps chromium firefox webkit 2>&1 | tee ../playwright-install.log
 
       - name: Run browser Golden Journeys
         if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.playwright_install.outcome == 'success'
