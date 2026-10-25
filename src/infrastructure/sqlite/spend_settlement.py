@@ -512,7 +512,19 @@ class SpendSettlementRepository:
         return tuple((str(row["experiment_id"]), str(row["request_key"])) for row in rows)
 
     def overruns(self, experiment_id: str) -> tuple[ReservationRow, ...]:
-        """Sends whose *current* settled cost exceeds the ceiling reserved for it.
+        """Sends whose *current* recorded cost exceeds the ceiling reserved for it.
+
+        Whether a send succeeded is a different question from whether the money
+        bound held. A failed call with a known cost is still money spent, so the
+        filter is on the amount, not on the outcome: filtering by
+        ``outcome = 'settled'`` let a failed call record 900 micro-CNY against a
+        500 micro-CNY reservation and leave the experiment free to reserve more.
+
+        ``unresolved`` is included by the same rule. Its cost is normally
+        ``NULL`` (unknown), and an unknown amount is not an overrun; if a caller
+        did record an amount above the reservation, the bound is already known
+        to be wrong and there is nothing to gain by waiting for the label to
+        change.
 
         Derived, never stored: the reservation is not edited to fit the
         observation. The adapter refuses further paid calls for such an
@@ -529,7 +541,6 @@ class SpendSettlementRepository:
                 "  ON s.experiment_id = r.experiment_id "
                 " AND s.request_key = r.request_key "
                 "WHERE r.experiment_id = ? "
-                "  AND s.outcome = 'settled' "
                 "  AND s.cost_micros IS NOT NULL "
                 "  AND s.cost_micros > r.amount_micros "
                 "  AND s.revision = ("

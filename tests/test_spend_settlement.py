@@ -721,6 +721,73 @@ def test_a_cost_within_its_reservation_is_not_an_overrun(ledger, repository):
     assert repository.overruns(EXPERIMENT) == ()
 
 
+def test_a_failed_call_whose_cost_exceeds_the_reservation_is_an_overrun(
+    ledger, repository
+):
+    """The P1: whether the call succeeded is not the question the bound asks.
+
+    A failed call with a known cost is money spent. Filtering ``overruns()`` by
+    ``outcome = 'settled'`` let this exact shape record 900 micro-CNY against a
+    500 micro-CNY reservation and leave the experiment free to reserve again.
+    """
+
+    _reserve(ledger, amount=500)
+    before = ledger.experiment_spend(EXPERIMENT)
+    _settle(
+        repository,
+        outcome=SETTLEMENT_FAILED,
+        cost_micros=900,
+        cost_basis=COST_BASIS_MEASURED_USAGE,
+        evidence_ref=_evidence(kind="provider_result", receipt="failure-receipt"),
+    )
+
+    assert repository.overruns(EXPERIMENT) == (
+        ReservationRow(experiment_id=EXPERIMENT, request_key="key-1", amount_micros=500),
+    )
+    # The observation is a fact about the send, not a correction to the ledger.
+    assert ledger.experiment_spend(EXPERIMENT) == before
+
+
+def test_a_failed_call_within_its_reservation_is_not_an_overrun(ledger, repository):
+    _reserve(ledger, amount=1000)
+    _settle(
+        repository,
+        outcome=SETTLEMENT_FAILED,
+        cost_micros=900,
+        cost_basis=COST_BASIS_MEASURED_USAGE,
+        evidence_ref=_evidence(kind="provider_result", receipt="failure-receipt"),
+    )
+    assert repository.overruns(EXPERIMENT) == ()
+
+
+def test_an_unresolved_cost_above_the_reservation_also_blocks(ledger, repository):
+    """Outcome-independence is the fix, not a special case for ``failed``.
+
+    An ``unresolved`` cost is normally NULL. When a caller does record an amount,
+    it is a recorded amount: the same rule applies, because making the guard
+    depend on the label is what produced the P1 in the first place.
+    """
+
+    _reserve(ledger, amount=500)
+    _settle(
+        repository,
+        outcome=SETTLEMENT_UNRESOLVED,
+        cost_micros=900,
+        cost_basis=COST_BASIS_MEASURED_USAGE,
+    )
+    assert repository.overruns(EXPERIMENT) == (
+        ReservationRow(experiment_id=EXPERIMENT, request_key="key-1", amount_micros=500),
+    )
+
+
+def test_an_unknown_cost_is_not_an_overrun(ledger, repository):
+    """Unknown is not infinite: NULL stays out of the comparison."""
+
+    _reserve(ledger, amount=500)
+    _settle(repository)
+    assert repository.overruns(EXPERIMENT) == ()
+
+
 # -- the adapter: reserve through the ledger, settle into the audit -----------------
 
 
@@ -818,6 +885,26 @@ def test_an_overrun_blocks_further_reservations(monkeypatch, database):
             cost_micros=10_000_000,
             cost_basis=COST_BASIS_MEASURED_USAGE,
             evidence_ref=_evidence(kind="provider_result"),
+        )
+        assert _reserve_through(adapter, key="key-2") == COST_UPPER_BOUND_INVALIDATED
+    keys = [row["request_key"] for row in _rows(database, "SELECT * FROM llm_spend_reservations")]
+    assert keys == ["key-1"]
+
+
+def test_an_overrun_from_a_failed_call_blocks_further_reservations(monkeypatch, database):
+    """The P1 at the point where it matters: the next reserve is refused."""
+
+    _configure(monkeypatch, database)
+    repository = SpendSettlementRepository(database)
+    adapter = SettlementLedgerAdapter(repository)
+    with _identity():
+        assert _reserve_through(adapter) == RESERVED
+        adapter.settle(
+            "key-1",
+            outcome=SETTLEMENT_FAILED,
+            cost_micros=10_000_000,
+            cost_basis=COST_BASIS_MEASURED_USAGE,
+            evidence_ref=_evidence(kind="provider_result", receipt="failure-receipt"),
         )
         assert _reserve_through(adapter, key="key-2") == COST_UPPER_BOUND_INVALIDATED
     keys = [row["request_key"] for row in _rows(database, "SELECT * FROM llm_spend_reservations")]

@@ -3866,3 +3866,54 @@ llm_spend_settlements(
 - **不运行全量 L3**，不调用付费模型，不接生产装配，不合并 `main`；
 - 合同 §12.7 的适配器超界保护只覆盖"经过适配器"的路径；绕过适配器直接调用
   `SpendLedger.reserve` 仍不受保护——这是**接线切片**必须解决的问题，本节不宣称已解决。
+
+### 34.17 S1 修正：超界判定不得取决于调用是否成功（2026-10-25）
+
+**触发**：review #5643022044 的第 1 条行内意见（P1）。`overruns()` 当时只筛
+`outcome = 'settled'`，而仓储允许 `failed` 携带可信凭据与已知费用。
+
+**复现**（`cf7332f5`，真实库）：预留 500 micro-CNY → 记录 `failed`、
+`cost_micros=900`、`cost_basis=measured_usage`、凭据绑定本次发送。
+
+```text
+current: ... outcome='failed', cost_micros=900 ...
+overruns: ()
+totals:   {'cap_micros': 10000000, 'reserved_micros': 500, ...}
+```
+
+即：已知花了 900、只预留了 500，系统仍认为该 experiment 可以继续预留。
+这违反合同 §12.7——上界失效的判定不应取决于这次调用最后成没成。
+
+**根因**：把"金额是否越界"这个问题，错写成"调用是否成功"的过滤条件。
+复核时还发现同一类第二个缺口：`unresolved` 若带已知费用，也会被同一条件排除。
+只补 `failed` 是修同一个 bug 的一半。
+
+**修法**：`overruns()` 只问金额，不问标签——
+`WHERE s.cost_micros IS NOT NULL AND s.cost_micros > r.amount_micros`
+（仍取每个请求的最新 `revision`）。`NULL` 不参与比较，所以"未知"不会被当成无限。
+预留金额、cap、`experiment_spend()` 四个数字照旧不动。
+
+**新增负控（5 条，48 → 53）**：
+
+| 用例 | 断言 |
+| --- | --- |
+| `failed` 已知费用超界 | `overruns()` 命中；四个金额数字与结算前完全相同 |
+| `failed` 已知费用在界内 | 不算超界 |
+| `unresolved` 已知费用超界 | 同样命中（判定与标签无关） |
+| `unresolved` 未知费用（`NULL`） | 不算超界 |
+| 适配器：`failed` 超界后再次预留 | 返回 `cost_upper_bound_invalidated`，预留表仍只有一行 |
+
+**反向变异**：把 `overruns()` 的条件改回 `outcome = 'settled'`，
+`failed` 超界、`unresolved` 超界、适配器阻断三条用例失败（KILLED）。
+既有三条变异（幂等、金额不变量、非法降级）同时复跑，仍全部 KILLED。
+
+**验证**：L1 影响集 **218 passed**；Ruff 干净；mypy baseline `124/128, resolved=4`。
+
+**仍留给生产接线（不在本节范围）**：
+
+- **凭据真实性**：`evidence_ref` 目前只能证明"格式合法且绑定本次请求"，
+  不能独立证明凭据来自可信执行结果。`offline_fixture` 必须在生产环境被禁用，
+  否则任意拼接的字符串就能确认 `settled`；
+- **准入竞态**：`overruns()` 与 `reserve_call()` 不在同一事务。若超界观测恰好在
+  两者之间提交，仍有一次预留窗口。接线时必须把"检查超界 + 预留"放进同一临界区，
+  并核对**全部**付费调用入口都经过适配器。
