@@ -71,14 +71,9 @@ def _configure(monkeypatch, tmp_path: Path) -> Path:
     return database
 
 
-class _Logical:
-    def reserve(self, request_id, prompt_chars, output_tokens):
-        return "reserved"
-
-
 def _admission(monkeypatch, tmp_path):
     _configure(monkeypatch, tmp_path)
-    admission = build_settlement_admission(model=MODEL)
+    admission = build_settlement_admission(model=MODEL, kind="chat", scope_id="turn-1")
     assert admission is not None
     return admission
 
@@ -103,7 +98,7 @@ def _completion(*, messages, timeout, task_name, **_kwargs):
 def _admitted(admission):
     return AdmittedCompletion(
         _completion,
-        logical=_Logical(),
+        logical=admission.logical,
         ledger=admission.adapter,
         model=MODEL,
         price_micros=lambda tokens: tokens * 2,
@@ -189,7 +184,7 @@ def test_the_transport_is_authorized_and_does_not_reserve_twice(monkeypatch, tmp
 
     admitted = AdmittedCompletion(
         completion,
-        logical=_Logical(),
+        logical=admission.logical,
         ledger=admission.adapter,
         model=MODEL,
         price_micros=lambda tokens: tokens,
@@ -216,7 +211,7 @@ def test_the_transport_is_authorized_and_does_not_reserve_twice(monkeypatch, tmp
 def test_the_chain_is_absent_when_the_flag_is_off(monkeypatch, tmp_path):
     _configure(monkeypatch, tmp_path)
     monkeypatch.setenv(ASSEMBLY_FLAG, "0")
-    assert build_settlement_admission(model=MODEL) is None
+    assert build_settlement_admission(model=MODEL, kind="chat", scope_id="turn-1") is None
 
 
 def test_the_adapter_is_the_one_the_factory_built(monkeypatch, tmp_path):
@@ -246,7 +241,7 @@ def test_experiment_mode_refuses_an_unadmitted_transport_reservation(
             )
     assert refused.value.reason == "send_not_admitted"
 
-    admission = build_settlement_admission(model=MODEL)
+    admission = build_settlement_admission(model=MODEL, kind="chat", scope_id="turn-1")
     assert admission is not None
     rows = admission.settlements._connect().execute(
         "SELECT COUNT(*) FROM llm_spend_reservations"
@@ -282,3 +277,166 @@ def test_the_isolation_is_off_when_the_flag_is_off(monkeypatch, tmp_path):
 
     ledger = SpendLedger(tmp_path / "runtime.sqlite")
     assert ledger.experiment_spend(EXPERIMENT)["calls"] == 1
+
+
+def test_an_unregistered_owner_cannot_claim_the_first_reservation(monkeypatch, tmp_path):
+    """P1: the permission is an adapter capability, not a settable flag."""
+
+    _admission(monkeypatch, tmp_path)
+    with spend_identity(
+        run_id="run-1", operation_id="op-1", invocation="1", experiment=EXPERIMENT
+    ):
+        with pytest.raises(SpendAuthorizationError) as refused:
+            reserve_call(
+                prompt_chars=10,
+                max_tokens=10,
+                model=MODEL,
+                request_key="forged-owner",
+                settling_owner=object(),
+            )
+    assert refused.value.reason == "send_not_admitted"
+
+
+# -- the second track: logical quota --------------------------------------------------
+
+
+def _quota_caps(admission) -> tuple[int, int, int]:
+    import sqlite3
+
+    with sqlite3.connect(admission.logical_path) as connection:
+        return connection.execute(
+            "SELECT max_calls, max_prompt_chars, max_output_tokens "
+            "FROM decision_admission_limits WHERE id = 1"
+        ).fetchone()
+
+
+def test_the_chat_turn_carries_the_approved_trial_quota(monkeypatch, tmp_path):
+    admission = _admission(monkeypatch, tmp_path)
+    assert _quota_caps(admission) == (6, 120_000, 12_000)
+
+
+def test_a_research_operation_carries_its_own_quota(monkeypatch, tmp_path):
+    _configure(monkeypatch, tmp_path)
+    admission = build_settlement_admission(
+        model=MODEL, kind="research", scope_id="op-1"
+    )
+    assert admission is not None
+    assert _quota_caps(admission) == (12, 240_000, 24_000)
+
+
+def test_the_quota_file_is_stable_for_the_same_scope(monkeypatch, tmp_path):
+    first = _admission(monkeypatch, tmp_path)
+    second = build_settlement_admission(
+        model=MODEL, kind="chat", scope_id="turn-1"
+    )
+    assert second is not None
+    assert first.logical_path == second.logical_path
+
+
+def test_a_reopened_quota_file_cannot_be_widened(monkeypatch, tmp_path):
+    from src.application.spend_admission_factory import (
+        AdmissionConfigError,
+        LogicalQuota,
+    )
+
+    _admission(monkeypatch, tmp_path)
+    with pytest.raises(AdmissionConfigError) as refused:
+        build_settlement_admission(
+            model=MODEL,
+            kind="chat",
+            scope_id="turn-1",
+            quota=LogicalQuota(99, 999_999, 99_999),
+        )
+    assert refused.value.reason == "logical_admission_refused"
+
+
+def test_the_logical_track_stops_a_turn_before_the_cost_track(
+    monkeypatch, tmp_path
+):
+    from src.application.spend_admission_factory import LogicalQuota
+    from src.web.semantic_admission import AdmissionRefused
+
+    _configure(monkeypatch, tmp_path)
+    admission = build_settlement_admission(
+        model=MODEL,
+        kind="chat",
+        scope_id="turn-1",
+        quota=LogicalQuota(1, 120_000, 12_000),
+    )
+    assert admission is not None
+    admitted = _admitted(admission)
+
+    with spend_identity(
+        run_id="run-1", operation_id="op-1", invocation="1", experiment=EXPERIMENT
+    ):
+        assert admitted(
+            messages=[{"role": "user", "content": "one"}],
+            timeout=5.0,
+            task_name="op-1#r1#answer",
+        ) == "the answer"
+        with pytest.raises(AdmissionRefused) as refused:
+            admitted(
+                messages=[{"role": "user", "content": "two"}],
+                timeout=5.0,
+                task_name="op-1#r2#answer",
+            )
+    assert refused.value.args[0] == "budget_exhausted"
+    rows = admission.settlements._connect().execute(
+        "SELECT COUNT(*) FROM llm_spend_reservations"
+    ).fetchone()[0]
+    assert rows == 1
+
+
+def test_a_cost_refusal_does_not_refund_the_logical_reservation(monkeypatch, tmp_path):
+    """Order is logical then cost; a later cost refusal keeps the logical spend."""
+
+    from src.application.spend_settlement_adapter import RESERVED
+    from src.domain.spend_settlement import COST_BASIS_MEASURED_USAGE, SETTLEMENT_SETTLED
+    from src.web.semantic_admission import AdmissionRefused
+
+    _configure(monkeypatch, tmp_path)
+    admission = build_settlement_admission(
+        model=MODEL, kind="chat", scope_id="turn-1"
+    )
+    assert admission is not None
+
+    # A previous send recorded a cost above its reservation: the experiment is
+    # already known not to be bounded.
+    with spend_identity(
+        run_id="run-1", operation_id="op-1", invocation="1", experiment=EXPERIMENT
+    ):
+        assert admission.adapter.reserve(
+            "pre-existing",
+            model=MODEL,
+            max_output_tokens=10,
+            prompt_chars=10,
+        ) == RESERVED
+    admission.settlements.settle(
+        EXPERIMENT,
+        "pre-existing",
+        outcome=SETTLEMENT_SETTLED,
+        cost_micros=900,
+        cost_basis=COST_BASIS_MEASURED_USAGE,
+        evidence_ref="provider_result:pre-existing#receipt",
+        observed_at="2026-10-25T00:00:01+00:00",
+    )
+
+    admitted = _admitted(admission)
+    with spend_identity(
+        run_id="run-1", operation_id="op-1", invocation="1", experiment=EXPERIMENT
+    ):
+        with pytest.raises(AdmissionRefused):
+            admitted(
+                messages=[{"role": "user", "content": "hi"}],
+                timeout=5.0,
+                task_name="op-1#r1#answer",
+            )
+    # The overrun blocked the cost track, but the logical reservation stands:
+    # the call was admitted, then refused, and the quota is not refunded.
+    usage = admission.logical.usage()
+    assert usage.calls == 1
+    rows = admission.settlements._connect().execute(
+        "SELECT COUNT(*) FROM llm_spend_reservations WHERE request_key = ?",
+        ("op-1#r1#answer",),
+    ).fetchone()[0]
+    assert rows == 0

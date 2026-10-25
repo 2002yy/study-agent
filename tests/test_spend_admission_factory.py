@@ -57,17 +57,17 @@ def _configure(monkeypatch, tmp_path: Path) -> Path:
 def test_anything_but_an_explicit_affirmative_is_off(monkeypatch, value):
     monkeypatch.setenv(ASSEMBLY_FLAG, value)
     assert settlement_admission_enabled() is False
-    assert build_settlement_admission(model="deepseek-chat") is None
+    assert build_settlement_admission(model="deepseek-chat", kind="chat", scope_id="turn-1") is None
 
 
 def test_an_unset_flag_builds_nothing(monkeypatch):
     assert settlement_admission_enabled() is False
-    assert build_settlement_admission(model="deepseek-chat") is None
+    assert build_settlement_admission(model="deepseek-chat", kind="chat", scope_id="turn-1") is None
 
 
 def test_a_complete_configuration_builds_a_chain(monkeypatch, tmp_path):
     database = _configure(monkeypatch, tmp_path)
-    admission = build_settlement_admission(model="deepseek-chat", attempts=2)
+    admission = build_settlement_admission(model="deepseek-chat", kind="chat", scope_id="turn-1", attempts=2)
     assert isinstance(admission, SettlementAdmission)
     assert admission.ledger_path == str(database.resolve())
     assert admission.experiment_id == EXPERIMENT
@@ -80,7 +80,7 @@ def test_the_chain_refuses_a_missing_experiment(monkeypatch, tmp_path):
     _configure(monkeypatch, tmp_path)
     monkeypatch.delenv("LLM_SPEND_EXPERIMENT_ID")
     with pytest.raises(AdmissionConfigError) as refused:
-        build_settlement_admission(model="deepseek-chat")
+        build_settlement_admission(model="deepseek-chat", kind="chat", scope_id="turn-1")
     assert refused.value.reason == "experiment_not_configured"
 
 
@@ -88,7 +88,7 @@ def test_the_chain_refuses_a_missing_cap(monkeypatch, tmp_path):
     _configure(monkeypatch, tmp_path)
     monkeypatch.delenv("LLM_SPEND_EXPERIMENT_CAP_CNY")
     with pytest.raises(AdmissionConfigError) as refused:
-        build_settlement_admission(model="deepseek-chat")
+        build_settlement_admission(model="deepseek-chat", kind="chat", scope_id="turn-1")
     assert refused.value.reason == "cap_not_configured"
 
 
@@ -96,7 +96,7 @@ def test_the_chain_refuses_missing_prices(monkeypatch, tmp_path):
     _configure(monkeypatch, tmp_path)
     monkeypatch.delenv("LLM_SPEND_INPUT_CNY_PER_MTOK")
     with pytest.raises(AdmissionConfigError) as refused:
-        build_settlement_admission(model="deepseek-chat")
+        build_settlement_admission(model="deepseek-chat", kind="chat", scope_id="turn-1")
     assert refused.value.reason == "pricing_not_configured"
 
 
@@ -104,7 +104,7 @@ def test_the_chain_refuses_an_unknown_model(monkeypatch, tmp_path):
     _configure(monkeypatch, tmp_path)
     monkeypatch.setenv("LLM_EXPERIMENT_ALLOWED_MODELS", "some-other-model")
     with pytest.raises(AdmissionConfigError) as refused:
-        build_settlement_admission(model="deepseek-chat")
+        build_settlement_admission(model="deepseek-chat", kind="chat", scope_id="turn-1")
     assert refused.value.reason == "model_not_allowed"
 
 
@@ -112,19 +112,19 @@ def test_the_chain_refuses_an_unknown_model(monkeypatch, tmp_path):
 def test_the_chain_refuses_an_impossible_attempt_budget(monkeypatch, tmp_path, attempts):
     _configure(monkeypatch, tmp_path)
     with pytest.raises(AdmissionConfigError) as refused:
-        build_settlement_admission(model="deepseek-chat", attempts=attempts)
+        build_settlement_admission(model="deepseek-chat", kind="chat", scope_id="turn-1", attempts=attempts)
     assert refused.value.reason == "attempts_invalid"
 
 
 def test_the_chain_refuses_a_missing_model(monkeypatch, tmp_path):
     _configure(monkeypatch, tmp_path)
     with pytest.raises(AdmissionConfigError) as refused:
-        build_settlement_admission(model="  ")
+        build_settlement_admission(model="  ", kind="chat", scope_id="turn-1")
     assert refused.value.reason == "model_not_configured"
 
 
 def test_the_chain_reports_the_audit_store_it_built(monkeypatch, tmp_path):
     database = _configure(monkeypatch, tmp_path)
-    admission = build_settlement_admission(model="deepseek-chat")
+    admission = build_settlement_admission(model="deepseek-chat", kind="chat", scope_id="turn-1")
     assert admission is not None
     assert Path(admission.settlements.database_path) == Path(database.resolve())

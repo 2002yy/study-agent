@@ -46,8 +46,8 @@ from src.llm_spend_guard import (
     SpendLimitExceeded,
     authorize_send,
     experiment_id,
+    register_settling_owner,
     reserve_call,
-    settling_reservation,
 )
 
 RESERVED = "reserved"
@@ -82,6 +82,10 @@ class SettlementLedgerAdapter:
         # fixture proves only that the caller can type. The default refuses them,
         # and only a test harness should turn this on.
         self._allow_offline_fixture = bool(allow_offline_fixture)
+        # Register the capability before any reserve can happen. See the guard's
+        # module docstring: the first reservation is allowed only for an object
+        # that owns a settlement store.
+        register_settling_owner(self)
         # request_id -> experiment_id, from the reserve that actually happened.
         self._experiments: dict[str, str] = {}
         # request_id -> the single-use authorization issued with that reservation.
@@ -116,20 +120,22 @@ class SettlementLedgerAdapter:
             # has looked at the observation. The reservation is not the knob.
             return COST_UPPER_BOUND_INVALIDATED
         try:
-            with settling_reservation():
-                amount_cny = reserve_call(
-                    prompt_chars=prompt_chars,
-                    max_tokens=max_output_tokens,
-                    attempts=self._attempts,
-                    purpose=self._purpose,
-                    model=model,
-                    request_key=request_id,
-                    # The overrun check runs inside the reservation's own write
-                    # transaction. Checking it here, before the call, would leave a
-                    # window in which an overrun observation commits unseen - the P1
-                    # shape the contract's :12.7 forbids.
-                    admission_guard=self._settlements.admission_guard,
-                )
+            amount_cny = reserve_call(
+                prompt_chars=prompt_chars,
+                max_tokens=max_output_tokens,
+                attempts=self._attempts,
+                purpose=self._purpose,
+                model=model,
+                request_key=request_id,
+                # Object capability, not a boolean: only a registered adapter can
+                # make the first reservation in experiment mode.
+                settling_owner=self,
+                # The overrun check runs inside the reservation's own write
+                # transaction. Checking it here, before the call, would leave a
+                # window in which an overrun observation commits unseen - the P1
+                # shape the contract's :12.7 forbids.
+                admission_guard=self._settlements.admission_guard,
+            )
         except SpendAdmissionRefused as refused:
             return (
                 COST_UPPER_BOUND_INVALIDATED

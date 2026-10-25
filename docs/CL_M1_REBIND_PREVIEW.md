@@ -4330,3 +4330,49 @@ fresh/issued/consumed。负控：签发 → `reset_spend()` → 同一 token 进
 - 新增 3 条隔离用例；影响集 **269 passed**；Ruff 干净；
   mypy `124/128, resolved=4`；
 - 未接生产调用点、未调用付费模型、未跑 L3、未合并 main。
+
+### 34.26 A 裁定落地：双轨装配 + 首次预留绑定适配器（2026-10-25）
+
+#### 34.26.1 P1：`settling_reservation()` 的布尔标记改为对象能力
+
+旧实现是一个公开的上下文布尔值，未接线代码可以自己进入它、预留费用并直接发送，
+绕过结算观测。现在：
+
+- 只有 `SettlementLedgerAdapter` 构造时调用 `register_settling_owner(self)`
+  注册能力；
+- `reserve_call(..., settling_owner=…)` 需要一个**已注册对象**；
+- 任意对象（`object()`）或空值都得到 `send_not_admitted`；
+- `settling_reservation()` 已删除。
+
+负控：实验模式下传入未注册对象 → `send_not_admitted`；已授权路径与关闭开关的旧
+路径不受影响。
+
+#### 34.26.2 双轨装配（A）
+
+`build_settlement_admission()` 现在是真正的双轨工厂，必须同时给出：
+
+1. **逻辑额度**：按 `kind`（`chat` / `research`）+ `scope_id`（回合或操作 ID）
+   构造独立 `SqliteDecisionAdmission`，路径为
+   `<runtime 目录>/decision-admission/<experiment-hash>/<kind>-<scope-hash>.sqlite`，
+   与 `runtime.sqlite` 分离；同一 scope 重开同一文件，现有额度文件不可放宽。
+2. **费用适配器**与**发送授权能力**（`claim_send_authorization` 必须可调用）。
+
+已批准的 S2-B1 离线试运行额度写入常量（`CHAT_TRIAL_QUOTA` 6/120000/12000，
+`RESEARCH_TRIAL_QUOTA` 12/240000/24000），是本次实验策略，不是隐藏默认值；
+`LoopLimits` 等既有上限仍取更严格者。
+
+失败语义：逻辑先预留、费用后预留；任一轨拒绝都不发送。逻辑成功后费用失败
+（例如超界）**不退还**逻辑消耗——负控断言逻辑 `usage.calls == 1` 且费用表没有
+新行。
+
+#### 34.26.3 验证
+
+- 新增/改写：工厂 18 条、双轨链路 13 条（含额度、稳定路径、不可放宽、
+  逻辑先于费用、费用失败不退逻辑）、隔离 3 条；
+- 影响集 **297 passed**；Ruff 干净；mypy `124/128, resolved=4`；
+- 未接生产调用点、未调用付费模型、未跑 L3、未合并 main。
+
+**仍未做**：把该工厂接到 `ChatService` 与非流式/流式依赖（每回合
+`kind="chat"`, `scope_id=turn.id`），以及研究运行时（每操作
+`kind="research"`, `scope_id=operation.id`）；流式授权必须覆盖实际网络调用与
+消费；随后是 B1-2d 装配级验收。

@@ -56,6 +56,7 @@ from pathlib import Path
 import secrets
 import threading
 from typing import Iterator
+import weakref
 
 from src.infrastructure.sqlite.spend_ledger import (
     MICROS_PER_CNY,
@@ -249,7 +250,12 @@ _AUTHORIZATION_SECRET = secrets.token_bytes(32)
 # experiment mode nothing else may reserve: an un-admitted transport call is
 # refused before the provider is touched, which is how a path that has not been
 # wired yet fails closed instead of spending without an owner.
-_settling: ContextVar[bool] = ContextVar("llm_spend_settling", default=False)
+#
+# The permission is an object capability, not a boolean anyone can set: only an
+# adapter registers itself, and `reserve_call` accepts the owner object. A stray
+# context flag would let un-wired code reserve and send outside the settlement
+# audit while still looking "authorized" to the guard.
+_settling_owners: weakref.WeakSet[object] = weakref.WeakSet()
 
 SETTLEMENT_ASSEMBLY_FLAG = "STUDY_AGENT_SETTLEMENT_ADMISSION"
 _AFFIRMATIVE = frozenset({"1", "true", "on", "yes"})
@@ -261,15 +267,19 @@ def settlement_admission_enabled() -> bool:
     return os.getenv(SETTLEMENT_ASSEMBLY_FLAG, "").strip().lower() in _AFFIRMATIVE
 
 
-@contextmanager
-def settling_reservation() -> Iterator[None]:
-    """Mark the adapter's own first reservation as legitimate in experiment mode."""
+def register_settling_owner(owner: object) -> None:
+    """Register the adapter that may make its own first reservation.
 
-    token = _settling.set(True)
-    try:
-        yield
-    finally:
-        _settling.reset(token)
+    Called by ``SettlementLedgerAdapter``'s constructor. There is no unregister:
+    a live adapter keeps the capability for its lifetime, and the weak set drops
+    it with the object.
+    """
+
+    _settling_owners.add(owner)
+
+
+def is_settling_owner(owner: object) -> bool:
+    return owner is not None and owner in _settling_owners
 
 
 class SpendAuthorizationError(SpendConfigurationError):
@@ -775,6 +785,7 @@ def reserve_call(
     request_key: str | None = None,
     identity: SpendIdentity | None = None,
     admission_guard: AdmissionGuard | None = None,
+    settling_owner: object | None = None,
 ) -> float:
     """Reserve the worst case before a request; raise when it cannot fit.
 
@@ -819,10 +830,10 @@ def reserve_call(
             slot.used = True
         return 0.0
 
-    if settlement_admission_enabled() and not _settling.get():
+    if settlement_admission_enabled() and not is_settling_owner(settling_owner):
         # Experiment mode: a transport that was not handed an authorization, and
-        # is not the settlement adapter making the first reservation, must not
-        # spend. This is the isolation for entries that are not wired yet.
+        # is not the registered settlement adapter making the first reservation,
+        # must not spend. This is the isolation for entries that are not wired yet.
         raise SpendAuthorizationError("send_not_admitted")
 
     if cap is None and experiment_cap is None:

@@ -1,33 +1,41 @@
-"""CL-M3-S2-B1-2a: the production assembly for settlement, off by default.
+"""CL-M3-S2-B1-2a: the production assembly for settlement and quota, off by default.
 
-This module is the only place allowed to build the settlement adapter for the
-real application. It exists so that "is the paid path wired?" has one answer:
-the flag is read here, the configuration is checked here, and nothing else
-constructs an adapter.
+This module is the only place allowed to build the paid chain for the real
+application. It exists so that "is the paid path wired?" has one answer: the flag
+is read here, both tracks are assembled here, and nothing else constructs them.
 
 **Off by default, and off means absent.** With no flag the factory returns
 ``None``. It does not return a no-op adapter, because a no-op adapter is an
-object that the rest of the application will happily treat as a working cost
-gate.
+object the rest of the application will happily treat as a working gate.
 
-**Every prerequisite is checked, not assumed.** A settlement chain needs a
-durable experiment, a positive cap, configured prices, a model the experiment
-pays for, an attempt budget, and one SQLite file shared by the reservation
-ledger and the audit store. A typo in any of them refuses the assembly instead
-of producing a chain that cannot price, cannot authorize, or silently splits
-one send across two databases.
+**Two tracks, both required (Q-10).** The cost adapter limits what the
+experiment may reserve in money; the logical admission limits how many calls,
+characters and output tokens one chat turn or one research operation may spend.
+Neither substitutes for the other: a research that is still inside its money cap
+must not be allowed to re-plan forever.
 
-**No silent downgrade.** The adapter must be able to *claim* a send
-authorization. ``AdmittedCompletion`` refuses to send when a ledger exposes no
-claim, but the factory refuses earlier: an assembly that cannot hand out the
-authorization is not a compliant assembly.
+**The quotas are the approved trial policy, not hidden defaults.** The numbers
+below are the S2-B1 offline trial values, frozen for this experiment. They are
+capacity limits, not grants: existing LoopLimits, stage limits and output caps
+still apply, and the stricter one wins. A different experiment changes them by
+choosing new quota files; an existing quota file is immutable and a mismatched
+one is refused by ``SqliteDecisionAdmission``.
+
+**Every prerequisite is checked, not assumed.** A chain needs a durable
+experiment, a positive cap, configured prices, a model the experiment pays for,
+an attempt budget, one absolute SQLite file shared by the reservation ledger and
+the audit store, and a logical quota file of its own (never the runtime
+database). A typo refuses the assembly instead of producing a chain that cannot
+price, cannot authorize, or silently splits a send across two stores.
 """
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.application.conversation_decision_admission import SqliteDecisionAdmission
 from src.application.spend_settlement_adapter import SettlementLedgerAdapter
 from src.infrastructure.sqlite.spend_settlement import SpendSettlementRepository
 from src.llm_spend_guard import (
@@ -47,6 +55,10 @@ from src.llm_spend_guard import (
 # never disagree about whether the chain is on.
 ASSEMBLY_FLAG = SETTLEMENT_ASSEMBLY_FLAG
 
+CHAT = "chat"
+RESEARCH = "research"
+_QUOTA_KINDS = frozenset({CHAT, RESEARCH})
+
 
 class AdmissionConfigError(RuntimeError):
     """The chain cannot be assembled safely. The reason is a first-class value."""
@@ -57,29 +69,91 @@ class AdmissionConfigError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class LogicalQuota:
+    """One turn's or one operation's call/character/output ceiling."""
+
+    max_calls: int
+    max_prompt_chars: int
+    max_output_tokens: int
+
+
+# Approved S2-B1 offline trial policy (2026-10-25). These are upper bounds for a
+# single turn/operation, not additional permission.
+CHAT_TRIAL_QUOTA = LogicalQuota(
+    max_calls=6, max_prompt_chars=120_000, max_output_tokens=12_000
+)
+RESEARCH_TRIAL_QUOTA = LogicalQuota(
+    max_calls=12, max_prompt_chars=240_000, max_output_tokens=24_000
+)
+
+
+@dataclass(frozen=True)
 class SettlementAdmission:
-    """A fully configured settlement chain. Constructing one spends nothing."""
+    """A fully configured chain. Constructing one spends nothing."""
 
     adapter: SettlementLedgerAdapter
     settlements: SpendSettlementRepository
+    logical: SqliteDecisionAdmission
     ledger_path: str
+    logical_path: str
+    logical_kind: str
+    scope_id: str
     experiment_id: str
     model: str
     attempts: int
 
 
+def _digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
+
+
+def logical_admission_path(base_dir: Path, experiment: str, kind: str, scope: str) -> Path:
+    """The stable per-turn/per-operation quota file.
+
+    Reopening the same scope must open the same file: a new path after a
+    reconnect would hand out a fresh budget, which is the one thing the quota
+    exists to prevent.
+    """
+
+    return (
+        Path(base_dir).resolve()
+        / "decision-admission"
+        / _digest(experiment)
+        / f"{kind}-{_digest(scope)}.sqlite"
+    )
+
+
+def _quota_for(kind: str, quota: LogicalQuota | None) -> LogicalQuota:
+    chosen = quota or (CHAT_TRIAL_QUOTA if kind == CHAT else RESEARCH_TRIAL_QUOTA)
+    for value in (chosen.max_calls, chosen.max_prompt_chars, chosen.max_output_tokens):
+        if type(value) is not int or value <= 0:
+            raise AdmissionConfigError("quota_invalid")
+    return chosen
+
+
 def build_settlement_admission(
     *,
     model: str,
+    kind: str,
+    scope_id: str,
     attempts: int = 1,
     allow_offline_fixture: bool = False,
     ledger_path: str | None = None,
+    quota: LogicalQuota | None = None,
 ) -> SettlementAdmission | None:
-    """Build the chain, or ``None`` when the feature flag is off."""
+    """Build both tracks, or ``None`` when the feature flag is off.
+
+    ``kind`` names the quota owner: ``chat`` for one turn, ``research`` for one
+    operation. ``scope_id`` is that turn's or operation's stable identifier.
+    """
 
     if not settlement_admission_enabled():
         return None
 
+    if kind not in _QUOTA_KINDS:
+        raise AdmissionConfigError("quota_kind_invalid")
+    if not isinstance(scope_id, str) or not scope_id.strip():
+        raise AdmissionConfigError("quota_scope_missing")
     if not isinstance(model, str) or not model.strip():
         raise AdmissionConfigError("model_not_configured")
     if type(attempts) is not int or attempts < 1:
@@ -104,7 +178,6 @@ def build_settlement_admission(
         raise AdmissionConfigError("model_not_allowed") from exc
 
     resolved = str(Path(ledger_path or spend_ledger_path()).expanduser().resolve())
-
     settlements = SpendSettlementRepository(resolved)
     adapter = SettlementLedgerAdapter(
         settlements,
@@ -119,10 +192,33 @@ def build_settlement_admission(
     if Path(settlements.database_path) != Path(resolved):
         raise AdmissionConfigError("ledger_path_mismatch")
 
+    chosen = _quota_for(kind, quota)
+    logical_path = logical_admission_path(
+        Path(resolved).parent, experiment, kind, scope_id
+    )
+    # The quota store owns its directory; SqliteDecisionAdmission refuses to
+    # invent a parent for an existing path.
+    logical_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        # The quota file must be its own database; SqliteDecisionAdmission
+        # refuses the runtime database and any pre-existing foreign file.
+        logical = SqliteDecisionAdmission(
+            logical_path,
+            max_calls=chosen.max_calls,
+            max_prompt_chars=chosen.max_prompt_chars,
+            max_output_tokens=chosen.max_output_tokens,
+        )
+    except ValueError as exc:
+        raise AdmissionConfigError("logical_admission_refused") from exc
+
     return SettlementAdmission(
         adapter=adapter,
         settlements=settlements,
+        logical=logical,
         ledger_path=resolved,
+        logical_path=str(logical_path),
+        logical_kind=kind,
+        scope_id=scope_id,
         experiment_id=experiment,
         model=model,
         attempts=attempts,
