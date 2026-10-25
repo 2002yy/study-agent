@@ -129,7 +129,7 @@ def _service(tmp_path: Path, gateway: ObservingGateway, planner: ObservingPlanne
         research_service=lookup,
         semantic_completion=None,
     )
-    captured: dict[str, Any] = {"rag_context": ""}
+    captured: dict[str, Any] = {"rag_context": "", "lookup": lookup}
 
     def build_messages(**kwargs):
         captured["rag_context"] = kwargs["rag_context"]

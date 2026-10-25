@@ -4579,3 +4579,58 @@ ExternalDataPolicyChatService.start_turn
 
 C3（回答/来源/事件闭环）与 C4（前端旅程）尚未开始。开关仍 OFF；未调用付费模型、
 未跑 L3、未合并 main。
+
+### 34.33 S2-C3a/C3b：深度证据进入回答，阶段事件可续传（2026-10-26）
+
+#### C3a 深度证据投影
+
+**缺陷**：`_resolve_deep_research` 之前把真实读取的正文压成摘要形状
+（`status: read` + `facts_excerpt`，且 `web_search` 没有 `results`），不满足
+`trusted_tool_calls()` 的“先发现、后读取”口径。深度研究确实读过页面、也驱动了
+第二轮查询，但 `web_tools["calls"]`/`context_block()`/`used` 全为空，最终回答拿不到证据。
+
+**修法**（不新增模型调用、不改变研究预算）：
+
+- 每个 note 的 URL 归入其轮次的 `web_search.result.results`，作为**该轮确实发现的候选**；
+  没有 note 的轮次保持空候选，不伪造结果；
+- 每个有 URL 且正文非空的 note 投影为 `web_read`：`ok=True`、`url`、`content`
+  （fact 前 4000 字符）、`title`。空正文/空 URL 的 note 不投影；
+- 结果仍走既有 `trusted_tool_calls()` / `evidence_tool_calls()`，不放松任何证据规则。
+
+**验证**（`tests/test_deep_evidence_closure.py`，2 条）：
+
+- 观察驱动深度运行结束后：`used=True`、`read_count=2`、`used_sources` 含两个真实 URL；
+  回答上下文中出现正文标记 `OMEGA-42` 与两个 URL；`web_context_used=True`；
+  两轮 `web_search` 都保留非空候选；持久化聊天回合的 `rag_snapshot.web_tools` 同样成立；
+  `answer_validation_active(prepared)` 为真（研究回答仍受发布门约束）。
+- 零证据负控：搜索为空、没有任何读取时 `used=False`、`used_sources=[]`、
+  上下文不含来源 URL，并带有“没有取得任何已读取正文”的研究缺口提示。
+
+**反向变异**：把 `web_read.ok` 改为假 → 证据用例失败；把候选 `results` 清空 →
+同样失败（均还原）。
+
+#### C3b 阶段事件持久化与 SSE 续传
+
+- `_deep_log` 为每个阶段写入单调 `seq`（与列表位置分离，尾部截断后仍稳定）；
+  `seq` 随 run 的 `research_context.deep.steps` 一起存进 SQLite。
+- 新增只读端点 `GET /research-runs/{run_id}/events`：按 `seq` 输出
+  `event: research_step`，帧 `id` 即游标；支持 `Last-Event-ID` 与 `?after=`；
+  终态且无新步骤时发 `research_idle` 并结束；运行中发心跳。
+- 端点只调用 `service.get()`，从不 `execute`/`retry`/`cancel`，重连不会新增研究或发送。
+
+**验证**（`tests/test_research_event_resume.py`，3 条）：
+
+- 完整流按序返回全部步骤，事件类型包含 `planning`/`read`/`revise`，最后 `research_idle`；
+- 用第一条的 `id` 作为 `Last-Event-ID` 重连，只返回其后步骤，第一条正文不重复；
+  并断言重连前后 `status` 与 `query_attempts` 数量不变；
+- `?after=` 与头部游标语义一致；不存在的 run 在开流前返回 404。
+
+**反向变异**：忽略 `Last-Event-ID` → 重连用例回放全部步骤而失败（已还原）。
+
+#### 验证汇总
+
+- 定向 5 条通过；影响集 **231 passed, 1 skipped**（深度研究、运行恢复、研究路由、
+  聊天流、外部数据策略、C1/C2 用例）；Ruff 干净；mypy `124/128, resolved=4`。
+- 仍未覆盖/未完成：真实供应商网络中断；`/chat/stream` 的 token 流本身不是可续传
+  端点（重连依赖已持久化的 run 事件流与回合快照，C4 前端需按此接线）；
+  C4 前端旅程尚未开始。开关仍 OFF；未调用付费模型、未跑 L3、未合并 main。

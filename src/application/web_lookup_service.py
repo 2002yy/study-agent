@@ -1545,7 +1545,18 @@ class WebLookupService:
         steps = [
             dict(item) for item in deep.get("steps", []) if isinstance(item, dict)
         ]
-        steps.append({"at": utc_now(), "kind": kind, "text": text[:300]})
+        # A sequence is durable, so an SSE client can resume from the last id it
+        # saw instead of replaying the whole run. It is separate from the list
+        # position because the tail is capped.
+        next_seq = max((int(item.get("seq") or 0) for item in steps), default=0) + 1
+        steps.append(
+            {
+                "seq": next_seq,
+                "at": utc_now(),
+                "kind": kind,
+                "text": text[:300],
+            }
+        )
         deep["steps"] = steps[-self._DEEP_STEPS_CAP :]
 
     def _deep_apply_computation(
