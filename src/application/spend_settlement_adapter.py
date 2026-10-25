@@ -41,8 +41,10 @@ from src.infrastructure.sqlite.spend_settlement import (
     SpendSettlementRepository,
 )
 from src.llm_spend_guard import (
+    SendAuthorization,
     SpendConfigurationError,
     SpendLimitExceeded,
+    authorize_send,
     experiment_id,
     reserve_call,
 )
@@ -74,6 +76,8 @@ class SettlementLedgerAdapter:
         self._allow_offline_fixture = bool(allow_offline_fixture)
         # request_id -> experiment_id, from the reserve that actually happened.
         self._experiments: dict[str, str] = {}
+        # request_id -> the single-use authorization issued with that reservation.
+        self._authorizations: dict[str, SendAuthorization] = {}
 
     @property
     def settlements(self) -> SpendSettlementRepository:
@@ -137,7 +141,29 @@ class SettlementLedgerAdapter:
             # as unbound rather than as free.
             return COST_LEDGER_REFUSED
         self._experiments[request_id] = experiment
+        # The authorization is issued only here, after the durable reservation
+        # exists, and it carries the bounds that reservation paid for. The
+        # transport can verify all three facts (exists, unused, covers this
+        # request) without trusting a bare key.
+        self._authorizations[request_id] = authorize_send(
+            experiment_id=experiment,
+            request_key=request_id,
+            model=str(model or ""),
+            prompt_chars=int(prompt_chars),
+            max_tokens=int(max_output_tokens or 0),
+            attempts=1,
+            reserved_cny=float(amount_cny),
+        )
         return RESERVED
+
+    def claim_send_authorization(self, request_id: str) -> SendAuthorization | None:
+        """Hand the single-use authorization to the layer that is about to send.
+
+        Popping is the handoff: the adapter no longer holds it, so it cannot be
+        claimed twice.
+        """
+
+        return self._authorizations.pop(request_id, None)
 
     def settle(
         self,

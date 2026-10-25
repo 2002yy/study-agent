@@ -41,8 +41,15 @@ from src.domain.spend_settlement import (
     SETTLEMENT_UNRESOLVED,
     evidence_ref,
 )
-from src.llm_spend_guard import pre_reserved_call
+from src.llm_spend_guard import pre_reserved_send, serialized_request_chars
 from src.web.semantic_planner import PlanningIdentity
+
+# Room for the fields the transport adds after admission (model, temperature,
+# response format, extra body, retry options). The transport re-checks the real
+# serialized size against the authorization, so this is an allowance, not a
+# guess that can silently under-reserve: a request that exceeds it is refused
+# before it is sent.
+TRANSPORT_REQUEST_OVERHEAD_CHARS = 4096
 
 # Settlement outcomes. ``unresolved`` is distinct from ``failed`` on purpose: failed means
 # the provider answered with an error we can price, unresolved means we never learned.
@@ -164,7 +171,19 @@ class AdmittedCompletion:
         **_kwargs: Any,
     ) -> str:
         request_id = request_id_for(task_name)
-        prompt_chars = sum(len(row.get("content", "")) for row in messages)
+        # The reservation is sized with the transport's own accounting (serialized
+        # request, not just the message bodies) plus a bounded allowance for the
+        # fields the transport adds. The transport verifies the real request
+        # against these bounds before sending; a mismatch is a refusal, never a
+        # second reservation.
+        prompt_chars = serialized_request_chars(
+            {
+                "messages": messages,
+                "model": self._model,
+                "max_tokens": self._estimate,
+                "task_name": task_name,
+            }
+        ) + TRANSPORT_REQUEST_OVERHEAD_CHARS
 
         # Both tracks reserve before the provider is touched. A refusal on either track
         # stops the call; the stricter track decides.
@@ -181,11 +200,27 @@ class AdmittedCompletion:
             self.calls.append(AdmittedCall(request_id, REJECTED_LEDGER, None))
             raise AdmissionRefused(REJECTED_LEDGER)
 
+        authorization = None
+        claim = getattr(self._ledger, "claim_send_authorization", None)
+        if callable(claim):
+            authorization = claim(request_id)
+            if authorization is None:
+                # The ledger reserved but cannot prove it: fail closed rather than
+                # send under an authorization nobody issued.
+                self.calls.append(AdmittedCall(request_id, REJECTED_LEDGER, None))
+                raise AdmissionRefused(REJECTED_LEDGER)
+
         try:
             # The cost reservation for this send is already held by the adapter.
-            # The transport may send, but must not reserve a second time under its
-            # own key - that would charge one answer twice.
-            with pre_reserved_call(request_id):
+            # The authorization proves it, states its bounds, and is consumed by
+            # the first send: the transport may send within those bounds, but must
+            # not reserve a second time or exceed them.
+            if authorization is not None:
+                with pre_reserved_send(authorization):
+                    value = self._completion(
+                        messages=messages, timeout=timeout, task_name=task_name, **_kwargs
+                    )
+            else:
                 value = self._completion(
                     messages=messages, timeout=timeout, task_name=task_name, **_kwargs
                 )

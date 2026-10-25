@@ -47,10 +47,13 @@ from src.infrastructure.sqlite.spend_ledger import (
 )
 from src.infrastructure.sqlite.spend_settlement import SpendSettlementRepository
 from src.llm_spend_guard import (
-    SpendConfigurationError,
-    pre_reserved_call,
+    SendAuthorization,
+    SpendAuthorizationError,
+    authorize_send,
+    pre_reserved_send,
     reset_spend,
     reserve_call,
+    serialized_request_chars,
     spend_identity,
 )
 from src.web.semantic_admission import AdmittedCall, AdmittedCompletion, SETTLED
@@ -247,16 +250,95 @@ def test_without_the_guard_the_same_window_admits_the_reservation(ledger, databa
 
 def test_a_pre_reserved_send_does_not_reserve_a_second_time(monkeypatch, database):
     _configure(monkeypatch, database)
-    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+    repository = SpendSettlementRepository(database)
+    adapter = SettlementLedgerAdapter(repository)
     with _identity():
         assert adapter.reserve(
             "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
         ) == RESERVED
         assert _count(database, "llm_spend_reservations") == 1
-        # The transport reserves too, unless it is told this send already is.
-        with pre_reserved_call("send-1"):
-            assert reserve_call(prompt_chars=10, max_tokens=10) == 0.0
+        authorization = adapter.claim_send_authorization("send-1")
+        assert authorization is not None
+        # The transport reserves too, unless it presents the authorization.
+        with pre_reserved_send(authorization):
+            assert reserve_call(prompt_chars=10, max_tokens=10, model="deepseek-chat") == 0.0
         assert _count(database, "llm_spend_reservations") == 1
+
+
+def test_an_authorization_cannot_be_claimed_twice(monkeypatch, database):
+    _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+    assert adapter.claim_send_authorization("send-1") is not None
+    assert adapter.claim_send_authorization("send-1") is None
+
+
+def test_a_send_without_a_reservation_has_no_authorization(monkeypatch, database):
+    _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+    assert adapter.claim_send_authorization("never-reserved") is None
+    with pytest.raises(SpendAuthorizationError) as refused:
+        with pre_reserved_send(
+            SendAuthorization(
+                experiment_id=EXPERIMENT,
+                request_key="never-reserved",
+                model="deepseek-chat",
+                prompt_chars=100,
+                max_tokens=100,
+                attempts=1,
+                reserved_cny=0.001,
+                token="deadbeef",
+            )
+        ):
+            pass
+    assert refused.value.reason == "send_authorization_forged"
+
+
+def test_a_forged_authorization_cannot_authorize_a_send(monkeypatch, database):
+    _configure(monkeypatch, database)
+    genuine = authorize_send(
+        experiment_id=EXPERIMENT,
+        request_key="send-1",
+        model="deepseek-chat",
+        prompt_chars=1000,
+        max_tokens=100,
+        attempts=1,
+        reserved_cny=0.001,
+    )
+    forged = SendAuthorization(
+        experiment_id=genuine.experiment_id,
+        request_key=genuine.request_key,
+        model=genuine.model,
+        prompt_chars=genuine.prompt_chars + 10_000,
+        max_tokens=genuine.max_tokens,
+        attempts=genuine.attempts,
+        reserved_cny=genuine.reserved_cny,
+        token=genuine.token,
+    )
+    with pytest.raises(SpendAuthorizationError) as refused:
+        with pre_reserved_send(forged):
+            pass
+    assert refused.value.reason == "send_authorization_forged"
+
+
+def test_an_authorization_authorizes_exactly_one_send(monkeypatch, database):
+    _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+    with _identity():
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+    authorization = adapter.claim_send_authorization("send-1")
+    assert authorization is not None
+    with pre_reserved_send(authorization):
+        reserve_call(prompt_chars=10, max_tokens=10, model="deepseek-chat")
+    with pytest.raises(SpendAuthorizationError) as refused:
+        with pre_reserved_send(authorization):
+            pass
+    assert refused.value.reason == "send_authorization_consumed"
 
 
 def test_the_transport_still_reserves_when_no_outer_layer_holds_the_key(
@@ -264,17 +346,25 @@ def test_the_transport_still_reserves_when_no_outer_layer_holds_the_key(
 ):
     _configure(monkeypatch, database)
     with _identity():
-        reserve_call(prompt_chars=10, max_tokens=10, request_key="send-2")
+        reserve_call(prompt_chars=10, max_tokens=10, request_key="send-2",
+                     model="deepseek-chat")
     assert _count(database, "llm_spend_reservations") == 1
 
 
-def test_a_second_key_inside_a_pre_reserved_send_is_refused(monkeypatch, database):
+def test_a_second_key_inside_an_authorized_send_is_refused(monkeypatch, database):
     _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
     with _identity():
-        reserve_call(prompt_chars=10, max_tokens=10, request_key="send-1")
-        with pytest.raises(SpendConfigurationError, match="different request key"):
-            with pre_reserved_call("send-1"):
-                reserve_call(prompt_chars=10, max_tokens=10, request_key="send-2")
+        assert adapter.reserve(
+            "send-1", model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+        ) == RESERVED
+    authorization = adapter.claim_send_authorization("send-1")
+    assert authorization is not None
+    with pytest.raises(SpendAuthorizationError) as refused:
+        with pre_reserved_send(authorization):
+            reserve_call(prompt_chars=10, max_tokens=10, request_key="send-2",
+                         model="deepseek-chat")
+    assert refused.value.reason == "send_authorization_key_mismatch"
     assert _count(
         database, "llm_spend_reservations", "request_key = ?", ("send-2",)
     ) == 0
@@ -286,7 +376,12 @@ class _Logical:
 
 
 def test_an_admitted_completion_charges_the_answer_once(monkeypatch, database):
-    """The whole A1 shape: adapter + transport in one call, one row."""
+    """The whole A1 shape: adapter + transport in one call, one row.
+
+    The transport prices its serialized request; the admission layer reserved a
+    bound that has to cover it, otherwise this call is refused rather than
+    double-reserved.
+    """
 
     _configure(monkeypatch, database)
     repository = SpendSettlementRepository(database)
@@ -294,8 +389,22 @@ def test_an_admitted_completion_charges_the_answer_once(monkeypatch, database):
     seen: list[str] = []
 
     def completion(*, messages, timeout, task_name, **_kwargs):
-        # This is what src/llm_client does for every paid request.
-        reserve_call(prompt_chars=10, max_tokens=100, purpose="chat:answer")
+        # This is what src/llm_client does for every paid request: it prices the
+        # serialized request, not just the message bodies.
+        transport_chars = serialized_request_chars(
+            {
+                "messages": messages,
+                "model": "deepseek-chat",
+                "max_tokens": 100,
+                "task_name": task_name,
+            }
+        )
+        reserve_call(
+            prompt_chars=transport_chars,
+            max_tokens=100,
+            purpose="chat:answer",
+            model="deepseek-chat",
+        )
         seen.append(task_name)
         return "the answer"
 
@@ -315,6 +424,71 @@ def test_an_admitted_completion_charges_the_answer_once(monkeypatch, database):
     assert _count(database, "llm_spend_reservations") == 1
     assert _count(database, "llm_spend_settlements") == 1
     assert admitted.calls == [AdmittedCall("op1#r1#answer", SETTLED, 200)]
+
+
+def test_an_authorization_only_covers_the_request_it_was_issued_for(
+    monkeypatch, database
+):
+    """P1-2: the outer reservation must cover the transport's real request."""
+
+    _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+    cases = [
+        ({"prompt_chars": None}, "send_authorization_bound_exceeded"),
+        ({"max_tokens": None}, "send_authorization_bound_exceeded"),
+        ({"attempts": 2}, "send_authorization_bound_exceeded"),
+        ({"model": "a-cheaper-model"}, "send_authorization_model_mismatch"),
+    ]
+    for index, (overrides, reason) in enumerate(cases):
+        key = f"probe-{index}"
+        with _identity():
+            assert adapter.reserve(
+                key, model="deepseek-chat", max_output_tokens=100, prompt_chars=1000
+            ) == RESERVED
+        authorization = adapter.claim_send_authorization(key)
+        assert authorization is not None
+        arguments = {
+            "prompt_chars": 10,
+            "max_tokens": 100,
+            "model": "deepseek-chat",
+        }
+        if overrides.get("prompt_chars", "absent") is None:
+            arguments["prompt_chars"] = authorization.prompt_chars + 1
+        if overrides.get("max_tokens", "absent") is None:
+            arguments["max_tokens"] = authorization.max_tokens + 1
+        if "attempts" in overrides:
+            arguments["attempts"] = overrides["attempts"]
+        if "model" in overrides:
+            arguments["model"] = overrides["model"]
+        with pytest.raises(SpendAuthorizationError) as refused:
+            with pre_reserved_send(authorization):
+                reserve_call(**arguments)
+        assert refused.value.reason == reason
+        # Refused before the transport sent: only the reservations we made exist.
+        assert _count(database, "llm_spend_reservations") == index + 1
+
+
+def test_the_admission_bound_is_measured_like_the_transport(monkeypatch, database):
+    """One accounting function: messages plus the transport's own overhead."""
+
+    _configure(monkeypatch, database)
+    adapter = SettlementLedgerAdapter(SpendSettlementRepository(database))
+    messages = [{"role": "user", "content": "查" * 300}]
+    with _identity():
+        assert adapter.reserve(
+            "send-1",
+            model="deepseek-chat",
+            max_output_tokens=100,
+            prompt_chars=10_000,
+        ) == RESERVED
+    authorization = adapter.claim_send_authorization("send-1")
+    assert authorization is not None
+    real = serialized_request_chars(
+        {"messages": messages, "model": "deepseek-chat", "max_tokens": 100}
+    )
+    assert real <= authorization.prompt_chars
+    with pre_reserved_send(authorization):
+        assert reserve_call(prompt_chars=real, max_tokens=100, model="deepseek-chat") == 0.0
 
 
 # -- 3. evidence strength ------------------------------------------------------------

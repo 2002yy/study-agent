@@ -3999,3 +3999,53 @@ S2 的第一刀只做一件事：**任何真实发送都不能绕过费用检查
 必须证明**每一条**真实发送都经过准入层；`attachment_vision` 与任何直接调用
 `llm_client` 的旧路径目前仍是"传输层自行预留、无观测"，属于接线时必须统一或
 显式豁免的入口。
+
+### 34.19 S2-A-R1：授权必须证明预留存在，并覆盖真实请求（2026-10-25）
+
+**触发**：review #5643194311 的两项 P1。§34.18.1 的 `pre_reserved_call(key)`
+只是一个字符串上下文：它可以被写成一个从未预留过的键，传输层照样返回 `0.0`；
+同一上下文重复调用也不会产生拒绝。另有一处成本口径不一致：准入层按
+`sum(len(content))` 估算输入，传输层按完整序列化请求计价，外层预留可能根本
+覆盖不住真实发送。
+
+**本节替代 §34.18.1 中的 `pre_reserved_call` 机制**；§34.18.2/§34.18.3 继续有效。
+
+#### 34.19.1 P1-1：签名的一次性授权
+
+`SendAuthorization` 是冻结数据类，绑定 `experiment_id`、`request_key`、`model`、
+`prompt_chars`、`max_tokens`、`attempts`、`reserved_cny`；`token` 是这些字段的
+HMAC-SHA256（进程内密钥）。签发只有一个入口：适配器在**持久预留成功之后**调用
+`authorize_send()`。因此：
+
+- 没有预留 → 没有授权；手写的 `SendAuthorization` 签名不匹配；
+- `claim_send_authorization(request_id)` 只交付一次（pop）；
+- `pre_reserved_send(auth)` 在进入时校验签名并登记消耗，第二次进入拒绝；
+- `reserve_call` 在授权作用域内不再写预留，但仍校验键、模型与三个上界。
+
+负控：无预留键 → `claim` 返回 `None`；伪造 token → `send_authorization_forged`；
+重复使用 → `send_authorization_consumed`；另一次发送的键 → `key_mismatch`。
+
+#### 34.19.2 P1-2：外层上界必须覆盖传输层真实请求
+
+- 输入口径统一到 `serialized_request_chars()`（与传输层同一函数、同一序列化方式）；
+  准入层在其上再加 `TRANSPORT_REQUEST_OVERHEAD_CHARS = 4096`，用于覆盖传输层
+  追加的 model/temperature/response_format/extra_body/重试字段。
+- 授权记录这四个维度；传输层发送前逐项校验：模型必须相同，
+  `prompt_chars`、`max_tokens`、`attempts` 均不得超过授权值。
+- 超出即拒绝（`send_authorization_bound_exceeded` / `model_mismatch`），
+  **不会**退化成第二笔预留。4096 是"允许的传输层附加量"，不是可静默突破的估算：
+  真实请求超出它时发送被拒，而不是被少算。
+
+负控：输入超界、输出超界、重试次数超界、模型不符四条；每条同时断言预留表行数
+没有增加。另有一条正向用例模拟传输层按序列化请求计价，证明正常请求落在授权内。
+
+#### 34.19.3 验证与边界
+
+- `tests/test_spend_admission_boundary.py` 12 → **18 条**；
+- 影响集 **178 passed**；Ruff 干净；mypy baseline `124/128, resolved=4`；
+- 变异 3/3 KILLED：跳过签名校验、允许重复使用、忽略上界；
+- 未接生产装配、未调用付费模型、未跑 L3、未合并 main。
+
+留给 S2-B 的事实不变：`SpendGatedAdmission` 的会话循环尚未 claim 授权
+（它还没有生产构造）；`attachment_vision` 与直接调用 `llm_client` 的旧路径
+仍需统一或显式关闭。两者都不能因为本节的机制存在而被默认为安全。
