@@ -245,6 +245,32 @@ _consumed_reservations: set[tuple[str, str]] = set()
 _fresh_reservations: set[tuple[str, str]] = set()
 _AUTHORIZATION_SECRET = secrets.token_bytes(32)
 
+# Set while the settlement adapter performs *its own* first reservation. In
+# experiment mode nothing else may reserve: an un-admitted transport call is
+# refused before the provider is touched, which is how a path that has not been
+# wired yet fails closed instead of spending without an owner.
+_settling: ContextVar[bool] = ContextVar("llm_spend_settling", default=False)
+
+SETTLEMENT_ASSEMBLY_FLAG = "STUDY_AGENT_SETTLEMENT_ADMISSION"
+_AFFIRMATIVE = frozenset({"1", "true", "on", "yes"})
+
+
+def settlement_admission_enabled() -> bool:
+    """Whether the settlement chain is switched on for this process."""
+
+    return os.getenv(SETTLEMENT_ASSEMBLY_FLAG, "").strip().lower() in _AFFIRMATIVE
+
+
+@contextmanager
+def settling_reservation() -> Iterator[None]:
+    """Mark the adapter's own first reservation as legitimate in experiment mode."""
+
+    token = _settling.set(True)
+    try:
+        yield
+    finally:
+        _settling.reset(token)
+
 
 class SpendAuthorizationError(SpendConfigurationError):
     """A send that is not covered by the reservation it claims.
@@ -792,6 +818,12 @@ def reserve_call(
                 raise SpendAuthorizationError("send_authorization_consumed")
             slot.used = True
         return 0.0
+
+    if settlement_admission_enabled() and not _settling.get():
+        # Experiment mode: a transport that was not handed an authorization, and
+        # is not the settlement adapter making the first reservation, must not
+        # spend. This is the isolation for entries that are not wired yet.
+        raise SpendAuthorizationError("send_not_admitted")
 
     if cap is None and experiment_cap is None:
         return 0.0

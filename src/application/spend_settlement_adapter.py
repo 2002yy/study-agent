@@ -47,6 +47,7 @@ from src.llm_spend_guard import (
     authorize_send,
     experiment_id,
     reserve_call,
+    settling_reservation,
 )
 
 RESERVED = "reserved"
@@ -115,19 +116,20 @@ class SettlementLedgerAdapter:
             # has looked at the observation. The reservation is not the knob.
             return COST_UPPER_BOUND_INVALIDATED
         try:
-            amount_cny = reserve_call(
-                prompt_chars=prompt_chars,
-                max_tokens=max_output_tokens,
-                attempts=self._attempts,
-                purpose=self._purpose,
-                model=model,
-                request_key=request_id,
-                # The overrun check runs inside the reservation's own write
-                # transaction. Checking it here, before the call, would leave a
-                # window in which an overrun observation commits unseen - the P1
-                # shape the contract's :12.7 forbids.
-                admission_guard=self._settlements.admission_guard,
-            )
+            with settling_reservation():
+                amount_cny = reserve_call(
+                    prompt_chars=prompt_chars,
+                    max_tokens=max_output_tokens,
+                    attempts=self._attempts,
+                    purpose=self._purpose,
+                    model=model,
+                    request_key=request_id,
+                    # The overrun check runs inside the reservation's own write
+                    # transaction. Checking it here, before the call, would leave a
+                    # window in which an overrun observation commits unseen - the P1
+                    # shape the contract's :12.7 forbids.
+                    admission_guard=self._settlements.admission_guard,
+                )
         except SpendAdmissionRefused as refused:
             return (
                 COST_UPPER_BOUND_INVALIDATED

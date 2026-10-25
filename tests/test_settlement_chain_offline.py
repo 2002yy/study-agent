@@ -24,6 +24,7 @@ from src.application.spend_admission_factory import (
 )
 from src.application.spend_settlement_adapter import SettlementLedgerAdapter
 from src.llm_spend_guard import (
+    SpendAuthorizationError,
     reset_spend,
     reserve_call,
     serialized_request_chars,
@@ -221,3 +222,63 @@ def test_the_chain_is_absent_when_the_flag_is_off(monkeypatch, tmp_path):
 def test_the_adapter_is_the_one_the_factory_built(monkeypatch, tmp_path):
     admission = _admission(monkeypatch, tmp_path)
     assert isinstance(admission.adapter, SettlementLedgerAdapter)
+
+
+# -- experiment mode: un-wired entries fail closed, not open --------------------
+
+
+def test_experiment_mode_refuses_an_unadmitted_transport_reservation(
+    monkeypatch, tmp_path
+):
+    """A path nobody wired yet must be refused before it reaches the provider."""
+
+    _admission(monkeypatch, tmp_path)
+    with spend_identity(
+        run_id="run-1", operation_id="op-1", invocation="1", experiment=EXPERIMENT
+    ):
+        with pytest.raises(SpendAuthorizationError) as refused:
+            reserve_call(
+                prompt_chars=10,
+                max_tokens=10,
+                model=MODEL,
+                purpose="vision:image_description",
+                request_key="direct-1",
+            )
+    assert refused.value.reason == "send_not_admitted"
+
+    admission = build_settlement_admission(model=MODEL)
+    assert admission is not None
+    rows = admission.settlements._connect().execute(
+        "SELECT COUNT(*) FROM llm_spend_reservations"
+    ).fetchone()[0]
+    assert rows == 0
+
+
+def test_experiment_mode_admits_the_authorized_path(monkeypatch, tmp_path):
+    admission = _admission(monkeypatch, tmp_path)
+    admitted = _admitted(admission)
+    with spend_identity(
+        run_id="run-1", operation_id="op-1", invocation="1", experiment=EXPERIMENT
+    ):
+        assert admitted(
+            messages=[{"role": "user", "content": "hello"}],
+            timeout=5.0,
+            task_name="op-1#r1#answer",
+        ) == "the answer"
+    assert admission.settlements.unwritten() == ()
+
+
+def test_the_isolation_is_off_when_the_flag_is_off(monkeypatch, tmp_path):
+    _configure(monkeypatch, tmp_path)
+    monkeypatch.setenv(ASSEMBLY_FLAG, "0")
+    with spend_identity(
+        run_id="run-1", operation_id="op-1", invocation="1", experiment=EXPERIMENT
+    ):
+        reserve_call(
+            prompt_chars=10, max_tokens=10, model=MODEL, request_key="direct-2"
+        )
+    # Off means the old path is untouched: the transport reserves for itself.
+    from src.infrastructure.sqlite.spend_ledger import SpendLedger
+
+    ledger = SpendLedger(tmp_path / "runtime.sqlite")
+    assert ledger.experiment_spend(EXPERIMENT)["calls"] == 1

@@ -25,25 +25,27 @@ authorization is not a compliant assembly.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from src.application.spend_settlement_adapter import SettlementLedgerAdapter
 from src.infrastructure.sqlite.spend_settlement import SpendSettlementRepository
 from src.llm_spend_guard import (
+    SETTLEMENT_ASSEMBLY_FLAG,
     SpendConfigurationError,
     experiment_cap_cny,
     experiment_id,
     require_allowed_model,
     reservation_cny,
+    settlement_admission_enabled,
     spend_ledger_path,
 )
 
 # One flag names the whole chain. Anything other than an explicit affirmative is
-# OFF: an unset, misspelled or empty value must not enable spending.
-ASSEMBLY_FLAG = "STUDY_AGENT_SETTLEMENT_ADMISSION"
-_AFFIRMATIVE = frozenset({"1", "true", "on", "yes"})
+# OFF: an unset, misspelled or empty value must not enable spending. The parsing
+# lives in the guard so the transport's isolation check and this factory can
+# never disagree about whether the chain is on.
+ASSEMBLY_FLAG = SETTLEMENT_ASSEMBLY_FLAG
 
 
 class AdmissionConfigError(RuntimeError):
@@ -64,10 +66,6 @@ class SettlementAdmission:
     experiment_id: str
     model: str
     attempts: int
-
-
-def settlement_admission_enabled() -> bool:
-    return os.getenv(ASSEMBLY_FLAG, "").strip().lower() in _AFFIRMATIVE
 
 
 def build_settlement_admission(
