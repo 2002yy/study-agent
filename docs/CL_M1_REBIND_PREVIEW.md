@@ -4706,3 +4706,13 @@ C3b 事件流、C4 real-stack 旅程与前端组件。
 **仍未覆盖/未完成**：真实供应商网络中断；取消/刷新时的
 `Chat turn operation ownership lost` 客户端噪音（服务端拒绝，未新增付费发送，但提示
 不干净）；全量 L3 未跑。开关仍 OFF，未合并 main。
+
+**P2 负控补充（2026-10-26）**：`test_research_event_resume.py` 增加两条：
+
+- `status=partial` 的 run 立即结束事件流（先断言 `partial` 属于终态，再测实际流），不等待空闲超时；
+- `status=running` 的 run 在缩短后的空闲窗口内只发 `research_idle`，负载必须是
+  `{"run_id", "status": "running"}`，不得误报 `completed`。
+
+反向变异：把 idle 负载硬编码为 `completed` → running 负控失败；把 `partial` 移出终态 →
+负控在开流前即失败（避免 300 秒等待）。均已还原。事件流用例 **5 passed**；
+Ruff 干净。

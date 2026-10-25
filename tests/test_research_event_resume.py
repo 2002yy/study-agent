@@ -8,12 +8,14 @@ sequence the client last saw. A resumed stream returns later steps exactly once.
 from __future__ import annotations
 
 import json
+import time
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.api.routes.web_lookup_routes import router
+from src.api.routes.web_lookup_routes import TERMINAL_RUN_STATUSES, router
 from src.application.runtime_repository import get_web_lookup_service
+from src.domain.runtime_entities import WebLookupRun
 from tests.test_research_observation_feedback import (
     FIRST_SUB_QUESTION,
     ObservingGateway,
@@ -123,3 +125,78 @@ def test_after_query_uses_the_same_cursor_as_the_header(tmp_path, monkeypatch):
     assert [int(_field(block, "id")) for block in _step_frames(text)] == [
         int(step["seq"]) for step in steps[1:]
     ]
+
+
+def _idle_payload(text: str) -> dict:
+    idle = [
+        block for block in _frames(text) if _field(block, "event") == "research_idle"
+    ]
+    assert idle
+    return json.loads(_field(idle[0], "data"))
+
+
+def test_a_partial_run_ends_the_stream_without_waiting(tmp_path, monkeypatch):
+    lookup, _run_id = _run(tmp_path, monkeypatch)
+    run = WebLookupRun(
+        query="partial research",
+        stage="partial",
+        status="partial",
+        provider_status="partial",
+        research_context={
+            "deep": {
+                "steps": [
+                    {"seq": 1, "kind": "read", "text": "read page", "at": ""}
+                ]
+            }
+        },
+    )
+    lookup.repository.create(run)
+    _app_obj, client = _app(lookup)
+    # A partial run is terminal for the stage feed: assert this before opening
+    # the stream so a regression fails fast instead of waiting for the timeout.
+    assert "partial" in TERMINAL_RUN_STATUSES
+
+    started = time.monotonic()
+    with client.stream(
+        "GET", f"/research-runs/{run.id}/events?after=1"
+    ) as response:
+        text = "".join(response.iter_text())
+
+    # No 300-second wait: a partial run is terminal for the stage feed.
+    assert time.monotonic() - started < 2.0
+    assert _step_frames(text) == []
+    assert _idle_payload(text) == {"run_id": run.id, "status": "partial"}
+
+
+def test_an_idle_running_run_reports_running_not_completed(tmp_path, monkeypatch):
+    lookup, _run_id = _run(tmp_path, monkeypatch)
+    run = WebLookupRun(
+        query="still running",
+        stage="reading",
+        status="running",
+        provider_status="",
+        research_context={
+            "deep": {
+                "steps": [
+                    {"seq": 1, "kind": "read", "text": "read page", "at": ""}
+                ]
+            }
+        },
+    )
+    lookup.repository.create(run)
+    _app_obj, client = _app(lookup)
+    monkeypatch.setattr(
+        "src.api.routes.web_lookup_routes.STEP_IDLE_TIMEOUT_SECONDS", 0.15
+    )
+    monkeypatch.setattr(
+        "src.api.routes.web_lookup_routes.STEP_POLL_SECONDS", 0.01
+    )
+
+    with client.stream(
+        "GET", f"/research-runs/{run.id}/events?after=1"
+    ) as response:
+        text = "".join(response.iter_text())
+
+    assert _step_frames(text) == []
+    # Idle means "no new step", not "the research finished".
+    assert _idle_payload(text) == {"run_id": run.id, "status": "running"}
