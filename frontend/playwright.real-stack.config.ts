@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { API_HEADERS } from "./e2e/apiAuth";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -7,6 +8,7 @@ export default defineConfig({
     "real-stack-recovery.spec.ts",
     "real-stack-research.spec.ts",
     "real-stack-deep-journey.spec.ts",
+    "api-token-required.spec.ts",
   ],
   fullyParallel: false,
   workers: 1,
@@ -22,6 +24,10 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:5173",
     channel: process.env.PLAYWRIGHT_USE_SYSTEM_CHROME ? "chrome" : undefined,
+    // The server now refuses every private request without its token; fixture
+    // calls made with `request` / `page.request` need the same header the app
+    // sends. The app's own token path is exercised by api-token-required.spec.ts.
+    extraHTTPHeaders: API_HEADERS,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

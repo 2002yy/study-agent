@@ -34,7 +34,7 @@ if os.getenv("STUDY_AGENT_E2E_RESET", "").strip() == "1":
 E2E_ROOT.mkdir(parents=True, exist_ok=True)
 
 # These values must be fixed before importing the application assembly point.
-os.environ["STUDY_AGENT_API_TOKEN"] = ""
+os.environ["STUDY_AGENT_API_TOKEN"] = "e2e-api-token"
 os.environ.setdefault("STUDY_AGENT_RUNTIME_DB", str(E2E_ROOT / "runtime.db"))
 os.environ.setdefault(
     "STUDY_AGENT_CURRENT_EXPORT_DIR", str(E2E_ROOT / "current")
