@@ -13,6 +13,13 @@ REQUIRED_STEPS = (
 TEST_STEPS = ("pytest", "pytest_impact")
 BROWSER_STEPS = ("playwright_install", "browser_e2e", "real_stack_browser_e2e")
 
+# Whole-job results for the split workflow (M1+). The aggregate cannot read step
+# outcomes across jobs, so it judges jobs - and it has to distinguish "the
+# classifier said this job was not needed" from "the job was needed but never
+# ran", which are the same `skipped` string.
+JOBS = ("classify", "backend", "frontend", "browser")
+VALID_JOB_RESULTS = frozenset({"success", "failure", "cancelled", "skipped"})
+
 
 def failed_steps(
     steps: dict, *, browser_required: bool, frontend_required: bool = True
@@ -39,7 +46,80 @@ def failed_steps(
     return failed
 
 
-def main() -> int:
+def judge_jobs(
+    needs: object,
+    *,
+    frontend_required: bool,
+    browser_required: bool,
+) -> list[str]:
+    """Reasons the aggregate gate must fail; empty means it passes.
+
+    Rules:
+
+    * classify and backend are always required;
+    * frontend/browser are required only when the classifier says so;
+    * a required job must be exactly ``success`` - ``skipped``, ``cancelled``,
+      ``failure`` and a missing result all fail;
+    * an optional job may be ``skipped``, but if it ran it must have succeeded;
+    * an absent or unreadable result is a failure, never "not needed".
+    """
+
+    required = {
+        "classify": True,
+        "backend": True,
+        "frontend": bool(frontend_required),
+        "browser": bool(browser_required),
+    }
+    failures: list[str] = []
+    for name in JOBS:
+        entry = needs.get(name) if isinstance(needs, dict) else None
+        result = entry.get("result") if isinstance(entry, dict) else None
+        if result not in VALID_JOB_RESULTS:
+            failures.append(f"{name}:missing")
+            continue
+        if result == "success":
+            continue
+        if result == "skipped" and not required[name]:
+            continue
+        failures.append(f"{name}:{result}")
+    return failures
+
+
+def _run_jobs_mode() -> int:
+    try:
+        needs = json.loads(os.environ["CI_NEEDS"])
+        frontend_required = os.environ.get("CI_FRONTEND_REQUIRED", "false")
+        browser_required = os.environ.get("CI_BROWSER_REQUIRED", "false")
+        if frontend_required not in {"true", "false"}:
+            raise ValueError("Invalid frontend requirement")
+        if browser_required not in {"true", "false"}:
+            raise ValueError("Invalid browser requirement")
+        failures = judge_jobs(
+            needs,
+            frontend_required=frontend_required == "true",
+            browser_required=browser_required == "true",
+        )
+    except (KeyError, ValueError, TypeError, AttributeError) as exc:
+        print(f"CI job gate failed: {exc}")
+        return 1
+    if failures:
+        print("Required CI jobs did not succeed: " + ", ".join(failures))
+        return 1
+    print(
+        "All required CI jobs passed"
+        f" (frontend_required={frontend_required}, browser_required={browser_required})"
+    )
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = list(argv if argv is not None else [])
+    if "--mode" in args:
+        mode = args[args.index("--mode") + 1] if len(args) > args.index("--mode") + 1 else ""
+        if mode != "jobs":
+            print(f"Unknown CI gate mode: {mode!r}")
+            return 1
+        return _run_jobs_mode()
     try:
         steps = json.loads(os.environ["CI_STEP_RESULTS"])
         browser_required = os.environ["CI_BROWSER_REQUIRED"]
