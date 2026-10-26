@@ -8,6 +8,7 @@ import { StatusDot } from "../../components/StatusDot";
 import { roleLabel, roleOptions } from "../roles/roleCatalog";
 import { TypographySettings } from "./TypographySettings";
 import { ApiTokenSettings } from "./ApiTokenSettings";
+import { serverQueryCache } from "../../app/serverQueryCache";
 import type {
   ApiSnapshot,
   ChatResponse,
@@ -296,7 +297,14 @@ export function SettingsPanel(props: SettingsPanelProps) {
 
       <TypographySettings/>
 
-      <ApiTokenSettings onSaved={() => { void refresh(); }} />
+      <ApiTokenSettings
+        onSaved={() => {
+          // The workspace bootstrap is cached; a token change must not serve the
+          // snapshot that failed while no token existed.
+          serverQueryCache.invalidate("snapshot:core");
+          void refresh();
+        }}
+      />
 
       <section className="side-section" aria-labelledby="ordinary-learning-settings">
         <div className="section-title" id="ordinary-learning-settings">
