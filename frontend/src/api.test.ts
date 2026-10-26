@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setApiToken } from "./apiToken";
 import {
   callToolRun,
   archiveSession,
   cancelChatResearchRuns,
+  cancelChatTurn,
   createNewsRun,
   digestNewsRun,
   discussNewsRun,
@@ -229,6 +231,37 @@ describe("sendChatStream", () => {
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(init.signal).toBe(controller.signal);
+  });
+});
+
+describe("request headers keep the runtime token", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    setApiToken("");
+  });
+
+  it("does not let a caller's Content-Type drop the auth header", async () => {
+    setApiToken("runtime-token");
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({
+            turn_id: "turn-1",
+            thread_id: "thread-1",
+            status: "cancelled",
+            cancel_stage: "streaming",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await cancelChatTurn("turn-1", "op-1");
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    expect(headers["X-Study-Agent-Token"]).toBe("runtime-token");
+    expect(headers["Content-Type"]).toBe("application/json");
   });
 });
 

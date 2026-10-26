@@ -41,13 +41,17 @@ import { authHeaders } from "./apiToken";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {
+  // Merge, don't replace: spreading the whole options object after `headers`
+  // let any caller with its own Content-Type (cancel, steer, follow-up) drop the
+  // token header and get a 401 in a deployment that requires one.
+  const { headers, ...rest } = options ?? {};
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...rest,
     headers: {
       "Content-Type": "application/json",
       ...authHeaders(),
-      ...(options?.headers ?? {})
+      ...(headers ?? {}),
     },
-    ...options
   });
   if (!response.ok) {
     const body = await response.text();

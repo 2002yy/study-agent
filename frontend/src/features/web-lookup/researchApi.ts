@@ -109,13 +109,15 @@ type ResearchCancelOptions = ResearchRequestOptions & {
 };
 
 async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {
+  // Same trap as api.ts: the caller's headers must not replace the token.
+  const { headers, ...rest } = options ?? {};
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...rest,
     headers: {
       "Content-Type": "application/json",
       ...authHeaders(),
-      ...(options?.headers ?? {}),
+      ...(headers ?? {}),
     },
-    ...options,
   });
   if (!response.ok) {
     const body = await response.text();
