@@ -19,9 +19,23 @@ WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.y
 EVENT_TYPE_ROUTING = "github.event_name"
 
 
+def _workflow() -> dict:
+    return yaml.safe_load(io.open(WORKFLOW, encoding="utf-8"))
+
+
+def _pipeline_job() -> dict:
+    """The job that actually runs the checks.
+
+    M0 (docs/CI_BROWSER_CONTAINER_PLAN.md §6) moved the single `test` job to
+    `legacy` and gave the name `test` to the aggregate that judges it. The step
+    assertions below are about the pipeline, so they read the pipeline job.
+    """
+
+    return _workflow()["jobs"]["legacy"]
+
+
 def _steps() -> list[dict]:
-    data = yaml.safe_load(io.open(WORKFLOW, encoding="utf-8"))
-    return data["jobs"]["test"]["steps"]
+    return _pipeline_job()["steps"]
 
 
 def _by_id(step_id: str) -> dict:
@@ -29,6 +43,40 @@ def _by_id(step_id: str) -> dict:
         if step.get("id") == step_id:
             return step
     raise AssertionError(f"step {step_id!r} not found")
+
+
+def test_the_required_check_name_survives_the_m0_rename():
+    """M0: the pipeline keeps running, but `test` now means the aggregate.
+
+    A rename that retired the `test` name would leave the gate pointing at
+    nothing; a rename that kept both jobs producing `test` is not expressible.
+    """
+
+    jobs = _workflow()["jobs"]
+
+    assert set(jobs) == {"legacy", "test"}
+    assert jobs["legacy"]["name"] == "legacy"
+    assert jobs["test"]["name"] == "test"
+
+
+def test_the_aggregate_runs_even_when_the_pipeline_fails_and_judges_its_result():
+    aggregate = _workflow()["jobs"]["test"]
+
+    assert aggregate["needs"] == ["legacy"]
+    # Without always(), a failed pipeline would skip the aggregate, and a skipped
+    # required check reads as a pass to most protection configurations.
+    assert aggregate["if"] == "always()"
+
+    judge = aggregate["steps"][-1]
+    assert judge["env"]["LEGACY_RESULT"] == "${{ needs.legacy.result }}"
+    assert "exit 1" in judge["run"]
+    assert "success)" in judge["run"]
+
+
+def test_m0_does_not_remove_the_browser_install_from_the_pipeline_yet():
+    """The install chain is only deleted in M2, after the new gate is proven."""
+
+    assert any(step.get("id") == "playwright_install" for step in _steps())
 
 
 def test_enforcement_reads_browser_requirement_from_the_classifier():
