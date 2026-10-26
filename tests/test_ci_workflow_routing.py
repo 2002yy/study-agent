@@ -142,6 +142,23 @@ def test_each_job_whose_steps_use_continue_on_error_ends_with_a_step_gate():
         assert "--mode steps" in str(steps[-1].get("run") or ""), job_name
 
 
+def test_every_required_step_name_exists_in_the_job_that_requires_it():
+    """A required name that is not a step id can never pass, and one that is
+    misspelled fails the gate for a reason nobody can see in the log."""
+
+    import re
+
+    for job_name in ("classify", "backend", "frontend", "browser"):
+        job = _jobs()[job_name]
+        run = str(job["steps"][-1]["run"])
+        match = re.search(r"--require\s+\"?([^\"\s]+)", run)
+        assert match, job_name
+        step_ids = {step.get("id") for step in job["steps"] if step.get("id")}
+        for group in match.group(1).split(","):
+            for name in group.split("|"):
+                assert name in step_ids, f"{job_name}: unknown step id {name!r}"
+
+
 def test_frontend_gate_does_not_reinstall_dependencies():
     # npm ci belongs to node_deps, so a frontend run installs once.
     assert "npm ci" in str(_by_id("frontend", "node_deps")["run"])

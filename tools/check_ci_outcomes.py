@@ -86,6 +86,57 @@ def judge_jobs(
     return failures
 
 
+def judge_required_steps(
+    steps: object, required: list[tuple[str, ...]]
+) -> list[str]:
+    """Named steps that did not succeed, for a job whose steps use continue-on-error.
+
+    A job's own `result` stays green when a step with `continue-on-error: true`
+    fails, so each split job still needs this step-level judgement before the
+    aggregate can trust the job result. ``("pytest", "pytest_impact")`` means
+    "exactly one of these".
+    """
+
+    failures: list[str] = []
+    for group in required:
+        if not any(
+            isinstance(steps, dict)
+            and steps.get(name, {}).get("outcome") == "success"
+            for name in group
+        ):
+            failures.append("|".join(group))
+    return failures
+
+
+def _parse_require(raw: str) -> list[tuple[str, ...]]:
+    groups: list[tuple[str, ...]] = []
+    for chunk in raw.split(","):
+        names = tuple(name.strip() for name in chunk.split("|") if name.strip())
+        if names:
+            groups.append(names)
+    if not groups:
+        raise ValueError("--require needs at least one step name")
+    return groups
+
+
+def _run_steps_mode(require: str | None) -> int:
+    try:
+        if not require:
+            raise ValueError("--mode steps requires --require")
+        steps = json.loads(os.environ["CI_STEP_RESULTS"])
+        if not isinstance(steps, dict):
+            raise ValueError("CI_STEP_RESULTS is not an object")
+        failures = judge_required_steps(steps, _parse_require(require))
+    except (KeyError, ValueError, TypeError, AttributeError) as exc:
+        print(f"CI step gate failed: {exc}")
+        return 1
+    if failures:
+        print("Required CI steps did not succeed: " + ", ".join(failures))
+        return 1
+    print("All required CI steps passed")
+    return 0
+
+
 def _run_jobs_mode() -> int:
     try:
         needs = json.loads(os.environ["CI_NEEDS"])
@@ -122,11 +173,17 @@ def main(argv: list[str] | None = None) -> int:
     # would ignore the flag the workflow passes and quietly run the step mode.
     args = list(sys.argv[1:] if argv is None else argv)
     if "--mode" in args:
-        mode = args[args.index("--mode") + 1] if len(args) > args.index("--mode") + 1 else ""
-        if mode != "jobs":
-            print(f"Unknown CI gate mode: {mode!r}")
-            return 1
-        return _run_jobs_mode()
+        raw_mode = args[args.index("--mode") + 1] if len(args) > args.index("--mode") + 1 else ""
+        require = None
+        if "--require" in args:
+            position = args.index("--require")
+            require = args[position + 1] if len(args) > position + 1 else None
+        if raw_mode == "jobs":
+            return _run_jobs_mode()
+        if raw_mode == "steps":
+            return _run_steps_mode(require)
+        print(f"Unknown CI gate mode: {raw_mode!r}")
+        return 1
     try:
         steps = json.loads(os.environ["CI_STEP_RESULTS"])
         browser_required = os.environ["CI_BROWSER_REQUIRED"]
