@@ -50,6 +50,13 @@ async def _deep_trigger_lifespan(_app: FastAPI):
     import logging
 
     logger = logging.getLogger(__name__)
+    if not _api_token():
+        logger.warning(
+            "STUDY_AGENT_API_TOKEN is not set: every private API request will be "
+            "rejected with 401 (code=api_token_not_configured). Set it before "
+            "starting the server and paste the same value once in the app's "
+            "settings (访问令牌)."
+        )
     try:
         from src.application.runtime_repository import get_deep_trigger_runner
 
@@ -146,9 +153,27 @@ def _request_token(request: Request) -> str:
 def _is_authorized(request: Request) -> bool:
     required_token = _api_token()
     if not required_token:
-        return True
+        # A2: no configured token means no API access, not open access. A shared
+        # token cannot be a boundary between users, but its absence must never be
+        # read as "this deployment is private". Loopback is not a boundary either
+        # (a reverse proxy can make a remote request look local), so the only
+        # safe answer without a configured secret is "refuse".
+        return False
     supplied_token = _request_token(request)
     return bool(supplied_token) and secrets.compare_digest(supplied_token, required_token)
+
+
+def _auth_failure(request: Request) -> JSONResponse:
+    """401 with a code the client can act on: configure vs. supply the token."""
+
+    if not _api_token():
+        detail = "API token is not configured; set STUDY_AGENT_API_TOKEN on the server"
+        code = "api_token_not_configured"
+    else:
+        detail = "Missing or invalid API token"
+        code = "api_token_required"
+    response = JSONResponse({"detail": detail, "code": code}, status_code=401)
+    return response
 
 
 @app.middleware("http")
@@ -161,7 +186,7 @@ async def api_security_middleware(request: Request, call_next):
 
     public_path = request.url.path == "/health" or request.url.path.startswith("/assets/")
     if not public_path and not _is_authorized(request):
-        response = JSONResponse({"detail": "Missing or invalid API token"}, status_code=401)
+        response = _auth_failure(request)
         add_cors_headers(response, origin, cors_policy)
         return response
 
