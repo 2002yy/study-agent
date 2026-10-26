@@ -313,6 +313,10 @@ jobs:
           # `set -o pipefail` still fails the step when the installer fails.
           npx playwright install --with-deps chromium firefox webkit 2>&1 | tee ../playwright-install.log
 
+      # A failing browser gate must be diagnosable from the job log. The full
+      # output still goes to the ci-diagnostics artifact, but redirecting it all
+      # to a file left the job with a bare "exit code 1" and forced a 30 MB
+      # artifact download just to learn which assertion failed.
       - name: Run browser Golden Journeys
         if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.playwright_install.outcome == 'success'
         id: browser_e2e
@@ -321,7 +325,12 @@ jobs:
         working-directory: frontend
         run: |
           set -o pipefail
-          npm run test:e2e > ../browser-e2e.log 2>&1
+          # `if !` keeps `bash -e` from exiting before the tail is printed.
+          if ! npm run test:e2e > ../browser-e2e.log 2>&1; then
+            echo "::error::browser Golden Journeys failed (see browser-e2e.log)"
+            tail -n 80 ../browser-e2e.log
+            exit 1
+          fi
 
       - name: Run real-stack browser gates
         if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.playwright_install.outcome == 'success'
@@ -331,7 +340,11 @@ jobs:
         working-directory: frontend
         run: |
           set -o pipefail
-          npm run test:e2e:real-stack > ../real-stack-browser-e2e.log 2>&1
+          if ! npm run test:e2e:real-stack > ../real-stack-browser-e2e.log 2>&1; then
+            echo "::error::real-stack browser gates failed (see real-stack-browser-e2e.log)"
+            tail -n 120 ../real-stack-browser-e2e.log
+            exit 1
+          fi
 
       - name: Upload CI diagnostics
         if: always()
