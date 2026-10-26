@@ -1,4 +1,4 @@
-"""CL-M3-S2-B1-2a: the production assembly for settlement and quota, off by default.
+﻿"""CL-M3-S2-B1-2a: the production assembly for settlement and quota, off by default.
 
 This module is the only place allowed to build the paid chain for the real
 application. It exists so that "is the paid path wired?" has one answer: the flag
@@ -38,6 +38,7 @@ from pathlib import Path
 from src.application.conversation_decision_admission import SqliteDecisionAdmission
 from src.application.spend_settlement_adapter import SettlementLedgerAdapter
 from src.infrastructure.sqlite.spend_settlement import SpendSettlementRepository
+from src.llm_client import effective_attempts
 from src.llm_spend_guard import (
     SETTLEMENT_ASSEMBLY_FLAG,
     SpendConfigurationError,
@@ -136,7 +137,7 @@ def build_settlement_admission(
     model: str,
     kind: str,
     scope_id: str,
-    attempts: int = 1,
+    attempts: int | None = None,
     allow_offline_fixture: bool = False,
     ledger_path: str | None = None,
     quota: LogicalQuota | None = None,
@@ -156,7 +157,11 @@ def build_settlement_admission(
         raise AdmissionConfigError("quota_scope_missing")
     if not isinstance(model, str) or not model.strip():
         raise AdmissionConfigError("model_not_configured")
-    if type(attempts) is not int or attempts < 1:
+    # One attempt is not a retry policy. The transport reserves the provider's
+    # retries + 1 unless a caller overrides them, so a permit that authorizes a
+    # single attempt refuses the send it was issued for.
+    resolved_attempts = effective_attempts() if attempts is None else attempts
+    if type(resolved_attempts) is not int or resolved_attempts < 1:
         raise AdmissionConfigError("attempts_invalid")
 
     experiment = experiment_id()
@@ -181,7 +186,7 @@ def build_settlement_admission(
     settlements = SpendSettlementRepository(resolved)
     adapter = SettlementLedgerAdapter(
         settlements,
-        attempts=attempts,
+        attempts=resolved_attempts,
         allow_offline_fixture=allow_offline_fixture,
     )
     claim = getattr(adapter, "claim_send_authorization", None)
@@ -221,5 +226,5 @@ def build_settlement_admission(
         scope_id=scope_id,
         experiment_id=experiment,
         model=model,
-        attempts=attempts,
+        attempts=resolved_attempts,
     )

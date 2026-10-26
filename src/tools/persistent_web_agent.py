@@ -560,12 +560,14 @@ class PersistentWebToolAgent(WebToolAgent):
 
         if settlement_admission_enabled():
             from src.application.admitted_chat import admitted_completion_for
-            from src.llm_client import get_model_name
+            from src.llm_client import effective_attempts, get_model_name
 
             settlement_admission = build_settlement_admission(
                 model=get_model_name("flash"),
                 kind="research",
                 scope_id=operation_id,
+                # Same attempt ceiling the transport reserves.
+                attempts=effective_attempts("flash"),
             )
             if settlement_admission is not None:
                 semantic_completion = admitted_completion_for(

@@ -23,6 +23,7 @@ from src.application.spend_admission_factory import (
     build_settlement_admission,
 )
 from src.application.spend_settlement_adapter import SettlementLedgerAdapter
+from src.llm_client import effective_attempts
 from src.llm_spend_guard import (
     SpendAuthorizationError,
     reset_spend,
@@ -206,6 +207,66 @@ def test_the_transport_is_authorized_and_does_not_reserve_twice(monkeypatch, tmp
         "SELECT COUNT(*) FROM llm_spend_reservations"
     ).fetchone()[0]
     assert rows == 1
+
+
+def test_the_authorization_covers_the_attempts_the_transport_reserves(
+    monkeypatch, tmp_path
+):
+    """The permit must bound what the SDK may really attempt.
+
+    The transport reserves ``retries + 1`` attempts; a permit that authorizes
+    one attempt refuses the very send it was issued for, and the refusal happens
+    before the provider is reached. The earlier chain test missed this because
+    its stand-in transport called ``reserve_call`` without the transport's
+    attempt count.
+    """
+
+    # The provider profile must be readable before admission is built, otherwise
+    # the retry budget falls back to one attempt and the mismatch cannot be seen.
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:1/v1")
+    monkeypatch.setenv("OPENAI_MODEL_FLASH_NAME", "deepseek-chat")
+    monkeypatch.setenv("OPENAI_MODEL_PRO_NAME", "deepseek-reasoner")
+    admission = _admission(monkeypatch, tmp_path)
+    attempts = effective_attempts()
+    assert attempts >= 2, "the default provider profile retries at least once"
+    calls: list[float] = []
+
+    def completion(*, messages, timeout, task_name, **_kwargs):
+        chars = serialized_request_chars(
+            {"messages": messages, "model": MODEL, "max_tokens": ESTIMATE}
+        )
+        calls.append(
+            reserve_call(
+                prompt_chars=chars,
+                max_tokens=ESTIMATE,
+                attempts=attempts,
+                purpose="chat",
+                model=MODEL,
+            )
+        )
+        return "ok"
+
+    admitted = AdmittedCompletion(
+        completion,
+        logical=admission.logical,
+        ledger=admission.adapter,
+        model=MODEL,
+        price_micros=lambda tokens: tokens,
+        estimate_output_tokens=ESTIMATE,
+    )
+    with spend_identity(
+        run_id="run-1", operation_id="op-1", invocation="1", experiment=EXPERIMENT
+    ):
+        assert admitted(
+            messages=[{"role": "user", "content": "hi"}],
+            timeout=5.0,
+            task_name="op-1#r1#answer",
+        ) == "ok"
+
+    # Admitted once, not re-priced, and the retry budget was part of the permit.
+    assert calls == [0.0]
+    assert admission.attempts == attempts
 
 
 def test_the_chain_is_absent_when_the_flag_is_off(monkeypatch, tmp_path):

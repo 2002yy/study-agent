@@ -4778,4 +4778,47 @@ freeze）；Ruff 干净；mypy 基线 `124/128, resolved=4` 不变。
 hosted runner 的 apt 镜像瞬时劣化，不是仓库代码问题。
 
 处理：把该步骤上限提到 40 分钟（按观测速度推算约需 30 分钟），并写入
-`Acquire::Retries "3"` 让单个包卡住时可重试；其余步骤未改。
+`Acquire::Retries "3"` 让单个包卡住时可重试；其余步骤未改。\n\n### 34.37 PR #288 未关闭评审线程逐条判定（2026-10-26）
+
+`7dc68d07` 的精确 HEAD CI 全绿后，逐条核对 25 条未关闭线程（其中 7 条 GitHub 标记
+outdated）。判定方式：读当前代码 + 找对应回归测试 + 对照修复提交，不以"后来的提交标题"
+代替证据。
+
+**24 条已由后续提交修掉，且都有对应回归测试**（按问题归类）：
+
+| 线程 | 现状证据 |
+| --- | --- |
+| 无限上限 `max_cost=inf` | `research_tier_repository` 增加 `is_finite_number`，`test_an_approval_with_an_infinite_cost_ceiling_is_refused` |
+| `settle` 路径缺失 | `SettlementLedgerAdapter.settle` 与追加式观测表；`test_one_chat_send_makes_one_reservation_and_one_observation` |
+| §12.3 重复/冲突自相矛盾 | `SettlementConflict` + `test_identical_concurrent_corrections_add_one_revision_and_both_succeed` / `test_conflicting_concurrent_corrections_have_exactly_one_winner` |
+| append-only 仅靠仓储层 | 迁移 30 的 UPDATE/DELETE 触发器 + `test_a_direct_update_is_refused_by_the_store` / `test_a_direct_delete_is_refused_by_the_store`；`PRAGMA foreign_keys=ON` 有专测 |
+| 付费激活门 | `STUDY_AGENT_SETTLEMENT_ADMISSION` 缺省关闭；未接线传输 `send_not_admitted`（`test_experiment_mode_refuses_an_unadmitted_transport_reservation`） |
+| failed+cost 未算 overrun | `overruns()` 改为只看金额，`test_a_failed_call_whose_cost_exceeds_the_reservation_is_an_overrun` |
+| 离线夹具可冒充结算证据 | `PRODUCTION_EVIDENCE_KINDS` 排除 `offline_fixture`，适配器默认拒绝 |
+| overrun 与预留之间的竞态 | 检查移入预留自身的 `BEGIN IMMEDIATE`（`admission_guard`），并有阻塞线程的确定性交错用例 + 反向对照 |
+| 单次发送许可 / 原子认领 / 跨进程重签 / 双票据 / 签发者未校验 / 定价漂移 | `authorize_send` 只从本进程刚写入的预留签发（`_fresh_reservations`），比对 `pricing_fingerprint` 与 `required_micros <= amount_micros`，`_consume_authorization` 在锁内消费，`_SendSlot` 每次只放行一次；对应 `reservation_not_issued_here` / `send_already_authorized` / `send_authorization_consumed` / `pricing_mismatch` / `bound_exceeded` 负控 |
+| `settling_reservation` 环境布尔 | 改为对象能力 `register_settling_owner`，`test_an_unregistered_owner_cannot_claim_the_first_reservation` |
+| 流式预留只按消息正文计价 | `serialized_request_chars` + `TRANSPORT_REQUEST_OVERHEAD_CHARS`，语义轮同口径 |
+| `reset_spend` 不换密钥 | `reset_spend` 轮换 `_AUTHORIZATION_SECRET` |
+| C1b 宿主契约 | `ChatService.start_turn` 在入口补齐契约，`test_the_turn_entry_supplies_a_contract_even_from_the_legacy_router`（legacy router + `resolve_web_tools` spy） |
+| 时效性负控 | `test_todays_news_enters_the_search_path`、`test_an_explicit_lookup_is_allowed_to_search`，静态 JVM 问题不搜索 |
+| `partial` 终态与运行中空闲 | `test_research_event_resume.py` 5 条（含反向变异的两个负控） |
+| CI 环境 | `7dc68d07` run `40292396246`：安装 41 秒、Golden Journeys 与 real-stack 均 success |
+
+**1 条仍然有效（P2，已修）**：admission 默认只授权 `attempts=1`，而 `llm_client` 按
+provider 默认 `max_retries=2` 预留 `retries+1=3` 次。开启结算链后，传输层会在
+`reserve_call` 里被自己的授权拒绝（`send_authorization_bound_exceeded`），即"合法请求被
+自己的许可拒绝"。既有链式用例的假传输没有传 `attempts`，所以一直没暴露。
+
+修复：`llm_client.effective_attempts()` 公开同一口径；`build_settlement_admission`
+默认值改为该口径（显式传入仍优先）；chat 与 research 两个调用点按各自 profile 传入。
+
+回归：`test_the_authorization_covers_the_attempts_the_transport_reserves`（假传输按真实
+`retries+1` 预留）。反向变异把默认值改回 1 → 该用例在 `send_authorization_bound_exceeded`
+失败；已还原。
+
+验证：焦点集合 **153 passed**（settlement chain / admission boundary / admitted chat /
+settlement / assembly recovery / production wiring / boundary controls / chat gating /
+chat routing / observation feedback）；Ruff 干净；mypy 基线 `124/128, resolved=4` 不变。
+
+开关仍 OFF；未合并 main。该修复的精确 HEAD CI 需单独查询，线程 13 在 CI 绿之前保持未关闭。

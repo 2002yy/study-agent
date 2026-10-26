@@ -1118,11 +1118,16 @@ class ChatService:
         turn_id = prepared.turn.id
         if turn_id in cache:
             return cache[turn_id]
-        from src.llm_client import get_model_name
+        from src.llm_client import effective_attempts, get_model_name
 
-        model = get_model_name(prepared.route.get("model_profile"))
+        profile = prepared.route.get("model_profile")
+        model = get_model_name(profile)
         admission = build_settlement_admission(
-            model=model, kind="chat", scope_id=turn_id
+            model=model,
+            kind="chat",
+            scope_id=turn_id,
+            # The permit must bound what the SDK may really attempt.
+            attempts=effective_attempts(profile),
         )
         cache[turn_id] = admission
         return admission
