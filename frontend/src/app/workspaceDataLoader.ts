@@ -10,6 +10,7 @@ import type {
   WorkflowRunSummary,
 } from "../types";
 import { authHeaders } from "../apiToken";
+import { noteAuthRequired } from "../apiAuthState";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -30,6 +31,7 @@ async function requestJson<T>(path: string): Promise<T> {
       ...authHeaders(),
     },
   });
+  noteAuthRequired(response.status);
   if (!response.ok) {
     const body = await response.text();
     throw new Error(`${response.status} ${response.statusText}${body ? `: ${body}` : ""}`);

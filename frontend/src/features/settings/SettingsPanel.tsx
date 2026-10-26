@@ -296,7 +296,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
 
       <TypographySettings/>
 
-      <ApiTokenSettings />
+      <ApiTokenSettings onSaved={() => { void refresh(); }} />
 
       <section className="side-section" aria-labelledby="ordinary-learning-settings">
         <div className="section-title" id="ordinary-learning-settings">

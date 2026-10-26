@@ -57,3 +57,26 @@ test("a token pasted into the app makes the same browser load real data", async 
 
   await context.close();
 });
+
+test("a locked workspace recovers from the settings field", async ({ browser }) => {
+  // The first-run path a user actually walks: nothing is stored, the workspace
+  // answers 401, and the only way out is the token field in settings.
+  const context = await browser.newContext({ extraHTTPHeaders: {} });
+  const page = await context.newPage();
+  await page.goto(APP);
+
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("需要访问令牌");
+  await alert.getByRole("button", { name: "设置" }).click();
+
+  const field = page.getByLabel("API 令牌");
+  await expect(field).toBeVisible();
+  await field.fill(E2E_API_TOKEN);
+  await page.getByRole("button", { name: "保存令牌" }).click();
+
+  // Saving refreshes the workspace; no manual reload.
+  await expect(alert).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByLabel("输入学习问题")).toBeVisible();
+
+  await context.close();
+});

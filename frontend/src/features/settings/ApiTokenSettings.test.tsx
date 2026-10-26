@@ -1,7 +1,7 @@
 ﻿// @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiToken, setApiToken } from "../../apiToken";
 import { ApiTokenSettings } from "./ApiTokenSettings";
 
@@ -20,7 +20,8 @@ describe("ApiTokenSettings", () => {
   });
 
   it("stores the pasted token in this browser only", () => {
-    render(<ApiTokenSettings />);
+    const onSaved = vi.fn();
+    render(<ApiTokenSettings onSaved={onSaved} />);
 
     fireEvent.change(screen.getByLabelText("API 令牌"), {
       target: { value: "  local-secret  " },
@@ -28,6 +29,7 @@ describe("ApiTokenSettings", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存令牌" }));
 
     expect(apiToken()).toBe("local-secret");
+    expect(onSaved).toHaveBeenCalledOnce();
     expect(screen.getByText(/令牌已保存在本机浏览器/)).toBeTruthy();
   });
 

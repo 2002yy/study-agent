@@ -1,5 +1,6 @@
 ﻿import { KeyRound } from "lucide-react";
 import { useState } from "react";
+import { clearAuthRequired } from "../../apiAuthState";
 import { apiToken, setApiToken } from "../../apiToken";
 
 /**
@@ -10,7 +11,7 @@ import { apiToken, setApiToken } from "../../apiToken";
  * file. Without it every private request answers 401, so this field is the
  * documented way out of a locked deployment.
  */
-export function ApiTokenSettings() {
+export function ApiTokenSettings({ onSaved }: { onSaved?: () => void } = {}) {
   const [draft, setDraft] = useState(apiToken);
   const [saved, setSaved] = useState(() => Boolean(apiToken()));
 
@@ -19,12 +20,17 @@ export function ApiTokenSettings() {
     const stored = apiToken();
     setDraft(stored);
     setSaved(Boolean(stored));
+    // A 401 left the workspace locked; saving clears the notice and the refresh
+    // below reloads the data without asking the user to reload the page.
+    if (stored) clearAuthRequired();
+    onSaved?.();
   };
 
   const clear = () => {
     setApiToken("");
     setDraft("");
     setSaved(false);
+    onSaved?.();
   };
 
   return (
