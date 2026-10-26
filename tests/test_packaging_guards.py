@@ -229,7 +229,10 @@ def test_ci_workflow_exists_and_runs_core_checks():
     assert "mypy --explicit-package-bases src/" in text
     assert "Run package helper" in text
     assert "detect-secrets" in text
-    assert "playwright install --with-deps chromium firefox webkit" in text
+    # M1: browsers come from the pinned Playwright image, so the workflow no
+    # longer installs them through apt on every run.
+    assert "mcr.microsoft.com/playwright:v" in text
+    assert "playwright install --with-deps chromium firefox webkit" not in text
 
 
 def test_ci_secret_scan_fails_on_any_detect_secrets_finding():

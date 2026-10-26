@@ -388,6 +388,12 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac
     env:
       PYTHONPATH: .
+      # Run 40371404495 launched 41 of 53 artifacts: Firefox refuses to start when
+      # $HOME is not owned by the current user, and inside a container job the
+      # runner sets HOME to /github/home, which the image owns as `pwuser`. This
+      # is the workaround Playwright itself prints ("Set the HOME=/root
+      # environment variable"), not a permission change to the image.
+      HOME: /root
     steps:
       - uses: actions/checkout@v4
 

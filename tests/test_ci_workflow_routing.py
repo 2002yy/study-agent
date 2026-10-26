@@ -104,6 +104,11 @@ def test_the_browser_job_runs_in_the_pinned_playwright_container_without_apt():
 
     image = browser["container"]["image"]
     assert image.startswith("mcr.microsoft.com/playwright:v1.62.1-noble@sha256:")
+    # Inside a container job the runner sets HOME=/github/home, which the image
+    # owns as `pwuser`. Firefox refuses to launch when $HOME is not owned by the
+    # current user (run 40371404495 produced 41 of 53 artifacts that way), so
+    # the job applies Playwright's documented HOME=/root workaround.
+    assert browser["env"]["HOME"] == "/root"
     # The image ships the browsers; installing them again would reintroduce the
     # apt stall this split exists to remove.
     for step in browser["steps"]:
