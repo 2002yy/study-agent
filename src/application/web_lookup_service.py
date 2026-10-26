@@ -1545,7 +1545,18 @@ class WebLookupService:
         steps = [
             dict(item) for item in deep.get("steps", []) if isinstance(item, dict)
         ]
-        steps.append({"at": utc_now(), "kind": kind, "text": text[:300]})
+        # A sequence is durable, so an SSE client can resume from the last id it
+        # saw instead of replaying the whole run. It is separate from the list
+        # position because the tail is capped.
+        next_seq = max((int(item.get("seq") or 0) for item in steps), default=0) + 1
+        steps.append(
+            {
+                "seq": next_seq,
+                "at": utc_now(),
+                "kind": kind,
+                "text": text[:300],
+            }
+        )
         deep["steps"] = steps[-self._DEEP_STEPS_CAP :]
 
     def _deep_apply_computation(
@@ -2183,6 +2194,10 @@ class WebLookupService:
                 f"已读取 {len(attachments)} 个消息附件作为任务材料（非网页证据）",
             )
         round_index = int(deep.get("round_index") or 0)
+        # A second execution of the same run resumes durable work. The first
+        # round of a resumed run has to finish reads an interrupted attempt had
+        # already queued (see the reading phase below).
+        resumed = int(context.get("run_attempt") or 0) > 1
 
         def persist() -> WebLookupRun:
             # Local working copies (plan/notes/memo/steps) are rebound or
@@ -2433,7 +2448,24 @@ class WebLookupService:
                     # ---- reading + noting ---------------------------------
                     if callable(read_method):
                         set_stage("reading")
-                        for record in fresh:
+                        read_targets = list(fresh)
+                        if resumed:
+                            # A cancelled attempt can persist its selection and
+                            # stop before the read. Those records are already in
+                            # selected_sources, so the URL de-duplication above
+                            # would never queue them again and the retry would
+                            # finish knowing only candidate titles.
+                            queued = {_source_url(record) for record in read_targets}
+                            read_targets.extend(
+                                record
+                                for record in selected_sources
+                                if _source_url(record)
+                                and _source_url(record) not in queued
+                                and isinstance(record.get("assessment"), dict)
+                                and record["assessment"].get("worth_reading") is True
+                                and not isinstance(record.get("read"), dict)
+                            )
+                        for record in read_targets:
                             ensure_active()
                             if incremental_remaining(deep, "reads") == 0 or incremental_remaining(deep, "wall_seconds") == 0:
                                 break

@@ -511,6 +511,18 @@ def _effective_attempts(
     return max(1, int(request_max_retries) + 1)
 
 
+def effective_attempts(provider_profile: str | None = None) -> int:
+    """The attempt ceiling the transport will reserve for this profile.
+
+    Admission and transport must bound the same number. Admission used to
+    authorize one attempt while the transport reserved the provider's
+    ``retries + 1``, so enabling the settlement chain refused its own sends with
+    ``send_authorization_bound_exceeded``.
+    """
+
+    return _effective_attempts(provider_profile, None)
+
+
 def stream_chat(
     messages: list[dict],
     temperature: float | None = 0.7,

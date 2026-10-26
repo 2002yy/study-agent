@@ -24,6 +24,7 @@ from src.application.chat_service import (
     _poll_cancel,
     _preferred_partial_reply,
     _previous_assistant_role,
+    _research_resume_requested,
     _route_generation_calls,
     _session_settings,
     _tool_context,
@@ -36,7 +37,7 @@ from src.application.learning_authority_projection import (
 )
 from src.context_builder import chat_history_limit, trim_duplicate_current_user_input
 from src.domain.runtime_entities import ChatThread, ChatTurn, new_id, utc_now
-from src.external_data_policy import decide_external_data
+from src.external_data_policy import decide_external_data, decide_web_use
 from src.pedagogy.evidence import build_evidence_units
 from src.pedagogy.types import LearningState
 from src.rag.cancellation import RetrievalCancelled
@@ -514,7 +515,14 @@ class ExternalDataPolicyChatService(ChatService):
             if attachment_provenance is not None:
                 rag["session_attachments"] = attachment_provenance
             cancel_check("web_tools")
-            if decision.web_allowed:
+            web_use = decide_web_use(
+                contract=route.get("task_contract") or {},
+                user_input=command.user_input,
+                web_allowed=decision.web_allowed,
+                policy_reason=decision.reason,
+                research_resume=_research_resume_requested(command),
+            )
+            if web_use.run_tools:
                 web_tools = self.dependencies.resolve_web_tools(
                     command.user_input,
                     model_profile=route["model_profile"],
@@ -534,7 +542,7 @@ class ExternalDataPolicyChatService(ChatService):
                 web_tools = WebToolTrace(enabled=False)
             rag["web_tools"] = {
                 **web_tools.to_dict(),
-                "policy_reason": decision.reason,
+                "policy_reason": web_use.reason,
             }
             web_tool_error = str(rag["web_tools"].get("error") or "")
             continuation_instruction = _continuation_instruction(command)
@@ -626,7 +634,7 @@ class ExternalDataPolicyChatService(ChatService):
                 context_blocks.append(disclosed.private_context)
             if disclosed.context:
                 context_blocks.append(disclosed.context)
-            if decision.web_allowed and (
+            if web_use.run_tools and (
                 task_contract.task_intent == "research"
                 or web_tools.to_dict().get("recovery") is not None
             ):
@@ -647,7 +655,7 @@ class ExternalDataPolicyChatService(ChatService):
                     "历史回答中的来源清单和失败提示不是本轮工具结果；不要复制其"
                     "联网完成/失败声明或旧来源预览，来源展示由服务端处理。"
                 )
-            if decision.web_allowed and not web_tools.used:
+            if not web_tools.used:
                 if task_contract.task_intent == "research":
                     context_blocks.append(
                         "这是明确研究请求，但本轮没有取得任何已读取正文或结构化一手证据。"

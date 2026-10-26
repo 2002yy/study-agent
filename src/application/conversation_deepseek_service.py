@@ -43,12 +43,13 @@ class DeepSeekConversationService:
         handlers: Mapping[ConversationAction, ActionHandler],
         loop_limits: LoopLimits = LoopLimits(),
         answer_limits: AnswerLimits = AnswerLimits(),
+        should_cancel: Callable[[], bool] = lambda: False,
     ) -> ConversationLoopSession:
         """Create a lazy single-consumer run using one shared model admission.
 
-        The host supplies owned snapshots, tool permissions and durable/real
-        spend authority. Creating/claiming/closing an unread run makes no SDK
-        client or model request. Read with aclosing(run.events()) so disconnect
+        The host supplies owned snapshots, tool permissions, the cancel probe and - when
+        one exists - a real spend admission. Creating/claiming/closing an unread run makes
+        no SDK client or model request. Read with aclosing(run.events()) so disconnect
         and cancellation close the nested loop before its owned SDK session.
         """
         if (
@@ -57,6 +58,7 @@ class DeepSeekConversationService:
             or not isinstance(action_budget, ActionBudget)
             or not isinstance(loop_limits, LoopLimits)
             or not isinstance(answer_limits, AnswerLimits)
+            or not callable(should_cancel)
         ):
             raise ValueError("invalid conversation service request")
         bound_handlers = dict(handlers)
@@ -77,6 +79,7 @@ class DeepSeekConversationService:
                         answer_generator=models.answer_generator(
                             model_budget, answer_limits
                         ),
+                        should_cancel=should_cancel,
                     )
                 ) as stream:
                     async for event in stream:

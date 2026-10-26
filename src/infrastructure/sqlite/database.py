@@ -9,8 +9,16 @@ from typing import Callable
 
 from src.infrastructure.sqlite.learning_semantic_schema import LEARNING_SEMANTIC_MIGRATION_V18
 from src.infrastructure.sqlite.learning_truth_schema import LEARNING_TRUTH_MIGRATION_V17
+from src.infrastructure.sqlite.research_authorization_schema import (
+    RESEARCH_TIER_MIGRATION_V29,
+)
+from src.infrastructure.sqlite.research_event_schema import RESEARCH_EVENT_MIGRATION_V28
+from src.infrastructure.sqlite.research_state_schema import RESEARCH_STATE_MIGRATION_V27
+from src.infrastructure.sqlite.spend_settlement_schema import (
+    LLM_SPEND_SETTLEMENT_MIGRATION_V30,
+)
 
-SCHEMA_VERSION = 26
+SCHEMA_VERSION = 30
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -584,6 +592,20 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             ON llm_spend_reservations(experiment_id);
         """,
     ),
+    # 25 and 26 are allocated outside this branch: 25 is ``chat_turns.attachment_refs``
+    # (the AR line) and 26 is #259's spend ledger. A migration number is permanent, so
+    # reusing one would make two branches apply different SQL under the same version.
+    (27, RESEARCH_STATE_MIGRATION_V27),
+    # 28 is the durable research event log: the cursor a reconnecting client uses to
+    # learn what it missed while it was away.
+    (28, RESEARCH_EVENT_MIGRATION_V28),
+    # 29 is QD-3d's termination and authorisation: the cancellation timestamp, the
+    # in-flight call count, and the tier-upgrade request/authorisation tables.
+    (29, RESEARCH_TIER_MIGRATION_V29),
+    # 30 is CL-M3-S1's settlement audit: what was later learned about each send. It
+    # appends observations and never moves money - the reservation tables are untouched
+    # (see the contract's §12 and the module docstring for the epoch watermark).
+    (30, LLM_SPEND_SETTLEMENT_MIGRATION_V30),
 )
 
 

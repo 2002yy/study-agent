@@ -300,6 +300,27 @@ def _poll_cancel(repository: RuntimeRepository, turn_id: str, operation_id: str)
     return poll
 
 
+def _has_task_contract(route: dict[str, Any]) -> bool:
+    contract = route.get("task_contract")
+    return isinstance(contract, dict) and bool(contract.get("task_intent"))
+
+
+def _research_resume_requested(command: ChatCommand) -> bool:
+    """A short continuation of an earlier explicit research request.
+
+    History supplies the topic only; it never authorizes new data. Without a
+    lead there is nothing to resume, so no search is started.
+    """
+
+    from src.web.conversation_query import is_research_resume, research_query_lead
+
+    if not command.chat_history:
+        return False
+    if not is_research_resume(str(command.user_input or "")):
+        return False
+    return bool(research_query_lead(list(command.chat_history)))
+
+
 def _observe_turn_shadow(
     service: Any,
     *,
@@ -588,6 +609,27 @@ class ChatService:
                 keep_current_role=command.keep_current_role,
             )
             learning_state = LearningState.from_dict(thread.learning_state)
+            # C1b: every turn must leave this entrypoint with a complete task
+            # contract, even when the injected router is the legacy one. The
+            # contract is what the web gate reads, so a missing one would silently
+            # turn "static question" into an unclassified one.
+            if not _has_task_contract(route):
+                from src.task_contract import resolve_turn_task_contract
+
+                route = {
+                    **route,
+                    "task_contract": resolve_turn_task_contract(
+                        user_input=command.user_input,
+                        state=learning_state,
+                        persisted_route=(
+                            existing.route_snapshot
+                            if is_continuation and existing is not None
+                            else retry_parent.route_snapshot
+                            if retry_parent is not None
+                            else None
+                        ),
+                    ).to_dict(),
+                }
             # 164.33/I6: the C1 observer must compare the PRE-adjudication legacy value,
             # otherwise enabling Phase 2 masks legacy-vs-durable divergence.
             legacy_learning_state = learning_state
@@ -681,19 +723,34 @@ class ChatService:
             rag = rag_result.to_dict()
             rag["query_plan"] = retrieval_plan.to_dict()
             cancel_check("web_tools")
-            web_tools = self.dependencies.resolve_web_tools(
-                command.user_input,
-                model_profile=route["model_profile"],
-                conversation_context=_tool_context(command.chat_history),
-                owner_thread_id=thread.id,
-                owner_turn_id=turn_id,
-                attachment_material=_turn_attachment_material(self.repository, turn_id),
-                research_intent=bool(
-                    (route.get("task_contract") or {}).get("task_intent") == "research"
-                ),
-                deep_requested=(context_mode == "deep") or (command.performance_mode == "deep"),
+            from src.external_data_policy import decide_web_use
+
+            policy = route.get("external_data_policy")
+            policy = policy if isinstance(policy, dict) else {}
+            web_use = decide_web_use(
+                contract=route.get("task_contract") or {},
+                user_input=command.user_input,
+                web_allowed=policy.get("web_allowed") is not False,
+                policy_reason=str(policy.get("reason", "allowed")),
+                research_resume=_research_resume_requested(command),
             )
-            rag["web_tools"] = web_tools.to_dict()
+            if web_use.run_tools:
+                web_tools = self.dependencies.resolve_web_tools(
+                    command.user_input,
+                    model_profile=route["model_profile"],
+                    conversation_context=_tool_context(command.chat_history),
+                    owner_thread_id=thread.id,
+                    owner_turn_id=turn_id,
+                    attachment_material=_turn_attachment_material(self.repository, turn_id),
+                    research_intent=bool(
+                        (route.get("task_contract") or {}).get("task_intent") == "research"
+                    ),
+                    deep_requested=(context_mode == "deep")
+                    or (command.performance_mode == "deep"),
+                )
+            else:
+                web_tools = WebToolTrace(enabled=False)
+            rag["web_tools"] = {**web_tools.to_dict(), "policy_reason": web_use.reason}
             from src.web.research.research_interaction import steering_answer_instruction
 
             effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
@@ -704,6 +761,15 @@ class ChatService:
             )
             continuation_instruction = _continuation_instruction(command)
             context_blocks: list[str] = []
+            if (
+                not web_use.run_tools
+                and (route.get("task_contract") or {}).get("task_intent") == "research"
+                and not command.web_context.strip()
+            ):
+                context_blocks.append(
+                    "本轮没有执行联网检索（用户或策略未允许）。不得声称已经搜索、"
+                    "查证或依据联网结果；如需最新信息，请提示用户允许联网。"
+                )
             evidence_units = build_evidence_units(
                 rag=rag,
                 web_context="\n\n".join(
@@ -1019,9 +1085,52 @@ class ChatService:
 
         def call(*args, **kwargs):
             with self._spend_scope(prepared):
-                return self.dependencies.chat(*args, **kwargs)
+                admission = self._chat_settlement_admission(prepared)
+                if admission is None:
+                    return self.dependencies.chat(*args, **kwargs)
+                from src.application.admitted_chat import admitted_chat
+
+                return admitted_chat(
+                    self.dependencies.chat, admission, scope=prepared.turn.id
+                )(*args, **kwargs)
 
         return call
+
+    def _chat_settlement_admission(self, prepared: PreparedChatTurn):
+        """The per-turn dual-track admission, or ``None`` when the chain is off.
+
+        Built once per turn and cached: the quota file is keyed by the turn, and
+        reopening it for every call would re-verify the same file while making it
+        easy to hand out a second budget after a retry.
+        """
+
+        from src.application.spend_admission_factory import (
+            build_settlement_admission,
+            settlement_admission_enabled,
+        )
+
+        if not settlement_admission_enabled():
+            return None
+        cache = getattr(self, "_settlement_admissions", None)
+        if cache is None:
+            cache = {}
+            self._settlement_admissions = cache
+        turn_id = prepared.turn.id
+        if turn_id in cache:
+            return cache[turn_id]
+        from src.llm_client import effective_attempts, get_model_name
+
+        profile = prepared.route.get("model_profile")
+        model = get_model_name(profile)
+        admission = build_settlement_admission(
+            model=model,
+            kind="chat",
+            scope_id=turn_id,
+            # The permit must bound what the SDK may really attempt.
+            attempts=effective_attempts(profile),
+        )
+        cache[turn_id] = admission
+        return admission
 
     def _scope_for(self, prepared: PreparedChatTurn):
         """The experiment scope of one turn's paid calls.
@@ -1046,6 +1155,28 @@ class ChatService:
             experiment=experiment_id(),
         )
 
+    def _stream_source(self, prepared: PreparedChatTurn):
+        """The streaming callable for this turn: admitted when the chain is on."""
+
+        admission = self._chat_settlement_admission(prepared)
+        if admission is None:
+            return self.dependencies.stream_chat
+        from src.application.admitted_chat import admitted_stream_chat
+
+        return admitted_stream_chat(
+            self.dependencies.stream_chat, admission, scope=prepared.turn.id
+        )
+
+    def _async_stream_source(self, prepared: PreparedChatTurn):
+        admission = self._chat_settlement_admission(prepared)
+        if admission is None:
+            return self.dependencies.async_stream_chat
+        from src.application.admitted_chat import admitted_async_stream_chat
+
+        return admitted_async_stream_chat(
+            self.dependencies.async_stream_chat, admission, scope=prepared.turn.id
+        )
+
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
         remaining_seconds(prepared.research_deadline)
         if answer_validation_active(prepared) and prepared.answer_validation is None:
@@ -1058,7 +1189,7 @@ class ChatService:
         with self._spend_scope(prepared):
             yield from bounded_stream(
                 prepared.research_deadline,
-                self.dependencies.stream_chat(
+                self._stream_source(prepared)(
                     prepared.messages,
                     model_profile=prepared.route["model_profile"],
                     max_tokens=max_tokens,
@@ -1085,7 +1216,7 @@ class ChatService:
         scope_token = push_scope(self._scope_for(prepared))
         try:
             async with asyncio.timeout(remaining_seconds(prepared.research_deadline)):
-                async for token in self.dependencies.async_stream_chat(
+                async for token in self._async_stream_source(prepared)(
                     prepared.messages,
                     model_profile=prepared.route["model_profile"],
                     max_tokens=max_tokens,

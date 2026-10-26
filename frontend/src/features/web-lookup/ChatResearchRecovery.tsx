@@ -193,7 +193,12 @@ export function ChatResearchRecovery({
       </div>
     );
   }
-  if (run?.research_context.run_kind !== "chat_tool_loop") return null;
+  if (
+    run?.research_context.run_kind !== "chat_tool_loop" &&
+    run?.research_context.run_kind !== "deep_research"
+  ) {
+    return null;
+  }
   const recovered = run.status === "completed" && run.provider_status === "found";
   if (!canRetry && !canResume && !isBusy && !(recovered && useInChat)) return null;
   const detail = runDetail(run);

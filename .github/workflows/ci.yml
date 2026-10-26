@@ -24,7 +24,10 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pin the supported runner image for Playwright's Chromium/Firefox/WebKit system deps.
+    # ubuntu-latest moved to 26.04; the 2026-10-25 CI run stalled while apt fetched
+    # 185 packages from that image and timed out before any browser test started.
+    runs-on: ubuntu-24.04
     env:
       PYTHONPATH: .
     steps:
@@ -302,12 +305,23 @@ jobs:
         if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.node_deps.outcome == 'success'
         id: playwright_install
         continue-on-error: true
-        timeout-minutes: 20
+        # The apt mirror behind the hosted runner is intermittently slow: run
+        # 40287246070 spent the whole 20-minute ceiling fetching 126 of ~185
+        # packages at 50-300 KB/s, so the step was killed before any browser test
+        # started. Give it headroom and let apt retry a stalled package.
+        timeout-minutes: 40
         working-directory: frontend
         run: |
           set -o pipefail
-          npx playwright install --with-deps chromium firefox webkit > ../playwright-install.log 2>&1
+          # Keep install progress visible in the Actions job as well as diagnostics.
+          # `set -o pipefail` still fails the step when the installer fails.
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80-playwright-retries
+          npx playwright install --with-deps chromium firefox webkit 2>&1 | tee ../playwright-install.log
 
+      # A failing browser gate must be diagnosable from the job log. The full
+      # output still goes to the ci-diagnostics artifact, but redirecting it all
+      # to a file left the job with a bare "exit code 1" and forced a 30 MB
+      # artifact download just to learn which assertion failed.
       - name: Run browser Golden Journeys
         if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.playwright_install.outcome == 'success'
         id: browser_e2e
@@ -316,7 +330,12 @@ jobs:
         working-directory: frontend
         run: |
           set -o pipefail
-          npm run test:e2e > ../browser-e2e.log 2>&1
+          # `if !` keeps `bash -e` from exiting before the tail is printed.
+          if ! npm run test:e2e > ../browser-e2e.log 2>&1; then
+            echo "::error::browser Golden Journeys failed (see browser-e2e.log)"
+            tail -n 80 ../browser-e2e.log
+            exit 1
+          fi
 
       - name: Run real-stack browser gates
         if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.playwright_install.outcome == 'success'
@@ -326,7 +345,11 @@ jobs:
         working-directory: frontend
         run: |
           set -o pipefail
-          npm run test:e2e:real-stack > ../real-stack-browser-e2e.log 2>&1
+          if ! npm run test:e2e:real-stack > ../real-stack-browser-e2e.log 2>&1; then
+            echo "::error::real-stack browser gates failed (see real-stack-browser-e2e.log)"
+            tail -n 120 ../real-stack-browser-e2e.log
+            exit 1
+          fi
 
       - name: Upload CI diagnostics
         if: always()

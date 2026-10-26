@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict
-from typing import Annotated
+import json
+from typing import Annotated, AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 
 from src.api.models.news import (
     ResearchQueueRequest,
@@ -26,6 +29,15 @@ WebLookupServiceDependency = Annotated[
     WebLookupService,
     Depends(get_web_lookup_service),
 ]
+
+# The stage feed reads what the run already persisted; it never advances or
+# mutates the run. A reconnect costs no research and starts no send.
+TERMINAL_RUN_STATUSES = frozenset(
+    {"completed", "partial", "failed", "cancelled"}
+)
+STEP_POLL_SECONDS = 0.05
+STEP_IDLE_TIMEOUT_SECONDS = 300.0
+STEP_HEARTBEAT_SECONDS = 10.0
 
 
 def _response(run) -> WebLookupRunResponse:
@@ -170,6 +182,104 @@ def get_research_run(
     service: WebLookupServiceDependency,
 ) -> WebLookupRunResponse:
     return get_web_lookup_run(run_id=run_id, service=service)
+
+
+def _run_steps(run) -> list[tuple[int, dict]]:
+    deep = (run.research_context or {}).get("deep")
+    steps = deep.get("steps") if isinstance(deep, dict) else None
+    indexed: list[tuple[int, dict]] = []
+    for position, step in enumerate(steps or []):
+        if not isinstance(step, dict):
+            continue
+        try:
+            seq = int(step.get("seq") or 0)
+        except (TypeError, ValueError):
+            seq = 0
+        indexed.append((seq or position + 1, step))
+    return indexed
+
+
+@router.get("/research-runs/{run_id}/events")
+async def stream_research_run_events(
+    run_id: str,
+    request: Request,
+    service: WebLookupServiceDependency,
+    after: int = Query(default=0, ge=0),
+):
+    """Follow one run's durable stage log, read-only.
+
+    ``id`` on each frame is the step sequence. A client that reconnects sends
+    that id back as ``Last-Event-ID`` and receives only later steps: the
+    database is the cursor authority, so a dropped connection neither replays
+    research nor starts a new send.
+    """
+
+    try:
+        service.get(run_id)
+    except ValueError as exc:
+        raise _not_found_or_conflict(exc) from exc
+
+    cursor = [after]
+    header_cursor = request.headers.get("last-event-id", "").strip()
+    if header_cursor.isdigit():
+        cursor[0] = int(header_cursor)
+
+    async def frames() -> AsyncIterator[str]:
+        idle = 0.0
+        since_heartbeat = 0.0
+
+        def idle_frame(status: str) -> str:
+            return (
+                "event: research_idle\ndata: "
+                + json.dumps({"run_id": run_id, "status": status}, ensure_ascii=False)
+                + "\n\n"
+            )
+
+        while True:
+            try:
+                run = service.get(run_id)
+            except ValueError:
+                yield idle_frame("unknown")
+                return
+            wrote = False
+            for seq, step in _run_steps(run):
+                if seq <= cursor[0]:
+                    continue
+                cursor[0] = seq
+                payload = {
+                    "run_id": run.id,
+                    "seq": seq,
+                    "kind": str(step.get("kind") or ""),
+                    "text": str(step.get("text") or ""),
+                    "at": str(step.get("at") or ""),
+                }
+                yield (
+                    f"id: {seq}\nevent: research_step\ndata: "
+                    f"{json.dumps(payload, ensure_ascii=False)}\n\n"
+                )
+                wrote = True
+                idle = 0.0
+                since_heartbeat = 0.0
+            if run.status in TERMINAL_RUN_STATUSES and not wrote:
+                yield idle_frame(run.status)
+                return
+            if await request.is_disconnected():
+                return
+            since_heartbeat += STEP_POLL_SECONDS
+            if since_heartbeat >= STEP_HEARTBEAT_SECONDS:
+                yield "event: heartbeat\ndata: {}\n\n"
+                since_heartbeat = 0.0
+            idle += STEP_POLL_SECONDS
+            if idle >= STEP_IDLE_TIMEOUT_SECONDS:
+                yield idle_frame(run.status)
+                return
+            await asyncio.sleep(STEP_POLL_SECONDS)
+
+    return StreamingResponse(
+        frames(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/research-runs/{run_id}/search", response_model=WebLookupRunResponse)

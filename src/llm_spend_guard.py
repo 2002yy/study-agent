@@ -48,14 +48,20 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 import hashlib
+import hmac
+import json
 import math
 import os
 from pathlib import Path
+import secrets
 import threading
 from typing import Iterator
+import weakref
 
 from src.infrastructure.sqlite.spend_ledger import (
     MICROS_PER_CNY,
+    AdmissionGuard,
+    SpendAdmissionRefused,
     SpendCapExceeded,
     SpendLedger,
     SpendLedgerConflict,
@@ -69,6 +75,9 @@ __all__ = [
     "SpendCapExceeded",
     "SpendConfigurationError",
     "SpendIdentity",
+    "SpendAdmissionRefused",
+    "SpendAuthorizationError",
+    "SendAuthorization",
     "SpendLedgerConflict",
     "SpendLedgerError",
     "SpendLedgerUnavailable",
@@ -78,7 +87,11 @@ __all__ = [
     "compose_request_key",
     "new_scope",
     "pop_scope",
+    "pre_reserved_send",
     "push_scope",
+    "authorize_send",
+    "serialized_request_chars",
+    "spend_ledger_path",
     "current_identity",
     "current_scope",
     "experiment_spend",
@@ -211,6 +224,274 @@ class SpendScope:
 
 _scope: ContextVar[SpendScope | None] = ContextVar("llm_spend_scope", default=None)
 
+# The admission layer that owns the reservation for a send holds an authorization
+# here for the duration of the actual call. The transport is then allowed to send,
+# but not to reserve again: two reservations for one send is two charges for one
+# answer. The authorization is a signed, single-use record of the *bounds* that
+# were reserved, not a bare key - a key proves nothing about whether a
+# reservation exists or how large the real request may be.
+_active_authorization: ContextVar[object] = ContextVar(
+    "llm_spend_send_authorization", default=None
+)
+# One reservation is one send, in this process. Issuing and consuming are tracked
+# by reservation identity rather than by token: a second signature over different
+# bounds for the same reservation would otherwise be a second executable
+# credential for money that was reserved once.
+_issued_reservations: set[tuple[str, str]] = set()
+_consumed_reservations: set[tuple[str, str]] = set()
+# Reservations written by *this* process and not yet authorized. Issuance is a
+# capability of the reservation operation that just happened, not of a query for
+# a historical row: after a restart this set is empty, so an old reservation
+# cannot be turned into a fresh credential.
+_fresh_reservations: set[tuple[str, str]] = set()
+_AUTHORIZATION_SECRET = secrets.token_bytes(32)
+
+# Set while the settlement adapter performs *its own* first reservation. In
+# experiment mode nothing else may reserve: an un-admitted transport call is
+# refused before the provider is touched, which is how a path that has not been
+# wired yet fails closed instead of spending without an owner.
+#
+# The permission is an object capability, not a boolean anyone can set: only an
+# adapter registers itself, and `reserve_call` accepts the owner object. A stray
+# context flag would let un-wired code reserve and send outside the settlement
+# audit while still looking "authorized" to the guard.
+_settling_owners: weakref.WeakSet[object] = weakref.WeakSet()
+
+SETTLEMENT_ASSEMBLY_FLAG = "STUDY_AGENT_SETTLEMENT_ADMISSION"
+_AFFIRMATIVE = frozenset({"1", "true", "on", "yes"})
+
+
+def settlement_admission_enabled() -> bool:
+    """Whether the settlement chain is switched on for this process."""
+
+    return os.getenv(SETTLEMENT_ASSEMBLY_FLAG, "").strip().lower() in _AFFIRMATIVE
+
+
+def register_settling_owner(owner: object) -> None:
+    """Register the adapter that may make its own first reservation.
+
+    Called by ``SettlementLedgerAdapter``'s constructor. There is no unregister:
+    a live adapter keeps the capability for its lifetime, and the weak set drops
+    it with the object.
+    """
+
+    _settling_owners.add(owner)
+
+
+def is_settling_owner(owner: object) -> bool:
+    return owner is not None and owner in _settling_owners
+
+
+class SpendAuthorizationError(SpendConfigurationError):
+    """A send that is not covered by the reservation it claims.
+
+    The reason is a first-class attribute: "missing", "forged", "already used"
+    and "beyond the reserved bound" are four different production incidents, and
+    a caller that cannot tell them apart will fix the wrong one.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+@dataclass(frozen=True)
+class SendAuthorization:
+    """Proof that one send was reserved, and within which bounds.
+
+    Issued only after reading the committed reservation row: the fields describe
+    what the ledger stored, not what the caller claimed. The token is an HMAC
+    over them, so a hand-built instance cannot pass :func:`pre_reserved_send`;
+    the guard consumes it exactly once, and the send slot inside it admits
+    exactly one transport check.
+    """
+
+    experiment_id: str
+    request_key: str
+    model: str
+    prompt_chars: int
+    max_tokens: int
+    attempts: int
+    reserved_cny: float
+    token: str = ""
+
+
+@dataclass
+class _SendSlot:
+    """The mutable half of an authorization: one transport check, no more."""
+
+    authorization: SendAuthorization
+    used: bool = False
+
+
+def _authorization_payload(
+    *,
+    experiment_id: str,
+    request_key: str,
+    model: str,
+    prompt_chars: int,
+    max_tokens: int,
+    attempts: int,
+    reserved_cny: float,
+) -> str:
+    return json.dumps(
+        {
+            "experiment_id": experiment_id,
+            "request_key": request_key,
+            "model": model,
+            "prompt_chars": int(prompt_chars),
+            "max_tokens": int(max_tokens),
+            "attempts": int(attempts),
+            "reserved_cny": round(float(reserved_cny), 12),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def authorize_send(
+    *,
+    experiment_id: str,
+    request_key: str,
+    model: str,
+    prompt_chars: int,
+    max_tokens: int,
+    attempts: int,
+) -> SendAuthorization:
+    """Issue the authorization for a send **only if its reservation exists**.
+
+    The amount and the model come from the committed row, not from this call's
+    arguments. A signature over unchecked numbers would prove that the signer
+    can compute an HMAC, which is not the question.
+    """
+
+    reservation = _ledger().reserved_send(experiment_id, request_key)
+    if reservation is None:
+        raise SpendAuthorizationError("reservation_not_found")
+    if reservation.amount_micros <= 0 or reservation.model != str(model or ""):
+        # Either the row pays nothing, or it was reserved for a different model
+        # than the one about to be sent. Both mean the authorization cannot
+        # describe this send.
+        raise SpendAuthorizationError("reservation_mismatch")
+    budget = _ledger().experiment_budget(reservation.experiment_id)
+    if budget is None or budget.pricing_fingerprint != _pricing_fingerprint():
+        # The reservation was priced under different prices than this process is
+        # configured with. Signing now would authorize a send whose cost cannot be
+        # compared with what was reserved.
+        raise SpendAuthorizationError("pricing_mismatch")
+    # The bounds being authorized must be payable by the amount that was actually
+    # reserved, priced with the ledger's own function. A signature over bounds the
+    # row cannot cover would be a permission larger than the money behind it.
+    required_micros = cny_to_micros(
+        reservation_cny(
+            prompt_chars=prompt_chars, max_tokens=max_tokens, attempts=attempts
+        )
+    )
+    if required_micros > reservation.amount_micros:
+        raise SpendAuthorizationError("authorization_exceeds_reservation")
+    identity = (reservation.experiment_id, reservation.request_key)
+    with _lock:
+        if identity in _issued_reservations:
+            # One reservation, one authorization, one send. A second signature
+            # for the same row - even with different bounds - would be a second
+            # credential for the same money.
+            raise SpendAuthorizationError("send_already_authorized")
+        if identity not in _fresh_reservations:
+            # The row exists, but this process did not just write it. Re-issuing
+            # from a historical reservation is how a restart turns an abandoned
+            # send into a fresh credential; the rule is that a retry is a new
+            # send with a new key.
+            raise SpendAuthorizationError("reservation_not_issued_here")
+        _fresh_reservations.discard(identity)
+        _issued_reservations.add(identity)
+    payload = _authorization_payload(
+        experiment_id=reservation.experiment_id,
+        request_key=reservation.request_key,
+        model=reservation.model,
+        prompt_chars=prompt_chars,
+        max_tokens=max_tokens,
+        attempts=attempts,
+        reserved_cny=reservation.amount_micros / MICROS_PER_CNY,
+    )
+    return SendAuthorization(
+        experiment_id=reservation.experiment_id,
+        request_key=reservation.request_key,
+        model=reservation.model,
+        prompt_chars=int(prompt_chars),
+        max_tokens=int(max_tokens),
+        attempts=int(attempts),
+        reserved_cny=reservation.amount_micros / MICROS_PER_CNY,
+        token=hmac.new(
+            _AUTHORIZATION_SECRET, payload.encode("utf-8"), hashlib.sha256
+        ).hexdigest(),
+    )
+
+
+def _verified_authorization(authorization: object) -> SendAuthorization:
+    """Check the signature only. Pure: no consumption, no state."""
+
+    if not isinstance(authorization, SendAuthorization):
+        raise SpendAuthorizationError("send_authorization_missing")
+    payload = _authorization_payload(
+        experiment_id=authorization.experiment_id,
+        request_key=authorization.request_key,
+        model=authorization.model,
+        prompt_chars=authorization.prompt_chars,
+        max_tokens=authorization.max_tokens,
+        attempts=authorization.attempts,
+        reserved_cny=authorization.reserved_cny,
+    )
+    expected_token = hmac.new(
+        _AUTHORIZATION_SECRET, payload.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(expected_token, str(authorization.token or "")):
+        raise SpendAuthorizationError("send_authorization_forged")
+    return authorization
+
+
+def _consume_authorization(authorization: object) -> SendAuthorization:
+    """Verify and consume in one critical section.
+
+    Checking the consumed set outside the lock would let two threads verify the
+    same token, both find it unused, and both send.
+    """
+
+    verified = _verified_authorization(authorization)
+    identity = (verified.experiment_id, verified.request_key)
+    with _lock:
+        if identity in _consumed_reservations:
+            raise SpendAuthorizationError("send_authorization_consumed")
+        _consumed_reservations.add(identity)
+    return verified
+
+
+@contextmanager
+def pre_reserved_send(authorization: SendAuthorization) -> Iterator[SendAuthorization]:
+    """Authorize exactly one send inside the reservation it was issued for.
+
+    Entry consumes the authorization atomically. Inside the scope, exactly one
+    :func:`reserve_call` may pass; a second is a second send and is refused
+    rather than silently admitted without its own reservation.
+    """
+
+    verified = _consume_authorization(authorization)
+    token = _active_authorization.set(_SendSlot(verified))
+    try:
+        yield verified
+    finally:
+        _active_authorization.reset(token)
+
+
+def serialized_request_chars(payload: object) -> int:
+    """Conservative character count of a request, using the transport's own proxy.
+
+    One accounting function for the admission layer and the transport: if each
+    computed its own, the outer reservation would be measured in a unit the inner
+    check does not use, and "within the bound" would be a coincidence.
+    """
+
+    return len(json.dumps(payload, ensure_ascii=True, sort_keys=True, default=str))
+
 
 def new_scope(
     *, run_id: str, operation_id: str = "", purpose: str = "", experiment: str = ""
@@ -272,9 +553,18 @@ def reset_spend() -> None:
     experiment means a new ``LLM_SPEND_EXPERIMENT_ID``.
     """
 
-    global _reserved_cny
+    global _reserved_cny, _AUTHORIZATION_SECRET
     with _lock:
         _reserved_cny = 0.0
+        # A reset must invalidate credentials, not just forget that they were
+        # used: clearing the consumed set without rotating the secret would make
+        # an already-spent token pass verification again.
+        _AUTHORIZATION_SECRET = secrets.token_bytes(32)
+        # Authorizations are process-local and single-use; a reset (tests, a new
+        # experiment) starts a new generation of them.
+        _consumed_reservations.clear()
+        _issued_reservations.clear()
+        _fresh_reservations.clear()
 
 
 def _float_env(name: str) -> float | None:
@@ -360,6 +650,16 @@ def _ledger_path() -> str:
     from src.application.runtime_repository import runtime_database_path
 
     return str(Path(runtime_database_path()).expanduser().resolve())
+
+
+def spend_ledger_path() -> str:
+    """The absolute ledger path, shared by the reservation and settlement stores.
+
+    Exposed so a factory can prove both stores point at the same file instead of
+    assuming two environment reads agree.
+    """
+
+    return _ledger_path()
 
 
 _ledger_cache: dict[str, SpendLedger] = {}
@@ -484,6 +784,8 @@ def reserve_call(
     model: str = "",
     request_key: str | None = None,
     identity: SpendIdentity | None = None,
+    admission_guard: AdmissionGuard | None = None,
+    settling_owner: object | None = None,
 ) -> float:
     """Reserve the worst case before a request; raise when it cannot fit.
 
@@ -500,6 +802,40 @@ def reserve_call(
     cap = spend_cap_cny()
     experiment = experiment_id()
     experiment_cap = experiment_cap_cny() if experiment else None
+
+    # The admission layer holds a signed authorization for this exact send. The
+    # transport may send, but only within the reserved bounds, and it must not
+    # reserve a second time. An explicit *different* key is another send and is
+    # refused rather than merged.
+    slot = _active_authorization.get()
+    if slot is not None:
+        if not isinstance(slot, _SendSlot):
+            raise SpendAuthorizationError("send_authorization_missing")
+        active = slot.authorization
+        if request_key is not None and request_key != active.request_key:
+            raise SpendAuthorizationError("send_authorization_key_mismatch")
+        if str(model or "") != active.model:
+            raise SpendAuthorizationError("send_authorization_model_mismatch")
+        if max(0, int(prompt_chars)) > active.prompt_chars:
+            raise SpendAuthorizationError("send_authorization_bound_exceeded")
+        if max_tokens is not None and int(max_tokens) > active.max_tokens:
+            raise SpendAuthorizationError("send_authorization_bound_exceeded")
+        if max(1, int(attempts)) > active.attempts:
+            raise SpendAuthorizationError("send_authorization_bound_exceeded")
+        # One authorization admits one transport check. Without this, a caller
+        # could loop inside the scope and send repeatedly for one reservation.
+        with _lock:
+            if slot.used:
+                raise SpendAuthorizationError("send_authorization_consumed")
+            slot.used = True
+        return 0.0
+
+    if settlement_admission_enabled() and not is_settling_owner(settling_owner):
+        # Experiment mode: a transport that was not handed an authorization, and
+        # is not the registered settlement adapter making the first reservation,
+        # must not spend. This is the isolation for entries that are not wired yet.
+        raise SpendAuthorizationError("send_not_admitted")
+
     if cap is None and experiment_cap is None:
         return 0.0
     if experiment and experiment_cap is None:
@@ -561,11 +897,16 @@ def reserve_call(
                     model=model,
                     identity=(resolved_identity.describe() if resolved_identity else ""),
                     now=_utc_now(),
+                    admission_guard=admission_guard,
                 )
             except SpendCapExceeded as exc:
                 # Callers already handle one "the cap stopped this call" signal.
                 raise SpendLimitExceeded(str(exc)) from exc
         _reserved_cny += reservation
+        if experiment and experiment_cap is not None and request_key:
+            # Written by this process, in this call: the only thing that may be
+            # authorized below.
+            _fresh_reservations.add((experiment, str(request_key)))
     return reservation
 
 

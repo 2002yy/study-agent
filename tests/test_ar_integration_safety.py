@@ -18,7 +18,21 @@ from tests.test_spend_production_wiring import (
 )
 
 
-def test_current_main_v24_upgrades_to_v26_without_losing_chat_data(
+def _declared_migration_versions():
+    """Every migration number this branch declares, in order.
+
+    The final schema version is a moving target: main ships 26, and later
+    branches allocate their own numbers above it. Asserting a hardcoded
+    version here would break on every migration added anywhere in the tree,
+    which is a test that fails for the wrong reason. The invariant the
+    upgrade actually has to satisfy is "the database reached the version this
+    build supports" - so derive it from the build's own constant and cross
+    check it against the declared migration list.
+    """
+    return [version for version, _ in schema.MIGRATIONS]
+
+
+def test_current_main_v24_upgrades_to_head_without_losing_chat_data(
     tmp_path, monkeypatch
 ):
     """Start from the real main v24 schema rather than a fabricated v25 baseline."""
@@ -58,14 +72,28 @@ def test_current_main_v24_upgrades_to_v26_without_losing_chat_data(
     schema.RuntimeDatabase(path).initialize()
     schema.RuntimeDatabase(path).initialize()  # repeat upgrade must be safe
 
+    declared = _declared_migration_versions()
     with sqlite3.connect(path) as connection:
+        # The build's own supported version, not a pinned literal: main ships
+        # 26 and later branches allocate above it, so a hardcoded target
+        # fails for the wrong reason.
         assert connection.execute(
             "SELECT value FROM runtime_meta WHERE key='schema_version'"
-        ).fetchone()[0] == "26"
+        ).fetchone()[0] == str(schema.SCHEMA_VERSION)
+        # Cross check: the declared migration list must reach the version the
+        # build claims to support. Without this, deleting a migration from
+        # MIGRATIONS while leaving SCHEMA_VERSION alone would let the
+        # database land one version short and still look upgraded.
+        assert declared[-1] == schema.SCHEMA_VERSION
         assert connection.execute(
             "SELECT version, status FROM runtime_migrations "
             "WHERE version IN (25, 26) ORDER BY version"
         ).fetchall() == [(25, "completed"), (26, "completed")]
+        # Stronger than the v25/v26 pair above: *every* migration this build
+        # declares must be recorded as completed.
+        assert connection.execute(
+            "SELECT version, status FROM runtime_migrations ORDER BY version"
+        ).fetchall() == [(version, "completed") for version in declared]
         assert connection.execute(
             "SELECT user_message, assistant_message, status, attachment_refs "
             "FROM chat_turns WHERE id = ?", ("existing-turn",)
@@ -139,13 +167,30 @@ def test_v25_upgrade_failure_rolls_back_and_backup_remains_usable(
         )
 
     schema.RuntimeDatabase(path).initialize()
+    declared = _declared_migration_versions()
     with sqlite3.connect(path) as connection:
         assert (
             connection.execute(
                 "SELECT value FROM runtime_meta WHERE key='schema_version'"
             ).fetchone()[0]
-            == "26"
+            == str(schema.SCHEMA_VERSION)
         )
+        assert declared[-1] == schema.SCHEMA_VERSION
+        # The failed upgrade left no partial ledger behind; the successful one
+        # left a complete one.
+        assert {
+            row[0] for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE name LIKE 'llm_spend_%'"
+            )
+        } == {
+            "llm_spend_experiments",
+            "llm_spend_reservations",
+            # Migration 30: the settlement audit and its append-only guards.
+            "llm_spend_settlements",
+            "llm_spend_settlement_epoch",
+            "llm_spend_settlements_append_only_update",
+            "llm_spend_settlements_append_only_delete",
+        }
     with sqlite3.connect(backup) as connection:
         assert (
             connection.execute(
@@ -160,9 +205,30 @@ def test_v25_upgrade_failure_rolls_back_and_backup_remains_usable(
     # Downgrade is explicitly rejected: recover old code from its pre-upgrade
     # backup, never erase submitted reservations by dropping ledger tables.
     with monkeypatch.context() as patch:
-        patch.setattr(schema, "SCHEMA_VERSION", 25)
+        patch.setattr(schema, "SCHEMA_VERSION", schema.SCHEMA_VERSION - 1)
         with pytest.raises(RuntimeError, match="newer than supported"):
             schema.RuntimeDatabase(path).initialize()
+    # Rejected downgrade must not have touched the database it refused to open.
+    with sqlite3.connect(path) as connection:
+        assert (
+            connection.execute(
+                "SELECT value FROM runtime_meta WHERE key='schema_version'"
+            ).fetchone()[0]
+            == str(schema.SCHEMA_VERSION)
+        )
+        assert {
+            row[0] for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE name LIKE 'llm_spend_%'"
+            )
+        } == {
+            "llm_spend_experiments",
+            "llm_spend_reservations",
+            # Migration 30: the settlement audit and its append-only guards.
+            "llm_spend_settlements",
+            "llm_spend_settlement_epoch",
+            "llm_spend_settlements_append_only_update",
+            "llm_spend_settlements_append_only_delete",
+        }
 
 
 @pytest.mark.parametrize("failure", [TimeoutError, asyncio.CancelledError])
