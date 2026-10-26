@@ -14,6 +14,7 @@ from src.application.runtime_repository import (
     get_web_lookup_service,
 )
 from src.application.web_lookup_service import WebLookupService
+from src.domain.runtime_entities import WebLookupRun
 from src.tools.persistent_web_agent import PersistentWebToolAgent
 from src.tools.web_agent import WebToolTrace
 
@@ -53,7 +54,7 @@ class SlowDeterministicResearchGateway:
 
 
 def _real_stack_web_lookup_service() -> WebLookupService:
-    return WebLookupService(
+    return ModeAwareResearchService(
         get_web_lookup_repository(),
         SlowDeterministicResearchGateway(),
     )
@@ -130,6 +131,31 @@ def _real_stack_deep_lookup_service() -> WebLookupService:
         DeterministicDeepGateway(),
         planner=DeterministicDeepPlanner(),
     )
+
+
+class ModeAwareResearchService(WebLookupService):
+    """Replay a stored run with the fake that matches the run's own mode.
+
+    A deep run is created through ``resolve_web_tools`` with the deep planner,
+    but retry and resume arrive at the HTTP route, which is wired to this
+    service. Without the switch a deep run would resume under the research fake
+    and read the research page, so its recorded evidence would come from a
+    different fixture than the one that produced it.
+    """
+
+    def execute(
+        self, run_id: str, *, raise_on_error: bool = False, **kwargs: Any
+    ) -> WebLookupRun:
+        context = self.get(run_id).research_context
+        mode = context.get("research_mode") if isinstance(context, dict) else None
+        if mode != "deep":
+            return super().execute(run_id, raise_on_error=raise_on_error, **kwargs)
+        # A fresh planner per replay: its observation flag must not leak across runs.
+        return WebLookupService(
+            self.repository,
+            DeterministicDeepGateway(),
+            planner=DeterministicDeepPlanner(),
+        ).execute(run_id, raise_on_error=raise_on_error, **kwargs)
 
 
 def _resolve_deterministic_deep_research(

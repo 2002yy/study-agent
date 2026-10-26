@@ -50,6 +50,20 @@ async function latestRun(page: Page) {
   };
 }
 
+/**
+ * The assistant message that carries the answer.
+ *
+ * The same answer text also appears in the session sidebar subtitle and in the
+ * "continue current task" card, so a bare getByText matches three elements and
+ * Playwright's strict mode rejects it. Scope the assertion to the transcript
+ * message instead of loosening it.
+ */
+function answerMessage(page: Page, text: string | RegExp) {
+  return page
+    .getByRole("article", { name: "纳西妲的消息" })
+    .filter({ hasText: text });
+}
+
 test.beforeEach(async ({ request }) => {
   expect((await request.post(`${API}/__e2e__/reset`)).ok()).toBe(true);
 });
@@ -78,9 +92,9 @@ test("deep research shows live progress, the answer, and its read sources", asyn
     page.getByText("恢复结果已设为下一轮聊天资料。"),
   ).toBeVisible({ timeout: 30_000 });
   await send(page, "基于上面的资料，OMEGA 协议的延迟结论是什么？");
-  await expect(
-    page.getByText(/根据这次研究读取的正文：DEEP-ANSWER-OK/),
-  ).toBeVisible({ timeout: 40_000 });
+  const answer = answerMessage(page, "DEEP-ANSWER-OK");
+  await expect(answer).toHaveCount(1);
+  await expect(answer).toBeVisible({ timeout: 40_000 });
 
   const id = await storedRunId(page);
   const completed = await run(page, id);
@@ -95,9 +109,10 @@ test("deep research shows live progress, the answer, and its read sources", asyn
 
   // The answer and the sources are durable: a refresh shows the same turn.
   await page.reload();
-  await expect(
-    page.getByText(/根据这次研究读取的正文：DEEP-ANSWER-OK/),
-  ).toBeVisible({ timeout: 20_000 });
+  await expect(answerMessage(page, "DEEP-ANSWER-OK")).toHaveCount(1);
+  await expect(answerMessage(page, "DEEP-ANSWER-OK")).toBeVisible({
+    timeout: 20_000,
+  });
   await expect(page.getByText("研究已停止")).toHaveCount(0);
 });
 
@@ -135,8 +150,19 @@ test("a stopped deep run survives reload and retry finishes the same run", async
 
   const completed = await run(page, id);
   expect(completed.id).toBe(id);
-  const rounds = [
-    ...new Set((completed.query_attempts as Attempt[]).map((attempt) => attempt.round)),
-  ].sort();
-  expect(rounds).toEqual([1, 2]);
+  expect(completed.research_context.research_mode).toBe("deep");
+  // Where the stop landed is a race: it can happen before the first read, so the
+  // retry resumes at a later round instead of replaying 1 then 2. The retried run
+  // must still be a deep run that reads its own deep page (not the research fake).
+  const resumed = (completed.query_attempts as Attempt[])
+    .map((attempt) => attempt.round)
+    .filter((round): round is number => typeof round === "number");
+  expect(resumed.length).toBeGreaterThanOrEqual(1);
+  expect(resumed.every((round) => round >= 1)).toBe(true);
+  const notes = completed.research_context.deep.notes as Array<{
+    url?: string;
+  }>;
+  expect(notes.map((note) => note.url)).toContain(
+    "https://example.test/deep-baseline",
+  );
 });

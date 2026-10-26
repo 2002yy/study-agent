@@ -4715,4 +4715,57 @@ C3b 事件流、C4 real-stack 旅程与前端组件。
 
 反向变异：把 idle 负载硬编码为 `completed` → running 负控失败；把 `partial` 移出终态 →
 负控在开流前即失败（避免 300 秒等待）。均已还原。事件流用例 **5 passed**；
-Ruff 干净。
+Ruff 干净。\n\n### 34.36 S2-C 精确 HEAD CI 失败复盘与修复（2026-10-26）
+
+**CI 事实**：`0a7ba17e` run `40224092600` 中 `real_stack_browser_e2e` 失败
+（98 秒，非 8 分钟超时；同批 18 条用例中 16 条通过）。`764bbe94`（C3b）该门禁是
+通过的，所以失败由 C4 新增内容引入。
+
+**失败原因 1：旅程选择器不唯一（测试缺陷）**
+
+`getByText(/根据这次研究读取的正文：DEEP-ANSWER-OK/)` 在刷新后同时命中三处：会话侧栏
+副标题、"继续当前任务"卡片、真正的回答段落。Playwright strict mode 因此拒绝。
+现在断言限定为 `article[aria-label="纳西妲的消息"]` 中的消息正文，并先用
+`toHaveCount(1)` 证明唯一，再判可见——不再靠放宽等待。
+
+**失败原因 2：E2E 桩的重试用了错的假网关（测试基础设施缺陷）**
+
+`/research-runs/{id}/retry` 走 HTTP 路由的 `get_web_lookup_service`，而 deep run 是由
+`resolve_web_tools` 里的 deep 服务创建的。于是 deep run 被 research 假网关重放，读到的
+是 `docs.python.org` 的 research 固定正文。现新增 `ModeAwareResearchService`：retry/resume
+按 run 自身的 `research_mode` 选择假实现，每次重放使用新的 planner，避免观测标志跨 run 泄漏。
+
+**失败原因 3：重试会跳过被取消时已选未读的来源（产品缺陷）**
+
+修复桩之后暴露出真实行为：`selected_sources` 在读取之前就已持久化，取消落在"已选未读"
+窗口时，重试用 `known_urls` 去重，导致该来源永远不再被读取，run 以
+`provider_status=candidates_only`、`stop_reason=search_candidates_only`、`notes=[]` 结束。
+这没有伪造证据（因此不是 P0），但"重试研究"实际没有完成研究，属于真实用户任务完成缺口。
+
+修复：`_execute_deep` 在校验 `run_attempt > 1`（即本次是恢复执行）时，把
+`selected_sources` 中"评估为值得读、但没有任何 `read` 记录"的来源一并纳入本轮读取目标。
+首次执行不受影响，不会改变既有轮次的证据构成。
+
+**回归证据**：`tests/test_deep_resume_reads_selected.py`
+
+- 在 `set_stage("reading")` 时刻请求取消（正是真实取消被观测到的位置：选择已落盘、读取未开始）
+- 断言取消后读取次数为 0、选择仍在
+- 重试断言：读取恰好一次该 URL、`provider_status=found`、notes 含该 URL 与正文
+- 反向变异：把恢复分支关掉 → 重试读取次数为 0，用例失败；已还原
+
+焦点集合 **29 passed**（deep resume / evidence closure / observation feedback /
+planner production / time boundary / event resume / incremental answer / reply terminal
+freeze）；Ruff 干净；mypy 基线 `124/128, resolved=4` 不变。
+
+**旅程复验**：`real-stack-deep-journey`（桌面 + 移动 4 条）与 `real-stack-research`
+（2 条）**6 passed**。第 2 条旅程不再断言"重试后轮次必为 {1,2}"——取消落点本身是竞态，
+重试可能从更晚轮次继续；现在改为断言 run id 不变、仍为 deep、轮次为合法递增集合，
+并断言重试确实读到了 deep 夹具的 `https://example.test/deep-baseline`。
+
+**CI 可观测性**：`browser_e2e` 与 `real_stack_browser_e2e` 失败时会打印日志尾部
+（`tail -n 80/120`）并在 job 里给出 `::error::` 标记。此前两者把全部输出重定向进文件，
+失败只剩一行 `exit code 1`，必须下载 29MB 附件才知道哪条断言失败。
+
+**遗留**：真实供应商网络中断未测；取消/刷新时的
+`Chat turn operation ownership lost` 客户端噪音仍在（服务端拒绝，不新增付费发送）；
+全量 L3 未跑。开关仍 OFF，未合并 main。
