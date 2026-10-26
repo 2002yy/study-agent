@@ -1,3 +1,5 @@
+import { authHeaders } from "../../apiToken";
+
 export type LearningResumeEvidence = {
   evidence_id?: string;
   role?: string;
@@ -87,7 +89,6 @@ export type LearningResumeResponse = {
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-const API_TOKEN = import.meta.env.VITE_STUDY_AGENT_API_TOKEN ?? "";
 
 export async function getLearningResume(
   sessionId: string,
@@ -97,7 +98,7 @@ export async function getLearningResume(
     `${API_BASE_URL}/sessions/${encodeURIComponent(sessionId)}/learning-resume`,
     {
       signal,
-      headers: API_TOKEN ? { "X-Study-Agent-Token": API_TOKEN } : undefined,
+      headers: authHeaders(),
     },
   );
   if (!response.ok) {
@@ -128,7 +129,7 @@ export async function revalidateClaim(
     {
       method: "POST",
       signal,
-      headers: API_TOKEN ? { "X-Study-Agent-Token": API_TOKEN } : undefined,
+      headers: authHeaders(),
     },
   );
   if (!response.ok) {

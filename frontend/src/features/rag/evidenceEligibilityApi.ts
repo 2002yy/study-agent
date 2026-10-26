@@ -1,7 +1,7 @@
 import type { KnowledgeDocument, KnowledgeDocumentListResponse } from "../../types";
+import { authHeaders } from "../../apiToken";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-const API_TOKEN = import.meta.env.VITE_STUDY_AGENT_API_TOKEN ?? "";
 
 export type EvidenceStatus = "active" | "superseded" | "excluded";
 
@@ -31,10 +31,6 @@ export type EvidenceStatusUpdateResponse = {
   index_version: number;
   stages: Array<Record<string, unknown>>;
 };
-
-function authHeaders(): HeadersInit {
-  return API_TOKEN ? { "X-Study-Agent-Token": API_TOKEN } : {};
-}
 
 export async function setKnowledgeDocumentEvidenceStatus(
   documentId: string,

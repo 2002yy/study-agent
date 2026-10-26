@@ -1,11 +1,7 @@
 import type { LearningClosureRunResponse } from "./closureTypes";
+import { authHeaders } from "../../apiToken";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-const API_TOKEN = import.meta.env.VITE_STUDY_AGENT_API_TOKEN ?? "";
-
-function authHeaders(): HeadersInit {
-  return API_TOKEN ? { "X-Study-Agent-Token": API_TOKEN } : {};
-}
 
 async function requestClosure(
   path: string,

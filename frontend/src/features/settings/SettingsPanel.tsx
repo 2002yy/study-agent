@@ -7,6 +7,7 @@ import { RoleAvatar } from "../../components/RoleAvatar";
 import { StatusDot } from "../../components/StatusDot";
 import { roleLabel, roleOptions } from "../roles/roleCatalog";
 import { TypographySettings } from "./TypographySettings";
+import { ApiTokenSettings } from "./ApiTokenSettings";
 import type {
   ApiSnapshot,
   ChatResponse,
@@ -294,6 +295,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
       </div>
 
       <TypographySettings/>
+
+      <ApiTokenSettings />
 
       <section className="side-section" aria-labelledby="ordinary-learning-settings">
         <div className="section-title" id="ordinary-learning-settings">
