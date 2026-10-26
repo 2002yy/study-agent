@@ -4768,4 +4768,14 @@ freeze）；Ruff 干净；mypy 基线 `124/128, resolved=4` 不变。
 
 **遗留**：真实供应商网络中断未测；取消/刷新时的
 `Chat turn operation ownership lost` 客户端噪音仍在（服务端拒绝，不新增付费发送）；
-全量 L3 未跑。开关仍 OFF，未合并 main。
+全量 L3 未跑。开关仍 OFF，未合并 main。\n
+**CI 追加（2026-10-26，`113cbdce` run `40287246070`）**：该次失败的步骤不是浏览器测试，
+而是 `Install Playwright browsers` 打满 `timeout-minutes: 20`：20 分钟内 apt 只从
+`azure.archive.ubuntu.com` 取到 126/~185 个依赖包（单包 2–40 秒，约 50–300 KB/s），
+浏览器二进制还没开始安装，因此 `browser_e2e` 与 `real_stack_browser_e2e` 均为 skipped，
+最终由门禁步骤报失败。同一作业的 pytest（6341 条）、Ruff、mypy 基线、前端构建、打包与
+密钥扫描均为 success；上一条提交（`0a7ba17e`）同一安装步骤约 1 分钟完成，说明这是
+hosted runner 的 apt 镜像瞬时劣化，不是仓库代码问题。
+
+处理：把该步骤上限提到 40 分钟（按观测速度推算约需 30 分钟），并写入
+`Acquire::Retries "3"` 让单个包卡住时可重试；其余步骤未改。
