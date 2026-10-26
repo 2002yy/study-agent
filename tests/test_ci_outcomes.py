@@ -41,22 +41,40 @@ def test_malformed_outcomes_fail_closed(payload, monkeypatch):
 
 def test_workflow_preserves_gates_and_uploads_diagnostics_once():
     workflow = yaml.safe_load(Path(".github/workflows/ci.yml").read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["legacy"]["steps"]
-    by_id = {step["id"]: step for step in steps if "id" in step}
-    assert set(REQUIRED_STEPS + BROWSER_STEPS) <= set(by_id)
-    uploads = [step for step in steps if step.get("uses", "").startswith("actions/upload-artifact")]
-    assert len(uploads) == 1 and uploads[0]["if"] == "always()"
-    assert steps[-1]["if"] == "always()"
-    assert "check_ci_outcomes.py" in steps[-1]["run"]
-    # Browser gates follow the classifier, not the event type (CI-2 push-routing repair).
-    for name in BROWSER_STEPS:
-        assert "steps.ci_scope.outputs.frontend_e2e_required == 'true'" in by_id[name]["if"]
-        assert "workflow_dispatch" not in by_id[name]["if"]
-        assert "refs/heads/main" not in by_id[name]["if"]
-    assert "steps.node_deps.outcome == 'success'" in by_id["playwright_install"]["if"]
-    for name in ("browser_e2e", "real_stack_browser_e2e"):
-        assert "steps.playwright_install.outcome == 'success'" in by_id[name]["if"]
-    assert "steps.mypy.outcome" in by_id["mypy_baseline"]["env"]["MYPY_OUTCOME"]
+    jobs = workflow["jobs"]
+
+    backend_ids = {step["id"]: step for step in jobs["backend"]["steps"] if "id" in step}
+    browser_ids = {step["id"]: step for step in jobs["browser"]["steps"] if "id" in step}
+    # The browser suites live in their own job now; the step ids are unchanged.
+    # product_policy moved with the classifier, frontend with its own job.
+    assert set(REQUIRED_STEPS) - {"frontend", "product_policy"} <= set(backend_ids)
+    assert "product_policy" in {
+        step["id"] for step in jobs["classify"]["steps"] if "id" in step
+    }
+    assert set(BROWSER_STEPS) - {"playwright_install"} <= set(browser_ids)
+
+    # One artifact per job, so a failed backend upload cannot overwrite the browser
+    # trace (and vice versa), and every upload runs even on failure.
+    uploads = [
+        step
+        for job in jobs.values()
+        for step in job["steps"]
+        if str(step.get("uses", "")).startswith("actions/upload-artifact")
+    ]
+    assert len(uploads) == 3
+    assert all(step["if"] == "always()" for step in uploads)
+
+    for job_name in ("backend", "frontend", "browser"):
+        final = jobs[job_name]["steps"][-1]
+        assert final["if"] == "always()"
+        assert "check_ci_outcomes.py" in final["run"]
+
+    assert "steps.mypy.outcome" in backend_ids["mypy_baseline"]["env"]["MYPY_OUTCOME"]
+    # Browser routing is a job-level condition on the classifier, never the event type.
+    condition = str(jobs["browser"]["if"])
+    assert "needs.classify.outputs.frontend_e2e_required == 'true'" in condition
+    assert "workflow_dispatch" not in condition
+    assert "refs/heads/main" not in condition
 
 
 # --- fast tier: a bounded impact set stands in for the full suite ---------------
