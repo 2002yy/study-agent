@@ -23,7 +23,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  # M0 of the CI split (docs/CI_BROWSER_CONTAINER_PLAN.md §6). The single job
+  # used to be called `test`; the aggregate below now owns that name so the
+  # check every reviewer and script already looks for keeps meaning "the whole
+  # gate passed", not "one of the jobs passed".
+  legacy:
+    name: legacy
     # Pin the supported runner image for Playwright's Chromium/Firefox/WebKit system deps.
     # ubuntu-latest moved to 26.04; the 2026-10-25 CI run stalled while apt fetched
     # 185 packages from that image and timed out before any browser test started.
@@ -389,3 +394,33 @@ jobs:
           CI_BROWSER_REQUIRED: ${{ steps.ci_scope.outputs.frontend_e2e_required }}
           CI_RESEARCH_BROWSER_REQUIRED: ${{ steps.ci_scope.outputs.research_browser_required }}
         run: python tools/check_ci_outcomes.py
+
+  # The single required check. It owns the `test` name that the previous
+  # single-job workflow produced, so a rename here cannot silently retire the
+  # gate. It reports the legacy job's real result and never treats `skipped` or
+  # an empty result as success.
+  #
+  # `if: always()` is not decoration: without it a failed `legacy` job would skip
+  # this one, and a skipped check is what protection configurations and status
+  # readers most often mistake for a pass.
+  test:
+    name: test
+    needs: [legacy]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Judge the legacy job result
+        env:
+          LEGACY_RESULT: ${{ needs.legacy.result }}
+        run: |
+          set -eu
+          echo "legacy result: '${LEGACY_RESULT}'"
+          case "${LEGACY_RESULT}" in
+            success)
+              echo "All checks in the legacy job passed."
+              ;;
+            *)
+              echo "::error::required checks did not succeed: legacy='${LEGACY_RESULT}'"
+              exit 1
+              ;;
+          esac

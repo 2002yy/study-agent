@@ -41,7 +41,7 @@ def test_malformed_outcomes_fail_closed(payload, monkeypatch):
 
 def test_workflow_preserves_gates_and_uploads_diagnostics_once():
     workflow = yaml.safe_load(Path(".github/workflows/ci.yml").read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["test"]["steps"]
+    steps = workflow["jobs"]["legacy"]["steps"]
     by_id = {step["id"]: step for step in steps if "id" in step}
     assert set(REQUIRED_STEPS + BROWSER_STEPS) <= set(by_id)
     uploads = [step for step in steps if step.get("uses", "").startswith("actions/upload-artifact")]
