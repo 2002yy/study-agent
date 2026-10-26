@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 
 REQUIRED_STEPS = (
     "product_policy", "pytest", "rag_quality", "ruff", "packaging", "secrets", "mypy_baseline", "frontend"
@@ -88,12 +89,15 @@ def judge_jobs(
 def _run_jobs_mode() -> int:
     try:
         needs = json.loads(os.environ["CI_NEEDS"])
-        frontend_required = os.environ.get("CI_FRONTEND_REQUIRED", "false")
-        browser_required = os.environ.get("CI_BROWSER_REQUIRED", "false")
+        # Both requirements must be stated. Defaulting a missing variable to
+        # "false" would silently downgrade a required job to optional, which is
+        # the false green this mode exists to prevent.
+        frontend_required = os.environ["CI_FRONTEND_REQUIRED"]
+        browser_required = os.environ["CI_BROWSER_REQUIRED"]
         if frontend_required not in {"true", "false"}:
-            raise ValueError("Invalid frontend requirement")
+            raise ValueError(f"Invalid frontend requirement: {frontend_required!r}")
         if browser_required not in {"true", "false"}:
-            raise ValueError("Invalid browser requirement")
+            raise ValueError(f"Invalid browser requirement: {browser_required!r}")
         failures = judge_jobs(
             needs,
             frontend_required=frontend_required == "true",
@@ -113,7 +117,10 @@ def _run_jobs_mode() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = list(argv if argv is not None else [])
+    # Real invocations are `python tools/check_ci_outcomes.py --mode jobs`; the
+    # entrypoint calls main() with no argument, so reading only the parameter
+    # would ignore the flag the workflow passes and quietly run the step mode.
+    args = list(sys.argv[1:] if argv is None else argv)
     if "--mode" in args:
         mode = args[args.index("--mode") + 1] if len(args) > args.index("--mode") + 1 else ""
         if mode != "jobs":
