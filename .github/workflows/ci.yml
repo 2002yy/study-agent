@@ -22,19 +22,28 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# M1 of docs/CI_BROWSER_CONTAINER_PLAN.md. The single pipeline job is split so the
+# browser suites run in a pinned Playwright container instead of installing 185 apt
+# packages on every run. Two rules keep this from turning into a false green:
+#
+#   * every job whose steps use `continue-on-error: true` still ends with a
+#     step-level gate, because such a failure does not change the job result;
+#   * the aggregate `test` job judges whole jobs and refuses `skipped` for
+#     anything the classifier required.
 jobs:
-  # M0 of the CI split (docs/CI_BROWSER_CONTAINER_PLAN.md §6). The single job
-  # used to be called `test`; the aggregate below now owns that name so the
-  # check every reviewer and script already looks for keeps meaning "the whole
-  # gate passed", not "one of the jobs passed".
-  legacy:
-    name: legacy
-    # Pin the supported runner image for Playwright's Chromium/Firefox/WebKit system deps.
-    # ubuntu-latest moved to 26.04; the 2026-10-25 CI run stalled while apt fetched
-    # 185 packages from that image and timed out before any browser test started.
+  classify:
+    name: classify
     runs-on: ubuntu-24.04
-    env:
-      PYTHONPATH: .
+    outputs:
+      scope: ${{ steps.ci_scope.outputs.scope }}
+      impact_set: ${{ steps.ci_scope.outputs.impact_set }}
+      frontend_required: ${{ steps.ci_scope.outputs.frontend_required }}
+      frontend_e2e_required: ${{ steps.ci_scope.outputs.frontend_e2e_required }}
+      research_browser_required: ${{ steps.ci_scope.outputs.research_browser_required }}
+      browser_required: ${{ steps.ci_scope.outputs.browser_required }}
+      qualification_required: ${{ steps.ci_scope.outputs.qualification_required }}
+      l3_eligible: ${{ steps.ci_scope.outputs.l3_eligible }}
+      full_scope: ${{ steps.ci_scope.outputs.full_scope }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -154,18 +163,29 @@ jobs:
           echo "L3_ELIGIBLE=${{ steps.ci_scope.outputs.l3_eligible }}"
           echo "L3_REQUIRED_FOR_MERGE=${{ steps.ci_scope.outputs.l3_required_for_merge }}"
 
+      - name: Judge the classify steps
+        if: always()
+        env:
+          CI_STEP_RESULTS: ${{ toJSON(steps) }}
+        run: python tools/check_ci_outcomes.py --mode steps --require product_policy
 
-      - uses: actions/setup-node@v4
-        # The Node toolchain serves the frontend gates and the E2E gates. ci_scope treats
-        # them as separate cost tiers, so the toolchain is prepared when either is
-        # required, without merging the classifications.
-        if: >-
-          steps.ci_scope.outputs.frontend_required == 'true' ||
-          steps.ci_scope.outputs.frontend_e2e_required == 'true'
+  backend:
+    name: backend
+    needs: [classify]
+    if: needs.classify.result == 'success'
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install dependencies
         timeout-minutes: 8
@@ -176,24 +196,26 @@ jobs:
       - name: Run bounded impact set (fast tier)
         id: pytest_impact
         if: >-
-          steps.ci_scope.outputs.full_scope != 'true' &&
-          steps.ci_scope.outputs.impact_set != ''
+          needs.classify.outputs.full_scope != 'true' &&
+          needs.classify.outputs.impact_set != ''
         continue-on-error: true
         timeout-minutes: 15
+        shell: bash
         run: |
           set -o pipefail
           # The fast tier runs the named impact set from tests/stage_gates.json, not a
           # list of files kept in this workflow and not the full suite.
           python tools/run_stage_gate.py \
-            --impact-set "${{ steps.ci_scope.outputs.impact_set }}" 2>&1 | tee pytest.log
+            --impact-set "${{ needs.classify.outputs.impact_set }}" 2>&1 | tee pytest.log
 
       - name: Run pytest
         id: pytest
         if: >-
-          steps.ci_scope.outputs.full_scope == 'true' ||
-          steps.ci_scope.outputs.impact_set == ''
+          needs.classify.outputs.full_scope == 'true' ||
+          needs.classify.outputs.impact_set == ''
         continue-on-error: true
         timeout-minutes: 30
+        shell: bash
         run: |
           set -o pipefail
           pytest -q --tb=short --durations=30 2>&1 | tee pytest.log
@@ -273,18 +295,52 @@ jobs:
             --baseline config/mypy_baseline.json \
             --outcome "$MYPY_OUTCOME"
 
+      - name: Upload backend diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics-backend
+          path: |
+            pytest.log
+            rag-quality-baseline.json
+            rag-quality-baseline.log
+            detect-secrets-report.json
+            mypy.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Every step above uses continue-on-error, so a failed pytest would leave the
+      # job green. This is the judgement that makes the job result mean something.
+      - name: Judge the backend steps
+        if: always()
+        env:
+          CI_STEP_RESULTS: ${{ toJSON(steps) }}
+        run: >-
+          python tools/check_ci_outcomes.py --mode steps
+          --require "pytest|pytest_impact,rag_quality,ruff,packaging,secrets,mypy_baseline"
+
+  frontend:
+    name: frontend
+    needs: [classify]
+    # A legal skip: the classifier decided this change set cannot affect the
+    # frontend. The aggregate treats `skipped` as a pass only in this case.
+    if: needs.classify.result == 'success' && needs.classify.outputs.frontend_required == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
       - name: Install frontend dependencies
         id: node_deps
-        # npm ci runs whenever the Node toolchain is needed - the frontend gates or the
-        # E2E gates. The two tiers are separate outputs and the OR is kept as defence in
-        # depth: a browser step must never launch against a missing node_modules, which
-        # fails with exit 127 rather than a useful error.
-        if: >-
-          steps.ci_scope.outputs.frontend_required == 'true' ||
-          steps.ci_scope.outputs.frontend_e2e_required == 'true'
         continue-on-error: true
         timeout-minutes: 8
         working-directory: frontend
+        shell: bash
         run: |
           set -o pipefail
           npm ci > ../frontend-deps.log 2>&1
@@ -293,46 +349,98 @@ jobs:
         id: frontend
         continue-on-error: true
         working-directory: frontend
-        env:
-          FRONTEND_REQUIRED: ${{ steps.ci_scope.outputs.frontend_required }}
+        shell: bash
         run: |
           set -o pipefail
-          if [ "$FRONTEND_REQUIRED" != "true" ]; then
-            echo "Skipped: PR contains only frontend-independent research/backend paths." > ../frontend.log
-            exit 0
-          fi
           {
             npm test
             npm run build
           } > ../frontend.log 2>&1
 
-      - name: Install Playwright browsers
-        if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.node_deps.outcome == 'success'
-        id: playwright_install
-        continue-on-error: true
-        # The apt mirror behind the hosted runner is intermittently slow: run
-        # 40287246070 spent the whole 20-minute ceiling fetching 126 of ~185
-        # packages at 50-300 KB/s, so the step was killed before any browser test
-        # started. Give it headroom and let apt retry a stalled package.
-        timeout-minutes: 40
+      - name: Upload frontend diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics-frontend
+          path: |
+            frontend.log
+            frontend-deps.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Judge the frontend steps
+        if: always()
+        env:
+          CI_STEP_RESULTS: ${{ toJSON(steps) }}
+        run: python tools/check_ci_outcomes.py --mode steps --require "node_deps,frontend"
+
+  browser:
+    name: browser
+    needs: [classify]
+    if: needs.classify.result == 'success' && needs.classify.outputs.frontend_e2e_required == 'true'
+    runs-on: ubuntu-24.04
+    # Pinned by digest, verified with
+    #   docker buildx imagetools inspect mcr.microsoft.com/playwright:v1.62.1-noble
+    # (linux/amd64 manifest; recorded in docs/CI_BROWSER_CONTAINER_PLAN.md §10).
+    # The image ships the browsers and their system libraries, so this job never
+    # runs `playwright install --with-deps` and never touches apt.
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac
+    env:
+      PYTHONPATH: .
+      # Run 40371404495 launched 41 of 53 artifacts: Firefox refuses to start when
+      # $HOME is not owned by the current user, and inside a container job the
+      # runner sets HOME to /github/home, which the image owns as `pwuser`. This
+      # is the workaround Playwright itself prints ("Set the HOME=/root
+      # environment variable"), not a permission change to the image.
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Report the toolchain the image provides
+        shell: bash
         working-directory: frontend
         run: |
+          node --version
+          npm --version
+          npx playwright --version
+          python --version
+
+      - name: Install frontend dependencies
+        timeout-minutes: 8
+        working-directory: frontend
+        shell: bash
+        run: |
           set -o pipefail
-          # Keep install progress visible in the Actions job as well as diagnostics.
-          # `set -o pipefail` still fails the step when the installer fails.
-          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80-playwright-retries
-          npx playwright install --with-deps chromium firefox webkit 2>&1 | tee ../playwright-install.log
+          npm ci > ../frontend-deps.log 2>&1
+
+      - name: Install backend dependencies for the real stack
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pip install --disable-pip-version-check --timeout 30 --retries 5 \
+            -r requirements.txt > pip-install.log 2>&1
 
       # A failing browser gate must be diagnosable from the job log. The full
-      # output still goes to the ci-diagnostics artifact, but redirecting it all
-      # to a file left the job with a bare "exit code 1" and forced a 30 MB
-      # artifact download just to learn which assertion failed.
+      # output still goes to the artifact, but redirecting it all to a file left
+      # the job with a bare "exit code 1".
       - name: Run browser Golden Journeys
-        if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.playwright_install.outcome == 'success'
         id: browser_e2e
         continue-on-error: true
         timeout-minutes: 12
         working-directory: frontend
+        shell: bash
         run: |
           set -o pipefail
           # `if !` keeps `bash -e` from exiting before the tail is printed.
@@ -343,11 +451,11 @@ jobs:
           fi
 
       - name: Run real-stack browser gates
-        if: steps.ci_scope.outputs.frontend_e2e_required == 'true' && steps.playwright_install.outcome == 'success'
         id: real_stack_browser_e2e
         continue-on-error: true
-        timeout-minutes: 8
+        timeout-minutes: 12
         working-directory: frontend
+        shell: bash
         run: |
           set -o pipefail
           if ! npm run test:e2e:real-stack > ../real-stack-browser-e2e.log 2>&1; then
@@ -356,20 +464,13 @@ jobs:
             exit 1
           fi
 
-      - name: Upload CI diagnostics
+      - name: Upload browser diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ci-diagnostics
+          name: ci-diagnostics-browser
           path: |
-            pytest.log
-            rag-quality-baseline.json
-            rag-quality-baseline.log
-            detect-secrets-report.json
-            mypy.log
-            frontend.log
-            frontend-deps.log
-            playwright-install.log
+            pip-install.log
             browser-e2e.log
             real-stack-browser-e2e.log
             frontend/playwright-report
@@ -378,49 +479,36 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Enforce required CI outcomes
+      # Both suites use continue-on-error. Judging them here keeps "one suite
+      # passed, the other failed" from looking like a green job.
+      - name: Judge the browser steps
         if: always()
         env:
           CI_STEP_RESULTS: ${{ toJSON(steps) }}
-          CI_FRONTEND_REQUIRED: ${{ steps.ci_scope.outputs.frontend_required }}
-          # Single source of truth: the classifier decides, not the event type. Re-deriving
-          # "main push => browser" here is what made enforcement demand browser gates that the
-          # classifier had not asked for.
-          #
-          # The browser tier is keyed to registered frontend interaction surfaces. The
-          # research web-fetch tier is reported separately and never gates the Playwright
-          # steps: a crawler change used to launch the frontend Golden Journeys purely
-          # because its path contained "browser".
-          CI_BROWSER_REQUIRED: ${{ steps.ci_scope.outputs.frontend_e2e_required }}
-          CI_RESEARCH_BROWSER_REQUIRED: ${{ steps.ci_scope.outputs.research_browser_required }}
-        run: python tools/check_ci_outcomes.py
+        run: >-
+          python tools/check_ci_outcomes.py --mode steps
+          --require "browser_e2e,real_stack_browser_e2e"
 
-  # The single required check. It owns the `test` name that the previous
-  # single-job workflow produced, so a rename here cannot silently retire the
-  # gate. It reports the legacy job's real result and never treats `skipped` or
-  # an empty result as success.
-  #
-  # `if: always()` is not decoration: without it a failed `legacy` job would skip
-  # this one, and a skipped check is what protection configurations and status
-  # readers most often mistake for a pass.
+  # The single required check, keeping the name the whole pipeline used to have.
+  # `if: always()` is load-bearing: without it a failed dependency skips this job,
+  # and a skipped required check reads as a pass to most protection setups.
   test:
     name: test
-    needs: [legacy]
+    needs: [classify, backend, frontend, browser]
     if: always()
     runs-on: ubuntu-24.04
     steps:
-      - name: Judge the legacy job result
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Judge every required job
         env:
-          LEGACY_RESULT: ${{ needs.legacy.result }}
-        run: |
-          set -eu
-          echo "legacy result: '${LEGACY_RESULT}'"
-          case "${LEGACY_RESULT}" in
-            success)
-              echo "All checks in the legacy job passed."
-              ;;
-            *)
-              echo "::error::required checks did not succeed: legacy='${LEGACY_RESULT}'"
-              exit 1
-              ;;
-          esac
+          # The classifier owns the requirements. If it did not produce them, the
+          # gate fails closed instead of treating a job as optional.
+          CI_NEEDS: ${{ toJSON(needs) }}
+          CI_FRONTEND_REQUIRED: ${{ needs.classify.outputs.frontend_required }}
+          CI_BROWSER_REQUIRED: ${{ needs.classify.outputs.frontend_e2e_required }}
+        run: python tools/check_ci_outcomes.py --mode jobs

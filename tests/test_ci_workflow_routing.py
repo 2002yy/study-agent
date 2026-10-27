@@ -4,6 +4,10 @@ CI-2 made ``tools/ci_scope.py`` the single source of truth and said so in the wo
 browser steps then re-derived "main push means browser" anyway, so a backend merge on main
 launched Playwright without frontend dependencies (exit 127) and enforcement demanded browser
 gates the classifier never asked for. These tests pin the single-authority rule.
+
+M1 split the single job into ``classify`` / ``backend`` / ``frontend`` / ``browser`` plus the
+aggregate ``test``. Routing is now expressed as job-level conditions reading
+``needs.classify.outputs``, so the assertions moved with it.
 """
 
 from __future__ import annotations
@@ -23,119 +27,155 @@ def _workflow() -> dict:
     return yaml.safe_load(io.open(WORKFLOW, encoding="utf-8"))
 
 
-def _pipeline_job() -> dict:
-    """The job that actually runs the checks.
-
-    M0 (docs/CI_BROWSER_CONTAINER_PLAN.md §6) moved the single `test` job to
-    `legacy` and gave the name `test` to the aggregate that judges it. The step
-    assertions below are about the pipeline, so they read the pipeline job.
-    """
-
-    return _workflow()["jobs"]["legacy"]
+def _jobs() -> dict:
+    return _workflow()["jobs"]
 
 
-def _steps() -> list[dict]:
-    return _pipeline_job()["steps"]
+def _steps(job: str) -> list[dict]:
+    return _jobs()[job]["steps"]
 
 
-def _by_id(step_id: str) -> dict:
-    for step in _steps():
+def _by_id(job: str, step_id: str) -> dict:
+    for step in _steps(job):
         if step.get("id") == step_id:
             return step
-    raise AssertionError(f"step {step_id!r} not found")
+    raise AssertionError(f"step {step_id!r} not found in {job}")
 
 
-def test_the_required_check_name_survives_the_m0_rename():
-    """M0: the pipeline keeps running, but `test` now means the aggregate.
+def test_the_split_jobs_and_the_single_required_check_exist():
+    jobs = _jobs()
 
-    A rename that retired the `test` name would leave the gate pointing at
-    nothing; a rename that kept both jobs producing `test` is not expressible.
-    """
-
-    jobs = _workflow()["jobs"]
-
-    assert set(jobs) == {"legacy", "test"}
-    assert jobs["legacy"]["name"] == "legacy"
+    assert set(jobs) == {"classify", "backend", "frontend", "browser", "test"}
     assert jobs["test"]["name"] == "test"
+    # Only the aggregate may own the required name.
+    assert sum(1 for job in jobs.values() if job.get("name") == "test") == 1
 
 
-def test_the_aggregate_runs_even_when_the_pipeline_fails_and_judges_its_result():
-    aggregate = _workflow()["jobs"]["test"]
+def test_the_aggregate_runs_even_when_a_dependency_fails_and_judges_every_job():
+    aggregate = _jobs()["test"]
 
-    assert aggregate["needs"] == ["legacy"]
-    # Without always(), a failed pipeline would skip the aggregate, and a skipped
+    assert sorted(aggregate["needs"]) == ["backend", "browser", "classify", "frontend"]
+    # Without always(), a failed dependency skips the aggregate, and a skipped
     # required check reads as a pass to most protection configurations.
     assert aggregate["if"] == "always()"
 
     judge = aggregate["steps"][-1]
-    assert judge["env"]["LEGACY_RESULT"] == "${{ needs.legacy.result }}"
-    assert "exit 1" in judge["run"]
-    assert "success)" in judge["run"]
-
-
-def test_m0_does_not_remove_the_browser_install_from_the_pipeline_yet():
-    """The install chain is only deleted in M2, after the new gate is proven."""
-
-    assert any(step.get("id") == "playwright_install" for step in _steps())
-
-
-def test_enforcement_reads_browser_requirement_from_the_classifier():
-    enforcer = _steps()[-1]
-    assert enforcer["name"] == "Enforce required CI outcomes"
-    assert enforcer["env"]["CI_BROWSER_REQUIRED"] == (
-        "${{ steps.ci_scope.outputs.frontend_e2e_required }}"
+    assert "--mode jobs" in judge["run"]
+    assert judge["env"]["CI_NEEDS"] == "${{ toJSON(needs) }}"
+    assert judge["env"]["CI_BROWSER_REQUIRED"] == (
+        "${{ needs.classify.outputs.frontend_e2e_required }}"
     )
-    assert enforcer["env"]["CI_FRONTEND_REQUIRED"] == (
-        "${{ steps.ci_scope.outputs.frontend_required }}"
+    assert judge["env"]["CI_FRONTEND_REQUIRED"] == (
+        "${{ needs.classify.outputs.frontend_required }}"
     )
+
+
+def test_the_classifier_publishes_what_the_other_jobs_route_on():
+    outputs = _jobs()["classify"]["outputs"]
+
+    for key in (
+        "frontend_required",
+        "frontend_e2e_required",
+        "research_browser_required",
+        "impact_set",
+        "full_scope",
+    ):
+        assert outputs[key] == f"${{{{ steps.ci_scope.outputs.{key} }}}}"
 
 
 def test_no_step_routes_on_the_event_type():
-    # No step may branch on the event type; the classifier owns that decision.
-    for step in _steps():
-        condition = str(step.get("if") or "")
-        assert EVENT_TYPE_ROUTING not in condition, step.get("name") or step.get("id")
+    for job_name in _jobs():
+        for step in _steps(job_name):
+            condition = str(step.get("if") or "")
+            assert EVENT_TYPE_ROUTING not in condition, step.get("name") or step.get("id")
 
 
-def test_browser_steps_follow_the_classifier():
-    for step_id in ("playwright_install", "browser_e2e", "real_stack_browser_e2e"):
-        condition = str(_by_id(step_id).get("if") or "")
-        assert "steps.ci_scope.outputs.frontend_e2e_required == 'true'" in condition, step_id
+def test_the_browser_job_follows_the_classifier_and_stays_separate_from_frontend():
+    jobs = _jobs()
+
+    assert "needs.classify.outputs.frontend_e2e_required == 'true'" in jobs["browser"]["if"]
+    assert "needs.classify.outputs.frontend_required == 'true'" in jobs["frontend"]["if"]
+    # The two cost tiers stay distinct jobs; neither condition implies the other.
+    assert jobs["browser"]["if"] != jobs["frontend"]["if"]
 
 
-def test_browser_gates_depend_on_installed_node_dependencies():
-    # browser_required=true must never run against a missing node_modules.
-    assert "steps.node_deps.outcome == 'success'" in _by_id("playwright_install")["if"]
-    for step_id in ("browser_e2e", "real_stack_browser_e2e"):
-        assert "steps.playwright_install.outcome == 'success'" in _by_id(step_id)["if"]
+def test_the_browser_job_runs_in_the_pinned_playwright_container_without_apt():
+    browser = _jobs()["browser"]
+
+    image = browser["container"]["image"]
+    assert image.startswith("mcr.microsoft.com/playwright:v1.62.1-noble@sha256:")
+    # Inside a container job the runner sets HOME=/github/home, which the image
+    # owns as `pwuser`. Firefox refuses to launch when $HOME is not owned by the
+    # current user (run 40371404495 produced 41 of 53 artifacts that way), so
+    # the job applies Playwright's documented HOME=/root workaround.
+    assert browser["env"]["HOME"] == "/root"
+    # The image ships the browsers; installing them again would reintroduce the
+    # apt stall this split exists to remove.
+    for step in browser["steps"]:
+        run = str(step.get("run") or "")
+        assert "playwright install" not in run, step.get("name")
 
 
-def test_node_toolchain_covers_frontend_or_browser_without_merging_them():
-    condition = str(_by_id("node_deps")["if"])
-    assert "frontend_required == 'true'" in condition
-    assert "frontend_e2e_required == 'true'" in condition
-    # The two tiers stay distinct: the toolchain condition is an OR, not a merge of outputs.
-    setup_node = next(
-        step for step in _steps() if str(step.get("uses") or "").startswith("actions/setup-node")
-    )
-    assert "frontend_required == 'true'" in setup_node["if"]
-    assert "frontend_e2e_required == 'true'" in setup_node["if"]
+def test_browser_suites_install_dependencies_first_and_are_judged_separately():
+    steps = _steps("browser")
+    ids = [step.get("id") for step in steps]
+
+    assert "browser_e2e" in ids and "real_stack_browser_e2e" in ids
+    assert ids.index("browser_e2e") < ids.index("real_stack_browser_e2e")
+    # npm and Python dependencies are installed before either suite runs.
+    install_positions = [
+        index
+        for index, step in enumerate(steps)
+        if "npm ci" in str(step.get("run") or "")
+        or "pip install" in str(step.get("run") or "")
+    ]
+    assert install_positions
+    assert max(install_positions) < ids.index("browser_e2e")
+
+    judge = steps[-1]
+    assert "--mode steps" in judge["run"]
+    assert "--require" in judge["run"]
+    assert "browser_e2e,real_stack_browser_e2e" in judge["run"]
+
+
+def test_each_job_whose_steps_use_continue_on_error_ends_with_a_step_gate():
+    """A failed continue-on-error step does not turn the job red by itself."""
+
+    for job_name in ("classify", "backend", "frontend", "browser"):
+        steps = _steps(job_name)
+        assert any(step.get("continue-on-error") is True for step in steps), job_name
+        assert "--mode steps" in str(steps[-1].get("run") or ""), job_name
+
+
+def test_every_required_step_name_exists_in_the_job_that_requires_it():
+    """A required name that is not a step id can never pass, and one that is
+    misspelled fails the gate for a reason nobody can see in the log."""
+
+    import re
+
+    for job_name in ("classify", "backend", "frontend", "browser"):
+        job = _jobs()[job_name]
+        run = str(job["steps"][-1]["run"])
+        match = re.search(r"--require\s+\"?([^\"\s]+)", run)
+        assert match, job_name
+        step_ids = {step.get("id") for step in job["steps"] if step.get("id")}
+        for group in match.group(1).split(","):
+            for name in group.split("|"):
+                assert name in step_ids, f"{job_name}: unknown step id {name!r}"
 
 
 def test_frontend_gate_does_not_reinstall_dependencies():
-    # npm ci belongs to node_deps, so a frontend+browser run installs once.
-    frontend_run = str(_by_id("frontend")["run"])
-    assert "npm ci" not in frontend_run
-    assert "npm ci" in str(_by_id("node_deps")["run"])
+    # npm ci belongs to node_deps, so a frontend run installs once.
+    assert "npm ci" in str(_by_id("frontend", "node_deps")["run"])
+    assert "npm ci" not in str(_by_id("frontend", "frontend")["run"])
 
 
 def test_main_push_uses_a_proven_batch_range():
     # G1-B: one merge push diffs against its parent, so the surviving run must classify the
     # batch range instead of its own slice.
-    classify_step = _by_id("ci_scope")
-    run = str(classify_step["run"])
+    run = str(_by_id("classify", "ci_scope")["run"])
     assert "tools/ci_batch_range.py" in run
-    assert 'batch_mode' in run
+    assert "batch_mode" in run
     # An unprovable batch widens; it must never fall through to the single-slice range.
     assert "No provable batch range" in run
 
@@ -143,7 +183,7 @@ def test_main_push_uses_a_proven_batch_range():
 def test_batch_lookup_failure_widens_instead_of_degrading():
     # A denied lookup is not the same as "there is no earlier run". Collapsing the two is
     # how the batch silently returns to the single-slice range.
-    run = str(_by_id("ci_scope")["run"])
+    run = str(_by_id("classify", "ci_scope")["run"])
     assert "Batch baseline lookup failed" in run
     assert "batch_lookup" in run
 
