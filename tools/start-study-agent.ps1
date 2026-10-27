@@ -7,6 +7,10 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
+# The frontend identity probe lives in its own file so the tests can exercise
+# the same code the launcher runs.
+. (Join-Path $PSScriptRoot "frontend-identity.ps1")
+
 function Fail([string]$Message) {
     Write-Host "启动失败：$Message" -ForegroundColor Red
     exit 1
@@ -55,7 +59,7 @@ function Test-BackendIdentity {
 function Test-FrontendIdentity {
     try {
         $response = Invoke-WebRequest -Uri "http://127.0.0.1:5173" -UseBasicParsing -TimeoutSec 3
-        return $response.Content -match "<title>Study Agent Console</title>"
+        return Test-StudyAgentFrontendContent -Content $response.Content
     } catch {
         return $false
     }
