@@ -1,9 +1,9 @@
 {
   "schema_version": "search-to-answer-baseline-artifact-v1",
-  "run_id": "4f0f6b07726d499a9ef735d9ff383b42",
-  "head_sha": "e470a456f5aef7000f65441667543e0187109792",
-  "started_at": "2026-10-27T17:03:36.432382Z",
-  "completed_at": "2026-10-27T17:04:09.509385Z",
+  "run_id": "9fc09d8cfa8a43e4a1cf2c4f77251798",
+  "head_sha": "18d5ca84a1e0b2eac291340430a70657accc54bd",
+  "started_at": "2026-10-27T17:19:48.256765Z",
+  "completed_at": "2026-10-27T17:20:21.174502Z",
   "cases_fixture": "tests/fixtures/search_to_answer/baseline_v1.json",
   "cases_fixture_version": "search-to-answer-baseline-v1",
   "cases_fixture_frozen_at": "2026-10-28",
@@ -25,7 +25,7 @@
         "《崩坏：星穹铁道》当前版本是多少？上下半卡池分别是谁？下一版本已经官宣了什么？"
       ],
       "provider_errors": [],
-      "search_latency_seconds": 4.219,
+      "search_latency_seconds": 2.125,
       "result_count": 6,
       "result_sources": {
         "SearXNG/bing": 6
@@ -73,21 +73,29 @@
       "reads": [
         {
           "url": "https://sr.mihoyo.com/cloud/",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "provider_failed",
-          "elapsed_seconds": 2.406
+          "elapsed_seconds": 1.312
         },
         {
           "url": "https://sr.mihoyo.com/",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "provider_failed",
-          "elapsed_seconds": 0.156
+          "elapsed_seconds": 0.109
         }
       ],
-      "read_attempts": 2,
-      "read_successes": 0,
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 0,
+      "top_k_url_evidence_usable_reads": 0,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -104,7 +112,7 @@
         "《星铁》黄泉队里的千冶·刃应该用什么遗器？与其他辅助相比有什么优势？"
       ],
       "provider_errors": [],
-      "search_latency_seconds": 0.641,
+      "search_latency_seconds": 0.375,
       "result_count": 6,
       "result_sources": {
         "SearXNG/bing": 6
@@ -116,7 +124,7 @@
           "title": "星（汉语文字）_百度百科",
           "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
           "source": "SearXNG/bing",
-          "snippet_chars": 69
+          "snippet_chars": 65
         },
         {
           "title": "云·星穹铁道 - miHoYo",
@@ -152,21 +160,29 @@
       "reads": [
         {
           "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "other",
-          "elapsed_seconds": 0.141
+          "elapsed_seconds": 0.157
         },
         {
           "url": "https://sr.mihoyo.com/cloud/",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
           "elapsed_seconds": 0.0
         }
       ],
-      "read_attempts": 2,
-      "read_successes": 0,
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 0,
+      "top_k_url_evidence_usable_reads": 0,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -183,7 +199,7 @@
         "《星铁》虚构叙事中，黄泉队、流萤队、Archer 队哪个更适合自动战斗？"
       ],
       "provider_errors": [],
-      "search_latency_seconds": 0.828,
+      "search_latency_seconds": 0.375,
       "result_count": 6,
       "result_sources": {
         "SearXNG/bing": 6
@@ -231,21 +247,29 @@
       "reads": [
         {
           "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
           "elapsed_seconds": 0.0
         },
         {
           "url": "https://sr.mihoyo.com/cloud/",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
           "elapsed_seconds": 0.0
         }
       ],
-      "read_attempts": 2,
-      "read_successes": 0,
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 0,
+      "top_k_url_evidence_usable_reads": 0,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -262,7 +286,7 @@
         "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。"
       ],
       "provider_errors": [],
-      "search_latency_seconds": 0.578,
+      "search_latency_seconds": 0.359,
       "result_count": 6,
       "result_sources": {
         "SearXNG/bing": 6
@@ -310,21 +334,29 @@
       "reads": [
         {
           "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
           "elapsed_seconds": 0.0
         },
         {
           "url": "https://sr.mihoyo.com/cloud/",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
-          "elapsed_seconds": 0.015
+          "elapsed_seconds": 0.0
         }
       ],
-      "read_attempts": 2,
-      "read_successes": 0,
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 0,
+      "top_k_url_evidence_usable_reads": 0,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -341,7 +373,7 @@
         "当前《星铁》虚构叙事的配队。"
       ],
       "provider_errors": [],
-      "search_latency_seconds": 0.672,
+      "search_latency_seconds": 0.359,
       "result_count": 6,
       "result_sources": {
         "SearXNG/bing": 6
@@ -389,21 +421,29 @@
       "reads": [
         {
           "url": "https://baike.baidu.com/item/%E5%BD%93%E5%89%8D/5137633",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "other",
-          "elapsed_seconds": 0.11
+          "elapsed_seconds": 0.125
         },
         {
           "url": "https://time.ms/zh-cn/",
-          "ok": true,
+          "technical_ok": true,
           "content_chars": 282,
+          "evidence_usable": false,
           "error_code": "",
-          "elapsed_seconds": 4.515
+          "elapsed_seconds": 4.438
         }
       ],
-      "read_attempts": 2,
-      "read_successes": 1,
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 1,
+      "top_k_url_evidence_usable_reads": 0,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -420,7 +460,7 @@
         "《崩坏：星穹铁道》当前版本是多少？上下半卡池分别是谁？下一版本已经官宣了什么？"
       ],
       "provider_errors": [],
-      "search_latency_seconds": 0.297,
+      "search_latency_seconds": 0.312,
       "result_count": 6,
       "result_sources": {
         "Bing RSS": 6
@@ -468,21 +508,29 @@
       "reads": [
         {
           "url": "https://sr.mihoyo.com/cloud/",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
           "elapsed_seconds": 0.0
         },
         {
           "url": "https://sr.mihoyo.com/",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
           "elapsed_seconds": 0.0
         }
       ],
-      "read_attempts": 2,
-      "read_successes": 0,
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 0,
+      "top_k_url_evidence_usable_reads": 0,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -499,7 +547,7 @@
         "《星铁》黄泉队里的千冶·刃应该用什么遗器？与其他辅助相比有什么优势？"
       ],
       "provider_errors": [],
-      "search_latency_seconds": 0.297,
+      "search_latency_seconds": 0.282,
       "result_count": 6,
       "result_sources": {
         "Bing RSS": 6
@@ -547,21 +595,29 @@
       "reads": [
         {
           "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
-          "elapsed_seconds": 0.016
+          "elapsed_seconds": 0.0
         },
         {
           "url": "https://sr.mihoyo.com/cloud/",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
           "elapsed_seconds": 0.0
         }
       ],
-      "read_attempts": 2,
-      "read_successes": 0,
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 0,
+      "top_k_url_evidence_usable_reads": 0,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -576,85 +632,6 @@
       "search_reason": "results_found",
       "attempted_queries": [
         "《星铁》虚构叙事中，黄泉队、流萤队、Archer 队哪个更适合自动战斗？"
-      ],
-      "provider_errors": [],
-      "search_latency_seconds": 0.312,
-      "result_count": 6,
-      "result_sources": {
-        "Bing RSS": 6
-      },
-      "results_with_snippet": 6,
-      "snippet_present_ratio": 1.0,
-      "results": [
-        {
-          "title": "星（汉语文字）_百度百科",
-          "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
-          "source": "Bing RSS",
-          "snippet_chars": 102
-        },
-        {
-          "title": "云·星穹铁道 - miHoYo",
-          "url": "https://sr.mihoyo.com/cloud/",
-          "source": "Bing RSS",
-          "snippet_chars": 100
-        },
-        {
-          "title": "《星》的拼音,星字的意思、组词、部首、笔画、笔顺 - 汉语查",
-          "url": "https://www.hgcha.com/zidian/5c93eb9b.html",
-          "source": "Bing RSS",
-          "snippet_chars": 99
-        },
-        {
-          "title": "星星（宇宙中肉眼可见天体）_百度百科",
-          "url": "https://baike.baidu.com/item/%E6%98%9F%E6%98%9F/5683398",
-          "source": "Bing RSS",
-          "snippet_chars": 125
-        },
-        {
-          "title": "《崩坏：星穹铁道》官方网站-4.6全新版本「月升之前，与兽 ...",
-          "url": "https://sr.mihoyo.com/",
-          "source": "Bing RSS",
-          "snippet_chars": 82
-        },
-        {
-          "title": "AstroGaze — 在线星空地图",
-          "url": "https://astrogaze.space/zh/",
-          "source": "Bing RSS",
-          "snippet_chars": 209
-        }
-      ],
-      "reads": [
-        {
-          "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
-          "ok": false,
-          "content_chars": 0,
-          "error_code": "fetch_failed",
-          "elapsed_seconds": 0.0
-        },
-        {
-          "url": "https://sr.mihoyo.com/cloud/",
-          "ok": false,
-          "content_chars": 0,
-          "error_code": "fetch_failed",
-          "elapsed_seconds": 0.0
-        }
-      ],
-      "read_attempts": 2,
-      "read_successes": 0,
-      "answer_status": "not_measured",
-      "ttfu_seconds": null,
-      "evidence_verdict": "not_measured"
-    },
-    {
-      "case_id": "C01",
-      "category": "deep_research",
-      "round_1": true,
-      "provider_mode": "fallback",
-      "prompt": "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。",
-      "search_status": "ok",
-      "search_reason": "results_found",
-      "attempted_queries": [
-        "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。"
       ],
       "provider_errors": [],
       "search_latency_seconds": 0.281,
@@ -705,21 +682,116 @@
       "reads": [
         {
           "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
           "elapsed_seconds": 0.0
         },
         {
           "url": "https://sr.mihoyo.com/cloud/",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
           "elapsed_seconds": 0.0
         }
       ],
-      "read_attempts": 2,
-      "read_successes": 0,
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 0,
+      "top_k_url_evidence_usable_reads": 0,
+      "answer_status": "not_measured",
+      "ttfu_seconds": null,
+      "evidence_verdict": "not_measured"
+    },
+    {
+      "case_id": "C01",
+      "category": "deep_research",
+      "round_1": true,
+      "provider_mode": "fallback",
+      "prompt": "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。",
+      "search_status": "ok",
+      "search_reason": "results_found",
+      "attempted_queries": [
+        "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。"
+      ],
+      "provider_errors": [],
+      "search_latency_seconds": 0.297,
+      "result_count": 6,
+      "result_sources": {
+        "Bing RSS": 6
+      },
+      "results_with_snippet": 6,
+      "snippet_present_ratio": 1.0,
+      "results": [
+        {
+          "title": "星（汉语文字）_百度百科",
+          "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+          "source": "Bing RSS",
+          "snippet_chars": 102
+        },
+        {
+          "title": "云·星穹铁道 - miHoYo",
+          "url": "https://sr.mihoyo.com/cloud/",
+          "source": "Bing RSS",
+          "snippet_chars": 100
+        },
+        {
+          "title": "《星》的拼音,星字的意思、组词、部首、笔画、笔顺 - 汉语查",
+          "url": "https://www.hgcha.com/zidian/5c93eb9b.html",
+          "source": "Bing RSS",
+          "snippet_chars": 99
+        },
+        {
+          "title": "《崩坏：星穹铁道》官方网站-4.6全新版本「月升之前，与兽 ...",
+          "url": "https://sr.mihoyo.com/",
+          "source": "Bing RSS",
+          "snippet_chars": 82
+        },
+        {
+          "title": "星星（宇宙中肉眼可见天体）_百度百科",
+          "url": "https://baike.baidu.com/item/%E6%98%9F%E6%98%9F/5683398",
+          "source": "Bing RSS",
+          "snippet_chars": 125
+        },
+        {
+          "title": "星的意思,星的解释,星的拼音,星的部首,星的笔顺-汉语国学",
+          "url": "https://www.hanyuguoxue.com/zidian/zi-26143",
+          "source": "Bing RSS",
+          "snippet_chars": 83
+        }
+      ],
+      "reads": [
+        {
+          "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+          "technical_ok": false,
+          "content_chars": 0,
+          "evidence_usable": false,
+          "error_code": "fetch_failed",
+          "elapsed_seconds": 0.0
+        },
+        {
+          "url": "https://sr.mihoyo.com/cloud/",
+          "technical_ok": false,
+          "content_chars": 0,
+          "evidence_usable": false,
+          "error_code": "fetch_failed",
+          "elapsed_seconds": 0.0
+        }
+      ],
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 0,
+      "top_k_url_evidence_usable_reads": 0,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -736,7 +808,7 @@
         "当前《星铁》虚构叙事的配队。"
       ],
       "provider_errors": [],
-      "search_latency_seconds": 0.282,
+      "search_latency_seconds": 0.328,
       "result_count": 6,
       "result_sources": {
         "Bing RSS": 6
@@ -769,36 +841,44 @@
           "snippet_chars": 61
         },
         {
-          "title": "北京时间在线校准-现在是几分几秒",
-          "url": "http://www.2-9.cn/",
-          "source": "Bing RSS",
-          "snippet_chars": 95
-        },
-        {
           "title": "北京时间 - 北京时间校准精确到毫秒_北京时间全屏显示数字 ...",
           "url": "https://www.beijingshijian.wang/",
           "source": "Bing RSS",
           "snippet_chars": 139
+        },
+        {
+          "title": "“当前”与“目前”到底有什么区别？一文说清这两个词的用法",
+          "url": "https://wenku.baidu.com/view/3c6dda594e7302768e9951e79b89680203d86bbf.html",
+          "source": "Bing RSS",
+          "snippet_chars": 113
         }
       ],
       "reads": [
         {
           "url": "https://baike.baidu.com/item/%E5%BD%93%E5%89%8D/5137633",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "fetch_failed",
           "elapsed_seconds": 0.0
         },
         {
           "url": "https://time.ms/zh-cn/",
-          "ok": true,
+          "technical_ok": true,
           "content_chars": 282,
+          "evidence_usable": false,
           "error_code": "",
-          "elapsed_seconds": 0.015
+          "elapsed_seconds": 0.0
         }
       ],
-      "read_attempts": 2,
-      "read_successes": 1,
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 1,
+      "top_k_url_evidence_usable_reads": 0,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -809,23 +889,83 @@
       "round_1": true,
       "provider_mode": "ddg_only",
       "prompt": "《崩坏：星穹铁道》当前版本是多少？上下半卡池分别是谁？下一版本已经官宣了什么？",
-      "search_status": "unavailable",
-      "search_reason": "providers_failed",
+      "search_status": "ok",
+      "search_reason": "results_found",
       "attempted_queries": [
         "《崩坏：星穹铁道》当前版本是多少？上下半卡池分别是谁？下一版本已经官宣了什么？"
       ],
-      "provider_errors": [
-        "duckduckgo_html:URLError:<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)>"
-      ],
-      "search_latency_seconds": 5.016,
-      "result_count": 0,
-      "result_sources": {},
+      "provider_errors": [],
+      "search_latency_seconds": 1.984,
+      "result_count": 6,
+      "result_sources": {
+        "DuckDuckGo": 6
+      },
       "results_with_snippet": 0,
-      "snippet_present_ratio": null,
-      "results": [],
-      "reads": [],
-      "read_attempts": 0,
-      "read_successes": 0,
+      "snippet_present_ratio": 0.0,
+      "results": [
+        {
+          "title": "《崩坏：星穹铁道》官方网站-4.6全新版本「月升之前，与兽共舞」正式上线!",
+          "url": "https://sr.mihoyo.com/",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "崩坏：星穹铁道卡池时间表 2026：当前、下期与复刻",
+          "url": "https://gachia.com/zh/starrail/guides/banner-schedule-guide",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "崩坏星穹铁道2026年7月最新版本详解 - 今日头条",
+          "url": "https://www.toutiao.com/article/7665288010090545718/",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "崩坏:星穹铁道4.4版本_百度百科",
+          "url": "https://baike.baidu.com/item/%E5%B4%A9%E5%9D%8F%3A%E6%98%9F%E7%A9%B9%E9%93%81%E9%81%934.4%E7%89%88%E6%9C%AC/68703233",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "崩坏：星穹铁道 卡池时间表 · 角色跃迁活动历史 | BannerHistory",
+          "url": "https://bannerhistory.app/zh/hsr-pickup-history",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "卡池计时器 - 崩坏：星穹铁道wiki_bwiki_哔哩哔哩",
+          "url": "https://wiki.biligame.com/sr/%E5%8D%A1%E6%B1%A0%E8%AE%A1%E6%97%B6%E5%99%A8",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        }
+      ],
+      "reads": [
+        {
+          "url": "https://sr.mihoyo.com/",
+          "technical_ok": false,
+          "content_chars": 0,
+          "evidence_usable": false,
+          "error_code": "fetch_failed",
+          "elapsed_seconds": 0.0
+        },
+        {
+          "url": "https://gachia.com/zh/starrail/guides/banner-schedule-guide",
+          "technical_ok": true,
+          "content_chars": 3727,
+          "evidence_usable": true,
+          "error_code": "",
+          "elapsed_seconds": 3.657
+        }
+      ],
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 1,
+      "top_k_url_evidence_usable_reads": 1,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -842,7 +982,7 @@
         "《星铁》黄泉队里的千冶·刃应该用什么遗器？与其他辅助相比有什么优势？"
       ],
       "provider_errors": [],
-      "search_latency_seconds": 2.297,
+      "search_latency_seconds": 2.015,
       "result_count": 6,
       "result_sources": {
         "DuckDuckGo": 6
@@ -863,14 +1003,20 @@
           "snippet_chars": 0
         },
         {
-          "title": "《崩坏：星穹铁道》V4.3 千冶刃+不死途/黄泉 两套阵容一图毕业_游戏新闻_17173.com中国游戏门户站",
-          "url": "https://news.17173.com/content/06042026/170001591.shtml",
+          "title": "星穹铁道4.3千冶刃养成攻略!光锥遗器配队全解 - 今日头条",
+          "url": "https://www.toutiao.com/article/7647058498060091910/",
           "source": "DuckDuckGo",
           "snippet_chars": 0
         },
         {
-          "title": "【千冶·刃】能把黄泉变追击队的人出现了，主C副C玩法双攻略，不死途黄泉齐喝汤，sp刃配队/配速/光锥/遗器/星魂抽取建议",
-          "url": "https://www.bilibili.com/video/BV1vdVW6FEcC/",
+          "title": "有了千冶刃后，黄泉的最强配队有什么变化，配装和配速怎么堆才算毕业？【崩坏星穹铁道】_哔哩哔哩bilibili",
+          "url": "https://www.bilibili.com/video/BV1jYJr6hEVW/",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "《崩坏：星穹铁道》V4.3 千冶刃+不死途/黄泉 两套阵容一图毕业_游戏新闻_17173.com中国游戏门户站",
+          "url": "https://news.17173.com/content/06042026/170001591.shtml",
           "source": "DuckDuckGo",
           "snippet_chars": 0
         },
@@ -879,32 +1025,34 @@
           "url": "https://www.miyoushe.com/planet/article/75785654",
           "source": "DuckDuckGo",
           "snippet_chars": 0
-        },
-        {
-          "title": "星穹铁道4.3千冶刃养成攻略!光锥遗器配队全解 - 今日头条",
-          "url": "https://www.toutiao.com/article/7647058498060091910/",
-          "source": "DuckDuckGo",
-          "snippet_chars": 0
         }
       ],
       "reads": [
         {
           "url": "https://www.miyoushe.com/sr/article/75743090",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "provider_failed",
-          "elapsed_seconds": 0.219
+          "elapsed_seconds": 0.11
         },
         {
           "url": "https://www.bilibili.com/video/BV1uZV96gEXd/",
-          "ok": true,
-          "content_chars": 2165,
+          "technical_ok": true,
+          "content_chars": 2061,
+          "evidence_usable": true,
           "error_code": "",
-          "elapsed_seconds": 0.609
+          "elapsed_seconds": 0.75
         }
       ],
-      "read_attempts": 2,
-      "read_successes": 1,
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 1,
+      "top_k_url_evidence_usable_reads": 1,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -921,7 +1069,7 @@
         "《星铁》虚构叙事中，黄泉队、流萤队、Archer 队哪个更适合自动战斗？"
       ],
       "provider_errors": [],
-      "search_latency_seconds": 2.812,
+      "search_latency_seconds": 4.203,
       "result_count": 6,
       "result_sources": {
         "DuckDuckGo": 6
@@ -942,12 +1090,6 @@
           "snippet_chars": 0
         },
         {
-          "title": "崩铁：2.5虚构叙事巧言如流｜满星阵容推荐，流萤黄泉爽局",
-          "url": "https://zhuanlan.zhihu.com/p/772326838",
-          "source": "DuckDuckGo",
-          "snippet_chars": 0
-        },
-        {
           "title": "2.4杂谈：星铁自动配队推荐 - 知乎 - 知乎专栏",
           "url": "https://zhuanlan.zhihu.com/p/710756827",
           "source": "DuckDuckGo",
@@ -960,8 +1102,14 @@
           "snippet_chars": 0
         },
         {
-          "title": "崩铁：2.5虚构叙事巧言如流｜满星阵容推荐，流萤黄泉爽局|开拓者|崩坏：星穹铁道|敌人|弱点|知更鸟_新浪新闻",
-          "url": "https://k.sina.cn/article_5605842052_14e225c8400101j448.html",
+          "title": "崩铁：2.5虚构叙事巧言如流｜满星阵容推荐，流萤黄泉爽局",
+          "url": "https://zhuanlan.zhihu.com/p/772326838",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "崩坏星穹铁道10月虚构叙事阵容搭配与避坑指南 ｜#游戏攻略# #崩坏星穹铁道# #阵容搭配#_输出_建议_机制",
+          "url": "https://www.sohu.com/a/1091389898_122598898",
           "source": "DuckDuckGo",
           "snippet_chars": 0
         }
@@ -969,21 +1117,29 @@
       "reads": [
         {
           "url": "https://www.miyoushe.com/sr/article/66627976",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "provider_failed",
-          "elapsed_seconds": 0.188
+          "elapsed_seconds": 0.125
         },
         {
           "url": "https://www.miyoushe.com/sr/article/51099717",
-          "ok": false,
+          "technical_ok": false,
           "content_chars": 0,
+          "evidence_usable": false,
           "error_code": "provider_failed",
-          "elapsed_seconds": 0.219
+          "elapsed_seconds": 0.093
         }
       ],
-      "read_attempts": 2,
-      "read_successes": 0,
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 0,
+      "top_k_url_evidence_usable_reads": 0,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -994,23 +1150,83 @@
       "round_1": true,
       "provider_mode": "ddg_only",
       "prompt": "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。",
-      "search_status": "unavailable",
-      "search_reason": "providers_failed",
+      "search_status": "ok",
+      "search_reason": "results_found",
       "attempted_queries": [
         "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。"
       ],
-      "provider_errors": [
-        "duckduckgo_html:challenge"
-      ],
-      "search_latency_seconds": 3.422,
-      "result_count": 0,
-      "result_sources": {},
+      "provider_errors": [],
+      "search_latency_seconds": 2.485,
+      "result_count": 6,
+      "result_sources": {
+        "DuckDuckGo": 6
+      },
       "results_with_snippet": 0,
-      "snippet_present_ratio": null,
-      "results": [],
-      "reads": [],
-      "read_attempts": 0,
-      "read_successes": 0,
+      "snippet_present_ratio": 0.0,
+      "results": [
+        {
+          "title": "【V1.6攻略】虚构叙事机制详解!满星其实很简单!-崩坏：星穹铁道社区-米游社",
+          "url": "https://www.miyoushe.com/sr/article/47756463",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "【V1.6攻略】虚构叙事玩法详解及第一期作业-崩坏：星穹铁道社区-米游社",
+          "url": "https://www.miyoushe.com/sr/article/47720775",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "虚构叙事模式详细全流程通关攻略_哔哩哔哩bilibili",
+          "url": "https://www.bilibili.com/video/BV1fQc7zeETr/",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "虚构叙事模式详细全流程通关攻略_哔哩哔哩bilibili",
+          "url": "https://www.bilibili.com/video/BV1tzr8BYEV2/",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "《崩坏星穹铁道》虚构叙事全方位攻略-游民星空 GamerSky.com",
+          "url": "https://www.gamersky.com/handbook/202401/1694861.shtml",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "《崩坏星穹铁道》虚构叙事满星攻略 虚构叙事阵容搭配推荐-游民星空 GamerSky.com",
+          "url": "https://www.gamersky.com/handbook/202401/1693890.shtml",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        }
+      ],
+      "reads": [
+        {
+          "url": "https://www.miyoushe.com/sr/article/47756463",
+          "technical_ok": false,
+          "content_chars": 0,
+          "evidence_usable": false,
+          "error_code": "provider_failed",
+          "elapsed_seconds": 0.265
+        },
+        {
+          "url": "https://www.miyoushe.com/sr/article/47720775",
+          "technical_ok": false,
+          "content_chars": 0,
+          "evidence_usable": false,
+          "error_code": "provider_failed",
+          "elapsed_seconds": 0.188
+        }
+      ],
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 0,
+      "top_k_url_evidence_usable_reads": 0,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -1021,23 +1237,83 @@
       "round_1": true,
       "provider_mode": "ddg_only",
       "prompt": "帮我研究当前《星铁》虚构叙事的配队。",
-      "search_status": "unavailable",
-      "search_reason": "providers_failed",
+      "search_status": "ok",
+      "search_reason": "results_found",
       "attempted_queries": [
         "当前《星铁》虚构叙事的配队。"
       ],
-      "provider_errors": [
-        "duckduckgo_html:challenge"
-      ],
-      "search_latency_seconds": 2.5,
-      "result_count": 0,
-      "result_sources": {},
+      "provider_errors": [],
+      "search_latency_seconds": 5.422,
+      "result_count": 6,
+      "result_sources": {
+        "DuckDuckGo": 6
+      },
       "results_with_snippet": 0,
-      "snippet_present_ratio": null,
-      "results": [],
-      "reads": [],
-      "read_attempts": 0,
-      "read_successes": 0,
+      "snippet_present_ratio": 0.0,
+      "results": [
+        {
+          "title": "【4.5虚构叙事】多阵容推荐与分数参考，一期视频带你快速了解虚构配队!",
+          "url": "https://www.bilibili.com/video/BV16iYC6VELs/",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "【V3.4攻略】星铁3.4虚构叙事三幕架构丨阵容配队推荐攻略-崩坏：星穹铁道社区-米游社",
+          "url": "https://www.miyoushe.com/sr/article/66627976",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "【V4.4攻略】星铁4.4「虚构叙事」星启模式阵容配队攻略-崩坏：星穹铁道社区-米游社",
+          "url": "https://www.miyoushe.com/sr/article/77157439",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "虚构叙事配队攻略：最佳阵容与策略（2026） | TrailKraft",
+          "url": "https://www.trailkraft.top/guides/zh-pure-fiction-team-guide-2026",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "虚构叙事配队指南：超击破体系崛起，老角色还能打满吗？",
+          "url": "https://post.smzdm.com/p/avgq9gzp/",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        },
+        {
+          "title": "虚构叙事 - 崩坏：星穹铁道wiki_bwiki_哔哩哔哩",
+          "url": "https://wiki.biligame.com/sr/%E8%99%9A%E6%9E%84%E5%8F%99%E4%BA%8B",
+          "source": "DuckDuckGo",
+          "snippet_chars": 0
+        }
+      ],
+      "reads": [
+        {
+          "url": "https://www.bilibili.com/video/BV16iYC6VELs/",
+          "technical_ok": true,
+          "content_chars": 1467,
+          "evidence_usable": true,
+          "error_code": "",
+          "elapsed_seconds": 0.39
+        },
+        {
+          "url": "https://www.miyoushe.com/sr/article/66627976",
+          "technical_ok": false,
+          "content_chars": 0,
+          "evidence_usable": false,
+          "error_code": "fetch_failed",
+          "elapsed_seconds": 0.0
+        }
+      ],
+      "read_sampling": {
+        "rule": "results[:max_reads]",
+        "max_reads": 2,
+        "sampled": 2,
+        "available_results": 6
+      },
+      "top_k_url_technical_read_successes": 1,
+      "top_k_url_evidence_usable_reads": 1,
       "answer_status": "not_measured",
       "ttfu_seconds": null,
       "evidence_verdict": "not_measured"
@@ -1048,15 +1324,16 @@
       "cases": 5,
       "search_ok_cases": 5,
       "cases_with_results": 5,
-      "search_latency_seconds_median": 0.672,
-      "search_latency_seconds_p90": 4.219,
+      "search_latency_seconds_median": 0.375,
+      "search_latency_seconds_p90": 2.125,
       "total_results": 30,
       "result_sources": {
         "SearXNG/bing": 30
       },
       "snippet_present_ratio": 1.0,
+      "top_k_url_technical_read_successes": 1,
+      "top_k_url_evidence_usable_reads": 0,
       "read_attempts": 10,
-      "read_successes": 1,
       "read_error_codes": [
         "fetch_failed",
         "other",
@@ -1069,14 +1346,15 @@
       "search_ok_cases": 5,
       "cases_with_results": 5,
       "search_latency_seconds_median": 0.297,
-      "search_latency_seconds_p90": 0.312,
+      "search_latency_seconds_p90": 0.328,
       "total_results": 30,
       "result_sources": {
         "Bing RSS": 30
       },
       "snippet_present_ratio": 1.0,
+      "top_k_url_technical_read_successes": 1,
+      "top_k_url_evidence_usable_reads": 0,
       "read_attempts": 10,
-      "read_successes": 1,
       "read_error_codes": [
         "fetch_failed"
       ],
@@ -1084,31 +1362,40 @@
     },
     "ddg_only": {
       "cases": 5,
-      "search_ok_cases": 2,
-      "cases_with_results": 2,
-      "search_latency_seconds_median": 2.812,
-      "search_latency_seconds_p90": 5.016,
-      "total_results": 12,
+      "search_ok_cases": 5,
+      "cases_with_results": 5,
+      "search_latency_seconds_median": 2.485,
+      "search_latency_seconds_p90": 5.422,
+      "total_results": 30,
       "result_sources": {
-        "DuckDuckGo": 12
+        "DuckDuckGo": 30
       },
       "snippet_present_ratio": 0.0,
-      "read_attempts": 4,
-      "read_successes": 1,
+      "top_k_url_technical_read_successes": 3,
+      "top_k_url_evidence_usable_reads": 3,
+      "read_attempts": 10,
       "read_error_codes": [
+        "fetch_failed",
         "provider_failed"
       ],
-      "provider_error_codes": [
-        "duckduckgo_html:URLError",
-        "duckduckgo_html:challenge"
-      ]
+      "provider_error_codes": []
     }
+  },
+  "read_contract": {
+    "selection": "first max_reads URLs of each case's result list, no relevance filter",
+    "max_reads_per_case": 2,
+    "technical_success": "fetch and extraction succeeded with non-empty text",
+    "evidence_usable": "technical success with at least 800 extracted characters",
+    "min_evidence_chars": 800,
+    "related_source_read_quality": "not_measured",
+    "why": "top-k URLs are often irrelevant, so this measures the read path on whatever came back first, not extraction quality of relevant sources"
   },
   "not_measured": {
     "answer_status": "no zero-cost answer generator in this checkout",
     "ttfu_seconds": "requires a real answer stream",
     "evidence_verdict": "requires generated claims to verify",
-    "follow_up_behaviour": "requires a conversation run"
+    "follow_up_behaviour": "requires a conversation run",
+    "related_source_read_quality": "requires relevance-labelled read probes"
   },
   "scope": {
     "stores_page_bodies": false,

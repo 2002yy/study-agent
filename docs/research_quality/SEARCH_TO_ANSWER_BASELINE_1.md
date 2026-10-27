@@ -8,88 +8,113 @@
 
 | 项 | 值 |
 | --- | --- |
-| run_id | `4f0f6b07726d499a9ef735d9ff383b42` |
-| HEAD | `e470a456`（#293 合并提交，DDG POST 修复已在 main） |
 | 问题集 | `tests/fixtures/search_to_answer/baseline_v1.json`（`search-to-answer-baseline-v1`，冻结于 2026-10-28，共 20 题） |
 | 本轮题目 | A01 / B01 / B02 / C01 / D01（`round_1: true`） |
 | 提供商模式 | `auto` / `fallback`（SearXNG 关闭，Bing RSS + DDG）/ `ddg_only` |
 | 采集脚本 | `tools/run_search_to_answer_baseline.py`（复用 `GeneralWebGateway`，仅记录有界操作元数据） |
-| 原始产物 | `docs/research_quality/SEARCH_TO_ANSWER_BASELINE_1.json` |
 | 模型调用 | 无（付费开关保持 OFF） |
+
+两次运行（同一代码，间隔约一小时），用于观察波动：
+
+| 运行 | run_id | HEAD | 产物 |
+| --- | --- | --- | --- |
+| 第一次 | `4f0f6b07726d499a9ef735d9ff383b42` | `e470a456` | `SEARCH_TO_ANSWER_BASELINE_1.run1.json` |
+| 第二次（合同修正后） | `9fc09d8cfa8a43e4a1cf2c4f77251798` | `18d5ca84` | `SEARCH_TO_ANSWER_BASELINE_1.json` |
 
 环境事实：本机 SearXNG 在 `127.0.0.1:8080` 正常响应（`/healthz` = OK），但仅 **bing** 引擎返回结果
 （同机探测：`google news: CAPTCHA`、`brave.news: too many requests`、`duckduckgo news: timeout`）。
 因此 `auto` 实际等同于「SearXNG 的 bing 引擎」，`fallback` 等同于「Bing RSS 直连」。
 
+## 读取口径（本轮修订）
+
+读取指标**不是**「相关正文抽取成功率」，而是**每题结果列表前 2 条 URL 的技术读取**：
+
+| 名称 | 定义 |
+| --- | --- |
+| `read_sampling` | `results[:max_reads]`（默认 2），**不做相关性过滤**；每条记录都写明 `sampled` 与 `available_results` |
+| `top_k_url_technical_read_successes` | 抓取与抽取都成功且正文非空（不判断是否有用） |
+| `top_k_url_evidence_usable_reads` | 技术成功且正文 ≥ 800 字符（`--min-evidence-chars`） |
+| `related_source_read_quality` | **`not_measured`**：需要对相关 URL 单独抽样并人工判读 |
+
+**抽样偏差**：B01/B02/C01 的前两条 URL 多为「星」的字典页、云游戏首页，D01 前两条是词语解释与时钟网站。
+因此下文的读取数字只描述「读取路径在首批返回结果上的表现」，不能推断「相关攻略来源的抽取质量」。
+第二次运行已把这两个概念分列，旧字段 `read_successes` 不再使用。
+
 ## 结果数字
 
-| 模式 | 搜索成功 | 有结果 | 结果数 | 中位耗时 | P90 | 摘要存在率 | 读取成功 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `auto`（SearXNG/bing） | 5/5 | 5/5 | 30 | 0.672 s | 4.219 s | 1.00 | **1/10** |
-| `fallback`（Bing RSS） | 5/5 | 5/5 | 30 | 0.297 s | 0.312 s | 1.00 | **1/10** |
-| `ddg_only`（DuckDuckGo） | **2/5** | 2/5 | 12 | 2.812 s | 5.016 s | **0.00** | 1/4 |
+### 搜索层
 
-结果来源：`auto` = `SearXNG/bing` ×30；`fallback` = `Bing RSS` ×30；`ddg_only` = `DuckDuckGo` ×12。
+| 运行 | 模式 | 搜索成功 | 结果数 | 中位 / P90 | 摘要存在率 | 结果来源 |
+| --- | --- | ---: | ---: | --- | ---: | --- |
+| run1 | `auto` | 5/5 | 30 | 0.672 s / 4.219 s | 1.00 | SearXNG/bing |
+| run1 | `fallback` | 5/5 | 30 | 0.297 s / 0.312 s | 1.00 | Bing RSS |
+| run1 | `ddg_only` | **2/5** | 12 | 2.812 s / 5.016 s | 0.00 | DuckDuckGo |
+| run2 | `auto` | 5/5 | 30 | 0.375 s / 2.125 s | 1.00 | SearXNG/bing |
+| run2 | `fallback` | 5/5 | 30 | 0.297 s / 0.328 s | 1.00 | Bing RSS |
+| run2 | `ddg_only` | **5/5** | 30 | 2.485 s / 5.422 s | 0.00 | DuckDuckGo |
 
-**关键事实：搜索「成功」不等于搜到有用的东西。** `auto` 5/5 状态 `ok`，但按人工判读只有 1/5 题
-（A01）拿到部分相关结果，其余 4 题的结果与问题无关。
+**DDG 可用性是波动的**：run1 有 3 题失败（2 次 `challenge`、1 次 SSL `UNEXPECTED_EOF`），run2 全部成功。
+所以更准确的说法是「DDG 在连续请求下不稳定」，而不是「DDG 不可用」。
+
+### 读取层（前 2 条 URL，run2）
+
+| 模式 | 技术读取成功 | 证据可用（≥800 字符） | 读取错误码 |
+| --- | ---: | ---: | --- |
+| `auto` | 1/10 | **0/10** | `fetch_failed`、`other`、`provider_failed` |
+| `fallback` | 1/10 | **0/10** | `fetch_failed` |
+| `ddg_only` | 3/10 | **3/10** | `fetch_failed`、`provider_failed` |
+
+run1 的同口径值为：`auto` 1/10（证据可用 0/10）、`fallback` 1/10（0/10）、`ddg_only` 1/4（1/4）。
 
 ### 人工相关性判读（n=5，仅第一轮样本，不作为统计结论）
 
-| 题目 | auto / fallback 结果 | ddg_only 结果 |
+| 题目 | auto / fallback | ddg_only |
 | --- | --- | --- |
-| A01 星铁当前版本/卡池 | **部分相关**：官网首页与 4.6 页面，但需读取正文才能给出版本/卡池 | 不可用（SSL EOF） |
-| B01 千冶·刃配装 | **无关**：`星_百度百科`、`汉语查`、`AstroGaze`、官网首页 | **相关**：米游社千冶·刃攻略、B 站、17173 |
-| B02 虚构叙事自动战斗 | **无关**：与 B01 完全相同的 6 条（引擎只匹配到「星」） | 相关但**版本偏旧**（V3.4 / V2.5 文章） |
-| C01 虚构叙事 60000 分 | **无关**：同样 6 条 | 不可用（challenge） |
-| D01 虚构叙事配队 | **无关**：`当前_百度百科`、`time.ms`、`北京时间` —— 引擎只匹配到「当前」 | 不可用（challenge） |
+| A01 版本/卡池 | 部分相关（官网页面，读不出正文） | **相关**：官网 4.6 页面、卡池时间表（`gachia.com`，3727 字符可读） |
+| B01 千冶·刃配装 | **无关**：`星_百度百科`、`汉语查`、`AstroGaze` | **相关**：米游社攻略、B 站（2061 字符可读）、今日头条 |
+| B02 虚构叙事自动战斗 | **无关**：与 B01 完全相同的 6 条 | 相关但**版本偏旧**（V3.4 / V2.1 文章，米游社读取失败） |
+| C01 60000 分 | **无关**：同样 6 条 | 相关但**版本过旧**（V1.6 攻略） |
+| D01 配队 | **无关**：`当前_百度百科`、`time.ms` | **相关**：4.5 虚构叙事阵容视频（1467 字符可读）、V4.4 攻略 |
 
 ## 失败样例（可复核）
 
 **1. 整句提问被直接当成检索词，引擎退化为单词匹配**
 
-- B01/B02/C01 三个不同问题返回**完全相同**的 6 条结果：`星_百度百科` / `云·星穹铁道` / `汉语查` /
-  `星星_百度百科` / `星穹铁道官网` / `AstroGaze`。
+- B01/B02/C01 三个不同问题在 `auto` 与 `fallback` 下返回**完全相同**的 6 条结果：
+  `星_百度百科` / `云·星穹铁道` / `汉语查` / `星星_百度百科` / `星穹铁道官网` / `AstroGaze`。
 - D01 返回 `当前_百度百科`、`Time.ms`、`北京时间`。
 - `attempted_queries` 只有 1 条，就是原始整句提问（未做关键词抽取或改写）。
 
-**2. 网页读取基本不可用**
+**2. 抽取失败集中在特定站点（与网络无关）**
 
 | URL | 结果 |
 | --- | --- |
-| `https://sr.mihoyo.com/cloud/`、`https://sr.mihoyo.com/` | `provider_failed`；直连探针为 `all_backends_failed`（SPA，无可抽取正文） |
-| `https://baike.baidu.com/item/星/1586` | `http_403`（反爬） |
-| `https://www.miyoushe.com/sr/article/75743090`（DDG 命中的相关攻略） | `provider_failed` |
-| `https://time.ms/zh-cn/` | 成功，但只有 **282 字符**，且与问题无关 |
-| `https://codingchallenges.fyi/` | 成功，但只有 **481 字符**（样板文字为主） |
+| `https://sr.mihoyo.com/` | 直连 HTTP 200，但 `provider_failed`（SPA，无可抽取正文） |
+| `https://baike.baidu.com/item/星/1586` | `http_403`（反爬；走代理同样 403） |
+| `https://www.miyoushe.com/sr/article/75743090`（DDG 命中的相关攻略） | `provider_failed` / `fetch_failed`（两种模式反复失败） |
+| `https://www.bilibili.com/video/BV1uZV96gEXd/` | 成功，2061 字符（证据可用） |
+| `https://gachia.com/zh/starrail/guides/banner-schedule-guide` | 成功，3727 字符（证据可用） |
+| `https://time.ms/zh-cn/` | 成功但仅 282 字符 → 技术成功、**证据不可用** |
 
-即：即便拿到相关 URL（DDG 的 B01），**读不出正文**，证据链在第一跳就断了。
+**3. 摘要缺失是 DDG 专属**
 
-**3. DDG 在高频请求下不可用**
+`ddg_only` 摘要存在率 **0.00**（0/30），Bing 路径 **1.00**（30/30）。DDG 恰好也是唯一给出相关结果的提供商，
+所以它的结果只有「标题 + URL」可用，直到某次读取成功。
 
-| 题目 | 错误 |
-| --- | --- |
-| A01 | `duckduckgo_html:URLError:<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] ...>` |
-| C01 | `duckduckgo_html:challenge` |
-| D01 | `duckduckgo_html:challenge` |
+**4. DDG 连续请求下不稳定**
 
-5 题在数十秒内连续执行，第 4、5 次开始被拦。注意：本次**没有出现**查询词回显导致的误判
-（C01 的查询里不含 challenge 字样），说明 #293 的结构化标记修复有效，这里是真的被拦。
-
-**4. 摘要缺失是 DDG 专属，不是全局**
-
-`ddg_only` 摘要存在率 **0.00**（0/12），而 Bing 路径为 **1.00**（30/30）。因此 snippet 缺口只影响
-DDG 这条fallback；但恰好也是这次唯一返回相关结果的提供商。
+run1：A01 `URLError:<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] ...>`、C01/D01 `challenge`；
+run2：全部成功。run1 的 challenge 不是查询词回显误判（查询不含 challenge 字样），说明 #293 的结构化标记修复有效。
 
 ## 根因归类（按实测影响排序）
 
 | 序 | 根因 | 证据 | 归属 |
 | --- | --- | --- | --- |
 | 1 | **查询构建缺失**：整句中文提问直接下发，引擎退化为单词匹配 | 3 题返回同一组无关结果；D01 匹配「当前」 | 检索编排（query planning），不是 provider |
-| 2 | **正文抽取不可用**：SPA 与反爬站点读取失败，成功样本仅 282–481 字符 | 1/10 成功；mihoyo `all_backends_failed`、baike `http_403`、miyoushe `provider_failed` | 读取层 |
-| 3 | **路由只看「有没有结果」**：Bing 一有无关结果就结束，DDG 从不参与 | `auto`/`fallback` 30 条全部 Bing，DDG 0 条 | 路由策略 |
-| 4 | **DDG 突发请求被拦**：无退避/节流/缓存 | 第 4、5 题 challenge；另有 SSL EOF | provider 调用策略 |
-| 5 | **DDG 无摘要**：解析器只取标题与链接 | 0/12 | 解析器（P3，仅 DDG） |
+| 2 | **读取路径在攻略站基本不可用**（前 2 条 URL 口径）：米游社/米哈游 SPA 抽取失败，baike 403 | `auto`/`fallback` 技术 1/10、证据可用 0/10；DDG 路径 3/10 可用 | 读取层 |
+| 3 | **路由只看「有没有结果」**：Bing 有无关结果就结束，DDG 从不参与 | `auto`/`fallback` 30 条全部 Bing，DDG 0 条 | 路由策略 |
+| 4 | **DDG 突发请求不稳定**：无退避/节流/缓存 | run1 第 4、5 题 challenge，另有 SSL EOF | provider 调用策略 |
+| 5 | **DDG 无摘要**：解析器只取标题与链接 | 0/30 | 解析器（P3，仅 DDG） |
 
 ## 未测量项
 
@@ -99,23 +124,11 @@ DDG 这条fallback；但恰好也是这次唯一返回相关结果的提供商�
 | 主张证据支持率 | 需要生成的主张才能核验 |
 | 首个有用内容时间（TTFU） | 需要真实回答流式输出 |
 | 多轮追问行为（D01 第二轮等） | 需要会话级运行 |
-
-本轮**没有**用检索时延冒充 TTFU，也没有用「搜到 URL」冒充「回答有证据」。
-
-## 下一步（按影响排序，待定授权）
-
-1. **查询构建**：把整句提问拆成检索式（实体识别 + 关键词），例如「星铁」→「崩坏：星穹铁道」，
-   并保留时间限定词。验收：B01/B02/C01 三题返回结果不再是同一组。
-2. **读取层**：为攻略站（米游社/米哈游官网）建立可用的读取或官方接口路径；验收：相关 URL 的读取成功率。
-3. **路由**：结果非空但相关性低时继续尝试下一个 provider（或并行取回后统一排序）。
-4. **DDG 节流**：单飞 + 退避 + 短期缓存，避免连续请求被 challenge。
-5. **DDG 摘要**：解析 `result__snippet`（仅此 provider 需要）。
-
-补齐 1–3 之前，讨论 snippet（第 5 项）对最终答案的影响缺乏证据。
+| 相关来源的正文抽取质量 | 需要对相关 URL 单独抽样并人工判读（当前只测了前 2 条） |
 
 ## 技术备忘：哪些出口需要代理（本轮实测，不改代码）
 
-第三轮测量（同一台机器、同一代理 `127.0.0.1:7890`、每个端点 1 次 GET、8 s 超时）：
+同一台机器、同一代理 `127.0.0.1:7890`、每个端点 1 次 GET、8 s 超时：
 
 | 出口 | 直连 | 走代理 | 处置 |
 | --- | --- | --- | --- |
@@ -147,8 +160,8 @@ DDG 这条fallback；但恰好也是这次唯一返回相关结果的提供商�
 # 需要本地 SearXNG(:8080) 与 .env 中的 WEB_DUCKDUCKGO_PROXY
 python tools/run_search_to_answer_baseline.py `
   --mode auto --mode fallback --mode ddg_only `
-  --case A01 --case B01 --case B02 --case C01 --case D01
+  --case A01 --case B01 --case B02 --case C01 --case D01 `
+  --min-evidence-chars 800
 ```
 
-产物写入 `docs/research_quality/SEARCH_TO_ANSWER_BASELINE_1.json`；
-每次运行生成新的 `run_id`，`head_sha` 记录代码版本，便于跨轮对比。
+每次运行生成新的 `run_id`，`head_sha` 记录代码版本；`read_contract` 记录选择规则与阈值，便于跨轮对比。

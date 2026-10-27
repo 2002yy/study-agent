@@ -65,6 +65,29 @@ PROVIDER_MODES: dict[str, dict[str, str]] = {
     },
 }
 
+PROVIDER_ENV_KEYS = (
+    "WEB_ENABLE_SEARXNG",
+    "WEB_ENABLE_BING_RSS",
+    "WEB_ENABLE_DUCKDUCKGO",
+)
+
+# A read whose extracted text is shorter than this is not usable evidence, even
+# when the HTTP fetch and the extractor both "succeeded" (a 282-character clock
+# page is a technical success and a useless source).
+DEFAULT_MIN_EVIDENCE_CHARS = 800
+
+
+def _snapshot_env(keys: tuple[str, ...]) -> dict[str, str | None]:
+    return {key: os.environ.get(key) for key in keys}
+
+
+def _apply_env(values: dict[str, str | None]) -> None:
+    for key, value in values.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -128,7 +151,11 @@ def _results_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _read_probe(
-    gateway: GeneralWebGateway, url: str, *, max_chars: int
+    gateway: GeneralWebGateway,
+    url: str,
+    *,
+    max_chars: int,
+    min_evidence_chars: int,
 ) -> dict[str, Any]:
     started = time.monotonic()
     try:
@@ -136,15 +163,20 @@ def _read_probe(
     except Exception as exc:  # noqa: BLE001 - the probe records, it does not fail
         return {
             "url": url,
-            "ok": False,
+            "technical_ok": False,
             "error_type": type(exc).__name__,
+            "evidence_usable": False,
             "elapsed_seconds": round(time.monotonic() - started, 3),
         }
     content = str(payload.get("content") or "")
+    technical_ok = bool(payload.get("ok")) and bool(content.strip())
     return {
         "url": _bounded(payload.get("url") or url, 2000),
-        "ok": bool(payload.get("ok")) and bool(content.strip()),
+        "technical_ok": technical_ok,
         "content_chars": len(content),
+        # Technical success is not evidence: a 282-character clock page is
+        # fetched and extracted fine, and tells the user nothing.
+        "evidence_usable": technical_ok and len(content) >= min_evidence_chars,
         "error_code": _bounded(payload.get("error_code"), 120) if not payload.get("ok") else "",
         "elapsed_seconds": round(time.monotonic() - started, 3),
     }
@@ -190,8 +222,15 @@ def _summarise(records: list[dict[str, Any]]) -> dict[str, Any]:
                     3,
                 )
             ),
+            # Named for what it measures: the first N URLs of each case, with no
+            # relevance filter. It is not "related-source extraction quality".
+            "top_k_url_technical_read_successes": sum(
+                1 for read in reads if read["technical_ok"]
+            ),
+            "top_k_url_evidence_usable_reads": sum(
+                1 for read in reads if read["evidence_usable"]
+            ),
             "read_attempts": len(reads),
-            "read_successes": sum(1 for read in reads if read["ok"]),
             "read_error_codes": sorted(
                 {read.get("error_code") for read in reads if read.get("error_code")}
             ),
@@ -216,9 +255,15 @@ def run_baseline(
     max_reads: int,
     max_chars: int,
     selected_cases: set[str] | None,
+    min_evidence_chars: int = DEFAULT_MIN_EVIDENCE_CHARS,
 ) -> dict[str, Any]:
     load_dotenv(REPO_ROOT / ".env")
     document, cases = load_cases(cases_path, selected_cases)
+
+    # Captured after .env is loaded: "auto" must mean the deployment's
+    # configuration, not whatever a previous mode left in the environment.
+    baseline_env = _snapshot_env(PROVIDER_ENV_KEYS)
+    caller_env = _snapshot_env(PROVIDER_ENV_KEYS)
 
     artifact: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -232,11 +277,28 @@ def run_baseline(
         "provider_modes": modes,
         "records": [],
         "summary": {},
+        "read_contract": {
+            "selection": (
+                "first max_reads URLs of each case's result list, no relevance filter"
+            ),
+            "max_reads_per_case": max_reads,
+            "technical_success": "fetch and extraction succeeded with non-empty text",
+            "evidence_usable": (
+                f"technical success with at least {min_evidence_chars} extracted characters"
+            ),
+            "min_evidence_chars": min_evidence_chars,
+            "related_source_read_quality": "not_measured",
+            "why": (
+                "top-k URLs are often irrelevant, so this measures the read path on "
+                "whatever came back first, not extraction quality of relevant sources"
+            ),
+        },
         "not_measured": {
             "answer_status": "no zero-cost answer generator in this checkout",
             "ttfu_seconds": "requires a real answer stream",
             "evidence_verdict": "requires generated claims to verify",
             "follow_up_behaviour": "requires a conversation run",
+            "related_source_read_quality": "requires relevance-labelled read probes",
         },
         "scope": {
             "stores_page_bodies": False,
@@ -247,15 +309,12 @@ def run_baseline(
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    original_env = {name: os.environ.get(name) for name in {
-        "WEB_ENABLE_SEARXNG",
-        "WEB_ENABLE_BING_RSS",
-        "WEB_ENABLE_DUCKDUCKGO",
-    }}
     try:
         for mode in modes:
-            for name, value in PROVIDER_MODES[mode].items():
-                os.environ[name] = value
+            # Reset to the deployment baseline first, so `auto` after another
+            # mode is really `auto`.
+            _apply_env(baseline_env)
+            _apply_env(PROVIDER_MODES[mode])
             gateway = GeneralWebGateway()
             for index, case in enumerate(cases, start=1):
                 started = time.monotonic()
@@ -267,10 +326,18 @@ def run_baseline(
                     item for item in search.get("results", []) if isinstance(item, dict)
                 ]
                 summary = _results_summary(results)
-                reads = [
-                    _read_probe(gateway, str(item.get("url") or ""), max_chars=max_chars)
-                    for item in results[:max_reads]
+                sampled = [
+                    item for item in results[:max_reads]
                     if str(item.get("url") or "").strip()
+                ]
+                reads = [
+                    _read_probe(
+                        gateway,
+                        str(item.get("url") or ""),
+                        max_chars=max_chars,
+                        min_evidence_chars=min_evidence_chars,
+                    )
+                    for item in sampled
                 ]
                 record = {
                     "case_id": case["id"],
@@ -300,8 +367,18 @@ def run_baseline(
                         for item in results
                     ],
                     "reads": reads,
-                    "read_attempts": len(reads),
-                    "read_successes": sum(1 for read in reads if read["ok"]),
+                    "read_sampling": {
+                        "rule": "results[:max_reads]",
+                        "max_reads": max_reads,
+                        "sampled": len(reads),
+                        "available_results": len(results),
+                    },
+                    "top_k_url_technical_read_successes": sum(
+                        1 for read in reads if read["technical_ok"]
+                    ),
+                    "top_k_url_evidence_usable_reads": sum(
+                        1 for read in reads if read["evidence_usable"]
+                    ),
                     "answer_status": "not_measured",
                     "ttfu_seconds": None,
                     "evidence_verdict": "not_measured",
@@ -315,16 +392,15 @@ def run_baseline(
                     f"[{mode} {index}/{len(cases)}] {record['case_id']}: "
                     f"{record['search_status']} · results={record['result_count']} · "
                     f"snippets={record['results_with_snippet']}/{record['result_count']} · "
-                    f"reads={record['read_successes']}/{record['read_attempts']} · "
+                    f"top{max_reads}_technical="
+                    f"{record['top_k_url_technical_read_successes']}/"
+                    f"{record['read_sampling']['sampled']} · "
+                    f"evidence={record['top_k_url_evidence_usable_reads']} · "
                     f"{record['search_latency_seconds']}s",
                     flush=True,
                 )
     finally:
-        for name, value in original_env.items():
-            if value is None:
-                os.environ.pop(name, None)
-            else:
-                os.environ[name] = value
+        _apply_env(caller_env)
 
     artifact["completed_at"] = _utc_now()
     artifact["summary"] = _summarise(artifact["records"])
@@ -344,6 +420,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-results", type=int, default=6)
     parser.add_argument("--max-reads", type=int, default=2)
     parser.add_argument("--max-chars", type=int, default=6000)
+    parser.add_argument("--min-evidence-chars", type=int, default=DEFAULT_MIN_EVIDENCE_CHARS)
     return parser
 
 
@@ -357,6 +434,7 @@ def main() -> int:
         max_reads=max(0, min(args.max_reads, 5)),
         max_chars=max(500, min(args.max_chars, 20_000)),
         selected_cases=set(args.case) or None,
+        min_evidence_chars=max(0, args.min_evidence_chars),
     )
     print(json.dumps(artifact["summary"], ensure_ascii=False, sort_keys=True))
     return 0
