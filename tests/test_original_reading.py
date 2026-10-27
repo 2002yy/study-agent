@@ -180,8 +180,17 @@ def test_session_pdf_owner_hash_and_existing_auth(original, monkeypatch):
         == 200
     )
     monkeypatch.delenv("STUDY_AGENT_API_TOKEN")
+    # A2: no configured token is refused outright, not treated as "private
+    # deployment, skip auth". The revision check itself still needs a token.
+    assert http.get(endpoint, params=params).status_code == 401
+    monkeypatch.setenv("STUDY_AGENT_API_TOKEN", "reading-token")
     Path(attachment.storage_path).write_bytes(sample_pdf("Changed attachment"))
-    assert http.get(endpoint, params=params).status_code == 409
+    assert (
+        http.get(
+            endpoint, params=params, headers={"X-Study-Agent-Token": "reading-token"}
+        ).status_code
+        == 409
+    )
 
 
 def web_run(repository, *, selected=False, truncated=False):

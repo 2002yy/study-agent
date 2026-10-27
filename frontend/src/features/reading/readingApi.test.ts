@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setApiToken } from "../../apiToken";
 import { readDocument, readOriginalPdf } from "./readingApi";
 
 const data={schema_version:"document-reading-v1",representation:"indexed_text",scope:"knowledge",
   document_id:"doc",revision_id:"rev",source_path:"notes.md",start_line:1,end_line:2,total_lines:2,text:"a\nb"};
-afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs()});
+afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();setApiToken("")});
 describe("reading API",()=>{
   it("pins PDF originals and passes API credentials in headers",async()=>{
     const fetcher=vi.fn().mockResolvedValue(new Response(new Uint8Array([37,80,68,70]),{headers:{"Content-Type":"application/pdf"}}));
-    vi.stubGlobal("fetch",fetcher);vi.stubEnv("VITE_STUDY_AGENT_API_TOKEN","reader-fixture");
+    vi.stubGlobal("fetch",fetcher);setApiToken("reader-fixture");
     const signal=new AbortController().signal;
     expect(await readOriginalPdf({scope:"session",threadId:"thread",attachmentId:"att"},"rev",signal)).toEqual(new Uint8Array([37,80,68,70]));
     expect(fetcher).toHaveBeenCalledWith("/sessions/thread/attachments/att/original?expected_revision=rev",{signal,headers:{"X-Study-Agent-Token":"reader-fixture"}});
@@ -25,7 +26,7 @@ describe("reading API",()=>{
   });
   it("uses the existing deployment token header for reading",async()=>{
     const fetcher=vi.fn().mockResolvedValue(new Response(JSON.stringify(data)));
-    vi.stubGlobal("fetch",fetcher);vi.stubEnv("VITE_STUDY_AGENT_API_TOKEN","reader-fixture");
+    vi.stubGlobal("fetch",fetcher);setApiToken("reader-fixture");
     await readDocument({scope:"knowledge",documentId:"doc",windowLines:20},1,new AbortController().signal);
     expect(fetcher).toHaveBeenCalledWith("/knowledge-base/documents/doc/reading?start_line=1&limit=20",expect.objectContaining({headers:{"X-Study-Agent-Token":"reader-fixture"}}));
   });

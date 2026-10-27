@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { API_HEADERS } from "./e2e/apiAuth";
 
 // G12 manual/timing gate acceptance (docs/PROJECT_STATUS.md 10.6).
 // Runs against the real stack: real SQLite, real server-side terminal truth.
@@ -19,6 +20,7 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:5175",
     channel: process.env.PLAYWRIGHT_USE_SYSTEM_CHROME ? "chrome" : undefined,
+    extraHTTPHeaders: API_HEADERS,
     trace: "retain-on-failure",
     screenshot: "on",
     video: "on",

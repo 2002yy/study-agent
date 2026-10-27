@@ -14,13 +14,33 @@ const actions = () => ({
 });
 
 describe("GlobalNotices", () => {
+  it("names the missing token first, and sends the user to settings", () => {
+    const callbacks = actions();
+    render(
+      <GlobalNotices
+        apiError="401 Unauthorized"
+        operationError=""
+        partialErrors={[]}
+        tokenRequired
+        {...callbacks}
+      />,
+    );
+
+    // The token notice wins over the generic connection error: it is the cause.
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("需要访问令牌");
+    expect(alert).not.toHaveTextContent("无法连接学习服务");
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    expect(callbacks.onOpenSettings).toHaveBeenCalledOnce();
+  });
+
   it("announces API failure and exposes retry, settings, and details", () => {
     const callbacks = actions();
     render(
       <GlobalNotices
         apiError="503 provider down"
         operationError=""
-        partialErrors={[]}
+        partialErrors={[]} tokenRequired={false}
         {...callbacks}
       />,
     );
@@ -41,7 +61,7 @@ describe("GlobalNotices", () => {
       <GlobalNotices
         apiError=""
         operationError="上传失败"
-        partialErrors={[]}
+        partialErrors={[]} tokenRequired={false}
         {...callbacks}
       />,
     );
@@ -56,7 +76,7 @@ describe("GlobalNotices", () => {
       <GlobalNotices
         apiError=""
         operationError=""
-        partialErrors={[["sessions", "timeout"]]}
+        partialErrors={[["sessions", "timeout"]]} tokenRequired={false}
         {...actions()}
       />,
     );

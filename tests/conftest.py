@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from src import api as api_module
 from src.api import app
@@ -53,6 +55,36 @@ class FakeRagResult:
             "result_count": 0,
             "results": [],
         }
+
+
+DEFAULT_TEST_API_TOKEN = "test-api-token"
+
+
+@pytest.fixture(autouse=True)
+def _default_api_token(monkeypatch):
+    """Give API tests the header the server now requires.
+
+    The middleware refuses every private request without a token, so a test that
+    is not about authentication would otherwise fail at the gate instead of
+    testing its own subject. Tests that set their own
+    ``STUDY_AGENT_API_TOKEN`` (the auth tests) keep full control: the header is
+    only injected while the environment still holds this fixture's value.
+    """
+
+    if "STUDY_AGENT_API_TOKEN" not in os.environ:
+        monkeypatch.setenv("STUDY_AGENT_API_TOKEN", DEFAULT_TEST_API_TOKEN)
+
+    original_init = TestClient.__init__
+
+    def with_token_header(self, *args, **kwargs):
+        if os.environ.get("STUDY_AGENT_API_TOKEN") == DEFAULT_TEST_API_TOKEN:
+            headers = dict(kwargs.get("headers") or {})
+            headers.setdefault("X-Study-Agent-Token", DEFAULT_TEST_API_TOKEN)
+            kwargs["headers"] = headers
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(TestClient, "__init__", with_token_header)
+    yield
 
 
 @dataclass

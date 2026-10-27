@@ -9,6 +9,7 @@ import { SourcesPanel } from "../features/rag/SourcesPanel";
 import { UploadLearningPrompt } from "../features/rag/UploadLearningPrompt";
 import { RAG_UPLOAD_ACCEPT, RAG_UPLOAD_HELP_TEXT } from "../features/rag/uploadContract";
 import { SettingsPanel } from "../features/settings/SettingsPanel";
+import { useAuthRequired } from "./useAuthRequired";
 import { useTypographyPreference } from "../features/settings/typographyPreference";
 import { ExternalDataFirstUseNotice } from "../features/settings/ExternalDataFirstUseNotice";
 import { WorkspaceActions } from "../features/single-chat/WorkspaceActions";
@@ -135,6 +136,7 @@ export function WorkspaceView({
   const partialErrors = Object.entries(snapshot.errors ?? {}).filter(
     ([key]) => key !== "health",
   );
+  const tokenRequired = useAuthRequired();
   const transitionGuard = useWorkspaceTransitionGuard({
     isSending: learningView.isSending,
     hasUserMessages: chatController.messages.some((message) => message.role === "user"),
@@ -403,6 +405,7 @@ export function WorkspaceView({
         apiError={snapshot.error}
         operationError={ui.operationError}
         partialErrors={partialErrors}
+        tokenRequired={tokenRequired}
         onRetryApi={() => void refresh()}
         onOpenSettings={() => openDrawer("settings")}
         onDismissOperationError={() => ui.setOperationError("")}

@@ -7,6 +7,10 @@ const REAL_STACK_TESTS = [
   "**/real-stack-deep-journey.spec.ts",
   // Boots its own real-stack webServer via playwright.g12-acceptance.config.ts.
   "**/g12-acceptance.spec.ts",
+  // Needs a live backend and the server's token: it asserts 401 -> settings ->
+  // 200 against the real gate. This gate has no backend (its API calls are
+  // routed by fixtures), so collecting it here can only fail on connect.
+  "**/api-token-required.spec.ts",
 ];
 /**
  * Paid, real-model acceptance runs. They boot the real backend and the

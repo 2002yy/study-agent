@@ -1,7 +1,7 @@
+import { authHeaders } from "../../apiToken";
 import type { SemanticSessionRow } from "./sessionNavigation";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-const API_TOKEN = import.meta.env.VITE_STUDY_AGENT_API_TOKEN ?? "";
 
 export async function updateSessionTitle(
   sessionId: string,
@@ -13,7 +13,7 @@ export async function updateSessionTitle(
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        ...(API_TOKEN ? { "X-Study-Agent-Token": API_TOKEN } : {}),
+        ...authHeaders(),
       },
       body: JSON.stringify({ title }),
     }

@@ -165,11 +165,16 @@ function Write-StartupSummary([bool]$SearXNGStarted) {
     }
 
     try {
-        $providerHealth = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health/providers?probe=true" -TimeoutSec 10
-        $provider = $providerHealth.providers | Where-Object { $_.name -eq "searxng" } | Select-Object -First 1
-        if ($provider) {
-            $providerColor = if ($provider.status -eq "ready") { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow }
-            Write-HealthLine "检索能力" ("{0} · {1}" -f $provider.status, $provider.detail) $providerColor
+        if ([string]::IsNullOrWhiteSpace([string]$env:STUDY_AGENT_API_TOKEN)) {
+            Write-HealthLine "检索能力" "未配置 API 令牌，跳过探针（先设置 STUDY_AGENT_API_TOKEN）" Yellow
+        } else {
+            $probeHeaders = @{ "X-Study-Agent-Token" = [string]$env:STUDY_AGENT_API_TOKEN }
+            $providerHealth = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health/providers?probe=true" -Headers $probeHeaders -TimeoutSec 10
+            $provider = $providerHealth.providers | Where-Object { $_.name -eq "searxng" } | Select-Object -First 1
+            if ($provider) {
+                $providerColor = if ($provider.status -eq "ready") { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow }
+                Write-HealthLine "检索能力" ("{0} · {1}" -f $provider.status, $provider.detail) $providerColor
+            }
         }
     } catch {
         Write-HealthLine "检索能力" "unknown · provider probe failed" Yellow
@@ -246,7 +251,11 @@ if (Test-Listening 8000) {
 # Child processes inherit these values. The API token is never embedded in the
 # encoded PowerShell command or exposed in process command-line arguments.
 $env:VITE_DEV_API_TARGET = "http://127.0.0.1:8000"
-$env:VITE_STUDY_AGENT_API_TOKEN = [string]$env:STUDY_AGENT_API_TOKEN
+# Vite exposes every VITE_* variable to client code, so the server secret must
+# never be handed to the dev server under that name - not even to "help" a
+# browser. The app reads the token from its own settings (localStorage) instead.
+# Clear any value inherited from the parent shell or an old .env.
+Remove-Item Env:VITE_STUDY_AGENT_API_TOKEN -ErrorAction SilentlyContinue
 if (Test-Listening 5173) {
     if (-not (Test-FrontendIdentity)) {
         Fail "端口 5173 已被非 Study Agent 服务占用"

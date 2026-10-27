@@ -14,6 +14,7 @@ export function GlobalNotices({
   apiError,
   operationError,
   partialErrors,
+  tokenRequired,
   onRetryApi,
   onOpenSettings,
   onDismissOperationError,
@@ -21,10 +22,35 @@ export function GlobalNotices({
   apiError: string;
   operationError: string;
   partialErrors: Array<[string, string]>;
+  tokenRequired: boolean;
   onRetryApi: () => void;
   onOpenSettings: () => void;
   onDismissOperationError: () => void;
 }) {
+  if (tokenRequired) {
+    // A2: the deployment is locked until the operator pastes the server token.
+    // Saying so is the difference between "empty app" and "one step to fix".
+    return (
+      <section aria-live="assertive" className="api-warning" role="alert">
+        <AlertTriangle aria-hidden="true" size={16} />
+        <div className="global-notice-content">
+          <strong>需要访问令牌</strong>
+          <div>
+            服务端要求认证：在「设置 → 访问令牌」里填入 STUDY_AGENT_API_TOKEN
+            的值，保存后会自动重新加载。
+          </div>
+        </div>
+        <div className="global-notice-actions">
+          <button className="ghost-action compact" onClick={onOpenSettings} type="button">
+            <Settings aria-hidden="true" size={13} /> 设置
+          </button>
+          <button className="ghost-action compact" onClick={onRetryApi} type="button">
+            <RefreshCw aria-hidden="true" size={13} /> 重试
+          </button>
+        </div>
+      </section>
+    );
+  }
   if (apiError) {
     return (
       <section aria-live="assertive" className="api-warning" role="alert">

@@ -1,3 +1,5 @@
+import { authHeaders } from "../../apiToken";
+
 export type ReadingTarget = {
   scope: "knowledge" | "session" | "web";
   runId?: string;
@@ -42,8 +44,7 @@ export function readingPath(target: ReadingTarget) {
 
 async function checkedFetch(path:string, signal:AbortSignal) {
   const base = import.meta.env.VITE_API_BASE_URL ?? "";
-  const token = import.meta.env.VITE_STUDY_AGENT_API_TOKEN ?? "";
-  const response = await fetch(`${base}${path}`, {signal, headers:token ? {"X-Study-Agent-Token":token} : {}});
+  const response = await fetch(`${base}${path}`, {signal, headers:authHeaders()});
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new Error(typeof body?.detail === "string" ? body.detail : `资料读取失败（${response.status}）`);

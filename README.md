@@ -67,6 +67,18 @@ Windows 下可直接双击 [`tools/start-study-agent.bat`](tools/start-study-age
 
 SearXNG 的仓库配置、ignored secret/proxy layering、备份、回滚与 7 天 retained-container 清理流程见 [`docs/WEB_SEARCH_SETUP.md`](docs/WEB_SEARCH_SETUP.md)。
 
+## 访问令牌（必填）
+
+服务端现在要求每个私有 API 请求都带令牌；**没有配置令牌时所有私有接口返回 401**，包括本机访问。这不是可选加固，而是默认策略：反向代理可能让外部请求看起来来自 `127.0.0.1`，因此“只绑定本机”不能作为认证边界。
+
+1. 在 `.env` 里设置一个足够长的随机值：`STUDY_AGENT_API_TOKEN=<你的令牌>`（可用 `python -c "import secrets;print(secrets.token_urlsafe(32))"` 生成）。
+2. 重启后端。
+3. 打开前端，在 **设置 → 访问令牌** 里粘贴同一个值并保存。
+
+令牌只保存在你本机浏览器（localStorage），随请求以 `X-Study-Agent-Token` 发送；它**不会**被打进前端构建产物，也没有任何接口会在未认证时下发它。换浏览器或清理站点数据后需要重新粘贴。`/health` 与 `/assets/` 保持公开，否则页面无法加载到可以输入令牌的地步。
+
+没有令牌时页面不会静默变空：顶部会显示「需要访问令牌」，点“设置”填入后保存即自动重载工作区。启动器（`tools/start-study-agent.ps1`）也不再把这个令牌以 `VITE_` 变量传给前端开发服务器——Vite 会把 `VITE_*` 暴露给浏览器代码。
+
 ## 已整合能力与待验收边界
 
 | 方向 | 已有工程能力 | 仍不能宣称 |

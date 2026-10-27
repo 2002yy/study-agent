@@ -109,7 +109,7 @@ describe("product Chinese terminology at rendering boundaries", () => {
   it("keeps raw errors and module keys inside closed developer diagnostics", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const view = render(<GlobalNotices apiError="" operationError="Failed to fetch research_runtime"
-      partialErrors={[]} onRetryApi={vi.fn()} onOpenSettings={vi.fn()} onDismissOperationError={vi.fn()} />);
+      partialErrors={[]} tokenRequired={false} onRetryApi={vi.fn()} onOpenSettings={vi.fn()} onDismissOperationError={vi.fn()} />);
     expect(view.getByText("Failed to fetch research_runtime")).not.toBeVisible();
     expect(view.container).toHaveTextContent("本次操作未能完成，请稍后重试。");
     expect(humanizeUiError(new Error("connection refused"))).not.toContain("connection refused");
