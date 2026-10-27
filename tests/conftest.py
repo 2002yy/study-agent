@@ -112,6 +112,11 @@ def _hermetic_deployment_env(monkeypatch):
     for name in (
         "WEB_RESEARCH_STEERING_BUDGET_POLICY",
         "WEB_DEEP_MODEL_PLANNER",
+        # Provider egress belongs to the deployment, not to the suite: the DDG
+        # cases monkeypatch urlopen, and a configured proxy takes a different
+        # opener path, so an ambient value would both defeat the monkeypatch and
+        # send real traffic from tests.
+        "WEB_DUCKDUCKGO_PROXY",
     ):
         monkeypatch.delenv(name, raising=False)
 

@@ -14,7 +14,7 @@ import re
 import time
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
 from xml.etree import ElementTree
 
 from src.news.article_fetcher import fetch_article_read_result
@@ -518,6 +518,19 @@ class GeneralWebGateway:
                 break
         return (results, "" if results else "bing_rss:empty_response")
 
+    # DuckDuckGo publishes no search API, so this reads the same HTML form the
+    # site itself posts to. A plain GET with a self-identifying user agent is
+    # answered with the anti-bot page (HTTP 202, "anomaly"), so the query goes
+    # out as the form's own POST with ordinary browser headers. Both halves were
+    # measured against the live endpoint: GET -> 202 challenge, POST -> 200 with
+    # result links, which the parser below already understands.
+    #
+    # Egress is opt-in per provider (WEB_DUCKDUCKGO_PROXY) rather than through a
+    # process-wide HTTP(S)_PROXY: docs/CL_M1_REBIND_PREVIEW.md §7 records a local
+    # proxy in the process environment hijacking loopback requests and breaking
+    # the browser gates (Firefox/WebKit got an empty-Content-Type 404 for
+    # 127.0.0.1). A provider-scoped opener keeps that failure mode out of the
+    # rest of the process.
     @staticmethod
     def _search_duckduckgo(
         query: str,
@@ -525,13 +538,34 @@ class GeneralWebGateway:
         timeout: float,
     ) -> tuple[list[dict[str, str]], str]:
         request = Request(
-            "https://html.duckduckgo.com/html/?" + urlencode({"q": query}),
-            headers={"User-Agent": "StudyAgent/1.0 (+general-web-tool)"},
+            "https://html.duckduckgo.com/html/",
+            data=urlencode({"q": query, "b": "", "kl": "wt-wt"}).encode("utf-8"),
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                ),
+                "Accept": (
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                ),
+                "Accept-Language": "en-US,en;q=0.9",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
         )
+        proxy = (os.getenv("WEB_DUCKDUCKGO_PROXY") or "").strip()
         try:
-            with urlopen(request, timeout=timeout) as response:
-                status = int(getattr(response, "status", 200) or 200)
-                payload = response.read(500_000).decode("utf-8", errors="ignore")
+            if proxy:
+                opener = build_opener(
+                    ProxyHandler({"http": proxy, "https": proxy})
+                )
+                with opener.open(request, timeout=timeout) as response:
+                    status = int(getattr(response, "status", 200) or 200)
+                    payload = response.read(500_000).decode("utf-8", errors="ignore")
+            else:
+                with urlopen(request, timeout=timeout) as response:
+                    status = int(getattr(response, "status", 200) or 200)
+                    payload = response.read(500_000).decode("utf-8", errors="ignore")
         except Exception as exc:
             return [], f"duckduckgo_html:{type(exc).__name__}:{exc}"
         challenge = any(
