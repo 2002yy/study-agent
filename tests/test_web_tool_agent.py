@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from urllib.error import HTTPError, URLError
+from urllib.request import ProxyHandler
 
 import pytest
 
@@ -233,7 +235,164 @@ def test_web_trace_rejects_loopback_search_results():
     assert trace.context_block() == ""
 
 
+def _ddg_response(payload: bytes, status: int = 200):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self, _limit):
+            return payload
+
+    Response.status = status
+    return Response()
+
+
+def test_duckduckgo_search_posts_the_site_form_with_browser_headers(monkeypatch):
+    """A GET with a self-identifying agent is answered with the anti-bot page.
+
+    Measured against the live endpoint: GET + self-identifying UA -> 202
+    "anomaly", POST + browser headers -> 200 with result links. The adapter must
+    therefore send the form the site sends, not a plain GET.
+    """
+
+    captured = {}
+
+    def fake_urlopen(request, **_kwargs):
+        captured["request"] = request
+        return _ddg_response(
+            b'<a class="result__a" href="/l/?uddg=https%3A%2F%2Fexample.org%2Fa">'
+            b"Example result</a>"
+        )
+
+    monkeypatch.setattr("src.web.tool_gateway.urlopen", fake_urlopen)
+    monkeypatch.delenv("WEB_DUCKDUCKGO_PROXY", raising=False)
+
+    results, error = GeneralWebGateway._search_duckduckgo("python dataclass", 5, 4.0)
+
+    assert error == ""
+    assert results == [
+        {
+            "title": "Example result",
+            "url": "https://example.org/a",
+            "snippet": "",
+            "source": "DuckDuckGo",
+            "published_at": "",
+        }
+    ]
+    request = captured["request"]
+    assert request.get_method() == "POST"
+    assert request.data.decode("utf-8").startswith("q=python+dataclass")
+    assert request.get_header("Content-type") == "application/x-www-form-urlencoded"
+    assert request.get_header("Accept-language") == "en-US,en;q=0.9"
+    assert "Mozilla/5.0" in request.get_header("User-agent")
+    assert "StudyAgent" not in request.get_header("User-agent")
+
+
+def test_duckduckgo_proxy_is_scoped_to_this_provider(monkeypatch):
+    """Egress is opt-in per provider, never a process-wide proxy.
+
+    docs/CL_M1_REBIND_PREVIEW.md §7: a proxy in the process environment hijacked
+    loopback requests and broke the browser gates, so the proxy must only wrap
+    this one request.
+    """
+
+    sent = {}
+
+    class Opener:
+        def open(self, request, timeout=None):
+            sent["request"] = request
+            sent["timeout"] = timeout
+            return _ddg_response(b'<a class="result__a" href="https://e.test/a">E</a>')
+
+    def fake_build_opener(handler):
+        sent["handler"] = handler
+        return Opener()
+
+    monkeypatch.setenv("WEB_DUCKDUCKGO_PROXY", "http://127.0.0.1:7890")
+    monkeypatch.setattr("src.web.tool_gateway.build_opener", fake_build_opener)
+    monkeypatch.setattr(
+        "src.web.tool_gateway.urlopen",
+        lambda *_args, **_kwargs: pytest.fail("proxy configured but urlopen used"),
+    )
+
+    results, error = GeneralWebGateway._search_duckduckgo("python", 5, 4.0)
+
+    assert error == ""
+    assert [item["url"] for item in results] == ["https://e.test/a"]
+    assert isinstance(sent["handler"], ProxyHandler)
+    assert sent["request"].get_method() == "POST"
+
+
+def test_duckduckgo_http_error_is_a_provider_failure(monkeypatch):
+    """urllib raises for 4xx/5xx, so the status must come from the error."""
+
+    def forbidden(*_args, **_kwargs):
+        raise HTTPError(
+            "https://html.duckduckgo.com/html/", 403, "Forbidden", None, None
+        )
+
+    monkeypatch.setattr("src.web.tool_gateway.urlopen", forbidden)
+
+    results, error = GeneralWebGateway._search_duckduckgo("python", 5, 1.0)
+
+    assert results == []
+    assert error == "duckduckgo_html:http_status:403"
+
+
+def test_duckduckgo_transport_failure_keeps_the_exception_type(monkeypatch):
+    def timed_out(*_args, **_kwargs):
+        raise URLError("timed out")
+
+    monkeypatch.setattr("src.web.tool_gateway.urlopen", timed_out)
+
+    results, error = GeneralWebGateway._search_duckduckgo("python", 5, 1.0)
+
+    assert results == []
+    assert error.startswith("duckduckgo_html:URLError:")
+
+
+def test_duckduckgo_result_page_that_mentions_challenge_is_not_a_block(monkeypatch):
+    """The query is echoed into the page title, so bare words cannot be markers.
+
+    Live reproduction before the fix: `coding challenge` returned HTTP 200 with
+    ten `result__a` links and was reported as `duckduckgo_html:challenge`.
+    """
+
+    payload = (
+        b"<html><head><title>coding challenge at DuckDuckGo</title></head><body>"
+        b'<a class="result__a" href="https://example.org/daily">'
+        b"Daily Coding Challenge</a>"
+        b"</body></html>"
+    )
+    monkeypatch.setattr(
+        "src.web.tool_gateway.urlopen",
+        lambda *_args, **_kwargs: _ddg_response(payload),
+    )
+
+    results, error = GeneralWebGateway._search_duckduckgo("coding challenge", 5, 1.0)
+
+    assert error == ""
+    assert [item["url"] for item in results] == ["https://example.org/daily"]
+
+
+def test_duckduckgo_page_without_results_reports_empty(monkeypatch):
+    monkeypatch.setattr(
+        "src.web.tool_gateway.urlopen",
+        lambda *_args, **_kwargs: _ddg_response(b"<html><body>no hits</body></html>"),
+    )
+
+    results, error = GeneralWebGateway._search_duckduckgo("python", 5, 1.0)
+
+    assert results == []
+    assert error == "duckduckgo_html:empty_response"
+
+
 def test_duckduckgo_challenge_is_structured_as_provider_failure(monkeypatch):
+    """A challenge is recognised by the anti-bot page's own markup."""
+
     class ChallengeResponse:
         status = 202
 
@@ -244,7 +403,12 @@ def test_duckduckgo_challenge_is_structured_as_provider_failure(monkeypatch):
             return None
 
         def read(self, _limit):
-            return b"anomaly challenge bots use DuckDuckGo"
+            return (
+                b'<html><body><div class="anomaly-modal__title">'
+                b"Unfortunately, bots use DuckDuckGo too.</div>"
+                b'<form id="challenge-form" action="/anomaly.js"></form>'
+                b"</body></html>"
+            )
 
     monkeypatch.setattr("src.web.tool_gateway.urlopen", lambda *_args, **_kwargs: ChallengeResponse())
 
