@@ -1,0 +1,503 @@
+{
+  "schema_version": "search-to-answer-baseline-v1",
+  "frozen_at": "2026-10-28",
+  "freeze_rule": "Prompts, expectations and scoring rules are frozen. Live answers are not: realtime cases are re-evaluated against the web state at run time.",
+  "scope": {
+    "round_1_cases": ["A01", "B01", "B02", "C01", "D01"],
+    "measured_here": "retrieval layer only (search + page read)",
+    "not_measured_here": [
+      "answer_status",
+      "ttfu_seconds",
+      "evidence_verdict",
+      "conversation follow-up behaviour"
+    ],
+    "why": "No zero-cost answer generator is wired into this checkout, so answer quality, TTFU and follow-up behaviour cannot be measured honestly. They are recorded as not_measured instead of being inferred from retrieval."
+  },
+  "scoring": {
+    "game_manual_5d": {
+      "fact_version_correctness": 30,
+      "source_reliability": 25,
+      "actionability": 20,
+      "personalisation": 15,
+      "explanation_clarity": 10
+    },
+    "non_game_manual_5d": {
+      "fact_version_correctness": 30,
+      "source_reliability": 25,
+      "actionability": 20,
+      "personalisation": 15,
+      "explanation_clarity": 10
+    },
+    "notes": "Initial weights, to be calibrated after the first trial round. Retrieval baseline does not score answers."
+  },
+  "cases": [
+    {
+      "id": "A01",
+      "category": "realtime",
+      "round_1": true,
+      "prompt": "《崩坏：星穹铁道》当前版本是多少？上下半卡池分别是谁？下一版本已经官宣了什么？",
+      "expected_behavior": "Report the live version, both banner halves and any officially announced next version, with official (HoYoverse) sources and explicit dates.",
+      "must_not": [
+        "present a past version as current",
+        "invent banner lineups",
+        "treat community leaks as official announcements"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "version matches the official current version at run time",
+          "both banner halves are attributed and dated",
+          "next-version claims are labelled official vs unconfirmed"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 14,
+        "region": "CN",
+        "official_domains": ["hoyolab.com", "hsr.hoyoverse.com", "hoyoverse.com"]
+      }
+    },
+    {
+      "id": "A02",
+      "category": "realtime",
+      "round_1": false,
+      "prompt": "《原神》最近一次前瞻直播有哪些兑换码？现在还能兑换吗？",
+      "expected_behavior": "List the codes from the most recent livestream and state whether each is still valid, with the expiry rule and a dated source.",
+      "must_not": [
+        "list expired codes as still usable",
+        "present codes from an older livestream as current"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "codes match the most recent official livestream",
+          "validity is stated per code with an expiry basis"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 14,
+        "region": "CN",
+        "official_domains": ["hoyolab.com", "genshin.hoyoverse.com"]
+      }
+    },
+    {
+      "id": "A03",
+      "category": "realtime",
+      "round_1": false,
+      "prompt": "《绝区零》最新版本有哪些活动？哪些奖励即将过期？",
+      "expected_behavior": "List current events with start/end dates and separate the expiring rewards.",
+      "must_not": [
+        "list ended events as current",
+        "give end dates without a timezone or server basis"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "events are current at run time",
+          "expiring rewards are identified with end dates"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 14,
+        "region": "CN",
+        "official_domains": ["hoyolab.com", "zenless.hoyoverse.com"]
+      }
+    },
+    {
+      "id": "A04",
+      "category": "realtime",
+      "round_1": false,
+      "prompt": "最近一周有哪些值得关注的开源 AI 模型发布？哪些提供了可下载权重？",
+      "expected_behavior": "Name releases from the last week, and for each state licence and whether weights are actually downloadable, citing primary repositories.",
+      "must_not": [
+        "treat a paper announcement as a weight release",
+        "cite aggregator posts instead of the repository or model card"
+      ],
+      "evaluation": {
+        "method": "non_game_manual_5d",
+        "checks": [
+          "each release is inside the stated window",
+          "weight availability is verified from the release itself"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 7
+      }
+    },
+    {
+      "id": "A05",
+      "category": "realtime",
+      "round_1": false,
+      "prompt": "Python 和 Node.js 当前稳定版本分别是多少？近期有哪些重要变化？",
+      "expected_behavior": "Report the current stable versions from the official release pages and summarise recent changes with version numbers.",
+      "must_not": [
+        "report a pre-release as stable",
+        "reuse stale version numbers"
+      ],
+      "evaluation": {
+        "method": "non_game_manual_5d",
+        "checks": [
+          "versions match the official pages at run time",
+          "changes are attributed to specific releases"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 30
+      }
+    },
+    {
+      "id": "B01",
+      "category": "comparison",
+      "round_1": true,
+      "prompt": "《星铁》黄泉队里的千冶·刃应该用什么遗器？与其他辅助相比有什么优势？",
+      "expected_behavior": "Give a build recommendation tied to the role the character plays in an Acheron team, explain the trade-off against other supports, and separate current-version mechanics from general ones.",
+      "must_not": [
+        "copy a generic best-in-slot list without explaining the team context",
+        "assume a character or relic set that does not exist in the current version"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "recommendation names the set, main stats and reason",
+          "comparison states what the character adds versus another support",
+          "version-specific claims are dated"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 30,
+        "region": "CN"
+      }
+    },
+    {
+      "id": "B02",
+      "category": "comparison",
+      "round_1": true,
+      "prompt": "《星铁》虚构叙事中，黄泉队、流萤队、Archer 队哪个更适合自动战斗？",
+      "expected_behavior": "Compare the three teams for auto-battle on the current Pure Fiction rotation, and say explicitly which conclusions are rotation-specific.",
+      "must_not": [
+        "rank teams without naming the current rotation mechanics",
+        "present manual-play performance as auto-battle performance"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "auto-battle behaviour is addressed separately from manual play",
+          "current rotation buffs are named",
+          "uncertain claims are flagged"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 30,
+        "region": "CN"
+      }
+    },
+    {
+      "id": "B03",
+      "category": "comparison",
+      "round_1": false,
+      "prompt": "《原神》雷电将军与八重神子应该优先提升谁？分别适合哪些队伍？",
+      "expected_behavior": "Compare investment value with explicit assumptions, then name the team archetypes each fits.",
+      "must_not": [
+        "treat the two as interchangeable",
+        "give advice without stating the account assumptions"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "comparison states assumptions (account state, role)",
+          "team archetypes are named and justified"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 60,
+        "region": "CN"
+      }
+    },
+    {
+      "id": "B04",
+      "category": "comparison",
+      "round_1": false,
+      "prompt": "《异星工厂》《戴森球计划》《幸福工厂》有什么区别？哪个更适合长期单人游玩？",
+      "expected_behavior": "Compare on concrete axes (scale, automation depth, combat pressure, multiplayer, modding) and give a recommendation that depends on stated preferences.",
+      "must_not": [
+        "declare a single winner without stating preferences",
+        "compare on marketing copy alone"
+      ],
+      "evaluation": {
+        "method": "non_game_manual_5d",
+        "checks": [
+          "comparison uses concrete, checkable axes",
+          "recommendation is conditioned on player preferences"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 180
+      }
+    },
+    {
+      "id": "B05",
+      "category": "comparison",
+      "round_1": false,
+      "prompt": "RTX 5060 Laptop 8GB 本地运行 9B 语言模型，Q4、Q5、Q8 哪种更合适？",
+      "expected_behavior": "Estimate memory per quantisation against the 8GB budget, name the trade-offs, and mark the estimate as arithmetic rather than measured.",
+      "must_not": [
+        "present estimates as measurements",
+        "ignore context-window memory"
+      ],
+      "evaluation": {
+        "method": "non_game_manual_5d",
+        "checks": [
+          "memory arithmetic is shown",
+          "recommendation follows from the budget",
+          "measurement vs estimate is labelled"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 180
+      }
+    },
+    {
+      "id": "C01",
+      "category": "deep_research",
+      "round_1": true,
+      "prompt": "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。",
+      "expected_behavior": "Explain the current rotation's scoring mechanics, then give teams, action order and auto-battle guidance, separating rotation-specific facts from general principles.",
+      "must_not": [
+        "invent enemy mechanics",
+        "give a score ceiling that ignores the current rotation rules"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "scoring mechanics are explained, not just asserted",
+          "team and action-order advice follows from those mechanics",
+          "rotation-specific claims are dated"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 30,
+        "region": "CN"
+      }
+    },
+    {
+      "id": "C02",
+      "category": "deep_research",
+      "round_1": false,
+      "prompt": "《原神》零氪或月卡玩家应该怎么规划未来两个版本的抽卡？比较角色、命座和武器的收益。",
+      "expected_behavior": "Build a pull plan with explicit budget assumptions, compare character vs constellation vs weapon value, and flag unconfirmed banners as uncertain.",
+      "must_not": [
+        "treat unannounced banners as certain",
+        "compare value without stating the budget"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "budget assumptions are explicit",
+          "value comparison separates character, constellation and weapon",
+          "uncertainty about unannounced content is stated"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 30,
+        "region": "CN"
+      }
+    },
+    {
+      "id": "C03",
+      "category": "deep_research",
+      "round_1": false,
+      "prompt": "《异星工厂》从新手到自动化火箭生产，应该怎样设计科技路线和生产线？",
+      "expected_behavior": "Give a staged plan from first smelting to rocket launch, with ratios and bottlenecks, and say which numbers come from the current game version.",
+      "must_not": [
+        "give ratios that contradict the current version",
+        "skip the intermediate stages"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "stages are ordered and actionable",
+          "ratios are stated with a basis",
+          "version-specific numbers are dated"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 365
+      }
+    },
+    {
+      "id": "C04",
+      "category": "deep_research",
+      "round_1": false,
+      "prompt": "研究轻量化遥感变化检测模型近年来的发展，比较精度、参数量、FLOPs 和实际部署成本。",
+      "expected_behavior": "Compare models on the four requested axes using papers or official benchmarks, and distinguish benchmark numbers from deployment cost estimates.",
+      "must_not": [
+        "compare numbers from incomparable datasets without saying so",
+        "invent FLOPs or parameter counts"
+      ],
+      "evaluation": {
+        "method": "non_game_manual_5d",
+        "checks": [
+          "each number has a source and dataset context",
+          "deployment cost is separated from benchmark metrics"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 730
+      }
+    },
+    {
+      "id": "C05",
+      "category": "deep_research",
+      "round_1": false,
+      "prompt": "调查最近一年开源世界模型的发展，哪些能够在 8GB 显存上运行？哪些真正支持交互？",
+      "expected_behavior": "Separate video-generation models from interactive world models, state memory requirements from the projects themselves, and mark unverified claims.",
+      "must_not": [
+        "call a video generator an interactive world model",
+        "claim 8GB compatibility without a source"
+      ],
+      "evaluation": {
+        "method": "non_game_manual_5d",
+        "checks": [
+          "interactive vs generative is distinguished",
+          "memory claims are sourced"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 365
+      }
+    },
+    {
+      "id": "D01",
+      "category": "follow_up",
+      "round_1": true,
+      "prompt": "帮我研究当前《星铁》虚构叙事的配队。",
+      "follow_up": "我只用自动战斗，重新推荐。",
+      "expected_behavior": "First turn: current-rotation team advice. Follow-up: revise only what auto-battle changes, keeping the rotation context and the user's constraints.",
+      "must_not": [
+        "restart the research from scratch on the follow-up",
+        "keep recommending manual-play teams after the constraint changes"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "turn 1 answers the current rotation",
+          "follow-up changes the recommendation rather than repeating it",
+          "earlier constraints are preserved"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 30,
+        "region": "CN",
+        "note": "Follow-up behaviour needs a conversation run; retrieval baseline measures turn 1 only."
+      }
+    },
+    {
+      "id": "D02",
+      "category": "follow_up",
+      "round_1": false,
+      "prompt": "对比《原神》两个当前值得抽取的角色。",
+      "follow_up": "假设我只有 120 抽，而且不抽专武呢？",
+      "expected_behavior": "Revise the comparison under a 120-pull, no-signature-weapon budget without redoing the whole analysis.",
+      "must_not": [
+        "ignore the pull budget",
+        "keep recommending a signature weapon"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "budget changes the recommendation",
+          "only affected parts are revised"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 30,
+        "region": "CN"
+      }
+    },
+    {
+      "id": "D03",
+      "category": "follow_up",
+      "round_1": false,
+      "prompt": "推荐《异星工厂》的前期生产布局。",
+      "follow_up": "我现在不想使用物流机器人，重新设计。",
+      "expected_behavior": "Redesign the early layout without logistics robots, keeping the earlier stage assumptions.",
+      "must_not": [
+        "keep using logistics robots in the redesigned layout",
+        "restart from an unrelated stage"
+      ],
+      "evaluation": {
+        "method": "game_manual_5d",
+        "checks": [
+          "the new constraint is honoured",
+          "the revised layout still fits the earlier stage"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 365
+      }
+    },
+    {
+      "id": "D04",
+      "category": "follow_up",
+      "round_1": false,
+      "prompt": "推荐三个适合 RTX 5060 Laptop 的本地 AI 模型。",
+      "follow_up": "我更在乎中文小说创作，速度可以慢一点。",
+      "expected_behavior": "Re-rank the same candidates for Chinese fiction writing, accepting slower inference.",
+      "must_not": [
+        "drop the 8GB memory constraint",
+        "introduce models that were not plausible in the first list without saying why"
+      ],
+      "evaluation": {
+        "method": "non_game_manual_5d",
+        "checks": [
+          "re-ranking follows the new priority",
+          "hardware constraint is preserved"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 365
+      }
+    },
+    {
+      "id": "D05",
+      "category": "follow_up",
+      "round_1": false,
+      "prompt": "比较三种开源 AI 视频生成方案。",
+      "follow_up": "去掉需要 24GB 显存的方案，并保留刚才的其他条件。",
+      "expected_behavior": "Remove the 24GB options and keep every other earlier condition, without re-researching from zero.",
+      "must_not": [
+        "reintroduce a removed option",
+        "silently drop earlier constraints"
+      ],
+      "evaluation": {
+        "method": "non_game_manual_5d",
+        "checks": [
+          "removed options stay removed",
+          "earlier conditions are preserved"
+        ]
+      },
+      "external_conditions": {
+        "network": "public web",
+        "freshness_days": 365
+      }
+    }
+  ]
+}
