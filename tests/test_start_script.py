@@ -21,6 +21,25 @@ FOREIGN_PAGES = {
         "<body><h1>Welcome to nginx!</h1></body></html>"
     ),
     "api-json": '{"detail":"Unauthorized"}',
+    # A hyphen is a word boundary, so `data-name` used to satisfy a `\bname`
+    # pattern even though it declares nothing.
+    "hyphenated-attributes": (
+        "<!doctype html><html><head><title>学习助手 · 学习工作台</title>"
+        '<meta data-name="study-agent-app" data-content="study-agent" />'
+        '</head><body><div id="root"></div></body></html>'
+    ),
+    # A comment that documents the marker is not a declaration either.
+    "marker-in-a-comment": (
+        "<!doctype html><html><head><title>学习助手 · 学习工作台</title>"
+        '<!-- <meta name="study-agent-app" content="study-agent" /> -->'
+        '</head><body><div id="root"></div></body></html>'
+    ),
+    # `<meta` is a tag name, not a prefix: this is a different element.
+    "meta-data-element": (
+        "<!doctype html><html><head><title>学习助手 · 学习工作台</title>"
+        '<meta-data name="study-agent-app" content="study-agent"></meta-data>'
+        '</head><body><div id="root"></div></body></html>'
+    ),
 }
 
 
@@ -136,6 +155,18 @@ def judge_frontend_page(page: Path, workdir: Path) -> str:
 
 def test_frontend_identity_accepts_the_real_entry_page(tmp_path):
     assert judge_frontend_page(FRONTEND_ENTRY, tmp_path) == "accepted"
+
+
+def test_frontend_identity_accepts_the_marker_in_any_attribute_order(tmp_path):
+    page = tmp_path / "reordered.html"
+    page.write_text(
+        "<!doctype html><html><head>"
+        "<meta content='study-agent' name='study-agent-app'>"
+        "</head><body><div id=\"root\"></div></body></html>",
+        encoding="utf-8",
+    )
+
+    assert judge_frontend_page(page, tmp_path) == "accepted"
 
 
 @pytest.mark.parametrize("label", sorted(FOREIGN_PAGES))
