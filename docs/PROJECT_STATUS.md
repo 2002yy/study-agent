@@ -16,7 +16,7 @@
 
 | 方向 | 已证实进入 main | 尚未取得的资格 |
 | --- | --- | --- |
-| **CL-M3 生产接线（S2 批次）** | [#288](https://github.com/2002yy/study-agent/pull/288) 已合并为 `5b0acbb7656e113ab8737b4e4e633aaee21a4bcf`。精确 PR HEAD `3ab26f83` 的 PR CI #40300791096 全绿（全量 pytest 6343 passed、ruff、mypy 基线、前端、Golden Journeys、real-stack 均 success）；25 条评审线程在逐条核对代码与回归测试后全部收口。 | 合并提交的 main CI (#40310609353) 结论需单独核验，不能由 PR CI 代替；**工程合并不等于产品 GO**。全量 L3 未在该批次单独记录（CI 已执行同一测试集合）。 |
+| **CL-M3 生产接线（S2 批次）** | [#288](https://github.com/2002yy/study-agent/pull/288) 已合并为 `5b0acbb7656e113ab8737b4e4e633aaee21a4bcf`。精确 PR HEAD `3ab26f83` 的 PR CI #40300791096 全绿（全量 pytest 6343 passed、ruff、mypy 基线、前端、Golden Journeys、real-stack 均 success）；25 条评审线程在逐条核对代码与回归测试后全部收口。 | 合并提交的 main CI（#40310609353）实际为 **failure**：`Install Playwright browsers` 在 40 分钟上限处超时（托管 runner 的 apt 镜像过慢），随后两个浏览器步骤被 `if:` 跳过，汇总门禁如实变红——**当时 main 的浏览器门禁并未真正执行**。该缺陷已由容器化解决（browser 作业改用固定 digest 的 Playwright 镜像，浏览器预装、不再 `--with-deps`，见 `docs/CI_BROWSER_CONTAINER_PLAN.md`），并在 main 上验证为绿：run `40473062649`（`346e2547`）与 run `40484965012`（`c8359685`）。**工程合并不等于产品 GO**。全量 L3 未在该批次单独记录（CI 已执行同一测试集合）。 |
 | **访问控制（S1，已合并）** | [#289](https://github.com/2002yy/study-agent/pull/289) 已合并为 `4cbcefe2`。精确 PR HEAD `959f4252` 的 PR CI [40486213770](https://github.com/2002yy/study-agent/actions/runs/40486213770) 五作业全绿（`classify`/`backend`/`frontend`/`browser`/`test` 均 success；Golden Journeys 79 passed、real-stack 24 passed）。能力边界：`STUDY_AGENT_API_TOKEN` 未配置时拒绝所有私有请求；前端改为运行时输入令牌（localStorage），不写入构建产物；锁定状态有明确提示并在保存后自动重载；启动器不再以 `VITE_` 变量把令牌交给前端开发服务器。Windows 启动链哨兵为**本地动态验收**（A 正常脚本 0 泄露且 `/sessions` 401、B 回退旧 `VITE_` 注入时探针在 10 个应用模块检出哨兵、C 去掉安全断言时门禁以 exit 1 如实失败、D UI 输入令牌 401→200），证据见 PR 评论 `6438275491` 与 `D:\study-agent-validation\artifacts\s1-windows-sentinel-2026-10-27\`。 | 哨兵的 **CI 自动化仍是开放项**：现有证据是本地动态验收，不是常设门禁。启动器 `Test-FrontendIdentity` 仍按英文标题 `<title>Study Agent Console</title>` 检查，而实际标题是「学习助手 · 学习工作台」，健康服务会被误判为启动失败（独立 P2，未在本批次修复）。多用户身份、数据归属与配额隔离**尚未实现**。 |
 | **多用户隔离** | — | 需要身份、`chat_threads` 等表的归属字段、按用户过滤的查询边界、记忆/附件/研究任务与费用配额隔离。当前版本明确**不是**多用户系统。 |
 | **并发稳定性** | 同一会话单操作（CAS）、同一研究任务租约与代际、陈旧写入版本校验、研究事件全局递增序号。 | 聊天操作 300 秒过期回收**没有续租**，多进程同时运行时长任务可能被误判；全局设置读改写存在并发丢更新窗口；搜索线程池超时后线程不能强制终止。均为已确认、待修问题。 |
@@ -26,10 +26,11 @@
 ### 唯一下一门：S2 并发与暴露面收口（暂停，等待单独授权）
 
 1. **S1（CLOSED，2026-10-27）**：无令牌一律 401；前端运行时令牌；本地配置方法写进 README；E2E 用真实浏览器验证令牌路径。已合并为 `4cbcefe2`，精确 head 五作业 CI 全绿；剩余开放项只有哨兵 CI 自动化与启动器标题检查（见上表）。
-2. **S2（已实现，未授权合并）**：[#293](https://github.com/2002yy/study-agent/pull/293) 保持打开且 CI 绿灯，但**没有合并授权**，main 尚未具备该能力。内容：聊天操作增加 `active_operation_heartbeat_at` 续租，回收改为原子条件更新且只针对心跳过期；旧记录按明确回退规则处理；该切片含迁移，合并前需要一次完整 L3。
-3. **S3**：研究取消时序先写负控测试，只有真实复现“取消后仍发起付费调用”才修改生产逻辑。
-4. **S4/S5**：全局设置并发、搜索资源回收，保留方案不改代码。
-5. **S6**：多用户隔离独立立项。
+2. **S2（未启动、未授权）**：聊天操作增加 `active_operation_heartbeat_at` 续租、回收改为原子条件更新且只针对心跳过期、旧记录按明确回退规则处理；该切片含迁移，需要一次完整 L3。**当前没有对应 PR，也没有合并授权**，main 仍按 300 秒直接回收。
+3. **[#293](https://github.com/2002yy/study-agent/pull/293)（独立搜索可靠性修复，未合并）**：`web:` 让 DuckDuckGo 提供商真正返回结果（POST 表单 + 作用域代理），只触及 `.env.example`、`src/web/tool_gateway.py` 与对应测试。它与 S2 并发续租**无关**，保持开放、未合并、未授权。
+4. **S3**：研究取消时序先写负控测试，只有真实复现“取消后仍发起付费调用”才修改生产逻辑。
+5. **S4/S5**：全局设置并发、搜索资源回收，保留方案不改代码。
+6. **S6**：多用户隔离独立立项。
 
 ### 并发与多用户边界（2026-10-26 远端静态审查）
 
