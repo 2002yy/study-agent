@@ -74,7 +74,7 @@ PROVIDER_ENV_KEYS = (
 # A read whose extracted text is shorter than this is not usable evidence, even
 # when the HTTP fetch and the extractor both "succeeded" (a 282-character clock
 # page is a technical success and a useless source).
-DEFAULT_MIN_EVIDENCE_CHARS = 800
+DEFAULT_MIN_CONTENT_CHARS = 800
 
 
 def _snapshot_env(keys: tuple[str, ...]) -> dict[str, str | None]:
@@ -155,7 +155,7 @@ def _read_probe(
     url: str,
     *,
     max_chars: int,
-    min_evidence_chars: int,
+    min_content_chars: int,
 ) -> dict[str, Any]:
     started = time.monotonic()
     try:
@@ -165,7 +165,7 @@ def _read_probe(
             "url": url,
             "technical_ok": False,
             "error_type": type(exc).__name__,
-            "evidence_usable": False,
+            "length_qualified": False,
             "elapsed_seconds": round(time.monotonic() - started, 3),
         }
     content = str(payload.get("content") or "")
@@ -176,7 +176,7 @@ def _read_probe(
         "content_chars": len(content),
         # Technical success is not evidence: a 282-character clock page is
         # fetched and extracted fine, and tells the user nothing.
-        "evidence_usable": technical_ok and len(content) >= min_evidence_chars,
+        "length_qualified": technical_ok and len(content) >= min_content_chars,
         "error_code": _bounded(payload.get("error_code"), 120) if not payload.get("ok") else "",
         "elapsed_seconds": round(time.monotonic() - started, 3),
     }
@@ -227,8 +227,8 @@ def _summarise(records: list[dict[str, Any]]) -> dict[str, Any]:
             "top_k_url_technical_read_successes": sum(
                 1 for read in reads if read["technical_ok"]
             ),
-            "top_k_url_evidence_usable_reads": sum(
-                1 for read in reads if read["evidence_usable"]
+            "top_k_url_length_qualified_reads": sum(
+                1 for read in reads if read["length_qualified"]
             ),
             "read_attempts": len(reads),
             "read_error_codes": sorted(
@@ -255,15 +255,17 @@ def run_baseline(
     max_reads: int,
     max_chars: int,
     selected_cases: set[str] | None,
-    min_evidence_chars: int = DEFAULT_MIN_EVIDENCE_CHARS,
+    min_content_chars: int = DEFAULT_MIN_CONTENT_CHARS,
 ) -> dict[str, Any]:
+    # The caller's environment is captured before .env is loaded, otherwise a
+    # variable injected by .env could never be restored to "unset".
+    caller_env = _snapshot_env(PROVIDER_ENV_KEYS)
     load_dotenv(REPO_ROOT / ".env")
     document, cases = load_cases(cases_path, selected_cases)
 
     # Captured after .env is loaded: "auto" must mean the deployment's
     # configuration, not whatever a previous mode left in the environment.
     baseline_env = _snapshot_env(PROVIDER_ENV_KEYS)
-    caller_env = _snapshot_env(PROVIDER_ENV_KEYS)
 
     artifact: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -283,10 +285,12 @@ def run_baseline(
             ),
             "max_reads_per_case": max_reads,
             "technical_success": "fetch and extraction succeeded with non-empty text",
-            "evidence_usable": (
-                f"technical success with at least {min_evidence_chars} extracted characters"
+            "length_qualified": (
+                f"technical success with at least {min_content_chars} extracted characters; "
+                "length does not prove relevance or claim support"
             ),
-            "min_evidence_chars": min_evidence_chars,
+            "min_content_chars": min_content_chars,
+            "claim_support": "not_measured",
             "related_source_read_quality": "not_measured",
             "why": (
                 "top-k URLs are often irrelevant, so this measures the read path on "
@@ -335,7 +339,7 @@ def run_baseline(
                         gateway,
                         str(item.get("url") or ""),
                         max_chars=max_chars,
-                        min_evidence_chars=min_evidence_chars,
+                        min_content_chars=min_content_chars,
                     )
                     for item in sampled
                 ]
@@ -376,8 +380,8 @@ def run_baseline(
                     "top_k_url_technical_read_successes": sum(
                         1 for read in reads if read["technical_ok"]
                     ),
-                    "top_k_url_evidence_usable_reads": sum(
-                        1 for read in reads if read["evidence_usable"]
+                    "top_k_url_length_qualified_reads": sum(
+                        1 for read in reads if read["length_qualified"]
                     ),
                     "answer_status": "not_measured",
                     "ttfu_seconds": None,
@@ -395,7 +399,7 @@ def run_baseline(
                     f"top{max_reads}_technical="
                     f"{record['top_k_url_technical_read_successes']}/"
                     f"{record['read_sampling']['sampled']} · "
-                    f"evidence={record['top_k_url_evidence_usable_reads']} · "
+                    f"length_qualified={record['top_k_url_length_qualified_reads']} · "
                     f"{record['search_latency_seconds']}s",
                     flush=True,
                 )
@@ -420,7 +424,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-results", type=int, default=6)
     parser.add_argument("--max-reads", type=int, default=2)
     parser.add_argument("--max-chars", type=int, default=6000)
-    parser.add_argument("--min-evidence-chars", type=int, default=DEFAULT_MIN_EVIDENCE_CHARS)
+    parser.add_argument("--min-content-chars", type=int, default=DEFAULT_MIN_CONTENT_CHARS)
     return parser
 
 
@@ -434,7 +438,7 @@ def main() -> int:
         max_reads=max(0, min(args.max_reads, 5)),
         max_chars=max(500, min(args.max_chars, 20_000)),
         selected_cases=set(args.case) or None,
-        min_evidence_chars=max(0, args.min_evidence_chars),
+        min_content_chars=max(0, args.min_content_chars),
     )
     print(json.dumps(artifact["summary"], ensure_ascii=False, sort_keys=True))
     return 0

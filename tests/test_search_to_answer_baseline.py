@@ -226,7 +226,7 @@ def test_summary_reports_snippets_and_reads(tmp_path, monkeypatch):
     assert summary["snippet_present_ratio"] == 0.5
     # "body" is a technical success but far too short to be usable evidence.
     assert summary["top_k_url_technical_read_successes"] == 2
-    assert summary["top_k_url_evidence_usable_reads"] == 0
+    assert summary["top_k_url_length_qualified_reads"] == 0
 
 
 def test_read_sampling_is_recorded_and_not_called_relevance_quality(tmp_path, monkeypatch):
@@ -260,7 +260,7 @@ def test_read_sampling_is_recorded_and_not_called_relevance_quality(tmp_path, mo
         max_reads=1,
         max_chars=2000,
         selected_cases={"A01"},
-        min_evidence_chars=800,
+        min_content_chars=800,
     )
 
     record = artifact["records"][0]
@@ -271,8 +271,57 @@ def test_read_sampling_is_recorded_and_not_called_relevance_quality(tmp_path, mo
         "available_results": 3,
     }
     assert record["top_k_url_technical_read_successes"] == 1
-    assert record["top_k_url_evidence_usable_reads"] == 1
+    assert record["top_k_url_length_qualified_reads"] == 1
     contract = artifact["read_contract"]
     assert contract["related_source_read_quality"] == "not_measured"
-    assert contract["min_evidence_chars"] == 800
+    assert contract["claim_support"] == "not_measured"
+    assert "does not prove relevance" in contract["length_qualified"]
+    assert contract["min_content_chars"] == 800
     assert "no relevance filter" in contract["selection"]
+
+
+def test_caller_environment_is_restored_even_when_dotenv_injected_the_vars(
+    tmp_path, monkeypatch
+):
+    """A variable that .env introduced must be gone again after the run."""
+
+    import os
+
+    for name in ("WEB_ENABLE_SEARXNG", "WEB_ENABLE_BING_RSS", "WEB_ENABLE_DUCKDUCKGO"):
+        monkeypatch.delenv(name, raising=False)
+
+    def fake_load_dotenv(*_args, **_kwargs):
+        os.environ["WEB_ENABLE_SEARXNG"] = "true"
+        os.environ["WEB_ENABLE_BING_RSS"] = "true"
+        os.environ["WEB_ENABLE_DUCKDUCKGO"] = "true"
+
+    monkeypatch.setattr(
+        "tools.run_search_to_answer_baseline.load_dotenv", fake_load_dotenv
+    )
+    monkeypatch.setattr(
+        "tools.run_search_to_answer_baseline.GeneralWebGateway.search_detailed",
+        lambda self, query, **kwargs: {
+            "status": "ok",
+            "reason": "results_found",
+            "attempted_queries": [query],
+            "results": [],
+            "provider_errors": [],
+        },
+    )
+
+    artifact = run_baseline(
+        cases_path=FIXTURE,
+        output_path=tmp_path / "artifact.json",
+        modes=["auto"],
+        max_results=1,
+        max_reads=0,
+        max_chars=500,
+        selected_cases={"A01"},
+    )
+
+    assert artifact["records"]
+    # The deployment baseline (from .env) still drove the run...
+    assert artifact["records"][0]["provider_mode"] == "auto"
+    # ...but the caller never had these variables and must not keep them.
+    for name in ("WEB_ENABLE_SEARXNG", "WEB_ENABLE_BING_RSS", "WEB_ENABLE_DUCKDUCKGO"):
+        assert os.environ.get(name) is None

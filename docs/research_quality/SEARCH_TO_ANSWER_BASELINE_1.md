@@ -33,12 +33,16 @@
 | --- | --- |
 | `read_sampling` | `results[:max_reads]`（默认 2），**不做相关性过滤**；每条记录都写明 `sampled` 与 `available_results` |
 | `top_k_url_technical_read_successes` | 抓取与抽取都成功且正文非空（不判断是否有用） |
-| `top_k_url_evidence_usable_reads` | 技术成功且正文 ≥ 800 字符（`--min-evidence-chars`） |
+| `top_k_url_length_qualified_reads` | 技术成功且正文 ≥ 800 字符（`--min-content-chars`） |
+| `claim_support` | **`not_measured`**：长度达标不等于相关，更不等于支持某个结论 |
 | `related_source_read_quality` | **`not_measured`**：需要对相关 URL 单独抽样并人工判读 |
 
 **抽样偏差**：B01/B02/C01 的前两条 URL 多为「星」的字典页、云游戏首页，D01 前两条是词语解释与时钟网站。
 因此下文的读取数字只描述「读取路径在首批返回结果上的表现」，不能推断「相关攻略来源的抽取质量」。
-第二次运行已把这两个概念分列，旧字段 `read_successes` 不再使用。
+
+**命名变更**：run2 产物里这两个计数叫 `top_k_url_technical_read_successes` 与 `top_k_url_evidence_usable_reads`；
+后者在后续代码中已改名为 `top_k_url_length_qualified_reads`，两者是**同一口径**（只改名，未改数据）。
+run2 的原始产物保持原样，不做改写。
 
 ## 结果数字
 
@@ -58,13 +62,14 @@
 
 ### 读取层（前 2 条 URL，run2）
 
-| 模式 | 技术读取成功 | 证据可用（≥800 字符） | 读取错误码 |
+| 模式 | 技术读取成功 | 正文长度达标（≥800 字符） | 读取错误码 |
 | --- | ---: | ---: | --- |
 | `auto` | 1/10 | **0/10** | `fetch_failed`、`other`、`provider_failed` |
 | `fallback` | 1/10 | **0/10** | `fetch_failed` |
 | `ddg_only` | 3/10 | **3/10** | `fetch_failed`、`provider_failed` |
 
-run1 的同口径值为：`auto` 1/10（证据可用 0/10）、`fallback` 1/10（0/10）、`ddg_only` 1/4（1/4）。
+run1 的同口径值为：`auto` 1/10（长度达标 0/10）、`fallback` 1/10（0/10）、`ddg_only` 1/4（1/4）。
+长度达标只说明正文足够长可作候选，**不说明它相关或能支撑结论**（`claim_support: not_measured`）。
 
 ### 人工相关性判读（n=5，仅第一轮样本，不作为统计结论）
 
@@ -92,8 +97,8 @@ run1 的同口径值为：`auto` 1/10（证据可用 0/10）、`fallback` 1/10�
 | `https://sr.mihoyo.com/` | 直连 HTTP 200，但 `provider_failed`（SPA，无可抽取正文） |
 | `https://baike.baidu.com/item/星/1586` | `http_403`（反爬；走代理同样 403） |
 | `https://www.miyoushe.com/sr/article/75743090`（DDG 命中的相关攻略） | `provider_failed` / `fetch_failed`（两种模式反复失败） |
-| `https://www.bilibili.com/video/BV1uZV96gEXd/` | 成功，2061 字符（证据可用） |
-| `https://gachia.com/zh/starrail/guides/banner-schedule-guide` | 成功，3727 字符（证据可用） |
+| `https://www.bilibili.com/video/BV1uZV96gEXd/` | 成功，2061 字符（正文长度达标） |
+| `https://gachia.com/zh/starrail/guides/banner-schedule-guide` | 成功，3727 字符（正文长度达标） |
 | `https://time.ms/zh-cn/` | 成功但仅 282 字符 → 技术成功、**证据不可用** |
 
 **3. 摘要缺失是 DDG 专属**
@@ -111,7 +116,7 @@ run2：全部成功。run1 的 challenge 不是查询词回显误判（查询不
 | 序 | 根因 | 证据 | 归属 |
 | --- | --- | --- | --- |
 | 1 | **查询构建缺失**：整句中文提问直接下发，引擎退化为单词匹配 | 3 题返回同一组无关结果；D01 匹配「当前」 | 检索编排（query planning），不是 provider |
-| 2 | **读取路径在攻略站基本不可用**（前 2 条 URL 口径）：米游社/米哈游 SPA 抽取失败，baike 403 | `auto`/`fallback` 技术 1/10、证据可用 0/10；DDG 路径 3/10 可用 | 读取层 |
+| 2 | **读取路径在攻略站基本不可用**（前 2 条 URL 口径）：米游社/米哈游 SPA 抽取失败，baike 403 | `auto`/`fallback` 技术 1/10、长度达标 0/10；DDG 路径 3/10 长度达标 | 读取层 |
 | 3 | **路由只看「有没有结果」**：Bing 有无关结果就结束，DDG 从不参与 | `auto`/`fallback` 30 条全部 Bing，DDG 0 条 | 路由策略 |
 | 4 | **DDG 突发请求不稳定**：无退避/节流/缓存 | run1 第 4、5 题 challenge，另有 SSL EOF | provider 调用策略 |
 | 5 | **DDG 无摘要**：解析器只取标题与链接 | 0/30 | 解析器（P3，仅 DDG） |
@@ -125,6 +130,7 @@ run2：全部成功。run1 的 challenge 不是查询词回显误判（查询不
 | 首个有用内容时间（TTFU） | 需要真实回答流式输出 |
 | 多轮追问行为（D01 第二轮等） | 需要会话级运行 |
 | 相关来源的正文抽取质量 | 需要对相关 URL 单独抽样并人工判读（当前只测了前 2 条） |
+| 证据是否支持具体结论（claim_support） | 需要生成的主张才能核验；长度达标不是证据 |
 
 ## 技术备忘：哪些出口需要代理（本轮实测，不改代码）
 
@@ -161,7 +167,7 @@ run2：全部成功。run1 的 challenge 不是查询词回显误判（查询不
 python tools/run_search_to_answer_baseline.py `
   --mode auto --mode fallback --mode ddg_only `
   --case A01 --case B01 --case B02 --case C01 --case D01 `
-  --min-evidence-chars 800
+  --min-content-chars 800
 ```
 
 每次运行生成新的 `run_id`，`head_sha` 记录代码版本；`read_contract` 记录选择规则与阈值，便于跨轮对比。
