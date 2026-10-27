@@ -166,6 +166,7 @@ def main() -> None:
         "src/mode_manager.py",
         "src/llm_client.py",
         "tools/start-study-agent.ps1",
+        "tools/frontend-identity.ps1",
         "tools/package_project.ps1",
         "tools/package_project_helper.py",
     ]
