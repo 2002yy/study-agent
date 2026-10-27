@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler
 
 import pytest
@@ -326,15 +327,55 @@ def test_duckduckgo_proxy_is_scoped_to_this_provider(monkeypatch):
 
 
 def test_duckduckgo_http_error_is_a_provider_failure(monkeypatch):
-    monkeypatch.setattr(
-        "src.web.tool_gateway.urlopen",
-        lambda *_args, **_kwargs: _ddg_response(b"<html></html>", status=403),
-    )
+    """urllib raises for 4xx/5xx, so the status must come from the error."""
+
+    def forbidden(*_args, **_kwargs):
+        raise HTTPError(
+            "https://html.duckduckgo.com/html/", 403, "Forbidden", None, None
+        )
+
+    monkeypatch.setattr("src.web.tool_gateway.urlopen", forbidden)
 
     results, error = GeneralWebGateway._search_duckduckgo("python", 5, 1.0)
 
     assert results == []
     assert error == "duckduckgo_html:http_status:403"
+
+
+def test_duckduckgo_transport_failure_keeps_the_exception_type(monkeypatch):
+    def timed_out(*_args, **_kwargs):
+        raise URLError("timed out")
+
+    monkeypatch.setattr("src.web.tool_gateway.urlopen", timed_out)
+
+    results, error = GeneralWebGateway._search_duckduckgo("python", 5, 1.0)
+
+    assert results == []
+    assert error.startswith("duckduckgo_html:URLError:")
+
+
+def test_duckduckgo_result_page_that_mentions_challenge_is_not_a_block(monkeypatch):
+    """The query is echoed into the page title, so bare words cannot be markers.
+
+    Live reproduction before the fix: `coding challenge` returned HTTP 200 with
+    ten `result__a` links and was reported as `duckduckgo_html:challenge`.
+    """
+
+    payload = (
+        b"<html><head><title>coding challenge at DuckDuckGo</title></head><body>"
+        b'<a class="result__a" href="https://example.org/daily">'
+        b"Daily Coding Challenge</a>"
+        b"</body></html>"
+    )
+    monkeypatch.setattr(
+        "src.web.tool_gateway.urlopen",
+        lambda *_args, **_kwargs: _ddg_response(payload),
+    )
+
+    results, error = GeneralWebGateway._search_duckduckgo("coding challenge", 5, 1.0)
+
+    assert error == ""
+    assert [item["url"] for item in results] == ["https://example.org/daily"]
 
 
 def test_duckduckgo_page_without_results_reports_empty(monkeypatch):
@@ -350,6 +391,8 @@ def test_duckduckgo_page_without_results_reports_empty(monkeypatch):
 
 
 def test_duckduckgo_challenge_is_structured_as_provider_failure(monkeypatch):
+    """A challenge is recognised by the anti-bot page's own markup."""
+
     class ChallengeResponse:
         status = 202
 
@@ -360,7 +403,12 @@ def test_duckduckgo_challenge_is_structured_as_provider_failure(monkeypatch):
             return None
 
         def read(self, _limit):
-            return b"anomaly challenge bots use DuckDuckGo"
+            return (
+                b'<html><body><div class="anomaly-modal__title">'
+                b"Unfortunately, bots use DuckDuckGo too.</div>"
+                b'<form id="challenge-form" action="/anomaly.js"></form>'
+                b"</body></html>"
+            )
 
     monkeypatch.setattr("src.web.tool_gateway.urlopen", lambda *_args, **_kwargs: ChallengeResponse())
 

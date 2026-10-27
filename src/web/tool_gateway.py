@@ -13,6 +13,7 @@ import os
 import re
 import time
 from typing import Any
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
 from urllib.request import ProxyHandler, Request, build_opener, urlopen
 from xml.etree import ElementTree
@@ -47,6 +48,13 @@ def _env_float(
     except (TypeError, ValueError):
         value = default
     return max(minimum, min(value, maximum))
+
+
+_DUCKDUCKGO_CHALLENGE_MARKERS = (
+    'class="anomaly-modal',
+    'id="challenge-form"',
+    "bots use duckduckgo",
+)
 
 
 class _DuckDuckGoResultsParser(HTMLParser):
@@ -566,15 +574,25 @@ class GeneralWebGateway:
                 with urlopen(request, timeout=timeout) as response:
                     status = int(getattr(response, "status", 200) or 200)
                     payload = response.read(500_000).decode("utf-8", errors="ignore")
+        except HTTPError as exc:
+            # urllib raises for 4xx/5xx, so the status has to be taken from the
+            # error itself; otherwise every blocked request would surface as an
+            # opaque HTTPError string instead of a status code.
+            return [], f"duckduckgo_html:http_status:{exc.code}"
         except Exception as exc:
             return [], f"duckduckgo_html:{type(exc).__name__}:{exc}"
+        # Only the anti-bot page's own structure counts as a challenge. Matching
+        # bare words would reject ordinary result pages: DuckDuckGo echoes the
+        # query into the document title, so searching for "coding challenge"
+        # returned ten results and used to be reported as a challenge.
         challenge = any(
             marker in payload.casefold()
-            for marker in ("anomaly", "challenge", "bots use duckduckgo")
+            for marker in _DUCKDUCKGO_CHALLENGE_MARKERS
         )
-        if status != 200 or challenge:
-            reason = "challenge" if challenge else f"http_status:{status}"
-            return [], f"duckduckgo_html:{reason}"
+        if challenge:
+            return [], "duckduckgo_html:challenge"
+        if status != 200:
+            return [], f"duckduckgo_html:http_status:{status}"
         parser = _DuckDuckGoResultsParser()
         parser.feed(payload)
         results = [
