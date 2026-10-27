@@ -188,6 +188,37 @@ def configured_completion(*, messages: list[dict[str, str]], timeout: float, tas
                 request_max_retries=0, task_name=task_name)
 
 
+_TURN_INSTRUCTION = (
+    "Interpret the latest turn relative to this research episode and plan public-web queries. "
+    "Decide intent from latest_message, NOT from the older episode's unanswered questions. "
+    "When active_task_exists=false the episode is a provisional container, not existing research: "
+    "an explicit question must be NEW_RESEARCH. A retry without an active task must ABSTAIN. "
+    "CONTINUE preserves the original topic; retry/control words are never search subjects. "
+    "A different person/name/entity (even a short bare name) is NEW_RESEARCH and saves the old episode. "
+    "Do not treat unrelated bare names as a continuation. REFINE can add questions/preferences. "
+    "Decompose identity, capabilities/performance, comparison when asked. Preserve all existing RQs on continuation. "
+    # QP-1B: a planned query has to carry the entities and the task focus, otherwise
+    # the engine answers a topic instead of the question (a character's dictionary
+    # entry for a build question).
+    "Plan 2 or 3 short queries (2-8 meaningful terms), bound each to an RQ. "
+    "Keep the entity anchors the user named (work, character, model, product, version) and the task "
+    "focus (build, comparison, auto-battle, release notes) in every query; a query that drops them "
+    "is a topic search, not a plan. "
+    "Prefer precise official release/model docs for facts a publisher owns, "
+    "then independent tests for comparisons. Use as_of_date for current information. "
+    # QP-1B: an official-domain query is right for publisher-owned facts, not for
+    # community knowledge; forcing it hides the builds and strategies users ask for.
+    "Use site:OFFICIAL_DOMAIN only when the requested fact is owned by that publisher and the domain "
+    "is known; for community knowledge such as builds, strategies or gameplay, query community and "
+    "test sources instead of forcing an official-domain query, and never present a domain as evidence "
+    "or proof. "
+    "Do not append generic words official release model documentation to every query. "
+    "Do not silently substitute other versions or infer a named version doesn't exist. "
+    "Do not claim knowledge or evidence. "
+    "Allowed constraint keys: focus, source_preference, excluded_page_types, persistence. "
+)
+
+
 class ResearchSemanticSession:
     """One interpreter call and two batched relevance calls; workers return values only."""
 
@@ -286,24 +317,7 @@ class ResearchSemanticSession:
                   "unresolved_questions": [{"id": "rq-identity", "question": "subquestion"}],
                   "suggested_next_action": "brief action", "proposed_queries": [{"rq_id": "rq-identity", "query": "focused search"}]}
         raw = self.request("research_turn_interpretation",
-            "Interpret the latest turn relative to this research episode and plan public-web queries. "
-            "Decide intent from latest_message, NOT from the older episode's unanswered questions. "
-            "When active_task_exists=false the episode is a provisional container, not existing research: "
-            "an explicit question must be NEW_RESEARCH. A retry without an active task must ABSTAIN. "
-            "CONTINUE preserves the original topic; retry/control words are never search subjects. "
-            "A different person/name/entity (even a short bare name) is NEW_RESEARCH and saves the old episode. "
-            "Do not treat unrelated bare names as a continuation. REFINE can add questions/preferences. "
-            "Decompose identity, capabilities/performance, comparison when asked. Preserve all existing RQs on continuation. "
-            "Plan 2 or 3 short queries (2-8 meaningful terms), bound each to an RQ; "
-            "include one site:OFFICIAL_DOMAIN query with the entity and requested facet, "
-            "using a known publisher domain only as a search lead, never evidence or proof. "
-            "Do not append generic words official release model documentation to every query. "
-            "Prefer precise official release/model docs, "
-            "then independent tests for comparisons. Use as_of_date for current information. "
-            "Do not silently substitute other versions or infer a named version doesn't exist. "
-            "Do not claim knowledge or evidence. "
-            "Allowed constraint keys: focus, source_preference, excluded_page_types, persistence. "
-            "Exact fields, no extras: " + json.dumps(schema, ensure_ascii=False), context)
+            _TURN_INSTRUCTION + "Exact fields, no extras: " + json.dumps(schema, ensure_ascii=False), context)
         try:
             self.decision = ResearchDecision.parse(raw, task_id=episode.task_id)
         except ValueError:
