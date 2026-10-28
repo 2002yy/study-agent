@@ -1,0 +1,685 @@
+{
+  "schema_version": "provider-routing-replay-v1",
+  "started_at": "2026-10-28T11:32:38.639680Z",
+  "capture": "docs/research_quality/PROVIDER_ROUTING_CAPTURE.json",
+  "limit": 6,
+  "strategies": {},
+  "cases": [
+    {
+      "id": "A01",
+      "query": "崩坏星穹铁道 当前版本 卡池 上半 下半",
+      "strategies": {
+        "E0": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.45,
+          "relevant_rank": 2,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 0.5,
+          "relevant_count": 2
+        },
+        "E1": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 9.18,
+          "relevant_rank": 2,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 0.5,
+          "relevant_count": 2
+        },
+        "E2": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 9.18,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
+        },
+        "E3": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.45,
+          "triggered_extra_provider": false,
+          "relevant_rank": 2,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 0.5,
+          "relevant_count": 2
+        }
+      }
+    },
+    {
+      "id": "B01",
+      "query": "星铁 千冶·刃 遗器 推荐 黄泉队",
+      "strategies": {
+        "E0": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.36,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E1": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 10.03,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E2": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 10.03,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
+        },
+        "E3": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 10.03,
+          "triggered_extra_provider": true,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
+        }
+      }
+    },
+    {
+      "id": "B02",
+      "query": "星铁 虚构叙事 黄泉队 自动战斗 表现",
+      "strategies": {
+        "E0": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.36,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E1": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 8.97,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E2": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 8.97,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
+        },
+        "E3": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 8.97,
+          "triggered_extra_provider": true,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
+        }
+      }
+    },
+    {
+      "id": "C01",
+      "query": "星铁 虚构叙事 当期 敌人机制 弱点",
+      "strategies": {
+        "E0": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.38,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E1": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 8.36,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E2": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 8.36,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 4
+        },
+        "E3": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 8.36,
+          "triggered_extra_provider": true,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 4
+        }
+      }
+    },
+    {
+      "id": "D01",
+      "query": "星穹铁道 虚构叙事 配队 推荐 当前期",
+      "strategies": {
+        "E0": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.39,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E1": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 7.33,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E2": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 7.33,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
+        },
+        "E3": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 7.33,
+          "triggered_extra_provider": true,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
+        }
+      }
+    },
+    {
+      "id": "A04",
+      "query": "open source AI model releases this week October 2026",
+      "strategies": {
+        "E0": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.34,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E1": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 9.06,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E2": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 9.06,
+          "relevant_rank": 5,
+          "hit_at_3": false,
+          "hit_at_6": true,
+          "mrr_at_6": 0.2,
+          "relevant_count": 2
+        },
+        "E3": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 9.06,
+          "triggered_extra_provider": true,
+          "relevant_rank": 5,
+          "hit_at_3": false,
+          "hit_at_6": true,
+          "mrr_at_6": 0.2,
+          "relevant_count": 2
+        }
+      }
+    },
+    {
+      "id": "A05",
+      "query": "Python latest stable release version 2026",
+      "strategies": {
+        "E0": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.36,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E1": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 11,
+          "provider_calls": 2,
+          "latency": 7.2,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E2": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 11,
+          "provider_calls": 2,
+          "latency": 7.2,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E3": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 11,
+          "provider_calls": 2,
+          "latency": 7.2,
+          "triggered_extra_provider": true,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        }
+      }
+    },
+    {
+      "id": "B04",
+      "query": "异星工厂 戴森球计划 幸福工厂 区别 对比",
+      "strategies": {
+        "E0": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.33,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E1": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 12.71,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E2": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 12.71,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
+        },
+        "E3": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 12.71,
+          "triggered_extra_provider": true,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
+        }
+      }
+    },
+    {
+      "id": "B05",
+      "query": "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+      "strategies": {
+        "E0": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.38,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E1": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 5.38,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E2": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 5.38,
+          "relevant_rank": 4,
+          "hit_at_3": false,
+          "hit_at_6": true,
+          "mrr_at_6": 0.25,
+          "relevant_count": 1
+        },
+        "E3": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 5.38,
+          "triggered_extra_provider": true,
+          "relevant_rank": 4,
+          "hit_at_3": false,
+          "hit_at_6": true,
+          "mrr_at_6": 0.25,
+          "relevant_count": 1
+        }
+      }
+    },
+    {
+      "id": "C04",
+      "query": "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+      "strategies": {
+        "E0": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.39,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E1": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 6.0,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E2": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 6.0,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 4
+        },
+        "E3": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 6.0,
+          "triggered_extra_provider": true,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 4
+        }
+      }
+    }
+  ],
+  "relevance_rule": {
+    "anchors": "multi-character only; single-character anchors are ignored",
+    "relevant": ">=2 anchors, or >=1 anchor plus a focus token",
+    "not_measured": [
+      "evidence_support",
+      "version_correctness",
+      "answer_quality"
+    ]
+  },
+  "completed_at": "2026-10-28T11:32:38.697672Z",
+  "summary": {
+    "cases": 10,
+    "strategies": {
+      "E0": {
+        "hit_at_3": 1,
+        "hit_at_6": 1,
+        "mean_mrr_at_6": 0.05,
+        "total_relevant": 2,
+        "provider_calls": 10,
+        "latency_p50": 2.36,
+        "latency_p90": 2.39,
+        "latency_mean": 2.37
+      },
+      "E1": {
+        "hit_at_3": 1,
+        "hit_at_6": 1,
+        "mean_mrr_at_6": 0.05,
+        "total_relevant": 2,
+        "provider_calls": 20,
+        "latency_p50": 8.36,
+        "latency_p90": 10.03,
+        "latency_mean": 8.42
+      },
+      "E2": {
+        "hit_at_3": 7,
+        "hit_at_6": 9,
+        "mean_mrr_at_6": 0.745,
+        "total_relevant": 39,
+        "provider_calls": 20,
+        "latency_p50": 8.36,
+        "latency_p90": 10.03,
+        "latency_mean": 8.42
+      },
+      "E3": {
+        "hit_at_3": 7,
+        "hit_at_6": 9,
+        "mean_mrr_at_6": 0.695,
+        "total_relevant": 35,
+        "provider_calls": 19,
+        "latency_p50": 7.33,
+        "latency_p90": 10.03,
+        "latency_mean": 7.75
+      }
+    },
+    "e3_extra_provider_calls": 9,
+    "negative_control_skips": 1
+  }
+}

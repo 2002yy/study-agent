@@ -1,0 +1,81 @@
+{
+  "schema_version": "provider-routing-queries-v1",
+  "frozen_at": "2026-10-28",
+  "source": "QP-1C group C (QP-1B instruction), first planned query per case. Reused so the routing replay never calls a model.",
+  "provider_modes": {
+    "bing": {"WEB_ENABLE_SEARXNG": "true", "WEB_ENABLE_BING_RSS": "true", "WEB_ENABLE_DUCKDUCKGO": "false"},
+    "ddg": {"WEB_ENABLE_SEARXNG": "false", "WEB_ENABLE_BING_RSS": "false", "WEB_ENABLE_DUCKDUCKGO": "true"}
+  },
+  "cases": [
+    {
+      "id": "A01",
+      "question": "《崩坏：星穹铁道》当前版本是多少？上下半卡池分别是谁？下一版本已经官宣了什么？",
+      "query": "崩坏星穹铁道 当前版本 卡池 上半 下半",
+      "anchors": ["星穹铁道", "崩坏", "卡池", "版本"],
+      "focus": ["当前", "上半", "下半", "官宣"]
+    },
+    {
+      "id": "B01",
+      "question": "《星铁》黄泉队里的千冶·刃应该用什么遗器？与其他辅助相比有什么优势？",
+      "query": "星铁 千冶·刃 遗器 推荐 黄泉队",
+      "anchors": ["星铁", "星穹铁道", "千冶", "刃", "黄泉"],
+      "focus": ["遗器", "配装", "辅助", "优势"]
+    },
+    {
+      "id": "B02",
+      "question": "《星铁》虚构叙事中，黄泉队、流萤队、Archer 队哪个更适合自动战斗？",
+      "query": "星铁 虚构叙事 黄泉队 自动战斗 表现",
+      "anchors": ["星铁", "星穹铁道", "黄泉", "流萤", "Archer"],
+      "focus": ["虚构叙事", "自动战斗", "配队"]
+    },
+    {
+      "id": "C01",
+      "question": "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。",
+      "query": "星铁 虚构叙事 当期 敌人机制 弱点",
+      "anchors": ["星铁", "星穹铁道", "虚构叙事"],
+      "focus": ["60000", "敌人", "配队", "自动战斗"]
+    },
+    {
+      "id": "D01",
+      "question": "帮我研究当前《星铁》虚构叙事的配队。",
+      "query": "星穹铁道 虚构叙事 配队 推荐 当前期",
+      "anchors": ["星铁", "星穹铁道", "虚构叙事"],
+      "focus": ["配队", "当前"]
+    },
+    {
+      "id": "A04",
+      "question": "最近一周有哪些值得关注的开源 AI 模型发布？哪些提供了可下载权重？",
+      "query": "open source AI model releases this week October 2026",
+      "anchors": ["open source", "model", "release"],
+      "focus": ["weights", "week", "hugging"]
+    },
+    {
+      "id": "A05",
+      "question": "Python 和 Node.js 当前稳定版本分别是多少？近期有哪些重要变化？",
+      "query": "Python latest stable release version 2026",
+      "anchors": ["python"],
+      "focus": ["release", "version", "stable"]
+    },
+    {
+      "id": "B04",
+      "question": "《异星工厂》《戴森球计划》《幸福工厂》有什么区别？哪个更适合长期单人游玩？",
+      "query": "异星工厂 戴森球计划 幸福工厂 区别 对比",
+      "anchors": ["异星工厂", "戴森球计划", "幸福工厂"],
+      "focus": ["区别", "单人", "对比"]
+    },
+    {
+      "id": "B05",
+      "question": "RTX 5060 Laptop 8GB 本地运行 9B 语言模型，Q4、Q5、Q8 哪种更合适？",
+      "query": "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+      "anchors": ["9b", "gguf", "vram"],
+      "focus": ["q4", "q5", "q8", "quantization"]
+    },
+    {
+      "id": "C04",
+      "question": "研究轻量化遥感变化检测模型近年来的发展，比较精度、参数量、FLOPs 和实际部署成本。",
+      "query": "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+      "anchors": ["遥感", "变化检测"],
+      "focus": ["参数量", "flops", "精度", "部署"]
+    }
+  ]
+}

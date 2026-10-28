@@ -1,0 +1,954 @@
+{
+  "schema_version": "provider-routing-capture-v1",
+  "started_at": "2026-10-28T11:29:45.689449Z",
+  "queries_fixture": "tests/fixtures/provider_routing/qp1c_queries_v1.json",
+  "query_set_version": "provider-routing-queries-v1",
+  "limit": 6,
+  "cases": [
+    {
+      "id": "A01",
+      "query": "崩坏星穹铁道 当前版本 卡池 上半 下半",
+      "providers": {
+        "bing": {
+          "status": "ok",
+          "elapsed": 2.45,
+          "provider_errors": [
+            "searxng:URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+          ],
+          "results": [
+            {
+              "title": "云·星穹铁道 - miHoYo",
+              "url": "https://sr.mihoyo.com/cloud/",
+              "source": "Bing RSS",
+              "snippet_chars": 140
+            },
+            {
+              "title": "《崩坏：星穹铁道》官方网站-4.6全新版本「月升之前，与兽 ...",
+              "url": "https://sr.mihoyo.com/",
+              "source": "Bing RSS",
+              "snippet_chars": 82
+            },
+            {
+              "title": "崩（汉语文字）_百度百科",
+              "url": "https://baike.baidu.com/item/%E5%B4%A9/2383377",
+              "source": "Bing RSS",
+              "snippet_chars": 127
+            },
+            {
+              "title": "《崩坏3》官方网站 - 米哈游科幻冒险动作游戏",
+              "url": "https://bh3.mihoyo.com/m/",
+              "source": "Bing RSS",
+              "snippet_chars": 100
+            },
+            {
+              "title": "《崩坏：星穹铁道》官方网站——愿此行，终抵群星",
+              "url": "https://www.bhsr.com/",
+              "source": "Bing RSS",
+              "snippet_chars": 56
+            },
+            {
+              "title": "《崩壞：星穹鐵道》官方網站——願此行，終抵群星",
+              "url": "https://hsr.hoyoverse.com/zh-tw/home",
+              "source": "Bing RSS",
+              "snippet_chars": 136
+            }
+          ]
+        },
+        "ddg": {
+          "status": "ok",
+          "elapsed": 6.73,
+          "provider_errors": [],
+          "results": [
+            {
+              "title": "卡池一览：更新3.7-崩坏：星穹铁道社区-米游社",
+              "url": "https://www.miyoushe.com/sr/article/69922372",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "崩坏：星穹铁道卡池时间表 2026：当前、下期与复刻",
+              "url": "https://gachia.com/zh/starrail/guides/banner-schedule-guide",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "【整理】限定卡池(活動躍遷)一覽｜更新至4.6版本下半：真珠 / 千冶·刃 @崩壞：星穹鐵道 哈啦板 - 巴哈姆特",
+              "url": "https://forum.gamer.com.tw/C.php?bsn=72822&snA=3851",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "《崩坏：星穹铁道》卡池时间表_18183.com",
+              "url": "https://news.18183.com/yxxw/202610/9051004.html",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "各版本卡池一览（更新3.6）-崩坏：星穹铁道社区-米游社",
+              "url": "https://www.miyoushe.com/sr/article/68478865",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "崩坏星穹铁道4.2版本卡池是什么-崩坏星穹铁道4.2版本卡池介绍-游侠网",
+              "url": "https://gl.ali213.net/html/2026-4/1762669.html",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "B01",
+      "query": "星铁 千冶·刃 遗器 推荐 黄泉队",
+      "providers": {
+        "bing": {
+          "status": "ok",
+          "elapsed": 2.36,
+          "provider_errors": [
+            "searxng:URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+          ],
+          "results": [
+            {
+              "title": "星（汉语文字）_百度百科",
+              "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+              "source": "Bing RSS",
+              "snippet_chars": 102
+            },
+            {
+              "title": "云·星穹铁道 - miHoYo",
+              "url": "https://sr.mihoyo.com/cloud/",
+              "source": "Bing RSS",
+              "snippet_chars": 100
+            },
+            {
+              "title": "《星》的拼音,星字的意思、组词、部首、笔画、笔顺 - 汉语查",
+              "url": "https://www.hgcha.com/zidian/5c93eb9b.html",
+              "source": "Bing RSS",
+              "snippet_chars": 99
+            },
+            {
+              "title": "《崩坏：星穹铁道》官方网站-4.6全新版本「月升之前，与兽 ...",
+              "url": "https://sr.mihoyo.com/",
+              "source": "Bing RSS",
+              "snippet_chars": 82
+            },
+            {
+              "title": "星（天体）_百度百科",
+              "url": "https://baike.baidu.com/item/%E6%98%9F/2753093",
+              "source": "Bing RSS",
+              "snippet_chars": 89
+            },
+            {
+              "title": "星的意思,星的解释,星的拼音,星的部首,星的笔顺-汉语国学",
+              "url": "https://www.hanyuguoxue.com/zidian/zi-26143",
+              "source": "Bing RSS",
+              "snippet_chars": 83
+            }
+          ]
+        },
+        "ddg": {
+          "status": "ok",
+          "elapsed": 7.67,
+          "provider_errors": [],
+          "results": [
+            {
+              "title": "【星铁】千冶刃全面攻略!加入黄泉/不死途队后提升是？二魂解锁黄泉遗器新带法!技能机制，遗器光锥，星魂提升分析!",
+              "url": "https://www.bilibili.com/video/BV1j5Ew67Ehk/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "【V4.3攻略】千冶·刃培养攻略｜6种配队，遗器光锥星魂解析",
+              "url": "https://www.miyoushe.com/sr/article/75743090",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "崩铁：千冶·刃完整养成攻略｜6种配队推荐，遗器光锥星魂分析",
+              "url": "https://zhuanlan.zhihu.com/p/2044819621283352693",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "《崩坏：星穹铁道》V4.3 千冶刃+不死途/黄泉 两套阵容一图毕业_游戏新闻_17173.com中国游戏门户站",
+              "url": "https://news.17173.com/content/06042026/170001591.shtml",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "【V4.3攻略】千冶刃详细攻略!泛用高数值拐谁需要抽？-崩坏：星穹铁道社区-米游社",
+              "url": "https://www.miyoushe.com/bh2/article/75782541",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "《崩坏：星穹铁道》千冶刃怎么玩？技能机制解析，遗器光锥搭配推荐，加入黄泉队/不死途队提升分析 - 崩坏：星穹铁道 - 233乐园",
+              "url": "https://www.233leyuan.com/post-detail/2062667482728108032",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "B02",
+      "query": "星铁 虚构叙事 黄泉队 自动战斗 表现",
+      "providers": {
+        "bing": {
+          "status": "ok",
+          "elapsed": 2.36,
+          "provider_errors": [
+            "searxng:URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+          ],
+          "results": [
+            {
+              "title": "星（汉语文字）_百度百科",
+              "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+              "source": "Bing RSS",
+              "snippet_chars": 102
+            },
+            {
+              "title": "云·星穹铁道 - miHoYo",
+              "url": "https://sr.mihoyo.com/cloud/",
+              "source": "Bing RSS",
+              "snippet_chars": 100
+            },
+            {
+              "title": "《星》的拼音,星字的意思、组词、部首、笔画、笔顺 - 汉语查",
+              "url": "https://www.hgcha.com/zidian/5c93eb9b.html",
+              "source": "Bing RSS",
+              "snippet_chars": 99
+            },
+            {
+              "title": "《崩坏：星穹铁道》官方网站-4.6全新版本「月升之前，与兽 ...",
+              "url": "https://sr.mihoyo.com/",
+              "source": "Bing RSS",
+              "snippet_chars": 82
+            },
+            {
+              "title": "星（天体）_百度百科",
+              "url": "https://baike.baidu.com/item/%E6%98%9F/2753093",
+              "source": "Bing RSS",
+              "snippet_chars": 89
+            },
+            {
+              "title": "星的意思,星的解释,星的拼音,星的部首,星的笔顺-汉语国学",
+              "url": "https://www.hanyuguoxue.com/zidian/zi-26143",
+              "source": "Bing RSS",
+              "snippet_chars": 83
+            }
+          ]
+        },
+        "ddg": {
+          "status": "ok",
+          "elapsed": 6.61,
+          "provider_errors": [],
+          "results": [
+            {
+              "title": "【V2.1攻略】虚构叙事之黄泉配队打法详解!（内附实战）-崩坏：星穹铁道社区-米游社",
+              "url": "https://www.miyoushe.com/sr/article/51099717",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "【虚构叙事】黄泉队全交互自动满分虚构上半_哔哩哔哩_bilibili",
+              "url": "https://www.bilibili.com/video/BV12M8Nz7EM7/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "【V2.1攻略】黄泉在虚构叙事的配队推荐，轻松拿下四万分-崩坏：星穹铁道社区-米游社",
+              "url": "https://www.miyoushe.com/ys/article/51072371",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "虚构叙事满分攻略黄泉dot队的统治力_哔哩哔哩bilibili",
+              "url": "https://www.bilibili.com/video/BV1M9PUzLEzq/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "虚构叙事 - 崩坏：星穹铁道wiki_bwiki_哔哩哔哩",
+              "url": "https://wiki.biligame.com/sr/%E8%99%9A%E6%9E%84%E5%8F%99%E4%BA%8B",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "崩坏星穹铁道黄泉角色组队思路实战解析 - 知乎",
+              "url": "https://zhuanlan.zhihu.com/p/2055493317597696142",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "C01",
+      "query": "星铁 虚构叙事 当期 敌人机制 弱点",
+      "providers": {
+        "bing": {
+          "status": "ok",
+          "elapsed": 2.38,
+          "provider_errors": [
+            "searxng:URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+          ],
+          "results": [
+            {
+              "title": "星（汉语文字）_百度百科",
+              "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+              "source": "Bing RSS",
+              "snippet_chars": 102
+            },
+            {
+              "title": "云·星穹铁道 - miHoYo",
+              "url": "https://sr.mihoyo.com/cloud/",
+              "source": "Bing RSS",
+              "snippet_chars": 100
+            },
+            {
+              "title": "《星》的拼音,星字的意思、组词、部首、笔画、笔顺 - 汉语查",
+              "url": "https://www.hgcha.com/zidian/5c93eb9b.html",
+              "source": "Bing RSS",
+              "snippet_chars": 99
+            },
+            {
+              "title": "《崩坏：星穹铁道》官方网站-4.6全新版本「月升之前，与兽 ...",
+              "url": "https://sr.mihoyo.com/",
+              "source": "Bing RSS",
+              "snippet_chars": 82
+            },
+            {
+              "title": "星（天体）_百度百科",
+              "url": "https://baike.baidu.com/item/%E6%98%9F/2753093",
+              "source": "Bing RSS",
+              "snippet_chars": 89
+            },
+            {
+              "title": "星的意思,星的解释,星的拼音,星的部首,星的笔顺-汉语国学",
+              "url": "https://www.hanyuguoxue.com/zidian/zi-26143",
+              "source": "Bing RSS",
+              "snippet_chars": 83
+            }
+          ]
+        },
+        "ddg": {
+          "status": "ok",
+          "elapsed": 5.98,
+          "provider_errors": [],
+          "results": [
+            {
+              "title": "【V3.3攻略】3.3全新虚构叙事详细通关指南｜一图流-崩坏：星穹铁道社区-米游社",
+              "url": "https://www.miyoushe.com/sr/article/65141121",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "【V3.2攻略】3.2全新虚构叙事详细通关指南｜一图流-崩坏：星穹铁道社区-米游社",
+              "url": "https://www.miyoushe.com/sr/article/63965099",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "【V2.5攻略】虚构叙事攻略，buff/敌人/配队 - 崩坏：星穹铁道综合讨论 - TapTap 崩坏：星穹铁道论坛",
+              "url": "https://www.taptap.cn/moment/589940716688378524",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "虚构叙事物理弱点层克拉拉反击流攻略_哔哩哔哩bilibili",
+              "url": "https://www.bilibili.com/zh-Hans/video/BV13T7H6fEhn/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "崩铁3.3虚构叙事攻略：满星难度如何，阵容怎么搭？",
+              "url": "https://tieba.baidu.com/p/9776443606",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "【图片】崩铁：3.4虚构叙事满星攻略｜14支队伍推荐，克敌技巧分析【崩坏星穹铁道吧】_百度贴吧",
+              "url": "https://tieba.baidu.com/p/9889209300",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "D01",
+      "query": "星穹铁道 虚构叙事 配队 推荐 当前期",
+      "providers": {
+        "bing": {
+          "status": "ok",
+          "elapsed": 2.39,
+          "provider_errors": [
+            "searxng:URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+          ],
+          "results": [
+            {
+              "title": "星（汉语文字）_百度百科",
+              "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+              "source": "Bing RSS",
+              "snippet_chars": 102
+            },
+            {
+              "title": "云·星穹铁道 - miHoYo",
+              "url": "https://sr.mihoyo.com/cloud/",
+              "source": "Bing RSS",
+              "snippet_chars": 100
+            },
+            {
+              "title": "《星》的拼音,星字的意思、组词、部首、笔画、笔顺 - 汉语查",
+              "url": "https://www.hgcha.com/zidian/5c93eb9b.html",
+              "source": "Bing RSS",
+              "snippet_chars": 99
+            },
+            {
+              "title": "《崩坏：星穹铁道》官方网站-4.6全新版本「月升之前，与兽 ...",
+              "url": "https://sr.mihoyo.com/",
+              "source": "Bing RSS",
+              "snippet_chars": 82
+            },
+            {
+              "title": "星（天体）_百度百科",
+              "url": "https://baike.baidu.com/item/%E6%98%9F/2753093",
+              "source": "Bing RSS",
+              "snippet_chars": 89
+            },
+            {
+              "title": "星的意思,星的解释,星的拼音,星的部首,星的笔顺-汉语国学",
+              "url": "https://www.hanyuguoxue.com/zidian/zi-26143",
+              "source": "Bing RSS",
+              "snippet_chars": 83
+            }
+          ]
+        },
+        "ddg": {
+          "status": "ok",
+          "elapsed": 4.94,
+          "provider_errors": [],
+          "results": [
+            {
+              "title": "【V3.6攻略】虚构叙事更新丨配队推荐-崩坏：星穹铁道社区-米游社",
+              "url": "https://www.miyoushe.com/sr/article/69579656",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "【V3.4攻略】虚构叙事·三幕架构阵容推荐攻略-崩坏：星穹铁道社区-米游社",
+              "url": "https://www.miyoushe.com/sr/article/66629110",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "【4.5虚构叙事】多阵容推荐与分数参考，一期视频带你快速了解虚构配队!",
+              "url": "https://www.bilibili.com/video/BV16iYC6VELs/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "4.3虚构叙事·星启模式 阵容推荐与打法注意点_游戏热门视频",
+              "url": "https://www.bilibili.com/video/BV1fw7A6JEpy/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "《崩坏：星穹铁道》V3.4 虚构叙事-叙事分析丨最新配队推荐_网络游戏新闻_17173.com中国游戏门户站",
+              "url": "https://news.17173.com/content/07222025/100008399.shtml",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "崩坏星穹铁道10月虚构叙事满分阵容搭配推荐 - 游侠手游",
+              "url": "https://m.ali213.net/news/gl2610/1818561.html",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "A04",
+      "query": "open source AI model releases this week October 2026",
+      "providers": {
+        "bing": {
+          "status": "ok",
+          "elapsed": 2.34,
+          "provider_errors": [
+            "searxng:URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+          ],
+          "results": [
+            {
+              "title": "开放北京公共信息服务平台 - Beijing",
+              "url": "https://open.beijing.gov.cn/front/getListIndex2021.do?nid=18",
+              "source": "Bing RSS",
+              "snippet_chars": 172
+            },
+            {
+              "title": "微信开放平台",
+              "url": "https://open.weixin.qq.com/",
+              "source": "Bing RSS",
+              "snippet_chars": 45
+            },
+            {
+              "title": "open首页",
+              "url": "https://app.open.qq.com/p/home",
+              "source": "Bing RSS",
+              "snippet_chars": 47
+            },
+            {
+              "title": "open（英文单词）_百度百科",
+              "url": "https://baike.baidu.com/item/open/497859",
+              "source": "Bing RSS",
+              "snippet_chars": 113
+            },
+            {
+              "title": "open是什么意思_open的翻译_音标_读音_用法_例句_爱词霸 ...",
+              "url": "https://www.iciba.com/word?w=open",
+              "source": "Bing RSS",
+              "snippet_chars": 189
+            },
+            {
+              "title": "OpenStreetMap (OSM) - 自由且开源的世界地图数据",
+              "url": "https://www.openstreetmap.net.cn/",
+              "source": "Bing RSS",
+              "snippet_chars": 155
+            }
+          ]
+        },
+        "ddg": {
+          "status": "ok",
+          "elapsed": 6.72,
+          "provider_errors": [],
+          "results": [
+            {
+              "title": "AI Model Releases in October 2026: Confirmed Updates | BenchLM",
+              "url": "https://benchlm.ai/model-updates/releases/october-2026",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "LLM Updates (October 2026) - AI Model Releases & Provider Activity",
+              "url": "https://lmmarketcap.com/llm-updates",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "October 2026 AI Model Updates: The Full Dispatch",
+              "url": "https://local-ai-zone.github.io/blog/October_2026_AI_Model_Updates.html",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "AI Model Releases: October 2026 Tracker and Dated Ledger",
+              "url": "https://www.digitalapplied.com/blog/ai-model-releases-october-2026-tracker",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "Best Open-Source AI Models of October 2026: Benchmarks, VRAM & Local Setup",
+              "url": "https://blog.buildfastwithai.com/best-open-source-ai-models-october-2026",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "New AI Models — October 2026 LLM Releases | LLM Gateway",
+              "url": "https://llmgateway.io/timeline",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "A05",
+      "query": "Python latest stable release version 2026",
+      "providers": {
+        "bing": {
+          "status": "ok",
+          "elapsed": 2.36,
+          "provider_errors": [
+            "searxng:URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+          ],
+          "results": [
+            {
+              "title": "Welcome to Python.org",
+              "url": "https://www.python.org/",
+              "source": "Bing RSS",
+              "snippet_chars": 219
+            },
+            {
+              "title": "Download Python | Python.org",
+              "url": "https://www.python.org/downloads/",
+              "source": "Bing RSS",
+              "snippet_chars": 189
+            },
+            {
+              "title": "Python 基础教程 | 菜鸟教程",
+              "url": "https://www.runoob.com/python/python-tutorial.html",
+              "source": "Bing RSS",
+              "snippet_chars": 170
+            },
+            {
+              "title": "Python 3.15.2 文档",
+              "url": "https://docs.python.org/zh-cn/",
+              "source": "Bing RSS",
+              "snippet_chars": 151
+            },
+            {
+              "title": "欢迎来到 Python.org - Python 编程语言",
+              "url": "https://pythonlang.cn/",
+              "source": "Bing RSS",
+              "snippet_chars": 164
+            },
+            {
+              "title": "Python安装与环境配置全程详细教学（包含Windows版和 ...",
+              "url": "https://blog.csdn.net/sensen_kiss/article/details/141940274",
+              "source": "Bing RSS",
+              "snippet_chars": 163
+            }
+          ]
+        },
+        "ddg": {
+          "status": "ok",
+          "elapsed": 4.84,
+          "provider_errors": [],
+          "results": [
+            {
+              "title": "Download Python | Python.org",
+              "url": "https://www.python.org/downloads/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "Python Release Python 3.15.2 | Python.org",
+              "url": "https://www.python.org/downloads/latest/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "Status of Python versions",
+              "url": "http://devguide.python.org/versions/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "The Latest Version of Python | phoenixNAP KB",
+              "url": "https://phoenixnap.com/kb/latest-python-version",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "Python 3.15.2, 3.14.10, 3.13.18, 3.12.16 and 3.11.18 are out",
+              "url": "https://blog.python.org/2026/10/python-3152-31410-31318-31216-31118/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "Python 3.10.22, 3.11.17, 3.12.15, 3.13.16 and 3.14.8 are now available ...",
+              "url": "https://blog.python.org/2026/10/python-31022-31117/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "B04",
+      "query": "异星工厂 戴森球计划 幸福工厂 区别 对比",
+      "providers": {
+        "bing": {
+          "status": "ok",
+          "elapsed": 2.33,
+          "provider_errors": [
+            "searxng:URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+          ],
+          "results": [
+            {
+              "title": "异（汉语文字）_百度百科",
+              "url": "https://baike.baidu.com/item/%E5%BC%82/1435537",
+              "source": "Bing RSS",
+              "snippet_chars": 114
+            },
+            {
+              "title": "《异环》官方网站-超自然都市开放世界RPG",
+              "url": "https://yh.wanmei.com/index.html",
+              "source": "Bing RSS",
+              "snippet_chars": 146
+            },
+            {
+              "title": "异的意思,异的解释,异的拼音,异的部首,异的笔顺-汉语国学",
+              "url": "https://www.hanyuguoxue.com/zidian/zi-24322",
+              "source": "Bing RSS",
+              "snippet_chars": 81
+            },
+            {
+              "title": "《异》的拼音,异字的意思、组词、部首、笔画、笔顺 - 汉语查",
+              "url": "https://www.hgcha.com/zidian/94489966.html",
+              "source": "Bing RSS",
+              "snippet_chars": 128
+            },
+            {
+              "title": "异_异怎么读_异的意思 - 汉语字典",
+              "url": "https://www.chagushici.com/zidian/%E5%BC%82",
+              "source": "Bing RSS",
+              "snippet_chars": 131
+            },
+            {
+              "title": "异怎么读_异的拼音 - 新华字典",
+              "url": "https://zidian.gushici.net/6/5f02.html",
+              "source": "Bing RSS",
+              "snippet_chars": 139
+            }
+          ]
+        },
+        "ddg": {
+          "status": "ok",
+          "elapsed": 10.38,
+          "provider_errors": [],
+          "results": [
+            {
+              "title": "三款神作怎么选？硬核逻辑、沉浸建造还是星辰大海？",
+              "url": "https://post.smzdm.com/p/aomeg2v9/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "《戴森球计划》和《异星工厂》，谁才是物流游戏的终极目标？",
+              "url": "https://www.toutiao.com/article/7121138709134656033/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "《戴森球计划》之于《异星工厂》（或幸福工厂）是何种程度上的借鉴？ - 知乎",
+              "url": "https://www.zhihu.com/question/441990658",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "《戴森球计划》之于《异星工厂》（或幸福工厂）是何种程度上的借鉴？ - 知乎",
+              "url": "https://www.zhihu.com/question/441990658/answers/updated",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "Steam春促自动化游戏选购攻略丨异星工厂 戴森球怎么选？2026Steam春促工厂自动化选购干货!戴森球计划、幸福工厂、异星工厂新手应该怎么 ...",
+              "url": "https://post.smzdm.com/p/aww3xd3k/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "都是爆肝游戏，《戴森球计划》和《幸福工厂》的区别在哪？",
+              "url": "https://www.bilibili.com/video/BV1kf4y147Pz/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "B05",
+      "query": "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+      "providers": {
+        "bing": {
+          "status": "ok",
+          "elapsed": 2.38,
+          "provider_errors": [
+            "searxng:URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+          ],
+          "results": [
+            {
+              "title": "Qwen3.5 端侧小模型测评：从 0.8B 到 9B - 知乎",
+              "url": "https://zhuanlan.zhihu.com/p/2011914556159582443",
+              "source": "Bing RSS",
+              "snippet_chars": 145
+            },
+            {
+              "title": "Qwen3.5-9B：可以本地跑的小模型，打败了更大的云端模型？",
+              "url": "https://zhuanlan.zhihu.com/p/2020454788664440111",
+              "source": "Bing RSS",
+              "snippet_chars": 143
+            },
+            {
+              "title": "“9B 小模型，干出 Claude Mythos 味道？我被这个开源怪物 ...",
+              "url": "https://blog.csdn.net/chen695969/article/details/162268802",
+              "source": "Bing RSS",
+              "snippet_chars": 152
+            },
+            {
+              "title": "2026 年 5 月｜10B 以下小模型终极排名：Qwen3.6 登顶 ...",
+              "url": "https://blog.csdn.net/m0_57836225/article/details/160934605",
+              "source": "Bing RSS",
+              "snippet_chars": 176
+            },
+            {
+              "title": "红旗-9B远程地空导弹_百度百科",
+              "url": "https://baike.baidu.com/item/%E7%BA%A2%E6%97%97-9B%E8%BF%9C%E7%A8%8B%E5%9C%B0%E7%A9%BA%E5%AF%BC%E5%BC%B9/23782631",
+              "source": "Bing RSS",
+              "snippet_chars": 139
+            },
+            {
+              "title": "HQ-9B远程地空导弹_百度百科",
+              "url": "https://baike.baidu.com/item/HQ-9B%E8%BF%9C%E7%A8%8B%E5%9C%B0%E7%A9%BA%E5%AF%BC%E5%BC%B9/23783993",
+              "source": "Bing RSS",
+              "snippet_chars": 126
+            }
+          ]
+        },
+        "ddg": {
+          "status": "ok",
+          "elapsed": 3.0,
+          "provider_errors": [],
+          "results": [
+            {
+              "title": "FLUX.2 Klein 9B VRAM Requirements — FP16, FP8, GGUF Hardware Guide (2026)",
+              "url": "https://willitrunai.com/blog/flux-2-klein-9b-vram-requirements",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "How to Run Flux on 8GB VRAM in 2026: The GGUF Low-VRAM Guide",
+              "url": "https://www.promptzone.com/tara_suzuki/how-to-run-flux-on-8gb-vram-in-2026-the-gguf-low-vram-guide-46k8",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "Run FLUX on 6-8GB VRAM (2026): GGUF & Offloading",
+              "url": "https://localaimaster.com/blog/run-flux-on-low-vram-gpu",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "How to Self-Host Flux 2 in 2026: Real VRAM Numbers for Every GGUF Tier ...",
+              "url": "https://runaihome.com/blog/flux-2-self-hosting-vram-gguf-guide-2026/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "Best Uncensored GGUF Models for 8GB VRAM in 2026 | LMSA",
+              "url": "https://lmsa.app/blog/best-uncensored-gguf-models-for-8gb-vram-in-2026/",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "Quantization Calculator: Q4 vs Q5 vs Q8 vs FP16 VRAM (2026)",
+              "url": "https://localaimaster.com/tools/quantization-calculator",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "C04",
+      "query": "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+      "providers": {
+        "bing": {
+          "status": "ok",
+          "elapsed": 2.39,
+          "provider_errors": [
+            "searxng:URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+          ],
+          "results": [
+            {
+              "title": "轻（汉语文字）_百度百科",
+              "url": "https://baike.baidu.com/item/%E8%BD%BB/56640",
+              "source": "Bing RSS",
+              "snippet_chars": 111
+            },
+            {
+              "title": "轻的意思,轻的解释,轻的拼音,轻的部首,轻的笔顺-汉语国学",
+              "url": "https://www.hanyuguoxue.com/zidian/zi-36731",
+              "source": "Bing RSS",
+              "snippet_chars": 83
+            },
+            {
+              "title": "轻 qīng - 汉典",
+              "url": "http://zdic.net/hans/%E8%BD%BB",
+              "source": "Bing RSS",
+              "snippet_chars": 112
+            },
+            {
+              "title": "《轻》的拼音,轻字的意思、组词、部首、笔画、笔顺 - 汉语查",
+              "url": "https://www.hgcha.com/zidian/b25089c5.html",
+              "source": "Bing RSS",
+              "snippet_chars": 91
+            },
+            {
+              "title": "轻_轻怎么读_轻的意思 - 汉语字典",
+              "url": "https://www.chagushici.com/zidian/%E8%BD%BB",
+              "source": "Bing RSS",
+              "snippet_chars": 118
+            },
+            {
+              "title": "轻 qīng - 漢典",
+              "url": "https://www.zdic.net/hant/%E8%BD%BB",
+              "source": "Bing RSS",
+              "snippet_chars": 144
+            }
+          ]
+        },
+        "ddg": {
+          "status": "ok",
+          "elapsed": 3.61,
+          "provider_errors": [],
+          "results": [
+            {
+              "title": "遥感影像变化检测：轻量化模型与高效算法实践-csdn博客",
+              "url": "https://blog.csdn.net/weixin_30952479/article/details/169289061",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "一种基于知识蒸馏的轻量级遥感影像变化检测方法 - 百度学术",
+              "url": "https://xueshu.baidu.com/usercenter/paper/show?paperid=1t210ra0bv2000m0yp320vv0jn541736&site=xueshu_se",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "模型压缩综述：剪枝、量化、知识蒸馏 - Csdn博客",
+              "url": "https://blog.csdn.net/Fannie_Peng/article/details/106397222",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "知识蒸馏、轻量化模型架构、剪枝…几种深度学习模型压缩方法",
+              "url": "https://zhuanlan.zhihu.com/p/613598877",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "一种基于知识蒸馏的轻量级遥感影像变化检测方法 - 豆丁网",
+              "url": "https://www.docin.com/p-4595033839.html",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            },
+            {
+              "title": "PDF 深度学习遥感变化检测综述:典型算法及发展趋势",
+              "url": "https://www.ygxb.ac.cn/rc-pub/front/front-article/download/90536335/lowqualitypdf/Deep%20learning%20for%20change%20detection%20in%20remote%20sensing%EF%BC%9A%20A%20review%20and%20new%20outlooks.pdf",
+              "source": "DuckDuckGo",
+              "snippet_chars": 0
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "scope": {
+    "stores_page_bodies": false,
+    "uses_model": false
+  },
+  "completed_at": "2026-10-28T11:32:19.911124Z"
+}
