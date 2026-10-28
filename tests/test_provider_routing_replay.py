@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from tools import run_provider_routing_replay as replay_mod
-from tools.run_provider_routing_replay import replay, verdict
+from tools.run_provider_routing_replay import _query_fingerprint, replay, verdict
 
 CASE_X = {
     "id": "X1",
@@ -74,10 +74,10 @@ PYTHON_RELEASE = {
 }
 
 
-def _queries(tmp_path: Path) -> Path:
+def _queries(tmp_path: Path, cases: list[dict] | None = None) -> Path:
     document = {
         "schema_version": "provider-routing-queries-v1",
-        "cases": [CASE_X, CASE_Y],
+        "cases": cases or [CASE_X, CASE_Y],
     }
     path = tmp_path / "queries.json"
     path.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
@@ -88,6 +88,7 @@ def _capture(tmp_path: Path, *, case_ids: list[str] | None = None) -> Path:
     document = {
         "schema_version": "provider-routing-capture-v1",
         "query_set_version": "provider-routing-queries-v1",
+        "query_set_fingerprint": _query_fingerprint([CASE_X, CASE_Y]),
         "case_ids": case_ids or ["X1", "Y1"],
         "limit": 6,
         "cases": [
@@ -237,6 +238,36 @@ def test_capture_and_query_set_must_match(tmp_path, monkeypatch):
             output=tmp_path / "replay.json",
             limit=6,
         )
+
+
+def test_changed_query_text_is_rejected_even_with_the_same_ids(tmp_path, monkeypatch):
+    changed = [dict(CASE_X, query="星铁 千冶刃 遗器 配装 攻略"), CASE_Y]
+    monkeypatch.setattr(replay_mod, "DEFAULT_QUERIES", _queries(tmp_path, changed))
+
+    with pytest.raises(ValueError, match="capture_query_set_fingerprint_mismatch"):
+        replay(capture_path=_capture(tmp_path), output=tmp_path / "r.json", limit=6)
+
+
+def test_changed_evaluation_anchors_are_rejected(tmp_path, monkeypatch):
+    changed = [dict(CASE_X, anchors=[*CASE_X["anchors"], "配装"]), CASE_Y]
+    monkeypatch.setattr(replay_mod, "DEFAULT_QUERIES", _queries(tmp_path, changed))
+
+    with pytest.raises(ValueError, match="capture_query_set_fingerprint_mismatch"):
+        replay(capture_path=_capture(tmp_path), output=tmp_path / "r.json", limit=6)
+
+
+def test_replay_uses_the_queries_path_it_is_given(tmp_path):
+    queries = _queries(tmp_path)
+
+    document = replay(
+        capture_path=_capture(tmp_path),
+        output=tmp_path / "r.json",
+        limit=6,
+        queries_path=queries,
+    )
+
+    assert document["cases"]
+    assert document["capture"].endswith("capture.json")
 
 
 def test_metrics_always_use_a_six_result_window(tmp_path, monkeypatch):

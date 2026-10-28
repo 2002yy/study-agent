@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -107,6 +108,23 @@ def _dedupe(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 
+def _query_fingerprint(cases: list[dict[str, Any]]) -> str:
+    """Content identity of the query set: ids, text and evaluation anchors."""
+
+    canonical = [
+        {
+            "id": case["id"],
+            "question": case["question"],
+            "query": case["query"],
+            "anchors": list(case["anchors"]),
+            "focus": list(case["focus"]),
+        }
+        for case in cases
+    ]
+    payload = json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def capture(
     *, queries: Path, output: Path, limit: int, pace_ddg: float, pace_other: float
 ) -> dict[str, Any]:
@@ -120,6 +138,7 @@ def capture(
         "started_at": _utc_now(),
         "queries_fixture": _display_path(queries),
         "query_set_version": document.get("schema_version"),
+        "query_set_fingerprint": _query_fingerprint(document["cases"]),
         "case_ids": [case["id"] for case in document["cases"]],
         "limit": limit,
         "cases": [],
@@ -302,10 +321,17 @@ def _metrics(results: list[dict[str, Any]], case: dict[str, Any]) -> dict[str, A
     }
 
 
-def replay(*, capture_path: Path, output: Path, limit: int) -> dict[str, Any]:
+def replay(
+    *,
+    capture_path: Path,
+    output: Path,
+    limit: int,
+    queries_path: Path | None = None,
+) -> dict[str, Any]:
     capture_doc = json.loads(capture_path.read_text(encoding="utf-8"))
     cases = {row["id"]: row for row in capture_doc["cases"]}
-    queries = json.loads(DEFAULT_QUERIES.read_text(encoding="utf-8"))
+    queries_path = queries_path or DEFAULT_QUERIES
+    queries = json.loads(queries_path.read_text(encoding="utf-8"))
 
     # Fail closed when the capture and the query set are not the same experiment.
     if capture_doc.get("query_set_version") != queries.get("schema_version"):
@@ -313,6 +339,8 @@ def replay(*, capture_path: Path, output: Path, limit: int) -> dict[str, Any]:
     expected_ids = [case["id"] for case in queries["cases"]]
     if capture_doc.get("case_ids") != expected_ids:
         raise ValueError("capture_case_ids_mismatch")
+    if capture_doc.get("query_set_fingerprint") != _query_fingerprint(queries["cases"]):
+        raise ValueError("capture_query_set_fingerprint_mismatch")
     if limit < EVALUATION_WINDOW:
         raise ValueError("limit_below_evaluation_window")
 
@@ -497,6 +525,7 @@ def main() -> int:
         capture_path=(args.input).resolve(),
         output=(args.output or DEFAULT_REPLAY).resolve(),
         limit=max(1, min(args.limit, 12)),
+        queries_path=args.queries.resolve(),
     )
     print(json.dumps(artifact["summary"], ensure_ascii=False, sort_keys=True))
     return 0

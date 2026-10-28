@@ -1041,5 +1041,6 @@
     "stores_page_bodies": false,
     "uses_model": false
   },
-  "completed_at": "2026-10-28T12:04:43.140382Z"
+  "completed_at": "2026-10-28T12:04:43.140382Z",
+  "query_set_fingerprint": "3931fd6543c42117c42bd100c46f7f6272c39ee8f231341f02d1354def11c63e"
 }

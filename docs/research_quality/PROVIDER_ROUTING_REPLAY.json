@@ -1,6 +1,6 @@
 {
   "schema_version": "provider-routing-replay-v1",
-  "started_at": "2026-10-28T12:06:52.998666Z",
+  "started_at": "2026-10-28T12:18:11.695866Z",
   "capture": "docs/research_quality/PROVIDER_ROUTING_CAPTURE.json",
   "limit": 6,
   "evaluation_window": 6,
@@ -958,7 +958,7 @@
       "answer_quality"
     ]
   },
-  "completed_at": "2026-10-28T12:06:53.044977Z",
+  "completed_at": "2026-10-28T12:18:11.743870Z",
   "summary": {
     "cases": 10,
     "strategies": {
