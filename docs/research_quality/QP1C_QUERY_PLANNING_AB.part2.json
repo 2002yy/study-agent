@@ -1,0 +1,529 @@
+{
+  "schema_version": "qp1c-query-planning-ab-v1",
+  "run_id": "fed5d246c4734db5b561fcd827a6976b",
+  "started_at": "2026-10-27T18:17:47.025203Z",
+  "budget": {
+    "max_model_calls": 20,
+    "cap_cny": "3"
+  },
+  "pricing_cny_per_mtok": {
+    "input": "4",
+    "output": "16"
+  },
+  "provider": "auto (SearXNG/bing)",
+  "result_limit": 6,
+  "cases": [
+    {
+      "id": "A05",
+      "question": "Python 和 Node.js 当前稳定版本分别是多少？近期有哪些重要变化？",
+      "plan_b": {
+        "queries": [
+          "Python latest stable release notes",
+          "Node.js latest stable release changes"
+        ],
+        "all_queries": [
+          "Python latest stable release notes",
+          "Node.js latest stable release changes",
+          "site:nodejs.org Node.js release blog"
+        ],
+        "rq_binding": [
+          "rq-python",
+          "rq-node",
+          "rq-node"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "Python latest stable release version 2026",
+          "Node.js current stable release version 2026"
+        ],
+        "all_queries": [
+          "Python latest stable release version 2026",
+          "Node.js current stable release version 2026",
+          "Python Node.js recent release changes 2026"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "Python 和 Node.js 当前稳定版本分别是多少？近期有哪些重要变化？"
+          ],
+          "per_query": [
+            {
+              "query": "Python 和 Node.js 当前稳定版本分别是多少？近期有哪些重要变化？",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 2.61
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 2.61
+        },
+        "B": {
+          "queries": [
+            "Python latest stable release notes",
+            "Node.js latest stable release changes"
+          ],
+          "per_query": [
+            {
+              "query": "Python latest stable release notes",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.73
+            },
+            {
+              "query": "Node.js latest stable release changes",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.67
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 1.4
+        },
+        "C": {
+          "queries": [
+            "Python latest stable release version 2026",
+            "Node.js current stable release version 2026"
+          ],
+          "per_query": [
+            {
+              "query": "Python latest stable release version 2026",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.47
+            },
+            {
+              "query": "Node.js current stable release version 2026",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.48
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 0.95
+        }
+      }
+    },
+    {
+      "id": "B04",
+      "question": "《异星工厂》《戴森球计划》《幸福工厂》有什么区别？哪个更适合长期单人游玩？",
+      "plan_b": {
+        "queries": [
+          "异星工厂 戴森球计划 幸福工厂 区别 对比",
+          "factorio vs dyson sphere program vs satisfactory comparison single player"
+        ],
+        "all_queries": [
+          "异星工厂 戴森球计划 幸福工厂 区别 对比",
+          "factorio vs dyson sphere program vs satisfactory comparison single player",
+          "site:factorio.com Factorio single player long term gameplay"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "异星工厂 戴森球计划 幸福工厂 区别 对比",
+          "幸福工厂 长期单人游玩 评价"
+        ],
+        "all_queries": [
+          "异星工厂 戴森球计划 幸福工厂 区别 对比",
+          "幸福工厂 长期单人游玩 评价",
+          "戴森球计划 异星工厂 单人 耐玩度 对比"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "《异星工厂》《戴森球计划》《幸福工厂》有什么区别？哪个更适合长期单人游玩？"
+          ],
+          "per_query": [
+            {
+              "query": "《异星工厂》《戴森球计划》《幸福工厂》有什么区别？哪个更适合长期单人游玩？",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.23
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.23
+        },
+        "B": {
+          "queries": [
+            "异星工厂 戴森球计划 幸福工厂 区别 对比",
+            "factorio vs dyson sphere program vs satisfactory comparison single player"
+          ],
+          "per_query": [
+            {
+              "query": "异星工厂 戴森球计划 幸福工厂 区别 对比",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.42
+            },
+            {
+              "query": "factorio vs dyson sphere program vs satisfactory comparison single player",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.62
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 2.04
+        },
+        "C": {
+          "queries": [
+            "异星工厂 戴森球计划 幸福工厂 区别 对比",
+            "幸福工厂 长期单人游玩 评价"
+          ],
+          "per_query": [
+            {
+              "query": "异星工厂 戴森球计划 幸福工厂 区别 对比",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.3
+            },
+            {
+              "query": "幸福工厂 长期单人游玩 评价",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.59
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 0.89
+        }
+      }
+    },
+    {
+      "id": "B05",
+      "question": "RTX 5060 Laptop 8GB 本地运行 9B 语言模型，Q4、Q5、Q8 哪种更合适？",
+      "plan_b": {
+        "queries": [
+          "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+          "Q4 vs Q5 vs Q8 quantization quality 9B model"
+        ],
+        "all_queries": [
+          "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+          "Q4 vs Q5 vs Q8 quantization quality 9B model",
+          "site:reddit.com RTX 5060 8GB run 9B model quantization"
+        ],
+        "rq_binding": [
+          "rq-vram",
+          "rq-quality",
+          "rq-main"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+          "9B LLM Q4 vs Q5 vs Q8 quantization quality comparison"
+        ],
+        "all_queries": [
+          "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+          "9B LLM Q4 vs Q5 vs Q8 quantization quality comparison",
+          "RTX 5060 Laptop 8GB local LLM quantization recommendation"
+        ],
+        "rq_binding": [
+          "rq-vram",
+          "rq-quality",
+          "rq-main"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "RTX 5060 Laptop 8GB 本地运行 9B 语言模型，Q4、Q5、Q8 哪种更合适？"
+          ],
+          "per_query": [
+            {
+              "query": "RTX 5060 Laptop 8GB 本地运行 9B 语言模型，Q4、Q5、Q8 哪种更合适？",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.16
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.16
+        },
+        "B": {
+          "queries": [
+            "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+            "Q4 vs Q5 vs Q8 quantization quality 9B model"
+          ],
+          "per_query": [
+            {
+              "query": "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.53
+            },
+            {
+              "query": "Q4 vs Q5 vs Q8 quantization quality 9B model",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.47
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 1.0
+        },
+        "C": {
+          "queries": [
+            "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+            "9B LLM Q4 vs Q5 vs Q8 quantization quality comparison"
+          ],
+          "per_query": [
+            {
+              "query": "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.27
+            },
+            {
+              "query": "9B LLM Q4 vs Q5 vs Q8 quantization quality comparison",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.42
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 0.69
+        }
+      }
+    },
+    {
+      "id": "C04",
+      "question": "研究轻量化遥感变化检测模型近年来的发展，比较精度、参数量、FLOPs 和实际部署成本。",
+      "plan_b": {
+        "queries": [
+          "轻量化遥感变化检测 模型 参数量 FLOPs 精度 对比",
+          "lightweight remote sensing change detection deployment latency edge cost"
+        ],
+        "all_queries": [
+          "轻量化遥感变化检测 模型 参数量 FLOPs 精度 对比",
+          "lightweight remote sensing change detection deployment latency edge cost",
+          "site:arxiv.org lightweight change detection remote sensing parameters FLOPs"
+        ],
+        "rq_binding": [
+          "rq-benchmarks",
+          "rq-deploy",
+          "rq-main"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+          "lightweight remote sensing change detection parameters FLOPs accuracy comparison"
+        ],
+        "all_queries": [
+          "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+          "lightweight remote sensing change detection parameters FLOPs accuracy comparison",
+          "轻量化变化检测 模型 边缘设备 推理延迟 部署"
+        ],
+        "rq_binding": [
+          "rq-methods",
+          "rq-metrics",
+          "rq-deploy"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "研究轻量化遥感变化检测模型近年来的发展，比较精度、参数量、FLOPs 和实际部署成本。"
+          ],
+          "per_query": [
+            {
+              "query": "研究轻量化遥感变化检测模型近年来的发展，比较精度、参数量、FLOPs 和实际部署成本。",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.27
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.27
+        },
+        "B": {
+          "queries": [
+            "轻量化遥感变化检测 模型 参数量 FLOPs 精度 对比",
+            "lightweight remote sensing change detection deployment latency edge cost"
+          ],
+          "per_query": [
+            {
+              "query": "轻量化遥感变化检测 模型 参数量 FLOPs 精度 对比",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.55
+            },
+            {
+              "query": "lightweight remote sensing change detection deployment latency edge cost",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.16
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 0.71
+        },
+        "C": {
+          "queries": [
+            "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+            "lightweight remote sensing change detection parameters FLOPs accuracy comparison"
+          ],
+          "per_query": [
+            {
+              "query": "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.17
+            },
+            {
+              "query": "lightweight remote sensing change detection parameters FLOPs accuracy comparison",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.17
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 0.34
+        }
+      }
+    }
+  ],
+  "not_measured": [
+    "answer_quality",
+    "evidence_support",
+    "second_planning_round"
+  ],
+  "completed_at": "2026-10-27T18:18:57.728224Z",
+  "model_calls_used": 8,
+  "summary": {
+    "model_calls_used": 8,
+    "groups": {
+      "A": {
+        "cases": 4,
+        "with_results": 4,
+        "hit_at_6": 0,
+        "mean_mrr_at_6": 0.0,
+        "cumulative_relevant": 0,
+        "mean_elapsed": 1.57
+      },
+      "B": {
+        "cases": 4,
+        "with_results": 4,
+        "hit_at_6": 0,
+        "mean_mrr_at_6": 0.0,
+        "cumulative_relevant": 0,
+        "mean_elapsed": 1.29
+      },
+      "C": {
+        "cases": 4,
+        "with_results": 4,
+        "hit_at_6": 0,
+        "mean_mrr_at_6": 0.0,
+        "cumulative_relevant": 0,
+        "mean_elapsed": 0.72
+      }
+    },
+    "entity_retention": {
+      "B": 1.0,
+      "C": 1.0
+    }
+  }
+}

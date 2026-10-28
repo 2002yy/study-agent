@@ -1,0 +1,1239 @@
+{
+  "schema_version": "qp1c-query-planning-ab-v1",
+  "runs": [
+    "ee0e2f5060054b92a9859c981b0e54e8",
+    "fed5d246c4734db5b561fcd827a6976b"
+  ],
+  "budget": {
+    "max_model_calls": 20,
+    "cap_cny": "3"
+  },
+  "pricing_cny_per_mtok": {
+    "input": "4",
+    "output": "16"
+  },
+  "provider": "auto (SearXNG/bing)",
+  "result_limit": 6,
+  "not_measured": [
+    "answer_quality",
+    "evidence_support",
+    "second_planning_round"
+  ],
+  "execution_note": "Part 1 shared one settlement admission across all cases and hit the logical quota after 12 sends; part 2 used one admission per operation. 12 + 8 = 20 sends, exactly the authorised cap.",
+  "cases": [
+    {
+      "id": "A01",
+      "question": "《崩坏：星穹铁道》当前版本是多少？上下半卡池分别是谁？下一版本已经官宣了什么？",
+      "plan_b": {
+        "queries": [
+          "崩坏星穹铁道 当前版本 卡池 2026年10月",
+          "site:honkai-star-rail.hoyoverse.com 版本 卡池 公告"
+        ],
+        "all_queries": [
+          "崩坏星穹铁道 当前版本 卡池 2026年10月",
+          "site:honkai-star-rail.hoyoverse.com 版本 卡池 公告",
+          "崩坏星穹铁道 下一版本 官宣 前瞻"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "崩坏星穹铁道 当前版本 卡池 上半 下半",
+          "崩坏星穹铁道 下一版本 前瞻 官宣 角色"
+        ],
+        "all_queries": [
+          "崩坏星穹铁道 当前版本 卡池 上半 下半",
+          "崩坏星穹铁道 下一版本 前瞻 官宣 角色",
+          "星穹铁道 版本更新 卡池 时间表"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "《崩坏：星穹铁道》当前版本是多少？上下半卡池分别是谁？下一版本已经官宣了什么？"
+          ],
+          "per_query": [
+            {
+              "query": "《崩坏：星穹铁道》当前版本是多少？上下半卡池分别是谁？下一版本已经官宣了什么？",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 3,
+              "first_relevant_rank": 1,
+              "elapsed": 1.23
+            }
+          ],
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 3,
+          "elapsed": 1.23
+        },
+        "B": {
+          "queries": [
+            "崩坏星穹铁道 当前版本 卡池 2026年10月",
+            "site:honkai-star-rail.hoyoverse.com 版本 卡池 公告"
+          ],
+          "per_query": [
+            {
+              "query": "崩坏星穹铁道 当前版本 卡池 2026年10月",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 3,
+              "first_relevant_rank": 1,
+              "elapsed": 0.83
+            },
+            {
+              "query": "site:honkai-star-rail.hoyoverse.com 版本 卡池 公告",
+              "status": "empty",
+              "result_count": 0,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.94
+            }
+          ],
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 3,
+          "elapsed": 1.77
+        },
+        "C": {
+          "queries": [
+            "崩坏星穹铁道 当前版本 卡池 上半 下半",
+            "崩坏星穹铁道 下一版本 前瞻 官宣 角色"
+          ],
+          "per_query": [
+            {
+              "query": "崩坏星穹铁道 当前版本 卡池 上半 下半",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 3,
+              "first_relevant_rank": 1,
+              "elapsed": 0.61
+            },
+            {
+              "query": "崩坏星穹铁道 下一版本 前瞻 官宣 角色",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 3,
+              "first_relevant_rank": 1,
+              "elapsed": 0.45
+            }
+          ],
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 3,
+          "elapsed": 1.06
+        }
+      }
+    },
+    {
+      "id": "B01",
+      "question": "《星铁》黄泉队里的千冶·刃应该用什么遗器？与其他辅助相比有什么优势？",
+      "plan_b": {
+        "queries": [
+          "千冶·刃 遗器 推荐 黄泉队",
+          "千冶·刃 黄泉 辅助 对比 优势"
+        ],
+        "all_queries": [
+          "千冶·刃 遗器 推荐 黄泉队",
+          "千冶·刃 黄泉 辅助 对比 优势",
+          "site:honkai-star-rail.hoyoverse.com 千冶·刃 遗器"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-detail",
+          "rq-main"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "星铁 千冶·刃 遗器 推荐 黄泉队",
+          "千冶·刃 黄泉队 辅助 对比 优势"
+        ],
+        "all_queries": [
+          "星铁 千冶·刃 遗器 推荐 黄泉队",
+          "千冶·刃 黄泉队 辅助 对比 优势",
+          "黄泉队 辅助 千冶·刃 配队 攻略"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-detail",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "《星铁》黄泉队里的千冶·刃应该用什么遗器？与其他辅助相比有什么优势？"
+          ],
+          "per_query": [
+            {
+              "query": "《星铁》黄泉队里的千冶·刃应该用什么遗器？与其他辅助相比有什么优势？",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.2
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.2
+        },
+        "B": {
+          "queries": [
+            "千冶·刃 遗器 推荐 黄泉队",
+            "千冶·刃 黄泉 辅助 对比 优势"
+          ],
+          "per_query": [
+            {
+              "query": "千冶·刃 遗器 推荐 黄泉队",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.41
+            },
+            {
+              "query": "千冶·刃 黄泉 辅助 对比 优势",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.56
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 0.97
+        },
+        "C": {
+          "queries": [
+            "星铁 千冶·刃 遗器 推荐 黄泉队",
+            "千冶·刃 黄泉队 辅助 对比 优势"
+          ],
+          "per_query": [
+            {
+              "query": "星铁 千冶·刃 遗器 推荐 黄泉队",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.38
+            },
+            {
+              "query": "千冶·刃 黄泉队 辅助 对比 优势",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.56
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 1.94
+        }
+      }
+    },
+    {
+      "id": "B02",
+      "question": "《星铁》虚构叙事中，黄泉队、流萤队、Archer 队哪个更适合自动战斗？",
+      "plan_b": {
+        "queries": [
+          "星铁 黄泉队 流萤队 自动战斗 虚构叙事 对比",
+          "星铁 虚构叙事 当期 环境 buff 敌人 配置"
+        ],
+        "all_queries": [
+          "星铁 黄泉队 流萤队 自动战斗 虚构叙事 对比",
+          "星铁 虚构叙事 当期 环境 buff 敌人 配置",
+          "site:miyoushe.com 星铁 虚构叙事 自动战斗 队伍"
+        ],
+        "rq_binding": [
+          "rq-auto",
+          "rq-current",
+          "rq-auto"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "星铁 虚构叙事 黄泉队 自动战斗 表现",
+          "星铁 虚构叙事 流萤队 自动战斗 对比"
+        ],
+        "all_queries": [
+          "星铁 虚构叙事 黄泉队 自动战斗 表现",
+          "星铁 虚构叙事 流萤队 自动战斗 对比",
+          "星铁 虚构叙事 Archer队 自动战斗 配队"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "《星铁》虚构叙事中，黄泉队、流萤队、Archer 队哪个更适合自动战斗？"
+          ],
+          "per_query": [
+            {
+              "query": "《星铁》虚构叙事中，黄泉队、流萤队、Archer 队哪个更适合自动战斗？",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.33
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.33
+        },
+        "B": {
+          "queries": [
+            "星铁 黄泉队 流萤队 自动战斗 虚构叙事 对比",
+            "星铁 虚构叙事 当期 环境 buff 敌人 配置"
+          ],
+          "per_query": [
+            {
+              "query": "星铁 黄泉队 流萤队 自动战斗 虚构叙事 对比",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.84
+            },
+            {
+              "query": "星铁 虚构叙事 当期 环境 buff 敌人 配置",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.56
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.4
+        },
+        "C": {
+          "queries": [
+            "星铁 虚构叙事 黄泉队 自动战斗 表现",
+            "星铁 虚构叙事 流萤队 自动战斗 对比"
+          ],
+          "per_query": [
+            {
+              "query": "星铁 虚构叙事 黄泉队 自动战斗 表现",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.62
+            },
+            {
+              "query": "星铁 虚构叙事 流萤队 自动战斗 对比",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.5
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.12
+        }
+      }
+    },
+    {
+      "id": "C01",
+      "question": "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。",
+      "plan_b": {
+        "queries": [
+          "星铁 虚构叙事 60000 分 配队 攻略",
+          "虚构叙事 敌人机制 行动顺序 自动战斗"
+        ],
+        "all_queries": [
+          "星铁 虚构叙事 60000 分 配队 攻略",
+          "虚构叙事 敌人机制 行动顺序 自动战斗",
+          "site:miyoushe.com 虚构叙事 满星 配队"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "星铁 虚构叙事 当期 敌人机制 弱点",
+          "星铁 虚构叙事 60000 满分配队 行动顺序"
+        ],
+        "all_queries": [
+          "星铁 虚构叙事 当期 敌人机制 弱点",
+          "星铁 虚构叙事 60000 满分配队 行动顺序",
+          "星铁 虚构叙事 自动战斗 策略 攻略"
+        ],
+        "rq_binding": [
+          "rq-detail",
+          "rq-team",
+          "rq-auto"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。"
+          ],
+          "per_query": [
+            {
+              "query": "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.22
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.22
+        },
+        "B": {
+          "queries": [
+            "星铁 虚构叙事 60000 分 配队 攻略",
+            "虚构叙事 敌人机制 行动顺序 自动战斗"
+          ],
+          "per_query": [
+            {
+              "query": "星铁 虚构叙事 60000 分 配队 攻略",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.62
+            },
+            {
+              "query": "虚构叙事 敌人机制 行动顺序 自动战斗",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.86
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 1.48
+        },
+        "C": {
+          "queries": [
+            "星铁 虚构叙事 当期 敌人机制 弱点",
+            "星铁 虚构叙事 60000 满分配队 行动顺序"
+          ],
+          "per_query": [
+            {
+              "query": "星铁 虚构叙事 当期 敌人机制 弱点",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.75
+            },
+            {
+              "query": "星铁 虚构叙事 60000 满分配队 行动顺序",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.73
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.48
+        }
+      }
+    },
+    {
+      "id": "D01",
+      "question": "帮我研究当前《星铁》虚构叙事的配队。",
+      "plan_b": {
+        "queries": [
+          "星穹铁道 虚构叙事 配队 推荐",
+          "虚构叙事 满星 阵容 当前版本"
+        ],
+        "all_queries": [
+          "星穹铁道 虚构叙事 配队 推荐",
+          "虚构叙事 满星 阵容 当前版本",
+          "虚构叙事 当期 敌人 增益 机制"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "星穹铁道 虚构叙事 配队 推荐 当前期",
+          "星穹铁道 虚构叙事 当期 机制 增益 攻略"
+        ],
+        "all_queries": [
+          "星穹铁道 虚构叙事 配队 推荐 当前期",
+          "星穹铁道 虚构叙事 当期 机制 增益 攻略",
+          "星铁 虚构叙事 阵容 低配 通关"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-detail",
+          "rq-main"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "帮我研究当前《星铁》虚构叙事的配队。"
+          ],
+          "per_query": [
+            {
+              "query": "帮我研究当前《星铁》虚构叙事的配队。",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.39
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.39
+        },
+        "B": {
+          "queries": [
+            "星穹铁道 虚构叙事 配队 推荐",
+            "虚构叙事 满星 阵容 当前版本"
+          ],
+          "per_query": [
+            {
+              "query": "星穹铁道 虚构叙事 配队 推荐",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.45
+            },
+            {
+              "query": "虚构叙事 满星 阵容 当前版本",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.62
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 1.07
+        },
+        "C": {
+          "queries": [
+            "星穹铁道 虚构叙事 配队 推荐 当前期",
+            "星穹铁道 虚构叙事 当期 机制 增益 攻略"
+          ],
+          "per_query": [
+            {
+              "query": "星穹铁道 虚构叙事 配队 推荐 当前期",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.25
+            },
+            {
+              "query": "星穹铁道 虚构叙事 当期 机制 增益 攻略",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.48
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.73
+        }
+      }
+    },
+    {
+      "id": "A04",
+      "question": "最近一周有哪些值得关注的开源 AI 模型发布？哪些提供了可下载权重？",
+      "plan_b": {
+        "queries": [
+          "open source AI model releases this week October 2026",
+          "new open weights model release October 2026"
+        ],
+        "all_queries": [
+          "open source AI model releases this week October 2026",
+          "new open weights model release October 2026",
+          "site:huggingface.co models released October 2026"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "open source AI model releases this week October 2026",
+          "new open weights model release Hugging Face October 2026"
+        ],
+        "all_queries": [
+          "open source AI model releases this week October 2026",
+          "new open weights model release Hugging Face October 2026",
+          "开源大模型 发布 可下载权重 2026年10月"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "最近一周有哪些值得关注的开源 AI 模型发布？哪些提供了可下载权重？"
+          ],
+          "per_query": [
+            {
+              "query": "最近一周有哪些值得关注的开源 AI 模型发布？哪些提供了可下载权重？",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.45
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.45
+        },
+        "B": {
+          "queries": [
+            "open source AI model releases this week October 2026",
+            "new open weights model release October 2026"
+          ],
+          "per_query": [
+            {
+              "query": "open source AI model releases this week October 2026",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.48
+            },
+            {
+              "query": "new open weights model release October 2026",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 1,
+              "first_relevant_rank": 4,
+              "elapsed": 0.58
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 1,
+          "elapsed": 1.06
+        },
+        "C": {
+          "queries": [
+            "open source AI model releases this week October 2026",
+            "new open weights model release Hugging Face October 2026"
+          ],
+          "per_query": [
+            {
+              "query": "open source AI model releases this week October 2026",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.3
+            },
+            {
+              "query": "new open weights model release Hugging Face October 2026",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 1,
+              "first_relevant_rank": 4,
+              "elapsed": 0.52
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 1,
+          "elapsed": 0.82
+        }
+      }
+    },
+    {
+      "id": "A05",
+      "question": "Python 和 Node.js 当前稳定版本分别是多少？近期有哪些重要变化？",
+      "plan_b": {
+        "queries": [
+          "Python latest stable release notes",
+          "Node.js latest stable release changes"
+        ],
+        "all_queries": [
+          "Python latest stable release notes",
+          "Node.js latest stable release changes",
+          "site:nodejs.org Node.js release blog"
+        ],
+        "rq_binding": [
+          "rq-python",
+          "rq-node",
+          "rq-node"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "Python latest stable release version 2026",
+          "Node.js current stable release version 2026"
+        ],
+        "all_queries": [
+          "Python latest stable release version 2026",
+          "Node.js current stable release version 2026",
+          "Python Node.js recent release changes 2026"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "Python 和 Node.js 当前稳定版本分别是多少？近期有哪些重要变化？"
+          ],
+          "per_query": [
+            {
+              "query": "Python 和 Node.js 当前稳定版本分别是多少？近期有哪些重要变化？",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 2.61
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 2.61
+        },
+        "B": {
+          "queries": [
+            "Python latest stable release notes",
+            "Node.js latest stable release changes"
+          ],
+          "per_query": [
+            {
+              "query": "Python latest stable release notes",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.73
+            },
+            {
+              "query": "Node.js latest stable release changes",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.67
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 1.4
+        },
+        "C": {
+          "queries": [
+            "Python latest stable release version 2026",
+            "Node.js current stable release version 2026"
+          ],
+          "per_query": [
+            {
+              "query": "Python latest stable release version 2026",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.47
+            },
+            {
+              "query": "Node.js current stable release version 2026",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.48
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 0.95
+        }
+      }
+    },
+    {
+      "id": "B04",
+      "question": "《异星工厂》《戴森球计划》《幸福工厂》有什么区别？哪个更适合长期单人游玩？",
+      "plan_b": {
+        "queries": [
+          "异星工厂 戴森球计划 幸福工厂 区别 对比",
+          "factorio vs dyson sphere program vs satisfactory comparison single player"
+        ],
+        "all_queries": [
+          "异星工厂 戴森球计划 幸福工厂 区别 对比",
+          "factorio vs dyson sphere program vs satisfactory comparison single player",
+          "site:factorio.com Factorio single player long term gameplay"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "异星工厂 戴森球计划 幸福工厂 区别 对比",
+          "幸福工厂 长期单人游玩 评价"
+        ],
+        "all_queries": [
+          "异星工厂 戴森球计划 幸福工厂 区别 对比",
+          "幸福工厂 长期单人游玩 评价",
+          "戴森球计划 异星工厂 单人 耐玩度 对比"
+        ],
+        "rq_binding": [
+          "rq-main",
+          "rq-main",
+          "rq-detail"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "《异星工厂》《戴森球计划》《幸福工厂》有什么区别？哪个更适合长期单人游玩？"
+          ],
+          "per_query": [
+            {
+              "query": "《异星工厂》《戴森球计划》《幸福工厂》有什么区别？哪个更适合长期单人游玩？",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.23
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.23
+        },
+        "B": {
+          "queries": [
+            "异星工厂 戴森球计划 幸福工厂 区别 对比",
+            "factorio vs dyson sphere program vs satisfactory comparison single player"
+          ],
+          "per_query": [
+            {
+              "query": "异星工厂 戴森球计划 幸福工厂 区别 对比",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.42
+            },
+            {
+              "query": "factorio vs dyson sphere program vs satisfactory comparison single player",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.62
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 2.04
+        },
+        "C": {
+          "queries": [
+            "异星工厂 戴森球计划 幸福工厂 区别 对比",
+            "幸福工厂 长期单人游玩 评价"
+          ],
+          "per_query": [
+            {
+              "query": "异星工厂 戴森球计划 幸福工厂 区别 对比",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.3
+            },
+            {
+              "query": "幸福工厂 长期单人游玩 评价",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.59
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 0.89
+        }
+      }
+    },
+    {
+      "id": "B05",
+      "question": "RTX 5060 Laptop 8GB 本地运行 9B 语言模型，Q4、Q5、Q8 哪种更合适？",
+      "plan_b": {
+        "queries": [
+          "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+          "Q4 vs Q5 vs Q8 quantization quality 9B model"
+        ],
+        "all_queries": [
+          "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+          "Q4 vs Q5 vs Q8 quantization quality 9B model",
+          "site:reddit.com RTX 5060 8GB run 9B model quantization"
+        ],
+        "rq_binding": [
+          "rq-vram",
+          "rq-quality",
+          "rq-main"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+          "9B LLM Q4 vs Q5 vs Q8 quantization quality comparison"
+        ],
+        "all_queries": [
+          "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+          "9B LLM Q4 vs Q5 vs Q8 quantization quality comparison",
+          "RTX 5060 Laptop 8GB local LLM quantization recommendation"
+        ],
+        "rq_binding": [
+          "rq-vram",
+          "rq-quality",
+          "rq-main"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "RTX 5060 Laptop 8GB 本地运行 9B 语言模型，Q4、Q5、Q8 哪种更合适？"
+          ],
+          "per_query": [
+            {
+              "query": "RTX 5060 Laptop 8GB 本地运行 9B 语言模型，Q4、Q5、Q8 哪种更合适？",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.16
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.16
+        },
+        "B": {
+          "queries": [
+            "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+            "Q4 vs Q5 vs Q8 quantization quality 9B model"
+          ],
+          "per_query": [
+            {
+              "query": "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.53
+            },
+            {
+              "query": "Q4 vs Q5 vs Q8 quantization quality 9B model",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.47
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 1.0
+        },
+        "C": {
+          "queries": [
+            "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+            "9B LLM Q4 vs Q5 vs Q8 quantization quality comparison"
+          ],
+          "per_query": [
+            {
+              "query": "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.27
+            },
+            {
+              "query": "9B LLM Q4 vs Q5 vs Q8 quantization quality comparison",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.42
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 0.69
+        }
+      }
+    },
+    {
+      "id": "C04",
+      "question": "研究轻量化遥感变化检测模型近年来的发展，比较精度、参数量、FLOPs 和实际部署成本。",
+      "plan_b": {
+        "queries": [
+          "轻量化遥感变化检测 模型 参数量 FLOPs 精度 对比",
+          "lightweight remote sensing change detection deployment latency edge cost"
+        ],
+        "all_queries": [
+          "轻量化遥感变化检测 模型 参数量 FLOPs 精度 对比",
+          "lightweight remote sensing change detection deployment latency edge cost",
+          "site:arxiv.org lightweight change detection remote sensing parameters FLOPs"
+        ],
+        "rq_binding": [
+          "rq-benchmarks",
+          "rq-deploy",
+          "rq-main"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "plan_c": {
+        "queries": [
+          "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+          "lightweight remote sensing change detection parameters FLOPs accuracy comparison"
+        ],
+        "all_queries": [
+          "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+          "lightweight remote sensing change detection parameters FLOPs accuracy comparison",
+          "轻量化变化检测 模型 边缘设备 推理延迟 部署"
+        ],
+        "rq_binding": [
+          "rq-methods",
+          "rq-metrics",
+          "rq-deploy"
+        ],
+        "intent": "CONTINUE_ACTIVE_RESEARCH"
+      },
+      "groups": {
+        "A": {
+          "queries": [
+            "研究轻量化遥感变化检测模型近年来的发展，比较精度、参数量、FLOPs 和实际部署成本。"
+          ],
+          "per_query": [
+            {
+              "query": "研究轻量化遥感变化检测模型近年来的发展，比较精度、参数量、FLOPs 和实际部署成本。",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 1.27
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 6,
+          "cumulative_relevant": 0,
+          "elapsed": 1.27
+        },
+        "B": {
+          "queries": [
+            "轻量化遥感变化检测 模型 参数量 FLOPs 精度 对比",
+            "lightweight remote sensing change detection deployment latency edge cost"
+          ],
+          "per_query": [
+            {
+              "query": "轻量化遥感变化检测 模型 参数量 FLOPs 精度 对比",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.55
+            },
+            {
+              "query": "lightweight remote sensing change detection deployment latency edge cost",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.16
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 0.71
+        },
+        "C": {
+          "queries": [
+            "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+            "lightweight remote sensing change detection parameters FLOPs accuracy comparison"
+          ],
+          "per_query": [
+            {
+              "query": "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.17
+            },
+            {
+              "query": "lightweight remote sensing change detection parameters FLOPs accuracy comparison",
+              "status": "ok",
+              "result_count": 6,
+              "relevant_count": 0,
+              "first_relevant_rank": null,
+              "elapsed": 0.17
+            }
+          ],
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "cumulative_results": 12,
+          "cumulative_relevant": 0,
+          "elapsed": 0.34
+        }
+      }
+    }
+  ],
+  "model_calls_used": 20,
+  "summary": {
+    "model_calls_used": 20,
+    "groups": {
+      "A": {
+        "cases": 10,
+        "with_results": 10,
+        "hit_at_6": 1,
+        "mean_mrr_at_6": 0.1,
+        "cumulative_relevant": 3,
+        "mean_elapsed": 1.41
+      },
+      "B": {
+        "cases": 10,
+        "with_results": 10,
+        "hit_at_6": 1,
+        "mean_mrr_at_6": 0.1,
+        "cumulative_relevant": 4,
+        "mean_elapsed": 1.29
+      },
+      "C": {
+        "cases": 10,
+        "with_results": 10,
+        "hit_at_6": 1,
+        "mean_mrr_at_6": 0.1,
+        "cumulative_relevant": 4,
+        "mean_elapsed": 1.1
+      }
+    },
+    "entity_retention": {
+      "B": 0.9,
+      "C": 0.9
+    }
+  }
+}
