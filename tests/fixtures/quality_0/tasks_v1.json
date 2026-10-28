@@ -1,0 +1,192 @@
+{
+  "schema_version": "quality-0-tasks-v1",
+  "frozen_at": "2026-10-28",
+  "purpose": "A small, frozen set of real user tasks used to compare Study Agent against a direct model conversation. It measures the product experience, not an internal module.",
+  "arms": [
+    {"id": "current", "label": "Study Agent 当前版本"},
+    {"id": "candidate", "label": "Study Agent 候选版本"},
+    {"id": "model_direct", "label": "同一模型的直接对话（无检索/研究）"},
+    {"id": "chatgpt", "label": "ChatGPT 实际运行结果（参考，不是真值）"}
+  ],
+  "dimensions": {
+    "task_completion": {"max": 4, "weight": 5, "rule": "0 未完成 / 2 部分 / 4 完成且可直接使用"},
+    "factual_accuracy": {"max": 4, "weight": 5, "rule": "0 关键事实错误 / 2 有小错 / 4 无关键错误"},
+    "evidence_coverage": {"max": 4, "weight": 4, "rule": "0 无依据 / 2 部分主张有来源 / 4 关键主张均有可核验来源"},
+    "usefulness": {"max": 4, "weight": 4, "rule": "0 无用 / 2 参考价值有限 / 4 直接可执行"},
+    "follow_up_correctness": {"max": 4, "weight": 3, "rule": "仅多轮任务；0 丢失上下文 / 4 正确继承并只改必要部分"},
+    "freshness": {"max": 4, "weight": 3, "rule": "仅时效任务；0 使用过期信息 / 4 全部为当前版本"}
+  },
+  "tasks": [
+    {
+      "id": "CHAT-01",
+      "type": "chat",
+      "prompt": "帮我解释一下什么是向量数据库，以及它和普通关系型数据库的区别。",
+      "follow_up": "那如果我要存的是图片特征，还需要注意什么？",
+      "expected_behavior": "先给出清晰定义与关键区别，追问时只补充多模态场景的差异，不重讲基础概念。",
+      "checks": ["definition_clear", "difference_concrete", "follow_up_continuity"],
+      "must_not": ["把向量数据库说成只能做相似度搜索", "追问时从头重复第一轮"]
+    },
+    {
+      "id": "CHAT-02",
+      "type": "chat",
+      "prompt": "我想学 Rust，但听说学习曲线很陡，值得学吗？",
+      "follow_up": "算了，我其实更想快速做出一个命令行工具，还值得学吗？",
+      "expected_behavior": "第一轮给出有条件的判断；追问改变目标后重新评估，明确说明结论为何变化。",
+      "checks": ["conditional_advice", "goal_change_handled", "no_stale_conclusion"],
+      "must_not": ["无视目标变化继续推荐原方案", "给出绝对化的「值得/不值得」"]
+    },
+    {
+      "id": "CHAT-03",
+      "type": "chat",
+      "prompt": "Python 的 GIL 是不是意味着多线程完全没用？",
+      "follow_up": "你刚才说得不对，我说的是 IO 密集型任务也能用多线程吧？",
+      "expected_behavior": "先纠正前提；用户纠正时承认并区分 CPU 密集与 IO 密集场景。",
+      "checks": ["premise_corrected", "correction_acknowledged", "cpu_vs_io"],
+      "must_not": ["附和错误前提", "被纠正后仍坚持原结论"]
+    },
+
+    {
+      "id": "GAME-01",
+      "type": "game",
+      "prompt": "《崩坏：星穹铁道》当前版本是多少？上下半卡池分别是谁？",
+      "expected_behavior": "给出版本号与两半卡池，标注来源与日期；不确定时明确说明。",
+      "checks": ["version_correct_at_run_time", "banner_halves", "dated_source"],
+      "must_not": ["把旧版本当当前版本", "编造卡池角色"]
+    },
+    {
+      "id": "GAME-02",
+      "type": "game",
+      "prompt": "《星铁》黄泉队里的千冶·刃应该用什么遗器？为什么？",
+      "expected_behavior": "给出遗器、主词条与理由，说明在黄泉队中的定位。",
+      "checks": ["relic_set", "main_stats", "role_reasoning"],
+      "must_not": ["只给泛用推荐不谈队伍", "编造不存在的遗器"]
+    },
+    {
+      "id": "GAME-03",
+      "type": "game",
+      "prompt": "《星铁》虚构叙事里黄泉队和流萤队哪个更适合自动战斗？",
+      "expected_behavior": "区分自动与手动，说明当期机制影响，并标注不确定处。",
+      "checks": ["auto_vs_manual", "rotation_context", "uncertainty_flagged"],
+      "must_not": ["用混沌回忆结论回答虚构叙事", "不区分自动战斗"]
+    },
+    {
+      "id": "GAME-04",
+      "type": "game",
+      "prompt": "《星铁》里同一个角色可以装备另一命途的光锥吗？如果可以请推荐。",
+      "expected_behavior": "先指出前提错误（光锥命途限制），再给出可行方案。",
+      "checks": ["false_premise_corrected", "alternative_offer"],
+      "must_not": ["直接按错误前提推荐", "回避问题"]
+    },
+
+    {
+      "id": "CODE-01",
+      "type": "coding",
+      "prompt": "我的 FastAPI 服务偶尔返回 502，日志里没有异常，应该怎么排查？",
+      "expected_behavior": "给出分层排查顺序（反代/超时/worker/依赖），每步说明看什么证据。",
+      "checks": ["layered_diagnosis", "evidence_per_step", "actionable"],
+      "must_not": ["只给通用清单不解释", "断言单一原因"]
+    },
+    {
+      "id": "CODE-02",
+      "type": "coding",
+      "prompt": "一个 Python 项目里 src/ 和 tests/ 都在仓库根目录，如何判断它的模块边界是否合理？",
+      "expected_behavior": "提出可操作的判断标准（依赖方向、导入关系、循环依赖），并说明如何验证。",
+      "checks": ["criteria_concrete", "verification_method", "tradeoffs"],
+      "must_not": ["只讲目录约定", "给不可执行的建议"]
+    },
+    {
+      "id": "CODE-03",
+      "type": "coding",
+      "prompt": "解释一下为什么这个正则 `^(?!.*(.)\\1{2})` 能限制连续重复字符。",
+      "expected_behavior": "逐段解释负向前瞻与反向引用，指出适用边界（如大小写、Unicode）。",
+      "checks": ["regex_explained", "edge_cases", "no_handwave"],
+      "must_not": ["只说「匹配重复」", "忽略反向引用组编号"]
+    },
+
+    {
+      "id": "RESEARCH-01",
+      "type": "research",
+      "prompt": "比较 DuckDuckGo、Bing、SearXNG 作为搜索后端的差异，并说明自建代理场景下应该怎么选。",
+      "expected_behavior": "按数据来源、稳定性、可配置性、合规性比较，并给出条件化建议。",
+      "checks": ["axes_covered", "conditional_recommendation", "sources"],
+      "must_not": ["只列功能表", "忽略自建/代理约束"]
+    },
+    {
+      "id": "RESEARCH-02",
+      "type": "research",
+      "prompt": "本地 8GB 显存跑 9B 模型，Q4 和 Q5 怎么选？请给出可核验的计算。",
+      "expected_behavior": "给出显存估算公式与数值，区分估算与实测。",
+      "checks": ["arithmetic_shown", "estimate_vs_measured", "context_window"],
+      "must_not": ["把估算说成实测", "忽略 KV cache"]
+    },
+    {
+      "id": "RESEARCH-03",
+      "type": "research",
+      "prompt": "如果要给一个中文团队选 CI 方案（GitHub Actions vs 自建 GitLab Runner），需要考虑哪些因素？",
+      "expected_behavior": "覆盖网络、成本、维护、合规、缓存与并发，给出决策树。",
+      "checks": ["factors_complete", "decision_tree", "china_network"],
+      "must_not": ["只谈价格", "忽略网络可达性"]
+    },
+
+    {
+      "id": "SCI-01",
+      "type": "science",
+      "prompt": "解释 Transformer 中位置编码为什么必要，并说明绝对位置编码与 RoPE 的差异。",
+      "expected_behavior": "先讲必要性（自注意力无顺序），再比较两种方案的性质与外推能力。",
+      "checks": ["necessity_explained", "comparison", "extrapolation"],
+      "must_not": ["把位置编码说成可有可无", "混淆绝对与相对"]
+    },
+    {
+      "id": "SCI-02",
+      "type": "science",
+      "prompt": "一篇论文报告准确率提升 2%，但没有给方差和数据集划分，该怎么判断这个提升是否可信？",
+      "expected_behavior": "指出需要方差、显著性、数据泄漏检查与复现条件，给出结论强度判断。",
+      "checks": ["variance_issue", "significance", "leakage_check"],
+      "must_not": ["直接接受提升", "只要求更多数据"]
+    },
+    {
+      "id": "SCI-03",
+      "type": "science",
+      "prompt": "梯度消失和梯度爆炸的成因有什么不同？各自的常见缓解手段是什么？",
+      "expected_behavior": "从连乘、激活函数、初始化角度区分成因，对应到不同缓解手段。",
+      "checks": ["cause_distinction", "mitigations", "no_confusion"],
+      "must_not": ["把两者混为一谈", "只列名词"]
+    },
+
+    {
+      "id": "FILE-01",
+      "type": "file",
+      "prompt": "（附一份 PDF）总结这份文档的核心结论，并指出作者的三个主要论据。",
+      "expected_behavior": "准确引用文档内容，区分作者观点与事实，指出文档中没有覆盖的部分。",
+      "checks": ["content_grounded", "three_arguments", "gaps_noted"],
+      "must_not": ["编造文档中没有的内容", "只复述目录"]
+    },
+    {
+      "id": "FILE-02",
+      "type": "file",
+      "prompt": "（附一份 CSV）统计各分类的数量，并指出异常值。",
+      "expected_behavior": "给出统计结果与异常判定标准，说明缺失值处理。",
+      "checks": ["counts_correct", "anomaly_rule", "missing_values"],
+      "must_not": ["忽略缺失值", "把异常值当错误直接删除"]
+    },
+
+    {
+      "id": "INTERACT-01",
+      "type": "interactive",
+      "prompt": "帮我研究一下当前《星铁》虚构叙事有哪些值得练的阵容。",
+      "follow_up": "我只有 120 抽，而且不抽专武，重新给建议。",
+      "expected_behavior": "研究过程中接受约束变化，只调整受影响部分，保留已核实的结论。",
+      "checks": ["constraint_applied", "prior_findings_kept", "no_restart"],
+      "must_not": ["忽略预算约束", "把已核实结论一并推翻"]
+    },
+    {
+      "id": "INTERACT-02",
+      "type": "interactive",
+      "prompt": "对比三种开源向量数据库，给我一个选型建议。",
+      "follow_up": "先停一下，我补充一个条件：必须支持本地离线部署。",
+      "expected_behavior": "暂停后按新条件收敛，明确说明哪些候选被排除及原因。",
+      "checks": ["pause_handled", "constraint_applied", "exclusions_explained"],
+      "must_not": ["继续按旧条件输出", "静默丢弃被排除项"]
+    }
+  ]
+}
