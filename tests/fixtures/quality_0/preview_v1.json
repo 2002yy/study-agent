@@ -1,0 +1,23 @@
+{
+  "schema_version": "quality-0-preview-v1",
+  "frozen_at": "2026-10-28",
+  "purpose": "Four-task dry run of the Quality-0 arms: proves the harness can run all arms fairly, that budget guards hold, and that the scoring sheet can be filled - not a ranking.",
+  "task_ids": ["CHAT-01", "GAME-02", "CODE-01", "FILE-02"],
+  "arms": [
+    {"id": "current", "sends_per_round": 4, "execution": "api"},
+    {"id": "candidate", "sends_per_round": 4, "execution": "api"},
+    {"id": "model_direct", "sends_per_round": 1, "execution": "api"},
+    {"id": "chatgpt", "sends_per_round": 0, "execution": "manual"}
+  ],
+  "limits": {
+    "max_user_rounds": 20,
+    "max_api_rounds": 15,
+    "max_model_sends": 45,
+    "max_cost_cny": 10
+  },
+  "notes": [
+    "A task with a follow_up counts as two user rounds.",
+    "The chatgpt arm is run by a human and never sends an API request through this harness.",
+    "Exceeding max_model_sends or max_cost_cny must abort before the first send."
+  ]
+}
