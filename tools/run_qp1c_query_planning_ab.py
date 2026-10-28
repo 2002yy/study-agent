@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -135,12 +136,23 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _positive_finite_cap(name: str, value: float) -> float:
+    """A cap that cannot be enforced must stop the run, not be replaced."""
+
+    if not isinstance(value, float) or not math.isfinite(value) or value <= 0:
+        raise ValueError(f"invalid_cap:{name}")
+    return value
+
+
 def _effective_caps(requested: float) -> tuple[str, str]:
     """Never relax a cap the caller already set, at either level.
 
     The process cap bounds this run; the experiment cap bounds all runs of the
     same experiment. A stricter value in either place wins, and the experiment
     cap may never exceed the process cap.
+
+    A malformed or unenforceable existing value fails closed: silently replacing
+    it with the requested budget would spend against a cap nobody can read.
     """
 
     def existing(name: str) -> float | None:
@@ -148,9 +160,12 @@ def _effective_caps(requested: float) -> tuple[str, str]:
         if not raw:
             return None
         try:
-            return float(raw)
+            parsed = float(raw)
         except ValueError:
-            return None
+            raise ValueError(f"invalid_cap:{name}") from None
+        return _positive_finite_cap(name, parsed)
+
+    requested = _positive_finite_cap("requested", requested)
 
     process = requested
     caller_process = existing("LLM_SPEND_CAP_CNY")

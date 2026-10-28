@@ -156,3 +156,35 @@ def test_configure_keeps_a_stricter_experiment_cap(monkeypatch, tmp_path):
 
     assert os.environ["LLM_SPEND_EXPERIMENT_CAP_CNY"] == "0.2"
     assert os.environ["LLM_SPEND_CAP_CNY"] == "3"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["three", "3 CNY", "nan", "NaN", "inf", "-inf", "0", "-1"],
+)
+def test_an_unenforceable_existing_cap_fails_closed(monkeypatch, raw):
+    monkeypatch.setenv("LLM_SPEND_CAP_CNY", raw)
+
+    with pytest.raises(ValueError, match="invalid_cap:LLM_SPEND_CAP_CNY"):
+        harness._effective_caps(3.0)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["three", "nan", "inf", "0", "-1"],
+)
+def test_an_unenforceable_existing_experiment_cap_fails_closed(monkeypatch, raw):
+    monkeypatch.delenv("LLM_SPEND_CAP_CNY", raising=False)
+    monkeypatch.setenv("LLM_SPEND_EXPERIMENT_CAP_CNY", raw)
+
+    with pytest.raises(ValueError, match="invalid_cap:LLM_SPEND_EXPERIMENT_CAP_CNY"):
+        harness._effective_caps(3.0)
+
+
+@pytest.mark.parametrize("requested", [float("nan"), float("inf"), 0.0, -1.0])
+def test_an_unenforceable_requested_cap_fails_closed(monkeypatch, requested):
+    monkeypatch.delenv("LLM_SPEND_CAP_CNY", raising=False)
+    monkeypatch.delenv("LLM_SPEND_EXPERIMENT_CAP_CNY", raising=False)
+
+    with pytest.raises(ValueError, match="invalid_cap:requested"):
+        harness._effective_caps(requested)
