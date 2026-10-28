@@ -1,8 +1,15 @@
 {
   "schema_version": "provider-routing-replay-v1",
-  "started_at": "2026-10-28T11:32:38.639680Z",
+  "started_at": "2026-10-28T12:06:52.998666Z",
   "capture": "docs/research_quality/PROVIDER_ROUTING_CAPTURE.json",
   "limit": 6,
+  "evaluation_window": 6,
+  "latency_definition": "sum of measured provider request durations; excludes pacing sleeps and client-side processing",
+  "gate": {
+    "signal": "source_assessment relevance of the first three results",
+    "threshold": 0.5,
+    "uses_evaluation_rule": false
+  },
   "strategies": {},
   "cases": [
     {
@@ -15,12 +22,13 @@
           ],
           "results": 6,
           "provider_calls": 1,
-          "latency": 2.45,
-          "relevant_rank": 2,
+          "latency": 2.42,
+          "window": 6,
+          "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
-          "mrr_at_6": 0.5,
-          "relevant_count": 2
+          "mrr_at_6": 1.0,
+          "relevant_count": 3
         },
         "E1": {
           "providers": [
@@ -29,12 +37,13 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 9.18,
-          "relevant_rank": 2,
+          "latency": 6.2,
+          "window": 6,
+          "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
-          "mrr_at_6": 0.5,
-          "relevant_count": 2
+          "mrr_at_6": 1.0,
+          "relevant_count": 3
         },
         "E2": {
           "providers": [
@@ -43,26 +52,56 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 9.18,
+          "latency": 6.2,
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 6
         },
-        "E3": {
+        "E3_assessor": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 6.2,
+          "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "assessor",
+            "threshold": 0.5,
+            "best_relevance": 0.414,
+            "sufficient": false
+          },
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
+        },
+        "E3_ngram": {
           "providers": [
             "bing"
           ],
           "results": 6,
           "provider_calls": 1,
-          "latency": 2.45,
+          "latency": 2.42,
           "triggered_extra_provider": false,
-          "relevant_rank": 2,
+          "gate": {
+            "strategy": "ngram",
+            "threshold": 2,
+            "best_overlap": 5,
+            "sufficient": true
+          },
+          "window": 6,
+          "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
-          "mrr_at_6": 0.5,
-          "relevant_count": 2
+          "mrr_at_6": 1.0,
+          "relevant_count": 3
         }
       }
     },
@@ -76,7 +115,8 @@
           ],
           "results": 6,
           "provider_calls": 1,
-          "latency": 2.36,
+          "latency": 2.38,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -90,7 +130,8 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 10.03,
+          "latency": 6.65,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -104,22 +145,52 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 10.03,
+          "latency": 6.65,
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 6
         },
-        "E3": {
+        "E3_assessor": {
           "providers": [
             "bing",
             "ddg"
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 10.03,
+          "latency": 6.65,
           "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "assessor",
+            "threshold": 0.5,
+            "best_relevance": 0.356,
+            "sufficient": false
+          },
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
+        },
+        "E3_ngram": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 6.65,
+          "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "ngram",
+            "threshold": 2,
+            "best_overlap": 0,
+            "sufficient": false
+          },
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
@@ -138,7 +209,8 @@
           ],
           "results": 6,
           "provider_calls": 1,
-          "latency": 2.36,
+          "latency": 2.41,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -152,7 +224,8 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 8.97,
+          "latency": 5.86,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -166,22 +239,52 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 8.97,
+          "latency": 5.86,
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 6
         },
-        "E3": {
+        "E3_assessor": {
           "providers": [
             "bing",
             "ddg"
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 8.97,
+          "latency": 5.86,
           "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "assessor",
+            "threshold": 0.5,
+            "best_relevance": 0.341,
+            "sufficient": false
+          },
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
+        },
+        "E3_ngram": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 5.86,
+          "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "ngram",
+            "threshold": 2,
+            "best_overlap": 0,
+            "sufficient": false
+          },
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
@@ -200,7 +303,8 @@
           ],
           "results": 6,
           "provider_calls": 1,
-          "latency": 2.38,
+          "latency": 2.39,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -214,7 +318,8 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 8.36,
+          "latency": 5.92,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -228,22 +333,52 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 8.36,
+          "latency": 5.92,
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 4
         },
-        "E3": {
+        "E3_assessor": {
           "providers": [
             "bing",
             "ddg"
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 8.36,
+          "latency": 5.92,
           "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "assessor",
+            "threshold": 0.5,
+            "best_relevance": 0.328,
+            "sufficient": false
+          },
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 4
+        },
+        "E3_ngram": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 5.92,
+          "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "ngram",
+            "threshold": 2,
+            "best_overlap": 0,
+            "sufficient": false
+          },
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
@@ -262,7 +397,8 @@
           ],
           "results": 6,
           "provider_calls": 1,
-          "latency": 2.39,
+          "latency": 2.34,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -276,7 +412,8 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 7.33,
+          "latency": 5.54,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -290,27 +427,56 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 7.33,
+          "latency": 5.54,
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 5
         },
-        "E3": {
+        "E3_assessor": {
           "providers": [
             "bing",
             "ddg"
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 7.33,
+          "latency": 5.54,
           "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "assessor",
+            "threshold": 0.5,
+            "best_relevance": 0.36,
+            "sufficient": false
+          },
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 5
+        },
+        "E3_ngram": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.34,
+          "triggered_extra_provider": false,
+          "gate": {
+            "strategy": "ngram",
+            "threshold": 2,
+            "best_overlap": 3,
+            "sufficient": true
+          },
+          "window": 6,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
         }
       }
     },
@@ -324,7 +490,8 @@
           ],
           "results": 6,
           "provider_calls": 1,
-          "latency": 2.34,
+          "latency": 2.36,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -338,7 +505,8 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 9.06,
+          "latency": 5.55,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -352,27 +520,56 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 9.06,
-          "relevant_rank": 5,
+          "latency": 5.55,
+          "window": 6,
+          "relevant_rank": null,
           "hit_at_3": false,
-          "hit_at_6": true,
-          "mrr_at_6": 0.2,
-          "relevant_count": 2
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
         },
-        "E3": {
+        "E3_assessor": {
           "providers": [
             "bing",
             "ddg"
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 9.06,
+          "latency": 5.55,
           "triggered_extra_provider": true,
-          "relevant_rank": 5,
+          "gate": {
+            "strategy": "assessor",
+            "threshold": 0.5,
+            "best_relevance": 0.344,
+            "sufficient": false
+          },
+          "window": 6,
+          "relevant_rank": null,
           "hit_at_3": false,
-          "hit_at_6": true,
-          "mrr_at_6": 0.2,
-          "relevant_count": 2
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E3_ngram": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.36,
+          "triggered_extra_provider": false,
+          "gate": {
+            "strategy": "ngram",
+            "threshold": 2,
+            "best_overlap": 2,
+            "sufficient": true
+          },
+          "window": 6,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
         }
       }
     },
@@ -386,12 +583,13 @@
           ],
           "results": 6,
           "provider_calls": 1,
-          "latency": 2.36,
-          "relevant_rank": null,
-          "hit_at_3": false,
-          "hit_at_6": false,
-          "mrr_at_6": 0.0,
-          "relevant_count": 0
+          "latency": 2.41,
+          "window": 6,
+          "relevant_rank": 2,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 0.5,
+          "relevant_count": 1
         },
         "E1": {
           "providers": [
@@ -400,12 +598,13 @@
           ],
           "results": 11,
           "provider_calls": 2,
-          "latency": 7.2,
-          "relevant_rank": null,
-          "hit_at_3": false,
-          "hit_at_6": false,
-          "mrr_at_6": 0.0,
-          "relevant_count": 0
+          "latency": 5.93,
+          "window": 6,
+          "relevant_rank": 2,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 0.5,
+          "relevant_count": 1
         },
         "E2": {
           "providers": [
@@ -414,27 +613,56 @@
           ],
           "results": 11,
           "provider_calls": 2,
-          "latency": 7.2,
-          "relevant_rank": null,
+          "latency": 5.93,
+          "window": 6,
+          "relevant_rank": 6,
           "hit_at_3": false,
-          "hit_at_6": false,
-          "mrr_at_6": 0.0,
-          "relevant_count": 0
+          "hit_at_6": true,
+          "mrr_at_6": 0.167,
+          "relevant_count": 1
         },
-        "E3": {
+        "E3_assessor": {
           "providers": [
             "bing",
             "ddg"
           ],
           "results": 11,
           "provider_calls": 2,
-          "latency": 7.2,
+          "latency": 5.93,
           "triggered_extra_provider": true,
-          "relevant_rank": null,
+          "gate": {
+            "strategy": "assessor",
+            "threshold": 0.5,
+            "best_relevance": 0.337,
+            "sufficient": false
+          },
+          "window": 6,
+          "relevant_rank": 6,
           "hit_at_3": false,
-          "hit_at_6": false,
-          "mrr_at_6": 0.0,
-          "relevant_count": 0
+          "hit_at_6": true,
+          "mrr_at_6": 0.167,
+          "relevant_count": 1
+        },
+        "E3_ngram": {
+          "providers": [
+            "bing"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.41,
+          "triggered_extra_provider": false,
+          "gate": {
+            "strategy": "ngram",
+            "threshold": 2,
+            "best_overlap": 2,
+            "sufficient": true
+          },
+          "window": 6,
+          "relevant_rank": 2,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 0.5,
+          "relevant_count": 1
         }
       }
     },
@@ -448,7 +676,8 @@
           ],
           "results": 6,
           "provider_calls": 1,
-          "latency": 2.33,
+          "latency": 2.42,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -462,7 +691,8 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 12.71,
+          "latency": 5.61,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -476,22 +706,52 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 12.71,
+          "latency": 5.61,
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 5
         },
-        "E3": {
+        "E3_assessor": {
           "providers": [
             "bing",
             "ddg"
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 12.71,
+          "latency": 5.61,
           "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "assessor",
+            "threshold": 0.5,
+            "best_relevance": 0.344,
+            "sufficient": false
+          },
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
+        },
+        "E3_ngram": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 5.61,
+          "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "ngram",
+            "threshold": 2,
+            "best_overlap": 0,
+            "sufficient": false
+          },
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
@@ -510,7 +770,8 @@
           ],
           "results": 6,
           "provider_calls": 1,
-          "latency": 2.38,
+          "latency": 2.39,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -522,9 +783,10 @@
             "bing",
             "ddg"
           ],
-          "results": 12,
+          "results": 6,
           "provider_calls": 2,
-          "latency": 5.38,
+          "latency": 7.42,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -536,29 +798,59 @@
             "bing",
             "ddg"
           ],
-          "results": 12,
+          "results": 6,
           "provider_calls": 2,
-          "latency": 5.38,
-          "relevant_rank": 4,
+          "latency": 7.42,
+          "window": 6,
+          "relevant_rank": null,
           "hit_at_3": false,
-          "hit_at_6": true,
-          "mrr_at_6": 0.25,
-          "relevant_count": 1
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
         },
-        "E3": {
+        "E3_assessor": {
           "providers": [
             "bing",
             "ddg"
           ],
-          "results": 12,
+          "results": 6,
           "provider_calls": 2,
-          "latency": 5.38,
+          "latency": 7.42,
           "triggered_extra_provider": true,
-          "relevant_rank": 4,
+          "gate": {
+            "strategy": "assessor",
+            "threshold": 0.5,
+            "best_relevance": 0.386,
+            "sufficient": false
+          },
+          "window": 6,
+          "relevant_rank": null,
           "hit_at_3": false,
-          "hit_at_6": true,
-          "mrr_at_6": 0.25,
-          "relevant_count": 1
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
+        },
+        "E3_ngram": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 2,
+          "latency": 7.42,
+          "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "ngram",
+            "threshold": 2,
+            "best_overlap": 0,
+            "sufficient": false
+          },
+          "window": 6,
+          "relevant_rank": null,
+          "hit_at_3": false,
+          "hit_at_6": false,
+          "mrr_at_6": 0.0,
+          "relevant_count": 0
         }
       }
     },
@@ -572,7 +864,8 @@
           ],
           "results": 6,
           "provider_calls": 1,
-          "latency": 2.39,
+          "latency": 2.34,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -586,7 +879,8 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 6.0,
+          "latency": 5.73,
+          "window": 6,
           "relevant_rank": null,
           "hit_at_3": false,
           "hit_at_6": false,
@@ -600,22 +894,52 @@
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 6.0,
+          "latency": 5.73,
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 4
         },
-        "E3": {
+        "E3_assessor": {
           "providers": [
             "bing",
             "ddg"
           ],
           "results": 12,
           "provider_calls": 2,
-          "latency": 6.0,
+          "latency": 5.73,
           "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "assessor",
+            "threshold": 0.5,
+            "best_relevance": 0.347,
+            "sufficient": false
+          },
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 4
+        },
+        "E3_ngram": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 12,
+          "provider_calls": 2,
+          "latency": 5.73,
+          "triggered_extra_provider": true,
+          "gate": {
+            "strategy": "ngram",
+            "threshold": 2,
+            "best_overlap": 0,
+            "sufficient": false
+          },
+          "window": 6,
           "relevant_rank": 1,
           "hit_at_3": true,
           "hit_at_6": true,
@@ -634,52 +958,76 @@
       "answer_quality"
     ]
   },
-  "completed_at": "2026-10-28T11:32:38.697672Z",
+  "completed_at": "2026-10-28T12:06:53.044977Z",
   "summary": {
     "cases": 10,
     "strategies": {
       "E0": {
-        "hit_at_3": 1,
-        "hit_at_6": 1,
-        "mean_mrr_at_6": 0.05,
-        "total_relevant": 2,
+        "hit_at_3": 2,
+        "hit_at_6": 2,
+        "mean_mrr_at_6": 0.15,
+        "total_relevant": 4,
         "provider_calls": 10,
-        "latency_p50": 2.36,
-        "latency_p90": 2.39,
-        "latency_mean": 2.37
+        "latency_p50": 2.39,
+        "latency_p90": 2.42,
+        "latency_mean": 2.39
       },
       "E1": {
-        "hit_at_3": 1,
-        "hit_at_6": 1,
-        "mean_mrr_at_6": 0.05,
-        "total_relevant": 2,
+        "hit_at_3": 2,
+        "hit_at_6": 2,
+        "mean_mrr_at_6": 0.15,
+        "total_relevant": 4,
         "provider_calls": 20,
-        "latency_p50": 8.36,
-        "latency_p90": 10.03,
-        "latency_mean": 8.42
+        "latency_p50": 5.86,
+        "latency_p90": 6.65,
+        "latency_mean": 6.04
       },
       "E2": {
         "hit_at_3": 7,
-        "hit_at_6": 9,
-        "mean_mrr_at_6": 0.745,
-        "total_relevant": 39,
+        "hit_at_6": 8,
+        "mean_mrr_at_6": 0.717,
+        "total_relevant": 37,
         "provider_calls": 20,
-        "latency_p50": 8.36,
-        "latency_p90": 10.03,
-        "latency_mean": 8.42
+        "latency_p50": 5.86,
+        "latency_p90": 6.65,
+        "latency_mean": 6.04
       },
-      "E3": {
+      "E3_assessor": {
         "hit_at_3": 7,
-        "hit_at_6": 9,
-        "mean_mrr_at_6": 0.695,
-        "total_relevant": 35,
-        "provider_calls": 19,
-        "latency_p50": 7.33,
-        "latency_p90": 10.03,
-        "latency_mean": 7.75
+        "hit_at_6": 8,
+        "mean_mrr_at_6": 0.717,
+        "total_relevant": 37,
+        "provider_calls": 20,
+        "latency_p50": 5.86,
+        "latency_p90": 6.65,
+        "latency_mean": 6.04
+      },
+      "E3_ngram": {
+        "hit_at_3": 7,
+        "hit_at_6": 7,
+        "mean_mrr_at_6": 0.65,
+        "total_relevant": 29,
+        "provider_calls": 16,
+        "latency_p50": 5.61,
+        "latency_p90": 6.65,
+        "latency_mean": 4.67
       }
     },
-    "e3_extra_provider_calls": 9,
-    "negative_control_skips": 1
+    "gates": {
+      "assessor": {
+        "triggered": 10,
+        "skipped": 0,
+        "correct_skips": 0,
+        "false_stops": 0,
+        "false_alarms": 2
+      },
+      "ngram": {
+        "triggered": 6,
+        "skipped": 4,
+        "correct_skips": 2,
+        "false_stops": 2,
+        "false_alarms": 0
+      }
+    }
   }
 }

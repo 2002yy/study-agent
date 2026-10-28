@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 import statistics
 import sys
 import time
@@ -119,6 +120,7 @@ def capture(
         "started_at": _utc_now(),
         "queries_fixture": _display_path(queries),
         "query_set_version": document.get("schema_version"),
+        "case_ids": [case["id"] for case in document["cases"]],
         "limit": limit,
         "cases": [],
         "scope": {"stores_page_bodies": False, "uses_model": False},
@@ -147,6 +149,7 @@ def capture(
                             "title": str(item.get("title") or "")[:200],
                             "url": str(item.get("url") or "")[:300],
                             "source": str(item.get("source") or "")[:60],
+                            "snippet": str(item.get("snippet") or "")[:240],
                             "snippet_chars": len(str(item.get("snippet") or "")),
                         }
                         for item in results
@@ -207,15 +210,95 @@ def _first_relevant_rank(results: list[dict[str, Any]], case: dict[str, Any]) ->
     return None
 
 
-def _metrics(results: list[dict[str, Any]], case: dict[str, Any], limit: int) -> dict[str, Any]:
-    top = results[:limit]
-    rank = _first_relevant_rank(top, case)
+EVALUATION_WINDOW = 6
+GATE_THRESHOLD = 0.5
+GATE_STRATEGIES = ("assessor", "ngram")
+
+
+def _assessor_scores(results: list[dict[str, Any]], case: dict[str, Any]) -> dict[str, float]:
+    from src.web.source_assessment import assess_sources
+
+    assessed, _rejected = assess_sources(results, canonical_query=case["question"])
+    scores: dict[str, float] = {}
+    for record in assessed:
+        item = record.get("item") if isinstance(record, dict) else None
+        if not isinstance(item, dict):
+            continue
+        assessment = record.get("assessment") if isinstance(record, dict) else {}
+        scores[str(item.get("url") or "")] = float((assessment or {}).get("relevance") or 0.0)
+    return scores
+
+
+def _query_grams(text: str) -> set[str]:
+    """Segmentation-free query units: latin words and CJK bigrams.
+
+    Only the query text is used, so this is available at runtime for a real
+    question - unlike the curated anchors used by the evaluation rule.
+    """
+
+    stop = {"the", "and", "for", "with", "this", "that", "latest", "version"}
+    grams: set[str] = set()
+    for part in re.findall(r"[A-Za-z0-9]+|[\u4e00-\u9fff]+", text.casefold()):
+        if part.isascii():
+            if len(part) >= 3 and part not in stop:
+                grams.add(part)
+        else:
+            grams.update(part[index : index + 2] for index in range(len(part) - 1))
+    return grams
+
+
+def _gate_sufficient(
+    results: list[dict[str, Any]], case: dict[str, Any], *, strategy: str
+) -> dict[str, Any]:
+    """Decide whether the first provider is good enough, with runtime signals only.
+
+    This must never call `verdict()`: that is the evaluation rule, and using it
+    here would let E3 peek at the answer sheet. Two production-available signals
+    are measured instead of one tuned threshold:
+
+    - ``assessor``: the repository's own source relevance for the first three.
+    - ``ngram``: query n-grams covered by at least one of the first three.
+    """
+
+    head = results[:3]
+    if strategy == "assessor":
+        scores = _assessor_scores(head, case)
+        best = max(scores.values(), default=0.0)
+        return {
+            "strategy": "assessor",
+            "threshold": GATE_THRESHOLD,
+            "best_relevance": round(best, 3),
+            "sufficient": best >= GATE_THRESHOLD,
+        }
+    if strategy == "ngram":
+        grams = _query_grams(case["query"])
+        best = 0
+        for item in head:
+            surface = " ".join(
+                str(item.get(key) or "") for key in ("title", "url", "snippet")
+            ).casefold()
+            best = max(best, sum(1 for gram in grams if gram in surface))
+        return {
+            "strategy": "ngram",
+            "threshold": 2,
+            "best_overlap": best,
+            "sufficient": best >= 2,
+        }
+    raise ValueError(f"unknown gate strategy: {strategy}")
+
+
+def _metrics(results: list[dict[str, Any]], case: dict[str, Any]) -> dict[str, Any]:
+    # Metrics always use the first six results; a smaller display limit must not
+    # silently redefine "hit@6".
+    window = results[:EVALUATION_WINDOW]
+    rank = _first_relevant_rank(window, case)
     return {
+        "window": EVALUATION_WINDOW,
         "relevant_rank": rank,
         "hit_at_3": bool(rank and rank <= 3),
-        "hit_at_6": bool(rank),
-        "mrr_at_6": round(1 / rank, 3) if rank else 0.0,
-        "relevant_count": sum(1 for item in top if verdict(item, case)["relevant"]),
+        "hit_at_6": bool(rank and rank <= 6),
+        "mrr_at_6": round(1 / rank, 3) if rank and rank <= 6 else 0.0,
+        "relevant_count": sum(1 for item in window if verdict(item, case)["relevant"]),
     }
 
 
@@ -223,11 +306,31 @@ def replay(*, capture_path: Path, output: Path, limit: int) -> dict[str, Any]:
     capture_doc = json.loads(capture_path.read_text(encoding="utf-8"))
     cases = {row["id"]: row for row in capture_doc["cases"]}
     queries = json.loads(DEFAULT_QUERIES.read_text(encoding="utf-8"))
+
+    # Fail closed when the capture and the query set are not the same experiment.
+    if capture_doc.get("query_set_version") != queries.get("schema_version"):
+        raise ValueError("capture_query_set_version_mismatch")
+    expected_ids = [case["id"] for case in queries["cases"]]
+    if capture_doc.get("case_ids") != expected_ids:
+        raise ValueError("capture_case_ids_mismatch")
+    if limit < EVALUATION_WINDOW:
+        raise ValueError("limit_below_evaluation_window")
+
     artifact: dict[str, Any] = {
         "schema_version": "provider-routing-replay-v1",
         "started_at": _utc_now(),
         "capture": _display_path(capture_path),
         "limit": limit,
+        "evaluation_window": EVALUATION_WINDOW,
+        "latency_definition": (
+            "sum of measured provider request durations; excludes pacing sleeps and "
+            "client-side processing"
+        ),
+        "gate": {
+            "signal": "source_assessment relevance of the first three results",
+            "threshold": GATE_THRESHOLD,
+            "uses_evaluation_rule": False,
+        },
         "strategies": {},
         "cases": [],
         "relevance_rule": {
@@ -255,7 +358,7 @@ def replay(*, capture_path: Path, output: Path, limit: int) -> dict[str, Any]:
             "results": len(e0_results),
             "provider_calls": e0_calls,
             "latency": round(e0_latency, 2),
-            **_metrics(e0_results, case, limit),
+            **_metrics(e0_results, case),
         }
 
         # E1: all providers, merge + dedupe, keep provider order.
@@ -265,7 +368,7 @@ def replay(*, capture_path: Path, output: Path, limit: int) -> dict[str, Any]:
             "results": len(merged),
             "provider_calls": len(PROVIDERS),
             "latency": round(sum(providers[mode]["elapsed"] for mode in PROVIDERS), 2),
-            **_metrics(merged, case, limit),
+            **_metrics(merged, case),
         }
 
         # E2: merge + relevance ranking.
@@ -275,32 +378,35 @@ def replay(*, capture_path: Path, output: Path, limit: int) -> dict[str, Any]:
             "results": len(ranked),
             "provider_calls": len(PROVIDERS),
             "latency": round(sum(providers[mode]["elapsed"] for mode in PROVIDERS), 2),
-            **_metrics(ranked, case, limit),
+            **_metrics(ranked, case),
         }
 
-        # E3: E0, then the next provider only when E0's top-3 has nothing relevant.
-        if e0_mode and e0_mode != PROVIDERS[-1] and _first_relevant_rank(
-            e0_results[:limit][:3], case
-        ) is None:
-            extra_mode = PROVIDERS[PROVIDERS.index(e0_mode) + 1]
-            extra = providers[extra_mode]["results"]
-            e3_results = _rank(_dedupe([*e0_results, *extra]), case)
-            e3_calls = e0_calls + 1
-            e3_latency = e0_latency + providers[extra_mode]["elapsed"]
-            e3_triggered = True
-        else:
-            e3_results = e0_results
-            e3_calls = e0_calls
-            e3_latency = e0_latency
-            e3_triggered = False
-        row["strategies"]["E3"] = {
-            "providers": list(PROVIDERS[:e3_calls]),
-            "results": len(e3_results),
-            "provider_calls": e3_calls,
-            "latency": round(e3_latency, 2),
-            "triggered_extra_provider": e3_triggered,
-            **_metrics(e3_results, case, limit),
-        }
+        # E3: E0, then the next provider only when a gate says the first one is
+        # not good enough. Two production-available gates are reported; the
+        # evaluation rule is never consulted here.
+        for strategy in GATE_STRATEGIES:
+            gate = _gate_sufficient(e0_results, case, strategy=strategy)
+            if e0_mode and e0_mode != PROVIDERS[-1] and not gate["sufficient"]:
+                extra_mode = PROVIDERS[PROVIDERS.index(e0_mode) + 1]
+                extra = providers[extra_mode]["results"]
+                e3_results = _rank(_dedupe([*e0_results, *extra]), case)
+                e3_calls = e0_calls + 1
+                e3_latency = e0_latency + providers[extra_mode]["elapsed"]
+                e3_triggered = True
+            else:
+                e3_results = e0_results
+                e3_calls = e0_calls
+                e3_latency = e0_latency
+                e3_triggered = False
+            row["strategies"][f"E3_{strategy}"] = {
+                "providers": list(PROVIDERS[:e3_calls]),
+                "results": len(e3_results),
+                "provider_calls": e3_calls,
+                "latency": round(e3_latency, 2),
+                "triggered_extra_provider": e3_triggered,
+                "gate": gate,
+                **_metrics(e3_results, case),
+            }
         artifact["cases"].append(row)
 
     artifact["completed_at"] = _utc_now()
@@ -319,8 +425,9 @@ def _percentile(values: list[float], fraction: float) -> float | None:
 
 
 def _summarise(cases: list[dict[str, Any]]) -> dict[str, Any]:
-    summary: dict[str, Any] = {"cases": len(cases), "strategies": {}}
-    for name in ("E0", "E1", "E2", "E3"):
+    summary: dict[str, Any] = {"cases": len(cases), "strategies": {}, "gates": {}}
+    names = ("E0", "E1", "E2") + tuple(f"E3_{strategy}" for strategy in GATE_STRATEGIES)
+    for name in names:
         rows = [case["strategies"][name] for case in cases]
         latencies = [row["latency"] for row in rows]
         summary["strategies"][name] = {
@@ -335,15 +442,32 @@ def _summarise(cases: list[dict[str, Any]]) -> dict[str, Any]:
             "latency_p90": _percentile(latencies, 0.9),
             "latency_mean": round(statistics.fmean(latencies), 2) if latencies else None,
         }
-    summary["e3_extra_provider_calls"] = sum(
-        1 for case in cases if case["strategies"]["E3"]["triggered_extra_provider"]
-    )
-    summary["negative_control_skips"] = sum(
-        1
-        for case in cases
-        if not case["strategies"]["E3"]["triggered_extra_provider"]
-        and case["strategies"]["E0"]["hit_at_3"]
-    )
+    # Gate quality is measured separately from E3's retrieval quality: a skip is
+    # correct only when the first provider really did have a relevant top-3 hit.
+    for strategy in GATE_STRATEGIES:
+        rows = [case["strategies"][f"E3_{strategy}"] for case in cases]
+        summary["gates"][strategy] = {
+            "triggered": sum(1 for row in rows if row["triggered_extra_provider"]),
+            "skipped": sum(1 for row in rows if not row["triggered_extra_provider"]),
+            "correct_skips": sum(
+                1
+                for case, row in zip(cases, rows)
+                if not row["triggered_extra_provider"]
+                and case["strategies"]["E0"]["hit_at_3"]
+            ),
+            "false_stops": sum(
+                1
+                for case, row in zip(cases, rows)
+                if not row["triggered_extra_provider"]
+                and not case["strategies"]["E0"]["hit_at_3"]
+            ),
+            "false_alarms": sum(
+                1
+                for case, row in zip(cases, rows)
+                if row["triggered_extra_provider"]
+                and case["strategies"]["E0"]["hit_at_3"]
+            ),
+        }
     return summary
 
 
