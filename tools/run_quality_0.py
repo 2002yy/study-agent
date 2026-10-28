@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +46,7 @@ def load_tasks(path: Path) -> dict[str, Any]:
             "expected_behavior",
             "checks",
             "must_not",
+            "scoring_dimensions",
         } - set(task or {})
         if missing:
             raise ValueError(f"task_missing_fields:{sorted(missing)}")
@@ -57,6 +60,26 @@ def load_tasks(path: Path) -> dict[str, Any]:
     total_weight = sum(float(item.get("weight") or 0) for item in dimensions.values())
     if total_weight <= 0:
         raise ValueError("dimension_weights_invalid")
+
+    for task in tasks:
+        applied = list(task["scoring_dimensions"])
+        unknown = set(applied) - set(dimensions)
+        if unknown or not applied:
+            raise ValueError(f"task_dimensions_invalid:{task['id']}:{sorted(unknown)}")
+        # A dimension that does not apply must not be silently droppable: the
+        # sheet is validated against this exact list, so an evaluator cannot
+        # remove an inconvenient dimension and raise the score.
+        if "follow_up_correctness" in applied and not task.get("follow_up"):
+            raise ValueError(f"follow_up_dimension_without_follow_up:{task['id']}")
+        if "freshness" in applied and task["type"] != "game":
+            raise ValueError(f"freshness_dimension_not_applicable:{task['id']}")
+        for asset in task.get("assets", []):
+            asset_path = REPO_ROOT / asset["path"]
+            if not asset_path.exists():
+                raise ValueError(f"asset_missing:{asset['path']}")
+            digest = hashlib.sha256(asset_path.read_bytes()).hexdigest()
+            if digest != asset["sha256"]:
+                raise ValueError(f"asset_hash_mismatch:{asset['path']}")
 
     arms = document.get("arms") or []
     if not arms:
@@ -82,25 +105,22 @@ def inventory(document: dict[str, Any]) -> dict[str, Any]:
 
 def build_sheet(document: dict[str, Any]) -> dict[str, Any]:
     arms = [arm["id"] for arm in document["arms"]]
-    dimensions = list((document.get("dimensions") or {}).keys())
     rows = []
     for task in document["tasks"]:
-        applicable = [
-            name
-            for name in dimensions
-            if name != "follow_up_correctness" or task.get("follow_up")
-        ]
+        applicable = list(task["scoring_dimensions"])
         for arm in arms:
             rows.append(
                 {
                     "task_id": task["id"],
                     "task_type": task["type"],
+                    "dimensions": applicable,
                     "arm": arm,
                     "scores": {name: None for name in applicable},
                     "notes": "",
                     "diagnosis": "",
                     "first_useful_seconds": None,
                     "total_seconds": None,
+                    "cost_status": "not_measured",
                     "cost_cny": None,
                 }
             )
@@ -114,16 +134,37 @@ def build_sheet(document: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _checked_score(task_id: str, name: str, value: Any, spec: dict[str, Any]) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"sheet_score_invalid:{task_id}:{name}:{value!r}")
+    number = float(value)
+    if not math.isfinite(number) or number < 0 or number > float(spec["max"]):
+        raise ValueError(f"sheet_score_out_of_range:{task_id}:{name}:{value!r}")
+    return number
+
+
 def summarize(document: dict[str, Any], sheet: dict[str, Any]) -> dict[str, Any]:
     dimensions = document["dimensions"]
     rows = sheet.get("rows") or []
     expected = {
         (task["id"], arm["id"]) for task in document["tasks"] for arm in document["arms"]
     }
-    seen = {(row["task_id"], row["arm"]) for row in rows}
-    missing = expected - seen
+    seen = [(row["task_id"], row["arm"]) for row in rows]
+    if len(set(seen)) != len(seen):
+        raise ValueError("sheet_duplicate_rows")
+    missing = expected - set(seen)
     if missing:
         raise ValueError(f"sheet_missing_rows:{sorted(missing)[:5]}")
+    unexpected = set(seen) - expected
+    if unexpected:
+        raise ValueError(f"sheet_unexpected_rows:{sorted(unexpected)[:5]}")
+
+    task_by_id = {task["id"]: task for task in document["tasks"]}
+    for row in rows:
+        applied = task_by_id[row["task_id"]]["scoring_dimensions"]
+        if set(row.get("scores") or {}) != set(applied):
+            raise ValueError(f"sheet_dimensions_mismatch:{row['task_id']}/{row['arm']}")
+
     unscored = [
         f"{row['task_id']}/{row['arm']}:{name}"
         for row in rows
@@ -141,8 +182,34 @@ def summarize(document: dict[str, Any], sheet: dict[str, Any]) -> dict[str, Any]
         for row in arm_rows:
             for name, value in row["scores"].items():
                 spec = dimensions[name]
-                weighted += (float(value) / float(spec["max"])) * float(spec["weight"])
+                weighted += (
+                    _checked_score(row["task_id"], name, value, spec)
+                    / float(spec["max"])
+                ) * float(spec["weight"])
                 weight_sum += float(spec["weight"])
+
+        measured_costs: list[float] = []
+        not_measured = 0
+        for row in arm_rows:
+            status = row.get("cost_status")
+            if status == "measured":
+                value = row.get("cost_cny")
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    raise ValueError(f"sheet_cost_invalid:{row['task_id']}/{row['arm']}")
+                if not math.isfinite(float(value)) or float(value) < 0:
+                    raise ValueError(f"sheet_cost_invalid:{row['task_id']}/{row['arm']}")
+                measured_costs.append(float(value))
+            elif status == "not_measured":
+                if row.get("cost_cny") is not None:
+                    raise ValueError(
+                        f"sheet_cost_inconsistent:{row['task_id']}/{row['arm']}"
+                    )
+                not_measured += 1
+            else:
+                raise ValueError(
+                    f"sheet_cost_status_invalid:{row['task_id']}/{row['arm']}:{status!r}"
+                )
+
         summary["arms"][arm["id"]] = {
             "rows": len(arm_rows),
             "score_0_100": round(weighted / max(1.0, weight_sum) * 100, 1),
@@ -150,9 +217,10 @@ def summarize(document: dict[str, Any], sheet: dict[str, Any]) -> dict[str, Any]
                 [row.get("first_useful_seconds") for row in arm_rows]
             ),
             "mean_total_seconds": _mean([row.get("total_seconds") for row in arm_rows]),
-            "total_cost_cny": round(
-                sum(float(row.get("cost_cny") or 0.0) for row in arm_rows), 3
-            ),
+            "cost_measured_rows": len(measured_costs),
+            "cost_not_measured_rows": not_measured,
+            "total_cost_cny_measured": round(sum(measured_costs), 3),
+            "cost_complete": not_measured == 0,
         }
     return summary
 

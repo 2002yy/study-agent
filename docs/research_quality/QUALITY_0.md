@@ -36,16 +36,35 @@
 
 ## 评分维度（0–4，加权）
 
-| 维度 | 权重 | 说明 |
+| 维度 | 权重 | 适用 |
 | --- | ---: | --- |
-| `task_completion` | 5 | 是否完成任务且可直接使用 |
-| `factual_accuracy` | 5 | 关键事实是否正确 |
-| `evidence_coverage` | 4 | 关键主张是否有可核验来源 |
-| `usefulness` | 4 | 是否可执行、有重点 |
-| `follow_up_correctness` | 3 | 仅多轮题：是否正确继承并只改必要部分 |
-| `freshness` | 3 | 仅时效题：是否使用当前版本信息 |
+| `task_completion` | 5 | 全部任务 |
+| `factual_accuracy` | 5 | 全部任务 |
+| `evidence_coverage` | 4 | game / research / science / file |
+| `usefulness` | 4 | 全部任务 |
+| `follow_up_correctness` | 3 | 仅多轮任务（chat / interactive） |
+| `freshness` | 3 | 仅时效型 game 任务 |
 
+适用维度写在每题 `scoring_dimensions` 里，评分表按它生成；汇总时**必须与之一致**，
+缺一个维度或多一个维度都会被拒绝——这样就无法靠删掉低分维度来抬高总分。
 `score_0_100` 按权重归一化；另记 `first_useful_seconds`、`total_seconds`、`cost_cny`。
+
+### 文件任务使用固定资产
+
+`FILE-01` 使用 `tests/fixtures/quality_0/assets/quality0_brief.pdf`，
+`FILE-02` 使用 `.../quality0_counts.csv`；题集记录每个资产的 SHA-256。
+校验时文件缺失或哈希不符即失败，确保四个对照臂拿到**完全相同的字节**。
+
+### 费用语义
+
+每行必须声明 `cost_status`：
+
+| 状态 | `cost_cny` | 汇总行为 |
+| --- | --- | --- |
+| `measured` | 非负有限数 | 计入 `total_cost_cny_measured` |
+| `not_measured` | 必须为 `null` | 计入 `cost_not_measured_rows`，`cost_complete=false` |
+
+**未测量不会被当作 0**：有任意一行未测量，该臂就标记 `cost_complete=false`，成本比较需注明不完整。
 
 ## 使用流程（当前全部离线）
 
