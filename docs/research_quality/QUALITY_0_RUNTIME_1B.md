@@ -32,11 +32,19 @@ GeneralWebGateway(search_strategy="merge")     # E2：bing + ddg 同查、去重
 | 字段 | 含义 |
 | --- | --- |
 | `search_strategy` | `"merge"` |
-| `providers_attempted` | 实际尝试的引擎，含被环境开关关闭的（后者同时记 `provider_disabled` 错误） |
-| `provider_counts` | 每个引擎返回的原始行数 |
+| `providers_attempted` | **实际发起调用**的引擎，在调用前一刻记录 |
+| `providers_skipped` | 未调用及原因：`provider_disabled` / `search_budget_exhausted` |
+| `provider_counts` | 每个实际调用的引擎返回的原始行数 |
 | `merged_count` | 合并前总行数 |
 | `duplicate_count` | 被去重掉的 URL 数（同一 URL 被两个引擎返回算 1 条） |
-| `ranked_urls` | 重排后的最终顺序 |
+| `ranked_urls` | **对外交付**的最终顺序（域名过滤之后） |
+
+四条真实性规则：
+
+1. **未调用不算尝试**。环境开关关闭或搜索预算耗尽时，引擎记入 `providers_skipped`，不进入 `providers_attempted`——否则运行器会以为双引擎检索发生过。
+2. **交付顺序与 trace 一致**。`site:` 域过滤之后 `ranked_urls` 重新取最终结果，不会留下调用方从未收到的 URL。
+3. **变体级 trace 描述被采用的那个变体**。多查询变体时 `search_detailed` 记录 `adopted_query` 与逐变体 `merge_traces`；顶层聚合字段只来自被采用的变体。
+4. **没有结果就没有聚合**。所有变体都没结果时 `adopted_query=None`、`ranked_urls=[]`，聚合字段省略，避免把失败的一次尝试呈现为本次检索的证据。
 
 这些字段从 `_search_single` 经 `search_exact` 一路传到 `search_detailed`，所以运行器在真实调用链上就能拿到证据，而不需要额外埋点。
 

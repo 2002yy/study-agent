@@ -175,6 +175,11 @@ def test_merge_records_a_disabled_provider_instead_of_pretending(monkeypatch):
     assert calls == ["ddg"]
     assert "bing_rss:provider_disabled" in payload["provider_errors"]
     assert payload["provider_counts"] == {"duckduckgo_html": 1}
+    # Only the engine that was actually called may appear as attempted.
+    assert payload["providers_attempted"] == ["duckduckgo_html"]
+    assert payload["providers_skipped"] == [
+        {"provider": "bing_rss", "reason": "provider_disabled"}
+    ]
 
 
 def test_the_trace_reaches_the_variant_level_api(monkeypatch):
@@ -195,3 +200,98 @@ def test_the_trace_reaches_the_variant_level_api(monkeypatch):
     assert payload["search_strategy"] == "merge"
     assert payload["merged_count"] >= 2
     assert payload["ranked_urls"]
+    assert payload["adopted_query"] == "python asyncio timeout"
+
+
+class _FakeNormalization:
+    def __init__(self, raw_query: str, variants: list[str]) -> None:
+        self.raw_query = raw_query
+        self.query_variants = variants
+
+    def to_dict(self) -> dict[str, object]:
+        return {"query": self.raw_query, "query_variants": self.query_variants}
+
+
+def test_a_later_variant_cannot_be_described_by_the_first_variant_trace(monkeypatch):
+    """The trace must describe the variant whose results were actually returned."""
+
+    monkeypatch.setattr(
+        tool_gateway,
+        "normalize_web_query",
+        lambda query, now=None: _FakeNormalization(
+            "python asyncio timeout",
+            ["python asyncio timeout (missing)", "python asyncio timeout"],
+        ),
+    )
+
+    seen: list[str] = []
+
+    def bing():
+        return [], ""
+
+    def ddg():
+        seen.append("ddg")
+        if len(seen) == 1:
+            return [], ""  # the first variant finds nothing
+        return [_row("python asyncio timeout", "https://a.example/1")], ""
+
+    _patch_providers(monkeypatch, bing, ddg)
+
+    payload = GeneralWebGateway(search_strategy="merge").search_detailed(
+        "python asyncio timeout", max_results=5
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["adopted_query"] == "python asyncio timeout"
+    assert payload["ranked_urls"] == [item["url"] for item in payload["results"]]
+    assert [trace["query"] for trace in payload["merge_traces"]] == [
+        "python asyncio timeout (missing)",
+        "python asyncio timeout",
+    ]
+    # The first trace is kept as evidence, but it is not the one describing the
+    # delivered results.
+    assert payload["merge_traces"][0]["ranked_urls"] == []
+    assert payload["merge_traces"][1]["ranked_urls"] == ["https://a.example/1"]
+
+
+def test_domain_filtering_updates_the_delivered_ranking(monkeypatch):
+    """A filtered-out URL must not survive in the trace the caller stores."""
+
+    def bing():
+        return [
+            _row("python asyncio timeout", "https://a.example/1"),
+            _row("python asyncio timeout copy", "https://other.example/2"),
+        ], ""
+
+    def ddg():
+        return [], ""
+
+    _patch_providers(monkeypatch, bing, ddg)
+
+    payload = GeneralWebGateway(search_strategy="merge").search_exact(
+        "site:a.example python asyncio timeout", max_results=5
+    )
+
+    assert payload["domain_filtered_count"] == 1
+    assert payload["ranked_urls"] == ["https://a.example/1"]
+    assert [item["url"] for item in payload["results"]] == payload["ranked_urls"]
+
+
+def test_no_results_leaves_no_aggregate_that_pretends_a_merge_succeeded(monkeypatch):
+    def bing():
+        return [], "bing_rss:TimeoutError:timed out"
+
+    def ddg():
+        return [], "duckduckgo_html:HTTPError:503"
+
+    _patch_providers(monkeypatch, bing, ddg)
+
+    payload = GeneralWebGateway(search_strategy="merge").search_detailed(
+        "python asyncio timeout", max_results=5
+    )
+
+    assert payload["status"] == "unavailable"
+    assert payload["adopted_query"] is None
+    assert payload["ranked_urls"] == []
+    assert payload["providers_attempted"] == []
+    assert "merged_count" not in payload

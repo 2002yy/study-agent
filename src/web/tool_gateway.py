@@ -124,6 +124,7 @@ SEARCH_STRATEGIES = ("fallback", "merge")
 _MERGE_TRACE_KEYS = (
     "search_strategy",
     "providers_attempted",
+    "providers_skipped",
     "merged_count",
     "duplicate_count",
     "provider_counts",
@@ -287,6 +288,12 @@ class GeneralWebGateway:
         else:
             status = "empty"
             reason = "providers_returned_no_results"
+        trace = self._merge_trace(outcome)
+        if trace:
+            # The delivered order, after the local domain constraint. Reporting
+            # the pre-filter order would let a run claim a source it never gave
+            # to the model.
+            trace["ranked_urls"] = [str(item.get("url") or "") for item in results]
         return {
             "status": status,
             "reason": "domain_constraint_rejected_results" if filtered_count and not results else reason,
@@ -295,7 +302,7 @@ class GeneralWebGateway:
             "domain_filtered_count": filtered_count,
             "provider_errors": provider_errors,
             "providers_attempted": list(outcome["providers_attempted"]),
-            **self._merge_trace(outcome),
+            **trace,
             "searched_at": current.isoformat(),
         }
 
@@ -327,12 +334,14 @@ class GeneralWebGateway:
         provider_errors: list[str] = []
         results: list[dict[str, str]] = []
         saw_available_provider = False
-        merge_trace: dict[str, Any] = {}
+        variant_traces: list[dict[str, Any]] = []
+        adopted_query: str | None = None
         for variant in normalization.query_variants:
             attempted.append(variant)
             exact = self.search_exact(variant, max_results=limit, now=current)
-            if not merge_trace:
-                merge_trace = self._merge_trace(exact)
+            trace = self._merge_trace(exact)
+            if trace:
+                variant_traces.append({"query": variant, **trace})
             if exact["status"] != "unavailable":
                 saw_available_provider = True
             for error in exact.get("provider_errors", []):
@@ -345,6 +354,10 @@ class GeneralWebGateway:
                 limit,
             )
             if results:
+                # The results the caller receives come from this variant, so this
+                # is the trace that describes them. Keeping the first variant's
+                # trace instead would report a merge that produced nothing.
+                adopted_query = variant
                 break
 
         if results:
@@ -358,16 +371,38 @@ class GeneralWebGateway:
         else:
             status = "empty"
             reason = "providers_returned_no_results"
-        return {
+        payload = {
             **normalization.to_dict(),
             "status": status,
             "reason": reason,
             "attempted_queries": attempted,
             "results": results,
             "provider_errors": provider_errors,
-            **merge_trace,
             "searched_at": current.isoformat(),
         }
+        if variant_traces:
+            payload["merge_traces"] = variant_traces
+            payload["adopted_query"] = adopted_query
+            adopted = next(
+                (
+                    trace
+                    for trace in variant_traces
+                    if adopted_query is not None and trace["query"] == adopted_query
+                ),
+                None,
+            )
+            if adopted is not None:
+                # Only an adopted variant describes the delivered answer. With no
+                # adopted variant the aggregates are omitted rather than taken
+                # from the last attempt, which would present a failed merge as
+                # the run's search evidence.
+                payload.update(
+                    {key: value for key, value in adopted.items() if key != "query"}
+                )
+            else:
+                payload["providers_attempted"] = []
+                payload["ranked_urls"] = []
+        return payload
 
     def _search_single(self, query: str, limit: int) -> dict[str, Any]:
         provider_timeout = _env_float(
@@ -482,6 +517,7 @@ class GeneralWebGateway:
 
         provider_errors: list[str] = []
         providers_attempted: list[str] = []
+        providers_skipped: list[dict[str, str]] = []
         collected: list[dict[str, str]] = []
         provider_counts: dict[str, int] = {}
 
@@ -497,13 +533,22 @@ class GeneralWebGateway:
             ("duckduckgo_html", "WEB_ENABLE_DUCKDUCKGO", self._search_duckduckgo),
         )
         for name, flag, fetch in plan:
-            providers_attempted.append(name)
             if not _env_flag(flag, default=True):
                 provider_errors.append(f"{name}:provider_disabled")
+                providers_skipped.append(
+                    {"provider": name, "reason": "provider_disabled"}
+                )
                 continue
             timeout = remaining(name)
             if not timeout:
+                providers_skipped.append(
+                    {"provider": name, "reason": "search_budget_exhausted"}
+                )
                 continue
+            # Recorded immediately before the call, never before the decision to
+            # make it: a run that reports two engines while calling one would be
+            # claiming the experiment it was supposed to prove.
+            providers_attempted.append(name)
             rows, error = fetch(query, limit, timeout)
             if error:
                 provider_errors.append(error)
@@ -530,6 +575,7 @@ class GeneralWebGateway:
             "merged_count": len(collected),
             "duplicate_count": duplicates,
             "provider_counts": provider_counts,
+            "providers_skipped": providers_skipped,
             "ranked_urls": [str(item.get("url") or "") for item in ranked],
         }
 
