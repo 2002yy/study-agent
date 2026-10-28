@@ -7,3 +7,6 @@ docs/research_quality/RELEASE_BENCHMARK_REMOTE_OBSERVATION_2026-09-29/* -text
 docs/research_quality/RELEASE_BENCHMARK_SEMANTIC_CALIBRATION_2026-09-29/* -text
 docs/evidence/real-acceptance-2026/*.png -text -diff
 docs/evidence/real-acceptance-2026/*.pdf -text -diff
+
+tests/fixtures/quality_0/assets/* -text -diff
+
