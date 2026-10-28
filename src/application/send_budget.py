@@ -62,6 +62,39 @@ _REQUIRED_COLUMNS = {
     _LIMITS_TABLE: frozenset({"scope", "cap", "created_at"}),
     _RESERVATIONS_TABLE: frozenset({"scope", "request_key", "units", "reserved_at"}),
 }
+# The keys without which the counting rules are not the rules this code believes
+# it enforces: a lookalike with these column names but no composite key would let
+# one send be counted twice under one scope, and no primary key at all would let
+# `scope` repeat.
+_PRIMARY_KEYS = {
+    _LIMITS_TABLE: ("scope",),
+    _RESERVATIONS_TABLE: ("scope", "request_key"),
+}
+# The exact DDL, used for both creation and verification. Comparing the stored
+# text is the only check that also covers CHECK constraints, which no PRAGMA
+# exposes: a schema that merely has the right names can still accept `cap = -5`.
+_DDL = {
+    _LIMITS_TABLE: (
+        f"CREATE TABLE {_LIMITS_TABLE} ("
+        "scope TEXT PRIMARY KEY, "
+        "cap INTEGER NOT NULL CHECK(cap > 0), "
+        "created_at TEXT NOT NULL)"
+    ),
+    _RESERVATIONS_TABLE: (
+        f"CREATE TABLE {_RESERVATIONS_TABLE} ("
+        "scope TEXT NOT NULL, "
+        "request_key TEXT NOT NULL, "
+        "units INTEGER NOT NULL CHECK(units > 0), "
+        "reserved_at TEXT NOT NULL, "
+        "PRIMARY KEY (scope, request_key))"
+    ),
+}
+
+
+def _normalized_ddl(sql: str) -> str:
+    """Whitespace- and case-insensitive form of a CREATE TABLE statement."""
+
+    return " ".join(str(sql).split()).rstrip(";").lower()
 
 
 def _utc_now() -> str:
@@ -158,32 +191,58 @@ class SendBudget:
 
     @staticmethod
     def _create(connection: sqlite3.Connection) -> None:
-        connection.execute(
-            f"CREATE TABLE {_LIMITS_TABLE} ("
-            "scope TEXT PRIMARY KEY, "
-            "cap INTEGER NOT NULL CHECK(cap > 0), "
-            "created_at TEXT NOT NULL)"
-        )
-        connection.execute(
-            f"CREATE TABLE {_RESERVATIONS_TABLE} ("
-            "scope TEXT NOT NULL, "
-            "request_key TEXT NOT NULL, "
-            "units INTEGER NOT NULL CHECK(units > 0), "
-            "reserved_at TEXT NOT NULL, "
-            f"PRIMARY KEY (scope, request_key))"
-        )
+        for statement in _DDL.values():
+            connection.execute(statement)
 
     def _verify_schema(self, connection: sqlite3.Connection) -> None:
+        """Require the same structure this class creates, not just the same names.
+
+        Column names alone say nothing about the rules that make the counts mean
+        something: without the composite key one send can be recorded twice under
+        one scope, and without the positive check a cap of -5 reads as exhausted
+        while a cap of 0 reads as unlimited. Both checks below are needed - the
+        key/column probe for a targeted message, the statement comparison because
+        SQLite exposes CHECK constraints through no pragma.
+        """
+
         for table, required in _REQUIRED_COLUMNS.items():
-            found = {
-                row[1] for row in connection.execute(f"PRAGMA table_info({table})")
-            }
-            missing = required - found
-            if missing:
-                raise SendBudgetUnavailable(
-                    f"table {table} in {self.path} is missing {sorted(missing)}; "
-                    "refusing to count sends in a schema this code did not define"
+            rows = list(connection.execute(f"PRAGMA table_info({table})"))
+            found = {row["name"] for row in rows}
+            if found != required:
+                missing = required - found
+                extra = found - required
+                detail = (
+                    f"missing {sorted(missing)}" if missing else f"extra {sorted(extra)}"
                 )
+                raise SendBudgetUnavailable(
+                    f"table {table} in {self.path} does not match the send budget "
+                    f"schema ({detail}); refusing to count sends in it"
+                )
+            keys = tuple(
+                row["name"]
+                for row in sorted(rows, key=lambda row: row["pk"])
+                if int(row["pk"]) > 0
+            )
+            if keys != _PRIMARY_KEYS[table]:
+                raise SendBudgetUnavailable(
+                    f"table {table} in {self.path} has primary key {keys} instead of "
+                    f"{_PRIMARY_KEYS[table]}; a lookalike schema without the key "
+                    "cannot be trusted to keep one send per row"
+                )
+
+        for table, expected in _DDL.items():
+            row = connection.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (table,),
+            ).fetchone()
+            stored = "" if row is None else row["sql"]
+            if _normalized_ddl(stored) != _normalized_ddl(expected):
+                raise SendBudgetUnavailable(
+                    f"table {table} in {self.path} was not created by this send "
+                    "budget: its constraints differ from the ones these counts "
+                    "depend on (cap/units positivity, non-null keys)"
+                )
+
         connection.execute(
             f"CREATE INDEX IF NOT EXISTS idx_{_RESERVATIONS_TABLE}_scope "
             f"ON {_RESERVATIONS_TABLE}(scope)"

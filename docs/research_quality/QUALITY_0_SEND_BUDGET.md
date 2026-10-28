@@ -103,8 +103,13 @@ with send_budget_scope(budget, ["experiment:q0-preview", "arm:current"]):
 | 文件不存在 / 空库 | 初始化两张表 |
 | 恰好是本类的两张表 | 允许重新打开（重启友好） |
 | 只有其中一张 | 拒绝（半本账会把已有历史读成空） |
-| 有表名正确但列不全 | 拒绝（读它会得到自信而错误的计数） |
+| 表名、列名都对但结构不同 | 拒绝（见下） |
 | 含其它用途的表 | 拒绝，且**不写入任何东西** |
+
+「结构」不只是列名。同名列但缺少 `PRIMARY KEY (scope, request_key)` 的表会允许同一次发送在同一 scope 下被记两次；缺少 `CHECK(cap > 0)` / `CHECK(units > 0)` 的表会接受负上限（读成已耗尽）或负计数（让额度倒着涨）。因此校验分两层：
+
+1. 列名集合 + 主键列（按 `PRAGMA table_info` 的 `pk` 序号）；
+2. 建表语句本身（归一化后比较）。`CHECK` 约束不被任何 pragma 暴露，只有这一层能发现它缺失。
 
 检查与建表在同一个 `BEGIN IMMEDIATE` 事务里，两个进程同时启动不会都判定为空再各自建表。
 
@@ -133,6 +138,9 @@ with send_budget_scope(budget, ["experiment:q0-preview", "arm:current"]):
 | 嵌套不同账本 | 直接拒绝 | `test_nesting_a_second_budget_file_is_refused` |
 | 其它用途的数据库 | 拒绝且不写入 | `test_a_database_owned_by_something_else_is_refused_and_left_alone` |
 | 半本账 / 表名对列不对 | 拒绝 | `test_a_partial_ledger_is_not_adopted`、`test_a_table_with_the_right_name_but_the_wrong_shape_is_refused` |
+| 同名同列但缺复合主键 | 拒绝 | `test_a_lookalike_schema_without_the_composite_key_is_refused` |
+| 同名同列同主键但缺 CHECK | 拒绝 | `test_a_lookalike_schema_without_the_positive_checks_is_refused` |
+| 约束真的生效 | 负上限、重复计数被数据库拒绝 | `test_the_database_itself_refuses_a_negative_cap_and_a_duplicate_count` |
 
 ## 非范围
 

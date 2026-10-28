@@ -256,6 +256,66 @@ def test_a_table_with_the_right_name_but_the_wrong_shape_is_refused(tmp_path):
         SendBudget(path)
 
 
+def test_a_lookalike_schema_without_the_composite_key_is_refused(tmp_path):
+    """Same table and column names, none of the rules that make counts mean anything."""
+
+    path = tmp_path / "sends.sqlite"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE send_budget_limits ("
+            "scope TEXT, cap INTEGER, created_at TEXT)"
+        )
+        connection.execute(
+            "CREATE TABLE send_budget_reservations ("
+            "scope TEXT, request_key TEXT, units INTEGER, reserved_at TEXT)"
+        )
+
+    with pytest.raises(SendBudgetUnavailable, match="primary key"):
+        SendBudget(path)
+
+
+def test_a_lookalike_schema_without_the_positive_checks_is_refused(tmp_path):
+    """A CHECK constraint is invisible to every pragma, so identity needs the DDL."""
+
+    path = tmp_path / "sends.sqlite"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE send_budget_limits ("
+            "scope TEXT PRIMARY KEY, cap INTEGER, created_at TEXT)"
+        )
+        connection.execute(
+            "CREATE TABLE send_budget_reservations ("
+            "scope TEXT, request_key TEXT, units INTEGER, reserved_at TEXT, "
+            "PRIMARY KEY (scope, request_key))"
+        )
+
+    with pytest.raises(SendBudgetUnavailable, match="constraints differ"):
+        SendBudget(path)
+
+
+def test_the_database_itself_refuses_a_negative_cap_and_a_duplicate_count(tmp_path):
+    """The verified constraints have to be real, not just present in our DDL text."""
+
+    path = tmp_path / "sends.sqlite"
+    budget = SendBudget(path)
+    budget.register({"experiment:q0": 5})
+    budget.reserve("k1", ["experiment:q0"])
+
+    with sqlite3.connect(path) as connection:
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO send_budget_limits(scope, cap, created_at) "
+                "VALUES ('experiment:negative', -1, 'now')"
+            )
+    with sqlite3.connect(path) as connection:
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO send_budget_reservations"
+                "(scope, request_key, units, reserved_at) "
+                "VALUES ('experiment:q0', 'k1', 1, 'now')"
+            )
+
+
 def test_reopening_a_ledger_this_class_created_is_allowed(tmp_path):
     """Ownership must not become so strict that a restart cannot reopen."""
 
