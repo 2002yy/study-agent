@@ -589,14 +589,40 @@ def send_budget_scope(
 ) -> Iterator[SendBudgetBinding]:
     """Bind a durable send budget to every paid call in this context.
 
-    Nested bindings are allowed: an inner round scope narrows the outer one, and
-    both are charged. There is no default budget - without this binding nothing
-    is counted, which is the pre-existing behaviour.
+    Scopes **accumulate**: an inner scope narrows the outer one and both are
+    charged in a single reservation, so
+
+    ``experiment -> arm -> round``
+
+    charges all three levels of one send. Replacing the outer binding instead
+    would make the per-round cap the only one in force and leave the 45-send and
+    per-arm ceilings unenforced - the wider budget would silently stop existing
+    exactly when a runner nests scopes.
+
+    Nesting a *different* budget file is refused rather than merged: one send
+    cannot be atomic across two ledgers, so pretending it can would produce
+    counts that no single transaction vouches for.
+
+    There is no default budget - without this binding nothing is counted, which
+    is the pre-existing behaviour.
     """
 
-    binding = SendBudgetBinding(budget=budget, scopes=tuple(dict.fromkeys(scopes)))
-    if not binding.scopes:
+    requested = tuple(dict.fromkeys(scopes))
+    if not requested:
         raise ValueError("send_budget_scope needs at least one scope")
+
+    outer = _send_budget.get()
+    if outer is not None:
+        if outer.budget.path != budget.path:
+            raise ValueError(
+                "nested send budgets must share one file; one send cannot be "
+                f"counted atomically in {outer.budget.path} and {budget.path}"
+            )
+        # Innermost first: when a scope is exhausted the refusal should name the
+        # narrowest one, which is the scope the runner actually violated.
+        requested = tuple(dict.fromkeys((*requested, *outer.scopes)))
+
+    binding = SendBudgetBinding(budget=budget, scopes=requested)
     token = _send_budget.set(binding)
     try:
         yield binding

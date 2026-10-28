@@ -73,7 +73,7 @@ _charge_send(request_key=request_key, attempts=attempts)   # 先扣次数
 
 预演选择前者：宁可少发一次，也不要伪造花费。`test_a_money_refusal_still_spends_the_send_unit` 把这个取舍写成契约而不是意外。
 
-绑定方式是上下文，默认不绑定 = 行为不变：
+绑定方式是上下文，默认不绑定 = 行为不变，且**作用域会累加**：
 
 ```python
 budget = SendBudget(run_dir / "sends.sqlite")
@@ -83,11 +83,30 @@ budget.register({
     "round:current:r1": 4,
 })
 
-with send_budget_scope(budget, ["experiment:q0-preview", "arm:current", "round:current:r1"]):
-    ...  # 本轮的用户轮次
+with send_budget_scope(budget, ["experiment:q0-preview", "arm:current"]):
+    with send_budget_scope(budget, ["round:current:r1"]):
+        ...  # 一次发送同时计入 experiment / arm / round
 ```
 
+内层**继承**外层而不是覆盖：否则单轮上限生效时，45 次与每臂 20 次会静默失效——正是嵌套最需要外层的时刻。内层只加 scope，不删 scope。
+
+嵌套**不同文件**的账本直接拒绝（`ValueError`）：一次发送无法在两个账本间原子计入，接受它等于接受没有任何事务背书的计数。
+
 `pre_reserved_send` 持有的授权不会二次计费：授权对应的是**已经计入**的那次预留，重复发送由既有的 `send_authorization_consumed` 拦截。
+
+## 数据库所有权
+
+`SendBudget` 不假设「给我一个路径就是给我一个文件」：
+
+| 现状 | 行为 |
+| --- | --- |
+| 文件不存在 / 空库 | 初始化两张表 |
+| 恰好是本类的两张表 | 允许重新打开（重启友好） |
+| 只有其中一张 | 拒绝（半本账会把已有历史读成空） |
+| 有表名正确但列不全 | 拒绝（读它会得到自信而错误的计数） |
+| 含其它用途的表 | 拒绝，且**不写入任何东西** |
+
+检查与建表在同一个 `BEGIN IMMEDIATE` 事务里，两个进程同时启动不会都判定为空再各自建表。
 
 ## SDK 重试
 
@@ -108,6 +127,12 @@ with send_budget_scope(budget, ["experiment:q0-preview", "arm:current", "round:c
 | 次数耗尽经过适配器 | 抛异常中止，而非返回 `cost_ledger_refused` | `test_an_exhausted_send_budget_aborts_instead_of_looking_like_a_cost_refusal` |
 | 账本不可读 | 中止（不视为无上限） | `test_an_unreadable_send_budget_stops_the_run` |
 | 金额拒绝 | 已扣的 1 次不回滚（明示取舍） | `test_a_money_refusal_still_spends_the_send_unit` |
+| 三层嵌套只计一次发送 | experiment / arm / round 各 +1 | `test_nested_scopes_charge_every_level_of_one_send` |
+| 内层耗尽不吞外层额度 | 外层计数不变 | `test_an_exhausted_round_does_not_consume_the_wider_scopes` |
+| 离开内层恢复外层 | 下一轮不再计入 round | `test_leaving_an_inner_scope_restores_the_outer_one` |
+| 嵌套不同账本 | 直接拒绝 | `test_nesting_a_second_budget_file_is_refused` |
+| 其它用途的数据库 | 拒绝且不写入 | `test_a_database_owned_by_something_else_is_refused_and_left_alone` |
+| 半本账 / 表名对列不对 | 拒绝 | `test_a_partial_ledger_is_not_adopted`、`test_a_table_with_the_right_name_but_the_wrong_shape_is_refused` |
 
 ## 非范围
 

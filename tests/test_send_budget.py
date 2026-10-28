@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import sqlite3
 import threading
 from pathlib import Path
 
@@ -194,3 +195,76 @@ def test_a_directory_that_is_not_a_database_is_refused(tmp_path):
 
     with pytest.raises(SendBudgetUnavailable):
         SendBudget(path)
+
+
+def _tables(path: Path) -> set[str]:
+    with sqlite3.connect(path) as connection:
+        return {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+
+
+def test_a_database_owned_by_something_else_is_refused_and_left_alone(tmp_path):
+    """A path is not a promise: never add send tables to the runtime database."""
+
+    path = tmp_path / "runtime.sqlite"
+    with sqlite3.connect(path) as connection:
+        connection.execute("CREATE TABLE conversations (id TEXT PRIMARY KEY)")
+        connection.execute("INSERT INTO conversations VALUES ('c1')")
+
+    with pytest.raises(SendBudgetUnavailable, match="does not own"):
+        SendBudget(path)
+
+    assert _tables(path) == {"conversations"}
+
+
+def test_a_partial_ledger_is_not_adopted(tmp_path):
+    """Half a ledger reads as an empty history, which is worse than a refusal."""
+
+    path = tmp_path / "sends.sqlite"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE send_budget_limits ("
+            "scope TEXT PRIMARY KEY, cap INTEGER NOT NULL, created_at TEXT NOT NULL)"
+        )
+
+    with pytest.raises(SendBudgetUnavailable, match="partial send budget"):
+        SendBudget(path)
+
+    assert _tables(path) == {"send_budget_limits"}
+
+
+def test_a_table_with_the_right_name_but_the_wrong_shape_is_refused(tmp_path):
+    """Adopting a lookalike schema would produce confident, wrong counts."""
+
+    path = tmp_path / "sends.sqlite"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE send_budget_limits ("
+            "scope TEXT PRIMARY KEY, cap INTEGER NOT NULL, created_at TEXT NOT NULL)"
+        )
+        connection.execute(
+            "CREATE TABLE send_budget_reservations ("
+            "scope TEXT NOT NULL, request_key TEXT NOT NULL, reserved_at TEXT NOT NULL, "
+            "PRIMARY KEY (scope, request_key))"
+        )
+
+    with pytest.raises(SendBudgetUnavailable, match="missing"):
+        SendBudget(path)
+
+
+def test_reopening_a_ledger_this_class_created_is_allowed(tmp_path):
+    """Ownership must not become so strict that a restart cannot reopen."""
+
+    path = tmp_path / "sends.sqlite"
+    first = SendBudget(path)
+    first.register({"experiment:q0": 2})
+    first.reserve("k1", ["experiment:q0"])
+
+    reopened = SendBudget(path)
+    reopened.register({"experiment:q0": 2})
+    assert reopened.usage("experiment:q0") == 1
+    assert _tables(path) == {"send_budget_limits", "send_budget_reservations"}

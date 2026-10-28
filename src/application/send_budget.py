@@ -54,6 +54,14 @@ class SendBudgetExceeded(SendBudgetError):
 
 _LIMITS_TABLE = "send_budget_limits"
 _RESERVATIONS_TABLE = "send_budget_reservations"
+_OWNED_TABLES = frozenset({_LIMITS_TABLE, _RESERVATIONS_TABLE})
+# The columns each owned table must have. A table with the right name and the
+# wrong shape is somebody else's, or an older contract that must not be adopted
+# silently: reading it would produce confident, wrong counts.
+_REQUIRED_COLUMNS = {
+    _LIMITS_TABLE: frozenset({"scope", "cap", "created_at"}),
+    _RESERVATIONS_TABLE: frozenset({"scope", "request_key", "units", "reserved_at"}),
+}
 
 
 def _utc_now() -> str:
@@ -88,32 +96,98 @@ class SendBudget:
         return connection
 
     def _ensure_schema(self) -> None:
+        """Create the schema once, and only ever inside a database we own.
+
+        A path is not a promise. If a caller hands over the runtime database or
+        another tool's file, creating two tables in it would both pollute that
+        file and turn our counts into a silent second meaning of its contents.
+        Ownership is therefore established from the data already there: empty (or
+        absent) means ours to initialise, exactly our two tables means ours to
+        reopen, anything else is refused.
+
+        The check and the creation share one ``BEGIN IMMEDIATE`` transaction, so
+        two processes starting at once cannot both conclude "empty" and then both
+        write.
+        """
+
         try:
             with closing(self._connect()) as connection:
                 connection.execute("BEGIN IMMEDIATE")
-                connection.execute(
-                    f"CREATE TABLE IF NOT EXISTS {_LIMITS_TABLE} ("
-                    "scope TEXT PRIMARY KEY, "
-                    "cap INTEGER NOT NULL CHECK(cap > 0), "
-                    "created_at TEXT NOT NULL)"
-                )
-                connection.execute(
-                    f"CREATE TABLE IF NOT EXISTS {_RESERVATIONS_TABLE} ("
-                    "scope TEXT NOT NULL, "
-                    "request_key TEXT NOT NULL, "
-                    "units INTEGER NOT NULL CHECK(units > 0), "
-                    "reserved_at TEXT NOT NULL, "
-                    f"PRIMARY KEY (scope, request_key))"
-                )
-                connection.execute(
-                    f"CREATE INDEX IF NOT EXISTS idx_{_RESERVATIONS_TABLE}_scope "
-                    f"ON {_RESERVATIONS_TABLE}(scope)"
-                )
-                connection.commit()
+                try:
+                    existing = self._objects(connection)
+                    if existing - _OWNED_TABLES:
+                        raise SendBudgetUnavailable(
+                            f"{self.path} already holds tables this send budget "
+                            f"does not own: {sorted(existing - _OWNED_TABLES)}"
+                        )
+                    if existing and existing != _OWNED_TABLES:
+                        raise SendBudgetUnavailable(
+                            f"{self.path} holds a partial send budget "
+                            f"({sorted(existing)}); refusing to adopt a ledger "
+                            "whose missing half would read as an empty history"
+                        )
+                    if not existing:
+                        self._create(connection)
+                    self._verify_schema(connection)
+                    connection.commit()
+                except BaseException:
+                    connection.rollback()
+                    raise
         except sqlite3.Error as exc:  # busy, locked, or not a database
             raise SendBudgetUnavailable(
                 f"send budget {self.path} is unavailable: {exc}"
             ) from exc
+
+    @staticmethod
+    def _objects(connection: sqlite3.Connection) -> set[str]:
+        """Tables, views and triggers: what carries meaning this code did not write.
+
+        Indexes are excluded on purpose - they are derived from the tables, and
+        the index this class creates would otherwise look like a foreign object on
+        every reopen.
+        """
+
+        return {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type IN ('table', 'view', 'trigger') "
+                "AND name NOT GLOB 'sqlite_*'"
+            )
+        }
+
+    @staticmethod
+    def _create(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            f"CREATE TABLE {_LIMITS_TABLE} ("
+            "scope TEXT PRIMARY KEY, "
+            "cap INTEGER NOT NULL CHECK(cap > 0), "
+            "created_at TEXT NOT NULL)"
+        )
+        connection.execute(
+            f"CREATE TABLE {_RESERVATIONS_TABLE} ("
+            "scope TEXT NOT NULL, "
+            "request_key TEXT NOT NULL, "
+            "units INTEGER NOT NULL CHECK(units > 0), "
+            "reserved_at TEXT NOT NULL, "
+            f"PRIMARY KEY (scope, request_key))"
+        )
+
+    def _verify_schema(self, connection: sqlite3.Connection) -> None:
+        for table, required in _REQUIRED_COLUMNS.items():
+            found = {
+                row[1] for row in connection.execute(f"PRAGMA table_info({table})")
+            }
+            missing = required - found
+            if missing:
+                raise SendBudgetUnavailable(
+                    f"table {table} in {self.path} is missing {sorted(missing)}; "
+                    "refusing to count sends in a schema this code did not define"
+                )
+        connection.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{_RESERVATIONS_TABLE}_scope "
+            f"ON {_RESERVATIONS_TABLE}(scope)"
+        )
 
     # -- caps ---------------------------------------------------------------
     def register(self, caps: Mapping[str, int]) -> None:

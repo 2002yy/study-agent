@@ -174,6 +174,90 @@ def test_a_restarted_process_cannot_reopen_the_budget(tmp_path):
             _send("second")
 
 
+# -- nesting: an inner scope narrows the outer one, it does not replace it --------
+
+
+def test_nested_scopes_charge_every_level_of_one_send(tmp_path):
+    """``experiment -> arm -> round`` must charge all three, not just the round."""
+
+    budget = SendBudget(tmp_path / "sends.sqlite")
+    budget.register(
+        {"experiment:q0": 45, "arm:current": 20, "round:current:r1": 4}
+    )
+
+    with send_budget_scope(budget, ["experiment:q0", "arm:current"]):
+        with send_budget_scope(budget, ["round:current:r1"]):
+            _send("k1")
+
+    assert budget.usage("experiment:q0") == 1
+    assert budget.usage("arm:current") == 1
+    assert budget.usage("round:current:r1") == 1
+
+
+def test_an_exhausted_round_does_not_consume_the_wider_scopes(tmp_path):
+    budget = SendBudget(tmp_path / "sends.sqlite")
+    budget.register(
+        {"experiment:q0": 45, "arm:current": 20, "round:current:r1": 1}
+    )
+
+    with send_budget_scope(budget, ["experiment:q0", "arm:current"]):
+        with send_budget_scope(budget, ["round:current:r1"]):
+            _send("k1")
+            with pytest.raises(SendLimitExceeded, match="round:current:r1"):
+                _send("k2")
+
+    assert budget.usage("round:current:r1") == 1
+    assert budget.usage("arm:current") == 1
+    assert budget.usage("experiment:q0") == 1
+
+
+def test_leaving_an_inner_scope_restores_the_outer_one(tmp_path):
+    budget = SendBudget(tmp_path / "sends.sqlite")
+    budget.register(
+        {"experiment:q0": 45, "arm:current": 20, "round:current:r1": 4}
+    )
+
+    with send_budget_scope(budget, ["experiment:q0", "arm:current"]):
+        with send_budget_scope(budget, ["round:current:r1"]):
+            _send("k1")
+        _send("k2")  # next round: the round scope is gone, the outer two remain
+
+    assert budget.usage("round:current:r1") == 1
+    assert budget.usage("arm:current") == 2
+    assert budget.usage("experiment:q0") == 2
+
+
+def test_nesting_a_second_budget_file_is_refused(tmp_path):
+    """No single transaction can vouch for counts split across two ledgers."""
+
+    first = SendBudget(tmp_path / "a.sqlite")
+    first.register({"experiment:a": 5})
+    second = SendBudget(tmp_path / "b.sqlite")
+    second.register({"experiment:b": 5})
+
+    with send_budget_scope(first, ["experiment:a"]):
+        with pytest.raises(ValueError, match="must share one file"):
+            with send_budget_scope(second, ["experiment:b"]):
+                _send("k1")
+
+    assert first.usage("experiment:a") == 0
+    assert second.usage("experiment:b") == 0
+
+
+def test_the_same_file_bound_twice_is_still_one_budget(tmp_path):
+    path = tmp_path / "sends.sqlite"
+    budget = SendBudget(path)
+    budget.register({"experiment:q0": 5, "arm:current": 5})
+    reopened = SendBudget(path)
+
+    with send_budget_scope(budget, ["experiment:q0", "arm:current"]):
+        with send_budget_scope(reopened, ["experiment:q0"]):
+            _send("k1")
+
+    assert budget.usage("experiment:q0") == 1
+    assert budget.usage("arm:current") == 1
+
+
 # -- the production shape: settlement adapter reserves, transport re-checks ------
 
 
