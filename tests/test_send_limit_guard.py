@@ -12,9 +12,12 @@ import pytest
 from src.application.send_budget import SendBudget
 from src.llm_spend_guard import (
     SendLimitExceeded,
+    SpendLimitExceeded,
+    pre_reserved_send,
     reserve_call,
     reset_spend,
     send_budget_scope,
+    spend_identity,
 )
 
 
@@ -169,3 +172,136 @@ def test_a_restarted_process_cannot_reopen_the_budget(tmp_path):
     with send_budget_scope(restarted, ["experiment:q0"]):
         with pytest.raises(SendLimitExceeded):
             _send("second")
+
+
+# -- the production shape: settlement adapter reserves, transport re-checks ------
+
+
+EXPERIMENT = "preview-q0"
+
+
+def _configure(monkeypatch, database, *, cap: str = "10") -> None:
+    monkeypatch.setenv("LLM_SPEND_LEDGER_DB", str(database.resolve()))
+    monkeypatch.setenv("LLM_SPEND_EXPERIMENT_ID", EXPERIMENT)
+    monkeypatch.setenv("LLM_SPEND_EXPERIMENT_CAP_CNY", cap)
+    monkeypatch.setenv("LLM_SPEND_INPUT_CNY_PER_MTOK", "1")
+    monkeypatch.setenv("LLM_SPEND_OUTPUT_CNY_PER_MTOK", "1")
+
+
+def _adapter(database):
+    from src.application.spend_settlement_adapter import SettlementLedgerAdapter
+    from src.infrastructure.sqlite.database import RuntimeDatabase
+    from src.infrastructure.sqlite.spend_settlement import SpendSettlementRepository
+
+    RuntimeDatabase(database).initialize()
+    return SettlementLedgerAdapter(SpendSettlementRepository(database))
+
+
+def _reserve_through(adapter, key: str = "key-1"):
+    return adapter.reserve(
+        key, model="deepseek-chat", max_output_tokens=100, prompt_chars=1_000
+    )
+
+
+def _identity():
+    return spend_identity(
+        run_id="run1", operation_id="op1", invocation="1", experiment=EXPERIMENT
+    )
+
+
+def test_an_admitted_send_is_counted_exactly_once(monkeypatch, tmp_path):
+    """The adapter reserves, the transport re-checks: one physical send, one unit.
+
+    Charging in both places would halve the usable budget; charging in neither
+    would leave the preview's 45 unenforced, because every real send travels
+    through the pre-reserved-send shortcut.
+    """
+
+    from src.application.spend_settlement_adapter import RESERVED
+
+    database = tmp_path / "runtime.sqlite"
+    _configure(monkeypatch, database)
+    adapter = _adapter(database)
+    budget = SendBudget(tmp_path / "sends.sqlite")
+    budget.register({f"experiment:{EXPERIMENT}": 2})
+
+    with send_budget_scope(budget, [f"experiment:{EXPERIMENT}"]):
+        with _identity():
+            assert _reserve_through(adapter) == RESERVED
+            authorization = adapter.claim_send_authorization("key-1")
+            assert authorization is not None
+            with pre_reserved_send(authorization):
+                reserve_call(
+                    prompt_chars=1_000,
+                    max_tokens=100,
+                    attempts=1,
+                    purpose="chat",
+                    model="deepseek-chat",
+                    request_key="key-1",
+                )
+
+    assert budget.usage(f"experiment:{EXPERIMENT}") == 1
+    assert budget.remaining(f"experiment:{EXPERIMENT}") == 1
+
+
+def test_an_exhausted_send_budget_aborts_instead_of_looking_like_a_cost_refusal(
+    monkeypatch, tmp_path
+):
+    """A stop must not be reported as the per-call refusal the runner tolerates.
+
+    ``cost_ledger_refused`` means "this call did not fit"; the runner then keeps
+    the round going. Returning that for an exhausted send budget would record the
+    rest of the preview as model behaviour when no model was called.
+    """
+
+    from src.application.spend_settlement_adapter import RESERVED
+
+    database = tmp_path / "runtime.sqlite"
+    _configure(monkeypatch, database)
+    adapter = _adapter(database)
+    budget = SendBudget(tmp_path / "sends.sqlite")
+    budget.register({f"experiment:{EXPERIMENT}": 1})
+
+    with send_budget_scope(budget, [f"experiment:{EXPERIMENT}"]):
+        with _identity():
+            assert _reserve_through(adapter, "key-1") == RESERVED
+            with pytest.raises(SendLimitExceeded) as excinfo:
+                _reserve_through(adapter, "key-2")
+            assert excinfo.value.reason == "exhausted"
+
+    assert budget.usage(f"experiment:{EXPERIMENT}") == 1
+
+
+def test_an_unreadable_send_budget_stops_the_run(monkeypatch, tmp_path):
+    """Fail closed: a missing cap is not "unlimited sends"."""
+
+    budget = SendBudget(tmp_path / "sends.sqlite")
+    budget.register({"experiment:q0": 1})
+
+    with send_budget_scope(budget, ["experiment:q0", "arm:current"]):
+        with pytest.raises(SendLimitExceeded) as excinfo:
+            _send("k1")
+        assert excinfo.value.reason == "unavailable"
+
+
+def test_a_money_refusal_still_spends_the_send_unit(monkeypatch, tmp_path):
+    """Documented trade-off: the send count is charged before the money check.
+
+    The two budgets live in different files, so no single transaction can cover
+    both. Charging the send first can burn a unit on a send that money refused;
+    charging money first would leave an unrefundable money reservation behind for
+    a send that never happened, which corrupts the spend evidence. The preview
+    prefers a slightly smaller usable send budget over inflated spend claims.
+    """
+
+    monkeypatch.setenv("LLM_SPEND_CAP_CNY", "0.000001")
+    monkeypatch.setenv("LLM_SPEND_INPUT_CNY_PER_MTOK", "1000")
+    monkeypatch.setenv("LLM_SPEND_OUTPUT_CNY_PER_MTOK", "1000")
+    budget = SendBudget(tmp_path / "sends.sqlite")
+    budget.register({"experiment:q0": 1})
+
+    with send_budget_scope(budget, ["experiment:q0"]):
+        with pytest.raises(SpendLimitExceeded):
+            _send("k1")
+
+    assert budget.usage("experiment:q0") == 1

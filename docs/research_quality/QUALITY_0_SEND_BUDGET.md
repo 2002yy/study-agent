@@ -41,6 +41,38 @@ _charge_send(request_key=request_key, attempts=attempts)   # 先扣次数
 
 顺序是刻意的：金额预留不可退款，所以次数必须在它之前拒绝。
 
+### 一次真实发送只计一次
+
+生产路径上有两次 `reserve_call`，但只有第一次扣次数：
+
+1. `SettlementLedgerAdapter.reserve()` 用 `settling_owner=self` 做**金额预留**，此时不持有授权 → 扣 1 次；
+2. 传输层在 `pre_reserved_send(...)` 内再调 `reserve_call` → 走授权快捷分支，只校验边界后 `return 0.0`，**不再扣次数**。
+
+两处都扣会让 45 次变成只能发 22 次；两处都不扣则 45 次形同虚设，因为真实发送全部走第 2 步。`test_an_admitted_send_is_counted_exactly_once` 锁住这一点。
+
+### 拒绝必须是「停」，不是「本次失败」
+
+`SendLimitExceeded` **不继承** `SpendLimitExceeded`。原因：金额拒绝是**单次**语义，既有调用方会把它翻译成 `cost_ledger_refused` 并继续跑；如果次数耗尽也走这条路，预演会继续执行后续轮次，把「没有调用模型」记成模型行为——正是 P1 那类「空答案」缺陷。
+
+因此次数耗尽/不可读是**运行时中止**：
+
+| 情况 | `reason` | 行为 |
+| --- | --- | --- |
+| 某个 scope 额度用尽 | `exhausted` | 抛 `SendLimitExceeded`，运行中止 |
+| 发送 key 重复 | `conflict` | 同上 |
+| 账本文件不可读/缺上限 | `unavailable` | 同上（不可读 ≠ 无上限） |
+
+默认路径不受影响：没有绑定 scope 时不会产生这条异常。
+
+### 先扣次数、后扣金额的取舍
+
+两个额度在两个文件里，没有覆盖两者的单一事务，只能选一个泄漏方向：
+
+- 先扣次数（当前实现）：金额拒绝时白扣 1 次 → 可用发送数略少，但**不会超发**；
+- 先扣金额：次数拒绝时留下无法退款的金额预留 → 花费证据被虚增。
+
+预演选择前者：宁可少发一次，也不要伪造花费。`test_a_money_refusal_still_spends_the_send_unit` 把这个取舍写成契约而不是意外。
+
 绑定方式是上下文，默认不绑定 = 行为不变：
 
 ```python
@@ -72,6 +104,10 @@ with send_budget_scope(budget, ["experiment:q0-preview", "arm:current", "round:c
 | 两个进程抢最后 1 个单位 | 恰好一个成功 | `test_two_processes_cannot_both_take_the_last_unit` |
 | 发送 key 重复使用 | 拒绝 | `test_reusing_a_send_key_is_refused` |
 | 上限被放宽 | 拒绝 | `test_a_cap_cannot_be_widened_later` |
+| 生产路径（适配器 + 传输层重校验） | 一次物理发送只计 1 次 | `test_an_admitted_send_is_counted_exactly_once` |
+| 次数耗尽经过适配器 | 抛异常中止，而非返回 `cost_ledger_refused` | `test_an_exhausted_send_budget_aborts_instead_of_looking_like_a_cost_refusal` |
+| 账本不可读 | 中止（不视为无上限） | `test_an_unreadable_send_budget_stops_the_run` |
+| 金额拒绝 | 已扣的 1 次不回滚（明示取舍） | `test_a_money_refusal_still_spends_the_send_unit` |
 
 ## 非范围
 

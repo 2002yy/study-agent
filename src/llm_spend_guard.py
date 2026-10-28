@@ -123,12 +123,20 @@ class SpendLimitExceeded(RuntimeError):
     """Raised instead of sending a request that could exceed the paid cap."""
 
 
-class SendLimitExceeded(SpendLimitExceeded):
-    """Raised instead of sending when the send budget is gone.
+class SendLimitExceeded(RuntimeError):
+    """Raised instead of sending when the approved number of sends is gone.
 
-    Separate from the money cap on purpose: a call can be cheap enough for the
-    remaining CNY and still be the one send nobody approved.
+    Deliberately *not* a subclass of :class:`SpendLimitExceeded`. The money
+    guard's refusals are per-call and callers already translate them into a soft
+    ``cost_ledger_refused`` result; a preview that did the same with an exhausted
+    send budget would keep running and record empty answers as model behaviour.
+    This exception means "stop the run", so it must not be swallowed by the
+    generic spend handlers.
     """
+
+    def __init__(self, message: str, *, reason: str = "exhausted") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 class SpendConfigurationError(RuntimeError):
@@ -618,11 +626,15 @@ def _charge_send(*, request_key: str | None, attempts: int) -> None:
     try:
         binding.budget.reserve(key, binding.scopes, units=max(1, int(attempts)))
     except SendBudgetExceeded as exc:
-        raise SendLimitExceeded(str(exc)) from exc
+        raise SendLimitExceeded(str(exc), reason="exhausted") from exc
     except SendBudgetConflict as exc:
-        raise SendLimitExceeded(f"send key refused: {exc}") from exc
+        raise SendLimitExceeded(f"send key refused: {exc}", reason="conflict") from exc
     except SendBudgetError as exc:
-        raise SpendConfigurationError(f"send budget refused: {exc}") from exc
+        # An unreadable budget is not "no budget": every bound send must be
+        # counted or refused, so an outage stops the run instead of going free.
+        raise SendLimitExceeded(
+            f"send budget unavailable: {exc}", reason="unavailable"
+        ) from exc
 
 
 def reset_spend() -> None:
