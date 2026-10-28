@@ -46,11 +46,13 @@ def _write(tmp_path, document) -> Path:
     return path
 
 
-def _ready_env(monkeypatch, *, cap: str | None = "8") -> None:
+def _ready_env(monkeypatch, tmp_path, *, cap: str | None = "8") -> None:
     monkeypatch.setenv(preview_mod.PRICE_KEYS[0], "4")
     monkeypatch.setenv(preview_mod.PRICE_KEYS[1], "16")
     monkeypatch.setenv(preview_mod.ADMISSION_FLAG, "1")
-    monkeypatch.setenv("LLM_SPEND_LEDGER_DB", "C:/ledger.db")
+    # A real absolute path on every platform; "C:/ledger.db" is relative on Linux
+    # and would be refused as ledger_not_absolute.
+    monkeypatch.setenv("LLM_SPEND_LEDGER_DB", str(tmp_path / "ledger.db"))
     monkeypatch.setenv("LLM_SPEND_EXPERIMENT_ID", "q0-preview")
     monkeypatch.delenv("LLM_SPEND_CAP_CNY", raising=False)
     monkeypatch.delenv("LLM_SPEND_EXPERIMENT_CAP_CNY", raising=False)
@@ -171,7 +173,7 @@ def test_missing_limits_are_refused(tmp_path):
     ["NaN", "Infinity", "-Infinity", "-1", "0", "true", '"10"'],
 )
 def test_invalid_cost_limits_fail_closed(monkeypatch, tmp_path, bad):
-    _ready_env(monkeypatch)
+    _ready_env(monkeypatch, tmp_path)
     text = json.dumps(_raw()).replace('"max_cost_cny": 10', f'"max_cost_cny": {bad}')
     path = tmp_path / "preview.json"
     path.write_text(text, encoding="utf-8")
@@ -185,7 +187,7 @@ def test_invalid_cost_limits_fail_closed(monkeypatch, tmp_path, bad):
 
 @pytest.mark.parametrize("bad", ["NaN", "-1", "0", "true", '"45"', "1.5"])
 def test_invalid_send_limits_fail_closed(monkeypatch, tmp_path, bad):
-    _ready_env(monkeypatch)
+    _ready_env(monkeypatch, tmp_path)
     text = json.dumps(_raw()).replace('"max_model_sends": 45', f'"max_model_sends": {bad}')
     path = tmp_path / "preview.json"
     path.write_text(text, encoding="utf-8")
@@ -203,7 +205,7 @@ def test_invalid_send_limits_fail_closed(monkeypatch, tmp_path, bad):
 
 @pytest.mark.parametrize("key", ["max_user_rounds", "max_api_rounds"])
 def test_round_limits_are_enforced_not_just_declared(preview, monkeypatch, tmp_path, key):
-    _ready_env(monkeypatch)
+    _ready_env(monkeypatch, tmp_path)
     broken = _raw()
     broken["limits"][key] = 0
 
@@ -217,7 +219,7 @@ def test_round_limits_are_enforced_not_just_declared(preview, monkeypatch, tmp_p
 
 
 def test_a_declared_send_cap_over_the_authorisation_is_refused(monkeypatch, tmp_path):
-    _ready_env(monkeypatch)
+    _ready_env(monkeypatch, tmp_path)
     over = _raw()
     over["limits"]["max_model_sends"] = 50
     loaded = load_preview(_write(tmp_path, over), TASKS)
@@ -232,10 +234,10 @@ def test_a_declared_send_cap_over_the_authorisation_is_refused(monkeypatch, tmp_
     assert "plan_sends_exceed_declared_limit" not in result["problems"]
 
 
-def test_budget_check_fails_closed_without_pricing(preview, monkeypatch):
+def test_budget_check_fails_closed_without_pricing(preview, monkeypatch, tmp_path):
     _clear_budget_env(monkeypatch)
     monkeypatch.setenv(preview_mod.ADMISSION_FLAG, "1")
-    monkeypatch.setenv("LLM_SPEND_LEDGER_DB", "C:/ledger.db")
+    monkeypatch.setenv("LLM_SPEND_LEDGER_DB", str(tmp_path / "ledger.db"))
     monkeypatch.setenv("LLM_SPEND_EXPERIMENT_ID", "q0-preview")
     monkeypatch.setenv("LLM_SPEND_EXPERIMENT_CAP_CNY", "8")
 
@@ -247,11 +249,11 @@ def test_budget_check_fails_closed_without_pricing(preview, monkeypatch):
     )
 
 
-def test_budget_check_fails_closed_without_admission(preview, monkeypatch):
+def test_budget_check_fails_closed_without_admission(preview, monkeypatch, tmp_path):
     _clear_budget_env(monkeypatch)
     monkeypatch.setenv(preview_mod.PRICE_KEYS[0], "4")
     monkeypatch.setenv(preview_mod.PRICE_KEYS[1], "16")
-    monkeypatch.setenv("LLM_SPEND_LEDGER_DB", "C:/ledger.db")
+    monkeypatch.setenv("LLM_SPEND_LEDGER_DB", str(tmp_path / "ledger.db"))
     monkeypatch.setenv("LLM_SPEND_EXPERIMENT_ID", "q0-preview")
     monkeypatch.setenv("LLM_SPEND_EXPERIMENT_CAP_CNY", "8")
 
@@ -261,8 +263,8 @@ def test_budget_check_fails_closed_without_admission(preview, monkeypatch):
     assert "admission_not_enabled" in result["problems"]
 
 
-def test_budget_check_needs_an_effective_cap(preview, monkeypatch):
-    _ready_env(monkeypatch, cap=None)
+def test_budget_check_needs_an_effective_cap(preview, monkeypatch, tmp_path):
+    _ready_env(monkeypatch, tmp_path, cap=None)
 
     result = validate_budget(preview, plan(preview))
 
@@ -271,8 +273,8 @@ def test_budget_check_needs_an_effective_cap(preview, monkeypatch):
     assert "experiment_cap_missing" in result["problems"]
 
 
-def test_a_guard_cap_over_the_authorisation_is_refused(preview, monkeypatch):
-    _ready_env(monkeypatch, cap="20")
+def test_a_guard_cap_over_the_authorisation_is_refused(preview, monkeypatch, tmp_path):
+    _ready_env(monkeypatch, tmp_path, cap="20")
 
     result = validate_budget(preview, plan(preview))
 
@@ -283,8 +285,8 @@ def test_a_guard_cap_over_the_authorisation_is_refused(preview, monkeypatch):
     )
 
 
-def test_a_non_finite_guard_cap_is_refused(preview, monkeypatch):
-    _ready_env(monkeypatch, cap="NaN")
+def test_a_non_finite_guard_cap_is_refused(preview, monkeypatch, tmp_path):
+    _ready_env(monkeypatch, tmp_path, cap="NaN")
 
     result = validate_budget(preview, plan(preview))
 
@@ -294,8 +296,8 @@ def test_a_non_finite_guard_cap_is_refused(preview, monkeypatch):
     )
 
 
-def test_a_relative_ledger_path_is_refused(preview, monkeypatch):
-    _ready_env(monkeypatch)
+def test_a_relative_ledger_path_is_refused(preview, monkeypatch, tmp_path):
+    _ready_env(monkeypatch, tmp_path)
     monkeypatch.setenv("LLM_SPEND_LEDGER_DB", "ledger.db")
 
     result = validate_budget(preview, plan(preview))
@@ -304,8 +306,8 @@ def test_a_relative_ledger_path_is_refused(preview, monkeypatch):
     assert "ledger_not_absolute" in result["problems"]
 
 
-def test_budget_check_passes_when_every_condition_holds(preview, monkeypatch):
-    _ready_env(monkeypatch, cap="8")
+def test_budget_check_passes_when_every_condition_holds(preview, monkeypatch, tmp_path):
+    _ready_env(monkeypatch, tmp_path, cap="8")
 
     result = validate_budget(preview, plan(preview))
 
