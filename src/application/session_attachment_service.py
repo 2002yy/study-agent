@@ -40,7 +40,7 @@ DEFAULT_TEMP_INDEX_PATH = ROOT / "logs" / "runtime" / "temp_attachments_index.js
 
 MAX_FILES_PER_THREAD = 10
 MAX_FILE_BYTES = 20 * 1024 * 1024
-TEXT_EXTENSIONS = frozenset({".md", ".markdown", ".txt", ".pdf", ".docx"})
+TEXT_EXTENSIONS = frozenset({".md", ".markdown", ".txt", ".csv", ".pdf", ".docx"})
 IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp"})
 
 PIPELINE_STATUSES = frozenset({"parsing", "chunking", "indexing"})

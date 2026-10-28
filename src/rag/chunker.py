@@ -66,6 +66,47 @@ def _new_chunk(
     )
 
 
+def chunk_verbatim(
+    document: RagDocument,
+    *,
+    max_chars: int = 900,
+    overlap_chars: int = 120,
+) -> list[RagChunk]:
+    """Cut text into character windows without reflowing it.
+
+    The paragraph path below strips each line, joins lines with ``\\n`` and drops
+    blank lines - correct for prose, destructive for CSV where a trailing space
+    or an empty line can be a field value. This path keeps every character and
+    only decides where to cut.
+    """
+
+    text = document.text
+    if not text:
+        return []
+    step = max_chars - overlap_chars
+    if step <= 0:
+        step = max_chars
+    chunks: list[RagChunk] = []
+    start = 0
+    while start < len(text):
+        end = min(start + max_chars, len(text))
+        piece = text[start:end]
+        start_line = text.count("\n", 0, start) + 1
+        chunks.append(
+            _new_chunk(
+                document,
+                text=piece,
+                chunk_index=len(chunks),
+                start_line=start_line,
+                end_line=start_line + piece.count("\n"),
+            )
+        )
+        if end >= len(text):
+            break
+        start += step
+    return chunks
+
+
 def chunk_document(
     document: RagDocument,
     *,
@@ -77,6 +118,10 @@ def chunk_document(
         raise ValueError("max_chars must be positive")
     if overlap_chars < 0:
         raise ValueError("overlap_chars must be non-negative")
+    if document.file_type.lower() == "csv":
+        return chunk_verbatim(
+            document, max_chars=max_chars, overlap_chars=overlap_chars
+        )
     if overlap_chars >= max_chars:
         raise ValueError("overlap_chars must be smaller than max_chars")
 

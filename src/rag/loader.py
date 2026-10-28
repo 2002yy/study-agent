@@ -7,11 +7,13 @@ from typing import Any
 
 from src.rag.schema import RagDocument
 
-SUPPORTED_TEXT_EXTENSIONS = {".md", ".markdown", ".txt"}
+SUPPORTED_TEXT_EXTENSIONS = {".md", ".markdown", ".txt", ".csv"}
 SUPPORTED_EXTENSIONS = SUPPORTED_TEXT_EXTENSIONS | {".docx", ".pdf"}
 DEFAULT_MAX_PDF_BYTES = 10 * 1024 * 1024
 DEFAULT_MAX_PDF_PAGES = 30
 DEFAULT_MAX_PDF_CHARS = 120_000
+# Above the 20 MiB attachment ceiling, so a legal CSV never fails on a field.
+CSV_FIELD_LIMIT = 32 * 1024 * 1024
 
 
 def _sha256_text(text: str) -> str:
@@ -40,6 +42,65 @@ def _normalize_text(text: str) -> str:
 
 def _read_text_path(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def _read_csv_path(path: Path) -> str:
+    """Read a UTF-8 CSV as plain text, keeping the header and every data row.
+
+    This is deliberately not a spreadsheet parser. The rows are indexed as text
+    so a question about the file can cite the original values. A UTF-8 BOM is
+    tolerated because common spreadsheet exports write one; NUL bytes and
+    non-UTF-8 bytes are rejected instead of being silently turned into mojibake.
+    """
+
+    raw = path.read_bytes()
+    if b"\x00" in raw:
+        raise ValueError(f"CSV contains NUL bytes: {path}")
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"CSV must be UTF-8 encoded: {path}") from exc
+
+
+def _csv_shape(text: str) -> dict[str, Any]:
+    """Row/column counts for evidence, without interpreting cell types.
+
+    The shape is *optional* metadata: a legal CSV with an unusually large field
+    must still be indexed, so a parser failure here is recorded rather than
+    raised. ``csv_has_header`` stays ``None`` because nothing in a CSV file
+    proves its first row is a header; claiming otherwise would be an invented
+    fact. ``csv_rows`` counts records and may therefore include a header row.
+    """
+
+    import csv
+    import io
+
+    previous_limit = csv.field_size_limit()
+    try:
+        # The attachment ceiling is 20 MiB; the parser default (~128 KiB per
+        # field) would reject files this product accepts.
+        csv.field_size_limit(max(previous_limit, CSV_FIELD_LIMIT))
+    except (OverflowError, ValueError):
+        pass
+    rows = 0
+    columns = 0
+    try:
+        reader = csv.reader(io.StringIO(text, newline=""), strict=True)
+        for row in reader:
+            if not row:
+                continue
+            rows += 1
+            columns = max(columns, len(row))
+    except csv.Error as exc:
+        return {
+            "csv_rows": None,
+            "csv_columns": None,
+            "csv_has_header": None,
+            "csv_shape_error": str(exc)[:200],
+        }
+    finally:
+        csv.field_size_limit(previous_limit)
+    return {"csv_rows": rows, "csv_columns": columns, "csv_has_header": None}
 
 
 def _read_docx_path(path: Path) -> str:
@@ -113,10 +174,16 @@ def load_document(
 
     suffix = source.suffix.lower()
     loader_metadata: dict[str, Any] = {}
-    if suffix in SUPPORTED_TEXT_EXTENSIONS:
-        raw_text = _read_text_path(source)
+    if suffix == ".csv":
+        # CSV cells are data: a trailing space or an empty line may be a value.
+        # The decoded text is therefore indexed verbatim; only chunking decides
+        # where it is cut (see ``chunk_verbatim``).
+        text = _read_csv_path(source)
+        loader_metadata = _csv_shape(text)
+    elif suffix in SUPPORTED_TEXT_EXTENSIONS:
+        text = _normalize_text(_read_text_path(source))
     elif suffix == ".docx":
-        raw_text = _read_docx_path(source)
+        text = _normalize_text(_read_docx_path(source))
     elif suffix == ".pdf":
         raw_text, loader_metadata = _read_pdf_path(
             source,
@@ -124,11 +191,11 @@ def load_document(
             max_pages=max_pdf_pages,
             max_chars=max_pdf_chars,
         )
+        text = _normalize_text(raw_text)
     else:
         raise ValueError(f"Unsupported RAG document type: {suffix or '<none>'}")
 
-    text = _normalize_text(raw_text)
-    if not text:
+    if not text.strip():
         raise ValueError(f"RAG document is empty: {source}")
 
     stat = source.stat()
@@ -149,7 +216,7 @@ def load_document(
             "mtime_ns": stat.st_mtime_ns,
             **(
                 {"source_sha256": hashlib.sha256(source.read_bytes()).hexdigest()}
-                if suffix == ".pdf"
+                if suffix in {".pdf", ".csv"}
                 else {}
             ),
             **loader_metadata,
