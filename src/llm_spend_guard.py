@@ -55,7 +55,7 @@ import os
 from pathlib import Path
 import secrets
 import threading
-from typing import Iterator
+from typing import Iterable, Iterator
 import weakref
 
 from src.infrastructure.sqlite.spend_ledger import (
@@ -69,6 +69,12 @@ from src.infrastructure.sqlite.spend_ledger import (
     SpendLedgerUnavailable,
     cny_to_micros,
 )
+from src.application.send_budget import (
+    SendBudget,
+    SendBudgetConflict,
+    SendBudgetError,
+    SendBudgetExceeded,
+)
 
 __all__ = [
     "DEFAULT_OUTPUT_TOKENS",
@@ -81,9 +87,13 @@ __all__ = [
     "SpendLedgerConflict",
     "SpendLedgerError",
     "SpendLedgerUnavailable",
+    "SendBudget",
+    "SendLimitExceeded",
     "SpendLimitExceeded",
     "SpendScope",
     "allowed_models",
+    "current_send_budget",
+    "send_budget_scope",
     "compose_request_key",
     "new_scope",
     "pop_scope",
@@ -111,6 +121,14 @@ DEFAULT_OUTPUT_TOKENS = 4_096
 
 class SpendLimitExceeded(RuntimeError):
     """Raised instead of sending a request that could exceed the paid cap."""
+
+
+class SendLimitExceeded(SpendLimitExceeded):
+    """Raised instead of sending when the send budget is gone.
+
+    Separate from the money cap on purpose: a call can be cheap enough for the
+    remaining CNY and still be the one send nobody approved.
+    """
 
 
 class SpendConfigurationError(RuntimeError):
@@ -544,6 +562,69 @@ def current_scope() -> SpendScope | None:
     return _scope.get()
 
 
+@dataclass(frozen=True)
+class SendBudgetBinding:
+    """The send scopes a paid call must fit, bound for the current context."""
+
+    budget: SendBudget
+    scopes: tuple[str, ...]
+
+
+_send_budget: ContextVar[SendBudgetBinding | None] = ContextVar(
+    "llm_send_budget", default=None
+)
+
+
+@contextmanager
+def send_budget_scope(
+    budget: SendBudget, scopes: Iterable[str]
+) -> Iterator[SendBudgetBinding]:
+    """Bind a durable send budget to every paid call in this context.
+
+    Nested bindings are allowed: an inner round scope narrows the outer one, and
+    both are charged. There is no default budget - without this binding nothing
+    is counted, which is the pre-existing behaviour.
+    """
+
+    binding = SendBudgetBinding(budget=budget, scopes=tuple(dict.fromkeys(scopes)))
+    if not binding.scopes:
+        raise ValueError("send_budget_scope needs at least one scope")
+    token = _send_budget.set(binding)
+    try:
+        yield binding
+    finally:
+        try:
+            _send_budget.reset(token)
+        except ValueError:
+            _send_budget.set(None)
+
+
+def current_send_budget() -> SendBudgetBinding | None:
+    return _send_budget.get()
+
+
+def _charge_send(*, request_key: str | None, attempts: int) -> None:
+    """Count one send against every bound scope, before any money is reserved.
+
+    ``attempts`` is the number of transport attempts this reservation covers
+    (``retries + 1``). Counting only the first attempt would let an SDK retry
+    spend a send that was never approved, so the conservative number is charged.
+    """
+
+    binding = _send_budget.get()
+    if binding is None:
+        return
+    key = request_key or f"send-{secrets.token_hex(16)}"
+    try:
+        binding.budget.reserve(key, binding.scopes, units=max(1, int(attempts)))
+    except SendBudgetExceeded as exc:
+        raise SendLimitExceeded(str(exc)) from exc
+    except SendBudgetConflict as exc:
+        raise SendLimitExceeded(f"send key refused: {exc}") from exc
+    except SendBudgetError as exc:
+        raise SpendConfigurationError(f"send budget refused: {exc}") from exc
+
+
 def reset_spend() -> None:
     """Clear the *process* counter (tests and process start).
 
@@ -835,6 +916,11 @@ def reserve_call(
         # is not the registered settlement adapter making the first reservation,
         # must not spend. This is the isolation for entries that are not wired yet.
         raise SpendAuthorizationError("send_not_admitted")
+
+    # The send budget is checked before the money reservation on purpose: money
+    # reservations are never refunded, so a later refusal would have to either
+    # leak budget or invent a refund path this module does not have.
+    _charge_send(request_key=request_key, attempts=attempts)
 
     if cap is None and experiment_cap is None:
         return 0.0
