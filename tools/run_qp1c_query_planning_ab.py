@@ -1,9 +1,15 @@
 """QP-1C: raw question vs current production planning vs the QP-1B instruction.
 
-Budget (authorised): 10 questions, at most 2 model calls per question and at most
-20 calls in total, cap 3 CNY through the repository's spend guard. The guard is
-configured before any client is built, so a missing price or a bad model id fails
-closed instead of spending.
+Offline by default: without ``--live`` the script prints what it would do and
+exits, so running the archived harness cannot spend money. A paid rerun needs
+``--live --experiment-id ... --cap-cny ... --ledger <existing ledger>`` and an
+environment where ``STUDY_AGENT_SETTLEMENT_ADMISSION`` is already enabled; the
+script never enables admission itself and never relaxes a stricter cap or price
+already present in the environment.
+
+The historical run used 10 questions, at most 2 model calls per question, 20
+calls in total and a 3 CNY cap. The guard is configured before any client is
+built, so a missing price or a bad model id fails closed instead of spending.
 
 Groups, all searched with the same provider and the same result limit:
 
@@ -35,7 +41,6 @@ if str(REPO_ROOT) not in sys.path:
 from dotenv import load_dotenv  # noqa: E402
 
 MAX_MODEL_CALLS = 20
-EXPERIMENT_ID = "qp1c-query-planning-20261028"
 EXPERIMENT_CAP_CNY = "3"
 # Conservative upper bounds so the cap holds even if the invoice exceeds the
 # published rate. Twenty short calls stay far below either way.
@@ -130,14 +135,30 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _configure_spend_guard(ledger_path: Path) -> None:
-    os.environ["STUDY_AGENT_SETTLEMENT_ADMISSION"] = "1"
-    os.environ["LLM_SPEND_EXPERIMENT_ID"] = EXPERIMENT_ID
-    os.environ["LLM_SPEND_CAP_CNY"] = EXPERIMENT_CAP_CNY
-    os.environ["LLM_SPEND_EXPERIMENT_CAP_CNY"] = EXPERIMENT_CAP_CNY
-    os.environ["LLM_EXPERIMENT_ALLOWED_MODELS"] = "deepseek-flash"
-    os.environ["LLM_SPEND_INPUT_CNY_PER_MTOK"] = INPUT_CNY_PER_MTOK
-    os.environ["LLM_SPEND_OUTPUT_CNY_PER_MTOK"] = OUTPUT_CNY_PER_MTOK
+def _effective_cap(requested: float) -> str:
+    """Never relax a cap the caller already set to something stricter."""
+
+    existing = os.environ.get("LLM_SPEND_CAP_CNY", "").strip()
+    if not existing:
+        return str(requested)
+    try:
+        return str(min(requested, float(existing)))
+    except ValueError:
+        return existing
+
+
+def _configure_spend_guard(
+    ledger_path: Path, *, experiment_id: str, requested_cap_cny: float
+) -> None:
+    # The enabling flag is never set here: a paid rerun requires an operator who
+    # already turned admission on. Everything else uses setdefault so a caller's
+    # stricter value (cap, prices, allowed models) survives.
+    os.environ["LLM_SPEND_CAP_CNY"] = _effective_cap(requested_cap_cny)
+    os.environ["LLM_SPEND_EXPERIMENT_CAP_CNY"] = os.environ["LLM_SPEND_CAP_CNY"]
+    os.environ["LLM_SPEND_EXPERIMENT_ID"] = experiment_id
+    os.environ.setdefault("LLM_EXPERIMENT_ALLOWED_MODELS", "deepseek-flash")
+    os.environ.setdefault("LLM_SPEND_INPUT_CNY_PER_MTOK", INPUT_CNY_PER_MTOK)
+    os.environ.setdefault("LLM_SPEND_OUTPUT_CNY_PER_MTOK", OUTPUT_CNY_PER_MTOK)
     os.environ["LLM_SPEND_LEDGER_DB"] = str(ledger_path)
 
 
@@ -290,15 +311,63 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=6)
     parser.add_argument("--case", action="append", default=[])
     parser.add_argument(
+        "--live",
+        action="store_true",
+        help="actually call the model and run searches; without it nothing is sent",
+    )
+    parser.add_argument(
+        "--experiment-id",
+        default="",
+        help="new, explicit spend-experiment identity for this rerun",
+    )
+    parser.add_argument(
+        "--cap-cny",
+        type=float,
+        default=0.0,
+        help="budget for this rerun; a stricter cap already in the environment wins",
+    )
+    parser.add_argument(
         "--ledger",
         type=Path,
-        default=REPO_ROOT / "docs" / "research_quality" / "qp1c-spend-ledger.db",
+        default=None,
+        help="existing settlement ledger; a paid rerun must point at one explicitly",
     )
     args = parser.parse_args()
 
+    if not args.live:
+        print(
+            "offline: no model call, no search. A paid rerun needs --live, "
+            "--experiment-id, --cap-cny, --ledger, and an environment where "
+            "STUDY_AGENT_SETTLEMENT_ADMISSION is already enabled."
+        )
+        return 0
+
     load_dotenv(REPO_ROOT / ".env")
+
+    if os.environ.get("STUDY_AGENT_SETTLEMENT_ADMISSION", "").strip().lower() not in {
+        "1",
+        "true",
+        "on",
+        "yes",
+    }:
+        raise SystemExit(
+            "refusing paid run: STUDY_AGENT_SETTLEMENT_ADMISSION is not enabled"
+        )
+    if not args.experiment_id.strip():
+        raise SystemExit("refusing paid run: --experiment-id is required")
+    if args.cap_cny <= 0:
+        raise SystemExit("refusing paid run: --cap-cny must be positive")
+    if args.ledger is None:
+        raise SystemExit(
+            "refusing paid run: --ledger is required so earlier spend stays visible"
+        )
+
     args.ledger.parent.mkdir(parents=True, exist_ok=True)
-    _configure_spend_guard(args.ledger.resolve())
+    _configure_spend_guard(
+        args.ledger.resolve(),
+        experiment_id=args.experiment_id.strip(),
+        requested_cap_cny=args.cap_cny,
+    )
 
     # The settlement ledger lives in a runtime database; a bare file has no
     # settlement tables and the guard refuses to reserve against it.
@@ -351,7 +420,11 @@ def main() -> int:
         "schema_version": "qp1c-query-planning-ab-v1",
         "run_id": run_id,
         "started_at": _utc_now(),
-        "budget": {"max_model_calls": MAX_MODEL_CALLS, "cap_cny": EXPERIMENT_CAP_CNY},
+        "budget": {
+            "max_model_calls": MAX_MODEL_CALLS,
+            "cap_cny": args.cap_cny,
+            "experiment_id": args.experiment_id.strip(),
+        },
         "pricing_cny_per_mtok": {"input": INPUT_CNY_PER_MTOK, "output": OUTPUT_CNY_PER_MTOK},
         "provider": "auto (SearXNG/bing)",
         "result_limit": args.limit,
@@ -368,7 +441,11 @@ def main() -> int:
 
     stack = ExitStack()
     stack.enter_context(
-        spend_scope(run_id=run_id, operation_id="qp1c", experiment=EXPERIMENT_ID)
+        spend_scope(
+            run_id=run_id,
+            operation_id="qp1c",
+            experiment=args.experiment_id.strip(),
+        )
     )
 
     for case in selected:
