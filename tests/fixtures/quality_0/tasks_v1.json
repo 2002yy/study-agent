@@ -440,7 +440,7 @@
       "assets": [
         {
           "path": "tests/fixtures/quality_0/assets/quality0_counts.csv",
-          "sha256": "29159c5f9ca20b61928ee10f89ebe9017946efd8d88e494e5cb8694526eec815"
+          "sha256": "7cffb27c42d53ae968d88f97684207a1f5fc1d3a982c8c0150378b1a518c5bcf"
         }
       ]
     },
