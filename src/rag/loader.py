@@ -7,7 +7,7 @@ from typing import Any
 
 from src.rag.schema import RagDocument
 
-SUPPORTED_TEXT_EXTENSIONS = {".md", ".markdown", ".txt"}
+SUPPORTED_TEXT_EXTENSIONS = {".md", ".markdown", ".txt", ".csv"}
 SUPPORTED_EXTENSIONS = SUPPORTED_TEXT_EXTENSIONS | {".docx", ".pdf"}
 DEFAULT_MAX_PDF_BYTES = 10 * 1024 * 1024
 DEFAULT_MAX_PDF_PAGES = 30
@@ -40,6 +40,39 @@ def _normalize_text(text: str) -> str:
 
 def _read_text_path(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def _read_csv_path(path: Path) -> str:
+    """Read a UTF-8 CSV as plain text, keeping the header and every data row.
+
+    This is deliberately not a spreadsheet parser. The rows are indexed as text
+    so a question about the file can cite the original values. A UTF-8 BOM is
+    tolerated because common spreadsheet exports write one; NUL bytes and
+    non-UTF-8 bytes are rejected instead of being silently turned into mojibake.
+    """
+
+    raw = path.read_bytes()
+    if b"\x00" in raw:
+        raise ValueError(f"CSV contains NUL bytes: {path}")
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"CSV must be UTF-8 encoded: {path}") from exc
+
+
+def _csv_shape(text: str) -> dict[str, Any]:
+    """Row/column counts for evidence, without interpreting cell types."""
+
+    import csv
+
+    rows = 0
+    columns = 0
+    for row in csv.reader(text.splitlines()):
+        if not row:
+            continue
+        rows += 1
+        columns = max(columns, len(row))
+    return {"csv_rows": rows, "csv_columns": columns, "csv_has_header": rows > 0}
 
 
 def _read_docx_path(path: Path) -> str:
@@ -113,7 +146,10 @@ def load_document(
 
     suffix = source.suffix.lower()
     loader_metadata: dict[str, Any] = {}
-    if suffix in SUPPORTED_TEXT_EXTENSIONS:
+    if suffix == ".csv":
+        raw_text = _read_csv_path(source)
+        loader_metadata = _csv_shape(raw_text)
+    elif suffix in SUPPORTED_TEXT_EXTENSIONS:
         raw_text = _read_text_path(source)
     elif suffix == ".docx":
         raw_text = _read_docx_path(source)
@@ -149,7 +185,7 @@ def load_document(
             "mtime_ns": stat.st_mtime_ns,
             **(
                 {"source_sha256": hashlib.sha256(source.read_bytes()).hexdigest()}
-                if suffix == ".pdf"
+                if suffix in {".pdf", ".csv"}
                 else {}
             ),
             **loader_metadata,

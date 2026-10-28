@@ -76,6 +76,28 @@ def test_unsupported_type_maps_to_400(client):
     assert response.status_code == 400
 
 
+def test_csv_upload_is_accepted_and_indexed(client):
+    http, _ = client
+
+    uploaded = http.post(
+        "/sessions/thread_csv/attachments",
+        files={
+            "file": (
+                "counts.csv",
+                "category,value\ngamma,900\n".encode("utf-8"),
+                "text/csv",
+            )
+        },
+    )
+
+    assert uploaded.status_code == 200, uploaded.text
+    body = uploaded.json()
+    assert body["status"] == "ready"
+    assert body["filename"] == "counts.csv"
+    assert body["mime_type"] == "text/csv"
+    assert [entry["stage"] for entry in body["stage_history"]][-1] == "indexing"
+
+
 def test_retry_unknown_id_maps_to_404_and_promote_409(client):
     http, service = client
 

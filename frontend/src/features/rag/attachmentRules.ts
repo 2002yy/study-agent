@@ -6,6 +6,7 @@ export const ACCEPTED_EXTENSIONS = [
   ".md",
   ".markdown",
   ".txt",
+  ".csv",
   ".pdf",
   ".docx",
   ".jpg",

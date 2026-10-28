@@ -18,7 +18,7 @@ from src.domain.evidence import ClaimEvidenceLinkV1, build_evidence_snapshot
 # the long-term loader; image types are stored (and only described when the
 # vision switch is explicitly enabled).
 SESSION_ATTACHMENT_EXTENSIONS = frozenset(
-    {".md", ".markdown", ".txt", ".pdf", ".docx"}
+    {".md", ".markdown", ".txt", ".csv", ".pdf", ".docx"}
     | {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 )
 
