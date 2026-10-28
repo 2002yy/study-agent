@@ -135,16 +135,34 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _effective_cap(requested: float) -> str:
-    """Never relax a cap the caller already set to something stricter."""
+def _effective_caps(requested: float) -> tuple[str, str]:
+    """Never relax a cap the caller already set, at either level.
 
-    existing = os.environ.get("LLM_SPEND_CAP_CNY", "").strip()
-    if not existing:
-        return str(requested)
-    try:
-        return str(min(requested, float(existing)))
-    except ValueError:
-        return existing
+    The process cap bounds this run; the experiment cap bounds all runs of the
+    same experiment. A stricter value in either place wins, and the experiment
+    cap may never exceed the process cap.
+    """
+
+    def existing(name: str) -> float | None:
+        raw = os.environ.get(name, "").strip()
+        if not raw:
+            return None
+        try:
+            return float(raw)
+        except ValueError:
+            return None
+
+    process = requested
+    caller_process = existing("LLM_SPEND_CAP_CNY")
+    if caller_process is not None:
+        process = min(process, caller_process)
+
+    experiment = process
+    caller_experiment = existing("LLM_SPEND_EXPERIMENT_CAP_CNY")
+    if caller_experiment is not None:
+        experiment = min(experiment, caller_experiment)
+
+    return f"{process:g}", f"{experiment:g}"
 
 
 def _configure_spend_guard(
@@ -153,8 +171,9 @@ def _configure_spend_guard(
     # The enabling flag is never set here: a paid rerun requires an operator who
     # already turned admission on. Everything else uses setdefault so a caller's
     # stricter value (cap, prices, allowed models) survives.
-    os.environ["LLM_SPEND_CAP_CNY"] = _effective_cap(requested_cap_cny)
-    os.environ["LLM_SPEND_EXPERIMENT_CAP_CNY"] = os.environ["LLM_SPEND_CAP_CNY"]
+    process_cap, experiment_cap = _effective_caps(requested_cap_cny)
+    os.environ["LLM_SPEND_CAP_CNY"] = process_cap
+    os.environ["LLM_SPEND_EXPERIMENT_CAP_CNY"] = experiment_cap
     os.environ["LLM_SPEND_EXPERIMENT_ID"] = experiment_id
     os.environ.setdefault("LLM_EXPERIMENT_ALLOWED_MODELS", "deepseek-flash")
     os.environ.setdefault("LLM_SPEND_INPUT_CNY_PER_MTOK", INPUT_CNY_PER_MTOK)

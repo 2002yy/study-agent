@@ -1,7 +1,8 @@
 """The archived QP-1C harness must not spend money by default.
 
 These are offline contracts: no model client is built, no search runs, no key is
-read. They lock the rules a paid rerun has to satisfy after the P1 review.
+read. They also must not leak environment into the rest of the suite - the first
+version of this file did, and the spend tests that run after it failed.
 """
 
 from __future__ import annotations
@@ -12,6 +13,30 @@ import sys
 import pytest
 
 from tools import run_qp1c_query_planning_ab as harness
+
+# Every variable the harness or its guard configuration may touch. The autouse
+# fixture restores all of them, including "was not set at all".
+GUARD_ENV_KEYS = (
+    "STUDY_AGENT_SETTLEMENT_ADMISSION",
+    "LLM_SPEND_CAP_CNY",
+    "LLM_SPEND_EXPERIMENT_CAP_CNY",
+    "LLM_SPEND_EXPERIMENT_ID",
+    "LLM_EXPERIMENT_ALLOWED_MODELS",
+    "LLM_SPEND_INPUT_CNY_PER_MTOK",
+    "LLM_SPEND_OUTPUT_CNY_PER_MTOK",
+    "LLM_SPEND_LEDGER_DB",
+)
+
+
+@pytest.fixture(autouse=True)
+def _restore_guard_environment():
+    snapshot = {key: os.environ.get(key) for key in GUARD_ENV_KEYS}
+    yield
+    for key, value in snapshot.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
 
 
 def run_main(monkeypatch, argv: list[str]) -> int:
@@ -67,16 +92,30 @@ def test_live_run_requires_admission_to_be_enabled_by_the_operator(monkeypatch):
         )
 
 
-def test_a_stricter_caller_cap_is_never_relaxed(monkeypatch):
+def test_a_stricter_caller_process_cap_is_never_relaxed(monkeypatch):
     monkeypatch.setenv("LLM_SPEND_CAP_CNY", "0.5")
 
-    assert harness._effective_cap(3.0) == "0.5"
+    process_cap, experiment_cap = harness._effective_caps(3.0)
+
+    assert process_cap == "0.5"
+    assert experiment_cap == "0.5"
+
+
+def test_a_stricter_caller_experiment_cap_is_never_relaxed(monkeypatch):
+    monkeypatch.delenv("LLM_SPEND_CAP_CNY", raising=False)
+    monkeypatch.setenv("LLM_SPEND_EXPERIMENT_CAP_CNY", "0.2")
+
+    process_cap, experiment_cap = harness._effective_caps(3.0)
+
+    assert process_cap == "3"
+    assert experiment_cap == "0.2"
 
 
 def test_the_requested_cap_is_used_when_none_is_set(monkeypatch):
     monkeypatch.delenv("LLM_SPEND_CAP_CNY", raising=False)
+    monkeypatch.delenv("LLM_SPEND_EXPERIMENT_CAP_CNY", raising=False)
 
-    assert harness._effective_cap(3.0) == "3.0"
+    assert harness._effective_caps(3.0) == ("3", "3")
 
 
 def test_prices_already_configured_are_kept(monkeypatch, tmp_path):
@@ -104,3 +143,16 @@ def test_configure_keeps_a_stricter_caller_cap(monkeypatch, tmp_path):
 
     assert os.environ["LLM_SPEND_CAP_CNY"] == "0.5"
     assert os.environ["LLM_SPEND_EXPERIMENT_CAP_CNY"] == "0.5"
+
+
+def test_configure_keeps_a_stricter_experiment_cap(monkeypatch, tmp_path):
+    monkeypatch.setenv("LLM_SPEND_EXPERIMENT_CAP_CNY", "0.2")
+    monkeypatch.setenv("LLM_EXPERIMENT_ALLOWED_MODELS", "deepseek-flash")
+    monkeypatch.delenv("LLM_SPEND_CAP_CNY", raising=False)
+
+    harness._configure_spend_guard(
+        tmp_path / "ledger.db", experiment_id="qp1c-rerun", requested_cap_cny=3.0
+    )
+
+    assert os.environ["LLM_SPEND_EXPERIMENT_CAP_CNY"] == "0.2"
+    assert os.environ["LLM_SPEND_CAP_CNY"] == "3"
