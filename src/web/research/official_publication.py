@@ -11,7 +11,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from src.web.research.official_resolver import official_plan, valid_candidate
-from src.web.tool_evidence import evidence_tool_calls
+from src.web.tool_evidence import evidence_tool_calls, tool_evidence_items
 
 LABELS = {"project": "项目", "version": "版本", "distribution_uploaded_at": "PyPI 包首次上传时间",
           "release_date": "发布日期", "changes": "该版本变更", "paper_id": "arXiv ID",
@@ -90,6 +90,25 @@ def publish_official_fields(
     elif strict:
         answer = ABSTENTION
         status = "abstained"
+    elif not candidate.strip() and (read_items := tool_evidence_items(calls)):
+        # An actual read is not proof of relevance or factual support. Still,
+        # calling it "no records" hides the progress this turn already made.
+        excerpts = [
+            (str(item.get("url") or ""), " ".join(str(item.get("snippet") or "").split())[:240])
+            for item in read_items
+            if str(item.get("snippet") or "").strip()
+        ][:2]
+        if excerpts:
+            answer = (
+                "本轮已读取以下来源，但尚未逐事实核实它们是否回答了研究问题；"
+                "下列内容仅是网页摘录，不是已验证结论：\\n\\n"
+                + "\n".join(f"- 来源：{url}\\n  摘录：{excerpt}" for url, excerpt in excerpts)
+                + "\\n\\n未确认的结论不依据搜索摘要或模型记忆补写。"
+            )
+            status = "read_excerpt_unverified"
+        else:
+            answer = ABSTENTION
+            status = "abstained"
     else:
         # No field-backed record. Publish only statements that do not need a
         # source, withhold every specific claim, and state the gaps. A specific
