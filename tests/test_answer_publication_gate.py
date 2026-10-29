@@ -1196,7 +1196,15 @@ def test_claim_grounding_requires_the_claim_not_just_the_topic() -> None:
         "Node.js 当前 LTS 是 24.11.0，代号 Krypton，支持到 2028 年 4 月。"
         "上一个 LTS 是 22.x。"
     )
-    assert claim_grounded_in_text("Node.js 当前 LTS 是 24.11.0，代号 Krypton", node_page)
+    # A whole, literal source statement can be bound even when it occurs
+    # beyond the document heading. Rephrasings require claim-level evidence.
+    assert claim_grounded_in_text(
+        "Node.js 当前 LTS 是 24.11.0，代号 Krypton，支持到 2028 年 4 月。",
+        node_page,
+    )
+    assert not claim_grounded_in_text(
+        "Node.js 当前 LTS 是 24.11.0，代号 Krypton", node_page
+    )
     # A different patch version is not in the page.
     assert not claim_grounded_in_text("Node.js 当前 LTS 是 24.11.1", node_page)
     # Sharing only the topic word is not support.
@@ -1219,11 +1227,62 @@ def test_a_contradictory_page_never_authorizes_the_claim() -> None:
     assert not claim_grounded_in_text(
         "FastAPI 0.120.0 没有安全漏洞", "FastAPI 0.120.0 存在严重安全漏洞。"
     )
-    # The same polarity still passes, including a different negation wording.
+    # A literal source statement still passes after punctuation normalization,
+    # but semantic equivalence is NOT guessed by polarity/keyword heuristics.
     assert claim_grounded_in_text(
         "Node.js 24.11.0 不支持 Windows 7", "Node.js 24.11.0 不支持 Windows 7。"
     )
-    assert claim_grounded_in_text("Python 3.14 未发布", "Python 3.14 尚未发布。")
+    assert not claim_grounded_in_text("Python 3.14 未发布", "Python 3.14 尚未发布。")
+    assert claim_grounded_in_text("Python 3.14 尚未发布", "Python 3.14 尚未发布。")
+
+
+def test_same_polarity_contradictions_are_not_literal_support() -> None:
+    """P1: lexical overlap and equal negation cannot prove a fact."""
+    from src.application.answer_claim_binder import claim_grounded_in_text
+
+    contradictions = (
+        ("2026年10月，A公司收购了B公司", "2026年10月，B公司收购了A公司。"),
+        ("2026年第一季度营业收入增长20%", "2026年第一季度营业收入下降20%。"),
+        ("Node.js 24.11.0 支持 Windows 7", "Node.js 24.11.0 禁止在 Windows 7 上运行。"),
+        ("2026年10月31日会议已通过", "2026年10月31日会议被否决。"),
+    )
+    for claim, page in contradictions:
+        assert not claim_grounded_in_text(claim, page), (claim, page)
+
+    # Quoted assertions embedded in a longer negating sentence are not accepted.
+    assert not claim_grounded_in_text(
+        "2026年10月，A公司收购了B公司",
+        "错误消息声称2026年10月，A公司收购了B公司，事实上并非如此。",
+    )
+
+
+def test_same_polarity_refuting_page_blocks_publication(tmp_path) -> None:
+    """A binder that cites an authentic ID cannot promote a reversed claim."""
+    page = "2026年10月，B公司收购了A公司。"
+    claim = "2026年10月，A公司收购了B公司。"
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            messages = _messages(args, kwargs)
+            return _binding_payload(
+                [_segment_entry("s1", support=(_support_id(messages),))]
+            )
+        return claim
+
+    calls = list(_read_backed_calls("https://example.org/acquisition"))
+    calls[1] = {**calls[1], "result": {**calls[1]["result"], "content": page}}
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=tuple(calls)),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert _audit(turn)["phases"]["answer_claim_binding"]["error_type"] == (
+        "ineligible_evidence_support"
+    )
+    assert not (turn.rag_snapshot or {}).get("research_evidence_refs")
 
 
 def test_a_contradictory_page_blocks_publication(tmp_path) -> None:
