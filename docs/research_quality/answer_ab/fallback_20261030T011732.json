@@ -1,0 +1,370 @@
+{
+  "schema_version": "answer-quality-ab-v1",
+  "generated_at": "2026-10-29T17:17:32.643409Z",
+  "arm": "fallback",
+  "strategy": "fallback",
+  "intent": "research",
+  "limits": {
+    "questions": 10,
+    "answers": 20,
+    "sends_total": 40,
+    "sends_per_arm": 20,
+    "cny_total": 10.0,
+    "cny_per_process": 5.0
+  },
+  "stopped": "",
+  "sends_used": 9,
+  "counters_after": {
+    "cap_cny": 5.0,
+    "spent_cny": 0.2579,
+    "remaining_cny": 4.7421
+  },
+  "turns": [
+    {
+      "id": "B01",
+      "query": "星铁 千冶·刃 遗器 推荐 黄泉队",
+      "turn_id": "turn_fb45c8721bd94615983d9e81e91053c3",
+      "session_id": "chat_de08f7edfbd24408ac3ff57585ef5923",
+      "route": {
+        "mode": "普通",
+        "model_profile": "flash",
+        "task_intent": "research",
+        "answer_generation_calls": 0
+      },
+      "web_context_used": false,
+      "web_tools": {
+        "enabled": true,
+        "used": false,
+        "evidence_status": "candidate_only",
+        "error": "联网搜索返回候选，已尝试读取，但未获得能回答该问题的相关正文；本回答未使用这些候选作为结论来源",
+        "policy_reason": "task_requires_web",
+        "run_id": "web_lookup_16a51ec1f33e41458ed8b1a8ded51f3b",
+        "evidence": {
+          "searches": [
+            {
+              "query": "千冶·刃 遗器 推荐 套装 词条",
+              "status": "ok",
+              "providers": [
+                "searxng"
+              ],
+              "fallback_used": null,
+              "count": 5,
+              "top": [
+                {
+                  "title": "千问-阿里 AI 助手",
+                  "url": "https://www.qianwen.com/"
+                },
+                {
+                  "title": "千（汉语汉字）_百度百科",
+                  "url": "https://baike.baidu.com/item/%E5%8D%83/1896443"
+                },
+                {
+                  "title": "千 qiān - 汉典",
+                  "url": "https://www.zdic.net/hans/%E5%8D%83"
+                }
+              ]
+            },
+            {
+              "query": "星铁 千冶·刃 遗器 推荐 黄泉队 official documentation",
+              "status": "ok",
+              "providers": [
+                "searxng"
+              ],
+              "fallback_used": null,
+              "count": 5,
+              "top": [
+                {
+                  "title": "星（汉语文字）_百度百科",
+                  "url": "https://baike.baidu.com/item/%E6%98%9F/1586"
+                },
+                {
+                  "title": "云·星穹铁道 - miHoYo",
+                  "url": "https://sr.mihoyo.com/cloud/"
+                },
+                {
+                  "title": "《星》的拼音,星字的意思、组词、部首、笔画、笔顺 - 汉语查",
+                  "url": "https://www.hgcha.com/zidian/5c93eb9b.html"
+                }
+              ]
+            }
+          ],
+          "reads": [
+            {
+              "url": "https://www.hgcha.com/zidian/5c93eb9b.html",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            }
+          ]
+        },
+        "context_block_chars": 0,
+        "context_block": "",
+        "context_block_truncated": false
+      },
+      "prepared_seconds": 12.05,
+      "answer_seconds": 0.02,
+      "answer": "本次尚未取得能逐事实支持所问内容的记录，暂不能给出已核实的结论。相邻版本、搜索摘要和模型记忆不作为支持。",
+      "sends_used": 3,
+      "sends_after": 3,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.083,
+        "remaining_cny": 4.917
+      }
+    },
+    {
+      "id": "N02",
+      "query": "FastAPI 依赖注入 数据库 会话 SQLAlchemy",
+      "turn_id": "turn_ef901730f60247df8f4de59dc5ace732",
+      "session_id": "chat_52b2a9c773c440b0b4db0230c5d28eb1",
+      "route": {
+        "mode": "普通",
+        "model_profile": "flash",
+        "task_intent": "research",
+        "answer_generation_calls": 0
+      },
+      "web_context_used": false,
+      "web_tools": {
+        "enabled": true,
+        "used": false,
+        "evidence_status": "candidate_only",
+        "error": "联网搜索返回候选，已尝试读取，但未获得能回答该问题的相关正文；本回答未使用这些候选作为结论来源",
+        "policy_reason": "task_requires_web",
+        "run_id": "web_lookup_ca1bde7eacc64326a6b9e6eb115f1fc5",
+        "evidence": {
+          "searches": [
+            {
+              "query": "FastAPI SQLAlchemy 依赖注入 数据库会话",
+              "status": "ok",
+              "providers": [
+                "searxng"
+              ],
+              "fallback_used": null,
+              "count": 5,
+              "top": [
+                {
+                  "title": "360官网 -360安全中心 - 360安全软件 - 360智能硬件 - 360 ...",
+                  "url": "https://www.360.cn/"
+                },
+                {
+                  "title": "360安全卫士官网-电脑清理加速_软件管理_安全防护_AI办公",
+                  "url": "https://weishi.360.cn/?src=360sohome"
+                },
+                {
+                  "title": "360官网-360安全中心-360安全软件-360AI防护-360安全防护 ...",
+                  "url": "https://www.360.com/"
+                }
+              ]
+            },
+            {
+              "query": "FastAPI 依赖注入 数据库 会话 SQLAlchemy official documentation",
+              "status": "ok",
+              "providers": [
+                "searxng"
+              ],
+              "fallback_used": null,
+              "count": 5,
+              "top": [
+                {
+                  "title": "识骨寻踪（美国2005年艾蜜莉·戴丝香侬 、大卫·伯伦纳兹主演 ...",
+                  "url": "https://baike.baidu.com/item/%E8%AF%86%E9%AA%A8%E5%AF%BB%E8%B8%AA/8625775"
+                },
+                {
+                  "title": "【4K修复珍藏版】《识骨寻踪》 第一季 全22集",
+                  "url": "https://www.bilibili.com/list/ml1431925694?oid=115490563359804&bvid=BV1Ss1rBjEXx"
+                },
+                {
+                  "title": "【4K珍藏版】《识骨寻踪》Bones Season 第三季 全15集 ...",
+                  "url": "https://www.bilibili.com/zh-Hans/list/ml3885324324?oid=115570842274624&bvid=BV1ENyGBCEB7"
+                }
+              ]
+            }
+          ],
+          "reads": [
+            {
+              "url": "https://www.bilibili.com/list/ml1431925694?oid=115490563359804&bvid=BV1Ss1rBjEXx",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            }
+          ]
+        },
+        "context_block_chars": 0,
+        "context_block": "",
+        "context_block_truncated": false
+      },
+      "prepared_seconds": 8.5,
+      "answer_seconds": 0.02,
+      "answer": "本次尚未取得能逐事实支持所问内容的记录，暂不能给出已核实的结论。相邻版本、搜索摘要和模型记忆不作为支持。",
+      "sends_used": 3,
+      "sends_after": 6,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.1584,
+        "remaining_cny": 4.8416
+      }
+    },
+    {
+      "id": "N05",
+      "query": "PostgreSQL VACUUM FULL 区别 锁表",
+      "turn_id": "turn_aec47d2b7b5e4be2bdf7e5184be8f760",
+      "session_id": "chat_31bc90a263044ec5b8e68e50516b12d2",
+      "route": {
+        "mode": "普通",
+        "model_profile": "flash",
+        "task_intent": "research",
+        "answer_generation_calls": 0
+      },
+      "web_context_used": false,
+      "web_tools": {
+        "enabled": true,
+        "used": false,
+        "evidence_status": "candidate_only",
+        "error": "联网搜索返回候选，已尝试读取，但未获得能回答该问题的相关正文；本回答未使用这些候选作为结论来源",
+        "policy_reason": "task_requires_web",
+        "run_id": "web_lookup_42eff8c5ee854f9381c50dbe0e93ad06",
+        "evidence": {
+          "searches": [
+            {
+              "query": "PostgreSQL VACUUM FULL vs VACUUM difference",
+              "status": "ok",
+              "providers": [
+                "searxng"
+              ],
+              "fallback_used": null,
+              "count": 5,
+              "top": [
+                {
+                  "title": "如何在抖音电脑端发布视频-百度经验",
+                  "url": "https://jingyan.baidu.com/article/00a07f38ca44b1c3d028dc9d.html"
+                },
+                {
+                  "title": "抖音背景图片的尺寸是多少？ - 知乎",
+                  "url": "https://www.zhihu.com/question/340881552?write"
+                },
+                {
+                  "title": "抖音达人uid在哪里看 - 百度经验",
+                  "url": "https://jingyan.baidu.com/article/6b97984daa07fc5da3b0bf17.html"
+                }
+              ]
+            },
+            {
+              "query": "PostgreSQL VACUUM FULL 区别 锁表 official documentation",
+              "status": "ok",
+              "providers": [
+                "searxng"
+              ],
+              "fallback_used": null,
+              "count": 5,
+              "top": [
+                {
+                  "title": "扫雷世界排行榜上几秒钟甚至零点几秒的记录是如何做到的 ...",
+                  "url": "https://www.zhihu.com/question/30545007"
+                },
+                {
+                  "title": "电脑隐藏的游戏（扫雷等）怎样找到-百度经验",
+                  "url": "https://jingyan.baidu.com/article/574c52190593926c8c9dc144.html"
+                },
+                {
+                  "title": "扫雷是不是可以通过严谨的逻辑全部扫出来而与运气无关？",
+                  "url": "https://www.zhihu.com/question/21677407"
+                }
+              ]
+            },
+            {
+              "query": "PostgreSQL VACUUM FULL lock table ACCESS EXCLUSIVE",
+              "status": "ok",
+              "providers": [
+                "searxng"
+              ],
+              "fallback_used": null,
+              "count": 5,
+              "top": [
+                {
+                  "title": "360官网 -360安全中心 - 360安全软件 - 360智能硬件 - 360 ...",
+                  "url": "https://www.360.cn/"
+                },
+                {
+                  "title": "360安全卫士官网-电脑清理加速_软件管理_安全防护_AI办公",
+                  "url": "https://weishi.360.cn/?src=360sohome"
+                },
+                {
+                  "title": "360驱动大师_360安全中心、全面检测、驱动检测、驱动下载 ...",
+                  "url": "https://dm.weishi.360.cn/home.html?from=homepage"
+                }
+              ]
+            },
+            {
+              "query": "VACUUM FULL 锁表 阻塞 读写 实践",
+              "status": "ok",
+              "providers": [
+                "searxng"
+              ],
+              "fallback_used": null,
+              "count": 5,
+              "top": [
+                {
+                  "title": "黄仁勋为什么只有3.5%的英伟达股份？ - 知乎",
+                  "url": "https://www.zhihu.com/question/603714039"
+                },
+                {
+                  "title": "英伟达 - 知乎",
+                  "url": "https://www.zhihu.com/topic/19562754/hot"
+                },
+                {
+                  "title": "在英伟达 (NVIDIA) 工作是怎样一番体验？",
+                  "url": "https://www.zhihu.com/question/24730046/answers/updated"
+                }
+              ]
+            }
+          ],
+          "reads": [
+            {
+              "url": "https://jingyan.baidu.com/article/574c52190593926c8c9dc144.html",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            },
+            {
+              "url": "https://www.52pojie.cn/thread-1308130-1-1.html",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            },
+            {
+              "url": "https://www.360.cn/",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            },
+            {
+              "url": "https://weishi.360.cn/?src=360sohome",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            }
+          ]
+        },
+        "context_block_chars": 0,
+        "context_block": "",
+        "context_block_truncated": false
+      },
+      "prepared_seconds": 10.69,
+      "answer_seconds": 0.02,
+      "answer": "本次尚未取得能逐事实支持所问内容的记录，暂不能给出已核实的结论。相邻版本、搜索摘要和模型记忆不作为支持。",
+      "sends_used": 3,
+      "sends_after": 9,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.2579,
+        "remaining_cny": 4.7421
+      }
+    }
+  ]
+}
