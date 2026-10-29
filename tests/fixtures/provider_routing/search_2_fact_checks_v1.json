@@ -1,0 +1,158 @@
+{
+  "schema_version": "search-2-fact-checks-v1",
+  "frozen_at": "2026-10-29",
+  "purpose": "Search-2 small live probe: for each case decide in order whether the delivered top-1 is about the question, whether it can be read, and whether the read page actually contains the fact the question needs.",
+  "rules": {
+    "expect_all": "every token must appear (case-insensitive) in the read text",
+    "expect_any_group": "at least one token from the group must appear"
+  },
+  "cases": [
+    {
+      "id": "B01",
+      "category": "game",
+      "query": "星铁 千冶·刃 遗器 推荐 黄泉队",
+      "expect_all": [
+        "千冶"
+      ],
+      "expect_any_group": [
+        [
+          "遗器",
+          "光锥",
+          "配队"
+        ]
+      ]
+    },
+    {
+      "id": "N02",
+      "category": "chinese_tech",
+      "query": "FastAPI 依赖注入 数据库 会话 SQLAlchemy",
+      "expect_all": [
+        "SQLAlchemy"
+      ],
+      "expect_any_group": [
+        [
+          "依赖注入",
+          "Depends",
+          "dependency injection"
+        ]
+      ]
+    },
+    {
+      "id": "N05",
+      "category": "chinese_tech",
+      "query": "PostgreSQL VACUUM FULL 区别 锁表",
+      "expect_all": [
+        "VACUUM"
+      ],
+      "expect_any_group": [
+        [
+          "锁",
+          "lock"
+        ]
+      ]
+    },
+    {
+      "id": "N07",
+      "category": "github_project",
+      "query": "vLLM GitHub repository latest release",
+      "expect_all": [
+        "vllm"
+      ],
+      "expect_any_group": [
+        [
+          "release",
+          "版本",
+          "tag"
+        ]
+      ]
+    },
+    {
+      "id": "N09",
+      "category": "github_project",
+      "query": "astral-sh uv pip dependency resolution benchmark",
+      "expect_all": [
+        "uv"
+      ],
+      "expect_any_group": [
+        [
+          "pip",
+          "resolution",
+          "解析"
+        ]
+      ]
+    },
+    {
+      "id": "N11",
+      "category": "software_version",
+      "query": "Node.js current LTS version",
+      "expect_all": [
+        "LTS"
+      ],
+      "expect_any_group": [
+        [
+          "version",
+          "版本"
+        ]
+      ]
+    },
+    {
+      "id": "N13",
+      "category": "software_version",
+      "query": "PostgreSQL latest major version release",
+      "expect_all": [
+        "PostgreSQL"
+      ],
+      "expect_any_group": [
+        [
+          "release",
+          "version",
+          "版本"
+        ]
+      ]
+    },
+    {
+      "id": "N16",
+      "category": "fact",
+      "query": "黑神话悟空 开发商 游戏科学 总部",
+      "expect_all": [
+        "游戏科学"
+      ],
+      "expect_any_group": [
+        [
+          "杭州",
+          "总部",
+          "深圳"
+        ]
+      ]
+    },
+    {
+      "id": "N17",
+      "category": "fact",
+      "query": "2025 诺贝尔物理学奖 获奖者",
+      "expect_all": [
+        "诺贝尔"
+      ],
+      "expect_any_group": [
+        [
+          "物理学奖",
+          "physics"
+        ]
+      ]
+    },
+    {
+      "id": "N19",
+      "category": "docs",
+      "query": "SQLite WAL mode advantages disadvantages",
+      "expect_all": [
+        "WAL"
+      ],
+      "expect_any_group": [
+        [
+          "write-ahead",
+          "日志",
+          "checkpoint"
+        ]
+      ]
+    }
+  ]
+}
