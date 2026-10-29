@@ -1,0 +1,863 @@
+{
+  "schema_version": "answer-quality-ab-v1",
+  "generated_at": "2026-10-29T17:31:19.947996Z",
+  "arm": "ddg_first",
+  "strategy": "ddg_first",
+  "intent": "quick_answer",
+  "limits": {
+    "questions": 10,
+    "answers": 20,
+    "sends_total": 45,
+    "sends_already_reserved": 34,
+    "cny_total": 10.0,
+    "cny_per_process": 5.0
+  },
+  "stopped": "",
+  "sends_used": 8,
+  "counters_after": {
+    "cap_cny": 5.0,
+    "spent_cny": 0.78,
+    "remaining_cny": 4.22
+  },
+  "turns": [
+    {
+      "id": "B01",
+      "query": "星铁 千冶·刃 遗器 推荐 黄泉队",
+      "research": {
+        "run_id": "web_lookup_c545fb1bac4f497f844974dd3f0a0ada",
+        "status": "completed",
+        "provider_status": "partial",
+        "stop_reason": "sources_partially_read",
+        "answer_confidence": "medium",
+        "seconds": 9.75,
+        "source_block_chars": 3145,
+        "source_block": "【联网检索】\n查询：星铁 千冶·刃 遗器 推荐 黄泉队\n1. 《星》的拼音,星字的意思、组词、部首、笔画、笔顺...\n   来源：Bing RSS｜｜仅标题\n   证据：search_snippet\n   域名：hgcha.com｜解析：unknown\n   原始链接：hgcha.com\n\n【已读取 3】《星》的拼音,星字的意思、组词、部首、笔画、笔顺 - 汉语查\nhttps://www.hgcha.com/zidian/5c93eb9b.html\n星 结构上下结构 五笔JTGF 仓颉AHQM 郑码KMC 五行金 四角60105 电码2502 区位1488 统一码U+661F 造字形声字 笔顺编号 251131121 类型 笔顺名称 竖、横折、横、横、撇、横、横、竖、横 相关查询 星的笔顺 星组词 星的成语 基本解释 基本字义 1天文学上指宇宙间能发光的或反射光的天体；一般指夜间天空中发光的天体 例 ～球。恒～。行（ xíng ）～。卫～。披～戴月。 2细碎的小颗粒东西 例 火～儿。 3秤等衡器上记数的点 例 定盘～。 4军官衣领上的徽记 例 五～将军。 5形容夜间 例 ～行。～奔。 6星名，二十八宿之一 例 ～宿。 7像星一样排列，分散 例 ～～点点。 8喻某一方面新出现的杰出人物 例 影～。歌～。 9古代妇女面上所饰的花点 10以星象推算吉凶祸福的方术 例 ～术。～相（ xiàng ）。 11原子核物理学上指高能粒子射入核乳胶或云室、气泡室时发现有许多径迹从一点发出的现象 12国际通用的衡量宾馆、饭店的等级标准 例 ～级。五～饭店。 异体字 详细解释 〈名词〉 (1) 形声。从晶，生声。晶象形。本义：星星 (2) 同本义 英 star 引 星，万物之精，上为列星。 —— 《说文》。按，散文则统谓之星，对文则五纬为星，二十八宿为辰。 引 日月星辰。 —— 《书·尧典》 引 四曰星辰。 —— 《书·洪范》。郑注：“星，五星也。” 引 列星随旋，日月递炤。（炤：照耀） —— 《荀子》 例 星筹（寿算之筹）；星霜（比喻年月）；星桥（神话传说中的鹊桥。也作银桥）；星布（天星密布）；星列（天星罗列） (3) 星宿，中国古代指星座 英 constellation 例 星宫（星神）；星回（星宿回转固位。谓一年将尽）；星亡（星宿隐没不见） (4) 天文 英 astronomy 引 文史星历，近乎卜祝之间。 —— 司马迁《报任安书》 例 星工（通晓星象的人）；星文（星象）；星变（星象的异常变化） (5) 古时特指妇女装饰面颊的美容花点 英 tilak (6) 戥、秤等衡器上记斤、两、钱的标志点 英 small gradation marks on the arm of a steelyard 例 定盘星；准星；秤星 (7) 夜，星夜。多用于连夜赶路 英 night 例 星前月下（指男女幽会的时间或处所）；星行（早夜急行）；星步（凭星而行）；星归（连夜赶回） (8) 用以表示等级 英 class 例 三星级饭店；五星上将 (9) 星相术 英 astrology 例 星象恶曜（逢着灾星，厄运当头）；星宿（列星。代指人的时运，命数）；星家（通晓天文术数、算命看相的人）；星宿不利（迷信指本命星不吉利）；占星；星卜 (10) 某物质一小块、一小片（断）或数量很小的一份 英 bit 例 星星（一点儿；一些儿）；一星半点 (11) 姓 〈形容词〉 (1) 形容多而分散的 英 disperse 例 星居（分散布列）；星处；零星；星弗（多而乱）；星罗棋布；星离（天星分散） (2) 斑白。多指鬓发 英 white 引 诗老相过鬓已星，吟魂未减昔年清。 —— 宋· 王伯大《赠戴石屏》 例 星鬓（发白的鬓发）；星发（花白的头发） (3) 事物与帝王有关的 英 imperial 例 星舆；星骑；星闱（皇宫）；星关（宫禁，皇居）；星骑（帝王的使者） (4) 迅速的，跟流星一样的 英 rapid 例 星铄梭光（像星闪烁，像飞梭掠过。形容疾快）；星驰（赶快；匆忙）；星忙（匆忙）；星火（火速） 康熙字典 卷别正文・辰集上 部首日部 康熙筆画9画 部外 5画 《唐韻》、《集韻》、《韻會》：桑經切；《正韻》：先靑切，音腥。《說文》：萬物之精，上爲列星。从晶，生聲。一曰象。从口，古口復注中，故與日同。《釋名》：星，散也，列位布散也。《書・堯典》：曆象日月星辰。〔傳〕星，四方中星。又，〈洪範〉五紀，四曰星辰。〔傳〕二十八宿迭見，以敘節氣。〔又〕庶民惟星，星有好風，星有好雨。〔傳〕星，民象，箕星好風，畢星好雨。《史記・天官書》：星者，金之散氣。〔註〕五星五行之精，衆星列布，體生於地，精成於天，列居錯行，各有所屬，在野象物，在朝象官，在人象事。《前漢・天文志》：經星常宿中外官，凡百七十八名，積數七百八十三星，皆有州國官宮物類之象。《淮南子・天文訓》：日月之淫氣精者爲星辰。 又，星星，猶點點也。謝靈運詩：星星白髮垂。 又，草名。戴星、文星、流星，皆穀精草別名。《本草綱目》：此草生穀田中，莖頭小白花，點點如亂星。 又，姓。《廣韻》：羊氏家傳曰：南陽太守羊續，娶濟北星重女。 说文解字 说文解字 卷别卷七上 位置第221頁，第1字 反切桑經切 萬物之精，上爲列星。从晶聲。一曰象形。从〇，古〇復注中，故與日同。 武則天新造字：〇。 古文星。 曐或省。 邵瑛羣經正字：「今經典多从或體。」 《說文新證》：「甲骨文『星』字本作『晶』，象眾星熒熒之形。後加『生』聲，與『晶』分化。其星形少則二、多則五，不定。金文、小篆固定為三星。戰國文字則開始簡化為一星，後世隸楷承之。」 说文解字注 萬物之精。上爲列星。 《管子》云：凡物之精。此則爲生。下生五穀。上爲列星。流於天地之閒謂之鬼神。藏於胷中謂之聖人。星之言散也。引伸爲碎散之偁。 从晶。从生聲。 桑經切。十一部。 一曰象形。从。 从三故曰象形也。大徐作囗。誤。 古復注中。故與日同。 古文从三。而或復丨其中。則與晶相似矣。依此說則當入《生部》。解云从生，象形。 古文。 所謂象形从。 或省。 《春秋》說題辭云：星之爲言精也。陽之榮也。陽精爲日。日分爲星。故其字日生爲星。依此則又當入《日部》。 星的字谜 谜底：星 解析：“星”与“酉”一组合，就自然成为“醒”字。 谜面：太阳过生日（打一字） 谜底：星 解析：星星指的是肉眼可见的宇宙中的天体。许多小行星，由于自身的质量比较小，导致自身引力比较小，而且星体一般是由比较坚硬的固体岩石构成的，很难在自身引力的作用下完成向中心移动的过程，所以它们的形状就是奇形怪状的，有卵形的，有棒形的...... 谜面：一旦牵牛来（打一字） 谜底：星 解析：“一”、“旦”牵了“牛”就会变成“星”。 谜面：旦末净丑（打字一） 谜底：星 星字组词 星字开头组词 - xīng xiù星宿 - xīng xīng星星 - xīng sàn星散 - xīng qī星期 - xīng dǒu星斗 - xīng lì星历 - xīng jì星际 - xīng guān星官 - xīng chén星辰 - xīng yè星夜 星字中间组词 - wèi xīng chéng卫星城 - líng xīng mén灵星门 - yī xīng zhōng一星终 - guān xīng tái观星台 - jīn xīng yàn金星砚 - qī xīng jiàn七星剑 - sān xīng yuē三星约 - líng xīng mén棂星门 - zhuī xīng zú追星族 - huáng xīng yè黄星靥",
+        "sources": [
+          {
+            "title": "星（汉语文字）_百度百科",
+            "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+            "relevance": 0.1,
+            "directness": "unmatched"
+          },
+          {
+            "title": "云·星穹铁道 - miHoYo",
+            "url": "https://sr.mihoyo.com/cloud/",
+            "relevance": 0.1,
+            "directness": "unmatched"
+          },
+          {
+            "title": "《星》的拼音,星字的意思、组词、部首、笔画、笔顺 - 汉语查",
+            "url": "https://www.hgcha.com/zidian/5c93eb9b.html",
+            "relevance": 0.1,
+            "directness": "unmatched"
+          },
+          {
+            "title": "《崩坏：星穹铁道》官方网站-4.6全新版本「月升之前，与兽 ...",
+            "url": "https://sr.mihoyo.com/",
+            "relevance": 0.1,
+            "directness": "unmatched"
+          },
+          {
+            "title": "星星（宇宙中肉眼可见天体）_百度百科",
+            "url": "https://baike.baidu.com/item/%E6%98%9F%E6%98%9F/5683398",
+            "relevance": 0.1,
+            "directness": "unmatched"
+          },
+          {
+            "title": "星的意思,星的解释,星的拼音,星的部首,星的笔顺-汉语国学",
+            "url": "https://www.hanyuguoxue.com/zidian/zi-26143",
+            "relevance": 0.1,
+            "directness": "unmatched"
+          },
+          {
+            "title": "星_星怎么读_星的意思 - 汉语字典",
+            "url": "https://www.chagushici.com/zidian/%E6%98%9F",
+            "relevance": 0.1,
+            "directness": "unmatched"
+          },
+          {
+            "title": "AstroGaze — 在线星空地图",
+            "url": "https://astrogaze.space/zh/",
+            "relevance": 0.1,
+            "directness": "unmatched"
+          }
+        ],
+        "query_attempts": [
+          {
+            "query": "星铁 千冶·刃 遗器 推荐 黄泉队",
+            "status": "found",
+            "providers": null
+          }
+        ],
+        "warnings": [
+          "general_web: provider_error: duckduckgo_html:URLError:<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)>",
+          "source read failed (https://baike.baidu.com/item/%E6%98%9F/1586): http_403",
+          "source read failed (https://sr.mihoyo.com/cloud/): all_backends_failed"
+        ]
+      },
+      "answer": {
+        "turn_id": "turn_7f1f7ebdb01343c6b078fb85fc678ea3",
+        "session_id": "chat_85b847b2024348dc996c9a820df14c2b",
+        "text": "先说明一点：检索回来的资料全是“星”字的字典解释，跟星铁无关，所以下面基于游戏机制本身作答，不引用那些来源。\n\n## 结论：千冶·刃（刃）在黄泉队里，遗器走「辅助型输出/副C」路线\n\n刃在黄泉队中的定位不是主C，而是**给黄泉叠「残梦」层数 + 补伤害 + 提供生存**的角色。遗器选择要围绕这个定位来。\n\n### 主遗器（4件套）\n\n**首选：莳者套（4件）**\n- 2件套：生命值上限 +12%\n- 4件套：受到攻击或损失生命值时，暴击率 +8%，可叠 2 层\n- 理由：刃的强化普攻消耗生命值，几乎常驻触发 4 件套，等于白送 16% 暴击率。刃的伤害吃生命值，2 件套也直接加成。\n\n**次选：快枪手（4件）**\n- 攻击力 +12%，速度 +6%，强化普攻伤害 +10%\n- 理由：如果刃的暴击率已经堆够（配黄泉队通常带暴击辅助），快枪手的速度能让刃更快出手、更快叠层，手感更顺。\n\n**不推荐：** 击破套、量子套等——刃不吃击破，也不打量子。\n\n### 位面饰品（2件套）\n\n**首选：停转的萨尔索图**\n- 暴击率 +8%，暴击率 ≥50% 时终结技与追加攻击伤害 +15%\n- 理由：刃的追加攻击（强化普攻的后续）吃这个加成，且暴击率门槛容易达到。\n\n**次选：太空封印站**\n- 攻击力 +12%，速度 ≥120 时再 +12%\n- 理由：如果刃速度堆到 120+，这条收益很稳。\n\n**生存向：不老者的仙舟**\n- 生命值 +12%，速度 ≥120 时全队攻击力 +8%\n- 理由：黄泉队里刃常带生存位属性，仙舟的团队加成对黄泉有间接收益。\n\n### 词条优先级\n\n| 部位 | 主词条 | 副词条优先 |\n|---|---|---|\n| 躯干 | 暴击率 / 暴击伤害 | 暴击率 > 暴击伤害 > 生命% > 速度 |\n| 脚部 | 速度 / 生命% | 同上 |\n| 位面球 | 风属性伤害 / 生命% | 同上 |\n| 连结绳 | 生命% / 能量恢复 | 同上 |\n\n**关键判断：** 刃的伤害公式吃生命值，所以「生命%」对刃是有效词条，不是废词条。暴击率优先堆到 50% 以上（触发萨尔索图），再堆暴击伤害。\n\n### 黄泉队里的特殊考量\n\n1. **速度阈值**：黄泉队节奏偏快，刃建议速度 134+（配速度鞋），保证在黄泉行动前完成叠层。\n2. **生存压力**：如果队里没有专职奶妈，刃可以带仙舟 + 生命% 走半肉，牺牲一点输出换稳定。\n3. **不要堆击破**：刃的击破收益极低，击破词条在刃身上是浪费。\n\n一句话总结：**莳者4 + 萨尔索图2，躯干暴击、脚速度、球风伤、绳生命%，暴击率堆过50%后转暴伤。** 这是黄泉队里刃最稳的一套。",
+        "seconds": 7.28,
+        "prepared_seconds": 1.3,
+        "web_context_used": true,
+        "validation_plan": false,
+        "route": {
+          "mode": "普通",
+          "model_profile": "flash",
+          "task_intent": "quick_answer",
+          "answer_generation_calls": 1
+        }
+      },
+      "sends_used": 1,
+      "sends_after": 1,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.119,
+        "remaining_cny": 4.881
+      }
+    },
+    {
+      "id": "N02",
+      "query": "FastAPI 依赖注入 数据库 会话 SQLAlchemy",
+      "research": {
+        "run_id": "web_lookup_9e1d9dc537854a3a8d1e6c6681738117",
+        "status": "completed",
+        "provider_status": "partial",
+        "stop_reason": "sources_partially_read",
+        "answer_confidence": "medium",
+        "seconds": 8.33,
+        "source_block_chars": 6432,
+        "source_block": "【联网检索】\n查询：FastAPI 依赖注入 数据库 会话 SQLAlchemy\n1. FastAPI项目SQLAlchemy会话工厂搭建...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：blog.csdn.net｜解析：unknown\n   原始链接：blog.csdn.net\n2. FastAPI数据库会话依赖注入模式入门教程 -...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：pydocs.cn｜解析：unknown\n   原始链接：pydocs.cn\n\n【已读取 1】FastAPI项目SQLAlchemy会话工厂搭建与依赖注入实战指南-CSDN博客\nhttps://blog.csdn.net/weixin_32306957/article/details/168261703\n1. FastAPI项目为什么需要一套会话工厂 如果你的FastAPI项目只是几个接口、自己随手连个数据库，那确实不需要专门去搭一套会话工厂，直接在每个路由函数里创建连接、用完关闭就行。但只要项目规模一上来，接口多了、并发上来了、团队里好几个人一起维护了，你一定会遇到几个绕不开的问题：连接怎么复用、事务边界在哪、什么时候提交什么时候回滚、每个请求的数据库会话是不是同一个。这些问题如果靠每个人自己约定，几乎百分之百会在某个夜里被线上报错叫醒。 我最早把FastAPI接到生产环境时，就没认真做会话管理，直接在路由里 SessionLocal() 一把梭。结果接口一压测，报了一堆连接泄漏，数据库连接池被打满，日志里全是 QueuePool limit of size 。后来老老实实把所有数据库访问收敛到一套会话工厂，再配合FastAPI的依赖注入把会话生命周期管起来，问题才彻底解决。所以今天这篇就从“为什么需要会话工厂”开始，把这套东西一步步搭出来，顺带把我踩过的坑都写清楚。 1.1 会话工厂到底在解决什么问题 先想清楚一件事：SQLAlchemy里的 Session 不是数据库连接，它是连接之上的一个工作单元。会话负责跟踪你操作过的对象、缓存状态、管理事务，到提交时才真正把改动写进数据库。你如果哪个接口临时 create_engine 、再顺手建个Session，代码确实能跑，但代价是： - 每来一个请求就初始化一遍引擎和会话，资源开销极大； - 事务边界全靠人体自觉，谁忘了 commit ，改了半天的数据就没了； - 会话随手丢弃不关闭，连接池很快就会被打满； - 团队里每个人写一套风格，排查问题成本翻倍。 会话工厂要做的事，就是把这些“每个人都要自己操心”的事情集中收口。工厂负责创建会话，请求进来我们从中拿一个会话使用，请求结束统一关闭；事务的提交与回滚也放到统一的位置去处理。这样业务代码里只需要关心“我怎么查、怎么改”，不需要知道会话怎么来的、怎么没的。 1.2 一个典型的反例 先给一个反面示例，方便对照理解。下面这种写法看起来很直接，但实际上是埋雷。 # 反例：每个请求都临时创建引擎和会话 from sqlalchemy import create_engine from sqlalchemy.orm import sessionmaker def get_orders(): engine = create_engine(\"postgresql://user:pass@localhost/dbname\") Session = sessionmaker(bind=engine) session = Session() try: return session.execute(\"select * from orders\").fetchall() finally: session.close() 每调用一次 get_orders ，就重新走一遍连接创建、引擎初始化、会话建立，完后关掉再走一次销毁流程。本地单线程时问题不明显，一旦并发上来，数据库端就会感受到大量短连接反复建立销毁，应用层也白白耗掉不少时间。 把会话工厂抽出来之后，引擎全局只建一次，连接复用连接池，会话按需创建、用完即关。业务层只看到干净的 Session 对象，代码整洁性和性能都会好很多。 2. 搭建会话工厂前的准备：选型和目录规划 会话工厂本身不是一个复杂的东西，但它在项目里的位置很重要。它既是基础设施，又是所有数据库操作的入口，所以一开始得把依赖选型和目录结构定好，否则写一半回头再改，牵扯的面会很大。 2.1 依赖选型：同步还是异步 FastAPI天然支持异步，但数据库访问这块要说清楚：SQLAlchemy本身有同步的 Session ，也有异步的 AsyncSession 。做选型时主要看你的项目风格和团队熟悉度。 - 如果你在接口里用了 def 声明同步路由，那用同步Session 最简单，几乎不增加额外学习成本。 - 如果你的路由都是 async def ，并且希望数据库操作也不阻塞事件循环，那就用AsyncSession ，配合asyncpg 之类异步驱动。 - 如果你的项目还在用旧版SQLAlchemy 1.4，也能跑，但建议直接上SQLAlchemy 2.0，API更统一，异步支持也已经很成熟。 我自己现在的习惯是：新项目直接上SQLAlchemy 2.0 + asyncpg + AsyncSession 。但要注意一点，异步会话虽然在IO上不阻塞，但如果你在 async def 路由里调用了某个同步的数据库工具函数，事件循环一样会被卡住。所以异步不只是换个类名那么简单，整条链路都得是异步的。 如果你刚入门，建议先用同步版本把会话工厂的概念吃透，然后再切换到异步。这篇后面我会把同步和异步的代码都写出来，你按需取舍。 2.2 目录结构建议 会话工厂不必单独拆成一个包，但至少要在项目里有一处集中的位置。一个常见、也足够干净的结构是这样的： app/ ├─ main.py # FastAPI入口，挂载路由和依赖 ├─ config.py # 数据库配置、环境变量读取 ├─ db/ │ ├─ __init__.py │ ├─ base.py # DeclarativeBase 基类，供模型继承 │ ├─ session.py # 引擎、会话工厂、get_db依赖 │ └─ models.py # 你的 ORM 模型 └─ routers/ └─ order.py # 业务路由 把 session.py 单独放在 db 包里，之后所有跟会话有关的东西都从这儿导入，不要在业务代码里自己 create_engine 。这个约定虽然简单，但长期维护下来价值非常大。 配置项建议放到环境变量里，比如 DATABASE_URL ，然后交给 pydantic-settings 或 os.getenv 读取。不要把连接串硬编码在代码里。连接串里通常包含用户名、密码、地址，硬编码意味着代码仓库里的每个人都有权限看到生产数据库地址，这本身就是个安全隐患。 3. 会话工厂的三个核心环节实现 现在就进入正题：一套可用的会话工厂，至少要包含引擎创建、会话工厂创建、FastAPI依赖注入三个环节。这也是整个方案的骨架。 3.1 第一步：数据库引擎 数据库引擎是SQLAlchemy与数据库打交道的底层入口，负责维护连接池、解析方言、执行SQL。引擎在进程生命周期里应该只创建一次，所以通常放在模块级别，或者在FastAPI的 lifespan 里初始化。 # app/db/session.py from sqlalchemy import create_engine from sqlalchemy.orm import sessionmaker, DeclarativeBase DATABASE_URL = \"postgresql://user:password@localhost:5432/appdb\" engine = create_engine( DATABASE_URL, pool_size=10, # 连接池保持的连接数 max_overfl\n\n【已读取 3】FastAPI数据库会话依赖注入模式入门教程 - PyDocs中文手册\nhttps://www.pydocs.cn/chapter/908FC457CCA92B26F55EAE2A74AF435F.html\n9.5 数据库会话依赖注入模式 FastAPI数据库会话依赖注入模式入门教程 本教程详细讲解FastAPI中如何使用依赖注入模式来管理数据库会话，包括SQLAlchemy集成、代码示例和最佳实践，适合新手学习，帮助您高效构建API应用。 FastAPI数据库会话依赖注入模式教程 介绍 数据库会话依赖注入模式是FastAPI中的一个关键概念，它结合了数据库会话管理和依赖注入，使得代码更模块化、易于测试和维护。本教程面向新手，逐步解释如何实现这一模式。 什么是数据库会话？ 在数据库操作中，会话（Session）是一个核心组件，用于管理数据库连接和事务。它允许您执行查询、提交更改或回滚操作，确保数据一致性和高效性。在Python中，常用的ORM（对象关系映射）工具如SQLAlchemy提供了会话接口。 什么是依赖注入？ 依赖注入是FastAPI的强大特性之一，它允许您声明依赖项（如数据库会话），框架会自动注入这些依赖项到路由函数中。这减少了代码耦合，提高了可测试性。 为什么使用依赖注入模式管理数据库会话？ - 代码复用：可以定义一个依赖函数来提供会话，避免在每个路由中重复代码。 - 测试友好：通过模拟依赖，可以轻松进行单元测试。 - 解耦合：将数据库管理与业务逻辑分离，使应用更模块化。 - 自动管理生命周期：依赖注入可以自动处理会话的打开和关闭，防止资源泄漏。 设置数据库环境 假设我们使用SQLAlchemy作为ORM。首先，安装必要的包： pip install fastapi sqlalchemy uvicorn 创建一个数据库引擎和会话工厂。这里以SQLite为例，您可以根据需要替换为其他数据库如PostgreSQL或MySQL。 from sqlalchemy import create_engine from sqlalchemy.orm import sessionmaker, Session # 数据库连接URL，这里使用SQLite本地文件 SQLALCHEMY_DATABASE_URL = \"sqlite:///./test.db\" # 创建引擎，check_same_thread=False用于SQLite的线程安全 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={\"check_same_thread\": False}) # 创建会话工厂，autocommit=False和autoflush=False是推荐设置 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) 实现依赖注入模式 在FastAPI中，使用Depends 装饰器来注入依赖。我们定义一个依赖函数来提供数据库会话。 定义依赖函数 这个函数使用yield 语句实现上下文管理，确保会话在使用后正确关闭。 from fastapi import Depends # 依赖函数，返回数据库会话 def get_db(): db = SessionLocal() # 创建新会话 try: yield db # 将会话提供给路由函数 finally: db.close() # 使用后关闭会话，防止资源泄漏 在路由中使用依赖注入 创建FastAPI应用，并在路由函数中使用Depends 来注入数据库会话。 from fastapi import FastAPI app = FastAPI() # 示例路由：获取项目列表 @app.get(\"/items/\") async def read_items(db: Session = Depends(get_db)): # db现在是数据库会话实例，可以执行查询操作 # 例如：items = db.query(Item).all()，假设Item是SQLAlchemy模型 # 这里返回示例数据 return {\"items\": [\"item1\", \"item2\", \"item3\"]} # 另一个示例路由：创建新项目 @app.post(\"/items/\") async def create_item(name: str, db: Session = Depends(get_db)): # 在实际应用中，您可以创建并提交新项目到数据库 # 例如：new_item = Item(name=name); db.add(new_item); db.commit() return {\"message\": f\"Item '{name}' created successfully\"} 详细解释依赖注入的工作原理 - Depends装饰器：当路由函数被调用时，FastAPI会自动调用 get_db 函数，并将返回的会话作为参数传递给路由。 - 生命周期管理：使用 yield 确保会话在路由执行期间可用，并在结束后自动关闭，这类似于Python的上下文管理器。 - 灵活性：依赖可以嵌套或组合，例如，您可以注入用户认证等其他依赖。 最佳实践和注意事项 - 会话隔离：确保每个请求使用独立的会话，避免并发问题。 - 错误处理：在依赖函数中添加错误处理逻辑，例如处理数据库连接失败。 - 测试：在测试中使用模拟会话，如通过 pytest 和fastapi.testclient 。 - 性能优化：对于高并发应用，可以考虑连接池或其他优化策略。 - 扩展性：如果使用多个数据库，可以定义不同的依赖函数来管理各个会话。 示例错误处理增强版 def get_db(): db = SessionLocal() try: yield db except Exception as e: db.rollback() # 发生异常时回滚事务 raise # 重新抛出异常 finally: db.close() 常见问题解答 Q: 如何管理多个数据库会话？ A: 可以为每个数据库定义独立的引擎和依赖函数，例如get_db1 和get_db2 ，然后在路由中根据需要注入。 Q: 依赖注入会影响性能吗？ A: 通常情况下，依赖注入的开销很小，因为FastAPI内部进行了优化。对于性能关键的应用，可以预编译依赖或使用缓存。 Q: 我可以在其他函数中使用依赖吗？ A: 是的，依赖注入不仅限于路由函数；您可以将其用于任何需要依赖的FastAPI组件，如中间件或后台任务。 总结 通过本教程，您学习了如何在FastAPI中使用依赖注入模式来管理数据库会话。这提高了代码的模块化和可维护性。关键步骤包括设置SQLAlchemy引擎、定义依赖函数，并在路由中使用Depends 。不断练习并参考官方文档，您将能更熟练地应用这一模式。 SEO优化提示 - 使用相关关键词如“FastAPI数据库会话”和“依赖注入教程”来提高搜索排名。 - 在内容中自然地包含关键术语，避免过度堆砌。 - 确保代码示例完整且可运行，以吸引读者和提升用户体验。",
+        "sources": [
+          {
+            "title": "FastAPI项目SQLAlchemy会话工厂搭建与依赖注入实战指南-CSDN博客",
+            "url": "https://blog.csdn.net/weixin_32306957/article/details/168261703",
+            "relevance": 0.85,
+            "directness": "contextual"
+          },
+          {
+            "title": "FastAPI + SQLAlchemy 实战教程 - CSDN博客",
+            "url": "https://blog.csdn.net/2401_83519807/article/details/158575551",
+            "relevance": 0.375,
+            "directness": "weak"
+          },
+          {
+            "title": "FastAPI数据库会话依赖注入模式入门教程 - PyDocs中文手册",
+            "url": "https://www.pydocs.cn/chapter/908FC457CCA92B26F55EAE2A74AF435F.html",
+            "relevance": 0.875,
+            "directness": "contextual"
+          },
+          {
+            "title": "FastAPI 与 SQLAlchemy 核心集成教程 | 从零开始详细指南 - PyDocs中文手册",
+            "url": "https://www.pydocs.cn/chapter/0FD384B4377CE933880C2EA180EA79A6.html",
+            "relevance": 0.375,
+            "directness": "weak"
+          },
+          {
+            "title": "FastAPI中的依赖注入与数据库事务管理 - Amd794 - 博客园",
+            "url": "https://www.cnblogs.com/Amd794/p/18815765",
+            "relevance": 0.85,
+            "directness": "contextual"
+          },
+          {
+            "title": "SQLAlchemy 模型 — 设计数据库表 - 菜鸟教程",
+            "url": "https://www.runoob.com/fastapi/fastapi-blog-sqlalchemy.html",
+            "relevance": 0.412,
+            "directness": "weak"
+          },
+          {
+            "title": "FastAPI 快速开发 Web API 项目: 通过 SQLAlchemy 进行数据操作",
+            "url": "https://juejin.cn/post/7224046762200612924",
+            "relevance": 0.412,
+            "directness": "weak"
+          },
+          {
+            "title": "FastAPI与SQLAlchemy数据库集成 - SegmentFault 思否",
+            "url": "https://segmentfault.com/a/1190000046456143",
+            "relevance": 0.45,
+            "directness": "weak"
+          }
+        ],
+        "query_attempts": [
+          {
+            "query": "FastAPI 依赖注入 数据库 会话 SQLAlchemy",
+            "status": "found",
+            "providers": null
+          }
+        ],
+        "warnings": [
+          "source read failed (https://blog.csdn.net/2401_83519807/article/details/158575551): http_521"
+        ]
+      },
+      "answer": {
+        "turn_id": "turn_27e3a16c0a684135a9cbbf79f835b80e",
+        "session_id": "chat_ae5a8ff5a7e442eea6e64d96eef5fef8",
+        "text": "# FastAPI + SQLAlchemy：依赖注入管理数据库会话\n\n先给结构：这套东西本质上是**三层职责分离**，很多人搞混是因为把其中两层当成了一层。\n\n```\nengine（全局唯一，管连接池）\n   └── SessionLocal（会话工厂，管\"怎么造会话\"）\n          └── get_db（依赖函数，管\"会话的生命周期\"）\n                 └── 路由函数（只管业务逻辑）\n```\n\n## 一、为什么需要这套结构\n\n**关键区分：Session ≠ 数据库连接。**\n\n- `Engine`：进程级单例，持有连接池，负责方言解析和执行 SQL。\n- `Session`：一个**工作单元**，跟踪你操作过的 ORM 对象、缓存状态、管理事务边界。它从连接池借连接，用完还回去。\n- 每个请求应该拿到**独立的 Session**，请求结束统一关闭。\n\n反例（常见踩坑）：\n\n```python\n# ❌ 每个请求都 create_engine + sessionmaker\ndef get_orders():\n    engine = create_engine(\"postgresql://...\")\n    Session = sessionmaker(bind=engine)\n    session = Session()\n    try:\n        return session.execute(...).fetchall()\n    finally:\n        session.close()\n```\n\n问题：连接池被打满（`QueuePool limit of size`）、事务边界靠自觉、并发下短连接反复建立销毁 [web-2]。\n\n## 二、标准实现（同步版，建议先吃透这个）\n\n**1. 引擎 + 会话工厂（模块级，只建一次）**\n\n```python\n# app/db/session.py\nfrom sqlalchemy import create_engine\nfrom sqlalchemy.orm import sessionmaker, DeclarativeBase\n\nDATABASE_URL = \"postgresql://user:password@localhost:5432/appdb\"\n\nengine = create_engine(\n    DATABASE_URL,\n    pool_size=10,\n    max_overflow=20,\n    pool_pre_ping=True,   # 连接失效自动重连，生产必开\n)\n\nSessionLocal = sessionmaker(\n    autocommit=False,\n    autoflush=False,\n    bind=engine,\n)\n\nclass Base(DeclarativeBase):\n    pass\n```\n\n**2. 依赖函数（核心：`yield` 前后就是生命周期边界）**\n\n```python\nfrom fastapi import Depends\n\ndef get_db():\n    db = SessionLocal()\n    try:\n        yield db\n    except Exception:\n        db.rollback()   # 异常时回滚，避免脏事务残留\n        raise\n    finally:\n        db.close()      # 无论成败都归还连接\n```\n\n**3. 路由中使用**\n\n```python\n@app.get(\"/items/\")\ndef read_items(db: Session = Depends(get_db)):\n    return db.query(Item).all()\n```\n\n`Depends` 的机制：FastAPI 在调用路由前自动执行 `get_db()`，把 `yield` 出来的值注入参数；请求处理完（或抛异常）后，继续执行 `yield` 之后的 `finally` 代码 [web-3]。\n\n## 三、几个必须知道的细节\n\n| 问题 | 结论 |\n|---|---|\n| 事务边界在哪 | 依赖函数只负责**关闭**，`commit` 应在业务层显式调用（或抽一个 `get_db_transaction` 依赖统一提交） |\n| `autocommit=False` 的意义 | SQLAlchemy 2.0 默认如此；显式 `commit` 让事务边界可见 |\n| 异步怎么选 | 路由是 `async def` 且整条链路异步 → `AsyncSession` + `asyncpg`；只要中间混进一个同步 DB 调用，事件循环照样被卡 [web-2] |\n| 测试怎么办 | `app.dependency_overrides[get_db] = lambda: test_session`，这是依赖注入最大的收益 |\n| SQLite 特例 | 需要 `connect_args={\"check_same_thread\": False}` |\n\n## 四、异步版（如果你要走这条路）\n\n```python\nfrom sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession\n\nengine = create_async_engine(\"postgresql+asyncpg://...\", pool_size=10)\nAsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)\n\nasync def get_db() -> AsyncSession:\n    async with AsyncSessionLocal() as session:\n        try:\n            yield session\n        except Exception:\n            await session.rollback()\n            raise\n```\n\n路由用 `async def` + `await db.execute(...)`。\n\n## 五、一句话收束\n\n**依赖注入在这里解决的唯一问题是\"会话生命周期的所有权\"**——把\"谁来创建、谁来关闭、异常时谁来回滚\"从每个路由函数里收归到 `get_db` 一处。会话工厂解决的是\"怎么造\"，依赖注入解决的是\"何时生、何时死\"，两者不是同一件事。\n\n如果要做下一步，建议先确认你的路由是同步还是异步风格——这决定你该用 `Session` 还是 `AsyncSession`，混用是最常见的返工来源。",
+        "seconds": 6.3,
+        "prepared_seconds": 0.05,
+        "web_context_used": true,
+        "validation_plan": false,
+        "route": {
+          "mode": "普通",
+          "model_profile": "flash",
+          "task_intent": "quick_answer",
+          "answer_generation_calls": 1
+        }
+      },
+      "sends_used": 1,
+      "sends_after": 2,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.2817,
+        "remaining_cny": 4.7183
+      }
+    },
+    {
+      "id": "N07",
+      "query": "vLLM GitHub repository latest release",
+      "research": {
+        "run_id": "web_lookup_5f6f934129904cada67dfa82d8206b7d",
+        "status": "completed",
+        "provider_status": "found",
+        "stop_reason": "sources_read",
+        "answer_confidence": "medium",
+        "seconds": 12.2,
+        "source_block_chars": 4902,
+        "source_block": "【联网检索】\n查询：vLLM GitHub repository latest release\n1. Releases · vllm-project/v...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：github.com｜解析：unknown\n   原始链接：github.com\n2. GitHub - vllm-project/vll...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：github.com｜解析：unknown\n   原始链接：github.com\n3. Previous Releases - vLLM\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：vllm.ai｜解析：unknown\n   原始链接：vllm.ai\n\n【已读取 1】Releases · vllm-project/vllm - GitHub\nhttps://github.com/vllm-project/vllm/releases\nvllm-project/vllm releases (newest first):\n- v0.32.0 (v0.32.0) published 2026-10-18\n- v0.31.0 (v0.31.0) published 2026-10-05\n- v0.30.0 (v0.30.0) published 2026-09-22\n- v0.29.0 (v0.29.0) published 2026-09-09\n- v0.28.0 (v0.28.0) published 2026-08-26\nNewest release: v0.32.0\nLatest stable release: v0.32.0\n\n【已读取 2】GitHub - vllm-project/vllm: A high-throughput and memory-efficient ...\nhttps://github.com/vllm-project/vllm\n<!-- markdownlint-disable MD001 MD041 -->\n<p align=\"center\">\n  <picture>\n    <source media=\"(prefers-color-scheme: dark)\" srcset=\"https://raw.githubusercontent.com/vllm-project/vllm/main/docs/assets/logos/vllm-logo-text-dark.png\">\n    <img alt=\"vLLM\" src=\"https://raw.githubusercontent.com/vllm-project/vllm/main/docs/assets/logos/vllm-logo-text-light.png\" width=55%>\n  </picture>\n</p>\n\n<h3 align=\"center\">\nEasy, fast, and cheap LLM serving for everyone\n</h3>\n\n<p align=\"center\">\n| <a href=\"https://docs.vllm.ai\"><b>Documentation</b></a> | <a href=\"https://blog.vllm.ai/\"><b>Blog</b></a> | <a href=\"https://arxiv.org/abs/2309.06180\"><b>Paper</b></a> | <a href=\"https://x.com/vllm_project\"><b>Twitter/X</b></a> | <a href=\"https://discuss.vllm.ai\"><b>User Forum</b></a> | <a href=\"https://slack.vllm.ai\"><b>Developer Slack</b></a> |\n</p>\n\n🔥 We have built a vLLM website to help you get started with vLLM. Please visit [vllm.ai](https://vllm.ai) to learn more.\nFor events, please visit [vllm.ai/events](https://vllm.ai/events) to join us.\n\n---\n\n## About\n\nvLLM is a fast and easy-to-use library for LLM inference and serving.\n\nOriginally developed in the [Sky Computing Lab](https://sky.cs.berkeley.edu) at UC Berkeley, vLLM has grown into one of the most active open-source AI projects built and maintained by a diverse community of many dozens of academic institutions and companies from over 2000 contributors.\n\nvLLM is fast with:\n\n- State-of-the-art serving throughput\n- Efficient management of attention key and value memory with [**PagedAttention**](https://blog.vllm.ai/2023/06/20/vllm.html)\n- Continuous batching of incoming requests, chunked prefill, prefix caching\n- Fast and flexible model execution with piecewise and full CUDA/HIP graphs\n- Quantization: FP8, MXFP8/MXFP4, NVFP4, INT8, INT4, GPTQ/AWQ, GGUF, compressed-tensors, ModelOpt, TorchAO, and [more](https://docs.vllm.ai/en/latest/features/quantization/index.html)\n- Optimized attention kernels including FlashAttention, FlashInfer, TRTLLM-GEN, FlashMLA, and Triton\n- Optimized GEMM/MoE kernels for various precisions using CUTLASS, TRTLLM-GEN, CuTeDSL\n- Speculative decoding including n-gram, suffix, EAGLE, DFlash\n- Automatic kernel generation and graph-level transformations using torch.compile\n- Disaggregated prefill, decode, and encode\n\nvLLM is flexible and easy to use with:\n\n- Seamless integration with popular Hugging Face models\n- High-throughput serving with various decoding algorithms, including *parallel sampling*, *beam search*, and more\n- Tensor, pipeline, data, expert, and context parallelism for distributed inference\n- Streaming outputs\n- Generation of structured outputs using xgrammar or guidance\n- Tool calling and reasoning parsers\n- OpenAI-compatible API server, plus Anthropic Messages API and gRPC support\n- Efficient multi-LoRA support for dense and MoE layers\n- Support for NVIDIA GPUs, AMD GPUs, Intel GPUs, and x86/ARM/PowerPC CPUs. Additionally, diverse hardware plugins such as Google TPUs, Intel Gau\n\n【已读取 3】Previous Releases - vLLM\nhttps://vllm.ai/releases\nLoading releases... Installation Notes - • Commands use uv for faster installation. Replace uv pip withpip if needed - • Available platforms are fetched from the wheels index. Not all CUDA versions are available for all releases - • vLLM < v0.10.0: Recommended to use Python 3.12 ( uv venv --python 3.12 ) - • vLLM v0.9.x: These versions require transformers < 4.54.0 - • vLLM < v0.6.0: These versions have additional dependency issues that require manual fixes - • ROCm: Available from v0.14.0+. vLLM < 0.19.0 uses ROCm 7.0.0, v0.19.0–v0.20.x uses ROCm 7.2.1, v0.21.0–v0.22.x uses ROCm 7.2.2, vLLM ≥ 0.23.0 uses ROCm 7.2.3. Requires Python 3.12 and glibc ≥ 2.35 before v0.21.0, ≥ 2.34 for v0.21.0–v0.27.x, ≥ 2.39 (Ubuntu 24.04+) from v0.28.0 - • CPU: Requires glibc ≥ 2.35 (Ubuntu 22.04+, Debian 12+, RHEL 9+) - • For the latest version, use uv pip install vllm --torch-backend auto - • For more installation options, see installation docs",
+        "sources": [
+          {
+            "title": "Releases · vllm-project/vllm - GitHub",
+            "url": "https://github.com/vllm-project/vllm/releases",
+            "relevance": 0.42,
+            "directness": "weak"
+          },
+          {
+            "title": "GitHub - vllm-project/vllm: A high-throughput and memory-efficient ...",
+            "url": "https://github.com/vllm-project/vllm",
+            "relevance": 0.42,
+            "directness": "weak"
+          },
+          {
+            "title": "Previous Releases - vLLM",
+            "url": "https://vllm.ai/releases",
+            "relevance": 0.36,
+            "directness": "weak"
+          },
+          {
+            "title": "vLLM 0.31.0 发布：717 次提交、DeepSeek-V4.1-Flash",
+            "url": "https://wedoingai.com/article/vllm-0-31-0-release-2026-10",
+            "relevance": 0.36,
+            "directness": "weak"
+          },
+          {
+            "title": "vllm-project/vllm on GitHub | Release Alert",
+            "url": "https://releasealert.dev/github/vllm-project/vllm",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "vLLM",
+            "url": "https://vllm.ai/",
+            "relevance": 0.36,
+            "directness": "weak"
+          },
+          {
+            "title": "vLLM Changelog - Change8",
+            "url": "https://www.change8.dev/package/vllm",
+            "relevance": 0.36,
+            "directness": "weak"
+          },
+          {
+            "title": "vllm-project/vllm v0.26.0 on GitHub - NewReleases.io",
+            "url": "https://newreleases.io/project/github/vllm-project/vllm/release/v0.26.0",
+            "relevance": 0.42,
+            "directness": "weak"
+          }
+        ],
+        "query_attempts": [
+          {
+            "query": "vLLM GitHub repository latest release",
+            "status": "found",
+            "providers": null
+          }
+        ],
+        "warnings": []
+      },
+      "answer": {
+        "turn_id": "turn_70dd383e707844d98d58dc3487148a35",
+        "session_id": "chat_b0a5a531bb8343e5a6698b3ade29fec4",
+        "text": "vLLM 仓库当前最新 release 是 **v0.32.0**，发布于 2026-10-18 [web-2]。\n\n最近几个版本的时间线（便于看发布节奏）[web-2]：\n\n| 版本 | 发布日期 |\n|---|---|\n| v0.32.0（最新） | 2026-10-18 |\n| v0.31.0 | 2026-10-05 |\n| v0.30.0 | 2026-09-22 |\n| v0.29.0 | 2026-09-09 |\n| v0.28.0 | 2026-08-26 |\n\n两点补充：\n\n- 发布节奏基本是**两周一个小版本**，所以这个数字过两周就会变，查最新版建议直接看 releases 页。\n- 安装最新版推荐命令：`uv pip install vllm --torch-backend auto` [web-15]。注意从 v0.28.0 起 ROCm 路径要求 glibc ≥ 2.39（Ubuntu 24.04+）[web-15]。\n\n版本号结构上，它一直是 `0.x.0` 的 minor 递增——也就是说每个 release 都可能带 breaking change，升级前最好读一下对应 release notes。",
+        "seconds": 1.81,
+        "prepared_seconds": 0.03,
+        "web_context_used": true,
+        "validation_plan": false,
+        "route": {
+          "mode": "普通",
+          "model_profile": "flash",
+          "task_intent": "quick_answer",
+          "answer_generation_calls": 1
+        }
+      },
+      "sends_used": 1,
+      "sends_after": 3,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.3563,
+        "remaining_cny": 4.6437
+      }
+    },
+    {
+      "id": "N09",
+      "query": "astral-sh uv pip dependency resolution benchmark",
+      "research": {
+        "run_id": "web_lookup_605aeeea449a47c78fdb25350fafb2ff",
+        "status": "completed",
+        "provider_status": "found",
+        "stop_reason": "sources_read",
+        "answer_confidence": "medium",
+        "seconds": 7.64,
+        "source_block_chars": 9730,
+        "source_block": "【联网检索】\n查询：astral-sh uv pip dependency resolution benchmark\n1. Resolution | uv - Astral\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：docs.astral.sh｜解析：unknown\n   原始链接：docs.astral.sh\n2. uv/BENCHMARKS.md at main...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：github.com｜解析：unknown\n   原始链接：github.com\n3. astral-sh-uv/BENCHMARKS.m...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：github.com｜解析：unknown\n   原始链接：github.com\n\n【已读取 1】Resolution | uv - Astral\nhttps://docs.astral.sh/uv/concepts/resolution/\nResolution is the process of taking a list of requirements and converting them to a list of package versions that fulfill the requirements. Resolution requires recursively searching for compatible versions of packages, ensuring that the requested requirements are fulfilled and that the requirements of the requested packages are compatible. Most projects and packages have dependencies. Dependencies are other packages that are necessary in order for the current package to work. A package defines its dependencies as requirements, roughly a combination of a package name and acceptable versions. The dependencies defined by the current project are called direct dependencies. The dependencies added by each dependency of the current project are called indirect or transitive dependencies. Note See the dependency specifiers page in the Python Packaging documentation for details about dependencies. To help demonstrate the resolution process, consider the following dependencies: - The project depends on foo andbar . foo has one version, 1.0.0:foo 1.0.0 depends onlib>=1.0.0 . bar has one version, 1.0.0:bar 1.0.0 depends onlib>=2.0.0 . lib has two versions, 1.0.0 and 2.0.0. Both versions have no dependencies. In this example, the resolver must find a set of package versions which satisfies the project requirements. Since there is only one version of both foo and bar , those will be used. The resolution must also include the transitive dependencies, so a version of lib must be chosen. foo 1.0.0 allows all available versions of lib , but bar 1.0.0 requires lib>=2.0.0 so lib 2.0.0 must be used. In some resolutions, there may be more than one valid solution. Consider the following dependencies: - The project depends on foo andbar . foo has two versions, 1.0.0 and 2.0.0:foo 1.0.0 has no dependencies.foo 2.0.0 depends onlib==2.0.0 . bar has two versions, 1.0.0 and 2.0.0:bar 1.0.0 has no dependencies.bar 2.0.0 depends onlib==1.0.0 lib has two versions, 1.0.0 and 2.0.0. Both versions have no dependencies. In this example, some version of both foo and bar must be selected; however, determining which version requires considering the dependencies of each version of foo and bar . foo 2.0.0 and bar 2.0.0 cannot be installed together as they conflict on their required version of lib , so the resolver must select either foo 1.0.0 (along with bar 2.0.0 ) or bar 1.0.0 (along with foo 2.0.0 ). Both are valid solutions, and different resolution algorithms may yield either result. Markers allow attaching an expression to requirements that indicate when the dependency should be used. For example bar ; python_version < \"3.9\" indicates that bar should only be installed on Python 3.8 and earlier. Markers are used to adjust a package's dependencies based on the current environment or platform. For example, markers can be used to modify dependencies by operating system, CPU architecture, Python version, Python implementation, and more. Note See the environment markers section in the Py\n\n【已读取 2】uv/BENCHMARKS.md at main · astral-sh/uv · GitHub\nhttps://github.com/astral-sh/uv/blob/main/BENCHMARKS.md\n# Benchmarks\n\nAll benchmarks were computed on macOS using Python 3.12.4 (for non-uv tools), and come with a few\nimportant caveats:\n\n- Benchmark performance may vary dramatically across different operating systems and filesystems. In\n  particular, uv uses different installation strategies based on the underlying filesystem's\n  capabilities. (For example, uv uses reflinking on macOS, and hardlinking on Linux.)\n- Benchmark performance may vary dramatically depending on the set of packages being installed. For\n  example, a resolution that requires building a single intensive source distribution may appear\n  very similar across tools, since the bottleneck is tool-agnostic.\n\nThis document benchmarks against Trio's `docs-requirements.in`, as a representative example of a\nreal-world project.\n\nIn each case, a smaller bar (i.e., lower) is better.\n\n## Warm Installation\n\nBenchmarking package installation (e.g., `uv sync`) with a warm cache. This is equivalent to\nremoving and recreating a virtual environment, and then populating it with dependencies that you've\ninstalled previously on the same machine.\n\n![install-warm](https://github.com/user-attachments/assets/84118aaa-d030-4e29-8f1e-9483091ceca3)\n\n## Cold Installation\n\nBenchmarking package installation (e.g., `uv sync`) with a cold cache. This is equivalent to running\n`uv sync` on a new machine or in CI (assuming that the package manager cache is not shared across\nruns).\n\n![install-cold](https://github.com/user-attachments/assets/e7f5b203-7e84-452b-8c56-1ff6531c9898)\n\n## Warm Resolution\n\nBenchmarking dependency resolution (e.g., `uv lock`) with a warm cache, but no existing lockfile.\nThis is equivalent to blowing away an existing `requirements.txt` file to regenerate it from a\n`requirements.in` file.\n\n![resolve-warm](https://github.com/user-attachments/assets/e1637a08-8b27-4077-8138-b3849e53eb04)\n\n## Cold Resolution\n\nBenchmarking dependency resolution (e.g., `uv lock`) with a cold cache. This is equivalent to\nrunning `uv lock` on a new machine or in CI (assuming that the package manager cache is not shared\nacross runs).\n\n![resolve-cold](https://github.com/user-attachments/assets/b578c264-c209-45ab-b4c3-54073d871e86)\n\n## Reproduction\n\nAll benchmarks were generated using the `scripts/benchmark` package, which wraps\n[`hyperfine`](https://github.com/sharkdp/hyperfine) to facilitate benchmarking uv against a variety\nof other tools.\n\nThe benchmark script itself has a several requirements:\n\n- A local uv release build (`cargo build --release`).\n- An installation of the production `uv` binary in your path.\n\nTo benchmark resolution against pip-compile, Poetry, and PDM:\n\n```shell\nuv run resolver \\\n    --uv-project \\\n    --poetry \\\n    --pdm \\\n    --pip-compile \\\n    --benchmark resolve-warm --benchmark resolve-cold \\\n    --json \\\n    ../requirements/trio.in\n```\n\nTo benchmark installation against pip-sync, Poetry, and PDM:\n\n```shell\nuv run resolver \\\n    --uv-project \\\n    --poetry \\\n    --pdm \\\n    --pip-sync \\\n    --\n\n【已读取 3】astral-sh-uv/BENCHMARKS.md at main - GitHub\nhttps://github.com/toolleague/astral-sh-uv/blob/main/BENCHMARKS.md\n# Benchmarks\n\nAll benchmarks were computed on macOS using Python 3.12.4 (for non-uv tools), and come with a few\nimportant caveats:\n\n- Benchmark performance may vary dramatically across different operating systems and filesystems. In\n  particular, uv uses different installation strategies based on the underlying filesystem's\n  capabilities. (For example, uv uses reflinking on macOS, and hardlinking on Linux.)\n- Benchmark performance may vary dramatically depending on the set of packages being installed. For\n  example, a resolution that requires building a single intensive source distribution may appear\n  very similar across tools, since the bottleneck is tool-agnostic.\n\nThis document benchmarks against Trio's `docs-requirements.in`, as a representative example of a\nreal-world project.\n\nIn each case, a smaller bar (i.e., lower) is better.\n\n## Warm Installation\n\nBenchmarking package installation (e.g., `uv sync`) with a warm cache. This is equivalent to\nremoving and recreating a virtual environment, and then populating it with dependencies that you've\ninstalled previously on the same machine.\n\n![install-warm](https://github.com/user-attachments/assets/84118aaa-d030-4e29-8f1e-9483091ceca3)\n\n## Cold Installation\n\nBenchmarking package installation (e.g., `uv sync`) with a cold cache. This is equivalent to running\n`uv sync` on a new machine or in CI (assuming that the package manager cache is not shared across\nruns).\n\n![install-cold](https://github.com/user-attachments/assets/e7f5b203-7e84-452b-8c56-1ff6531c9898)\n\n## Warm Resolution\n\nBenchmarking dependency resolution (e.g., `uv lock`) with a warm cache, but no existing lockfile.\nThis is equivalent to blowing away an existing `requirements.txt` file to regenerate it from a\n`requirements.in` file.\n\n![resolve-warm](https://github.com/user-attachments/assets/e1637a08-8b27-4077-8138-b3849e53eb04)\n\n## Cold Resolution\n\nBenchmarking dependency resolution (e.g., `uv lock`) with a cold cache. This is equivalent to\nrunning `uv lock` on a new machine or in CI (assuming that the package manager cache is not shared\nacross runs).\n\n![resolve-cold](https://github.com/user-attachments/assets/b578c264-c209-45ab-b4c3-54073d871e86)\n\n## Reproduction\n\nAll benchmarks were generated using the `scripts/benchmark` package, which wraps\n[`hyperfine`](https://github.com/sharkdp/hyperfine) to facilitate benchmarking uv against a variety\nof other tools.\n\nThe benchmark script itself has a several requirements:\n\n- A local uv release build (`cargo build --release`).\n- An installation of the production `uv` binary in your path.\n- The [`hyperfine`](https://github.com/sharkdp/hyperfine) command-line tool installed on your\n  system.\n\nTo benchmark resolution against pip-compile, Poetry, and PDM:\n\n```shell\nuv run resolver \\\n    --uv-project \\\n    --poetry \\\n    --pdm \\\n    --pip-compile \\\n    --benchmark resolve-warm --benchmark resolve-cold \\\n    --json \\\n    ../requirements/trio.in\n```\n\nTo benchmark installation against pip-sync, Poetry, an",
+        "sources": [
+          {
+            "title": "Resolution | uv - Astral",
+            "url": "https://docs.astral.sh/uv/concepts/resolution/",
+            "relevance": 0.429,
+            "directness": "weak"
+          },
+          {
+            "title": "uv/BENCHMARKS.md at main · astral-sh/uv · GitHub",
+            "url": "https://github.com/astral-sh/uv/blob/main/BENCHMARKS.md",
+            "relevance": 0.429,
+            "directness": "weak"
+          },
+          {
+            "title": "astral-sh-uv/BENCHMARKS.md at main - GitHub",
+            "url": "https://github.com/toolleague/astral-sh-uv/blob/main/BENCHMARKS.md",
+            "relevance": 0.429,
+            "directness": "weak"
+          },
+          {
+            "title": "Benchmarks | uv - Astral",
+            "url": "https://docs.astral.sh/uv/reference/benchmarks/",
+            "relevance": 0.386,
+            "directness": "weak"
+          },
+          {
+            "title": "Dependency Resolution | astral-sh/uv | DeepWiki",
+            "url": "https://deepwiki.com/astral-sh/uv/3-dependency-resolution",
+            "relevance": 0.843,
+            "directness": "contextual"
+          },
+          {
+            "title": "Dependency Resolution and Caching | astral-sh/docs | DeepWiki",
+            "url": "https://deepwiki.com/astral-sh/docs/2.5-dependency-resolution-and-caching",
+            "relevance": 0.471,
+            "directness": "weak"
+          },
+          {
+            "title": "uv vs pip 2026: 8x Faster, 85K Stars [Tested]",
+            "url": "https://tech-insider.org/uv-vs-pip-2026/",
+            "relevance": 0.386,
+            "directness": "weak"
+          },
+          {
+            "title": "Python in 2026: Why I Replaced pip with uv (Complete Guide + Benchmarks)",
+            "url": "https://dev.to/kabasele754/python-in-2026-why-i-replaced-pip-with-uv-complete-guide-benchmarks-19bp",
+            "relevance": 0.386,
+            "directness": "weak"
+          }
+        ],
+        "query_attempts": [
+          {
+            "query": "astral-sh uv pip dependency resolution benchmark",
+            "status": "found",
+            "providers": null
+          }
+        ],
+        "warnings": []
+      },
+      "answer": {
+        "turn_id": "turn_b637992736a34e69856e5bdb13ce1636",
+        "session_id": "chat_b3f9a3fdcfe647bd9cd78e1a4c46095f",
+        "text": "# uv 的依赖解析基准测试：结构拆解\n\n先把这个问题拆成三层，因为\"benchmark\"这个词在 uv 语境里指两个不同的东西，混在一起看会失真。\n\n## 第一层：uv 官方 benchmark 测的是什么\n\nAstral 的 `BENCHMARKS.md` 把解析（resolution）单独列为两类场景 [web-14][web-17]：\n\n| 场景 | 等价操作 | 缓存状态 |\n|---|---|---|\n| **Warm Resolution** | 删掉已有 lockfile，从 `requirements.in` 重新生成 | 缓存热 |\n| **Cold Resolution** | 在新机器 / CI 上跑 `uv lock` | 缓存冷 |\n\n注意一个容易误读的点：**warm resolution 的\"热\"指包元数据缓存热，不是有 lockfile**。有 lockfile 时根本不需要解析，那是安装路径。所以这两个 benchmark 测的是\"从零求解版本组合\"的耗时，不是\"装包快不快\"。\n\n对照工具是 pip-compile、Poetry、PDM [web-24][web-25]。测试输入用 Trio 的 `docs-requirements.in`，选它是因为它是真实项目的依赖图，不是人造玩具图 [web-6]。\n\n复现方式：benchmark 脚本是 `scripts/benchmark` 包，底层包了 `hyperfine` [web-21]，需要本地 release build 的 uv + PATH 里的生产版 uv + hyperfine [web-23][web-48]。命令形如：\n\n```shell\nuv run resolver --uv-project --poetry --pdm --pip-compile \\\n    --benchmark resolve-warm --benchmark resolve-cold \\\n    --json ../requirements/trio.in\n```\n\n## 第二层：这些数字的可信边界（关键）\n\n官方自己列了三条 caveat，这是读 benchmark 时最该先看的部分 [web-5][web-30]：\n\n1. **OS / 文件系统差异巨大**。uv 按文件系统能力切换安装策略——macOS 用 reflink，Linux 用 hardlink。所以安装类 benchmark 跨平台不可直接比。\n2. **包集合决定一切**。如果解析过程里有一个重的 sdist 需要现场构建，瓶颈就和工具无关了，各家数字会被拉平。\n3. **基准环境是 macOS + Python 3.12.4**（非 uv 工具用这个版本）[web-4][web-29]。\n\n换句话说：**解析类 benchmark 的结论比安装类更稳**，因为解析主要受求解算法和元数据获取影响，受文件系统影响小；而安装类数字换台机器就可能翻盘。\n\n## 第三层：为什么 uv 的解析能快（机制，不是口号）\n\n这里要落回具体机制，否则\"快 10 倍\"只是营销词。三个结构性原因：\n\n**a. 求解器是 Rust 写的 PubGrub 变体。** 传统 pip 的 resolvelib 是回溯式求解，冲突时回退重试；PubGrub 用冲突驱动的子句学习，把冲突原因记下来，避免重复踩同一个坑。依赖图越深、冲突越多，差距越大——这正好解释了为什么 Trio 这种真实依赖图能拉开差距。\n\n**b. 元数据获取并行化 + 缓存。** 解析的墙钟时间很大一块花在\"去 PyPI 查每个候选版本的依赖声明\"上。uv 并发拉取并缓存这些元数据，warm resolution 的\"热\"就热在这里。\n\n**c. 版本选择策略更激进。** 优先取最新可行版本，减少搜索空间；配合上面两点，大多数真实项目一次就解出来，几乎不触发回溯。\n\n## 一个必须知道的概念区分\n\n`uv pip` 和 `uv` 是两套东西，benchmark 结论不能混用：\n\n- `uv pip install` / `uv pip compile`：兼容 pip 工作流，无项目概念，不写 lockfile 语义。\n- `uv lock` / `uv sync`：项目模式，有 `pyproject.toml` + `uv.lock`，官方 benchmark 测的是这条路径 [web-15][web-18]。\n\n你问的是 \"uv pip dependency resolution benchmark\"，严格说官方 BENCHMARKS.md 里没有单独给 `uv pip compile` 出图，它测的是项目模式的 `uv lock`。两者底层求解器相同，所以性能结论可以迁移，但**缓存布局和 lockfile 语义不同**，别拿项目模式的数字去承诺 `uv pip` 场景的加速比。\n\n## 结论\n\n- 官方 benchmark 分 warm/cold × resolution/installation 四象限，解析类结论更可靠。\n- 解析快的机制是 PubGrub 求解 + 并行元数据获取 + 热缓存，不是单一优化。\n- 引用数字时带上 caveat：macOS 环境、Trio 依赖图、安装类数字跨平台不可比。\n- `uv pip` 与 `uv lock` 性能同源但语义不同，迁移结论要注明。\n\n需要的话",
+        "seconds": 8.26,
+        "prepared_seconds": 0.05,
+        "web_context_used": true,
+        "validation_plan": false,
+        "route": {
+          "mode": "普通",
+          "model_profile": "flash",
+          "task_intent": "quick_answer",
+          "answer_generation_calls": 1
+        }
+      },
+      "sends_used": 1,
+      "sends_after": 4,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.4614,
+        "remaining_cny": 4.5386
+      }
+    },
+    {
+      "id": "N11",
+      "query": "Node.js current LTS version",
+      "research": {
+        "run_id": "web_lookup_6eb383038f4c4757ae7add15927428c1",
+        "status": "completed",
+        "provider_status": "found",
+        "stop_reason": "sources_read",
+        "answer_confidence": "medium",
+        "seconds": 10.81,
+        "source_block_chars": 7230,
+        "source_block": "【联网检索】\n查询：Node.js current LTS version\n1. Node.js — Node.js 24.11.0...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：nodejs.org｜解析：unknown\n   原始链接：nodejs.org\n2. Download Node.js®\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：nodejs.org｜解析：unknown\n   原始链接：nodejs.org\n3. Node.js Latest Version -...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：versionlog.com｜解析：unknown\n   原始链接：versionlog.com\n\n【已读取 1】Node.js — Node.js 24.11.0 (LTS)\nhttps://nodejs.org/en/blog/release/v24.11.0\nNode.js 24.11.0 (LTS) Richard Lau This release marks the transition of Node.js 24.x into Long Term Support (LTS) with the codename 'Krypton'. It will continue to receive updates through to the end of April 2028. Other than updating metadata, such as the process.release object, to reflect that the release is LTS, no further changes from Node.js 24.10.0 are included. An issue has been identified in the Node.js 24.x line with Buffer.allocUnsafe unintentionally returning zero-filled buffers. This API is documented to return uninitialized memory. The documented behavior will be restored in the next Node.js 24.x LTS release to bring it back in line with previous releases. For more information, see #60423. Windows 64-bit Installer: https://nodejs.org/dist/v24.11.0/node-v24.11.0-x64.msi Windows ARM 64-bit Installer: https://nodejs.org/dist/v24.11.0/node-v24.11.0-arm64.msi Windows 64-bit Binary: https://nodejs.org/dist/v24.11.0/win-x64/node.exe Windows ARM 64-bit Binary: https://nodejs.org/dist/v24.11.0/win-arm64/node.exe macOS 64-bit Installer: https://nodejs.org/dist/v24.11.0/node-v24.11.0.pkg macOS Apple Silicon 64-bit Binary: https://nodejs.org/dist/v24.11.0/node-v24.11.0-darwin-arm64.tar.gz macOS Intel 64-bit Binary: https://nodejs.org/dist/v24.11.0/node-v24.11.0-darwin-x64.tar.gz Linux 64-bit Binary: https://nodejs.org/dist/v24.11.0/node-v24.11.0-linux-x64.tar.xz Linux PPC LE 64-bit Binary: https://nodejs.org/dist/v24.11.0/node-v24.11.0-linux-ppc64le.tar.xz Linux s390x 64-bit Binary: https://nodejs.org/dist/v24.11.0/node-v24.11.0-linux-s390x.tar.xz AIX 64-bit Binary: https://nodejs.org/dist/v24.11.0/node-v24.11.0-aix-ppc64.tar.gz ARMv8 64-bit Binary: https://nodejs.org/dist/v24.11.0/node-v24.11.0-linux-arm64.tar.xz Source Code: https://nodejs.org/dist/v24.11.0/node-v24.11.0.tar.gz Other release files: https://nodejs.org/dist/v24.11.0/ Documentation: https://nodejs.org/docs/v24.11.0/api/ -----BEGIN PGP SIGNED MESSAGE----- Hash: SHA256 0151a80c79335c0131faa4083a41a3588435aea14dcf668306ad3eabfde71b65 node-v24.11.0-aix-ppc64.tar.gz 00371d745402d2bf315afe3db785a30be63654529bcde455646d9d9d0cfeb88f node-v24.11.0-arm64.msi 0be2ab2816a4fa02d1acff014a434f29f56d8d956f5af6a98b70ced6c5f4d201 node-v24.11.0-darwin-arm64.tar.gz 30bbe12b71f5b89ba44e15dc0cfaf3c733538d46ee375691534b7bbe622225cc node-v24.11.0-darwin-arm64.tar.xz 3884671e87f46f773832d98a0a6cabcc5ec4f637084f0f3515b69e66ea27f2f1 node-v24.11.0-darwin-x64.tar.gz 20e7138957b665ecfad519b656ad2a4e1d1b46c41c67f9a68842089a960c58be node-v24.11.0-darwin-x64.tar.xz 2ff9a57553fabfa0498ed7ecb853760006c795d544179c00bce329bb736d4530 node-v24.11.0-headers.tar.gz ab58411d0b31bc9e929c2a95838f7a72367d0a4be8da56cc42d71e76a1fe6ab3 node-v24.11.0-headers.tar.xz 4786d00c4d259d3ff0b2328307f764ef3ced65f2d6e9502d433e68d66238509d node-v24.11.0-linux-arm64.tar.gz 33a6673b2c7bffeae9deec7f9f8b31aad9119b08f13d49b2ca3ee3bebfe8260f node-v24.11.0-linux-arm64.tar.xz 7e7ba4326fe8588f11e763c55217bcf45f5e0b7bcbf1e26bbbbb2225a9ae4721 node-v24.\n\n【已读取 2】Download Node.js®\nhttps://nodejs.org/en/download\nDownload Node.js® Get Node.js® using withOr get a prebuilt Node.js® for running a architecture.Read the changelog or blog post for this version. Learn more about Node.js releases, including the release schedule and LTS status. Learn how to verify signed SHASUMS. Looking for Node.js source? Download a signed Node.js source tarball. Check out our nightly binaries or all previous releases or the unofficial binaries for other platforms. Proudly supported by the partners below: We are able to serve Node.js's downloads and maintain our infrastructure proudly due to the support of these partners, and more.\n\n【已读取 3】Node.js Latest Version - Support Lifecycle, LTS & EOL\nhttps://versionlog.com/nodejs/\nUnderstanding the Node.js LTS and Release Lifecycle Node.js ships a new major version every six months -- one in April, one in October. The catch: not all releases are created equal. Odd-numbered major versions (the October releases) are Current releases that live for roughly six to eight months and are never promoted to LTS. Even-numbered major versions (the April releases) are the ones that matter for production -- they enter Long-Term Support (LTS) in October of the same year and receive official support for 30 months total. Those 30 months break into two phases: | Phase | Duration | What Is Covered | |---|---|---| | Active LTS | 18 months | Bug fixes, security patches, performance improvements, documentation updates | | Maintenance LTS | 12 months | Critical bug fixes and security patches only -- no new features | After Maintenance ends, the release line becomes End of Life. The Node.js project publishes a public release schedule at nodejs.org/en/about/previous-releases that maps every major version to its exact support window. The dates shown in the release table above come directly from that schedule. In practice, most engineering teams target the current Active LTS release for production. If you are on a Maintenance version, you should already be planning your upgrade -- you are one disclosed CVE away from being on unsupported software. What Are the Real Risks of Running an EOL Node.js Version? Running an end-of-life Node.js version in production is not a theoretical problem -- it has concrete, day-to-day consequences for every team doing it. No security patches. Node.js bundles V8, OpenSSL, libuv, and other dependencies. When a CVE is disclosed in any of these components, the fix ships to supported versions only. EOL versions stay vulnerable. Because Node.js is a runtime -- meaning it executes arbitrary code, handles network traffic, and processes user input -- an unpatched TLS or parser vulnerability is directly exploitable. npm ecosystem drift. Popular packages regularly drop support for EOL Node.js versions. You will start seeing install warnings, then hard failures. Native addon packages (those compiled with node-gyp) are particularly aggressive about this -- they tie directly to Node.js's ABI version, and a new major release breaks compatibility immediately without a recompile. Toolchain incompatibility. CI runners, Docker base images, serverless platforms, and PaaS providers stop shipping EOL Node.js images. You end up maintaining custom base images just to stay on an unsupported runtime -- exactly the opposite of reducing maintenance overhead. No bug fixes. Any runtime bug you hit -- memory leak, stream behavior, event loop quirk -- will not be fixed upstream. You are on your own. What Actually Happens When Node.js Support Ends? When a Node.js major version reaches End of Life, the Node.js project stops publishing security releases for it. The GitHub repository remains public and the source code does not disappear, but no one from ",
+        "sources": [
+          {
+            "title": "Node.js — Node.js 24.11.0 (LTS)",
+            "url": "https://nodejs.org/en/blog/release/v24.11.0",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "Download Node.js®",
+            "url": "https://nodejs.org/en/download",
+            "relevance": 0.42,
+            "directness": "weak"
+          },
+          {
+            "title": "Node.js Latest Version - Support Lifecycle, LTS & EOL",
+            "url": "https://versionlog.com/nodejs/",
+            "relevance": 0.86,
+            "directness": "contextual"
+          },
+          {
+            "title": "Node.js LTS vs Current: Which Version Should You Use?",
+            "url": "https://techearl.com/nodejs-lts-vs-current",
+            "relevance": 0.9,
+            "directness": "contextual"
+          },
+          {
+            "title": "Node.js 24 (LTS) - What's New, Support Lifecycle & EOL",
+            "url": "https://versionlog.com/nodejs/24/",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "Node.js latest version (2026): 26.13.0 LTS & end-of-life dates",
+            "url": "https://latestat.com/nodejs",
+            "relevance": 0.86,
+            "directness": "contextual"
+          },
+          {
+            "title": "Node.js LTS: 24 vs 26 vs 22, Which to Run [2026]",
+            "url": "https://tech-insider.org/nodejs-lts-24-vs-26-vs-22-which-version-2026/",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "Releases · nodejs/node - GitHub",
+            "url": "https://github.com/nodejs/node/releases",
+            "relevance": 0.36,
+            "directness": "weak"
+          }
+        ],
+        "query_attempts": [
+          {
+            "query": "Node.js current LTS version",
+            "status": "found",
+            "providers": null
+          }
+        ],
+        "warnings": []
+      },
+      "answer": {
+        "turn_id": "turn_ad375db7a1ca4a63a85776a9b4c1b65d",
+        "session_id": "chat_6f3833300d844e67854bd6ab38cd91ad",
+        "text": "当前 Node.js 的 **Active LTS 是 24.x**，具体最新版本为 **24.11.0**，代号 **Krypton** [web-2]。\n\n几个关键点：\n\n- **LTS 身份**：24.11.0 是 24.x 正式转入 LTS 的版本，元数据（`process.release`）已标记为 LTS，代码本身与 24.10.0 无差异 [web-2]。\n- **支持周期**：24.x 会持续获得更新到 **2028 年 4 月底** [web-2]。\n- **版本节奏**：偶数大版本（4 月发布）在同年 10 月转入 LTS，总支持 30 个月 = Active LTS 18 个月 + Maintenance 12 个月；奇数版本（10 月发布）是 Current，永远不会转 LTS [web-4]。\n\n生产环境选型：直接用 **24.x 的 Active LTS**。如果你现在跑的是 Maintenance 阶段的版本，就该开始规划升级了。\n\n一个小提醒：24.x 线目前有一个已知问题——`Buffer.allocUnsafe` 意外返回了零填充缓冲区（文档行为是返回未初始化内存），官方称会在下个 24.x LTS 版本恢复 [web-2]。如果你有代码依赖 `allocUnsafe` 的\"脏内存\"语义，留意这个修复。",
+        "seconds": 2.38,
+        "prepared_seconds": 0.06,
+        "web_context_used": true,
+        "validation_plan": false,
+        "route": {
+          "mode": "普通",
+          "model_profile": "flash",
+          "task_intent": "quick_answer",
+          "answer_generation_calls": 1
+        }
+      },
+      "sends_used": 1,
+      "sends_after": 5,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.5449,
+        "remaining_cny": 4.4551
+      }
+    },
+    {
+      "id": "N13",
+      "query": "PostgreSQL latest major version release",
+      "research": {
+        "run_id": "web_lookup_378bfca07d67402a824ba437a010eb20",
+        "status": "completed",
+        "provider_status": "found",
+        "stop_reason": "sources_read",
+        "answer_confidence": "medium",
+        "seconds": 12.77,
+        "source_block_chars": 7269,
+        "source_block": "【联网检索】\n查询：PostgreSQL latest major version release\n1. Release Notes - PostgreSQL\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：postgresql.org｜解析：unknown\n   原始链接：postgresql.org\n2. Release Notes - PostgreSQL\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：postgresql.org｜解析：unknown\n   原始链接：postgresql.org\n3. Postgresql Release Notes...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：releasebot.io｜解析：unknown\n   原始链接：releasebot.io\n\n【已读取 1】Release Notes - PostgreSQL\nhttps://www.postgresql.org/docs/release/\nBelow is the complete archive of release notes for every version of PostgreSQL. PostgreSQL 18 PostgreSQL 17 PostgreSQL 16 PostgreSQL 15 PostgreSQL 14 PostgreSQL 13 PostgreSQL 12 PostgreSQL 11 PostgreSQL 10 PostgreSQL 9.6 PostgreSQL 9.5 PostgreSQL 9.4 PostgreSQL 9.3 PostgreSQL 9.2 PostgreSQL 9.1 PostgreSQL 9.0 PostgreSQL 8.4 PostgreSQL 8.3 PostgreSQL 8.2 PostgreSQL 8.1 PostgreSQL 8.0 PostgreSQL 7.4 PostgreSQL 7.3 PostgreSQL 7.2 PostgreSQL 7.1 PostgreSQL 7.0 PostgreSQL 6.5 PostgreSQL 6.4 PostgreSQL 6.3 PostgreSQL 6.2 PostgreSQL 6.1 PostgreSQL 6.0 PostgreSQL 1 Postgres95\n\n【已读取 2】Release Notes - PostgreSQL\nhttps://www.postgresql.org/docs/release/18/\nRelease date: 2025-09-25 PostgreSQL 18 contains many new features and enhancements, including: An asynchronous I/O (AIO) subsystem that can improve performance of sequential scans, bitmap heap scans, vacuums, and other operations. pg_upgrade now retains optimizer statistics. Support for \"skip scan\" lookups that allow using multicolumn B-tree indexes in more cases. Virtual generated columns that compute their values during read operations. This is now the default for generated columns. OAuth authentication support. OLD and NEW support for RETURNING clauses in INSERT, UPDATE, DELETE, and MERGE commands. Temporal constraints, or constraints over ranges, for PRIMARY KEY, UNIQUE, and FOREIGN KEY constraints. The above items and other new features of PostgreSQL 18 are explained in more detail in the sections below. A dump/restore using pg_dumpall or use of pg_upgrade or logical replication is required for those wishing to migrate data from any previous release. See Section 18.6 for general information on migrating to new major releases. Version 18 contains a number of changes that may affect compatibility with previous releases. Observe the following incompatibilities: Change initdb default to enable data checksums (Greg Sabino Mullane) § Checksums can be disabled with the new initdb option --no-data-checksums . pg_upgrade requires matching cluster checksum settings, so this new option can be useful to upgrade non-checksum old clusters. Change time zone abbreviation handling (Tom Lane) § The system will now favor the current session's time zone abbreviations before checking the server variable timezone_abbreviations. Previously timezone_abbreviations was checked first. Deprecate MD5 password authentication (Nathan Bossart) § Support for MD5 passwords will be removed in a future major version release. CREATE ROLE and ALTER ROLE now emit deprecation warnings when setting MD5 passwords. These warnings can be disabled by setting the md5_password_warnings parameter to off . Change VACUUM and ANALYZE to process the inheritance children of a parent (Michael Harris) § The previous behavior can be performed by using the new ONLY option. Prevent COPY FROM from treating \\. as an end-of-file marker when reading CSV files (Daniel Vérité, Tom Lane) § § psql will still treat \\. as an end-of-file marker when reading CSV files from STDIN . Older psql clients connecting to PostgreSQL 18 servers might experience \\copy problems. This release also enforces that \\. must appear alone on a line. Disallow unlogged partitioned tables (Michael Paquier) § Previously ALTER TABLE SET [UN]LOGGED did nothing, and the creation of an unlogged partitioned table did not cause its children to be unlogged. Execute AFTER triggers as the role that was active when trigger events were queued (Laurenz Albe) § Previously such triggers were run as the role that was active at trigger execution time (e.g., at COMMIT). This is significant for cases where the role is changed between queue time and tr\n\n【已读取 3】Postgresql Release Notes - October 2026 Latest Updates - Releasebot\nhttps://releasebot.io/updates/postgresql\n32 release notes curated from 54 sources by the Releasebot Team. Last updated: Oct 15, 2026 - Oct 15, 2026 - Date parsed from source:Oct 15, 2026 - First seen by Releasebot:Oct 15, 2026 PostgreSQL 19 RC 1 Released! Postgresql releases the first candidate of version 19, bringing bug fixes for REPACK, query planning, logical replication, parallel autovacuum, and JSON output. A second candidate is planned for November 12, with general availability targeted for November 19, 2026. PostgreSQL Project The PostgreSQL Global Development Group announces that the first release candidate of PostgreSQL 19 is now available for download. As a release candidate, PostgreSQL 19 RC 1 will be mostly identical to the initial release of PostgreSQL 19, though some more fixes may be applied prior to the general availability of PostgreSQL 19. The next scheduled update release for supported versions of PostgreSQL, on November 12, 2026, will include a large number of fixes. Because of this, the release team decided to include these fixes in PostgreSQL 19 before its general availability. This means a second release candidate, PostgreSQL 19 RC 2, will be available on the same day as the update release. The planned date for the general availability of PostgreSQL 19 is November 19, 2026. Please see the \"Release Schedule\" section for more details. Upgrading to PostgreSQL 19 RC 1 To upgrade to PostgreSQL 19 RC 1 from earlier versions of PostgreSQL, you will need to use a major version upgrade strategy, e.g. pg_upgrade or pg_dump/pg_restore. For more information, please visit the documentation section on upgrading: https://www.postgresql.org/docs/19/upgrading.html Changes Since 19 Beta 4 Several bug fixes were applied to PostgreSQL 19 during the Beta 4 period. These include: - Several fixes for REPACK (CONCURRENTLY). - Several fixes for pg_plan_advice. - Several fixes for new query planner optimizations that rely on whether an expression can be NULL. - Several fixes for the automatic enablement of logical replication when wal_level is set to replica. - Fix postgres_fdw statistics import to run as the owner of the foreign table instead of the user running ANALYZE. - Several fixes for parallel autovacuum. - Fix COPY (query) TO ... (FORMAT json) to use the query's column names, including aliases, as the JSON keys instead of the table's column names. For a detailed list of fixes, please visit the open items page. Release Schedule This is the first release candidate for PostgreSQL 19. The release team plans to issue a second release candidate, PostgreSQL 19 RC 2, on November 12, 2026. Unless an issue is discovered that requires a delay or an additional release candidate, PostgreSQL 19 should be made generally available on November 19, 2026. For further information please see the Beta Testing page. Links - Download - Beta Testing Information - PostgreSQL 19 Beta Release Notes - PostgreSQL 19 Open Issues - Submit a Bug - Donate If you have corrections or suggestions for this release ann",
+        "sources": [
+          {
+            "title": "Release Notes - PostgreSQL",
+            "url": "https://www.postgresql.org/docs/release/",
+            "relevance": 0.42,
+            "directness": "weak"
+          },
+          {
+            "title": "Release Notes - PostgreSQL",
+            "url": "https://www.postgresql.org/docs/release/18/",
+            "relevance": 0.42,
+            "directness": "weak"
+          },
+          {
+            "title": "Postgresql Release Notes - October 2026 Latest Updates - Releasebot",
+            "url": "https://releasebot.io/updates/postgresql",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "PostgreSQL Version History — every release with EOL dates and feature notes",
+            "url": "https://mungomash.com/software/postgres/versions/",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "PostgreSQL Latest Version - Support Lifecycle & EOL",
+            "url": "https://versionlog.com/postgresql/",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "PostgreSQL major versions - pgPedia - a PostgreSQL Encyclopedia",
+            "url": "https://pgpedia.info/postgresql-versions/index.html",
+            "relevance": 0.42,
+            "directness": "weak"
+          },
+          {
+            "title": "Postgres Release Notes - All Versions - Bucardo",
+            "url": "https://bucardo.org/postgres_all_versions",
+            "relevance": 0.36,
+            "directness": "weak"
+          },
+          {
+            "title": "PostgreSQL 19: What's Coming in the Next Major Release (September 2026)",
+            "url": "https://versionlog.com/blog/postgresql-19-whats-coming-september-2026/",
+            "relevance": 0.82,
+            "directness": "contextual"
+          }
+        ],
+        "query_attempts": [
+          {
+            "query": "PostgreSQL latest major version release",
+            "status": "found",
+            "providers": null
+          }
+        ],
+        "warnings": []
+      },
+      "answer": {
+        "turn_id": "turn_6e6c3700b52b42ea89621000a093c279",
+        "session_id": "chat_d3293ef4cb894959b76ddf08b4be7513",
+        "text": "PostgreSQL 的最新大版本情况，按\"已发布\"和\"即将发布\"分开看：\n\n**当前稳定版：PostgreSQL 18**\n- 发布日期：2025-09-25 [web-3]\n- 主要特性：异步 I/O（AIO）子系统、pg_upgrade 保留优化器统计信息、多列 B-tree 索引的 skip scan、虚拟生成列（现为默认）、OAuth 认证、RETURNING 支持 OLD/NEW、范围上的时态约束（temporal constraints）[web-3]\n- 兼容性注意：initdb 默认开启数据校验和、MD5 密码认证被弃用、VACUUM/ANALYZE 默认处理继承子表等 [web-3]\n\n**下一个大版本：PostgreSQL 19（尚未 GA）**\n- 当前状态：19 RC 1 已发布，RC 2 计划 2026-11-12 [web-4]\n- 计划正式发布（GA）：**2026-11-19** [web-4]\n- 从 19 Beta 4 以来的修复集中在 REPACK (CONCURRENTLY)、pg_plan_advice、查询计划器的 NULL 优化、逻辑复制自动启用、并行 autovacuum、`COPY (query) TO ... (FORMAT json)` 的列名处理等 [web-4]\n\n**一句话结构**：官方发布页的版本列表里 18 排在最前 [web-2]，说明 18 是\"已 GA 的最新大版本\"；19 还处在 RC 阶段，正式可用要等到 2026-11-19 [web-4]。所以严格回答\"latest major version release\"——**已发布的是 18，即将发布的是 19**。\n\n如果你是要选型（生产用哪个），按惯例应选已 GA 的 18，19 等 GA 后再评估。需要我展开 18 的升级路径或 19 的新特性细节吗？",
+        "seconds": 3.11,
+        "prepared_seconds": 0.05,
+        "web_context_used": true,
+        "validation_plan": false,
+        "route": {
+          "mode": "普通",
+          "model_profile": "flash",
+          "task_intent": "quick_answer",
+          "answer_generation_calls": 1
+        }
+      },
+      "sends_used": 1,
+      "sends_after": 6,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.6288,
+        "remaining_cny": 4.3712
+      }
+    },
+    {
+      "id": "N16",
+      "query": "黑神话悟空 开发商 游戏科学 总部",
+      "research": {
+        "run_id": "web_lookup_157d8f2c3caa4a23880e9d340dc2d3ff",
+        "status": "completed",
+        "provider_status": "candidates_only",
+        "stop_reason": "source_reading_failed",
+        "answer_confidence": "none",
+        "seconds": 3.55,
+        "source_block_chars": 0,
+        "source_block": "",
+        "sources": [
+          {
+            "title": "游戏科学 - 维基百科，自由的百科全书 - zh.wikipedia.org",
+            "url": "https://zh.wikipedia.org/zh-cn/%E9%81%8A%E6%88%B2%E7%A7%91%E5%AD%B8",
+            "relevance": 0.39,
+            "directness": "weak"
+          },
+          {
+            "title": "游戏科学 Game Science",
+            "url": "https://gamesci.cn/",
+            "relevance": 0.39,
+            "directness": "weak"
+          },
+          {
+            "title": "遊戲科學 - 维基百科，自由的百科全书",
+            "url": "https://zh.wikipedia.org/wiki/%E9%81%8A%E6%88%B2%E7%A7%91%E5%AD%B8",
+            "relevance": 0.1,
+            "directness": "unmatched"
+          },
+          {
+            "title": "悟空游戏是哪家公司开发 - 爱企查",
+            "url": "https://aiqicha.baidu.com/details/ugknowledge?id=1baa0233eb4a90c4a521d574c20757bb",
+            "relevance": 0.39,
+            "directness": "weak"
+          },
+          {
+            "title": "从《黑神话：悟空》谈起 游戏公司为何搬到杭州？",
+            "url": "https://www.sohu.com/a/802723855_120988576",
+            "relevance": 0.42,
+            "directness": "weak"
+          },
+          {
+            "title": "黑神话：悟空（杭州游科互动科技有限公司开发的西游题材单机动作角色扮演游戏）_百度百科",
+            "url": "https://baike.baidu.com/item/%E9%BB%91%E7%A5%9E%E8%AF%9D%EF%BC%9A%E6%82%9F%E7%A9%BA/53303078",
+            "relevance": 0.45,
+            "directness": "weak"
+          },
+          {
+            "title": "冯骥（游戏科学首席执行官、《黑神话：悟空》制作人）_百度百科",
+            "url": "https://baike.baidu.com/item/%E5%86%AF%E9%AA%A5/64807879",
+            "relevance": 0.82,
+            "directness": "contextual"
+          }
+        ],
+        "query_attempts": [
+          {
+            "query": "黑神话悟空 开发商 游戏科学 总部",
+            "status": "found",
+            "providers": null
+          }
+        ],
+        "warnings": [
+          "source read failed (https://zh.wikipedia.org/zh-cn/%E9%81%8A%E6%88%B2%E7%A7%91%E5%AD%B8): unsafe_or_empty_url",
+          "source read failed (https://gamesci.cn/): all_backends_failed",
+          "source read failed (https://zh.wikipedia.org/wiki/%E9%81%8A%E6%88%B2%E7%A7%91%E5%AD%B8): unsafe_or_empty_url"
+        ]
+      },
+      "answer": null,
+      "sends_used": 0,
+      "sends_after": 6,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.6288,
+        "remaining_cny": 4.3712
+      }
+    },
+    {
+      "id": "N17",
+      "query": "2025 诺贝尔物理学奖 获奖者",
+      "research": {
+        "run_id": "web_lookup_e67bcbd7424f49848bdba4f29abd9dd5",
+        "status": "completed",
+        "provider_status": "partial",
+        "stop_reason": "sources_partially_read",
+        "answer_confidence": "medium",
+        "seconds": 8.48,
+        "source_block_chars": 1368,
+        "source_block": "【联网检索】\n查询：2025 诺贝尔物理学奖 获奖者\n1. 2025年诺贝尔奖得主 — 完整名单\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：nobelists.org｜解析：unknown\n   原始链接：nobelists.org\n\n【已读取 1】2025年诺贝尔奖得主 — 完整名单\nhttps://www.nobelists.org/zh/all-2025/\n获奖年份: 全部 2026 (10) 2025 (14) 2024 (11) 2023 (11) 2022 (12) 2021 (13) 2020 (11) 2019 (14) 2018 (13) 2017 (11) 2016 (11) 2015 (10) 2014 (13) 2013 (12) 2012 (9) 2011 (13) 2010 (11) 2009 (13) 2008 (12) 2007 (11) 2006 (8) 2005 (12) 2004 (12) 2003 (11) 2002 (13) 2001 (14) 2000 (13) 1999 (6) 1998 (12) 1997 (11) 1996 (13) 1995 (11) 1994 (12) 1993 (11) 1992 (7) 1991 (7) 1990 (11) 1989 (10) 1988 (11) 1987 (9) 1986 (11) 1985 (7) 1984 (9) 1983 (7) 1982 (9) 1981 (10) 1980 (11) 1979 (11) 1978 (11) 1977 (10) 1976 (9) 1975 (12) 1974 (12) 1973 (12) 1972 (11) 1971 (6) 1970 (9) 1969 (9) 1968 (7) 1967 (8) 1966 (6) 1965 (8) 1964 (8) 1963 (9) 1962 (8) 1961 (6) 1960 (6) 1959 (7) 1958 (9) 1957 (6) 1956 (9) 1955 (5) 1954 (7) 1953 (6) 1952 (7) 1951 (7) 1950 (8) 1949 (6) 1948 (4) 1947 (6) 1946 (8) 1945 (7) 1944 (5) 1943 (4) 1939 (5) 1938 (4) 1937 (7) 1936 (7) 1935 (5) 1934 (6) 1933 (5) 1932 (5) 1931 (6) 1930 (5) 1929 (7) 1928 (4) 1927 (7) 1926 (6) 1925 (6) 1924 (3) 1923 (5) 1922 (6) 1921 (5) 1920 (5) 1919 (4) 1918 (2) 1917 (3) 1916 (1) 1915 (4) 1914 (3) 1913 (5) 1912 (6) 1911 (6) 1910 (4) 1909 (7) 1908 (7) 1907 (6) 1906 (6) 1905 (5) 1904 (5) 1903 (7) 1902 (7) 1901 (6) ×",
+        "sources": [
+          {
+            "title": "2025年诺贝尔奖得主 — 完整名单",
+            "url": "https://www.nobelists.org/zh/all-2025/",
+            "relevance": 0.4,
+            "directness": "weak"
+          },
+          {
+            "title": "2025年诺贝尔物理学奖（2025年瑞典皇家科学院颁发的物理学奖项）_百度百科",
+            "url": "https://baike.baidu.com/item/2025%E5%B9%B4%E8%AF%BA%E8%B4%9D%E5%B0%94%E7%89%A9%E7%90%86%E5%AD%A6%E5%A5%96/69186274",
+            "relevance": 0.856,
+            "directness": "contextual"
+          },
+          {
+            "title": "诺贝尔物理学奖得主列表 - 维基百科，自由的百科全书",
+            "url": "https://zh.wikipedia.org/wiki/%E8%AF%BA%E8%B4%9D%E5%B0%94%E7%89%A9%E7%90%86%E5%AD%A6%E5%A5%96%E5%BE%97%E4%B8%BB%E5%88%97%E8%A1%A8",
+            "relevance": 0.833,
+            "directness": "contextual"
+          },
+          {
+            "title": "2025年诺贝尔物理学奖得主/获奖者/获得者名单 | 诺贝尔奖讯",
+            "url": "https://www.nobelpress.org/prizes/physics/2025",
+            "relevance": 0.9,
+            "directness": "contextual"
+          },
+          {
+            "title": "2025诺贝尔物理学奖得主揭秘! - 知乎",
+            "url": "https://zhuanlan.zhihu.com/p/1958955292038497707",
+            "relevance": 0.856,
+            "directness": "contextual"
+          },
+          {
+            "title": "历年诺贝尔物理学奖获得者名单及研究领域（1901－2025）",
+            "url": "https://zhuanlan.zhihu.com/p/17475653666",
+            "relevance": 0.856,
+            "directness": "contextual"
+          },
+          {
+            "title": "【诺奖揭晓】重磅!2025年诺贝尔物理学奖揭晓_获奖_理由_John",
+            "url": "https://www.sohu.com/a/941786695_472787",
+            "relevance": 0.878,
+            "directness": "contextual"
+          },
+          {
+            "title": "2025年诺贝尔物理学奖得主 - nobelists.org",
+            "url": "https://www.nobelists.org/zh/physics-2025/",
+            "relevance": 0.856,
+            "directness": "contextual"
+          }
+        ],
+        "query_attempts": [
+          {
+            "query": "2025 诺贝尔物理学奖 获奖者",
+            "status": "found",
+            "providers": null
+          }
+        ],
+        "warnings": [
+          "source read failed (https://baike.baidu.com/item/2025%E5%B9%B4%E8%AF%BA%E8%B4%9D%E5%B0%94%E7%89%A9%E7%90%86%E5%AD%A6%E5%A5%96/69186274): http_403",
+          "source read failed (https://zh.wikipedia.org/wiki/%E8%AF%BA%E8%B4%9D%E5%B0%94%E7%89%A9%E7%90%86%E5%AD%A6%E5%A5%96%E5%BE%97%E4%B8%BB%E5%88%97%E8%A1%A8): unsafe_or_empty_url"
+        ]
+      },
+      "answer": {
+        "turn_id": "turn_d92733aa23cc4e54afc4d6a2eeeefa24",
+        "session_id": "chat_fbcf2b7b67ea4ef6b920307bbb47069e",
+        "text": "2025 年诺贝尔物理学奖授予：\n\n- **John Clarke**（约翰·克拉克，加州大学伯克利分校）\n- **Michel H. Devoret**（米歇尔·德沃雷，耶鲁大学 / 加州大学圣塔芭芭拉分校）\n- **John M. Martinis**（约翰·马丁尼斯，加州大学圣塔芭芭拉分校）\n\n获奖理由：**“在电路中发现了宏观量子隧穿和能量量子化”**（for the discovery of macroscopic quantum tunnelling and energy quantisation in an electric circuit）。\n\n结构上看，这三个人共享同一个发现链条，而不是三个独立贡献：\n\n1. **Clarke** 提供了超导量子干涉器件（SQUID）的实验基础；\n2. **Devoret** 与 **Martinis** 把约瑟夫森结电路推到“宏观变量也能量子化”的实验证据上——一个由约十亿个库珀对组成的电路，整体表现出像单个粒子一样的隧穿与能级台阶；\n3. 这条证据链后来直接成为**超导量子比特**（transmon 等）的物理根基，也是当前主流量子计算路线的起点。\n\n一句话概括：他们把“量子”从微观原子尺度，搬到了一个肉眼可见电路尺度上，并且证明它依然成立。\n\n（注：检索片段只返回了列表页标题，未包含正文条目，以上为获奖者与理由的通行公开信息；如需我逐条附上官方来源链接，可以再说明。）",
+        "seconds": 2.55,
+        "prepared_seconds": 0.05,
+        "web_context_used": true,
+        "validation_plan": false,
+        "route": {
+          "mode": "普通",
+          "model_profile": "flash",
+          "task_intent": "quick_answer",
+          "answer_generation_calls": 1
+        }
+      },
+      "sends_used": 1,
+      "sends_after": 7,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.6822,
+        "remaining_cny": 4.3178
+      }
+    },
+    {
+      "id": "N19",
+      "query": "SQLite WAL mode advantages disadvantages",
+      "research": {
+        "run_id": "web_lookup_87fa74a8146545c6a1e0d3ceeca1e995",
+        "status": "completed",
+        "provider_status": "found",
+        "stop_reason": "sources_read",
+        "answer_confidence": "medium",
+        "seconds": 13.11,
+        "source_block_chars": 9738,
+        "source_block": "【联网检索】\n查询：SQLite WAL mode advantages disadvantages\n1. Write-Ahead Logging - SQLite\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：sqlite.org｜解析：unknown\n   原始链接：sqlite.org\n2. SQLite WAL Mode: How Writ...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：sqldocs.org｜解析：unknown\n   原始链接：sqldocs.org\n3. Sqlite WAL — Write-Ahead...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：malekbenz.com｜解析：unknown\n   原始链接：malekbenz.com\n\n【已读取 1】Write-Ahead Logging - SQLite\nhttps://sqlite.org/wal.html\nThe default method by which SQLite implements atomic commit and rollback is a rollback journal. Beginning with version 3.7.0 (2010-07-21), a new \"Write-Ahead Log\" option (hereafter referred to as \"WAL\") is available. There are advantages and disadvantages to using WAL instead of a rollback journal. Advantages include: But there are also disadvantages: The traditional rollback journal works by writing a copy of the original unchanged database content into a separate rollback journal file and then writing changes directly into the database file. In the event of a crash or ROLLBACK, the original content contained in the rollback journal is played back into the database file to revert the database file to its original state. The COMMIT occurs when the rollback journal is deleted. The WAL approach inverts this. The original content is preserved in the database file and the changes are appended into a separate WAL file. A COMMIT occurs when a special record indicating a commit is appended to the WAL. Thus a COMMIT can happen without ever writing to the original database, which allows readers to continue operating from the original unaltered database while changes are simultaneously being committed into the WAL. Multiple transactions can be appended to the end of a single WAL file. Of course, one wants to eventually transfer all the transactions that are appended in the WAL file back into the original database. Moving the WAL file transactions back into the database is called a \"checkpoint\". Another way to think about the difference between rollback and write-ahead log is that in the rollback-journal approach, there are two primitive operations, reading and writing, whereas with a write-ahead log there are now three primitive operations: reading, writing, and checkpointing. By default, SQLite does a checkpoint automatically when the WAL file reaches a threshold size of 1000 pages. (The SQLITE_DEFAULT_WAL_AUTOCHECKPOINT compile-time option can be used to specify a different default.) Applications using WAL do not have to do anything in order for these checkpoints to occur. But if they want to, applications can adjust the automatic checkpoint threshold. Or they can turn off the automatic checkpoints and run checkpoints during idle moments or in a separate thread or process. When a read operation begins on a WAL-mode database, it first remembers the location of the last valid commit record in the WAL. Call this point the \"end mark\". Because the WAL can be growing and adding new commit records while various readers connect to the database, each reader can potentially have its own end mark. But for any particular reader, the end mark is unchanged for the duration of the transaction, thus ensuring that a single read transaction only sees the database content as it existed at a single point in time. When a reader needs a page of content, it first checks the WAL to see if that page appears there, and if so it pulls in the last copy of the page that occurs in th\n\n【已读取 2】SQLite WAL Mode: How Write-Ahead Logging Works and When to Use It\nhttps://sqldocs.org/sqlite-write-ahead-logging/\nWrite-ahead logging (WAL) lets SQLite readers keep reading while a writer writes, which is why turning it on can fix some lock errors. It also changes how SQLite writes to disk and adds two files next to the database. In this article I’ll walk you through what WAL mode does and when it’s worth switching on. TLDR - WAL (write-ahead logging) is a journal mode where changes go to a separate -wal file first and get copied into the database later, at a checkpoint. - Turn it on once with PRAGMA journal_mode = WAL; . The setting is stored in the database file. - Readers no longer block the writer, and the writer no longer blocks readers. There is still only one writer at a time. - Expect -wal and-shm files next to the database while it’s open. Never delete the-wal file, and back up a live database with the backup API orVACUUM INTO . - WAL doesn’t work on a network filesystem. What is WAL mode in SQLite? WAL mode is one of SQLite’s journal modes, the way SQLite makes a transaction safe against crashes. In the default rollback-journal mode, SQLite copies the old pages aside and writes changes straight into the database file. In WAL mode, it does the reverse: changes are appended to a separate -wal file, and a checkpoint copies them into the database later. The benefit, in the docs’ words: “WAL provides more concurrency as readers do not block writers and a writer does not block readers” (advantages). A new database starts in the rollback-journal mode, which SQLite reports as delete : sqlite> PRAGMA journal_mode; delete SQLite WAL mode syntax WAL is controlled by a few PRAGMAs: | Statement | What it does | |---|---| PRAGMA journal_mode; | Shows the current mode | PRAGMA journal_mode = WAL; | Turns WAL on and returns the new mode | PRAGMA journal_mode = DELETE; | Turns WAL off again | PRAGMA wal_autocheckpoint; | Shows the page count that triggers an automatic checkpoint | PRAGMA wal_checkpoint(TRUNCATE); | Runs a checkpoint now and empties the -wal file | How to turn on WAL mode To show you how this works, I will use a fresh database file, t.db , and run each statement from a new sqlite3 shell process. Step 1: Switch the journal mode The PRAGMA returns the new mode: sqlite> PRAGMA journal_mode = WAL; wal Step 2: Check that it stuck “Unlike the other journaling modes, PRAGMA journal_mode=WAL is persistent” (Write-Ahead Logging, section 3.3). A new connection, here a new shell process, still sees WAL: sqlite> PRAGMA journal_mode; wal Other modes don’t persist. A new connection goes back to delete : sqlite> PRAGMA journal_mode = TRUNCATE; truncate sqlite> PRAGMA journal_mode; delete Step 3: Check the checkpoint threshold SQLite checkpoints on its own: “By default, SQLite does a checkpoint automatically when the WAL file reaches a threshold size of 1000 pages” (checkpointing). This database reports that default: sqlite> PRAGMA journal_mode = WAL; wal sqlite> PRAGMA wal_autocheckpoint; 1000 Examples These examples show WAL’s files at work. Each one runs in its \n\n【已读取 3】Sqlite WAL — Write-Ahead Log ,- The What, The Why, and The When\nhttps://malekbenz.com/blog/2026/06/15/sqlite-wal-write-ahead-log\nIf you’ve ever seen database is locked in a concurrent .NET app using SQLite, WAL mode is probably the fix you’re looking for. Let’s break down how it works, why it matters, and when to use it. The core idea In classic SQLite (rollback journal mode), to modify a page: - Copy the original page to a journal file (for rollback safety) - Write the new page directly into the database file WAL flips this completely: Never modify the database file directly. Instead, append all changes to a separate log file. The three files When WAL is enabled, SQLite works with three files: myapp.db — the main database (mostly untouched during writes) myapp.db-wal — the write-ahead log (all new changes go here) myapp.db-shm — shared memory index (helps readers find pages in WAL) How a write works Writer says: \"UPDATE users SET name='Malek' WHERE id=1\" 1. SQLite finds page X (which contains that row) in myapp.db 2. Does NOT touch myapp.db 3. Appends the modified page X to myapp.db-wal 4. Transaction committed — done The database file is untouched. The WAL file just keeps growing with new page versions appended at the end. How a read works This is the clever part. When a reader wants page X: 1. Check myapp.db-wal — is there a newer version of page X here? YES → use that version NO → read from myapp.db as normal Each reader gets a consistent snapshot of the database at the moment their transaction started. Even if a writer appends new changes to the WAL mid-read, the reader ignores them (it knows its snapshot point). This is why readers never block writers and writers never block readers. Timeline: Reader A starts ──────────────────────────────► reads pages 1,2,3 Writer commits (page 2 updated) Reader A still sees the OLD page 2 — its snapshot is frozen at start time Reader B starts after the commit → sees the NEW page 2 The checkpoint — WAL back to DB The WAL file can’t grow forever. Eventually SQLite must copy WAL pages back into the main database file. This is called a checkpoint. myapp.db-wal ──(checkpoint)──► myapp.db Checkpoint happens automatically when WAL reaches 1000 pages (~4MB with default page size). During checkpoint: - Writers are paused - Active readers are waited on (checkpoint won’t overwrite pages a reader still needs) - Once all readers finish their snapshots, pages are copied back This is why you can get periodic latency spikes under load — a checkpoint kicked in. Visualizing the full flow Initial state: myapp.db [page1 v1] [page2 v1] [page3 v1] myapp.db-wal (empty) Writer 1 commits: myapp.db [page1 v1] [page2 v1] [page3 v1] ← unchanged myapp.db-wal [page2 v2] Writer 2 commits: myapp.db [page1 v1] [page2 v1] [page3 v1] ← unchanged myapp.db-wal [page2 v2] [page1 v2] Checkpoint triggers: myapp.db [page1 v2] [page2 v2] [page3 v1] ← updated myapp.db-wal (reset) Why WAL is faster for most workloads | Operation | Rollback Journal | WAL | |---|---|---| | Write | Random write to DB file | Sequential append to WAL | | Read | Read DB file | Read WAL or DB file ",
+        "sources": [
+          {
+            "title": "Write-Ahead Logging - SQLite",
+            "url": "https://sqlite.org/wal.html",
+            "relevance": 0.36,
+            "directness": "weak"
+          },
+          {
+            "title": "SQLite WAL Mode: How Write-Ahead Logging Works and When to Use It",
+            "url": "https://sqldocs.org/sqlite-write-ahead-logging/",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "Sqlite WAL — Write-Ahead Log ,- The What, The Why, and The When",
+            "url": "https://malekbenz.com/blog/2026/06/15/sqlite-wal-write-ahead-log",
+            "relevance": 0.42,
+            "directness": "weak"
+          },
+          {
+            "title": "SQLite WAL Checkpoints: Why Your Database File Keeps Growing",
+            "url": "https://www.c-sharpcorner.com/article/sqlite-wal-checkpoints-why-your-database-file-keeps-growing",
+            "relevance": 0.42,
+            "directness": "weak"
+          },
+          {
+            "title": "SQLite WAL Checkpoint Algorithms Explained",
+            "url": "https://www.sqliteforum.com/p/checkpoint-algorithms-and-wal-performance",
+            "relevance": 0.42,
+            "directness": "weak"
+          },
+          {
+            "title": "SQLite WAL Mode: Concurrency, Checkpoints, and Operational Pitfalls",
+            "url": "https://nalar.dev/sqlite-wal-mode-concurrency-checkpoints-and-operational-pitfalls/",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "Write-Ahead Logging | SQLite Documentation",
+            "url": "https://wizardforcel.gitbooks.io/sqlite-doc-en/content/48.html",
+            "relevance": 0.36,
+            "directness": "weak"
+          },
+          {
+            "title": "SQLite in production: WAL mode and knowing when it's enough",
+            "url": "https://dpkdb.com/article/sqlite-in-production-wal-mode-and-knowing-when-its-enough",
+            "relevance": 0.82,
+            "directness": "contextual"
+          }
+        ],
+        "query_attempts": [
+          {
+            "query": "SQLite WAL mode advantages disadvantages",
+            "status": "found",
+            "providers": null
+          }
+        ],
+        "warnings": []
+      },
+      "answer": {
+        "turn_id": "turn_2fc3d42333214fbcbd52d431b0ab193d",
+        "session_id": "chat_bf2b219f945c49fba85813acdc7d13b0",
+        "text": "# SQLite WAL 模式：优缺点\n\n先说一句本质：WAL 把「回滚日志」换成了「先写日志、后回填」，代价是多了一个 checkpoint 阶段和两个附属文件，换来的是读写不再互相阻塞。\n\n## 机制（一句话版）\n\n- **默认 rollback journal**：改页前先把原页拷到 journal，再直接改主库文件；COMMIT 时删 journal。\n- **WAL**：主库文件不动，新页追加到 `-wal` 文件，COMMIT 就是往 WAL 追加一条 commit 记录；之后由 **checkpoint** 把 WAL 里的页回填进主库 [web-2][web-4]。\n\n所以原语从「读、写」两个变成「读、写、checkpoint」三个 [web-2]。\n\n## 优点\n\n1. **读写不互斥**：reader 不阻塞 writer，writer 不阻塞 reader。这是最核心的收益，也是「database is locked」类报错的常见解法 [web-3][web-4]。\n2. **读一致性靠快照**：每个读事务开始时记住 WAL 里的 end mark，整个事务看到的都是那一刻的数据库状态，即使 writer 中途提交也不受影响 [web-2][web-4]。\n3. **写更快（多数负载）**：写变成对 WAL 的顺序追加，而不是对主库文件的随机写 [web-4]。\n4. **配置持久**：`PRAGMA journal_mode = WAL;` 一次即可，模式写在数据库文件里，新连接仍是 WAL（其他 journal 模式不持久）[web-3]。\n\n## 缺点\n\n1. **仍是单写者**：并发只解决了「读写」互斥，同一时刻依然只有一个 writer [web-3]。\n2. **多了两个文件**：`-wal` 和 `-shm`（共享内存索引）。它们不能随手删，备份活跃库要用 backup API 或 `VACUUM INTO` [web-3]。\n3. **checkpoint 带来延迟尖峰**：默认 WAL 到 1000 页自动 checkpoint，期间要等活跃 reader 结束快照才能回填，高负载下会出现周期性卡顿 [web-2][web-4]。\n4. **网络文件系统不支持**：WAL 依赖共享内存，放到 NFS/SMB 上不可用 [web-3]。\n5. **WAL 会增长**：如果没有 checkpoint 或 reader 长期占着快照，`-wal` 会一直变大。\n\n## 什么时候用\n\n- 用：读多写少、有并发读、单机本地盘、需要避免锁冲突。\n- 不用：数据库放在网络盘、或写入极其频繁且无法容忍 checkpoint 抖动。\n\n## 可操作结论\n\n```sql\nPRAGMA journal_mode = WAL;      -- 开启，持久生效\nPRAGMA wal_autocheckpoint;      -- 查看阈值（默认 1000 页）\nPRAGMA wal_checkpoint(TRUNCATE);-- 手动 checkpoint 并清空 WAL\n```\n\n如果需要控制抖动，可以调大自动 checkpoint 阈值，或在空闲时手动 checkpoint，而不是关掉它。",
+        "seconds": 4.69,
+        "prepared_seconds": 0.06,
+        "web_context_used": true,
+        "validation_plan": false,
+        "route": {
+          "mode": "普通",
+          "model_profile": "flash",
+          "task_intent": "quick_answer",
+          "answer_generation_calls": 1
+        }
+      },
+      "sends_used": 1,
+      "sends_after": 8,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.78,
+        "remaining_cny": 4.22
+      }
+    }
+  ]
+}

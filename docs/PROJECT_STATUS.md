@@ -24,16 +24,19 @@
 | **费用、存储与附件** | 保守预留、重复请求拒绝、结算观测与适配器隔离（默认关闭）。 | 账本仍有结算能力边界；付费调用开关保持 OFF，真实调用费用未验证。 |
 | **验证** | 精确 HEAD 上的普通 CI 可复现；测试集合与 L3 相同（仓库无 `testpaths`/`addopts`）。 | 普通 CI 不等于 L3 记录；L3 额外提供的是干净检出与精确 SHA 的出处保证。真实模型的动态质量仍未验证。 |
 
-### 当前主线：Search-1 真实检索（P0，2026-10-29 起）
+### 当前主线：回答链路质量（P0，2026-10-30 起）
+
+Search-1/Search-2 全部合并（#309–#314，main `340b512d` 含 #314），检索侧不再继续做实验设施。
 
 | 项 | 状态 |
 | --- | --- |
-| 题集 | `tests/fixtures/provider_routing/search_1_queries_v1.json`，31 题（复用 10 题冻结集 + 21 题新增） |
-| 证据 | 采集 `SEARCH_1_CAPTURE.json`、回放 `SEARCH_1_REPLAY.json`、人工首条审计 `SEARCH_1_AUDIT.json`，报告 `docs/research_quality/SEARCH_1.md` |
-| 结果 | 生产 A 首条答案 1/31；DDG 优先合并不重排 30/31；生产重排 30/31；候选 n-gram 重排 28/31 |
-| 判据问题 | 现用锚点 Hit@6 在同一 12 条池子上随机抽 6 条就有 0.96 命中，只能作诊断；主指标改为人工首条审计 |
-| 结论 | 差距来自 DDG 自身排序，不是重排；重排会把官方 release 页换成二手教程页（N13）、把非官方仓库推上首位（N12） |
-| 下一门 | **D2（DDG 优先回退）**：同快照上 32 次请求、P50 4.14 s、首条与双引擎交错完全一致；先做小规模真实复测，再决定是否改生产入口。边界页降权与中文实体查询写法随后 |
+| 题集 | Search-2 冻结十题 `tests/fixtures/provider_routing/search_2_fact_checks_v1.json` |
+| 方法 | 真实产品两段式：`WebLookupService.lookup()` 产出 run，再由 `ChatService.start_turn/generate` 用该 run 回答；两臂只差 `WEB_SEARCH_STRATEGY` |
+| 预算 | 预算目标 45 次／≤¥10，但跨进程硬门未达标；留存记录 **42 次、¥2.40 预留口径**，无自动重试 |
+| 结果 | 有答案 10/10 vs 9/10；人工正确 8/10 vs 8/10；含引用 2/10 vs 6/10；相关度均值 0.34 vs 0.55；研究中位 7.8 s vs 9.1 s |
+| 报告 | `docs/research_quality/ANSWER_AB.md` 与 `docs/research_quality/answer_ab/` 原始证据；一次性付费 harness 未保留（跨进程硬预算未达标） |
+| 结论 | DDG-first 的检索优势确实传到答案层（引用与版本正确性），但正确率未提升；两处 P1 都在答案链路，不在检索 |
+| 下一门 | **P1-A 研究意图轮次确定性拒答**（工具已读到正文仍 `answer_generation_calls=0`）与 **P1-B `completed` 但正文为空**；先写负控，再改判定 |
 
 Runtime-1B 四臂运行器（PR #308）按用户决定**暂缓**，不合并；`warnings()` 并发修复同列 P2。
 

@@ -1,0 +1,120 @@
+{
+  "schema_version": "answer-quality-ab-v1",
+  "generated_at": "2026-10-29T17:26:04.961007Z",
+  "arm": "ddg_first",
+  "strategy": "ddg_first",
+  "intent": "quick_answer",
+  "limits": {
+    "questions": 10,
+    "answers": 20,
+    "sends_total": 40,
+    "sends_already_reserved": 24,
+    "cny_total": 10.0,
+    "cny_per_process": 5.0
+  },
+  "stopped": "",
+  "sends_used": 1,
+  "counters_after": {
+    "cap_cny": 5.0,
+    "spent_cny": 0.0916,
+    "remaining_cny": 4.9084
+  },
+  "turns": [
+    {
+      "id": "N05",
+      "query": "PostgreSQL VACUUM FULL 区别 锁表",
+      "research": {
+        "run_id": "web_lookup_1f0b7b110ced45d88b799eb7507f744a",
+        "status": "completed",
+        "provider_status": "partial",
+        "stop_reason": "sources_partially_read",
+        "answer_confidence": "medium",
+        "seconds": 7.47,
+        "source_block_chars": 3245,
+        "source_block": "【联网检索】\n查询：PostgreSQL VACUUM FULL 区别 锁表\n1. postgresql中执行VACUUM和执行VAC...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：juejin.cn｜解析：unknown\n   原始链接：juejin.cn\n2. PostgreSQL 的 VACUUM 与 VAC...\n   来源：DuckDuckGo｜｜仅标题\n   证据：title_only\n   域名：blog.csdn.net｜解析：unknown\n   原始链接：blog.csdn.net\n\n【已读取 1】postgresql中执行VACUUM和执行VACUUM full有什么区别 - 掘金\nhttps://juejin.cn/post/7517115467598151706\n在PostgreSQL（包括Supabase）中，VACUUM 和VACUUM FULL 的区别主要体现在空间回收方式、执行效率和对表的锁定影响上，具体如下： 1. VACUUM（普通清理） - 作用：清理表和索引中的死元组（已删除或更新的旧版本数据），将这些空间标记为可重用，但不会物理缩小表文件大小。 - 空间释放：不会将空间返还给操作系统，只是让数据库内部可以重用这部分空间。 - 执行效率：速度快，执行时只需共享锁，不会阻塞读写操作。 - 自动执行：PostgreSQL有 autovacuum 守护进程，会自动执行普通VACUUM 以保持数据库健康。 - 适用场景：频繁更新、删除的表，保持空间可重用，避免膨胀。 2. VACUUM FULL（彻底清理） - 作用：物理重写整个表，将活跃数据复制到新文件，完全删除死元组，释放未使用空间。 - 空间释放：会将释放的空间返还给操作系统，表文件大小会明显减小。 - 执行效率：执行速度慢，需要对表加排它锁（AccessExclusiveLock） ，期间阻塞所有对该表的读写操作。 - 适用场景：删除大量数据后，想彻底回收磁盘空间，或者表膨胀严重时使用。 - 缺点：执行期间表不可访问，可能影响业务，需在低峰期执行。 3. 总结对比表 | 特性 | VACUUM | VACUUM FULL | |---|---|---| | 是否释放空间给操作系统 | 否 | 是 | | 是否锁表 | 否（共享锁） | 是（排它锁，阻塞所有操作） | | 执行速度 | 快 | 慢 | | 是否自动执行 | 是（autovacuum） | 否 | | 适用场景 | 常规维护，清理死元组 | 大量删除后彻底回收空间，表膨胀严重时 | 4. 实际建议 - 日常维护用普通 VACUUM 即可，结合ANALYZE 更新统计信息：VACUUM ANALYZE your_table; - 删除大量数据后，且需要回收磁盘空间时，执行 VACUUM FULL ：VACUUM FULL your_table; - 运行 VACUUM FULL 时，注意业务影响，最好在低峰期执行。 5. 参考 - PostgreSQL官方文档 VACUUM - CSDN博客《Postgresql之Vacuum和Vacuum full的区别》 - 博客园《PostgreSQL的表膨胀与Vacuum和Vacuum Full》 综上，VACUUM 适合日常清理和维护，VACUUM FULL 适合需要彻底回收空间的场景，但会锁表且执行较慢。\n\n【已读取 2】PostgreSQL 的 VACUUM 与 VACUUM FULL 详解 - CSDN博客\nhttps://blog.csdn.net/lee_vincent1/article/details/147668455\n| 特性 | VACUUM | VACUUM FULL | |---|---|---| | 定义 | 常规维护操作，清理死元组 | 激进重组操作，完全重写表数据 | | 锁级别 | 不阻塞读写(共享锁) | 排他锁(阻塞所有操作) | | 空间回收 | 只标记空间为可用，不返还OS | 空间返还操作系统 | | 索引处理 | 不重建索引 | 完全重建所有索引 | | 执行速度 | 快(增量式) | 慢(全量重写) | | 对系统影响 | 低 | 高 | - 死元组清理：标记被删除或更新旧版本的数据为\"可重用\" - 事务ID处理：防止事务ID回卷(冻结旧事务ID) - 更新统计信息：为查询优化器提供最新数据分布信息 - 不减少物理文件大小：只是内部空间重用 - 创建表的全新副本 - 只将有效数据写入新存储 - 删除原始表文件 - 将新文件重命名为原表名 - 完全重建所有索引（因为元组物理位置改变） - 常规数据库维护(建议配置autovacuum) - 高并发OLTP系统 - 频繁更新的表(每天或每小时) - 只需要空间重用，不需OS空间回收 - 表膨胀严重(>30%空间浪费) - 准备进行大版本升级前 - 长期未维护的历史表 - 需要彻底重组表物理结构时 -- 典型资源占用 CPU: 5-15% IO: 中等(取决于表大小) 锁: 不阻塞查询，可能与DDL冲突 持续时间: 几分钟到几小时(大表) -- 典型资源占用 CPU: 30-70% IO: 非常高(读写全表数据) 锁: 完全阻塞表访问 持续时间: 几小时到几天(特大表) -- 普通VACUUM VACUUM [VERBOSE] [ANALYZE] [table_name]; -- 示例 VACUUM VERBOSE ANALYZE orders; -- VACUUM FULL VACUUM FULL [VERBOSE] [table_name]; -- 示例 VACUUM FULL VERBOSE large_table; -- 查看表膨胀情况 SELECT schemaname || '.' || relname AS table_name, pg_size_pretty(pg_total_relation_size(relid)) AS total_size, pg_size_pretty(pg_relation_size(relid)) AS data_size, n_live_tup AS live_tuples, n_dead_tup AS dead_tuples, round((n_dead_tup::numeric / (n_live_tup + n_dead_tup) * 100), 2) AS dead_tuple_percent, last_vacuum, last_autovacuum FROM pg_stat_user_tables WHERE n_live_tup > 0 ORDER BY dead_tuple_percent DESC; - 常规维护策略： - 启用并合理配置autovacuum - 对大表设置更频繁的vacuum阈值 ALTER TABLE large_table SET ( autovacuum_vacuum_scale_factor = 0.01, autovacuum_vacuum_threshold = 1000 ); - VACUUM FULL 替代方案： - 使用pg_repack扩展(在线重组，不阻塞读写) -- 安装后使用 pg_repack -d dbname -t table_name - 手动创建新表交换(需要更多步骤) - 特殊场景处理： - 对于只读表，可以禁用autovacuum ALTER TABLE historical_data SET ( autovacuum_enabled = false ); - 紧急空间回收时考虑在维护窗口使用VACUUM FULL",
+        "sources": [
+          {
+            "title": "postgresql中执行VACUUM和执行VACUUM full有什么区别 - 掘金",
+            "url": "https://juejin.cn/post/7517115467598151706",
+            "relevance": 0.86,
+            "directness": "contextual"
+          },
+          {
+            "title": "PostgreSQL 的 VACUUM 与 VACUUM FULL 详解 - CSDN博客",
+            "url": "https://blog.csdn.net/lee_vincent1/article/details/147668455",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "PostgreSQL VACUUM 与 VACUUM FULL 处理过程全拆解：从原理到实战-CSDN博客",
+            "url": "https://blog.csdn.net/weixin_31240035/article/details/168494680",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "PostgreSQL VACUUM vs VACUUM FULL - DatabaseFAQs.com",
+            "url": "https://databasefaqs.com/postgresql-vacuum-vs-vacuum-full/",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "PostgreSQL的表膨胀与Vacuum和Vacuum Full - 明矾 - 博客园",
+            "url": "https://www.cnblogs.com/mingfan/p/15795684.html",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "PostgreSQL技术内幕22：vacuum full 和 vacuum - 知乎",
+            "url": "https://zhuanlan.zhihu.com/p/17535310909",
+            "relevance": 0.82,
+            "directness": "contextual"
+          },
+          {
+            "title": "PostgreSQL VACUUM 与表膨胀治理：死元组、膨胀估算与在线回收 | 极客工场",
+            "url": "https://geek-doc.cn/database/relational/postgresql-vacuum-bloat",
+            "relevance": 0.42,
+            "directness": "weak"
+          },
+          {
+            "title": "PostgreSQL VACUUM与VACUUM FULL清理操作流程 - 墨天轮",
+            "url": "https://www.modb.pro/db/1804916037317120000",
+            "relevance": 0.82,
+            "directness": "contextual"
+          }
+        ],
+        "query_attempts": [
+          {
+            "query": "PostgreSQL VACUUM FULL 区别 锁表",
+            "status": "found",
+            "providers": null
+          }
+        ],
+        "warnings": [
+          "source read failed (https://blog.csdn.net/weixin_31240035/article/details/168494680): http_521"
+        ]
+      },
+      "answer": {
+        "turn_id": "turn_92ecd9c5b10a4338b32d09fee7a2966d",
+        "session_id": "chat_2b502c89b8a548d99d06ddad9756d682",
+        "text": "# VACUUM vs VACUUM FULL：一句话本质\n\n**普通 VACUUM 是\"把死元组占的格子标记为可复用\"，VACUUM FULL 是\"把活数据抄到新表里，扔掉旧表\"。** 前者不缩文件，后者缩文件但要独占整张表。\n\n---\n\n## 一、机制差异（为什么锁表程度不同）\n\n| 维度 | VACUUM | VACUUM FULL |\n|---|---|---|\n| 做什么 | 扫描表，把死元组空间标记为可重用 | 新建表文件 → 只复制活元组 → 删旧文件 → 重命名 |\n| 空间还给 OS | 否（只在表内部复用） | 是（文件物理变小） |\n| 索引 | 不重建 | 全部重建（元组物理位置变了） |\n| 锁级别 | `ShareUpdateExclusiveLock` | `AccessExclusiveLock` |\n| 是否阻塞读写 | 不阻塞 SELECT/INSERT/UPDATE/DELETE | **阻塞一切**，包括 SELECT |\n| 速度 | 快，增量式 | 慢，全表重写，耗时与表大小成正比 |\n| 自动执行 | 是（autovacuum） | 否，必须手动 |\n\n**锁表的关键点**：`AccessExclusiveLock` 与所有其他锁模式冲突。所以 VACUUM FULL 期间，这张表上连 `SELECT` 都会被挂起排队——不是\"变慢\"，是\"完全不可访问\"。而且它需要**大约等于表大小的额外磁盘空间**来放新副本，空间不足会直接失败。\n\n---\n\n## 二、什么时候用哪个\n\n**日常就用普通 VACUUM**，交给 autovacuum 即可。它的作用不止回收空间，还包括冻结事务 ID（防 XID 回卷）和更新统计信息。\n\n**只有这三种情况才考虑 VACUUM FULL**：\n1. 大批量 DELETE 后，磁盘空间真的需要还给操作系统；\n2. 表膨胀严重（死元组占比很高，比如 >30%），普通 VACUUM 已无法有效复用；\n3. 需要彻底重组表的物理结构。\n\n---\n\n## 三、生产环境的实操建议\n\n**先诊断再动手**，别凭感觉：\n\n```sql\nSELECT schemaname || '.' || relname AS table_name,\n       pg_size_pretty(pg_total_relation_size(relid)) AS total_size,\n       n_live_tup, n_dead_tup,\n       round((n_dead_tup::numeric / nullif(n_live_tup + n_dead_tup, 0) * 100), 2) AS dead_pct,\n       last_vacuum, last_autovacuum\nFROM pg_stat_user_tables\nWHERE n_live_tup > 0\nORDER BY dead_pct DESC;\n```\n\n**如果必须 VACUUM FULL**：\n- 放在维护窗口，提前确认磁盘剩余空间 > 表大小；\n- 注意它会**级联阻塞**——任何等待这张表的查询都会堆积，可能拖垮连接池；\n- 大表耗时可能是小时级。\n\n**更好的替代方案是 `pg_repack`**：同样达到\"重写表 + 回收空间 + 重建索引\"的效果，但通过触发器+日志同步的方式在线完成，只在最后交换文件时短暂持锁，不长时间阻塞读写。生产环境大表优先考虑它。\n\n---\n\n## 四、一个容易踩的误区\n\n> \"我删了很多数据，磁盘怎么没变小？\"\n\n这是正常行为，不是 bug。PostgreSQL 的 MVCC 决定了 DELETE 只是标记死元组，空间留在表文件里等复用。**如果这张表后续还会插入数据，根本不需要 VACUUM FULL**——那些空间会被新行用掉。只有当这张表**不会再增长**、而磁盘空间确实紧张时，缩文件才有意义。\n\n换句话说：VACUUM 解决\"空间能不能复用\"，VACUUM FULL 解决\"空间能不能退回去\"。先问自己需要哪一个。",
+        "seconds": 6.53,
+        "prepared_seconds": 0.92,
+        "web_context_used": true,
+        "validation_plan": false,
+        "route": {
+          "mode": "普通",
+          "model_profile": "flash",
+          "task_intent": "quick_answer",
+          "answer_generation_calls": 1
+        }
+      },
+      "sends_used": 1,
+      "sends_after": 1,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.0916,
+        "remaining_cny": 4.9084
+      }
+    }
+  ]
+}

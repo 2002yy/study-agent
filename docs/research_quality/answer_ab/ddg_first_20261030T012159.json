@@ -1,0 +1,785 @@
+{
+  "schema_version": "answer-quality-ab-v1",
+  "generated_at": "2026-10-29T17:21:59.378096Z",
+  "arm": "ddg_first",
+  "strategy": "ddg_first",
+  "intent": "research",
+  "limits": {
+    "questions": 10,
+    "answers": 20,
+    "sends_total": 40,
+    "sends_per_arm": 20,
+    "cny_total": 10.0,
+    "cny_per_process": 5.0
+  },
+  "stopped": "",
+  "sends_used": 9,
+  "counters_after": {
+    "cap_cny": 5.0,
+    "spent_cny": 0.2847,
+    "remaining_cny": 4.7153
+  },
+  "turns": [
+    {
+      "id": "B01",
+      "query": "星铁 千冶·刃 遗器 推荐 黄泉队",
+      "turn_id": "turn_ac86ce35c39349dc87f04d915286001c",
+      "session_id": "chat_bf11e4ba373e4d2787ab52ddb57fd0da",
+      "route": {
+        "mode": "普通",
+        "model_profile": "flash",
+        "task_intent": "research",
+        "answer_generation_calls": 0
+      },
+      "web_context_used": true,
+      "web_tools": {
+        "enabled": true,
+        "used": true,
+        "evidence_status": "read_backed",
+        "candidate_count": 10,
+        "read_count": 1,
+        "used_sources": [
+          {
+            "source": "local_fallback_parser",
+            "title": "[星铁]黄泉加强后的角色攻略，包括配队光锥遗器选择以及大致强度参考_哔哩哔哩bilibili_游戏攻略",
+            "url": "https://www.bilibili.com/video/BV1pGsf6iEzj/"
+          }
+        ],
+        "provider_errors": [
+          "web_read:http_403"
+        ],
+        "recovery": {
+          "authority_queries": 1,
+          "candidate_dispositions": [
+            {
+              "candidate_id": "https://www.miyoushe.com/ys/article/41430859",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://www.miyoushe.com/sr/article/50512409",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://www.taptap.cn/moment/519552227791079385",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://gl.ali213.net/html/2024-3/1344853.html",
+              "reason": "",
+              "state": "dispatched"
+            },
+            {
+              "candidate_id": "https://www.bilibili.com/video/BV1pGsf6iEzj/",
+              "reason": "",
+              "state": "dispatched"
+            },
+            {
+              "candidate_id": "https://www.miyoushe.com/sr/article/75743090",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://www.bilibili.com/video/BV1j5Ew67Ehk/",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://zhuanlan.zhihu.com/p/2044819621283352693",
+              "reason": "",
+              "state": "dispatched"
+            },
+            {
+              "candidate_id": "https://www.bilibili.com/video/BV1uZV96gEXd/",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://news.17173.com/content/06042026/170001591.shtml",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            }
+          ],
+          "candidate_scheduler": {
+            "host_state": {
+              "zhuanlan.zhihu.com": {
+                "cooldown": false,
+                "failures": 1,
+                "reason": "other"
+              }
+            },
+            "redirect_targets": 0,
+            "unique_canonical_docs": 3,
+            "unique_source_families": 3
+          },
+          "elapsed_seconds": 12.844,
+          "limits": {
+            "chars": 16000,
+            "finalization_reserve": 10,
+            "hard_seconds": 30,
+            "queries": 2,
+            "reads": 3,
+            "source_chars": 6000
+          },
+          "mode": "lookup",
+          "provider_failures": 1,
+          "query": "星铁 千冶·刃 遗器 推荐 黄泉队",
+          "query_rewrites": 0,
+          "question_coverage": {
+            "kind": "relevance_only",
+            "related": [
+              "rq-comparison",
+              "rq-identity"
+            ]
+          },
+          "reads": 3,
+          "reason": "rq_related_bodies_not_adequacy",
+          "recovery_reads": 1,
+          "searches": 2,
+          "semantic_model_calls": 3,
+          "status": "read_backed",
+          "stop_reason": "READ_BACKED_PROGRESS",
+          "target_coverage": {
+            "covered": 0,
+            "required": 0
+          },
+          "used_chars": 2144
+        },
+        "semantics": {
+          "model_calls": 3,
+          "intent": "NEW_RESEARCH",
+          "decision_admitted": true
+        },
+        "error": "",
+        "policy_reason": "task_requires_web",
+        "run_id": "web_lookup_4af271fb6e00431b881af4904dfd887d",
+        "evidence": {
+          "searches": [
+            {
+              "query": "星铁 刃 黄泉队 遗器 推荐",
+              "status": "ok",
+              "providers": [
+                "duckduckgo_html"
+              ],
+              "fallback_used": false,
+              "count": 5,
+              "top": [
+                {
+                  "title": "【星穹铁道】全角色光锥遗器推荐丨超量更新!刃和新遗器加载完毕-崩坏：星穹铁道社区-米游社",
+                  "url": "https://www.miyoushe.com/ys/article/41430859"
+                },
+                {
+                  "title": "【黄泉测评攻略】专武对比 遗器选择 配队思路-崩坏：星穹铁道社区-米游社",
+                  "url": "https://www.miyoushe.com/sr/article/50512409"
+                },
+                {
+                  "title": "【黄泉测评攻略】专武对比 遗器选择 配队思路 - 崩坏：星穹铁道攻略 - TapTap 崩坏：星穹铁道论坛",
+                  "url": "https://www.taptap.cn/moment/519552227791079385"
+                }
+              ]
+            },
+            {
+              "query": "星铁 千冶·刃 遗器 推荐 黄泉队 official documentation",
+              "status": "ok",
+              "providers": [
+                "duckduckgo_html"
+              ],
+              "fallback_used": false,
+              "count": 5,
+              "top": [
+                {
+                  "title": "【V4.3攻略】千冶·刃培养攻略｜6种配队，遗器光锥星魂解析",
+                  "url": "https://www.miyoushe.com/sr/article/75743090"
+                },
+                {
+                  "title": "【星铁】千冶刃全面攻略!加入黄泉/不死途队后提升是？二魂解锁黄泉遗器新带法!技能机制，遗器光锥，星魂提升分析!",
+                  "url": "https://www.bilibili.com/video/BV1j5Ew67Ehk/"
+                },
+                {
+                  "title": "崩铁：千冶·刃完整养成攻略｜6种配队推荐，遗器光锥星魂分析",
+                  "url": "https://zhuanlan.zhihu.com/p/2044819621283352693"
+                }
+              ]
+            }
+          ],
+          "reads": [
+            {
+              "url": "https://gl.ali213.net/html/2024-3/1344853.html",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            },
+            {
+              "url": "https://www.bilibili.com/video/BV1pGsf6iEzj/",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            }
+          ]
+        },
+        "context_block_chars": 0,
+        "context_block": "",
+        "context_block_truncated": false
+      },
+      "prepared_seconds": 14.86,
+      "answer_seconds": 0.03,
+      "answer": "本次尚未取得能逐事实支持所问内容的记录，暂不能给出已核实的结论。相邻版本、搜索摘要和模型记忆不作为支持。",
+      "sends_used": 3,
+      "sends_after": 3,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.0838,
+        "remaining_cny": 4.9162
+      }
+    },
+    {
+      "id": "N02",
+      "query": "FastAPI 依赖注入 数据库 会话 SQLAlchemy",
+      "turn_id": "turn_902ee437d258415eaa94d331adfd49f3",
+      "session_id": "chat_ceace5016f1641a183bc0aa446cbb242",
+      "route": {
+        "mode": "普通",
+        "model_profile": "flash",
+        "task_intent": "research",
+        "answer_generation_calls": 0
+      },
+      "web_context_used": true,
+      "web_tools": {
+        "enabled": true,
+        "used": true,
+        "evidence_status": "read_backed",
+        "candidate_count": 10,
+        "read_count": 3,
+        "used_sources": [
+          {
+            "source": "local_trafilatura",
+            "title": "FastAPI数据库会话依赖注入模式入门教程 - PyDocs中文手册",
+            "url": "https://www.pydocs.cn/chapter/908FC457CCA92B26F55EAE2A74AF435F.html"
+          },
+          {
+            "source": "local_trafilatura",
+            "title": "FastAPI项目SQLAlchemy会话工厂搭建与依赖注入实战指南-CSDN博客",
+            "url": "https://blog.csdn.net/weixin_32306957/article/details/168261703"
+          },
+          {
+            "source": "local_trafilatura",
+            "title": "FastAPI数据库集成SQLAlchemy异步ORM全方案 - 掘金",
+            "url": "https://juejin.cn/post/7660771389193175094"
+          }
+        ],
+        "provider_errors": [],
+        "recovery": {
+          "authority_queries": 1,
+          "candidate_dispositions": [
+            {
+              "candidate_id": "https://blog.csdn.net/weixin_32306957/article/details/168261703",
+              "reason": "",
+              "state": "dispatched"
+            },
+            {
+              "candidate_id": "https://blog.csdn.net/2401_83519807/article/details/158575551",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://www.pydocs.cn/chapter/908FC457CCA92B26F55EAE2A74AF435F.html",
+              "reason": "",
+              "state": "dispatched"
+            },
+            {
+              "candidate_id": "https://www.pydocs.cn/chapter/FDE66E0F05A134EB22BD85BC42706CD6.html",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://juejin.cn/post/7660771389193175094",
+              "reason": "",
+              "state": "dispatched"
+            },
+            {
+              "candidate_id": "https://fastapi.tiangolo.com/tutorial/sql-databases/",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://fastapi.tiangolo.com/",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://docs.sqlalchemy.org/",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://python-dependency-injector.ets-labs.org/examples/fastapi-sqlalchemy.html",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://fastapi-users.github.io/fastapi-users/latest/configuration/databases/sqlalchemy/",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            }
+          ],
+          "candidate_scheduler": {
+            "host_state": {},
+            "redirect_targets": 0,
+            "unique_canonical_docs": 3,
+            "unique_source_families": 3
+          },
+          "elapsed_seconds": 10.703,
+          "limits": {
+            "chars": 16000,
+            "finalization_reserve": 10,
+            "hard_seconds": 30,
+            "queries": 2,
+            "reads": 3,
+            "source_chars": 6000
+          },
+          "mode": "lookup",
+          "provider_failures": 0,
+          "query": "FastAPI 依赖注入 数据库 会话 SQLAlchemy",
+          "query_rewrites": 0,
+          "question_coverage": {
+            "kind": "relevance_only",
+            "related": [
+              "rq-question"
+            ]
+          },
+          "reads": 3,
+          "reason": "rq_related_bodies_not_adequacy",
+          "recovery_reads": 1,
+          "searches": 2,
+          "semantic_model_calls": 3,
+          "status": "read_backed",
+          "stop_reason": "READ_BACKED_PROGRESS",
+          "target_coverage": {
+            "covered": 0,
+            "required": 0
+          },
+          "used_chars": 14925
+        },
+        "semantics": {
+          "model_calls": 3,
+          "intent": "FALLBACK",
+          "decision_admitted": false
+        },
+        "error": "",
+        "policy_reason": "task_requires_web",
+        "run_id": "web_lookup_f2978ba596bd44ceb40e56ca048f0126",
+        "evidence": {
+          "searches": [
+            {
+              "query": "FastAPI 依赖注入 数据库 会话 SQLAlchemy",
+              "status": "ok",
+              "providers": [
+                "duckduckgo_html"
+              ],
+              "fallback_used": false,
+              "count": 5,
+              "top": [
+                {
+                  "title": "FastAPI项目SQLAlchemy会话工厂搭建与依赖注入实战指南-CSDN博客",
+                  "url": "https://blog.csdn.net/weixin_32306957/article/details/168261703"
+                },
+                {
+                  "title": "FastAPI + SQLAlchemy 实战教程 - CSDN博客",
+                  "url": "https://blog.csdn.net/2401_83519807/article/details/158575551"
+                },
+                {
+                  "title": "FastAPI数据库会话依赖注入模式入门教程 - PyDocs中文手册",
+                  "url": "https://www.pydocs.cn/chapter/908FC457CCA92B26F55EAE2A74AF435F.html"
+                }
+              ]
+            },
+            {
+              "query": "FastAPI 依赖注入 数据库 会话 SQLAlchemy official documentation release models documentation",
+              "status": "ok",
+              "providers": [
+                "duckduckgo_html"
+              ],
+              "fallback_used": false,
+              "count": 5,
+              "top": [
+                {
+                  "title": "SQL (Relational) Databases - FastAPI - tiangolo",
+                  "url": "https://fastapi.tiangolo.com/tutorial/sql-databases/"
+                },
+                {
+                  "title": "FastAPI - FastAPI",
+                  "url": "https://fastapi.tiangolo.com/"
+                },
+                {
+                  "title": "SQLAlchemy 2.1 Documentation",
+                  "url": "https://docs.sqlalchemy.org/"
+                }
+              ]
+            }
+          ],
+          "reads": [
+            {
+              "url": "https://www.pydocs.cn/chapter/908FC457CCA92B26F55EAE2A74AF435F.html",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            },
+            {
+              "url": "https://blog.csdn.net/weixin_32306957/article/details/168261703",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            },
+            {
+              "url": "https://juejin.cn/post/7660771389193175094",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            }
+          ]
+        },
+        "context_block_chars": 0,
+        "context_block": "",
+        "context_block_truncated": false
+      },
+      "prepared_seconds": 12.26,
+      "answer_seconds": 0.02,
+      "answer": "本次尚未取得能逐事实支持所问内容的记录，暂不能给出已核实的结论。相邻版本、搜索摘要和模型记忆不作为支持。",
+      "sends_used": 3,
+      "sends_after": 6,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.1874,
+        "remaining_cny": 4.8126
+      }
+    },
+    {
+      "id": "N05",
+      "query": "PostgreSQL VACUUM FULL 区别 锁表",
+      "turn_id": "turn_3a13afda1a804b96b3efd43b7006b11f",
+      "session_id": "chat_37ba33b460434299ab8c530a37ba97a2",
+      "route": {
+        "mode": "普通",
+        "model_profile": "flash",
+        "task_intent": "research",
+        "answer_generation_calls": 0
+      },
+      "web_context_used": true,
+      "web_tools": {
+        "enabled": true,
+        "used": true,
+        "evidence_status": "read_backed",
+        "candidate_count": 20,
+        "read_count": 4,
+        "used_sources": [
+          {
+            "source": "local_trafilatura",
+            "title": "PostgreSQL VACUUM vs VACUUM FULL - DatabaseFAQs.com",
+            "url": "https://databasefaqs.com/postgresql-vacuum-vs-vacuum-full/"
+          },
+          {
+            "source": "local_trafilatura",
+            "title": "postgresql中执行VACUUM和执行VACUUM full有什么区别 - 掘金",
+            "url": "https://juejin.cn/post/7517115467598151706"
+          },
+          {
+            "source": "local_trafilatura",
+            "title": "Postgresql关于Vacuum的作用和操作方法，Vacuum full锁表并生成新的relfilenode",
+            "url": "https://blog.csdn.net/zhousenshan/article/details/124221076"
+          },
+          {
+            "source": "local_trafilatura",
+            "title": "VACUUM FULL - PostgreSQL wiki",
+            "url": "https://wiki.postgresql.org/wiki/VACUUM_FULL"
+          }
+        ],
+        "provider_errors": [
+          "web_read:http_451"
+        ],
+        "recovery": {
+          "authority_queries": 1,
+          "candidate_dispositions": [
+            {
+              "candidate_id": "https://databasefaqs.com/postgresql-vacuum-vs-vacuum-full/",
+              "reason": "",
+              "state": "dispatched"
+            },
+            {
+              "candidate_id": "https://www.postgresql.org/docs/current/sql-vacuum.html",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://www.linkedin.com/pulse/vacuum-vs-full-postgresql-neelesh-ranjan-srivastava-cexbc",
+              "reason": "",
+              "state": "dispatched"
+            },
+            {
+              "candidate_id": "https://medium.com/@_lukasz_/postgresql-table-maintenance-a-comprehensive-guide-to-vacuum-vacuum-full-and-pg-repack-d85a926b6510",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://dev.to/vahidusefzadeh/postgresql-table-bloat-and-defragmentation-autovacuum-vs-vacuum-vs-vacuum-full-3jfm",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://juejin.cn/post/7517115467598151706",
+              "reason": "",
+              "state": "dispatched"
+            },
+            {
+              "candidate_id": "https://wiki.postgresql.org/wiki/VACUUM_FULL",
+              "reason": "",
+              "state": "dispatched"
+            },
+            {
+              "candidate_id": "https://blog.csdn.net/zhousenshan/article/details/124221076",
+              "reason": "",
+              "state": "dispatched"
+            },
+            {
+              "candidate_id": "https://www.postgresql.org/docs/current/explicit-locking.html",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://inletdb.com/locks/",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://migrationpilot.dev/blog/postgresql-lock-types-guide",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://sudonull.com/zh/postgresql-transactions-locks-isolation-levels-mvcc-vacuum",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://blog.csdn.net/weixin_31240035/article/details/168494680",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://zhuanlan.zhihu.com/p/2031042506427724624",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://blog.csdn.net/weixin_34101914/article/details/169286006",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            },
+            {
+              "candidate_id": "https://zh-postgresql.org/articles/postgresql-vacuum-be59bece-architecture.html",
+              "reason": "read_cap",
+              "state": "run_blocked"
+            }
+          ],
+          "candidate_scheduler": {
+            "host_state": {
+              "linkedin.com": {
+                "cooldown": false,
+                "failures": 1,
+                "reason": "other"
+              }
+            },
+            "redirect_targets": 0,
+            "unique_canonical_docs": 5,
+            "unique_source_families": 5
+          },
+          "elapsed_seconds": 24.875,
+          "limits": {
+            "chars": 24000,
+            "finalization_reserve": 12,
+            "hard_seconds": 60,
+            "queries": 4,
+            "reads": 5,
+            "source_chars": 6000
+          },
+          "mode": "standard",
+          "provider_failures": 1,
+          "query": "PostgreSQL VACUUM FULL 区别 锁表",
+          "query_rewrites": 0,
+          "question_coverage": {
+            "kind": "relevance_only",
+            "related": [
+              "rq-difference",
+              "rq-locking"
+            ]
+          },
+          "reads": 5,
+          "reason": "rq_related_bodies_not_adequacy",
+          "recovery_reads": 2,
+          "searches": 4,
+          "semantic_model_calls": 3,
+          "status": "read_backed",
+          "stop_reason": "READ_BACKED_PROGRESS",
+          "target_coverage": {
+            "covered": 0,
+            "required": 0
+          },
+          "used_chars": 19078
+        },
+        "semantics": {
+          "model_calls": 3,
+          "intent": "NEW_RESEARCH",
+          "decision_admitted": true
+        },
+        "error": "",
+        "policy_reason": "task_requires_web",
+        "run_id": "web_lookup_a890665fd29044d1a2142ff87766b383",
+        "evidence": {
+          "searches": [
+            {
+              "query": "PostgreSQL VACUUM FULL vs VACUUM difference",
+              "status": "ok",
+              "providers": [
+                "duckduckgo_html"
+              ],
+              "fallback_used": false,
+              "count": 5,
+              "top": [
+                {
+                  "title": "PostgreSQL VACUUM vs VACUUM FULL - DatabaseFAQs.com",
+                  "url": "https://databasefaqs.com/postgresql-vacuum-vs-vacuum-full/"
+                },
+                {
+                  "title": "PostgreSQL: Documentation: 18: VACUUM",
+                  "url": "https://www.postgresql.org/docs/current/sql-vacuum.html"
+                },
+                {
+                  "title": "Vacuum vs Vacuum Full - PostgreSQL - LinkedIn",
+                  "url": "https://www.linkedin.com/pulse/vacuum-vs-full-postgresql-neelesh-ranjan-srivastava-cexbc"
+                }
+              ]
+            },
+            {
+              "query": "PostgreSQL VACUUM FULL 区别 锁表 official documentation",
+              "status": "ok",
+              "providers": [
+                "duckduckgo_html"
+              ],
+              "fallback_used": false,
+              "count": 5,
+              "top": [
+                {
+                  "title": "PostgreSQL: Documentation: 18: VACUUM",
+                  "url": "https://www.postgresql.org/docs/current/sql-vacuum.html"
+                },
+                {
+                  "title": "postgresql中执行VACUUM和执行VACUUM full有什么区别 - 掘金",
+                  "url": "https://juejin.cn/post/7517115467598151706"
+                },
+                {
+                  "title": "VACUUM FULL - PostgreSQL wiki",
+                  "url": "https://wiki.postgresql.org/wiki/VACUUM_FULL"
+                }
+              ]
+            },
+            {
+              "query": "PostgreSQL VACUUM FULL lock table ACCESS EXCLUSIVE",
+              "status": "ok",
+              "providers": [
+                "duckduckgo_html"
+              ],
+              "fallback_used": false,
+              "count": 5,
+              "top": [
+                {
+                  "title": "PostgreSQL: Documentation: 18: VACUUM",
+                  "url": "https://www.postgresql.org/docs/current/sql-vacuum.html"
+                },
+                {
+                  "title": "PostgreSQL: Documentation: 18: 13.3. Explicit Locking",
+                  "url": "https://www.postgresql.org/docs/current/explicit-locking.html"
+                },
+                {
+                  "title": "PostgreSQL VACUUM vs VACUUM FULL - DatabaseFAQs.com",
+                  "url": "https://databasefaqs.com/postgresql-vacuum-vs-vacuum-full/"
+                }
+              ]
+            },
+            {
+              "query": "PostgreSQL VACUUM 锁级别 并发 影响",
+              "status": "ok",
+              "providers": [
+                "duckduckgo_html"
+              ],
+              "fallback_used": false,
+              "count": 5,
+              "top": [
+                {
+                  "title": "PostgreSQL：事务、锁、隔离级别、MVCC、VACUUM",
+                  "url": "https://sudonull.com/zh/postgresql-transactions-locks-isolation-levels-mvcc-vacuum"
+                },
+                {
+                  "title": "PostgreSQL VACUUM 与 VACUUM FULL 处理过程全拆解：从原理到实战-CSDN博客",
+                  "url": "https://blog.csdn.net/weixin_31240035/article/details/168494680"
+                },
+                {
+                  "title": "SQL 与查询优化（PostgreSQL 篇）· 第六期 - 知乎专栏",
+                  "url": "https://zhuanlan.zhihu.com/p/2031042506427724624"
+                }
+              ]
+            }
+          ],
+          "reads": [
+            {
+              "url": "https://databasefaqs.com/postgresql-vacuum-vs-vacuum-full/",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            },
+            {
+              "url": "https://juejin.cn/post/7517115467598151706",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            },
+            {
+              "url": "https://blog.csdn.net/zhousenshan/article/details/124221076",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            },
+            {
+              "url": "https://wiki.postgresql.org/wiki/VACUUM_FULL",
+              "ok": true,
+              "error": "",
+              "error_code": "",
+              "kind": "web_page"
+            }
+          ]
+        },
+        "context_block_chars": 0,
+        "context_block": "",
+        "context_block_truncated": false
+      },
+      "prepared_seconds": 26.47,
+      "answer_seconds": 0.03,
+      "answer": "本次尚未取得能逐事实支持所问内容的记录，暂不能给出已核实的结论。相邻版本、搜索摘要和模型记忆不作为支持。",
+      "sends_used": 3,
+      "sends_after": 9,
+      "counters_after": {
+        "cap_cny": 5.0,
+        "spent_cny": 0.2847,
+        "remaining_cny": 4.7153
+      }
+    }
+  ]
+}
