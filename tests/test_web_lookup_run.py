@@ -118,3 +118,79 @@ def test_lookup_shadow_off_on_pairing_keeps_the_run_and_observes_once(tmp_path, 
         off.status, off.provider_status, off.stop_reason, off.answer_confidence
     )
     assert [i["url"] for i in on.items] == [i["url"] for i in off.items]
+
+
+
+def _terminal_run(
+    tmp_path,
+    *,
+    provider_status: str,
+    stop_reason: str,
+    source_block: str,
+    read_summary: dict,
+):
+    """Drive one run to its terminal write with an explicit read outcome."""
+
+    from src.domain.runtime_entities import WebLookupRun
+
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    run = repository.create(WebLookupRun(query="terminal run"))
+    repository.begin_operation(
+        run.id, operation_id="op_terminal", stage="synthesizing"
+    )
+    return repository.complete(
+        run.id,
+        operation_id="op_terminal",
+        items=[{"title": "Candidate", "url": "https://example.com/a"}],
+        source_block=source_block,
+        warnings=[],
+        research_context={"read_summary": read_summary},
+        query_attempts=[],
+        selected_sources=[],
+        provider_status=provider_status,
+        stop_reason=stop_reason,
+        answer_confidence="none" if not source_block else "medium",
+    )
+
+
+def test_every_read_failing_is_partial_not_completed(tmp_path):
+    """A run that read nothing has not produced research content."""
+
+    run = _terminal_run(
+        tmp_path,
+        provider_status="candidates_only",
+        stop_reason="source_reading_failed",
+        source_block="",
+        read_summary={"attempted": 3, "failed": 3, "successful": 0},
+    )
+
+    assert run.status == "partial"
+    assert run.stop_reason == "source_reading_failed"
+    assert run.source_block == ""
+
+
+def test_candidates_without_a_read_attempt_keep_their_existing_status(tmp_path):
+    """Search-only runs are unchanged: this slice is about failed reads."""
+
+    run = _terminal_run(
+        tmp_path,
+        provider_status="candidates_only",
+        stop_reason="search_candidates_only",
+        source_block="",
+        read_summary={"attempted": 0, "failed": 0, "successful": 0},
+    )
+
+    assert run.status == "completed"
+    assert run.stop_reason == "search_candidates_only"
+
+
+def test_a_run_with_read_content_is_still_completed(tmp_path):
+    run = _terminal_run(
+        tmp_path,
+        provider_status="found",
+        stop_reason="sources_read",
+        source_block="【已读取 1】Example\nhttps://example.com/a\nbody",
+        read_summary={"attempted": 1, "failed": 0, "successful": 1},
+    )
+
+    assert run.status == "completed"
