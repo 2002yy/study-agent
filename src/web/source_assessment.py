@@ -13,7 +13,24 @@ from typing import Any
 from urllib.parse import urlparse
 
 
-_TOKEN_PATTERN = re.compile(r"[a-z0-9]+|[\u3400-\u9fff]", re.IGNORECASE)
+_CJK_RUN = re.compile(r"[\u3400-\u9fff]+")
+_LATIN_TOKEN = re.compile(r"[a-z0-9]+")
+# "千冶·刃", "千冶・刃" and "千冶刃" are the same entity; punctuation between two
+# CJK characters must not split it into a stray one-character unit.
+_CJK_JOINER = re.compile(r"(?<=[\u3400-\u9fff])[·・\-—–/／|,，、]+(?=[\u3400-\u9fff])")
+# English function words carry no topical signal and made a page that happened to
+# contain "the ... of" look relevant. They are dropped symmetrically from the
+# query and the document, so nothing is biased by one side only.
+_LATIN_STOPWORDS = frozenset(
+    {
+        "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can",
+        "do", "does", "for", "from", "had", "has", "have", "how", "if", "in",
+        "into", "is", "it", "its", "may", "not", "of", "on", "or", "should",
+        "than", "that", "the", "their", "then", "there", "these", "this",
+        "those", "to", "was", "were", "what", "when", "where", "which", "who",
+        "why", "will", "with", "would", "you", "your",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -71,7 +88,27 @@ def _freshness(item: dict[str, Any]) -> str:
 
 
 def _tokens(value: str) -> set[str]:
-    return {token.casefold() for token in _TOKEN_PATTERN.findall(value)}
+    """Topical units: latin words plus CJK bigrams, never single CJK characters.
+
+    Single-character CJK overlap is what made a Baidu dictionary page for 星 look
+    relevant to "星铁 遗器": one shared character out of twelve was enough. A CJK
+    bigram only matches when two consecutive characters agree, so a dictionary
+    entry no longer competes with a page about the asked entity. A one-character
+    run (a query that really is one character) still yields that character.
+    """
+
+    folded = _CJK_JOINER.sub("", value.casefold())
+    tokens = {
+        token
+        for token in _LATIN_TOKEN.findall(folded)
+        if len(token) > 1 and token not in _LATIN_STOPWORDS
+    }
+    for run in _CJK_RUN.findall(folded):
+        if len(run) == 1:
+            tokens.add(run)
+        else:
+            tokens.update(run[index : index + 2] for index in range(len(run) - 1))
+    return tokens
 
 
 def _relevance(
@@ -96,7 +133,10 @@ def _relevance(
     title_overlap = len(query_tokens & title_tokens) / len(query_tokens)
     snippet_overlap = len(query_tokens & snippet_tokens) / len(query_tokens)
     overlap = max(title_overlap, snippet_overlap)
-    if overlap >= 0.75:
+    # 0.6 rather than 0.75: with CJK bigrams a page that covers five of seven
+    # topical units is clearly about the query, and the old threshold called it
+    # "weak" only because the unit count is now honest.
+    if overlap >= 0.6:
         return round(0.7 + overlap * 0.2, 3), "contextual"
     if overlap > 0:
         return round(0.3 + overlap * 0.3, 3), "weak"
