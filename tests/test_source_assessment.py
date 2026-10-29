@@ -49,6 +49,70 @@ def test_source_assessment_confidence_uses_coverage_not_truth_claims():
     assert evidence_confidence(selected) == "high"
 
 
+def test_cjk_dictionary_page_no_longer_looks_relevant_to_an_entity_query():
+    """One shared character must not make a dictionary entry worth reading.
+
+    This is the Search-1 failure: the Baidu entry for 星 was delivered and read
+    for "星铁 千冶·刃 遗器", because single-character overlap counted as context.
+    """
+
+    selected, _ = assess_sources(
+        [
+            {
+                "title": "星（汉语文字）_百度百科",
+                "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+            }
+        ],
+        canonical_query="星铁 千冶·刃 遗器 推荐 黄泉队",
+    )
+
+    assessment = selected[0]["assessment"]
+    assert assessment["directness"] == "unmatched"
+    assert assessment["relevance"] < 0.2
+    # Lexical relevance is a signal, not a veto on reading a valid URL.
+    assert assessment["worth_reading"] is True
+
+
+def test_cjk_bigram_overlap_still_marks_the_matching_guide_relevant():
+    selected, _ = assess_sources(
+        [
+            {
+                "title": "星铁 千冶刃 遗器 光锥 搭配推荐",
+                "url": "https://example.org/guide",
+                "snippet": "千冶刃加入黄泉队后的遗器与光锥选择。",
+            }
+        ],
+        canonical_query="星铁 千冶·刃 遗器 推荐 黄泉队",
+    )
+
+    assessment = selected[0]["assessment"]
+    assert assessment["directness"] in {"contextual", "direct_title", "direct_snippet"}
+    assert assessment["relevance"] >= 0.7
+    assert assessment["worth_reading"] is True
+
+
+def test_a_single_cjk_character_query_still_matches():
+    selected, _ = assess_sources(
+        [{"title": "刃", "url": "https://example.org/blade"}],
+        canonical_query="刃",
+    )
+
+    assert selected[0]["assessment"]["directness"] == "direct_title"
+
+
+def test_english_function_words_do_not_make_a_page_relevant():
+    selected, _ = assess_sources(
+        [{"title": "How to do it: the guide for you", "url": "https://example.org/filler"}],
+        canonical_query="How to configure Nginx proxy_cache expiration",
+    )
+
+    assessment = selected[0]["assessment"]
+    assert assessment["directness"] == "unmatched"
+    assert assessment["relevance"] < 0.2
+    # Lexical relevance is a signal, not a veto on reading a valid URL.
+    assert assessment["worth_reading"] is True
+
+
 def test_repository_normalizes_legacy_raw_selected_sources(tmp_path):
     database = RuntimeDatabase(tmp_path / "legacy-source-shape.db")
     database.initialize()
