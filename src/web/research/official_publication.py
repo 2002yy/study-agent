@@ -101,9 +101,9 @@ def publish_official_fields(
         if excerpts:
             answer = (
                 "本轮已读取以下来源，但尚未逐事实核实它们是否回答了研究问题；"
-                "下列内容仅是网页摘录，不是已验证结论：\\n\\n"
-                + "\n".join(f"- 来源：{url}\\n  摘录：{excerpt}" for url, excerpt in excerpts)
-                + "\\n\\n未确认的结论不依据搜索摘要或模型记忆补写。"
+                "下列内容仅是网页摘录，不是已验证结论：\n\n"
+                + "\n".join(f"- 来源：{url}\n  摘录：{excerpt}" for url, excerpt in excerpts)
+                + "\n\n未确认的结论不依据搜索摘要或模型记忆补写。"
             )
             status = "read_excerpt_unverified"
         else:
