@@ -219,22 +219,27 @@ def assess_sources(
 
 
 def evidence_confidence(selected_sources: list[dict[str, Any]]) -> str:
-    """Estimate evidence coverage without claiming that the facts are true."""
-
-    if not selected_sources:
-        return "none"
+    """Diagnose coverage from actual reads; never infer factual support."""
     assessments = [
-        record.get("assessment", {})
+        record.get("assessment") or {}
         for record in selected_sources
         if isinstance(record, dict)
+        and isinstance(record.get("read"), dict)
+        and record["read"].get("status") == "read"
+        and isinstance(record.get("assessment"), dict)
     ]
+    if not assessments:
+        return "none"
     direct = sum(
-        1
+        str(assessment.get("directness", "")).startswith("direct_")
         for assessment in assessments
-        if str(assessment.get("directness", "")).startswith("direct_")
     )
     if direct >= 2:
         return "high"
-    if direct >= 1 or len(assessments) >= 2:
+    # Two unrelated pages are not medium evidence merely by their count.
+    related = sum(
+        assessment.get("directness") != "unmatched" for assessment in assessments
+    )
+    if direct >= 1 or related >= 2:
         return "medium"
     return "low"
