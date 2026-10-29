@@ -33,9 +33,9 @@ const adoptedRefs = evidenceRefs.filter(
 
 一条来源只有同时满足以下全部条件，才可标记为**已核验引用**：
 
-1. `answer_validation_audit` 存在，且 `answer_claim_binding.outcome == "passed"`；
+1. `answer_validation_audit` 存在，且 `phases.answer_claim_binding.outcome == "passed"`；
 2. `answer_claim_snapshot.status == "validated"`；
-3. **published == candidate**：`audit.candidate_answer_sha256 == audit.learner_answer_sha256`
+3. **published == candidate**：`audit.candidate_answer_sha256 == audit.learner_answer_sha256`，且审计必须针对当前持久化的 `assistant_message` 归一化；不得直接信任客户端快照
    （一致性检查或任何后置拒绝会改变 learner 答案，此时引用必须消失）；
 4. 该来源的 `evidence_id` 出现在 `claim_links` 中，且
    `support_type ∈ {direct_support, indirect_support}`、`confidence >= 0.7`；
@@ -69,17 +69,17 @@ const adoptedRefs = evidenceRefs.filter(
 ```
 
 - `citation_status = "cited"` 只能由第 2 节规则产生；
-- `citation_status = "unverified"`：来源被读取/选中，但没进入已发布答案的绑定；
+- `citation_status = "unverified"`：来源已有可用读取或被选中，但没有进入本次已发布回答的绑定；它**不**表示回答已经核实该来源，也不自动表示 `selected` 就是本轮读取；
 - `citation_status = "none"`：只是候选（搜索命中、未读取）。
 
-旧回合（没有该字段）一律按 `none` 处理，不推断。
+旧回合（没有该字段）一律按 `none` 处理，不推断；尤其不得因旧字段 `selected` 或 `pedagogy.evidence_ids` 推断已核验引用。
 
 ## 4. UI 展示契约
 
 | 区块 | 数据来源 | 允许展示 |
 | --- | --- | --- |
 | 已核验引用（"回答采用的证据"） | `citation_status == "cited"` | 只显示这些；标题、域名、链接、可读取正文 |
-| 已读取但未引用 | `lifecycle_status in {read, selected}` 且未被引用 | 明确写"已读取，未用于本次结论" |
+| 已读取／已选中但未引用 | `lifecycle_status in {read, selected}` 且未被引用 | 根据独立生命周期显示"已读取，未用于本次结论"或"已选中，未用于本次结论"；不可将 selected 自动标记为已读取 |
 | 候选来源 | `lifecycle_status == "candidate"` | 只在诊断面板，默认折叠 |
 
 禁止：同一来源同时出现在"引用"和"未采用"；发布被拒时仍显示"采用"。
@@ -89,10 +89,10 @@ const adoptedRefs = evidenceRefs.filter(
 
 1. **成功发布且有引用**：passed + validated + published==candidate → 该来源 `cited`，
    且出现在"已核验引用"区。
-2. **绑定失败无已核验引用**：`answer_claim_binding.outcome == "rejected"` →
+2. **绑定失败无已核验引用**：`phases.answer_claim_binding.outcome == "rejected"` →
    `citation_links == []`，任何来源都不是 `cited`；"引用"区为空。
 3. **仅选中不能冒充引用**：来源 `lifecycle_status == "selected"` 但不在 `claim_links` →
-   `unverified`，只在"已读取但未引用"区。
+   `unverified`，只在"已读取／已选中但未引用"区，文案依据独立生命周期确定。
 4. **引用 ID 不存在不能伪造**：`claim_links` 指向的 `evidence_id` 不在 refs / 
    `research_evidence_refs` 中 → 该链接被丢弃（服务端拒绝构建 payload），UI 不渲染悬空引用。
 5. **后置拒绝**：一致性检查把 learner 答案换成弃答文案 → `citation_links == []`。
@@ -115,3 +115,4 @@ B1 不改变发布逻辑，只读取已经持久化的结果；B2 不改后端�
 - 不做引用评分器、不做新的证据检索；
 - 不改 `bind_answer_claims` 的判定（#321 负责支持资格）；
 - 不覆盖"未发布但有读取"的文案改版（属于 #321 后续）。
+- **官方确定性字段发布的独立路径**：`official_field_publication.status=field_backed` 与 `assertion_refs[]` 不是 `answer_claim_binding` 的结果，本版 B1–B3 不把它强行解释成 binder 引用，也不得对其展示虚假的"已核验引用"。官方字段引用如何同屏展示须在实现前明确归属（可复用原始官方链接，不重做评分），不能用通用缺失判断误称官方字段无来源。
