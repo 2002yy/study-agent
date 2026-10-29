@@ -1,0 +1,567 @@
+{
+  "schema_version": "search-2-probe-v1",
+  "started_at": "2026-10-29T14:32:50.263467Z",
+  "cases_fixture": "tests/fixtures/provider_routing/search_2_fact_checks_v1.json",
+  "arms": [
+    "fallback",
+    "ddg_first"
+  ],
+  "max_results": 6,
+  "read_timeout": 6.0,
+  "scope": {
+    "uses_model": false,
+    "reads_only_top1": true,
+    "read_cache": "one read per URL per run, reused across arms"
+  },
+  "rows": [
+    {
+      "id": "B01",
+      "category": "game",
+      "arms": {
+        "fallback": {
+          "status": "ok",
+          "elapsed": 3.11,
+          "providers_attempted": [
+            "searxng"
+          ],
+          "fallback_used": null,
+          "provider_errors": [],
+          "top_url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+          "top_title": "星（汉语文字）_百度百科",
+          "read_ok": false,
+          "read_error": "http_403",
+          "read_kind": "",
+          "chars": 0,
+          "read_elapsed": 0.2,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [],
+          "matched_any": []
+        },
+        "ddg_first": {
+          "status": "ok",
+          "elapsed": 6.44,
+          "providers_attempted": [
+            "duckduckgo_html"
+          ],
+          "fallback_used": false,
+          "provider_errors": [],
+          "top_url": "https://www.bilibili.com/video/BV1j5Ew67Ehk/",
+          "top_title": "【星铁】千冶刃全面攻略!加入黄泉/不死途队后提升是？二魂解锁黄泉遗器新带法!技能机制，遗器光锥，星魂提升分析!",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 3668,
+          "read_elapsed": 1.06,
+          "read_reused": false,
+          "fact_ok": true,
+          "missing_all": [],
+          "matched_any": [
+            [
+              "遗器",
+              "光锥",
+              "配队"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "N02",
+      "category": "chinese_tech",
+      "arms": {
+        "fallback": {
+          "status": "ok",
+          "elapsed": 4.03,
+          "providers_attempted": [
+            "searxng"
+          ],
+          "fallback_used": null,
+          "provider_errors": [],
+          "top_url": "https://fastapi.tiangolo.com/zh/",
+          "top_title": "FastAPI - FastAPI",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 6000,
+          "read_elapsed": 1.84,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [
+            "SQLAlchemy"
+          ],
+          "matched_any": [
+            [
+              "依赖注入"
+            ]
+          ]
+        },
+        "ddg_first": {
+          "status": "ok",
+          "elapsed": 4.88,
+          "providers_attempted": [
+            "duckduckgo_html"
+          ],
+          "fallback_used": false,
+          "provider_errors": [],
+          "top_url": "https://blog.csdn.net/weixin_32306957/article/details/168261703",
+          "top_title": "FastAPI项目SQLAlchemy会话工厂搭建与依赖注入实战指南-CSDN博客",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 6000,
+          "read_elapsed": 1.49,
+          "read_reused": false,
+          "fact_ok": true,
+          "missing_all": [],
+          "matched_any": [
+            [
+              "依赖注入",
+              "Depends"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "N05",
+      "category": "chinese_tech",
+      "arms": {
+        "fallback": {
+          "status": "ok",
+          "elapsed": 4.03,
+          "providers_attempted": [
+            "searxng"
+          ],
+          "fallback_used": null,
+          "provider_errors": [],
+          "top_url": "https://www.postgresql.org/",
+          "top_title": "PostgreSQL: The world's most advanced open source database",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 1450,
+          "read_elapsed": 2.39,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [
+            "VACUUM"
+          ],
+          "matched_any": [
+            []
+          ]
+        },
+        "ddg_first": {
+          "status": "ok",
+          "elapsed": 6.49,
+          "providers_attempted": [
+            "duckduckgo_html"
+          ],
+          "fallback_used": false,
+          "provider_errors": [],
+          "top_url": "https://juejin.cn/post/7517115467598151706",
+          "top_title": "postgresql中执行VACUUM和执行VACUUM full有什么区别 - 掘金",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 1078,
+          "read_elapsed": 0.16,
+          "read_reused": false,
+          "fact_ok": true,
+          "missing_all": [],
+          "matched_any": [
+            [
+              "锁",
+              "lock"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "N07",
+      "category": "github_project",
+      "arms": {
+        "fallback": {
+          "status": "ok",
+          "elapsed": 2.08,
+          "providers_attempted": [
+            "searxng"
+          ],
+          "fallback_used": null,
+          "provider_errors": [],
+          "top_url": "https://github.com/vllm-project/vllm",
+          "top_title": "GitHub - vllm-project/vllm: A high-throughput and memory …",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "repository",
+          "chars": 6198,
+          "read_elapsed": 6.12,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [],
+          "matched_any": [
+            []
+          ]
+        },
+        "ddg_first": {
+          "status": "ok",
+          "elapsed": 4.52,
+          "providers_attempted": [
+            "duckduckgo_html"
+          ],
+          "fallback_used": false,
+          "provider_errors": [],
+          "top_url": "https://github.com/vllm-project/vllm/releases",
+          "top_title": "Releases · vllm-project/vllm - GitHub",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "repository",
+          "chars": 6198,
+          "read_elapsed": 8.5,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [],
+          "matched_any": [
+            []
+          ]
+        }
+      }
+    },
+    {
+      "id": "N09",
+      "category": "github_project",
+      "arms": {
+        "fallback": {
+          "status": "ok",
+          "elapsed": 2.31,
+          "providers_attempted": [
+            "searxng"
+          ],
+          "fallback_used": null,
+          "provider_errors": [],
+          "top_url": "https://astral.fan/",
+          "top_title": "Astral",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 327,
+          "read_elapsed": 4.03,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [
+            "uv"
+          ],
+          "matched_any": [
+            []
+          ]
+        },
+        "ddg_first": {
+          "status": "ok",
+          "elapsed": 6.09,
+          "providers_attempted": [
+            "duckduckgo_html"
+          ],
+          "fallback_used": false,
+          "provider_errors": [],
+          "top_url": "https://docs.astral.sh/uv/concepts/resolution/",
+          "top_title": "Resolution | uv - Astral",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 6000,
+          "read_elapsed": 2.58,
+          "read_reused": false,
+          "fact_ok": true,
+          "missing_all": [],
+          "matched_any": [
+            [
+              "pip",
+              "resolution"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "N11",
+      "category": "software_version",
+      "arms": {
+        "fallback": {
+          "status": "ok",
+          "elapsed": 2.67,
+          "providers_attempted": [
+            "searxng"
+          ],
+          "fallback_used": null,
+          "provider_errors": [],
+          "top_url": "https://nodejs.org/zh-cn",
+          "top_title": "Node.js — 在任何地方运行 JavaScript",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 1356,
+          "read_elapsed": 8.58,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [
+            "LTS"
+          ],
+          "matched_any": [
+            []
+          ]
+        },
+        "ddg_first": {
+          "status": "ok",
+          "elapsed": 3.72,
+          "providers_attempted": [
+            "duckduckgo_html"
+          ],
+          "fallback_used": false,
+          "provider_errors": [],
+          "top_url": "https://nodejs.org/en/blog/release/v24.11.0",
+          "top_title": "Node.js — Node.js 24.11.0 (LTS)",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 5731,
+          "read_elapsed": 4.33,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [],
+          "matched_any": [
+            []
+          ]
+        }
+      }
+    },
+    {
+      "id": "N13",
+      "category": "software_version",
+      "arms": {
+        "fallback": {
+          "status": "ok",
+          "elapsed": 2.05,
+          "providers_attempted": [
+            "searxng"
+          ],
+          "fallback_used": null,
+          "provider_errors": [],
+          "top_url": "https://www.postgresql.org/",
+          "top_title": "PostgreSQL: The world's most advanced open source database",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 1450,
+          "read_elapsed": 2.39,
+          "read_reused": true,
+          "fact_ok": true,
+          "missing_all": [],
+          "matched_any": [
+            [
+              "release",
+              "version"
+            ]
+          ]
+        },
+        "ddg_first": {
+          "status": "ok",
+          "elapsed": 3.53,
+          "providers_attempted": [
+            "duckduckgo_html"
+          ],
+          "fallback_used": false,
+          "provider_errors": [],
+          "top_url": "https://www.postgresql.org/docs/release/",
+          "top_title": "Release Notes - PostgreSQL",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 574,
+          "read_elapsed": 5.47,
+          "read_reused": false,
+          "fact_ok": true,
+          "missing_all": [],
+          "matched_any": [
+            [
+              "release",
+              "version"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "N16",
+      "category": "fact",
+      "arms": {
+        "fallback": {
+          "status": "ok",
+          "elapsed": 4.02,
+          "providers_attempted": [
+            "searxng"
+          ],
+          "fallback_used": null,
+          "provider_errors": [],
+          "top_url": "https://baike.baidu.com/item/%E9%BB%91/4078",
+          "top_title": "黑（汉语文字）_百度百科",
+          "read_ok": false,
+          "read_error": "http_403",
+          "read_kind": "",
+          "chars": 0,
+          "read_elapsed": 0.14,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [],
+          "matched_any": []
+        },
+        "ddg_first": {
+          "status": "ok",
+          "elapsed": 4.3,
+          "providers_attempted": [
+            "duckduckgo_html"
+          ],
+          "fallback_used": false,
+          "provider_errors": [],
+          "top_url": "https://zh.wikipedia.org/zh-cn/%E9%81%8A%E6%88%B2%E7%A7%91%E5%AD%B8",
+          "top_title": "游戏科学 - 维基百科，自由的百科全书 - zh.wikipedia.org",
+          "read_ok": false,
+          "read_error": "network:ConnectionResetError",
+          "read_kind": "",
+          "chars": 0,
+          "read_elapsed": 1.22,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [],
+          "matched_any": []
+        }
+      }
+    },
+    {
+      "id": "N17",
+      "category": "fact",
+      "arms": {
+        "fallback": {
+          "status": "ok",
+          "elapsed": 2.74,
+          "providers_attempted": [
+            "searxng"
+          ],
+          "fallback_used": null,
+          "provider_errors": [],
+          "top_url": "https://baike.baidu.com/item/2025%E5%B9%B4/7710344",
+          "top_title": "2025年_百度百科",
+          "read_ok": false,
+          "read_error": "http_403",
+          "read_kind": "",
+          "chars": 0,
+          "read_elapsed": 0.14,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [],
+          "matched_any": []
+        },
+        "ddg_first": {
+          "status": "ok",
+          "elapsed": 3.95,
+          "providers_attempted": [
+            "duckduckgo_html"
+          ],
+          "fallback_used": false,
+          "provider_errors": [],
+          "top_url": "https://baike.baidu.com/item/2025%E5%B9%B4%E8%AF%BA%E8%B4%9D%E5%B0%94%E7%89%A9%E7%90%86%E5%AD%A6%E5%A5%96/69186274",
+          "top_title": "2025年诺贝尔物理学奖（2025年瑞典皇家科学院颁发的物理学奖项）_百度百科",
+          "read_ok": false,
+          "read_error": "http_403",
+          "read_kind": "",
+          "chars": 0,
+          "read_elapsed": 0.16,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [],
+          "matched_any": []
+        }
+      }
+    },
+    {
+      "id": "N19",
+      "category": "docs",
+      "arms": {
+        "fallback": {
+          "status": "ok",
+          "elapsed": 3.44,
+          "providers_attempted": [
+            "searxng"
+          ],
+          "fallback_used": null,
+          "provider_errors": [],
+          "top_url": "https://sqlite.org/index.html",
+          "top_title": "SQLite Home Page",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 572,
+          "read_elapsed": 1.5,
+          "read_reused": false,
+          "fact_ok": false,
+          "missing_all": [
+            "WAL"
+          ],
+          "matched_any": [
+            []
+          ]
+        },
+        "ddg_first": {
+          "status": "ok",
+          "elapsed": 5.0,
+          "providers_attempted": [
+            "duckduckgo_html"
+          ],
+          "fallback_used": false,
+          "provider_errors": [],
+          "top_url": "https://sqlite.org/wal.html",
+          "top_title": "Write-Ahead Logging - SQLite",
+          "read_ok": true,
+          "read_error": "",
+          "read_kind": "web_page",
+          "chars": 6000,
+          "read_elapsed": 4.34,
+          "read_reused": false,
+          "fact_ok": true,
+          "missing_all": [],
+          "matched_any": [
+            [
+              "write-ahead",
+              "checkpoint"
+            ]
+          ]
+        }
+      }
+    }
+  ],
+  "summary": {
+    "fallback": {
+      "cases": 10,
+      "search_ok": 10,
+      "read_ok": 7,
+      "fact_ok": 1,
+      "provider_calls": 10,
+      "fallbacks": 0,
+      "latency_p50": 2.74,
+      "latency_p95": 4.03,
+      "latency_mean": 3.05
+    },
+    "ddg_first": {
+      "cases": 10,
+      "search_ok": 10,
+      "read_ok": 8,
+      "fact_ok": 6,
+      "provider_calls": 10,
+      "fallbacks": 0,
+      "latency_p50": 4.52,
+      "latency_p95": 6.49,
+      "latency_mean": 4.89
+    }
+  },
+  "completed_at": "2026-10-29T14:35:23.920958Z"
+}

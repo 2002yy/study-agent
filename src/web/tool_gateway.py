@@ -120,16 +120,33 @@ def _dedupe_results(items: list[dict[str, str]], limit: int) -> list[dict[str, s
     return result
 
 
-SEARCH_STRATEGIES = ("fallback", "merge")
+SEARCH_STRATEGIES = ("fallback", "merge", "ddg_first")
+_DEFAULT_SEARCH_STRATEGY = "fallback"
 _MERGE_TRACE_KEYS = (
     "search_strategy",
     "providers_attempted",
     "providers_skipped",
+    "provider_counts",
+    "fallback_used",
     "merged_count",
     "duplicate_count",
-    "provider_counts",
     "ranked_urls",
 )
+
+
+def _configured_search_strategy() -> str:
+    """The strategy the process asks for, defaulting to the unchanged fallback.
+
+    Deployment needs a way to switch strategy without editing code, but an
+    unknown value must fail loudly instead of silently running something else.
+    """
+
+    raw = (os.getenv("WEB_SEARCH_STRATEGY") or _DEFAULT_SEARCH_STRATEGY).strip().lower()
+    if raw not in SEARCH_STRATEGIES:
+        raise ValueError(
+            f"unknown WEB_SEARCH_STRATEGY {raw!r}; expected one of {list(SEARCH_STRATEGIES)}"
+        )
+    return raw
 
 
 def merge_trace(outcome: dict[str, Any]) -> dict[str, Any]:
@@ -224,18 +241,19 @@ class GeneralWebGateway:
         github_reader: GitHubSourceReader | None = None,
         github_snapshotter: GitHubRepositorySnapshotter | None = None,
         *,
-        search_strategy: str = "fallback",
+        search_strategy: str | None = None,
     ) -> None:
-        if search_strategy not in SEARCH_STRATEGIES:
+        strategy = search_strategy or _configured_search_strategy()
+        if strategy not in SEARCH_STRATEGIES:
             raise ValueError(
-                f"unknown search strategy {search_strategy!r}; "
+                f"unknown search strategy {strategy!r}; "
                 f"expected one of {list(SEARCH_STRATEGIES)}"
             )
         # The default stays the sequential fallback. "merge" is the Quality-0
-        # candidate arm (E2) and must be requested explicitly: an experiment that
-        # changes the production search path by accident would make every other
-        # comparison meaningless.
-        self.search_strategy = search_strategy
+        # candidate arm (E2) and "ddg_first" is the Search-1 candidate; both must
+        # be requested explicitly: an experiment that changes the production
+        # search path by accident would make every other comparison meaningless.
+        self.search_strategy = strategy
         self.github_reader = github_reader or GitHubSourceReader()
         self.github_snapshotter = github_snapshotter or GitHubRepositorySnapshotter()
 
@@ -437,6 +455,8 @@ class GeneralWebGateway:
 
         if self.search_strategy == "merge":
             return self._search_merged(query, limit, provider_timeout, deadline)
+        if self.search_strategy == "ddg_first":
+            return self._search_ddg_first(query, limit, provider_timeout, deadline)
 
         def remaining_timeout(provider: str) -> float:
             remaining = deadline - time.monotonic()
@@ -506,6 +526,76 @@ class GeneralWebGateway:
             "results": _dedupe_results(results, limit),
             "provider_errors": provider_errors,
             "providers_attempted": providers_attempted,
+        }
+
+    def _search_ddg_first(
+        self,
+        query: str,
+        limit: int,
+        provider_timeout: float,
+        deadline: float,
+    ) -> dict[str, Any]:
+        """D2: DuckDuckGo's own ranking first, Bing only when it is empty.
+
+        Search-1 measured this network on 31 real questions: DuckDuckGo's own
+        first result was an answer-bearing page in 30/31 cases, while the
+        SearXNG/Bing first result was a site homepage or a dictionary entry in
+        30/31. Asking a second engine for the same query cost a request and
+        about one second of P50 latency and did not change the first result, so
+        the second engine is asked only when the first produced nothing.
+
+        SearXNG is deliberately not consulted here: its results were the worst
+        of the three in that run. A deployment that depends on its aggregation
+        keeps ``fallback``.
+        """
+
+        provider_errors: list[str] = []
+        providers_attempted: list[str] = []
+        providers_skipped: list[dict[str, str]] = []
+        provider_counts: dict[str, int] = {}
+        results: list[dict[str, str]] = []
+        fallback_used = False
+
+        def remaining(provider: str) -> float:
+            left = deadline - time.monotonic()
+            if left < 0.25:
+                provider_errors.append(f"{provider}:search_budget_exhausted")
+                return 0.0
+            return min(provider_timeout, left)
+
+        plan = (
+            ("duckduckgo_html", "WEB_ENABLE_DUCKDUCKGO", self._search_duckduckgo),
+            ("bing_rss", "WEB_ENABLE_BING_RSS", self._search_bing_rss),
+        )
+        for index, (name, flag, fetch) in enumerate(plan):
+            if not _env_flag(flag, default=True):
+                provider_errors.append(f"{name}:provider_disabled")
+                providers_skipped.append({"provider": name, "reason": "provider_disabled"})
+                continue
+            timeout = remaining(name)
+            if not timeout:
+                providers_skipped.append(
+                    {"provider": name, "reason": "search_budget_exhausted"}
+                )
+                continue
+            providers_attempted.append(name)
+            rows, error = fetch(query, limit, timeout)
+            provider_counts[name] = len(rows)
+            if error:
+                provider_errors.append(error)
+            if rows:
+                results = rows
+                fallback_used = index > 0
+                break
+
+        return {
+            "results": _dedupe_results(results, limit),
+            "provider_errors": provider_errors,
+            "providers_attempted": providers_attempted,
+            "search_strategy": self.search_strategy,
+            "providers_skipped": providers_skipped,
+            "provider_counts": provider_counts,
+            "fallback_used": fallback_used,
         }
 
     def _search_merged(
