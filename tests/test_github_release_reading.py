@@ -123,7 +123,9 @@ def test_the_gateway_passes_the_read_timeout_to_the_github_reader():
     gateway = GeneralWebGateway(github_reader=FakeReader())
     gateway.read("https://github.com/o/r/releases", timeout=6.0)
 
-    assert captured["timeout"] == 6.0
+    # The budget is a deadline, so a few microseconds are already gone by the
+    # time the reader sees it; equality would be a timing assertion.
+    assert 5.9 <= float(captured["timeout"]) <= 6.0
 
 
 def test_a_release_read_gets_the_dedicated_default_budget_when_none_is_given(monkeypatch):

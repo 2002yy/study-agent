@@ -666,13 +666,15 @@ class GeneralWebGateway:
         )
         if official is not None:
             return official
-        # The article fetcher takes whole seconds, so it needs a whole second
-        # left to be worth starting at all.
-        if remaining() < 1.0:
+        # fetch_article_read_result takes whole seconds. A budget that is still
+        # within rounding distance of one second is enough to start; only a
+        # sub-half-second remainder means the read is really out of time.
+        left = remaining()
+        if left < 0.5:
             return exhausted()
         result = fetch_article_read_result(
             value,
-            timeout=max(1, int(remaining())),
+            timeout=max(1, int(left)),
             max_chars=max(500, min(max_chars, 20_000)),
         )
         if not result.ok:
