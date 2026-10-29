@@ -1,0 +1,42 @@
+{
+  "question": "vLLM GitHub repository latest release",
+  "search": {
+    "elapsed": 4.66,
+    "status": "ok",
+    "providers_attempted": [
+      "bing_rss",
+      "duckduckgo_html"
+    ],
+    "top_urls": [
+      "https://releasealert.dev/github/vllm-project/vllm",
+      "https://github.com/vllm-project/vllm",
+      "https://github.com/vllm-project/vllm/releases",
+      "https://docs.vllm.com.cn/en/latest/",
+      "https://vllm.ai/",
+      "https://docs.vllm.com.cn/en/latest/index.html"
+    ],
+    "chosen": "https://github.com/vllm-project/vllm/releases"
+  },
+  "read_20s": {
+    "elapsed": 15.88,
+    "ok": true,
+    "error": "",
+    "kind": "releases",
+    "latest": "v0.32.0",
+    "content": "vllm-project/vllm releases (newest first):\n- v0.32.0 (v0.32.0) published 2026-10-18\n- v0.31.0 (v0.31.0) published 2026-10-05\n- v0.30.0 (v0.30.0) published 2026-09-22\n- v0.29.0 (v0.29.0) published 2026-09-09\n- v0.28.0 (v0.28.0) published 2026-08-26\nNewest release: v0.32.0\nLatest stable release: v0.32.0"
+  },
+  "read_6s": {
+    "elapsed": 8.5,
+    "ok": false,
+    "error": "github_read_timeout"
+  },
+  "cross_check_list": {
+    "elapsed": 12.62,
+    "ok": true,
+    "latest_stable": "v0.32.0",
+    "newest": "v0.32.0"
+  },
+  "recorded_at": "2026-10-29",
+  "source_query_set": "Search-2 fact-check N07",
+  "notes": "Read budget 20 s succeeds; 6 s returns github_read_timeout at ~8.5 s wall clock (urllib can only bound one operation, so the deadline is checked per 64 KiB chunk)."
+}

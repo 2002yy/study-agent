@@ -248,6 +248,22 @@ def _canonical_read_error_code(reason: str) -> str:
     return _READ_ERROR_CODE_BY_REASON.get(value, "other")
 
 
+def _github_release_default_timeout() -> float:
+    """Budget for a GitHub release read when the caller names none.
+
+    A release read is one API call with a known shape, and on a slow network it
+    is the read most likely to need more than the generic ten seconds. An
+    explicit caller timeout always wins, so a research deadline is never
+    exceeded by this default.
+    """
+
+    try:
+        value = float(os.getenv("WEB_GITHUB_RELEASES_TIMEOUT_SECONDS", "15"))
+    except ValueError:
+        value = 15.0
+    return max(5.0, min(value, 30.0))
+
+
 class GeneralWebGateway:
     """Expose bounded search, page reading, and GitHub browsing to model tools."""
 
@@ -705,14 +721,56 @@ class GeneralWebGateway:
         value = str(url or "").strip()
         from src.web.research.official_resolver import read_official_metadata
 
-        official = read_official_metadata(value, timeout=timeout or 10, max_chars=max_chars)
+        # One budget for the whole read, not one budget per stage: the metadata
+        # probe, the GitHub reader and the article fetcher must not each get the
+        # caller's timeout, or a 6 s read can take 18 s.
+        if timeout is not None:
+            budget = float(timeout)
+        elif self.github_reader.supports(value) and "/releases" in value:
+            budget = _github_release_default_timeout()
+        else:
+            budget = 10.0
+        deadline = time.monotonic() + max(0.5, budget)
+
+        def remaining() -> float:
+            return deadline - time.monotonic()
+
+        def exhausted() -> dict[str, Any]:
+            # A stage must not start once the read has no time left: the old
+            # floor (max(0.5, ...)) let an exhausted budget open a fresh network
+            # request, so a 6 s read could still run an article fetch.
+            return {
+                "ok": False,
+                "url": value,
+                "error": "read_timeout",
+                "error_code": "timeout",
+            }
+
+        # GitHub URLs are read by the GitHub reader. Probing the official-metadata
+        # resolver first would spend part of the budget on a stage that cannot
+        # serve them.
+        if self.github_reader.supports(value):
+            if remaining() <= 0.05:
+                return exhausted()
+            return self.github_reader.read(
+                value, max_chars=max_chars, timeout=remaining()
+            )
+        if remaining() <= 0.05:
+            return exhausted()
+        official = read_official_metadata(
+            value, timeout=remaining(), max_chars=max_chars
+        )
         if official is not None:
             return official
-        if self.github_reader.supports(value):
-            return self.github_reader.read(value, max_chars=max_chars)
+        # fetch_article_read_result takes whole seconds. A budget that is still
+        # within rounding distance of one second is enough to start; only a
+        # sub-half-second remainder means the read is really out of time.
+        left = remaining()
+        if left < 0.5:
+            return exhausted()
         result = fetch_article_read_result(
             value,
-            timeout=max(1, int(timeout if timeout is not None else 10)),
+            timeout=max(1, int(left)),
             max_chars=max(500, min(max_chars, 20_000)),
         )
         if not result.ok:

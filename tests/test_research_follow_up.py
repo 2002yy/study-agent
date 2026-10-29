@@ -40,7 +40,7 @@ class FollowUpGateway:
             },
         ][:max_items]
 
-    def read(self, url: str, *, max_chars: int):
+    def read(self, url: str, *, max_chars: int, timeout: float | None = None):
         self.read_calls += 1
         if not self.read_ok and "example.com/python" in url:
             return {"ok": False, "url": url, "error": "gone"}

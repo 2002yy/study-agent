@@ -150,7 +150,7 @@ def test_general_gateway_dispatches_github_reads_and_searches():
         def supports(self, url: str) -> bool:
             return "github.com" in url
 
-        def read(self, url: str, *, max_chars: int):
+        def read(self, url: str, *, max_chars: int, timeout: float | None = None):
             return {"ok": True, "kind": "file", "url": url, "content": "source"}
 
         def search_repository(self, repo_url: str, query: str, *, max_results: int):
