@@ -1134,6 +1134,12 @@ class WebLookupRepository:
             isinstance(read_summary, dict)
             and int(read_summary.get("failed") or 0) > 0
         )
+        reads_failed = int(read_summary.get("failed") or 0) if isinstance(
+            read_summary, dict
+        ) else 0
+        reads_succeeded = int(read_summary.get("successful") or 0) if isinstance(
+            read_summary, dict
+        ) else 0
         if (
             provider_status == "partial"
             and not current_provider_failure
@@ -1142,8 +1148,18 @@ class WebLookupRepository:
             provider_status = "found" if items else "empty"
 
         now = utc_now()
+        # "completed" means the run produced research content. A run whose every
+        # read failed has only candidate links: it is a partial result with a
+        # preserved reason, not a success with an empty body.
+        reads_attempted_and_all_failed = (
+            reads_failed > 0
+            and reads_succeeded == 0
+            and not str(source_block or "").strip()
+        )
         status = final_status or (
-            "partial" if provider_status == "insufficient" else "completed"
+            "partial"
+            if provider_status == "insufficient" or reads_attempted_and_all_failed
+            else "completed"
         )
         # The terminal write is the only place replies may be frozen, and it must
         # not drop a reply another writer appended meanwhile. So each attempt
