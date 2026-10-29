@@ -1,0 +1,259 @@
+{
+  "schema_version": "search-1-queries-v1",
+  "frozen_at": "2026-10-29",
+  "source": "Search-1 real retrieval evaluation. Ten cases reused verbatim from qp1c_queries_v1.json (frozen 2026-10-28) so the earlier 7/10 result stays comparable; 21 new cases cover Chinese technical questions, GitHub projects, software versions and multi-hop facts. Anchors and focus tokens are written from the question text only, before any search result was seen.",
+  "notes": [
+    "anchors must stay multi-character: single CJK characters matched dictionary pages in the earlier round.",
+    "category is used only for reporting, never for ranking or gating."
+  ],
+  "cases": [
+    {
+      "id": "A01",
+      "category": "game",
+      "question": "《崩坏：星穹铁道》当前版本是多少？上下半卡池分别是谁？下一版本已经官宣了什么？",
+      "query": "崩坏星穹铁道 当前版本 卡池 上半 下半",
+      "anchors": ["星穹铁道", "崩坏", "卡池", "版本"],
+      "focus": ["当前", "上半", "下半", "官宣"]
+    },
+    {
+      "id": "B01",
+      "category": "game",
+      "question": "《星铁》黄泉队里的千冶·刃应该用什么遗器？与其他辅助相比有什么优势？",
+      "query": "星铁 千冶·刃 遗器 推荐 黄泉队",
+      "anchors": ["星铁", "星穹铁道", "千冶", "刃", "黄泉"],
+      "focus": ["遗器", "配装", "辅助", "优势"]
+    },
+    {
+      "id": "B02",
+      "category": "game",
+      "question": "《星铁》虚构叙事中，黄泉队、流萤队、Archer 队哪个更适合自动战斗？",
+      "query": "星铁 虚构叙事 黄泉队 自动战斗 表现",
+      "anchors": ["星铁", "星穹铁道", "黄泉", "流萤", "Archer"],
+      "focus": ["虚构叙事", "自动战斗", "配队"]
+    },
+    {
+      "id": "C01",
+      "category": "game",
+      "question": "《星铁》虚构叙事怎样才能拿满 60000 分？从敌人机制、配队、行动顺序和自动战斗策略分析。",
+      "query": "星铁 虚构叙事 当期 敌人机制 弱点",
+      "anchors": ["星铁", "星穹铁道", "虚构叙事"],
+      "focus": ["60000", "敌人", "配队", "自动战斗"]
+    },
+    {
+      "id": "D01",
+      "category": "game",
+      "question": "帮我研究当前《星铁》虚构叙事的配队。",
+      "query": "星穹铁道 虚构叙事 配队 推荐 当前期",
+      "anchors": ["星铁", "星穹铁道", "虚构叙事"],
+      "focus": ["配队", "当前"]
+    },
+    {
+      "id": "A04",
+      "category": "ai_releases",
+      "question": "最近一周有哪些值得关注的开源 AI 模型发布？哪些提供了可下载权重？",
+      "query": "open source AI model releases this week October 2026",
+      "anchors": ["open source", "model", "release"],
+      "focus": ["weights", "week", "hugging"]
+    },
+    {
+      "id": "A05",
+      "category": "software_version",
+      "question": "Python 和 Node.js 当前稳定版本分别是多少？近期有哪些重要变化？",
+      "query": "Python latest stable release version 2026",
+      "anchors": ["python"],
+      "focus": ["release", "version", "stable"]
+    },
+    {
+      "id": "B04",
+      "category": "game",
+      "question": "《异星工厂》《戴森球计划》《幸福工厂》有什么区别？哪个更适合长期单人游玩？",
+      "query": "异星工厂 戴森球计划 幸福工厂 区别 对比",
+      "anchors": ["异星工厂", "戴森球计划", "幸福工厂"],
+      "focus": ["区别", "单人", "对比"]
+    },
+    {
+      "id": "B05",
+      "category": "hardware",
+      "question": "RTX 5060 Laptop 8GB 本地运行 9B 语言模型，Q4、Q5、Q8 哪种更合适？",
+      "query": "9B model GGUF Q4 Q5 Q8 VRAM usage 8GB",
+      "anchors": ["9b", "gguf", "vram"],
+      "focus": ["q4", "q5", "q8", "quantization"]
+    },
+    {
+      "id": "C04",
+      "category": "ml_research",
+      "question": "研究轻量化遥感变化检测模型近年来的发展，比较精度、参数量、FLOPs 和实际部署成本。",
+      "query": "轻量化遥感变化检测 模型 综述 知识蒸馏 剪枝",
+      "anchors": ["遥感", "变化检测"],
+      "focus": ["参数量", "flops", "精度", "部署"]
+    },
+    {
+      "id": "N01",
+      "category": "chinese_tech",
+      "question": "PyTorch 在 Windows 上如何启用 CUDA 加速？需要匹配哪些版本？",
+      "query": "PyTorch Windows CUDA 版本 匹配 安装",
+      "anchors": ["PyTorch", "CUDA"],
+      "focus": ["Windows", "安装", "版本"]
+    },
+    {
+      "id": "N02",
+      "category": "chinese_tech",
+      "question": "FastAPI 中如何用依赖注入实现数据库会话管理？",
+      "query": "FastAPI 依赖注入 数据库 会话 SQLAlchemy",
+      "anchors": ["FastAPI", "SQLAlchemy"],
+      "focus": ["依赖注入", "会话"]
+    },
+    {
+      "id": "N03",
+      "category": "chinese_tech",
+      "question": "Rust 的 async 运行时 tokio 和 async-std 有什么区别？",
+      "query": "Rust tokio async-std 区别 对比",
+      "anchors": ["tokio", "async-std"],
+      "focus": ["区别", "Rust"]
+    },
+    {
+      "id": "N04",
+      "category": "chinese_tech",
+      "question": "Docker 容器内的 Python 应用如何正确配置时区？",
+      "query": "Docker Python 容器 时区 TZ 配置",
+      "anchors": ["Docker", "Python"],
+      "focus": ["时区", "容器"]
+    },
+    {
+      "id": "N05",
+      "category": "chinese_tech",
+      "question": "PostgreSQL 中 VACUUM FULL 和普通 VACUUM 有什么区别？",
+      "query": "PostgreSQL VACUUM FULL 区别 锁表",
+      "anchors": ["PostgreSQL", "VACUUM"],
+      "focus": ["区别", "锁"]
+    },
+    {
+      "id": "N06",
+      "category": "github_project",
+      "question": "GitHub 上有哪些活跃的开源 RAG 框架？比较 LangChain、LlamaIndex 和 RAGFlow。",
+      "query": "open source RAG framework LangChain LlamaIndex RAGFlow comparison",
+      "anchors": ["RAG", "LangChain", "LlamaIndex"],
+      "focus": ["framework", "comparison"]
+    },
+    {
+      "id": "N07",
+      "category": "github_project",
+      "question": "vLLM 项目的 GitHub 仓库地址和最新 release 是什么？",
+      "query": "vLLM GitHub repository latest release",
+      "anchors": ["vLLM", "github"],
+      "focus": ["release", "repository"]
+    },
+    {
+      "id": "N08",
+      "category": "github_project",
+      "question": "Ollama 支持哪些量化格式？GitHub 文档在哪里？",
+      "query": "Ollama quantization GGUF support GitHub docs",
+      "anchors": ["Ollama", "GGUF"],
+      "focus": ["quantization", "docs"]
+    },
+    {
+      "id": "N09",
+      "category": "github_project",
+      "question": "Astral 的 uv 和 pip 在依赖解析速度上差多少？",
+      "query": "astral-sh uv pip dependency resolution benchmark",
+      "anchors": ["astral", "pip"],
+      "focus": ["benchmark", "dependency"]
+    },
+    {
+      "id": "N10",
+      "category": "github_project",
+      "question": "Hugging Face Transformers 支持哪些多模态模型？",
+      "query": "Hugging Face Transformers multimodal models supported",
+      "anchors": ["Transformers", "multimodal", "Hugging Face"],
+      "focus": ["models", "supported"]
+    },
+    {
+      "id": "N11",
+      "category": "software_version",
+      "question": "Node.js 当前 LTS 版本号是多少？",
+      "query": "Node.js current LTS version",
+      "anchors": ["Node.js", "LTS"],
+      "focus": ["version", "current"]
+    },
+    {
+      "id": "N12",
+      "category": "software_version",
+      "question": "React 最新稳定版本是多少？",
+      "query": "React latest stable version release",
+      "anchors": ["React"],
+      "focus": ["version", "stable"]
+    },
+    {
+      "id": "N13",
+      "category": "software_version",
+      "question": "PostgreSQL 最新主版本是什么？",
+      "query": "PostgreSQL latest major version release",
+      "anchors": ["PostgreSQL"],
+      "focus": ["version", "release"]
+    },
+    {
+      "id": "N14",
+      "category": "software_version",
+      "question": "TypeScript 5.x 相比 4.x 有哪些破坏性变更？",
+      "query": "TypeScript 5 breaking changes migration guide",
+      "anchors": ["TypeScript", "breaking"],
+      "focus": ["migration", "changes"]
+    },
+    {
+      "id": "N15",
+      "category": "fact",
+      "question": "截至 2026 年，全球最快的高铁运营速度是多少？在哪条线路上？",
+      "query": "世界 最快 高铁 运营速度 线路",
+      "anchors": ["高铁", "运营速度"],
+      "focus": ["最快", "线路"]
+    },
+    {
+      "id": "N16",
+      "category": "fact",
+      "question": "《黑神话：悟空》的开发商是谁？公司总部在哪里？",
+      "query": "黑神话悟空 开发商 游戏科学 总部",
+      "anchors": ["黑神话", "游戏科学"],
+      "focus": ["开发商", "总部"]
+    },
+    {
+      "id": "N17",
+      "category": "fact",
+      "question": "诺贝尔物理学奖 2025 年授予了哪些科学家？",
+      "query": "2025 诺贝尔物理学奖 获奖者",
+      "anchors": ["诺贝尔", "物理学奖"],
+      "focus": ["2025", "获奖"]
+    },
+    {
+      "id": "N18",
+      "category": "fact",
+      "question": "国际空间站预计什么时候退役？",
+      "query": "国际空间站 退役 时间 计划",
+      "anchors": ["国际空间站"],
+      "focus": ["退役", "计划"]
+    },
+    {
+      "id": "N19",
+      "category": "docs",
+      "question": "SQLite 的 WAL 模式有什么优缺点？",
+      "query": "SQLite WAL mode advantages disadvantages",
+      "anchors": ["SQLite", "WAL"],
+      "focus": ["advantages", "mode"]
+    },
+    {
+      "id": "N20",
+      "category": "docs",
+      "question": "Nginx 的 proxy_cache 如何配置缓存过期时间？",
+      "query": "Nginx proxy_cache 配置 过期时间",
+      "anchors": ["Nginx", "proxy_cache"],
+      "focus": ["缓存", "配置"]
+    },
+    {
+      "id": "N21",
+      "category": "docs",
+      "question": "Kubernetes 的 HPA 和 VPA 有什么区别？",
+      "query": "Kubernetes HPA VPA 区别",
+      "anchors": ["Kubernetes", "HPA", "VPA"],
+      "focus": ["区别"]
+    }
+  ]
+}

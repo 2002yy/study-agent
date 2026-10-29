@@ -1,0 +1,53 @@
+{
+  "schema_version": "search-1-audit-v2",
+  "audited_at": "2026-10-29",
+  "capture": "docs/research_quality/SEARCH_1_CAPTURE.json",
+  "replay": "docs/research_quality/SEARCH_1_REPLAY.json",
+  "method": "Manual inspection of the top-1 delivered result per arm, from the stored title and URL. The label is about whether the page can answer the asked question, not whether it mentions the entity. One auditor, 31 cases x 5 arms, 155 rows; every row can be re-derived from the capture.",
+  "labels": {
+    "answer": "a guide / release / comparison / documentation page that is expected to contain the specific answer",
+    "topic_only": "topically correct (official homepage, portal, docs index) but carrying no specific answer",
+    "wrong": "unrelated, a dictionary or encyclopedia entry for a single word, a mirror or a fan site"
+  },
+  "why_manual": "The keyword rule saturates on a 12-row pool: a random draw of six rows already 'hits' in 0.96 (loose rule) / 0.56 (strict rule) of cases, so it cannot rank the arms. The manual label is a judgement, not a truth oracle, and it is unblinded and single-auditor; it is used because it is the only signal here that separates a homepage from a page that answers.",
+  "arms": {
+    "A": "production fallback: SearXNG first, then Bing, then DDG (31/31 answered by SearXNG)",
+    "B": "merge, Bing pool first, no rerank",
+    "D": "merge, DuckDuckGo pool first, no rerank",
+    "C_prod": "merge + production _rank_merged (assess_sources on the planned query)",
+    "C_bigram": "merge + candidate query-ngram coverage ranking"
+  },
+  "rows": [
+    {"id": "A01", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B stop at the official cloud portal; D and both rerankers reach banner-schedule pages."},
+    {"id": "B01", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return the Baidu entry for the single character 星."},
+    {"id": "B02", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return the Baidu entry for 星."},
+    {"id": "C01", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return the Baidu entry for 星."},
+    {"id": "D01", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return the Baidu entry for 星."},
+    {"id": "A04", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return the Baidu entry for the word open."},
+    {"id": "A05", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "python.org home vs python.org/downloads."},
+    {"id": "B04", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return the Baidu entry for the single character 异."},
+    {"id": "B05", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return a small-model review without the quantization question; D returns a GGUF/VRAM guide."},
+    {"id": "C04", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return the Baidu entry for the single character 轻."},
+    {"id": "N01", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer"},
+    {"id": "N02", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer"},
+    {"id": "N03", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer"},
+    {"id": "N04", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer"},
+    {"id": "N05", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer"},
+    {"id": "N06", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return the Baidu entry for the word open."},
+    {"id": "N07", "A": "answer", "B": "answer", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "The only case where A answers: the repository page itself."},
+    {"id": "N08", "A": "topic_only", "B": "topic_only", "D": "topic_only", "C_prod": "wrong", "C_bigram": "wrong", "note": "DuckDuckGo failed for this query (no rows); the pool is Bing only, so D falls back to the Ollama homepage. The rerankers promote the Windows download page, which is not the quantization documentation."},
+    {"id": "N09", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B land on astral.fan, an unrelated fan site; D reaches docs.astral.sh."},
+    {"id": "N10", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer"},
+    {"id": "N11", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer"},
+    {"id": "N12", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "wrong", "note": "C_bigram promotes github.com/react/react, which is not the official React repository (facebook/react). Query coverage alone cannot tell them apart."},
+    {"id": "N13", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "topic_only", "note": "D returns the official release notes; C_bigram returns an install tutorial."},
+    {"id": "N14", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer"},
+    {"id": "N15", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return the Baidu entry for 世界."},
+    {"id": "N16", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return the Baidu entry for the single character 黑."},
+    {"id": "N17", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return the Baidu entry for the year 2025."},
+    {"id": "N18", "A": "wrong", "B": "wrong", "D": "answer", "C_prod": "answer", "C_bigram": "answer", "note": "A/B return an unrelated tax-office page for this query."},
+    {"id": "N19", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer"},
+    {"id": "N20", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer"},
+    {"id": "N21", "A": "topic_only", "B": "topic_only", "D": "answer", "C_prod": "answer", "C_bigram": "answer"}
+  ]
+}

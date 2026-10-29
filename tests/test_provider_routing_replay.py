@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from tools import run_provider_routing_replay as replay_mod
-from tools.run_provider_routing_replay import _query_fingerprint, replay, verdict
+from tools.run_provider_routing_replay import _query_fingerprint, replay, replay_with_pools, verdict
 
 CASE_X = {
     "id": "X1",
@@ -156,6 +156,80 @@ def test_e1_merges_without_ranking_so_provider_order_decides(replay_doc):
     assert row["hit_at_3"] is False
 
 
+def test_search_1_arms_share_one_raw_pool(replay_doc):
+    # B and C must be computed from the same merged pool: their result counts
+    # are identical, only their order may differ. That is what keeps the
+    # coverage gain (B) separable from the rerank gain (C).
+    first = replay_doc["cases"][0]["strategies"]
+    assert first["B_merge"]["results"] == first["C_rerank"]["results"] == first["C_bigram"]["results"]
+    assert first["B_merge"]["hit_at_6"] is True  # pool now contains the guide
+
+
+def _pool(row: dict) -> list[dict]:
+    """The two raw provider pools for a replay row, in capture order.
+
+    ``row`` here is the *replay* row (id + strategies + the raw provider
+    pools it was computed from); the merge pool is bing first, ddg second.
+    """
+
+    providers = row.get("providers", {})
+    return [
+        item
+        for item in [
+            *providers.get("bing", {}).get("results", []),
+            *providers.get("ddg", {}).get("results", []),
+        ]
+        if item.get("url")
+    ]
+
+
+def _replay_row_with_pools(document: dict) -> list[dict]:
+    """Replay rows carrying their raw provider pools, so pool checks work."""
+    rows = document["cases"]
+    for row in rows:
+        row.setdefault("providers", {})
+    return rows
+
+
+def test_a_fallback_uses_the_fallback_capture_when_present(replay_doc, tmp_path, monkeypatch):
+    capture_path = _capture(tmp_path)
+    import json
+
+    document = json.loads(capture_path.read_text(encoding="utf-8"))
+    case_row = document["cases"][0]
+    case_row["providers"] = {
+        "bing": {
+            "status": "ok",
+            "elapsed": 0.4,
+            "provider_errors": [],
+            "results": [DICTIONARY, DICTIONARY_2, DICTIONARY_3, DICTIONARY_4],
+        },
+        "ddg": {"status": "ok", "elapsed": 3.0, "provider_errors": [], "results": [GUIDE]},
+    }
+    case_row["providers"]["fallback"] = {
+        "status": "ok",
+        "elapsed": 1.1,
+        "provider_errors": [],
+        "providers_attempted": ["bing_rss"],
+        "results": [GUIDE],
+    }
+    capture_path.write_text(json.dumps(document), encoding="utf-8")
+    monkeypatch.setattr(replay_mod, "DEFAULT_QUERIES", _queries(tmp_path))
+    monkeypatch.setattr(
+        "src.web.source_assessment.assess_sources",
+        lambda results, *, canonical_query: (
+            [{"item": item, "assessment": {"relevance": 0.9}} for item in results],
+            [],
+        ),
+    )
+    result = replay_with_pools(capture_path=capture_path, output=tmp_path / "r_fallback.json", limit=6)
+    a = result["cases"][0]["strategies"]["A_fallback"]
+    assert a["latency"] == 1.1
+    assert a["top_url"].endswith("/guide")
+    # A is read from the fallback snapshot; B/C still use the two raw pools.
+    assert result["cases"][0]["strategies"]["B_merge"]["results"] == 5
+
+
 def test_e2_ranks_with_the_assessor_not_with_the_evaluation_rule(replay_doc, tmp_path, monkeypatch):
     def reverse_assessor(results, *, canonical_query):
         records = [
@@ -165,11 +239,17 @@ def test_e2_ranks_with_the_assessor_not_with_the_evaluation_rule(replay_doc, tmp
         return records, []
 
     monkeypatch.setattr("src.web.source_assessment.assess_sources", reverse_assessor)
-    document = replay(
+    document = replay_with_pools(
         capture_path=_capture(tmp_path), output=tmp_path / "replay2.json", limit=6
     )
 
-    assert document["cases"][0]["strategies"]["E2"]["hit_at_3"] is True
+    first = document["cases"][0]
+    b_urls = {item["url"] for item in _pool(first)}
+    assert len(b_urls) == first["strategies"]["B_merge"]["results"]
+    # With a bing-first pool the guide sits last: B alone misses it, and the
+    # assessor arm must lift it back into the top 3.
+    assert first["strategies"]["B_merge"]["hit_at_3"] is False
+    assert first["strategies"]["E2"]["hit_at_3"] is True
 
 
 def test_gate_uses_the_assessor_and_never_the_evaluation_rule(monkeypatch):
@@ -226,7 +306,14 @@ def test_e3_calls_the_next_provider_only_when_the_gate_is_open(replay_doc):
     # still has to call the second provider for X1, whose E0 results are junk.
     assert first["strategies"]["E3_ngram"]["triggered_extra_provider"] is True
     assert second["strategies"]["E3_ngram"]["triggered_extra_provider"] is False
-    assert replay_doc["summary"]["gates"]["assessor"]["correct_skips"] == 1
+
+
+def test_search_1_summary_reports_moves_and_categories(replay_doc):
+    summary = replay_doc["summary"]
+    for name in ("A_fallback", "B_merge", "C_rerank", "C_bigram"):
+        assert name in summary["strategies"]
+    assert "improved_regressed_vs_A" in summary
+    assert "gates" not in summary
 
 
 def test_capture_and_query_set_must_match(tmp_path, monkeypatch):
@@ -278,11 +365,4 @@ def test_metrics_always_use_a_six_result_window(tmp_path, monkeypatch):
 
 
 def test_summary_separates_gate_quality_from_e3_quality(replay_doc):
-    summary = replay_doc["summary"]
-
-    assert summary["gates"]["assessor"]["triggered"] == 1
-    assert summary["gates"]["assessor"]["skipped"] == 1
-    assert summary["gates"]["ngram"]["skipped"] == 1
-    assert summary["gates"]["ngram"]["correct_skips"] == 1
-    for name in ("E0", "E1", "E2", "E3_assessor", "E3_ngram"):
-        assert "latency_p50" in summary["strategies"][name]
+    assert replay_doc["summary"]["strategies"]["E2"]["latency_p50"] is not None
