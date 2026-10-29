@@ -564,6 +564,7 @@ class GeneralWebGateway:
 
         provider_errors: list[str] = []
         providers_attempted: list[str] = []
+        provider_counts: dict[str, int] = {}
         results: list[dict[str, str]] = []
         fallback_used = False
 
@@ -591,6 +592,7 @@ class GeneralWebGateway:
             if index > 0:
                 fallback_used = True
             rows, error = fetch(query, limit, timeout)
+            provider_counts[name] = len(rows)
             if error:
                 provider_errors.append(error)
             if rows:
@@ -601,6 +603,7 @@ class GeneralWebGateway:
             "results": _dedupe_results(results, limit),
             "provider_errors": provider_errors,
             "providers_attempted": providers_attempted,
+            "provider_counts": provider_counts,
             "search_strategy": self.search_strategy,
             "fallback_used": fallback_used,
         }

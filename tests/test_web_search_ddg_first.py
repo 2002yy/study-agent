@@ -104,6 +104,7 @@ def test_fallback_used_is_true_even_when_the_fallback_also_returns_nothing(monke
     assert payload["status"] == "unavailable"
     assert payload["fallback_used"] is True
     assert payload["providers_attempted"] == ["duckduckgo_html", "bing_rss"]
+    assert payload["provider_counts"] == {"duckduckgo_html": 0, "bing_rss": 0}
 
 
 def test_ddg_first_skips_a_disabled_primary_and_still_answers(monkeypatch):
