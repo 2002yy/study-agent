@@ -46,7 +46,24 @@ def test_source_assessment_confidence_uses_coverage_not_truth_claims():
         canonical_query="GPT-5.6 Sol",
     )
 
-    assert evidence_confidence(selected) == "high"
+    # Search candidates are not read-backed evidence.
+    assert evidence_confidence(selected) == "none"
+    read_backed = [{**record, "read": {"status": "read"}} for record in selected]
+    assert evidence_confidence(read_backed) == "high"
+
+
+def test_unread_candidates_cannot_inflate_one_unrelated_read():
+    selected, _ = assess_sources(
+        [
+            {"title": "星（汉语文字）", "url": "https://example.org/dictionary"},
+            {"title": "千冶·刃 遗器 黄泉队 攻略", "url": "https://example.org/guide"},
+        ],
+        canonical_query="星铁 千冶·刃 遗器 推荐 黄泉队",
+    )
+    selected[0]["read"] = {"status": "read", "content": "星的笔顺"}
+    assert evidence_confidence(selected) == "low"
+    selected[1]["read"] = {"status": "read", "content": "千冶·刃 遗器"}
+    assert evidence_confidence(selected) == "medium"
 
 
 def test_cjk_dictionary_page_no_longer_looks_relevant_to_an_entity_query():
