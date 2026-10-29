@@ -106,6 +106,23 @@ def _result_key(item: dict[str, str]) -> str:
     return (item.get("url") or item.get("title") or "").strip().casefold()
 
 
+def _provider_timeout(
+    deadline: float, limit: float, provider: str, errors: list[str]
+) -> float:
+    """Time left for one provider, and the shared "budget exhausted" report.
+
+    Every strategy needs the same two rules: never start a provider with less
+    than a quarter second left, and record why a provider was skipped. Keeping
+    one copy stops the strategies from drifting apart on that decision.
+    """
+
+    left = deadline - time.monotonic()
+    if left < 0.25:
+        errors.append(f"{provider}:search_budget_exhausted")
+        return 0.0
+    return min(limit, left)
+
+
 def _dedupe_results(items: list[dict[str, str]], limit: int) -> list[dict[str, str]]:
     seen: set[str] = set()
     result: list[dict[str, str]] = []
@@ -459,11 +476,7 @@ class GeneralWebGateway:
             return self._search_ddg_first(query, limit, provider_timeout, deadline)
 
         def remaining_timeout(provider: str) -> float:
-            remaining = deadline - time.monotonic()
-            if remaining < 0.25:
-                provider_errors.append(f"{provider}:search_budget_exhausted")
-                return 0.0
-            return min(provider_timeout, remaining)
+            return _provider_timeout(deadline, provider_timeout, provider, provider_errors)
 
         if searxng_enabled():
             providers_attempted.append("searxng")
@@ -551,17 +564,11 @@ class GeneralWebGateway:
 
         provider_errors: list[str] = []
         providers_attempted: list[str] = []
-        providers_skipped: list[dict[str, str]] = []
-        provider_counts: dict[str, int] = {}
         results: list[dict[str, str]] = []
         fallback_used = False
 
         def remaining(provider: str) -> float:
-            left = deadline - time.monotonic()
-            if left < 0.25:
-                provider_errors.append(f"{provider}:search_budget_exhausted")
-                return 0.0
-            return min(provider_timeout, left)
+            return _provider_timeout(deadline, provider_timeout, provider, provider_errors)
 
         plan = (
             ("duckduckgo_html", "WEB_ENABLE_DUCKDUCKGO", self._search_duckduckgo),
@@ -569,18 +576,16 @@ class GeneralWebGateway:
         )
         for index, (name, flag, fetch) in enumerate(plan):
             if not _env_flag(flag, default=True):
+                # The trace keeps the reason: a caller that sees a single-engine
+                # answer must be able to tell "the other engine was off" from
+                # "the other engine failed".
                 provider_errors.append(f"{name}:provider_disabled")
-                providers_skipped.append({"provider": name, "reason": "provider_disabled"})
                 continue
             timeout = remaining(name)
             if not timeout:
-                providers_skipped.append(
-                    {"provider": name, "reason": "search_budget_exhausted"}
-                )
                 continue
             providers_attempted.append(name)
             rows, error = fetch(query, limit, timeout)
-            provider_counts[name] = len(rows)
             if error:
                 provider_errors.append(error)
             if rows:
@@ -593,8 +598,6 @@ class GeneralWebGateway:
             "provider_errors": provider_errors,
             "providers_attempted": providers_attempted,
             "search_strategy": self.search_strategy,
-            "providers_skipped": providers_skipped,
-            "provider_counts": provider_counts,
             "fallback_used": fallback_used,
         }
 
@@ -625,11 +628,7 @@ class GeneralWebGateway:
         provider_counts: dict[str, int] = {}
 
         def remaining(provider: str) -> float:
-            left = deadline - time.monotonic()
-            if left < 0.25:
-                provider_errors.append(f"{provider}:search_budget_exhausted")
-                return 0.0
-            return min(provider_timeout, left)
+            return _provider_timeout(deadline, provider_timeout, provider, provider_errors)
 
         plan = (
             ("bing_rss", "WEB_ENABLE_BING_RSS", self._search_bing_rss),

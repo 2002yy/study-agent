@@ -100,10 +100,11 @@ def test_ddg_first_skips_a_disabled_primary_and_still_answers(monkeypatch):
     )
 
     assert calls == ["bing"]
-    assert payload["providers_skipped"] == [
-        {"provider": "duckduckgo_html", "reason": "provider_disabled"}
-    ]
+    assert payload["providers_attempted"] == ["bing_rss"]
     assert payload["fallback_used"] is True
+    # The disabled engine is still reported, so a single-engine answer is never
+    # mistaken for a merge that found only one source.
+    assert any("provider_disabled" in error for error in payload["provider_errors"])
 
 
 def test_ddg_first_reports_unavailable_only_when_every_provider_failed(monkeypatch):
