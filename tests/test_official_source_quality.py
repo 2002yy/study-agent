@@ -151,6 +151,7 @@ def test_a_read_without_claim_binding_exposes_unverified_excerpt_not_fake_no_rec
     assert "Research page text" in answer
     assert url in answer
     assert "尚未逐事实核实" in answer
+    assert "\n  摘录：" in answer
     assert audit["status"] == "read_excerpt_unverified"
     assert audit["assertion_refs"] == []
     assert audit["model_prose_published"] is False
