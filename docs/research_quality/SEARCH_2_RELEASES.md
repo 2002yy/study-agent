@@ -35,9 +35,35 @@
 
 N07 的事实词检查现在能通过（正文含 `vllm`、`release`、`v0.`、`Latest release`）。
 
-**但这暴露了一个新的真实问题**：本机访问 GitHub API 需要 10–24 s，而 Search-2 探针和部分研究路径只给 6–10 s。
-也就是说「读取器能读出 release」与「在预算内读出 release」是两件事。可行的处理（另行决定）：
-配置 `GITHUB_TOKEN`（提高限额；延迟未必改善）、给 GitHub 读取单独的预算、或对 release 读取使用更短超时 + 明确失败码。
+## N07 端到端验收（2026-10-29）
+
+问题：**「vLLM 最新版本是什么，什么时候发布？」** 全程真实网络，无模型调用。
+
+| 步骤 | 结果 |
+| --- | --- |
+| `search_exact`（merge 策略） | 4.05–6.14 s，6 条结果中第 3 条是 `github.com/vllm-project/vllm/releases` |
+| `read(url, timeout=20)` | **成功**，12.86–15.88 s，`kind=releases`，`latest=v0.32.0`，日期 `2026-10-18` |
+| 交叉核对 `/releases` 列表 | `latest_stable=v0.32.0`，与上一步一致 |
+| `read(url, timeout=6)` | **明确失败**：`github_read_timeout`，不再是「10 秒后悄悄成功」 |
+
+明细：`docs/research_quality/SEARCH_2_N07_ACCEPTANCE.json`。
+
+## 版本语义（review 5700500890 修正）
+
+| URL | 之前 | 现在 |
+| --- | --- | --- |
+| `/releases/latest` | 取列表第一条当最新 | 调 `/releases/latest`（GitHub 排除预发布与草稿），输出 `Latest stable release:` |
+| `/releases` | 第一条无条件称 latest | 输出 `Newest release:` 与 `Latest stable release:`，预发布行标 `[prerelease]`；无稳定版时明确说明 |
+| `/releases/tag/<tag>` | 称该 tag 为 latest | 输出 `Requested release: <tag>`，不再声称最新 |
+
+## 读取预算（review 5700500890 修正）
+
+- `GeneralWebGateway.read()` 现在把传入的 timeout 作为**整次读取**的预算：GitHub 分支直接使用它，不再先花一轮 official-metadata 探测；
+- `GitHubSourceReader.read(..., timeout=...)` → 每次请求的 socket 超时用剩余预算，并且**每 64 KiB 读块后检查截止时间**，所以慢速流式响应也会在预算耗尽时中止；
+- 超时 → `github_read_timeout`；GitHub 限流 → `github_rate_limited`（403 + `X-RateLimit-Remaining: 0`，或 429）。
+
+残留限制（必须如实说明）：urllib 的 socket 超时只约束单次操作，实测 6 s 预算在 8.5 s 才被切断。
+这是「一个读块的最长等待」造成的，不是预算没有生效：结果已经是明确失败，而不是迟到的成功。
 
 ## 验证
 

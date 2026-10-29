@@ -11,7 +11,7 @@ class FakeGitHubReader:
     def supports(self, url: str) -> bool:
         return "github.com" in url
 
-    def read(self, url: str, *, max_chars: int):
+    def read(self, url: str, *, max_chars: int, timeout: float | None = None):
         return {
             "ok": True,
             "kind": "repository",

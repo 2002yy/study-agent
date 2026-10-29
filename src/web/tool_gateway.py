@@ -609,14 +609,30 @@ class GeneralWebGateway:
         value = str(url or "").strip()
         from src.web.research.official_resolver import read_official_metadata
 
-        official = read_official_metadata(value, timeout=timeout or 10, max_chars=max_chars)
+        # One budget for the whole read, not one budget per stage: the metadata
+        # probe, the GitHub reader and the article fetcher must not each get the
+        # caller's timeout, or a 6 s read can take 18 s.
+        budget = float(timeout) if timeout is not None else 10.0
+        deadline = time.monotonic() + max(0.5, budget)
+
+        def remaining(floor: float = 0.5) -> float:
+            return max(floor, deadline - time.monotonic())
+
+        # GitHub URLs are read by the GitHub reader. Probing the official-metadata
+        # resolver first would spend part of the budget on a stage that cannot
+        # serve them.
+        if self.github_reader.supports(value):
+            return self.github_reader.read(
+                value, max_chars=max_chars, timeout=remaining()
+            )
+        official = read_official_metadata(
+            value, timeout=remaining(), max_chars=max_chars
+        )
         if official is not None:
             return official
-        if self.github_reader.supports(value):
-            return self.github_reader.read(value, max_chars=max_chars)
         result = fetch_article_read_result(
             value,
-            timeout=max(1, int(timeout if timeout is not None else 10)),
+            timeout=max(1, int(remaining(1.0))),
             max_chars=max(500, min(max_chars, 20_000)),
         )
         if not result.ok:

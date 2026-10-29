@@ -24,7 +24,7 @@ class _Gateway:
             ][:max_results],
         }
 
-    def read(self, url: str, *, max_chars: int):
+    def read(self, url: str, *, max_chars: int, timeout: float | None = None):
         return {
             "ok": True,
             "url": url,
