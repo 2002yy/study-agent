@@ -1147,7 +1147,10 @@ class WebLookupRepository:
         status = final_status or (
             "partial"
             if provider_status == "insufficient"
-            or (stop_reason == "source_reading_failed" and not source_block.strip())
+            or (
+                not source_block.strip()
+                and stop_reason in {"source_reading_failed", "search_candidates_only"}
+            )
             else "completed"
         )
         # The terminal write is the only place replies may be frozen, and it must
