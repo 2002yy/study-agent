@@ -11,6 +11,7 @@ from src.repositories.web_lookup_repository import WebLookupRepository
     ("provider_status", "stop_reason", "body", "expected"),
     [
         ("candidates_only", "source_reading_failed", "", "partial"),
+        ("candidates_only", "search_candidates_only", "", "partial"),
         ("found", "sources_read", "Read-backed factual text", "completed"),
         ("empty", "providers_returned_no_results", "", "completed"),
     ],
