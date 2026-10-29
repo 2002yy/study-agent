@@ -133,7 +133,7 @@ def test_official_gate_is_on_the_actual_chat_and_sqlite_exit(monkeypatch, tmp_pa
     assert restored.rag_snapshot["official_field_publication"]["published_answer_sha256"] == hashlib.sha256(restored.assistant_message.encode()).hexdigest()
 
 
-def test_a_read_without_claim_binding_exposes_unverified_excerpt_not_fake_no_records():
+def test_a_read_without_claim_binding_exposes_unverified_excerpt_not_fake_no_records(tmp_path):
     url = "https://example.org/research"
     calls = [
         {
@@ -161,6 +161,26 @@ def test_a_read_without_claim_binding_exposes_unverified_excerpt_not_fake_no_rec
     )
     assert candidate_audit["status"] == "abstained"
     assert "Research page text" not in candidate_only
+
+    # The same branch is used by the persisted ChatService research exit.
+    service, repository = _service(tmp_path)
+    prepared = service.start_turn(
+        ChatCommand(user_input="帮我研究这个问题", thread_id="read-excerpt")
+    )
+    prepared = replace(
+        prepared,
+        route={**prepared.route, "task_contract": {"task_intent": "research"}},
+        rag={**prepared.rag, "web_tools": {"enabled": True, "calls": calls}},
+    )
+    service.dependencies = replace(
+        service.dependencies,
+        chat=lambda *args, **kwargs: pytest.fail("no unsupported model generation"),
+    )
+    rendered = service.generate(prepared)
+    stored = repository.get_chat_turn(prepared.turn.id)
+    assert "Research page text" in rendered
+    assert stored.rag_snapshot["official_field_publication"]["status"] == "read_excerpt_unverified"
+    assert stored.rag_snapshot["official_field_publication"]["answer_generation_calls"] == 0
 
 
 def test_generic_research_without_bound_claims_abstains_and_never_generates_prose(tmp_path):
