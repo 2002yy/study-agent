@@ -133,6 +133,36 @@ def test_official_gate_is_on_the_actual_chat_and_sqlite_exit(monkeypatch, tmp_pa
     assert restored.rag_snapshot["official_field_publication"]["published_answer_sha256"] == hashlib.sha256(restored.assistant_message.encode()).hexdigest()
 
 
+def test_a_read_without_claim_binding_exposes_unverified_excerpt_not_fake_no_records():
+    url = "https://example.org/research"
+    calls = [
+        {
+            "name": "web_search",
+            "arguments": {"query": "research"},
+            "result": {"status": "ok", "results": [{"title": "Research page", "url": url}]},
+        },
+        {
+            "name": "web_read",
+            "arguments": {"url": url},
+            "result": {"ok": True, "url": url, "content": "Research page text from this read."},
+        },
+    ]
+    answer, audit = publish_official_fields("帮我研究这个问题", calls, "")
+    assert "Research page text" in answer
+    assert url in answer
+    assert "尚未逐事实核实" in answer
+    assert audit["status"] == "read_excerpt_unverified"
+    assert audit["assertion_refs"] == []
+    assert audit["model_prose_published"] is False
+
+    # Only a search snippet is not a read; it must not unlock a source excerpt.
+    candidate_only, candidate_audit = publish_official_fields(
+        "帮我研究这个问题", calls[:1], ""
+    )
+    assert candidate_audit["status"] == "abstained"
+    assert "Research page text" not in candidate_only
+
+
 def test_generic_research_without_bound_claims_abstains_and_never_generates_prose(tmp_path):
     service, repository = _service(tmp_path)
     prepared = service.start_turn(ChatCommand(user_input="最近的研究结论", thread_id="generic-gate"))
