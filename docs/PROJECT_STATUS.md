@@ -32,9 +32,9 @@ Search-1/Search-2 全部合并（#309–#314，main `340b512d` 含 #314），检
 | --- | --- |
 | 题集 | Search-2 冻结十题 `tests/fixtures/provider_routing/search_2_fact_checks_v1.json` |
 | 方法 | 真实产品两段式：`WebLookupService.lookup()` 产出 run，再由 `ChatService.start_turn/generate` 用该 run 回答；两臂只差 `WEB_SEARCH_STRATEGY` |
-| 预算 | 45 次请求上限（原 40，经批准 +5）／每进程 ¥5（两臂 ≤¥10）；实际 **42 次、¥2.40**，无重试 |
+| 预算 | 预算目标 45 次／≤¥10，但跨进程硬门未达标；留存记录 **42 次、¥2.40 预留口径**，无自动重试 |
 | 结果 | 有答案 10/10 vs 9/10；人工正确 8/10 vs 8/10；含引用 2/10 vs 6/10；相关度均值 0.34 vs 0.55；研究中位 7.8 s vs 9.1 s |
-| 报告 | `docs/research_quality/ANSWER_AB.md`，原始证据 `docs/research_quality/answer_ab/`，harness `tools/run_answer_quality_ab.py` |
+| 报告 | `docs/research_quality/ANSWER_AB.md` 与 `docs/research_quality/answer_ab/` 原始证据；一次性付费 harness 未保留（跨进程硬预算未达标） |
 | 结论 | DDG-first 的检索优势确实传到答案层（引用与版本正确性），但正确率未提升；两处 P1 都在答案链路，不在检索 |
 | 下一门 | **P1-A 研究意图轮次确定性拒答**（工具已读到正文仍 `answer_generation_calls=0`）与 **P1-B `completed` 但正文为空**；先写负控，再改判定 |
 
