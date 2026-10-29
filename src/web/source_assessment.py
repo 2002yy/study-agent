@@ -168,7 +168,9 @@ def assess_sources(
             selected=not reason,
             rejection_reason=reason,
             duplicate_of=duplicate_of,
-            worth_reading=not reason and bool(url) and directness != "unmatched",
+            # Lexical relevance is a hint, not a veto on reading a valid URL.
+            # A Chinese query can retrieve an English answer page.
+            worth_reading=not reason and bool(url),
         )
         record = {"item": dict(item), "assessment": assessment.to_dict()}
         (selected if assessment.selected else rejected).append(record)

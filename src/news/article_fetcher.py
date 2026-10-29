@@ -307,14 +307,13 @@ def fetch_article_read_result(
     _prune_article_cache(now)
 
     cached = _ARTICLE_CACHE.get(url)
-    if cached and now - cached[0] < _ARTICLE_CACHE_TTL:
+    if cached and cached[1] and now - cached[0] < _ARTICLE_CACHE_TTL:
         return ArticleReadResult(
-            ok=bool(cached[1]),
+            ok=True,
             text=cached[1],
             method=cached[2],
             author=cached[3],
             requested_url=url,
-            reason="" if cached[1] else "empty_cache_entry",
         )
 
     try:
@@ -322,7 +321,6 @@ def fetch_article_read_result(
             url, timeout=timeout, max_bytes=max_bytes
         )
         if reason:
-            _ARTICLE_CACHE[url] = (now, "", "", "")
             return ArticleReadResult(
                 ok=False,
                 requested_url=url,
@@ -374,7 +372,6 @@ def fetch_article_read_result(
                 final_url=fallback_url,
             )
 
-        _ARTICLE_CACHE[url] = (now, "", "", "")
         return ArticleReadResult(
             ok=False,
             requested_url=url,
