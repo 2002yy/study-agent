@@ -238,7 +238,9 @@ def evidence_confidence(selected_sources: list[dict[str, Any]]) -> str:
         return "high"
     # Two unrelated pages are not medium evidence merely by their count.
     related = sum(
-        assessment.get("directness") != "unmatched" for assessment in assessments
+        bool(assessment.get("directness"))
+        and assessment["directness"] != "unmatched"
+        for assessment in assessments
     )
     if direct >= 1 or related >= 2:
         return "medium"
