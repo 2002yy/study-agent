@@ -81,6 +81,31 @@ def test_ddg_first_falls_back_to_bing_when_ddg_returns_nothing(monkeypatch):
     assert payload["status"] == "ok"
 
 
+def test_fallback_used_is_true_even_when_the_fallback_also_returns_nothing(monkeypatch):
+    """A consulted fallback is a fallback, even if the whole search then fails."""
+
+    calls: list[str] = []
+
+    def ddg():
+        calls.append("ddg")
+        return [], "duckduckgo_html:URLError:<urlopen error timed out>"
+
+    def bing():
+        calls.append("bing")
+        return [], "bing_rss:http_status:503"
+
+    _patch(monkeypatch, bing, ddg)
+
+    payload = GeneralWebGateway(search_strategy="ddg_first").search_exact(
+        "python asyncio timeout", max_results=5
+    )
+
+    assert calls == ["ddg", "bing"]
+    assert payload["status"] == "unavailable"
+    assert payload["fallback_used"] is True
+    assert payload["providers_attempted"] == ["duckduckgo_html", "bing_rss"]
+
+
 def test_ddg_first_skips_a_disabled_primary_and_still_answers(monkeypatch):
     calls: list[str] = []
     monkeypatch.setenv("WEB_ENABLE_DUCKDUCKGO", "false")

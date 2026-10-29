@@ -585,12 +585,16 @@ class GeneralWebGateway:
             if not timeout:
                 continue
             providers_attempted.append(name)
+            # Set before the call: "the fallback engine was consulted" is true
+            # even when it then returns nothing. Deciding it from the rows would
+            # report a two-engine run as a single-engine answer.
+            if index > 0:
+                fallback_used = True
             rows, error = fetch(query, limit, timeout)
             if error:
                 provider_errors.append(error)
             if rows:
                 results = rows
-                fallback_used = index > 0
                 break
 
         return {
