@@ -46,7 +46,7 @@ def test_latest_uses_the_dedicated_endpoint_and_reports_the_stable_release(monke
     assert "Newest release" not in result["content"]
 
 
-def test_a_missing_latest_is_reported_as_no_release_not_as_an_http_error(monkeypatch):
+def test_a_missing_latest_is_reported_as_no_latest_stable_not_as_no_releases(monkeypatch):
     def fake_request_json(url: str, **_kwargs):
         raise HTTPError(url, 404, "Not Found", None, io.BytesIO(b""))
 
@@ -56,7 +56,27 @@ def test_a_missing_latest_is_reported_as_no_release_not_as_an_http_error(monkeyp
 
     assert result["ok"] is True
     assert result["latest"] is None
-    assert "no published releases" in result["content"]
+    # 404 from /releases/latest only means "no stable release"; the repository
+    # may still publish prereleases, so "no releases" would be a false claim.
+    assert "no latest stable release available" in result["content"]
+    assert "no published releases" not in result["content"]
+
+
+def test_the_listing_never_claims_absence_from_five_rows(monkeypatch):
+    def fake_request_json(url: str, **_kwargs):
+        return [
+            _release(f"v3.0.0-rc{index}", prerelease=True) for index in range(1, 6)
+        ]
+
+    monkeypatch.setattr(github_reader, "_request_json", fake_request_json)
+
+    result = GitHubSourceReader().read("https://github.com/o/r/releases")
+
+    assert result["latest"] is None
+    # A stable release may exist at row six: the claim must stay scoped.
+    assert "No stable release among the 5 retrieved." in result["content"]
+    assert "No stable release published." not in result["content"]
+    assert "has no published releases" not in result["content"]
 
 
 def test_the_listing_separates_stable_from_prerelease_and_does_not_call_it_latest(monkeypatch):
@@ -142,6 +162,31 @@ def test_an_explicit_timeout_beats_the_release_default(monkeypatch):
     assert 5.9 <= float(captured["timeout"]) <= 6.0
 
 
+def test_an_exhausted_budget_does_not_start_the_article_fetch(monkeypatch):
+    fetched: list[str] = []
+
+    def slow_official(_url, **_kwargs):
+        time.sleep(0.7)
+        return None
+
+    def article(*_args, **_kwargs):
+        fetched.append("article")
+        return None
+
+    monkeypatch.setattr(
+        "src.web.research.official_resolver.read_official_metadata", slow_official
+    )
+    monkeypatch.setattr("src.web.tool_gateway.fetch_article_read_result", article)
+
+    result = GeneralWebGateway().read("https://example.org/page", timeout=0.6)
+
+    assert result["ok"] is False
+    assert result["error"] == "read_timeout"
+    # The whole point: the article backend must not be started after the budget
+    # was spent by the metadata probe.
+    assert fetched == []
+
+
 def test_a_socket_timeout_is_reported_as_github_read_timeout(monkeypatch):
     def slow_request(*_args, **_kwargs):
         raise socket.timeout("timed out")
@@ -185,6 +230,27 @@ def test_rate_limiting_is_its_own_error(monkeypatch):
     result = GitHubSourceReader().read("https://github.com/o/r/releases")
 
     assert result["error"] == "github_rate_limited"
+
+
+def test_a_tag_with_a_slash_is_parsed_and_encoded_once(monkeypatch):
+    requested: list[str] = []
+
+    def fake_request_json(url: str, **_kwargs):
+        requested.append(url)
+        return _release("release/v1.0")
+
+    monkeypatch.setattr(github_reader, "_request_json", fake_request_json)
+
+    literal = GitHubSourceReader().read(
+        "https://github.com/o/r/releases/tag/release/v1.0"
+    )
+    encoded_target = parse_github_url(
+        "https://github.com/o/r/releases/tag/release%2Fv1.0"
+    )
+
+    assert literal["requested"] == "release/v1.0"
+    assert encoded_target is not None and encoded_target.tag == "release/v1.0"
+    assert requested[0].endswith("/releases/tags/release%2Fv1.0")
 
 
 def test_release_urls_parse_into_a_release_target():

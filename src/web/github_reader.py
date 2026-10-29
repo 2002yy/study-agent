@@ -16,7 +16,7 @@ import socket
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, quote, urlencode, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 _GITHUB_API = "https://api.github.com"
@@ -98,7 +98,10 @@ def parse_github_url(url: str) -> GitHubTarget | None:
     if len(segments) >= 3 and segments[2] == "releases":
         tag = ""
         if len(segments) >= 5 and segments[3] == "tag":
-            tag = segments[4]
+            # A tag can contain "/" (release/v1.0) or arrive percent-encoded
+            # (release%2Fv1.0). Take the whole suffix and decode exactly once;
+            # the API call re-encodes it with safe="".
+            tag = unquote("/".join(segments[4:]))
         elif len(segments) >= 4 and segments[3] == "latest":
             tag = "latest"
         return GitHubTarget(
@@ -184,7 +187,9 @@ class _ReadDeadline:
     """
 
     def __init__(self, seconds: float) -> None:
-        self.seconds = max(0.5, float(seconds))
+        # Do not inflate a tiny remaining budget: the gateway already refuses to
+        # start a stage with no time, and the reader must not hand itself more.
+        self.seconds = max(0.05, float(seconds))
         self.expires_at = time.monotonic() + self.seconds
 
     def remaining(self) -> float:
@@ -598,7 +603,7 @@ class GitHubSourceReader:
         if target.tag and target.tag != "latest":
             requested = target.tag
             payload = _request_json(
-                _api(f"/repos/{owner}/{repo}/releases/tags/{quote(target.tag)}"),
+                _api(f"/repos/{owner}/{repo}/releases/tags/{quote(target.tag, safe='')}"),
                 deadline=deadline,
             )
             releases = [payload] if isinstance(payload, dict) else []
@@ -636,7 +641,15 @@ class GitHubSourceReader:
             latest_stable = stable_rows[0]["tag"]
 
         if not rows:
-            content = f"{target.repository} has no published releases."
+            if target.tag == "latest":
+                # A 404 from /releases/latest only proves there is no latest
+                # *stable* release; the repository may still publish prereleases.
+                content = (
+                    f"{target.repository}: no latest stable release available "
+                    "(GitHub returns 404 when only prereleases exist)."
+                )
+            else:
+                content = f"{target.repository} has no published releases."
         else:
             lines = [f"{target.repository} releases (newest first):"]
             for row in rows:
@@ -655,7 +668,8 @@ class GitHubSourceReader:
                 if latest_stable:
                     lines.append(f"Latest stable release: {latest_stable}")
                 else:
-                    lines.append("No stable release published.")
+                    # Only five rows were retrieved; a sixth could be stable.
+                    lines.append("No stable release among the 5 retrieved.")
             if note:
                 lines.append(note)
             content = "\n".join(lines)

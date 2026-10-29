@@ -636,24 +636,43 @@ class GeneralWebGateway:
             budget = 10.0
         deadline = time.monotonic() + max(0.5, budget)
 
-        def remaining(floor: float = 0.5) -> float:
-            return max(floor, deadline - time.monotonic())
+        def remaining() -> float:
+            return deadline - time.monotonic()
+
+        def exhausted() -> dict[str, Any]:
+            # A stage must not start once the read has no time left: the old
+            # floor (max(0.5, ...)) let an exhausted budget open a fresh network
+            # request, so a 6 s read could still run an article fetch.
+            return {
+                "ok": False,
+                "url": value,
+                "error": "read_timeout",
+                "error_code": "timeout",
+            }
 
         # GitHub URLs are read by the GitHub reader. Probing the official-metadata
         # resolver first would spend part of the budget on a stage that cannot
         # serve them.
         if self.github_reader.supports(value):
+            if remaining() <= 0.05:
+                return exhausted()
             return self.github_reader.read(
                 value, max_chars=max_chars, timeout=remaining()
             )
+        if remaining() <= 0.05:
+            return exhausted()
         official = read_official_metadata(
             value, timeout=remaining(), max_chars=max_chars
         )
         if official is not None:
             return official
+        # The article fetcher takes whole seconds, so it needs a whole second
+        # left to be worth starting at all.
+        if remaining() < 1.0:
+            return exhausted()
         result = fetch_article_read_result(
             value,
-            timeout=max(1, int(remaining(1.0))),
+            timeout=max(1, int(remaining())),
             max_chars=max(500, min(max_chars, 20_000)),
         )
         if not result.ok:
