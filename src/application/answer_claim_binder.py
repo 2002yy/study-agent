@@ -52,7 +52,7 @@ _MAX_GROUNDING_CHARS = 12_000
 #: Shortest shared run (after normalization) that counts as the claim being
 #: present in the page. Long enough to exclude a shared topic word, short enough
 #: to survive ordinary rephrasing.
-_MIN_GROUNDING_RUN = 6
+_MIN_GROUNDING_RUN = 8
 _GROUNDING_KEEP = re.compile(r"[0-9a-z\u4e00-\u9fff]+")
 _GROUNDING_NUMBERS = re.compile(r"\d+(?:\.\d)+|\d{3,}")
 
@@ -361,21 +361,28 @@ def _supported_confidence(
     if row.grounding_text:
         if not claim_grounded_in_text(claim_text, row.grounding_text):
             return None
-        return 1.0
+        # Lexical + polarity agreement clears the bar; it is not a claim of
+        # maximal confidence, so it is reported at exactly that bar.
+        return STRONG_EVIDENCE_THRESHOLD
     return _positive_support_confidence(row)
 
 
 def claim_grounded_in_text(claim_text: str, page_text: str) -> bool:
-    """True when the claim's content is actually present in the page.
+    """True when the claim's content is supported by the page, not merely alike.
 
-    Two checks, both cheap and deterministic:
+    Reading a page proves nothing about a sentence, and shared characters prove
+    only that the words overlap: "支持 Windows 7" and "不支持 Windows 7" share
+    the phrase but assert the opposite. Three deterministic conditions are
+    required, and they are **necessary, not sufficient** - the binder still has
+    to classify the segment:
 
     * every distinctive number in the claim (a version or a 3+ digit figure)
-      must appear in the page - this is what stops an answer from citing a page
-      that talks about a different version;
-    * the claim and the page must share a run of at least ``_MIN_GROUNDING_RUN``
-      normalized characters, so a page that merely shares a topic word cannot
-      authorize a sentence.
+      appears in the page, so a page about another version cannot be cited;
+    * the claim and the page share a run of at least ``_MIN_GROUNDING_RUN``
+      normalized characters, so a page that only shares a topic word cannot
+      authorize a sentence;
+    * the claim and the page sentence containing that run agree on negation, so
+      a page that says the opposite is never accepted as support.
 
     The page is the verified body, not a headline or a 300-character excerpt, so
     a fact supported later in the article is still found.
@@ -388,19 +395,91 @@ def claim_grounded_in_text(claim_text: str, page_text: str) -> bool:
     for number in _GROUNDING_NUMBERS.findall(claim):
         if number not in page:
             return False
-    return _has_shared_run(claim, page, _MIN_GROUNDING_RUN)
+    shared = _shared_run(claim, page, _MIN_GROUNDING_RUN)
+    if shared is None:
+        return False
+    run = shared
+    claim_sentence = _sentence_containing(claim_text, run) or str(claim_text or "")
+    page_sentence = _sentence_containing(page_text, run)
+    if page_sentence is None:
+        return False
+    return _has_negation(claim_sentence) == _has_negation(page_sentence)
+
+
+def _shared_run(claim: str, page: str, length: int) -> str | None:
+    """A shared run of at least ``length``, extended as far as it goes."""
+
+    if len(claim) < length:
+        return None
+    for start in range(len(claim) - length + 1):
+        window = claim[start : start + length]
+        position = page.find(window)
+        if position < 0:
+            continue
+        left_claim, left_page = start, position
+        while (
+            left_claim > 0
+            and left_page > 0
+            and claim[left_claim - 1] == page[left_page - 1]
+        ):
+            left_claim -= 1
+            left_page -= 1
+        right_claim, right_page = start + length, position + length
+        while (
+            right_claim < len(claim)
+            and right_page < len(page)
+            and claim[right_claim] == page[right_page]
+        ):
+            right_claim += 1
+            right_page += 1
+        return claim[left_claim:right_claim]
+    return None
+
+
+_SENTENCE_SPLIT = re.compile(r"(?<=[。！？\n;；])|(?<=[.!?])(?=\s|$)")
+#: Cues that flip an assertion. Any cue in the claim window must also appear in
+#: the page window it matched; a contradiction is a mismatch, not a nuance.
+_NEGATION_ZH = (
+    "不支持",
+    "不能",
+    "不会",
+    "不存在",
+    "尚未",
+    "没有",
+    "并非",
+    "不是",
+    "未",
+    "没",
+    "不",
+    "无",
+    "非",
+)
+_NEGATION_EN = re.compile(
+    r"\b(?:not|never|cannot|without|isn't|aren't|doesn't|don't|didn't|no|unsupported)\b",
+    re.IGNORECASE,
+)
+
+
+def _sentence_containing(text: Any, run: str) -> str | None:
+    compact_run = _grounding_text(run)
+    if not compact_run:
+        return None
+    for sentence in _SENTENCE_SPLIT.split(str(text or "")):
+        if sentence.strip() and compact_run in _grounding_text(sentence):
+            return sentence
+    return None
+
+
+def _has_negation(text: str) -> bool:
+    if any(cue in text for cue in _NEGATION_ZH):
+        return True
+    return _NEGATION_EN.search(str(text or "")) is not None
 
 
 def _grounding_text(value: Any) -> str:
     """Casefold and drop punctuation/spaces so runs survive reflow and markup."""
 
     return "".join(_GROUNDING_KEEP.findall(str(value or "").casefold()))
-
-
-def _has_shared_run(claim: str, page: str, length: int) -> bool:
-    if len(claim) < length:
-        return False
-    return any(claim[start : start + length] in page for start in range(len(claim) - length + 1))
 
 
 def _positive_support_confidence(row: AnswerClaimBindingRow) -> float | None:

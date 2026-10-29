@@ -1193,8 +1193,8 @@ def test_claim_grounding_requires_the_claim_not_just_the_topic() -> None:
     from src.application.answer_claim_binder import claim_grounded_in_text
 
     node_page = (
-        "Node.js 24.11.0 (LTS) released; the current Active LTS line is 24.x, "
-        "codename Krypton, supported until April 2028."
+        "Node.js 当前 LTS 是 24.11.0，代号 Krypton，支持到 2028 年 4 月。"
+        "上一个 LTS 是 22.x。"
     )
     assert claim_grounded_in_text("Node.js 当前 LTS 是 24.11.0，代号 Krypton", node_page)
     # A different patch version is not in the page.
@@ -1202,3 +1202,58 @@ def test_claim_grounding_requires_the_claim_not_just_the_topic() -> None:
     # Sharing only the topic word is not support.
     dictionary = "千，数目，十百为千。万、百、千。"
     assert not claim_grounded_in_text("刃在黄泉队里应该使用莳者四件套", dictionary)
+
+
+def test_a_contradictory_page_never_authorizes_the_claim() -> None:
+    """Review reproductions: shared words are not the same assertion."""
+
+    from src.application.answer_claim_binder import claim_grounded_in_text
+
+    # The page says the opposite of the claim.
+    assert not claim_grounded_in_text(
+        "Node.js 24.11.0 支持 Windows 7", "Node.js 24.11.0 不支持 Windows 7。"
+    )
+    assert not claim_grounded_in_text(
+        "Python 3.14 已发布", "Python 3.14 尚未发布。"
+    )
+    assert not claim_grounded_in_text(
+        "FastAPI 0.120.0 没有安全漏洞", "FastAPI 0.120.0 存在严重安全漏洞。"
+    )
+    # The same polarity still passes, including a different negation wording.
+    assert claim_grounded_in_text(
+        "Node.js 24.11.0 不支持 Windows 7", "Node.js 24.11.0 不支持 Windows 7。"
+    )
+    assert claim_grounded_in_text("Python 3.14 未发布", "Python 3.14 尚未发布。")
+
+
+def test_a_contradictory_page_blocks_publication(tmp_path) -> None:
+    """End to end: the published answer must not survive a refuting page."""
+
+    page = "Node.js 24.11.0 不支持 Windows 7，官方已在发布说明中说明。"
+    claim = "Node.js 24.11.0 支持 Windows 7。"
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            messages = _messages(args, kwargs)
+            return _binding_payload(
+                [_segment_entry("s1", support=(_support_id(messages),))]
+            )
+        return claim
+
+    calls = list(_read_backed_calls("https://nodejs.example/release"))
+    calls[1] = {**calls[1], "result": {**calls[1]["result"], "content": page}}
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=tuple(calls)),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    audit = _audit(turn)
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "rejected"
+    assert audit["phases"]["answer_claim_binding"]["error_type"] == (
+        "ineligible_evidence_support"
+    )
+    assert not (turn.rag_snapshot or {}).get("research_evidence_refs")
