@@ -37,10 +37,8 @@ Search-2 十题（`tests/fixtures/provider_routing/search_2_fact_checks_v1.json`
 | 自动重试 | 不允许 | 0 |
 | 停止条件 | 任一上限先到即停 | 未触发 |
 
-- 硬约束来自现有 `llm_spend_guard`：发送前预留最坏情况、失败不退款；
-  进程上限 ¥5 × 2 臂 = ¥10，与授权一致。
-- 发送计数由 harness 持久记录（`answer_ab/sends_state.json`），因为 experiment
-  账本在本场景不可用（研究调用无法绑定 experiment）。
+- **预算审计边界（归档更正）**：`llm_spend_guard` 的本次 ¥5 上限只在单进程内有效。本轮拆成了多次进程执行，因此不能将“≤¥10、≤45 次”宣称为跨进程原子强制的硬门；¥2.40 是各次预留口径汇总，42 次来自留存计数与执行记录，并非独立计费账单核对。
+- `answer_ab/sends_state.json` 是事后记录，不是发送前持久预留；异常、重启及并发可能突破原先宣称的全局限额。由于实验已经结束，**本 PR 删除一次性付费 harness，保留可核查的历史原始证据**，不扩建预算管理框架。
 - 价格：输入 ¥2.5 / 输出 ¥9.0 每百万 token（沿用已验收配置）。
 
 ## 3. 结果（逐题）
@@ -123,16 +121,11 @@ B01 两臂、fallback N09（自称"基于我已有的知识"）、fallback N17�
 - 下一步不该再调检索权重，而应处理 §5 的 P1-A / P1-B：这两条都在用户可见的
   主路径上，且都能用静态负控覆盖。
 
-## 7. 复现
+## 7. 实验归档（禁止重复付费运行）
 
-```
-python tools/run_answer_quality_ab.py --plan
-python tools/run_answer_quality_ab.py --validate-budget --check-wiring
-python tools/run_answer_quality_ab.py --arm fallback  --live --confirm ANSWER-AB-PAID
-python tools/run_answer_quality_ab.py --arm ddg_first --live --confirm ANSWER-AB-PAID
-```
-
-`--live` 需要显式价格、`LLM_SPEND_CAP_CNY ≤ 5`、不设置
-`LLM_SPEND_EXPERIMENT_ID`、不开启 `STUDY_AGENT_SETTLEMENT_ADMISSION`，
-并带固定确认串；缺一项就拒绝运行。原始证据（每题的研究正文与答案）在
-`docs/research_quality/answer_ab/`。
+本次执行的原始研究正文、来源、回答、发送计数与预算快照均保存在
+`docs/research_quality/answer_ab/`。实验使用的临时付费 harness 已从 PR 移除：
+它的跨进程成本及发送次数约束不满足硬上限合同，不应再次运行，也不值得为
+一次结束的实验开发新的预算框架。需要复核时直接读取 JSON 与本报告；
+未来若开展新的付费实验，应通过已有的统一、持久且原子化费用准入执行，
+并另外获得新的明确授权。
