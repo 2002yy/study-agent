@@ -364,5 +364,31 @@ def test_metrics_always_use_a_six_result_window(tmp_path, monkeypatch):
         replay(capture_path=_capture(tmp_path), output=tmp_path / "r.json", limit=3)
 
 
+def test_random_window_control_samples_the_whole_pool():
+    # Regression for review 5699199834: the control used to look at the first
+    # 12 rows only. With a 24-row pool whose relevant rows all sit after row 12,
+    # that truncated sample reports "no chance", which would understate the
+    # baseline the reranked arm has to beat.
+    case = {"anchors": ["星铁", "遗器"], "focus": ["配装"]}
+    irrelevant = [
+        {"title": f"page {index}", "url": f"https://example.org/{index}", "source": "", "snippet": ""}
+        for index in range(16)
+    ]
+    relevant = [
+        {"title": "星铁 遗器 配装指南", "url": f"https://example.org/ok{index}", "source": "", "snippet": ""}
+        for index in range(8)
+    ]
+    pool = [*irrelevant, *relevant]
+
+    assert replay_mod._random_window_hit([*irrelevant, *relevant[:0]], case) == 0.0
+    chance = replay_mod._random_window_hit(pool, case)
+    assert chance > 0.0
+    # Hypergeometric over the full 24 rows: 1 - C(16,6)/C(24,6).
+    import math
+
+    expected = round(1 - math.comb(16, 6) / math.comb(24, 6), 4)
+    assert chance == expected
+
+
 def test_summary_separates_gate_quality_from_e3_quality(replay_doc):
     assert replay_doc["summary"]["strategies"]["E2"]["latency_p50"] is not None

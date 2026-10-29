@@ -1,6 +1,6 @@
 {
   "schema_version": "provider-routing-replay-v2",
-  "started_at": "2026-10-29T14:07:59.052823Z",
+  "started_at": "2026-10-29T14:17:51.916184Z",
   "capture": "docs/research_quality/SEARCH_1_CAPTURE.json",
   "limit": 6,
   "evaluation_window": 6,
@@ -362,6 +362,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 5
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 3.89,
+          "top_url": "https://forum.gamer.com.tw/C.php?bsn=72822&snA=3851",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -716,6 +731,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.45,
+          "top_url": "https://www.bilibili.com/video/BV1j5Ew67Ehk/",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -1070,6 +1100,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 4.33,
+          "top_url": "https://www.miyoushe.com/sr/article/51099717",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -1424,6 +1469,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 3.14,
+          "top_url": "https://www.miyoushe.com/ys/article/53223591",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
         }
       }
     },
@@ -1777,6 +1837,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.94,
+          "top_url": "https://www.miyoushe.com/sr/article/69579656",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
         }
       }
     },
@@ -2131,6 +2206,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 4.14,
+          "top_url": "https://benchlm.ai/model-updates/releases/october-2026",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 4
         }
       }
     },
@@ -2484,6 +2574,21 @@
           "hit_at_6": true,
           "mrr_at_6": 0.333,
           "relevant_count": 1
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 3.73,
+          "top_url": "https://www.python.org/downloads/",
+          "window": 6,
+          "relevant_rank": 2,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 0.5,
+          "relevant_count": 3
         }
       }
     },
@@ -2838,6 +2943,21 @@
           "hit_at_6": true,
           "mrr_at_6": 0.333,
           "relevant_count": 2
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 4.58,
+          "top_url": "https://post.smzdm.com/p/aomeg2v9/",
+          "window": 6,
+          "relevant_rank": 2,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 0.5,
+          "relevant_count": 5
         }
       }
     },
@@ -3192,6 +3312,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 6.38,
+          "top_url": "https://www.promptzone.com/tara_suzuki/how-to-run-flux-on-8gb-vram-in-2026-the-gguf-low-vram-guide-46k8",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
         }
       }
     },
@@ -3546,6 +3681,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 2
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 5.24,
+          "top_url": "https://blog.csdn.net/weixin_29174013/article/details/169371507",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 4
         }
       }
     },
@@ -3900,6 +4050,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 4.81,
+          "top_url": "https://blog.csdn.net/FuncIsle/article/details/157210729",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -4253,6 +4418,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 3.28,
+          "top_url": "https://blog.csdn.net/weixin_32306957/article/details/168261703",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -4607,6 +4787,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 4.17,
+          "top_url": "https://blog.csdn.net/ByteShoal/article/details/153838966",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -4960,6 +5155,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 4
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 3.72,
+          "top_url": "https://blog.csdn.net/VarIsle/article/details/154734059",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -5314,6 +5524,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.95,
+          "top_url": "https://juejin.cn/post/7517115467598151706",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -5668,6 +5893,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 6.59,
+          "top_url": "https://martinuke0.github.io/posts/2026-01-06-the-best-rag-frameworks-in-2026-a-comprehensive-guide-to-building-superior-retrieval-augmented-generation-systems/",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -6021,6 +6261,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 4
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 5.95,
+          "top_url": "https://github.com/vllm-project/vllm/releases",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
         }
       }
     },
@@ -6319,6 +6574,22 @@
           "relevant_count": 1
         },
         "F_interleave": {
+          "providers": [
+            "bing",
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 2,
+          "latency": 5.33,
+          "top_url": "https://ollama.com/",
+          "window": 6,
+          "relevant_rank": 3,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 0.333,
+          "relevant_count": 1
+        },
+        "D2_fallback": {
           "providers": [
             "bing",
             "ddg"
@@ -6687,6 +6958,21 @@
           "hit_at_6": true,
           "mrr_at_6": 0.333,
           "relevant_count": 2
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 3.73,
+          "top_url": "https://docs.astral.sh/uv/concepts/resolution/",
+          "window": 6,
+          "relevant_rank": 2,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 0.5,
+          "relevant_count": 5
         }
       }
     },
@@ -7040,6 +7326,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 4
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 3.77,
+          "top_url": "https://huggingface.co/docs/transformers/index",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
         }
       }
     },
@@ -7394,6 +7695,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 2
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 5.19,
+          "top_url": "https://nodejs.org/en/blog/release/v24.11.0",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
         }
       }
     },
@@ -7748,6 +8064,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 2
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 4.64,
+          "top_url": "https://react.dev/versions",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 3
         }
       }
     },
@@ -8101,6 +8432,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 4
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 3.94,
+          "top_url": "https://www.postgresql.org/docs/release/",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -8455,6 +8801,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 5.77,
+          "top_url": "https://versions.dev/modernize/typescript/upgrade-to-typescript-5",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 5
         }
       }
     },
@@ -8809,6 +9170,21 @@
           "hit_at_6": false,
           "mrr_at_6": 0.0,
           "relevant_count": 0
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 3.91,
+          "top_url": "https://en.wikipedia.org/wiki/List_of_high-speed_railway_lines",
+          "window": 6,
+          "relevant_rank": 5,
+          "hit_at_3": false,
+          "hit_at_6": true,
+          "mrr_at_6": 0.2,
+          "relevant_count": 1
         }
       }
     },
@@ -9162,6 +9538,21 @@
           "hit_at_3": false,
           "hit_at_6": true,
           "mrr_at_6": 0.2,
+          "relevant_count": 1
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 2.59,
+          "top_url": "https://zh.wikipedia.org/zh-cn/%E9%81%8A%E6%88%B2%E7%A7%91%E5%AD%B8",
+          "window": 6,
+          "relevant_rank": 3,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 0.333,
           "relevant_count": 1
         }
       }
@@ -9517,6 +9908,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 3.5,
+          "top_url": "https://www.nobelists.org/zh/all-2025/",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -9871,6 +10277,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 4.31,
+          "top_url": "https://www.sohu.com/a/1053540171_381442",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 4
         }
       }
     },
@@ -10225,6 +10646,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 3.31,
+          "top_url": "https://sqlite.org/wal.html",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -10578,6 +11014,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 4
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 5.99,
+          "top_url": "https://www.php.cn/faq/2787729.html",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     },
@@ -10932,6 +11383,21 @@
           "hit_at_6": true,
           "mrr_at_6": 1.0,
           "relevant_count": 3
+        },
+        "D2_fallback": {
+          "providers": [
+            "ddg"
+          ],
+          "results": 6,
+          "provider_calls": 1,
+          "latency": 4.51,
+          "top_url": "https://www.sre.wang/posts/kubernetes-hpa-vpa-ca/",
+          "window": 6,
+          "relevant_rank": 1,
+          "hit_at_3": true,
+          "hit_at_6": true,
+          "mrr_at_6": 1.0,
+          "relevant_count": 6
         }
       }
     }
@@ -10949,10 +11415,11 @@
     "A_fallback": "production path as captured: whatever the configured providers delivered in their real order (this run: Bing only, because the SearXNG instance was not configured and DuckDuckGo was unreachable from this network)",
     "B_merge": "Bing pool followed by DuckDuckGo pool, deduped, no rerank",
     "D_ddg_first": "DuckDuckGo pool followed by Bing pool, deduped, no rerank",
+    "D2_fallback": "DuckDuckGo first; Bing is asked only when DuckDuckGo returned nothing",
     "C_rerank": "B plus the production _rank_merged scorer (assess_sources on the planned query)",
     "C_bigram": "B plus the candidate query-ngram coverage ranking"
   },
-  "completed_at": "2026-10-29T14:07:59.183799Z",
+  "completed_at": "2026-10-29T14:17:52.040039Z",
   "summary": {
     "cases": 31,
     "strategies": {
@@ -11021,6 +11488,17 @@
         "latency_p50": 4.65,
         "latency_p95": 6.77,
         "latency_mean": 4.84
+      },
+      "D2_fallback": {
+        "cases": 31,
+        "hit_at_3": 30,
+        "hit_at_6": 31,
+        "mean_mrr_at_6": 0.883,
+        "total_relevant": 150,
+        "provider_calls": 32,
+        "latency_p50": 4.14,
+        "latency_p95": 5.99,
+        "latency_mean": 4.28
       },
       "C_rerank": {
         "cases": 31,
@@ -11379,68 +11857,75 @@
     }
   },
   "read_check": {
+    "arms": [
+      "D2_fallback",
+      "F_interleave"
+    ],
     "attempts": 62,
-    "succeeded": 36,
-    "success_rate": 0.581,
+    "succeeded": 38,
+    "success_rate": 0.613,
+    "per_arm": {
+      "D2_fallback": {
+        "attempts": 31,
+        "succeeded": 19,
+        "success_rate": 0.613
+      },
+      "F_interleave": {
+        "attempts": 31,
+        "succeeded": 19,
+        "success_rate": 0.613
+      }
+    },
     "rows": [
       {
         "id": "A01",
-        "arm": "A_fallback",
-        "url": "https://sr.mihoyo.com/cloud/",
+        "arm": "D2_fallback",
+        "url": "https://forum.gamer.com.tw/C.php?bsn=72822&snA=3851",
         "ok": false,
-        "error": "all_backends_failed",
+        "error": "network:TimeoutError",
         "chars": 0,
-        "elapsed": 0.67
+        "elapsed": 6.09
       },
       {
         "id": "A01",
-        "arm": "C_bigram",
-        "url": "https://gachia.com/zh/starrail/guides/banner-schedule-guide",
-        "ok": true,
-        "error": "",
-        "chars": 3727,
-        "elapsed": 5.55
-      },
-      {
-        "id": "B01",
-        "arm": "A_fallback",
-        "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
-        "ok": false,
-        "error": "http_403",
-        "chars": 0,
-        "elapsed": 0.14
-      },
-      {
-        "id": "B01",
-        "arm": "C_bigram",
-        "url": "https://www.233leyuan.com/post-detail/2062667482728108032",
-        "ok": true,
-        "error": "",
-        "chars": 700,
-        "elapsed": 0.31
-      },
-      {
-        "id": "B02",
-        "arm": "A_fallback",
-        "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+        "arm": "F_interleave",
+        "url": "https://forum.gamer.com.tw/C.php?bsn=72822&snA=3851",
         "ok": false,
         "error": "empty_cache_entry",
         "chars": 0,
         "elapsed": 0.0
       },
       {
+        "id": "B01",
+        "arm": "D2_fallback",
+        "url": "https://www.bilibili.com/video/BV1j5Ew67Ehk/",
+        "ok": true,
+        "error": "",
+        "chars": 3670,
+        "elapsed": 1.16
+      },
+      {
+        "id": "B01",
+        "arm": "F_interleave",
+        "url": "https://www.bilibili.com/video/BV1j5Ew67Ehk/",
+        "ok": true,
+        "error": "",
+        "chars": 3670,
+        "elapsed": 0.0
+      },
+      {
         "id": "B02",
-        "arm": "C_bigram",
-        "url": "https://www.bilibili.com/video/BV12M8Nz7EM7/",
+        "arm": "D2_fallback",
+        "url": "https://www.miyoushe.com/sr/article/51099717",
         "ok": false,
         "error": "all_backends_failed",
         "chars": 0,
-        "elapsed": 0.31
+        "elapsed": 0.19
       },
       {
-        "id": "C01",
-        "arm": "A_fallback",
-        "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+        "id": "B02",
+        "arm": "F_interleave",
+        "url": "https://www.miyoushe.com/sr/article/51099717",
         "ok": false,
         "error": "empty_cache_entry",
         "chars": 0,
@@ -11448,17 +11933,17 @@
       },
       {
         "id": "C01",
-        "arm": "C_bigram",
-        "url": "https://www.taptap.cn/moment/589940716688378524",
-        "ok": true,
-        "error": "",
-        "chars": 1046,
-        "elapsed": 0.86
+        "arm": "D2_fallback",
+        "url": "https://www.miyoushe.com/ys/article/53223591",
+        "ok": false,
+        "error": "all_backends_failed",
+        "chars": 0,
+        "elapsed": 0.28
       },
       {
-        "id": "D01",
-        "arm": "A_fallback",
-        "url": "https://baike.baidu.com/item/%E6%98%9F/1586",
+        "id": "C01",
+        "arm": "F_interleave",
+        "url": "https://www.miyoushe.com/ys/article/53223591",
         "ok": false,
         "error": "empty_cache_entry",
         "chars": 0,
@@ -11466,457 +11951,457 @@
       },
       {
         "id": "D01",
-        "arm": "C_bigram",
+        "arm": "D2_fallback",
         "url": "https://www.miyoushe.com/sr/article/69579656",
         "ok": false,
         "error": "all_backends_failed",
         "chars": 0,
-        "elapsed": 0.16
+        "elapsed": 0.84
       },
       {
-        "id": "A04",
-        "arm": "A_fallback",
-        "url": "https://baike.baidu.com/item/open/497859",
+        "id": "D01",
+        "arm": "F_interleave",
+        "url": "https://www.miyoushe.com/sr/article/69579656",
         "ok": false,
-        "error": "http_403",
+        "error": "empty_cache_entry",
         "chars": 0,
-        "elapsed": 0.11
+        "elapsed": 0.01
       },
       {
         "id": "A04",
-        "arm": "C_bigram",
-        "url": "https://blog.buildfastwithai.com/best-open-source-ai-models-october-2026",
+        "arm": "D2_fallback",
+        "url": "https://benchlm.ai/model-updates/releases/october-2026",
         "ok": true,
         "error": "",
-        "chars": 6000,
-        "elapsed": 3.89
+        "chars": 239,
+        "elapsed": 4.83
+      },
+      {
+        "id": "A04",
+        "arm": "F_interleave",
+        "url": "https://benchlm.ai/model-updates/releases/october-2026",
+        "ok": true,
+        "error": "",
+        "chars": 239,
+        "elapsed": 0.0
       },
       {
         "id": "A05",
-        "arm": "A_fallback",
-        "url": "https://www.python.org/",
-        "ok": false,
-        "error": "network:TimeoutError",
-        "chars": 0,
-        "elapsed": 7.27
-      },
-      {
-        "id": "A05",
-        "arm": "C_bigram",
+        "arm": "D2_fallback",
         "url": "https://www.python.org/downloads/",
         "ok": true,
         "error": "",
         "chars": 6000,
-        "elapsed": 2.59
+        "elapsed": 2.45
       },
       {
-        "id": "B04",
-        "arm": "A_fallback",
-        "url": "https://baike.baidu.com/item/%E5%BC%82/1435537",
-        "ok": false,
-        "error": "http_403",
-        "chars": 0,
-        "elapsed": 0.2
-      },
-      {
-        "id": "B04",
-        "arm": "C_bigram",
-        "url": "https://www.zhihu.com/question/441990658",
-        "ok": false,
-        "error": "http_403",
-        "chars": 0,
-        "elapsed": 0.16
-      },
-      {
-        "id": "B05",
-        "arm": "A_fallback",
-        "url": "https://zhuanlan.zhihu.com/p/2011914556159582443",
-        "ok": false,
-        "error": "http_403",
-        "chars": 0,
-        "elapsed": 0.28
-      },
-      {
-        "id": "B05",
-        "arm": "C_bigram",
-        "url": "https://comfylab.dev/blog/guides-pro/gguf-models-comfyui-run-flux-8gb-vram/",
+        "id": "A05",
+        "arm": "F_interleave",
+        "url": "https://www.python.org/downloads/",
         "ok": true,
         "error": "",
         "chars": 6000,
-        "elapsed": 2.08
+        "elapsed": 0.0
+      },
+      {
+        "id": "B04",
+        "arm": "D2_fallback",
+        "url": "https://post.smzdm.com/p/aomeg2v9/",
+        "ok": true,
+        "error": "",
+        "chars": 1660,
+        "elapsed": 0.7
+      },
+      {
+        "id": "B04",
+        "arm": "F_interleave",
+        "url": "https://post.smzdm.com/p/aomeg2v9/",
+        "ok": true,
+        "error": "",
+        "chars": 1660,
+        "elapsed": 0.0
+      },
+      {
+        "id": "B05",
+        "arm": "D2_fallback",
+        "url": "https://www.promptzone.com/tara_suzuki/how-to-run-flux-on-8gb-vram-in-2026-the-gguf-low-vram-guide-46k8",
+        "ok": true,
+        "error": "",
+        "chars": 3884,
+        "elapsed": 3.12
+      },
+      {
+        "id": "B05",
+        "arm": "F_interleave",
+        "url": "https://www.promptzone.com/tara_suzuki/how-to-run-flux-on-8gb-vram-in-2026-the-gguf-low-vram-guide-46k8",
+        "ok": true,
+        "error": "",
+        "chars": 3884,
+        "elapsed": 0.0
       },
       {
         "id": "C04",
-        "arm": "A_fallback",
-        "url": "https://baike.baidu.com/item/%E8%BD%BB/56640",
-        "ok": false,
-        "error": "http_403",
-        "chars": 0,
-        "elapsed": 0.11
-      },
-      {
-        "id": "C04",
-        "arm": "C_bigram",
+        "arm": "D2_fallback",
         "url": "https://blog.csdn.net/weixin_29174013/article/details/169371507",
         "ok": true,
         "error": "",
         "chars": 2833,
-        "elapsed": 0.99
+        "elapsed": 1.2
       },
       {
-        "id": "N01",
-        "arm": "A_fallback",
-        "url": "https://pytorch.org/",
+        "id": "C04",
+        "arm": "F_interleave",
+        "url": "https://blog.csdn.net/weixin_29174013/article/details/169371507",
         "ok": true,
         "error": "",
-        "chars": 1956,
-        "elapsed": 19.95
+        "chars": 2833,
+        "elapsed": 0.0
       },
       {
         "id": "N01",
-        "arm": "C_bigram",
+        "arm": "D2_fallback",
         "url": "https://blog.csdn.net/FuncIsle/article/details/157210729",
-        "ok": true,
-        "error": "",
-        "chars": 6000,
-        "elapsed": 0.94
-      },
-      {
-        "id": "N02",
-        "arm": "A_fallback",
-        "url": "https://fastapi.tiangolo.com/zh/",
-        "ok": true,
-        "error": "",
-        "chars": 6000,
-        "elapsed": 2.08
-      },
-      {
-        "id": "N02",
-        "arm": "C_bigram",
-        "url": "https://www.pydocs.cn/chapter/908FC457CCA92B26F55EAE2A74AF435F.html",
-        "ok": true,
-        "error": "",
-        "chars": 2925,
-        "elapsed": 0.45
-      },
-      {
-        "id": "N03",
-        "arm": "A_fallback",
-        "url": "https://rust-lang.org/zh-CN/",
-        "ok": true,
-        "error": "",
-        "chars": 433,
-        "elapsed": 1.31
-      },
-      {
-        "id": "N03",
-        "arm": "C_bigram",
-        "url": "https://blog.csdn.net/ByteShoal/article/details/153838966",
         "ok": false,
         "error": "http_521",
         "chars": 0,
-        "elapsed": 0.24
+        "elapsed": 0.22
       },
       {
-        "id": "N04",
-        "arm": "A_fallback",
-        "url": "https://www.docker.com/",
-        "ok": false,
-        "error": "network:ConnectionResetError",
-        "chars": 0,
-        "elapsed": 0.51
-      },
-      {
-        "id": "N04",
-        "arm": "C_bigram",
-        "url": "https://raybyte.cn/post/2026/5/14/43a784c1",
-        "ok": true,
-        "error": "",
-        "chars": 2082,
-        "elapsed": 1.0
-      },
-      {
-        "id": "N05",
-        "arm": "A_fallback",
-        "url": "https://www.postgresql.org/",
-        "ok": true,
-        "error": "",
-        "chars": 1450,
-        "elapsed": 1.16
-      },
-      {
-        "id": "N05",
-        "arm": "C_bigram",
-        "url": "https://juejin.cn/post/7517115467598151706",
-        "ok": true,
-        "error": "",
-        "chars": 1078,
-        "elapsed": 0.14
-      },
-      {
-        "id": "N06",
-        "arm": "A_fallback",
-        "url": "https://baike.baidu.com/item/open/497859",
+        "id": "N01",
+        "arm": "F_interleave",
+        "url": "https://blog.csdn.net/FuncIsle/article/details/157210729",
         "ok": false,
         "error": "empty_cache_entry",
         "chars": 0,
         "elapsed": 0.0
       },
       {
+        "id": "N02",
+        "arm": "D2_fallback",
+        "url": "https://blog.csdn.net/weixin_32306957/article/details/168261703",
+        "ok": false,
+        "error": "http_521",
+        "chars": 0,
+        "elapsed": 0.22
+      },
+      {
+        "id": "N02",
+        "arm": "F_interleave",
+        "url": "https://blog.csdn.net/weixin_32306957/article/details/168261703",
+        "ok": false,
+        "error": "empty_cache_entry",
+        "chars": 0,
+        "elapsed": 0.0
+      },
+      {
+        "id": "N03",
+        "arm": "D2_fallback",
+        "url": "https://blog.csdn.net/ByteShoal/article/details/153838966",
+        "ok": false,
+        "error": "http_521",
+        "chars": 0,
+        "elapsed": 0.2
+      },
+      {
+        "id": "N03",
+        "arm": "F_interleave",
+        "url": "https://blog.csdn.net/ByteShoal/article/details/153838966",
+        "ok": false,
+        "error": "empty_cache_entry",
+        "chars": 0,
+        "elapsed": 0.0
+      },
+      {
+        "id": "N04",
+        "arm": "D2_fallback",
+        "url": "https://blog.csdn.net/VarIsle/article/details/154734059",
+        "ok": false,
+        "error": "http_521",
+        "chars": 0,
+        "elapsed": 0.34
+      },
+      {
+        "id": "N04",
+        "arm": "F_interleave",
+        "url": "https://blog.csdn.net/VarIsle/article/details/154734059",
+        "ok": false,
+        "error": "empty_cache_entry",
+        "chars": 0,
+        "elapsed": 0.0
+      },
+      {
+        "id": "N05",
+        "arm": "D2_fallback",
+        "url": "https://juejin.cn/post/7517115467598151706",
+        "ok": true,
+        "error": "",
+        "chars": 1078,
+        "elapsed": 0.25
+      },
+      {
+        "id": "N05",
+        "arm": "F_interleave",
+        "url": "https://juejin.cn/post/7517115467598151706",
+        "ok": true,
+        "error": "",
+        "chars": 1078,
+        "elapsed": 0.0
+      },
+      {
         "id": "N06",
-        "arm": "C_bigram",
-        "url": "https://myengineeringpath.dev/tools/langchain-vs-llamaindex/",
+        "arm": "D2_fallback",
+        "url": "https://martinuke0.github.io/posts/2026-01-06-the-best-rag-frameworks-in-2026-a-comprehensive-guide-to-building-superior-retrieval-augmented-generation-systems/",
         "ok": true,
         "error": "",
         "chars": 6000,
-        "elapsed": 2.8
+        "elapsed": 3.02
+      },
+      {
+        "id": "N06",
+        "arm": "F_interleave",
+        "url": "https://martinuke0.github.io/posts/2026-01-06-the-best-rag-frameworks-in-2026-a-comprehensive-guide-to-building-superior-retrieval-augmented-generation-systems/",
+        "ok": true,
+        "error": "",
+        "chars": 6000,
+        "elapsed": 0.0
       },
       {
         "id": "N07",
-        "arm": "A_fallback",
-        "url": "https://github.com/vllm-project/vllm",
+        "arm": "D2_fallback",
+        "url": "https://github.com/vllm-project/vllm/releases",
         "ok": true,
         "error": "",
         "chars": 0,
-        "elapsed": 2.98
+        "elapsed": 6.11
       },
       {
         "id": "N07",
-        "arm": "C_bigram",
+        "arm": "F_interleave",
         "url": "https://github.com/vllm-project/vllm/releases",
-        "ok": false,
-        "error": "TimeoutError: The read operation timed out",
+        "ok": true,
+        "error": "",
         "chars": 0,
-        "elapsed": 16.81
+        "elapsed": 5.53
       },
       {
         "id": "N08",
-        "arm": "A_fallback",
+        "arm": "D2_fallback",
         "url": "https://ollama.com/",
         "ok": true,
         "error": "",
         "chars": 305,
-        "elapsed": 1.16
+        "elapsed": 3.3
       },
       {
         "id": "N08",
-        "arm": "C_bigram",
-        "url": "https://ollama.com/download/windows",
+        "arm": "F_interleave",
+        "url": "https://ollama.com/",
         "ok": true,
         "error": "",
-        "chars": 3592,
-        "elapsed": 2.34
+        "chars": 305,
+        "elapsed": 0.05
       },
       {
         "id": "N09",
-        "arm": "A_fallback",
-        "url": "https://astral.fan/",
-        "ok": true,
-        "error": "",
-        "chars": 327,
-        "elapsed": 1.06
-      },
-      {
-        "id": "N09",
-        "arm": "C_bigram",
-        "url": "https://deepwiki.com/astral-sh/docs/2.5-dependency-resolution-and-caching",
-        "ok": false,
-        "error": "http_429",
-        "chars": 0,
-        "elapsed": 0.45
-      },
-      {
-        "id": "N10",
-        "arm": "A_fallback",
-        "url": "https://huggingface.co/",
-        "ok": false,
-        "error": "network:TimeoutError",
-        "chars": 0,
-        "elapsed": 6.05
-      },
-      {
-        "id": "N10",
-        "arm": "C_bigram",
-        "url": "https://instagit.com/huggingface/transformers/how-does-the-library-handle-multimodal-models-vision-language-audio-language/",
+        "arm": "D2_fallback",
+        "url": "https://docs.astral.sh/uv/concepts/resolution/",
         "ok": true,
         "error": "",
         "chars": 6000,
-        "elapsed": 0.66
+        "elapsed": 2.36
       },
       {
-        "id": "N11",
-        "arm": "A_fallback",
-        "url": "https://nodejs.org/zh-cn",
+        "id": "N09",
+        "arm": "F_interleave",
+        "url": "https://docs.astral.sh/uv/concepts/resolution/",
         "ok": true,
         "error": "",
-        "chars": 1356,
-        "elapsed": 8.75
+        "chars": 6000,
+        "elapsed": 0.0
       },
       {
-        "id": "N11",
-        "arm": "C_bigram",
-        "url": "https://nodejs.cn/en/download/current",
-        "ok": true,
-        "error": "",
-        "chars": 302,
-        "elapsed": 0.62
-      },
-      {
-        "id": "N12",
-        "arm": "A_fallback",
-        "url": "https://react.dev/",
-        "ok": true,
-        "error": "",
-        "chars": 3507,
-        "elapsed": 1.01
-      },
-      {
-        "id": "N12",
-        "arm": "C_bigram",
-        "url": "https://github.com/react/react/releases",
-        "ok": true,
-        "error": "",
+        "id": "N10",
+        "arm": "D2_fallback",
+        "url": "https://huggingface.co/docs/transformers/index",
+        "ok": false,
+        "error": "network:TimeoutError",
         "chars": 0,
-        "elapsed": 8.92
+        "elapsed": 6.03
+      },
+      {
+        "id": "N10",
+        "arm": "F_interleave",
+        "url": "https://huggingface.co/docs/transformers/index",
+        "ok": false,
+        "error": "empty_cache_entry",
+        "chars": 0,
+        "elapsed": 0.0
+      },
+      {
+        "id": "N11",
+        "arm": "D2_fallback",
+        "url": "https://nodejs.org/en/blog/release/v24.11.0",
+        "ok": true,
+        "error": "",
+        "chars": 5731,
+        "elapsed": 3.7
+      },
+      {
+        "id": "N11",
+        "arm": "F_interleave",
+        "url": "https://nodejs.org/en/blog/release/v24.11.0",
+        "ok": true,
+        "error": "",
+        "chars": 5731,
+        "elapsed": 0.0
+      },
+      {
+        "id": "N12",
+        "arm": "D2_fallback",
+        "url": "https://react.dev/versions",
+        "ok": true,
+        "error": "",
+        "chars": 5523,
+        "elapsed": 0.77
+      },
+      {
+        "id": "N12",
+        "arm": "F_interleave",
+        "url": "https://react.dev/versions",
+        "ok": true,
+        "error": "",
+        "chars": 5523,
+        "elapsed": 0.0
       },
       {
         "id": "N13",
-        "arm": "A_fallback",
-        "url": "https://www.postgresql.org/",
+        "arm": "D2_fallback",
+        "url": "https://www.postgresql.org/docs/release/",
         "ok": true,
         "error": "",
-        "chars": 1450,
-        "elapsed": 0.02
+        "chars": 574,
+        "elapsed": 5.56
       },
       {
         "id": "N13",
-        "arm": "C_bigram",
-        "url": "https://developer.aliyun.com/article/1752221",
+        "arm": "F_interleave",
+        "url": "https://www.postgresql.org/docs/release/",
         "ok": true,
         "error": "",
-        "chars": 426,
-        "elapsed": 0.64
+        "chars": 574,
+        "elapsed": 0.0
       },
       {
         "id": "N14",
-        "arm": "A_fallback",
-        "url": "https://www.typescriptlang.org/",
-        "ok": true,
-        "error": "",
-        "chars": 597,
-        "elapsed": 7.06
-      },
-      {
-        "id": "N14",
-        "arm": "C_bigram",
+        "arm": "D2_fallback",
         "url": "https://versions.dev/modernize/typescript/upgrade-to-typescript-5",
         "ok": true,
         "error": "",
         "chars": 5949,
-        "elapsed": 0.83
+        "elapsed": 0.77
+      },
+      {
+        "id": "N14",
+        "arm": "F_interleave",
+        "url": "https://versions.dev/modernize/typescript/upgrade-to-typescript-5",
+        "ok": true,
+        "error": "",
+        "chars": 5949,
+        "elapsed": 0.0
       },
       {
         "id": "N15",
-        "arm": "A_fallback",
-        "url": "https://baike.baidu.com/item/%e4%b8%96%e7%95%8c/24458",
+        "arm": "D2_fallback",
+        "url": "https://en.wikipedia.org/wiki/List_of_high-speed_railway_lines",
         "ok": false,
-        "error": "http_403",
+        "error": "network:ConnectionResetError",
         "chars": 0,
-        "elapsed": 0.14
+        "elapsed": 0.25
       },
       {
         "id": "N15",
-        "arm": "C_bigram",
-        "url": "https://www.toutiao.com/article/7455620037534106151/",
+        "arm": "F_interleave",
+        "url": "https://en.wikipedia.org/wiki/List_of_high-speed_railway_lines",
         "ok": false,
-        "error": "all_backends_failed",
+        "error": "empty_cache_entry",
         "chars": 0,
-        "elapsed": 0.28
+        "elapsed": 0.0
       },
       {
         "id": "N16",
-        "arm": "A_fallback",
-        "url": "https://baike.baidu.com/item/%E9%BB%91/4078",
+        "arm": "D2_fallback",
+        "url": "https://zh.wikipedia.org/zh-cn/%E9%81%8A%E6%88%B2%E7%A7%91%E5%AD%B8",
         "ok": false,
-        "error": "http_403",
+        "error": "unsafe_or_empty_url",
         "chars": 0,
-        "elapsed": 0.12
+        "elapsed": 0.01
       },
       {
         "id": "N16",
-        "arm": "C_bigram",
-        "url": "https://wiki.biligame.com/wukong/%E6%B8%B8%E6%88%8F%E7%A7%91%E5%AD%A6",
-        "ok": true,
-        "error": "",
-        "chars": 2059,
-        "elapsed": 0.36
+        "arm": "F_interleave",
+        "url": "https://zh.wikipedia.org/zh-cn/%E9%81%8A%E6%88%B2%E7%A7%91%E5%AD%B8",
+        "ok": false,
+        "error": "unsafe_or_empty_url",
+        "chars": 0,
+        "elapsed": 0.0
       },
       {
         "id": "N17",
-        "arm": "A_fallback",
-        "url": "https://baike.baidu.com/item/2025%E5%B9%B4/7710344",
-        "ok": false,
-        "error": "http_403",
-        "chars": 0,
-        "elapsed": 0.16
+        "arm": "D2_fallback",
+        "url": "https://www.nobelists.org/zh/all-2025/",
+        "ok": true,
+        "error": "",
+        "chars": 1161,
+        "elapsed": 6.08
       },
       {
         "id": "N17",
-        "arm": "C_bigram",
-        "url": "https://www.nobelpress.org/prizes/physics/2025",
-        "ok": false,
-        "error": "all_backends_failed",
-        "chars": 0,
-        "elapsed": 2.3
+        "arm": "F_interleave",
+        "url": "https://www.nobelists.org/zh/all-2025/",
+        "ok": true,
+        "error": "",
+        "chars": 1161,
+        "elapsed": 0.0
       },
       {
         "id": "N18",
-        "arm": "A_fallback",
-        "url": "https://jingyan.baidu.com/article/86112f1385c01527379787f3.html",
+        "arm": "D2_fallback",
+        "url": "https://www.sohu.com/a/1053540171_381442",
         "ok": true,
         "error": "",
-        "chars": 349,
-        "elapsed": 1.53
+        "chars": 3726,
+        "elapsed": 0.2
       },
       {
         "id": "N18",
-        "arm": "C_bigram",
-        "url": "https://wenku.baidu.com/view/8d9864e875fe910ef12d2af90242a8956aecaa0a.html",
-        "ok": false,
-        "error": "http_403",
-        "chars": 0,
-        "elapsed": 0.12
-      },
-      {
-        "id": "N19",
-        "arm": "A_fallback",
-        "url": "https://sqlite.org/index.html",
+        "arm": "F_interleave",
+        "url": "https://www.sohu.com/a/1053540171_381442",
         "ok": true,
         "error": "",
-        "chars": 572,
-        "elapsed": 3.83
+        "chars": 3726,
+        "elapsed": 0.0
       },
       {
         "id": "N19",
-        "arm": "C_bigram",
-        "url": "https://sqldocs.org/sqlite-write-ahead-logging/",
+        "arm": "D2_fallback",
+        "url": "https://sqlite.org/wal.html",
         "ok": true,
         "error": "",
         "chars": 6000,
-        "elapsed": 4.33
+        "elapsed": 4.22
       },
       {
-        "id": "N20",
-        "arm": "A_fallback",
-        "url": "https://nginx.org/en/",
+        "id": "N19",
+        "arm": "F_interleave",
+        "url": "https://sqlite.org/wal.html",
         "ok": true,
         "error": "",
-        "chars": 4557,
-        "elapsed": 2.3
+        "chars": 6000,
+        "elapsed": 0.0
       },
       {
         "id": "N20",
-        "arm": "C_bigram",
+        "arm": "D2_fallback",
         "url": "https://www.php.cn/faq/2787729.html",
         "ok": false,
         "error": "all_backends_failed",
@@ -11924,22 +12409,31 @@
         "elapsed": 0.22
       },
       {
-        "id": "N21",
-        "arm": "A_fallback",
-        "url": "https://kubernetes.io/zh/",
-        "ok": true,
-        "error": "",
-        "chars": 338,
-        "elapsed": 0.94
+        "id": "N20",
+        "arm": "F_interleave",
+        "url": "https://www.php.cn/faq/2787729.html",
+        "ok": false,
+        "error": "empty_cache_entry",
+        "chars": 0,
+        "elapsed": 0.0
       },
       {
         "id": "N21",
-        "arm": "C_bigram",
+        "arm": "D2_fallback",
         "url": "https://www.sre.wang/posts/kubernetes-hpa-vpa-ca/",
         "ok": true,
         "error": "",
         "chars": 6000,
-        "elapsed": 0.5
+        "elapsed": 0.81
+      },
+      {
+        "id": "N21",
+        "arm": "F_interleave",
+        "url": "https://www.sre.wang/posts/kubernetes-hpa-vpa-ca/",
+        "ok": true,
+        "error": "",
+        "chars": 6000,
+        "elapsed": 0.0
       }
     ]
   }

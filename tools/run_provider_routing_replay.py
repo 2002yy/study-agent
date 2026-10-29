@@ -457,10 +457,12 @@ def _random_window_hit(
 
     This is the control for "the pool got bigger": if the reranked arm cannot
     beat a random draw from the identical pool, the gain is coverage, not
-    ranking. Hypergeometric, without replacement.
+    ranking. Hypergeometric, without replacement, over the **whole** pool: a
+    fixed 12-row sample would silently ignore every row past twelve once the
+    capture limit grows.
     """
 
-    pool = results[:12]
+    pool = results
     relevant = sum(1 for item in pool if verdict(item, case)["relevant"])
     total = len(pool)
     size = min(window, total)
@@ -478,6 +480,7 @@ def replay_with_pools(
     limit: int,
     queries_path: Path | None = None,
     read_check_cases: int = 0,
+    read_check_arms: tuple[str, ...] = ("A_fallback", "C_bigram"),
 ) -> dict[str, Any]:
     capture_doc = json.loads(capture_path.read_text(encoding="utf-8"))
     cases = {row["id"]: row for row in capture_doc["cases"]}
@@ -526,6 +529,7 @@ def replay_with_pools(
             ),
             "B_merge": "Bing pool followed by DuckDuckGo pool, deduped, no rerank",
             "D_ddg_first": "DuckDuckGo pool followed by Bing pool, deduped, no rerank",
+            "D2_fallback": "DuckDuckGo first; Bing is asked only when DuckDuckGo returned nothing",
             "C_rerank": "B plus the production _rank_merged scorer (assess_sources on the planned query)",
             "C_bigram": "B plus the candidate query-ngram coverage ranking",
         },
@@ -681,12 +685,33 @@ def replay_with_pools(
             **_metrics(f_results, case),
         }
 
+        # D2: DDG-first fallback. Ask the second engine only when the first one
+        # returned nothing, so a successful DDG answer costs one request. The
+        # failed DDG attempt is still charged to the latency, because it really
+        # happened.
+        ddg_rows = providers["ddg"]["results"]
+        d2_results = list(ddg_rows) if ddg_rows else list(providers["bing"]["results"])
+        d2_calls = 1 if ddg_rows else 2
+        d2_latency = providers["ddg"]["elapsed"] + (
+            0.0 if ddg_rows else providers["bing"]["elapsed"]
+        )
+        row["strategies"]["D2_fallback"] = {
+            "providers": ["ddg"] if ddg_rows else list(PROVIDERS),
+            "results": len(d2_results),
+            "provider_calls": d2_calls,
+            "latency": round(d2_latency, 2),
+            "top_url": str(d2_results[0].get("url") or "") if d2_results else "",
+            **_metrics(d2_results, case),
+        }
+
         artifact["cases"].append(row)
 
     artifact["completed_at"] = _utc_now()
     artifact["summary"] = _summarise(artifact["cases"], queries["cases"])
     if read_check_cases > 0:
-        artifact["read_check"] = _read_check(artifact["cases"][:read_check_cases])
+        artifact["read_check"] = _read_check(
+            artifact["cases"][:read_check_cases], arms=read_check_arms
+        )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(artifact, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return artifact
@@ -699,6 +724,7 @@ def replay(
     limit: int,
     queries_path: Path | None = None,
     read_check_cases: int = 0,
+    read_check_arms: tuple[str, ...] = ("A_fallback", "C_bigram"),
 ) -> dict[str, Any]:
     """Replay with the raw provider pools kept on every row.
 
@@ -713,14 +739,18 @@ def replay(
         limit=limit,
         queries_path=queries_path,
         read_check_cases=read_check_cases,
+        read_check_arms=read_check_arms,
     )
 
 
-def _read_check(cases: list[dict[str, Any]]) -> dict[str, Any]:
+def _read_check(
+    cases: list[dict[str, Any]],
+    arms: tuple[str, ...] = ("A_fallback", "C_bigram"),
+) -> dict[str, Any]:
     """Attempt a real page read of each case's top result (``--read-check``).
 
     A found source is only useful if it can actually be read: this measures the
-    read-success rate, on the top-1 URL of ``A_fallback`` and ``C_bigram``.
+    read-success rate for the requested arms, on each arm's top-1 URL.
     """
 
     load_dotenv(REPO_ROOT / ".env")
@@ -730,7 +760,7 @@ def _read_check(cases: list[dict[str, Any]]) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for case in cases:
         strategies = case.get("strategies", {})
-        for arm_name in ("A_fallback", "C_bigram"):
+        for arm_name in arms:
             row = strategies.get(arm_name)
             if not row:
                 continue
@@ -748,10 +778,21 @@ def _read_check(cases: list[dict[str, Any]]) -> dict[str, Any]:
                 entry["elapsed"] = round(time.monotonic() - started, 2)
             rows.append(entry)
     ok = sum(1 for row in rows if row["ok"])
+    per_arm: dict[str, dict[str, Any]] = {}
+    for arm_name in arms:
+        arm_rows = [row for row in rows if row["arm"] == arm_name]
+        arm_ok = sum(1 for row in arm_rows if row["ok"])
+        per_arm[arm_name] = {
+            "attempts": len(arm_rows),
+            "succeeded": arm_ok,
+            "success_rate": round(arm_ok / len(arm_rows), 3) if arm_rows else 0.0,
+        }
     return {
+        "arms": list(arms),
         "attempts": len(rows),
         "succeeded": ok,
         "success_rate": round(ok / len(rows), 3) if rows else 0.0,
+        "per_arm": per_arm,
         "rows": rows,
     }
 
@@ -768,9 +809,18 @@ def _summarise(
     cases: list[dict[str, Any]], query_cases: list[dict[str, Any]] | None = None
 ) -> dict[str, Any]:
     summary: dict[str, Any] = {"cases": len(cases), "strategies": {}}
-    names = ("E0", "E1", "E2", "A_fallback", "B_merge", "D_ddg_first", "C_rerank", "C_bigram", "F_interleave") + tuple(
-        f"E3_{strategy}" for strategy in GATE_STRATEGIES
-    )
+    names = (
+        "E0",
+        "E1",
+        "E2",
+        "A_fallback",
+        "B_merge",
+        "D_ddg_first",
+        "D2_fallback",
+        "C_rerank",
+        "C_bigram",
+        "F_interleave",
+    ) + tuple(f"E3_{strategy}" for strategy in GATE_STRATEGIES)
     for name in names:
         rows = [case["strategies"][name] for case in cases if name in case.get("strategies", {})]
         if not rows:
@@ -866,6 +916,10 @@ def main() -> int:
         "--read-check", type=int, default=0, metavar="N",
         help="also attempt a real page read of the top result for the first N cases",
     )
+    parser.add_argument(
+        "--read-check-arms", default="A_fallback,C_bigram",
+        help="comma-separated arms whose top-1 is read by --read-check",
+    )
     args = parser.parse_args()
 
     if args.capture:
@@ -885,6 +939,9 @@ def main() -> int:
         limit=max(1, min(args.limit, 12)),
         queries_path=args.queries.resolve(),
         read_check_cases=max(0, args.read_check),
+        read_check_arms=tuple(
+            arm.strip() for arm in str(args.read_check_arms).split(",") if arm.strip()
+        ),
     )
     summary = artifact["summary"]
     compact: dict[str, Any] = {name: stats for name, stats in summary["strategies"].items()}
