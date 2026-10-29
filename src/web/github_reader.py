@@ -36,6 +36,7 @@ class GitHubTarget:
     ref: str = ""
     path: str = ""
     url: str = ""
+    tag: str = ""
 
     @property
     def repository(self) -> str:
@@ -92,6 +93,19 @@ def parse_github_url(url: str) -> GitHubTarget | None:
     if len(segments) < 2:
         return None
     owner, repo = segments[0], _clean_repo(segments[1])
+    if len(segments) >= 3 and segments[2] == "releases":
+        tag = ""
+        if len(segments) >= 5 and segments[3] == "tag":
+            tag = segments[4]
+        elif len(segments) >= 4 and segments[3] == "latest":
+            tag = "latest"
+        return GitHubTarget(
+            owner=owner,
+            repo=repo,
+            kind="releases",
+            tag=tag,
+            url=value,
+        )
     if len(segments) >= 4 and segments[2] in {"blob", "tree"}:
         ref = parse_qs(parsed.query).get("ref", [segments[3]])[0]
         path = "/".join(segments[4:])
@@ -215,6 +229,8 @@ class GitHubSourceReader:
                 return self._read_file(target, max_chars=max_chars)
             if target.kind == "directory":
                 return self._read_directory(target, max_entries=max_entries)
+            if target.kind == "releases":
+                return self._read_releases(target, max_chars=max_chars)
             return self._read_repository(target, max_chars=max_chars, max_entries=max_entries)
         except HTTPError as exc:
             return {
@@ -403,6 +419,64 @@ class GitHubSourceReader:
             "readme_truncated": len(readme) > max_chars,
             "entries": entries,
             "entries_truncated": isinstance(root, list) and len(root) > max_entries,
+        }
+
+    def _read_releases(self, target: GitHubTarget, *, max_chars: int) -> dict[str, Any]:
+        """Read the release list (or one tag) as text, not as repository metadata.
+
+        ``/releases`` used to fall through to the repository reader, so a
+        question like "what is the latest release" was answered with the README
+        and the file list. The release endpoint is the only source that carries
+        the tag, the date and the notes.
+        """
+
+        owner = quote(target.owner)
+        repo = quote(target.repo)
+        if target.tag and target.tag != "latest":
+            payload = _request_json(
+                _api(f"/repos/{owner}/{repo}/releases/tags/{quote(target.tag)}")
+            )
+            releases = [payload] if isinstance(payload, dict) else []
+        else:
+            payload = _request_json(
+                _api(f"/repos/{owner}/{repo}/releases", per_page=5)
+            )
+            releases = [row for row in payload if isinstance(row, dict)][:5] if isinstance(payload, list) else []
+
+        rows: list[dict[str, Any]] = []
+        for release in releases:
+            rows.append(
+                {
+                    "tag": str(release.get("tag_name") or ""),
+                    "name": str(release.get("name") or ""),
+                    "published_at": str(release.get("published_at") or ""),
+                    "prerelease": bool(release.get("prerelease")),
+                    "url": str(release.get("html_url") or ""),
+                }
+            )
+        if not rows:
+            content = f"{target.repository} has no published releases."
+            latest = None
+        else:
+            lines = [f"{target.repository} releases (newest first):"]
+            for row in rows:
+                lines.append(
+                    f"- {row['tag']}"
+                    + (f" ({row['name']})" if row["name"] else "")
+                    + f" published {row['published_at'][:10] or 'unknown date'}"
+                    + (" [prerelease]" if row["prerelease"] else "")
+                )
+            latest = rows[0]["tag"]
+            lines.append(f"Latest release: {latest}")
+            content = "\n".join(lines)
+        return {
+            "ok": True,
+            "kind": "releases",
+            "repository": target.repository,
+            "url": target.url,
+            "latest": latest,
+            "releases": rows,
+            "content": content[:max_chars],
         }
 
     def _search_code_api(
