@@ -9,6 +9,7 @@ copy while the rejected audit truth is persisted in the same commit.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Callable, Sequence
 
 from src.application.chat_service import (
@@ -28,6 +29,7 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.mode_manager import RuntimeModes
 from src.pedagogy.evaluation import PedagogyEvaluationService
 from src.repositories.runtime_repository import RuntimeRepository
+from src.web.research.official_publication import ABSTENTION
 from src.tools.web_agent import WebToolTrace
 
 EVIDENCE_ID = "evidence_abc123"
@@ -139,19 +141,27 @@ def _command(
     return ChatCommand(**base)
 
 
-def _dependencies(chat_fn: Callable[..., str]) -> ChatDependencies:
+def _dependencies(
+    chat_fn: Callable[..., str],
+    *,
+    web_tools: WebToolTrace | None = None,
+    route: dict[str, Any] | None = None,
+) -> ChatDependencies:
     return ChatDependencies(
         load_runtime_modes=lambda: RuntimeModes(
             memory_mode="preview", performance_mode="standard"
         ),
         read_memory_bundle=lambda context_mode: {},
         build_role_prompt=lambda role, **kwargs: f"role:{role}",
-        route_request=lambda **kwargs: {
-            "role": "nahida",
-            "mode": "普通",
-            "model_profile": "flash",
-            "reason": "test",
-        },
+        route_request=lambda **kwargs: dict(
+            route
+            or {
+                "role": "nahida",
+                "mode": "普通",
+                "model_profile": "flash",
+                "reason": "test",
+            }
+        ),
         retrieve_local_knowledge=lambda *args, **kwargs: _FakeRagResult(),
         build_messages=lambda **kwargs: [
             {"role": "system", "content": kwargs["role_prompt"]},
@@ -160,17 +170,28 @@ def _dependencies(chat_fn: Callable[..., str]) -> ChatDependencies:
         chat=chat_fn,
         stream_chat=lambda *args, **kwargs: iter(["part", " two"]),
         chat_max_tokens=lambda performance_mode: 1000,
-        resolve_web_tools=lambda *args, **kwargs: WebToolTrace(enabled=False),
+        resolve_web_tools=(
+            (lambda *args, **kwargs: web_tools)
+            if web_tools is not None
+            else (lambda *args, **kwargs: WebToolTrace(enabled=False))
+        ),
         pedagogy_evaluation=PedagogyEvaluationService(),
     )
 
 
 def _service(
-    tmp_path, chat_fn: Callable[..., str], *, policy_service: bool = False
+    tmp_path,
+    chat_fn: Callable[..., str],
+    *,
+    policy_service: bool = False,
+    web_tools: WebToolTrace | None = None,
+    route: dict[str, Any] | None = None,
 ) -> tuple[ChatService, RuntimeRepository]:
     repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
     service_class = ExternalDataPolicyChatService if policy_service else ChatService
-    service = service_class(repository, _dependencies(chat_fn))
+    service = service_class(
+        repository, _dependencies(chat_fn, web_tools=web_tools, route=route)
+    )
     return service, repository
 
 
@@ -887,3 +908,217 @@ def test_consistency_gate_publishes_clean_answer(tmp_path, monkeypatch) -> None:
     consistency = turn.rag_snapshot.get("answer_consistency") or {}
     assert consistency.get("ok") is True
     assert consistency.get("codes") == []
+
+
+# --- P1-A: research turns whose inline tool loop read real pages -----------------
+#
+# A research turn normally receives its publication plan from a ResearchRun. The
+# inline tool loop has no claim-engine brief, so it used to fall through to the
+# blocked copy without ever calling the model, even after a successful read.
+# These controls pin the corrected behaviour without loosening the gate.
+
+
+def _read_backed_calls(
+    url: str = "https://official.example/release",
+) -> tuple[dict[str, Any], ...]:
+    """The search that discovered the page plus the read of it.
+
+    A read is evidence only when an earlier trusted search discovered the same
+    URL, so the fixture must carry both calls exactly like a real tool loop.
+    """
+
+    return (
+        {
+            "name": "web_search",
+            "arguments": {"query": "release notes"},
+            "result": {
+                "status": "ok",
+                "providers_attempted": ["duckduckgo_html"],
+                "results": [
+                    {"title": "Official release notes", "url": url, "snippet": ""}
+                ],
+            },
+        },
+        {
+            "name": "web_read",
+            "arguments": {"url": url},
+            "result": {
+                "ok": True,
+                "url": url,
+                "title": "Official release notes",
+                "content": "v9.9.0 was released on 2026-10-30.",
+                "answer_eligible": True,
+                "method": "article_http",
+            },
+        },
+    )
+
+
+def _research_route() -> dict[str, Any]:
+    return {
+        "role": "nahida",
+        "mode": "普通",
+        "model_profile": "flash",
+        "reason": "test",
+        "task_contract": {"task_intent": "research"},
+    }
+
+
+def _research_command() -> PolicyChatCommand:
+    return PolicyChatCommand(
+        user_input="这个版本什么时候发布的？",
+        selected_role="nahida",
+        task_intent="research",
+    )
+
+
+def _messages(args: Any, kwargs: Any) -> Any:
+    """The binder passes its messages positionally; the answer path by name."""
+
+    if args:
+        return args[0]
+    return kwargs.get("messages") or []
+
+
+def _prompt_text(messages: Any) -> str:
+    return "\n".join(str(message.get("content") or "") for message in messages)
+
+
+def _support_id(messages: Any) -> str:
+    """The first evidence id the binder was actually shown.
+
+    Rows render as `[evidence_id] | claim=...`; anything else in brackets is
+    prose from the question or the answer and must not be mistaken for an id.
+    """
+
+    found = re.findall(r"\[([^\]]+)\] \| claim=", _prompt_text(messages))
+    return found[0] if found else ""
+
+
+def test_a_read_backed_research_turn_generates_and_validates_an_answer(tmp_path) -> None:
+    seen: dict[str, Any] = {"tasks": [], "binder_prompt": ""}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        task = str(kwargs.get("task_name", ""))
+        seen["tasks"].append(task)
+        if task == "answer_claim_binding":
+            messages = _messages(args, kwargs)
+            seen["binder_prompt"] = _prompt_text(messages)
+            return _binding_payload(
+                [_segment_entry("s1", support=(_support_id(messages),))]
+            )
+        return CANDIDATE
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=_read_backed_calls()),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert seen["tasks"] == ["single_chat", "answer_claim_binding"]
+    assert reply == CANDIDATE
+    audit = _audit(turn)
+    assert audit["phases"]["answer_generation"]["model_calls"] == 1
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "passed"
+    # The rows offered to the binder are the pages the turn actually read.
+    assert "https://official.example/release" in seen["binder_prompt"]
+
+
+def test_a_read_backed_research_turn_is_still_blocked_when_claims_do_not_bind(
+    tmp_path,
+) -> None:
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            return json.dumps({"refused": True, "segments": []})
+        return CANDIDATE
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=_read_backed_calls()),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert turn.assistant_message == RESEARCH_ANSWER_BLOCKED_COPY
+    audit = _audit(turn)
+    assert audit["candidate_answer_sha256"] == sha256_text(CANDIDATE)
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "rejected"
+
+
+def test_a_research_turn_without_readable_pages_blocks_without_a_model_call(
+    tmp_path,
+) -> None:
+    calls: list[str] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        calls.append(str(kwargs.get("task_name", "")))
+        return CANDIDATE
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=()),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert calls == []
+    assert reply == ABSTENTION
+    assert (turn.rag_snapshot or {}).get("answer_validation_audit") is None
+
+
+def test_a_supplied_run_plan_is_not_replaced_by_tool_rows(tmp_path) -> None:
+    seen = {"binder_prompt": ""}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            seen["binder_prompt"] = _prompt_text(_messages(args, kwargs))
+            return _binding_payload([_segment_entry("s1", support=(EVIDENCE_ID,))])
+        return CANDIDATE
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=_read_backed_calls("https://tool.example/other")),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == CANDIDATE
+    assert "https://official.example/release" in seen["binder_prompt"]
+    assert "https://tool.example/other" not in seen["binder_prompt"]
+    assert _audit(turn)["phases"]["answer_claim_binding"]["outcome"] == "passed"
+
+
+def test_a_non_research_turn_still_answers_without_the_publication_gate(
+    tmp_path,
+) -> None:
+    tasks: list[str] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        tasks.append(str(kwargs.get("task_name", "")))
+        return CANDIDATE
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=_read_backed_calls()),
+        route={
+            "role": "nahida",
+            "mode": "普通",
+            "model_profile": "flash",
+            "reason": "test",
+            "task_contract": {"task_intent": "quick_answer"},
+        },
+    )
+    reply, turn = _run_turn(
+        service, repository, ChatCommand(user_input="这个版本什么时候发布的？")
+    )
+
+    assert tasks == ["single_chat"]
+    assert reply == CANDIDATE
+    assert (turn.rag_snapshot or {}).get("answer_validation_audit") is None
