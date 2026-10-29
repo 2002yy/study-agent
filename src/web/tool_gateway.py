@@ -120,6 +120,49 @@ def _dedupe_results(items: list[dict[str, str]], limit: int) -> list[dict[str, s
     return result
 
 
+SEARCH_STRATEGIES = ("fallback", "merge")
+_MERGE_TRACE_KEYS = (
+    "search_strategy",
+    "providers_attempted",
+    "providers_skipped",
+    "merged_count",
+    "duplicate_count",
+    "provider_counts",
+    "ranked_urls",
+)
+
+
+def _rank_merged(
+    results: list[dict[str, str]], query: str
+) -> list[dict[str, str]]:
+    """Order merged results with the repository's own source scorer.
+
+    The scorer is deliberately not the evaluation rule: ranking by the signal the
+    metrics measure would make the candidate arm score itself. ``assess_sources``
+    is a production relevance heuristic; its known weakness on Chinese
+    single-character overlap is a finding to report, not a bug to paper over.
+    """
+
+    from src.web.source_assessment import assess_sources
+
+    assessed, _rejected = assess_sources(results, canonical_query=query)
+    scored: list[tuple[float, int, dict[str, str]]] = []
+    for index, record in enumerate(assessed):
+        item = record.get("item") if isinstance(record, dict) else None
+        if not isinstance(item, dict) or not item.get("url"):
+            continue
+        assessment = record.get("assessment") if isinstance(record, dict) else {}
+        score = float((assessment or {}).get("relevance") or 0.0)
+        scored.append((score, index, item))
+    ranked = [item for _score, _index, item in sorted(scored, key=lambda row: (-row[0], row[1]))]
+    # Anything the assessor dropped keeps its relative order at the end rather
+    # than disappearing: a merge that silently loses one provider's results would
+    # look like a ranking improvement.
+    known = {str(item.get("url") or "") for item in ranked}
+    ranked.extend(item for item in results if str(item.get("url") or "") not in known)
+    return ranked
+
+
 def _snapshot_search_results(
     snapshot: dict[str, Any],
     *,
@@ -167,7 +210,19 @@ class GeneralWebGateway:
         self,
         github_reader: GitHubSourceReader | None = None,
         github_snapshotter: GitHubRepositorySnapshotter | None = None,
+        *,
+        search_strategy: str = "fallback",
     ) -> None:
+        if search_strategy not in SEARCH_STRATEGIES:
+            raise ValueError(
+                f"unknown search strategy {search_strategy!r}; "
+                f"expected one of {list(SEARCH_STRATEGIES)}"
+            )
+        # The default stays the sequential fallback. "merge" is the Quality-0
+        # candidate arm (E2) and must be requested explicitly: an experiment that
+        # changes the production search path by accident would make every other
+        # comparison meaningless.
+        self.search_strategy = search_strategy
         self.github_reader = github_reader or GitHubSourceReader()
         self.github_snapshotter = github_snapshotter or GitHubRepositorySnapshotter()
 
@@ -233,6 +288,12 @@ class GeneralWebGateway:
         else:
             status = "empty"
             reason = "providers_returned_no_results"
+        trace = self._merge_trace(outcome)
+        if trace:
+            # The delivered order, after the local domain constraint. Reporting
+            # the pre-filter order would let a run claim a source it never gave
+            # to the model.
+            trace["ranked_urls"] = [str(item.get("url") or "") for item in results]
         return {
             "status": status,
             "reason": "domain_constraint_rejected_results" if filtered_count and not results else reason,
@@ -241,6 +302,7 @@ class GeneralWebGateway:
             "domain_filtered_count": filtered_count,
             "provider_errors": provider_errors,
             "providers_attempted": list(outcome["providers_attempted"]),
+            **trace,
             "searched_at": current.isoformat(),
         }
 
@@ -272,9 +334,14 @@ class GeneralWebGateway:
         provider_errors: list[str] = []
         results: list[dict[str, str]] = []
         saw_available_provider = False
+        variant_traces: list[dict[str, Any]] = []
+        adopted_query: str | None = None
         for variant in normalization.query_variants:
             attempted.append(variant)
             exact = self.search_exact(variant, max_results=limit, now=current)
+            trace = self._merge_trace(exact)
+            if trace:
+                variant_traces.append({"query": variant, **trace})
             if exact["status"] != "unavailable":
                 saw_available_provider = True
             for error in exact.get("provider_errors", []):
@@ -287,6 +354,10 @@ class GeneralWebGateway:
                 limit,
             )
             if results:
+                # The results the caller receives come from this variant, so this
+                # is the trace that describes them. Keeping the first variant's
+                # trace instead would report a merge that produced nothing.
+                adopted_query = variant
                 break
 
         if results:
@@ -300,7 +371,7 @@ class GeneralWebGateway:
         else:
             status = "empty"
             reason = "providers_returned_no_results"
-        return {
+        payload = {
             **normalization.to_dict(),
             "status": status,
             "reason": reason,
@@ -309,6 +380,29 @@ class GeneralWebGateway:
             "provider_errors": provider_errors,
             "searched_at": current.isoformat(),
         }
+        if variant_traces:
+            payload["merge_traces"] = variant_traces
+            payload["adopted_query"] = adopted_query
+            adopted = next(
+                (
+                    trace
+                    for trace in variant_traces
+                    if adopted_query is not None and trace["query"] == adopted_query
+                ),
+                None,
+            )
+            if adopted is not None:
+                # Only an adopted variant describes the delivered answer. With no
+                # adopted variant the aggregates are omitted rather than taken
+                # from the last attempt, which would present a failed merge as
+                # the run's search evidence.
+                payload.update(
+                    {key: value for key, value in adopted.items() if key != "query"}
+                )
+            else:
+                payload["providers_attempted"] = []
+                payload["ranked_urls"] = []
+        return payload
 
     def _search_single(self, query: str, limit: int) -> dict[str, Any]:
         provider_timeout = _env_float(
@@ -327,6 +421,9 @@ class GeneralWebGateway:
         results: list[dict[str, str]] = []
         provider_errors: list[str] = []
         providers_attempted: list[str] = []
+
+        if self.search_strategy == "merge":
+            return self._search_merged(query, limit, provider_timeout, deadline)
 
         def remaining_timeout(provider: str) -> float:
             remaining = deadline - time.monotonic()
@@ -397,6 +494,103 @@ class GeneralWebGateway:
             "provider_errors": provider_errors,
             "providers_attempted": providers_attempted,
         }
+
+    def _search_merged(
+        self,
+        query: str,
+        limit: int,
+        provider_timeout: float,
+        deadline: float,
+    ) -> dict[str, Any]:
+        """E2: ask both engines for the same query, merge, then rank.
+
+        The fallback strategy stops at the first engine that answers, so a query
+        that two engines would rank differently is decided by whichever answered
+        first. This strategy pays a second request to remove that accident, then
+        deduplicates and re-ranks with the production source scorer.
+
+        Everything about the decision is reported - which providers were really
+        attempted, how many rows each returned, how many were duplicates, and the
+        final order - because "both providers were merged" is otherwise only a
+        claim about the code, not about the run.
+        """
+
+        provider_errors: list[str] = []
+        providers_attempted: list[str] = []
+        providers_skipped: list[dict[str, str]] = []
+        collected: list[dict[str, str]] = []
+        provider_counts: dict[str, int] = {}
+
+        def remaining(provider: str) -> float:
+            left = deadline - time.monotonic()
+            if left < 0.25:
+                provider_errors.append(f"{provider}:search_budget_exhausted")
+                return 0.0
+            return min(provider_timeout, left)
+
+        plan = (
+            ("bing_rss", "WEB_ENABLE_BING_RSS", self._search_bing_rss),
+            ("duckduckgo_html", "WEB_ENABLE_DUCKDUCKGO", self._search_duckduckgo),
+        )
+        for name, flag, fetch in plan:
+            if not _env_flag(flag, default=True):
+                provider_errors.append(f"{name}:provider_disabled")
+                providers_skipped.append(
+                    {"provider": name, "reason": "provider_disabled"}
+                )
+                continue
+            timeout = remaining(name)
+            if not timeout:
+                providers_skipped.append(
+                    {"provider": name, "reason": "search_budget_exhausted"}
+                )
+                continue
+            # Recorded immediately before the call, never before the decision to
+            # make it: a run that reports two engines while calling one would be
+            # claiming the experiment it was supposed to prove.
+            providers_attempted.append(name)
+            rows, error = fetch(query, limit, timeout)
+            if error:
+                provider_errors.append(error)
+            provider_counts[name] = len(rows)
+            collected.extend(rows)
+
+        seen: set[str] = set()
+        merged: list[dict[str, str]] = []
+        duplicates = 0
+        for item in collected:
+            key = _result_key(item)
+            if not key or key in seen:
+                duplicates += 1
+                continue
+            seen.add(key)
+            merged.append(item)
+
+        ranked = _dedupe_results(_rank_merged(merged, query), limit)
+        return {
+            "results": ranked,
+            "provider_errors": provider_errors,
+            "providers_attempted": providers_attempted,
+            "search_strategy": self.search_strategy,
+            "merged_count": len(collected),
+            "duplicate_count": duplicates,
+            "provider_counts": provider_counts,
+            "providers_skipped": providers_skipped,
+            "ranked_urls": [str(item.get("url") or "") for item in ranked],
+        }
+
+    @staticmethod
+    def _merge_trace(outcome: dict[str, Any]) -> dict[str, Any]:
+        """Carry the E2 decision fields through the compatibility wrappers.
+
+        Empty for the fallback strategy: those fields describe a merge that did
+        not happen, and a trace that always contains them would let a caller
+        believe both providers were consulted when only one was.
+        """
+
+        if "search_strategy" not in outcome:
+            return {}
+        return {key: outcome[key] for key in _MERGE_TRACE_KEYS if key in outcome}
 
     def read(
         self, url: str, *, max_chars: int = 6000, timeout: float | None = None
