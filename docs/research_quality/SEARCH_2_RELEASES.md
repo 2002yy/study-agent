@@ -59,6 +59,7 @@ N07 的事实词检查现在能通过（正文含 `vllm`、`release`、`v0.`、`
 ## 读取预算（review 5700500890 修正）
 
 - `GeneralWebGateway.read()` 现在把传入的 timeout 作为**整次读取**的预算：GitHub 分支直接使用它，不再先花一轮 official-metadata 探测；
+- 未显式传 timeout 时，/releases 读取使用 WEB_GITHUB_RELEASES_TIMEOUT_SECONDS（默认 15，范围 5–30）；调用方显式传入的 timeout 永远优先，因此不会超过研究剩余预算。
 - `GitHubSourceReader.read(..., timeout=...)` → 每次请求的 socket 超时用剩余预算，并且**每 64 KiB 读块后检查截止时间**，所以慢速流式响应也会在预算耗尽时中止；
 - 超时 → `github_read_timeout`；GitHub 限流 → `github_rate_limited`（403 + `X-RateLimit-Remaining: 0`，或 429）。
 
