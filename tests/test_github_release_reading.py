@@ -106,6 +106,42 @@ def test_the_gateway_passes_the_read_timeout_to_the_github_reader():
     assert captured["timeout"] == 6.0
 
 
+def test_a_release_read_gets_the_dedicated_default_budget_when_none_is_given(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class FakeReader:
+        def supports(self, _url):
+            return True
+
+        def read(self, url, *, max_chars=12000, timeout=None):
+            captured["timeout"] = timeout
+            return {"ok": True, "content": "x"}
+
+    monkeypatch.setenv("WEB_GITHUB_RELEASES_TIMEOUT_SECONDS", "18")
+    gateway = GeneralWebGateway(github_reader=FakeReader())
+    gateway.read("https://github.com/o/r/releases")
+
+    assert 17.9 <= float(captured["timeout"]) <= 18.0
+
+
+def test_an_explicit_timeout_beats_the_release_default(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class FakeReader:
+        def supports(self, _url):
+            return True
+
+        def read(self, url, *, max_chars=12000, timeout=None):
+            captured["timeout"] = timeout
+            return {"ok": True, "content": "x"}
+
+    monkeypatch.setenv("WEB_GITHUB_RELEASES_TIMEOUT_SECONDS", "18")
+    gateway = GeneralWebGateway(github_reader=FakeReader())
+    gateway.read("https://github.com/o/r/releases", timeout=6.0)
+
+    assert 5.9 <= float(captured["timeout"]) <= 6.0
+
+
 def test_a_socket_timeout_is_reported_as_github_read_timeout(monkeypatch):
     def slow_request(*_args, **_kwargs):
         raise socket.timeout("timed out")

@@ -214,6 +214,22 @@ def _canonical_read_error_code(reason: str) -> str:
     return _READ_ERROR_CODE_BY_REASON.get(value, "other")
 
 
+def _github_release_default_timeout() -> float:
+    """Budget for a GitHub release read when the caller names none.
+
+    A release read is one API call with a known shape, and on a slow network it
+    is the read most likely to need more than the generic ten seconds. An
+    explicit caller timeout always wins, so a research deadline is never
+    exceeded by this default.
+    """
+
+    try:
+        value = float(os.getenv("WEB_GITHUB_RELEASES_TIMEOUT_SECONDS", "15"))
+    except ValueError:
+        value = 15.0
+    return max(5.0, min(value, 30.0))
+
+
 class GeneralWebGateway:
     """Expose bounded search, page reading, and GitHub browsing to model tools."""
 
@@ -612,7 +628,12 @@ class GeneralWebGateway:
         # One budget for the whole read, not one budget per stage: the metadata
         # probe, the GitHub reader and the article fetcher must not each get the
         # caller's timeout, or a 6 s read can take 18 s.
-        budget = float(timeout) if timeout is not None else 10.0
+        if timeout is not None:
+            budget = float(timeout)
+        elif self.github_reader.supports(value) and "/releases" in value:
+            budget = _github_release_default_timeout()
+        else:
+            budget = 10.0
         deadline = time.monotonic() + max(0.5, budget)
 
         def remaining(floor: float = 0.5) -> float:
