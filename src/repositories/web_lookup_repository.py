@@ -1142,8 +1142,13 @@ class WebLookupRepository:
             provider_status = "found" if items else "empty"
 
         now = utc_now()
+        # A failed read with no body cannot be reported as a completed answer source.
+        # Keep normal empty searches as completed: they ran to completion.
         status = final_status or (
-            "partial" if provider_status == "insufficient" else "completed"
+            "partial"
+            if provider_status == "insufficient"
+            or (stop_reason == "source_reading_failed" and not source_block.strip())
+            else "completed"
         )
         # The terminal write is the only place replies may be frozen, and it must
         # not drop a reply another writer appended meanwhile. So each attempt
