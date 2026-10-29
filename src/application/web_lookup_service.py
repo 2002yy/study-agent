@@ -352,19 +352,29 @@ def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value.strip()))
 
 
-def _gateway_search_trace(gateway: object) -> dict[str, Any]:
-    """Read the trace the gateway kept for its last search, if it keeps one.
+class _SearchGateway(Protocol):
+    """The part of a research gateway this module calls directly."""
 
-    Gateways that cannot describe their search (older adapters, test doubles)
-    have nothing to report; the attempt then simply has no trace field, which is
-    honest. Inventing one here would claim an execution that cannot be verified.
+    def search(self, query: str, *, max_items: int) -> list[dict[str, Any]]: ...
+
+
+def _gateway_search(
+    gateway: _SearchGateway, query: str, *, max_items: int
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Run one search and return its results together with its own trace.
+
+    The trace has to travel with the call. Fetching it from the gateway
+    afterwards is a second read of shared state: another run can search on the
+    same gateway in between and its evidence would be persisted against this
+    run's answer. Gateways that cannot describe a search report no trace rather
+    than borrowing one.
     """
 
-    reader = getattr(gateway, "search_trace", None)
-    if not callable(reader):
-        return {}
-    trace = reader()
-    return dict(trace) if isinstance(trace, dict) else {}
+    reader = getattr(gateway, "search_with_trace", None)
+    if callable(reader):
+        results, trace = reader(query, max_items=max_items)
+        return list(results), dict(trace) if isinstance(trace, dict) else {}
+    return list(gateway.search(query, max_items=max_items)), {}
 
 
 def _gateway_warning_text(items: list[dict[str, str]]) -> list[str]:
@@ -1115,7 +1125,8 @@ class WebLookupService:
                 for search_query in variants:
                     ensure_active()
                     try:
-                        results = self.gateway.search(
+                        results, trace = _gateway_search(
+                            self.gateway,
                             search_query,
                             max_items=run.max_items,
                         )
@@ -1126,12 +1137,11 @@ class WebLookupService:
                                 "operation_id": operation_id,
                             }
                         )
-                        trace = _gateway_search_trace(self.gateway)
                         if trace:
-                            # Persisted with the attempt it describes, so the
-                            # Quality-0 runner reads the evidence from the run
-                            # record instead of asking the process that has
-                            # already exited.
+                            # Persisted with the attempt it describes. Read from
+                            # the call, never from the gateway: a shared gateway
+                            # can serve another run between the search and a
+                            # later read.
                             payload["search_trace"] = trace
                         query_attempts.append(payload)
                         current_attempts.append(payload)
@@ -1150,9 +1160,9 @@ class WebLookupService:
                                 "operation_id": operation_id,
                             }
                         )
-                        trace = _gateway_search_trace(self.gateway)
-                        if trace:
-                            payload["search_trace"] = trace
+                        failure_trace = getattr(exc, "search_trace", None)
+                        if isinstance(failure_trace, dict) and failure_trace:
+                            payload["search_trace"] = dict(failure_trace)
                         query_attempts.append(payload)
                         current_attempts.append(payload)
                         warnings.append(f"research query failed ({search_query}): {exc}")

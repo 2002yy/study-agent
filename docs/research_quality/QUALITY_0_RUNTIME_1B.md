@@ -74,32 +74,57 @@ GeneralWebGateway(search_strategy="merge")     # E2：bing + ddg 同查、去重
 | 文件 | 内容 |
 | --- | --- |
 | `src/web/tool_gateway.py` | 新增模块级 `merge_trace(payload)`；`GeneralWebGateway._merge_trace` 改为调用它 |
-| `src/web/research_gateway.py` | `search()` 保留上次 trace，`search_trace()` 读取 |
-| `src/application/web_lookup_service.py` | 把 trace 写入该次 `query_attempts[*]["search_trace"]`（成功与失败两条路径） |
-| `tests/test_research_gateway_trace.py`（新） | 8 条链路契约 |
+| `src/web/research_gateway.py` | 新增 `search_with_trace()` 返回 `(results, trace)`；`search()` 仅作兼容包装；新增 `ResearchSearchUnavailable` 携带失败尝试的 trace |
+| `src/application/web_lookup_service.py` | 用 `_gateway_search()` 一次调用同时取得结果与 trace，写入 `query_attempts[*]["search_trace"]` |
+| `tests/test_research_gateway_trace.py`（新） | 11 条链路与并发契约 |
 
 ### 单点判定：什么才算 merge
 
 `providers_attempted` 在 fallback 路径上也存在，所以「有这个字段」不能证明发生过合并。唯一判据是 `search_strategy`——`merge_trace()` 只认它，两个调用方共用同一处实现，避免两套 key 列表各自漂移。这条正是新测试抓出来的真实缺陷：按 key 白名单拷贝时，fallback 的检索被写成了 `{'providers_attempted': ['bing_rss']}`，看起来像发生过合并。
 
-### 四条链路契约
+### 复审修正：证据必须绑定到产生它的那次调用
 
-1. **success 与 failure 都带 trace**。失败的检索同样要能说明哪些引擎跑过——否则「provider 全挂」和「一个都没调用」在记录里长得一样。
-2. **不做检索就不写 trace**。直接 GitHub 链接不是搜索，`search_trace()` 为空。
-3. **上一次的 trace 绝不落到这一次**。`search()` 入口先清空；否则并发变体或失败重试会把别的 query 的证据挂到本次尝试上。
-4. **没有 trace 读取器的网关照常工作**。旧适配器与测试替身不实现 `search_trace()` 时，attempt 里就没有该字段——缺证据好过假证据。
+最初实现是「网关保存 `_last_trace`，服务事后调 `search_trace()` 回读」。这在共享网关上不成立：
+
+```
+A 搜索 → 网关记住 A 的 trace
+B 搜索 → 覆盖为 B 的 trace
+A 回读 → 拿到 B 的 ranked_urls，记进 A 的答案
+```
+
+现在是**按调用返回**：`search_with_trace()` 在同一次调用里产出 `(results, trace)`，服务层不再回读共享状态，`search_trace()` 已删除（`test_the_gateway_exposes_no_shared_trace_accessor` 防止它被加回来）。失败路径同样不经过共享状态——`ResearchSearchUnavailable.search_trace` 带着本次尝试的 trace。
+
+这不是理论风险。用旧实现跑确定性负控脚本（A 搜索、B 搜索、再读 A 的证据）：
+
+```
+A results: ['https://alpha.example/1']
+A trace read after B search: ['https://beta.example/2']
+contaminated: True
+```
+
+### 五条链路契约
+
+1. **结果与 trace 同源**。两者由同一次调用产出，不可能分属不同检索。
+2. **success 与 failure 都带 trace**。失败的检索同样要能说明哪些引擎跑过——否则「provider 全挂」和「一个都没调用」在记录里长得一样。
+3. **不做检索就不写 trace**。直接 GitHub 链接不是搜索。
+4. **网关不保留可回读的 trace**。没有共享状态，就没有跨运行串证据的入口。
+5. **没有 `search_with_trace()` 的网关照常工作**。旧适配器与测试替身只是没有该字段——缺证据好过假证据。
 
 ### 已知不对称（需在预览时记录）
 
 `merge` 策略只查 Bing 与 DuckDuckGo，`fallback` 在 `WEB_ENABLE_SEARXNG` 打开时会先查 SearXNG。因此两臂的 provider 集合可能不同。这不是本切片的改动范围（E2 定义已冻结为 bing+ddg），但预览运行必须固定并记录 provider 环境变量，且以 trace 里的 `providers_attempted` 为实际发生的事实的准。
 
+### 相邻问题（未在本切片修）
+
+`ResearchWebGateway.warnings()` 仍是共享状态，服务在同一位置回读。它记录的是 provider 错误文本，不是检索证据，风险等级低于 trace；但这与本切片刚修掉的是同一种形状。修它需要动 `warnings()` 的既有调用方，另行授权。
+
 ### 离线证据
 
-`tests/test_research_gateway_trace.py`（8 条）：merge 暴露执行细节、默认臂不声称合并、直接 GitHub 链接不产生 trace、上一次 trace 不落到下一次、失败检索仍报告跑过的引擎、持久化 attempt 带 trace、默认臂不写该字段、无 `search_trace()` 的网关照常工作。
+`tests/test_research_gateway_trace.py`（11 条）：merge 暴露执行细节、默认臂不声称合并、直接 GitHub 链接不产生 trace、网关无可回读访问器、A/B 顺序调用互不污染、A 在 provider 内阻塞至 B 完成后仍保留自己的 trace、失败检索携带 trace、持久化 attempt 带 trace、两个交叠 run 各自持久化自己的证据、默认臂不写该字段、无 `search_with_trace()` 的网关照常工作。
 
-负控：回退三个源文件、保留新测试 → **6 failed / 2 passed**（通过的两条是「不得出现 trace」的守卫，在旧实现下自然成立）。
+负控：旧实现脚本如上（`contaminated: True`）；旧 API 下新测试因 `search_with_trace` 不存在而全部失败。
 
-影响集：新测试 + 11 个 gateway/search/web_lookup 套件 = 91 passed；再加 9 个断言 `query_attempts` 的研究链路套件 = 61 passed。
+影响集：新测试 + 11 个 gateway/search/web_lookup 套件；再加 9 个断言 `query_attempts` 的研究链路套件。
 
 ## 非范围（后续切片）
 
