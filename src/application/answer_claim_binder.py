@@ -46,6 +46,15 @@ _MAX_ANCHORED_SPANS_PER_ROW = 6
 _MAX_CAVEATS_PER_ROW = 6
 _MAX_SEGMENTS = 16
 _MAX_SEGMENT_CHARS = 1200
+#: Verification text is never rendered into the prompt; it exists so the server
+#: can check a claim against what the page actually said.
+_MAX_GROUNDING_CHARS = 12_000
+#: Shortest shared run (after normalization) that counts as the claim being
+#: present in the page. Long enough to exclude a shared topic word, short enough
+#: to survive ordinary rephrasing.
+_MIN_GROUNDING_RUN = 6
+_GROUNDING_KEEP = re.compile(r"[0-9a-z\u4e00-\u9fff]+")
+_GROUNDING_NUMBERS = re.compile(r"\d+(?:\.\d)+|\d{3,}")
 
 _ALLOWED_SEGMENT_KINDS = frozenset(
     {"factual", "instructional", "question", "recommendation", "uncertainty"}
@@ -83,6 +92,11 @@ class AnswerClaimBindingRow:
     locator: str = ""
     anchored_spans: tuple[str, ...] = ()
     caveats: tuple[str, ...] = ()
+    #: The page body this row stands for, when the row was derived from an
+    #: inline read rather than a validated claim-engine relation. A row with
+    #: verification text is never trusted by its labels: support is granted only
+    #: when the claim itself is found in this text.
+    grounding_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -268,7 +282,7 @@ def _parse_binder_output(
             row = rows_by_link.get((research_claim_id, evidence_id))
             if row is None:
                 return None, "claim_evidence_mismatch"
-            confidence = _positive_support_confidence(row)
+            confidence = _supported_confidence(row, ref_to_text[ref])
             if confidence is None:
                 return None, "ineligible_evidence_support"
             support_rows.append((evidence_id, confidence))
@@ -330,6 +344,63 @@ def _infer_research_claim_id(
     if len(candidates) != 1:
         return None
     return next(iter(candidates))
+
+
+def _supported_confidence(
+    row: AnswerClaimBindingRow, claim_text: str
+) -> float | None:
+    """Confidence for a claim/evidence link, decided by the server.
+
+    A row that carries the page body cannot be trusted by its labels: reading a
+    page is not support for a claim. Support is granted only when the claim's own
+    content is found in that body (see :func:`claim_grounded_in_text`). Rows
+    without verification text keep the claim-engine rule, which is validated
+    upstream by the Evidence Gate.
+    """
+
+    if row.grounding_text:
+        if not claim_grounded_in_text(claim_text, row.grounding_text):
+            return None
+        return 1.0
+    return _positive_support_confidence(row)
+
+
+def claim_grounded_in_text(claim_text: str, page_text: str) -> bool:
+    """True when the claim's content is actually present in the page.
+
+    Two checks, both cheap and deterministic:
+
+    * every distinctive number in the claim (a version or a 3+ digit figure)
+      must appear in the page - this is what stops an answer from citing a page
+      that talks about a different version;
+    * the claim and the page must share a run of at least ``_MIN_GROUNDING_RUN``
+      normalized characters, so a page that merely shares a topic word cannot
+      authorize a sentence.
+
+    The page is the verified body, not a headline or a 300-character excerpt, so
+    a fact supported later in the article is still found.
+    """
+
+    claim = _grounding_text(claim_text)
+    page = _grounding_text(page_text)
+    if not claim or not page:
+        return False
+    for number in _GROUNDING_NUMBERS.findall(claim):
+        if number not in page:
+            return False
+    return _has_shared_run(claim, page, _MIN_GROUNDING_RUN)
+
+
+def _grounding_text(value: Any) -> str:
+    """Casefold and drop punctuation/spaces so runs survive reflow and markup."""
+
+    return "".join(_GROUNDING_KEEP.findall(str(value or "").casefold()))
+
+
+def _has_shared_run(claim: str, page: str, length: int) -> bool:
+    if len(claim) < length:
+        return False
+    return any(claim[start : start + length] in page for start in range(len(claim) - length + 1))
 
 
 def _positive_support_confidence(row: AnswerClaimBindingRow) -> float | None:
@@ -443,6 +514,10 @@ def _binding_messages(
         "copied from the evidence rows; if omitted, the server accepts it only "
         "when all chosen evidence ids uniquely imply the same claim. Use only "
         "evidence rows that positively and strongly support the segment.\n"
+        "4b. A row whose relation is 'read' is a page this turn read, not a "
+        "support relation. Rely on it only when the segment's own content "
+        "appears in its excerpt; the server re-checks the page body and will "
+        "reject support it cannot find there.\n"
         "5. Non-factual segments must omit status/research_claim_id and have an "
         "empty evidence_support list.\n"
         "6. If the whole answer cannot be safely bound, set refused=true.\n"
@@ -538,6 +613,7 @@ def _bounded_rows(
             caveats=tuple(
                 _clip(caveat, _MAX_CAVEAT_CHARS) for caveat in row.caveats
             )[:_MAX_CAVEATS_PER_ROW],
+            grounding_text=_clean_text(row.grounding_text)[:_MAX_GROUNDING_CHARS],
         )
 
 

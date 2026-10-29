@@ -946,7 +946,12 @@ def _read_backed_calls(
                 "ok": True,
                 "url": url,
                 "title": "Official release notes",
-                "content": "v9.9.0 was released on 2026-10-30.",
+                # The claim must be verifiable in the body: reading a page is
+                # not support, so the fixture page has to state the fact.
+                "content": (
+                    "Release notes. 该版本已正式发布，并修复了已知问题。"
+                    "v9.9.0 released 2026-10-30."
+                ),
                 "answer_eligible": True,
                 "method": "article_http",
             },
@@ -1122,3 +1127,78 @@ def test_a_non_research_turn_still_answers_without_the_publication_gate(
     assert tasks == ["single_chat"]
     assert reply == CANDIDATE
     assert (turn.rag_snapshot or {}).get("answer_validation_audit") is None
+
+
+def test_reading_a_page_never_labels_it_as_strong_support(tmp_path) -> None:
+    """Read eligibility is not support eligibility."""
+
+    from src.application.chat_service import _tool_read_validation_plan
+
+    plan = _tool_read_validation_plan(
+        WebToolTrace(calls=_read_backed_calls()), "这个版本什么时候发布的？"
+    )
+
+    assert plan is not None
+    row = plan["evidence_rows"][0]
+    assert row["relation"] != "supports"
+    assert row["strength"] == ""
+    # The full body is what the server verifies against, not a 300-char head.
+    assert "v9.9.0" in row["grounding_text"]
+    assert row["anchored_spans"]
+
+
+def test_a_page_that_does_not_contain_the_claim_cannot_authorize_it(tmp_path) -> None:
+    """B01 control: a dictionary page must not authorize a game-build answer."""
+
+    dictionary = (
+        "千（汉语汉字）_百度百科：千，数目，十百为千。古文千作人。"
+        "相关条目：万、百。"
+    )
+    claim = "刃在黄泉队里应该使用莳者四件套，主堆暴击率。"
+    seen = {"binder_prompt": ""}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            messages = _messages(args, kwargs)
+            seen["binder_prompt"] = _prompt_text(messages)
+            return _binding_payload(
+                [_segment_entry("s1", support=(_support_id(messages),))]
+            )
+        return claim
+
+    calls = list(_read_backed_calls("https://baike.example/千"))
+    calls[1] = {
+        **calls[1],
+        "result": {**calls[1]["result"], "content": dictionary},
+    }
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=tuple(calls)),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert seen["binder_prompt"] != ""
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    audit = _audit(turn)
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "rejected"
+    assert audit["phases"]["answer_claim_binding"]["error_type"] == (
+        "ineligible_evidence_support"
+    )
+    assert not (turn.rag_snapshot or {}).get("research_evidence_refs")
+
+
+def test_claim_grounding_requires_the_claim_not_just_the_topic() -> None:
+    from src.application.answer_claim_binder import claim_grounded_in_text
+
+    node_page = (
+        "Node.js 24.11.0 (LTS) released; the current Active LTS line is 24.x, "
+        "codename Krypton, supported until April 2028."
+    )
+    assert claim_grounded_in_text("Node.js 当前 LTS 是 24.11.0，代号 Krypton", node_page)
+    # A different patch version is not in the page.
+    assert not claim_grounded_in_text("Node.js 当前 LTS 是 24.11.1", node_page)
+    # Sharing only the topic word is not support.
+    dictionary = "千，数目，十百为千。万、百、千。"
+    assert not claim_grounded_in_text("刃在黄泉队里应该使用莳者四件套", dictionary)

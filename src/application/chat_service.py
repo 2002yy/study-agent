@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import asyncio
 from contextlib import suppress
 from copy import deepcopy
@@ -184,47 +186,57 @@ def _official_publication_required(prepared: PreparedChatTurn) -> bool:
                 or _research_intent(prepared.route)))
 
 
-def _tool_read_validation_plan(trace: Any) -> dict[str, Any] | None:
+def _tool_read_validation_plan(
+    trace: Any, question: str
+) -> dict[str, Any] | None:
     """Publication rows for the pages this turn's tool loop actually read.
 
     A research turn normally receives its plan from a ResearchRun, whose
-    claim-engine brief carries the validated support rows. The inline tool loop
-    has no such brief, so it used to fall through to the blocked copy without
-    ever calling the model - even after a successful read. Those reads are still
-    real evidence, so they are projected into the same row shape the binder
-    already consumes, tagged so an audit can tell where the plan came from.
-    Every row is a page that passed the read-eligibility check in
-    ``tool_evidence_items``; nothing is invented to fill the plan.
+    claim-engine brief carries validated support rows. The inline tool loop has
+    no such brief, so it used to fall through to the blocked copy without ever
+    calling the model - even after a successful read.
+
+    Reading a page is not support for a claim, so these rows carry **no**
+    supports/strong label. They carry the page body instead, and the binder
+    grants support only when the claim itself is found in that body. Excerpts
+    are taken around the question's own terms rather than from the page head, so
+    a fact stated later in the article is visible to the binder.
     """
 
     from urllib.parse import urlsplit
 
-    from src.web.tool_evidence import tool_evidence_items
+    from src.web.tool_evidence import evidence_tool_calls
 
-    items = tool_evidence_items(list(getattr(trace, "calls", ()) or ()))
+    calls = evidence_tool_calls(list(getattr(trace, "calls", ()) or ()))
     rows: list[dict[str, Any]] = []
-    for index, item in enumerate(items[:8], start=1):
-        if not isinstance(item, dict):
+    for index, call in enumerate(calls[:8], start=1):
+        result = call.get("result") if isinstance(call, dict) else None
+        if not isinstance(result, dict):
             continue
-        url = str(item.get("url") or "").strip()
-        if not url:
+        raw_arguments = call.get("arguments")
+        arguments = raw_arguments if isinstance(raw_arguments, dict) else {}
+        url = str(result.get("url") or arguments.get("url") or "").strip()
+        body = str(result.get("content") or result.get("readme") or "")
+        if not url or not body.strip():
             continue
-        snippet = str(item.get("snippet") or "").strip()
         rows.append(
             {
                 "evidence_id": f"tool_read_{index}",
                 # One claim id for the turn: these reads answer the user's
                 # question as a whole, not a decomposed research sub-claim.
                 "claim_id": "inline_tool_read",
-                "title": str(item.get("title") or "")[:200],
+                "title": str(result.get("title") or url)[:200],
                 "url": url,
                 "source_role": "public_page",
                 "source_cluster_id": urlsplit(url).netloc[:100],
-                "relation": "supports",
-                "strength": "strong",
+                # Not a support relation: `strength` stays empty so the row
+                # cannot authorize a claim by itself.
+                "relation": "read",
+                "strength": "",
                 "locator": "",
-                "anchored_spans": (snippet,) if snippet else (),
+                "anchored_spans": _question_excerpts(body, question),
                 "caveats": ("read_by_inline_tool_loop",),
+                "grounding_text": body[:12_000],
             }
         )
     if not rows:
@@ -234,6 +246,38 @@ def _tool_read_validation_plan(trace: Any) -> dict[str, Any] | None:
         "allowed_attempts": 1,
         "source": "inline_tool_loop",
     }
+
+
+def _question_excerpts(body: str, question: str, *, limit: int = 3) -> tuple[str, ...]:
+    """Excerpts from anywhere in the body that mention the question's terms.
+
+    The head of a page is often navigation or an introduction; a fact the answer
+    needs may sit far below it. Windows are taken around the first occurrences of
+    the question's distinctive tokens, always including the head as a fallback.
+    """
+
+    text = str(body or "")
+    if not text.strip():
+        return ()
+    windows: list[tuple[int, int]] = [(0, min(len(text), 300))]
+    folded = text.casefold()
+    tokens = [
+        token
+        for token in re.findall(r"[0-9a-z.]{4,}|[\u4e00-\u9fff]{2,}", question.casefold())
+        if token
+    ]
+    for token in sorted(set(tokens), key=len, reverse=True)[:8]:
+        position = folded.find(token)
+        if position < 0:
+            continue
+        start = max(0, position - 80)
+        end = min(len(text), position + 220)
+        if any(start < used_end and used_start < end for used_start, used_end in windows):
+            continue
+        windows.append((start, end))
+        if len(windows) >= limit:
+            break
+    return tuple(text[start:end] for start, end in windows)
 
 
 class TurnCancelled(Exception):
@@ -831,7 +875,9 @@ class ChatService:
                 # Known-source turns keep their deterministic field publication:
                 # that seam withholds model prose on purpose. It is the general
                 # research turn that must not lose its answer.
-                answer_validation = _tool_read_validation_plan(web_tools)
+                answer_validation = _tool_read_validation_plan(
+                    web_tools, command.user_input
+                )
             from src.web.research.research_interaction import steering_answer_instruction
 
             effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
@@ -1408,6 +1454,7 @@ class ChatService:
                     str(span) for span in row.get("anchored_spans") or ()
                 ),
                 caveats=tuple(str(caveat) for caveat in row.get("caveats") or ()),
+                grounding_text=str(row.get("grounding_text") or ""),
             )
             for row in raw_rows
             if isinstance(row, dict)
