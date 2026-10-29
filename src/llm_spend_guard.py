@@ -92,6 +92,7 @@ __all__ = [
     "SpendLimitExceeded",
     "SpendScope",
     "allowed_models",
+    "charge_send",
     "current_send_budget",
     "send_budget_scope",
     "compose_request_key",
@@ -661,6 +662,27 @@ def _charge_send(*, request_key: str | None, attempts: int) -> None:
         raise SendLimitExceeded(
             f"send budget unavailable: {exc}", reason="unavailable"
         ) from exc
+
+
+def charge_send(*, request_key: str | None = None, attempts: int = 1) -> None:
+    """Charge one model send against every scope bound to this context.
+
+    This is the public entry point for harnesses that call the transport
+    directly instead of going through :func:`reserve_call`. It charges the same
+    binding, in the same transaction, so a send counted here and a send counted
+    there cannot both happen for one request.
+
+    Call it exactly once per physical attempt, *before* the request leaves the
+    process. ``attempts`` is ``retries + 1``; understating it would let an SDK
+    retry spend a send that was never approved. A refusal raises
+    :class:`SendLimitExceeded`, deliberately not a money-guard exception, so a
+    runner stops rather than recording an unpaid answer.
+
+    Without a binding this does nothing, which is the pre-existing behaviour for
+    callers that never opted into a send budget.
+    """
+
+    _charge_send(request_key=request_key, attempts=attempts)
 
 
 def reset_spend() -> None:
