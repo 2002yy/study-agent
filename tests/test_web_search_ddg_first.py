@@ -163,6 +163,27 @@ def test_an_unknown_environment_strategy_fails_loudly(monkeypatch):
         GeneralWebGateway()
 
 
+def test_the_production_gateway_class_honours_the_environment_strategy(monkeypatch):
+    """The chat path builds this class with no strategy argument.
+
+    If someone later pins ``search_strategy=`` on that constructor call, the
+    deployment switch would silently stop working while every unit test on the
+    base class kept passing.
+    """
+
+    from src.web.persistent_tool_gateway import PersistentGeneralWebGateway
+
+    class StubSnapshotService:
+        def search_repository(self, *args, **kwargs):
+            return {"ok": True, "result_count": 0}
+
+    monkeypatch.setenv("WEB_SEARCH_STRATEGY", "ddg_first")
+
+    gateway = PersistentGeneralWebGateway(StubSnapshotService())
+
+    assert gateway.search_strategy == "ddg_first"
+
+
 def test_no_environment_setting_keeps_the_fallback(monkeypatch):
     monkeypatch.delenv("WEB_SEARCH_STRATEGY", raising=False)
 
