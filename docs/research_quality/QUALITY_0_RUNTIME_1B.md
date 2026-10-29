@@ -138,7 +138,7 @@ contaminated: True
 | --- | --- |
 | `src/llm_spend_guard.py` | 新增公开 `charge_send()`，包装既有 `_charge_send`；暴露给不经过 `reserve_call` 的执行器 |
 | `src/application/quality_0_arms.py`（新） | `ArmSpec` / `ArmTurn` / `TurnRecord` / `ArmRunReport`；`ArmExecutor` 协议（`run_turn(turn, send) -> str`）；`arm_specs()` / `plan_turns()` / `derive_caps()`；`Quality0ArmRunner` |
-| `tests/test_quality_0_arms.py`（新） | 23 条离线契约 |
+| `tests/test_quality_0_arms.py`（新） | 24 条离线契约 |
 | `docs/research_quality/QUALITY_0_RUNTIME_1B.md` | 本切片 |
 
 运行器不调用模型。`ArmExecutor` 是接缝：离线是「计一次发送、返回文本」的假执行器；真实执行器将来走聊天入口，由 `reserve_call` 计费。两种情况下**是否允许下一轮开始都由运行器决定**，所以额度耗尽时执行器不会再被调用。
@@ -177,7 +177,7 @@ nested_send: refused exhausted round:current:1
 
 ### 离线证据
 
-`tests/test_quality_0_arms.py`（23 条）：上限与工具 plan 一致、各臂看到相同轮次、一次发送记三层、重试按 `attempts` 计数、round 上限中止整场、已耗尽 arm 中止且不消耗其他臂、重启重放被拒、manual 臂只记录、给 manual 臂接执行器被拒、缺执行器在注册前失败、未知执行器被拒、执行器异常记失败但继续、零发送的完成被拒、非字符串答案记失败、七种非法臂配置、未知任务。
+`tests/test_quality_0_arms.py`（24 条）：上限与工具 plan 一致、各臂看到相同轮次、一次发送记三层、重试按 `attempts` 计数、round 上限中止整场、已耗尽 arm 中止且不消耗其他臂、重启重放被拒、manual 臂只记录、给 manual 臂接执行器被拒、缺执行器在注册前失败、未知执行器被拒、执行器异常记失败但继续、零发送的完成被拒、非字符串答案记失败、七种非法臂配置、未知任务、非字符串 task id。
 
 负控：如上 8 次发送未被计。
 

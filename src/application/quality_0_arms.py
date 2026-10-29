@@ -200,6 +200,8 @@ def _prompts_for(
         or not task_ids
     ):
         raise ArmPlanError("preview_tasks_empty")
+    if any(not isinstance(task_id, str) for task_id in task_ids):
+        raise ArmPlanError("preview_tasks_invalid")
     if len(set(task_ids)) != len(task_ids):
         raise ArmPlanError("preview_tasks_duplicate")
 

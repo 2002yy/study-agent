@@ -415,3 +415,10 @@ def test_an_invalid_arm_set_is_refused(arms, message):
 def test_an_unknown_task_is_refused():
     with pytest.raises(ArmPlanError, match="unknown_task"):
         plan_turns(_preview(task_ids=("T-404",)), _tasks())
+
+
+def test_a_non_string_task_id_is_refused_without_crashing():
+    preview = {"task_ids": [{"id": "T-1"}], "arms": [_arm("current", 1)]}
+
+    with pytest.raises(ArmPlanError, match="preview_tasks_invalid"):
+        plan_turns(preview, _tasks())
