@@ -132,6 +132,19 @@ _MERGE_TRACE_KEYS = (
 )
 
 
+def merge_trace(outcome: dict[str, Any]) -> dict[str, Any]:
+    """The merge decision fields of a search payload, empty when none ran.
+
+    ``providers_attempted`` also exists on the fallback path, so its presence is
+    not evidence of a merge. Only ``search_strategy`` is: without it the caller
+    would read a single-engine search as a two-engine one.
+    """
+
+    if not outcome.get("search_strategy"):
+        return {}
+    return {key: outcome[key] for key in _MERGE_TRACE_KEYS if key in outcome}
+
+
 def _rank_merged(
     results: list[dict[str, str]], query: str
 ) -> list[dict[str, str]]:
@@ -588,9 +601,7 @@ class GeneralWebGateway:
         believe both providers were consulted when only one was.
         """
 
-        if "search_strategy" not in outcome:
-            return {}
-        return {key: outcome[key] for key in _MERGE_TRACE_KEYS if key in outcome}
+        return merge_trace(outcome)
 
     def read(
         self, url: str, *, max_chars: int = 6000, timeout: float | None = None

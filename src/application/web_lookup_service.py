@@ -352,6 +352,21 @@ def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value.strip()))
 
 
+def _gateway_search_trace(gateway: object) -> dict[str, Any]:
+    """Read the trace the gateway kept for its last search, if it keeps one.
+
+    Gateways that cannot describe their search (older adapters, test doubles)
+    have nothing to report; the attempt then simply has no trace field, which is
+    honest. Inventing one here would claim an execution that cannot be verified.
+    """
+
+    reader = getattr(gateway, "search_trace", None)
+    if not callable(reader):
+        return {}
+    trace = reader()
+    return dict(trace) if isinstance(trace, dict) else {}
+
+
 def _gateway_warning_text(items: list[dict[str, str]]) -> list[str]:
     result: list[str] = []
     for item in items:
@@ -1111,6 +1126,13 @@ class WebLookupService:
                                 "operation_id": operation_id,
                             }
                         )
+                        trace = _gateway_search_trace(self.gateway)
+                        if trace:
+                            # Persisted with the attempt it describes, so the
+                            # Quality-0 runner reads the evidence from the run
+                            # record instead of asking the process that has
+                            # already exited.
+                            payload["search_trace"] = trace
                         query_attempts.append(payload)
                         current_attempts.append(payload)
                         warnings.extend(_gateway_warning_text(self.gateway.warnings()))
@@ -1128,6 +1150,9 @@ class WebLookupService:
                                 "operation_id": operation_id,
                             }
                         )
+                        trace = _gateway_search_trace(self.gateway)
+                        if trace:
+                            payload["search_trace"] = trace
                         query_attempts.append(payload)
                         current_attempts.append(payload)
                         warnings.append(f"research query failed ({search_query}): {exc}")

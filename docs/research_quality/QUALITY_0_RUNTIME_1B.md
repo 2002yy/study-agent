@@ -50,7 +50,7 @@ GeneralWebGateway(search_strategy="merge")     # E2：bing + ddg 同查、去重
 
 ## 离线证据
 
-`tests/test_web_search_strategy.py`（9 条）：
+`tests/test_web_search_strategy.py`（12 条）：
 
 - 默认策略仍是 `fallback`；未知策略被拒绝；
 - **fallback 行为未变**：Bing 有结果时 DuckDuckGo 不被调用，且不出现 merge 字段；
@@ -58,9 +58,48 @@ GeneralWebGateway(search_strategy="merge")     # E2：bing + ddg 同查、去重
 - 重复计数、`provider_counts`、重排顺序（更相关的第二引擎结果排到第一）；
 - 单引擎失败仍合并另一个，并保留错误；
 - 环境开关关闭某引擎时记录 `provider_disabled`，不假装查过；
-- trace 能到达 `search_detailed`（变体级 API）。
+- trace 能到达 `search_detailed`（变体级 API）；
+- 多变体 trace 归属、域过滤后交付顺序、无结果时不产生聚合。
 
-影响集：`tests/test_web_search_strategy.py` + 10 个 gateway/search/web_lookup 套件 = **80 passed**；`ruff` clean；`mypy` 改动文件无新增错误。
+影响集：`tests/test_web_search_strategy.py` + 10 个 gateway/search/web_lookup 套件 = **83 passed**；`ruff` clean；`mypy` 改动文件无新增错误。
+
+## 切片 2：trace 到达持久化的 run
+
+### 问题
+
+`ResearchWebGateway.search()` 是生产研究链路的入口，它只返回结果列表。merge trace 因此死在网关之上——E2 真的执行了，但 Quality-0 在 run 记录里看不到证据。
+
+### 改动
+
+| 文件 | 内容 |
+| --- | --- |
+| `src/web/tool_gateway.py` | 新增模块级 `merge_trace(payload)`；`GeneralWebGateway._merge_trace` 改为调用它 |
+| `src/web/research_gateway.py` | `search()` 保留上次 trace，`search_trace()` 读取 |
+| `src/application/web_lookup_service.py` | 把 trace 写入该次 `query_attempts[*]["search_trace"]`（成功与失败两条路径） |
+| `tests/test_research_gateway_trace.py`（新） | 8 条链路契约 |
+
+### 单点判定：什么才算 merge
+
+`providers_attempted` 在 fallback 路径上也存在，所以「有这个字段」不能证明发生过合并。唯一判据是 `search_strategy`——`merge_trace()` 只认它，两个调用方共用同一处实现，避免两套 key 列表各自漂移。这条正是新测试抓出来的真实缺陷：按 key 白名单拷贝时，fallback 的检索被写成了 `{'providers_attempted': ['bing_rss']}`，看起来像发生过合并。
+
+### 四条链路契约
+
+1. **success 与 failure 都带 trace**。失败的检索同样要能说明哪些引擎跑过——否则「provider 全挂」和「一个都没调用」在记录里长得一样。
+2. **不做检索就不写 trace**。直接 GitHub 链接不是搜索，`search_trace()` 为空。
+3. **上一次的 trace 绝不落到这一次**。`search()` 入口先清空；否则并发变体或失败重试会把别的 query 的证据挂到本次尝试上。
+4. **没有 trace 读取器的网关照常工作**。旧适配器与测试替身不实现 `search_trace()` 时，attempt 里就没有该字段——缺证据好过假证据。
+
+### 已知不对称（需在预览时记录）
+
+`merge` 策略只查 Bing 与 DuckDuckGo，`fallback` 在 `WEB_ENABLE_SEARXNG` 打开时会先查 SearXNG。因此两臂的 provider 集合可能不同。这不是本切片的改动范围（E2 定义已冻结为 bing+ddg），但预览运行必须固定并记录 provider 环境变量，且以 trace 里的 `providers_attempted` 为实际发生的事实的准。
+
+### 离线证据
+
+`tests/test_research_gateway_trace.py`（8 条）：merge 暴露执行细节、默认臂不声称合并、直接 GitHub 链接不产生 trace、上一次 trace 不落到下一次、失败检索仍报告跑过的引擎、持久化 attempt 带 trace、默认臂不写该字段、无 `search_trace()` 的网关照常工作。
+
+负控：回退三个源文件、保留新测试 → **6 failed / 2 passed**（通过的两条是「不得出现 trace」的守卫，在旧实现下自然成立）。
+
+影响集：新测试 + 11 个 gateway/search/web_lookup 套件 = 91 passed；再加 9 个断言 `query_attempts` 的研究链路套件 = 61 passed。
 
 ## 非范围（后续切片）
 
