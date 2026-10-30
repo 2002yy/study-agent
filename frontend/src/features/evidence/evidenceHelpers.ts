@@ -102,8 +102,16 @@ export function citationStatusOf(ref: EvidenceRef): "cited" | "unverified" | "no
 
 /** Display identity: one page must not be shown twice under two server ids. */
 function displayKey(ref: EvidenceRef): string {
-  const url = ref.url.trim().toLowerCase().replace(/\/+$/, "");
-  return url || ref.id;
+  const raw = ref.url.trim();
+  if (!raw) return `id:${ref.id}`;
+  try {
+    const url = new URL(raw);
+    // URL normalizes host/scheme casing; path and query values are
+    // case-sensitive and must not be folded when deduplicating pages.
+    return `url:${url.origin}${url.pathname.replace(/\/+$/, "")}${url.search}`;
+  } catch {
+    return `raw:${raw}`;
+  }
 }
 
 /** Sources the published answer actually cites, one entry per page. */
