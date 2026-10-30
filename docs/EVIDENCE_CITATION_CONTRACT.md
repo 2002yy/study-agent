@@ -72,7 +72,7 @@ const adoptedRefs = evidenceRefs.filter(
 - `citation_status = "unverified"`：来源已有可用读取或被选中，但没有进入本次已发布回答的绑定；它**不**表示回答已经核实该来源，也不自动表示 `selected` 就是本轮读取；
 - `citation_status = "none"`：只是候选（搜索命中、未读取）。
 
-旧回合（没有该字段）一律按 `none` 处理，不推断；尤其不得因旧字段 `selected` 或 `pedagogy.evidence_ids` 推断已核验引用。
+旧回合**若客户端收到缺失的 `citation_status` 字段**，前端一律按 `none` 展示，尤其不得由 `selected` 或 `pedagogy.evidence_ids` 猜测引用。服务端读取旧的持久化回合时，可以使用原有且通过重新规范化的 `answer_claim_snapshot`、`answer_validation_audit`、`research_evidence_refs` **重算已发布引用**（不要求数据迁移）；只要缺少任一发布或来源资格就返回 `none`。服务端重算不等于允许前端自行推断。
 
 ## 4. UI 展示契约
 
