@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import asyncio
 from contextlib import suppress
 from copy import deepcopy
@@ -161,13 +163,121 @@ def answer_validation_active(prepared: PreparedChatTurn) -> bool:
     return prepared.answer_validation is not None or _official_publication_required(prepared)
 
 
+def _official_plan_for(user_input: str) -> Any | None:
+    """The known-source plan for this question, if the reader owns it."""
+
+    from src.web.research.official_resolver import official_plan
+
+    return official_plan(user_input)
+
+
+def _research_intent(route: dict[str, Any]) -> bool:
+    """True when the routed task contract asked for external research."""
+
+    contract = route.get("task_contract")
+    return isinstance(contract, dict) and contract.get("task_intent") == "research"
+
+
 def _official_publication_required(prepared: PreparedChatTurn) -> bool:
     from src.web.research.official_resolver import official_plan
 
     tools = (prepared.rag or {}).get("web_tools") or {}
-    contract = prepared.route.get("task_contract") or {}
     return bool(tools.get("enabled") and (official_plan(prepared.turn.user_message)
-                or contract.get("task_intent") == "research"))
+                or _research_intent(prepared.route)))
+
+
+def _tool_read_validation_plan(
+    trace: Any, question: str
+) -> dict[str, Any] | None:
+    """Publication rows for the pages this turn's tool loop actually read.
+
+    A research turn normally receives its plan from a ResearchRun, whose
+    claim-engine brief carries validated support rows. The inline tool loop has
+    no such brief, so it used to fall through to the blocked copy without ever
+    calling the model - even after a successful read.
+
+    Reading a page is not support for a claim, so these rows carry **no**
+    supports/strong label. They carry the page body instead, and the binder
+    grants support only when the claim itself is found in that body. Excerpts
+    are taken around the question's own terms rather than from the page head, so
+    a fact stated later in the article is visible to the binder.
+    """
+
+    from urllib.parse import urlsplit
+
+    from src.web.tool_evidence import evidence_tool_calls
+
+    calls = evidence_tool_calls(list(getattr(trace, "calls", ()) or ()))
+    rows: list[dict[str, Any]] = []
+    for index, call in enumerate(calls[:8], start=1):
+        result = call.get("result") if isinstance(call, dict) else None
+        if not isinstance(result, dict):
+            continue
+        raw_arguments = call.get("arguments")
+        arguments = raw_arguments if isinstance(raw_arguments, dict) else {}
+        url = str(result.get("url") or arguments.get("url") or "").strip()
+        body = str(result.get("content") or result.get("readme") or "")
+        if not url or not body.strip():
+            continue
+        rows.append(
+            {
+                "evidence_id": f"tool_read_{index}",
+                # One claim id for the turn: these reads answer the user's
+                # question as a whole, not a decomposed research sub-claim.
+                "claim_id": "inline_tool_read",
+                "title": str(result.get("title") or url)[:200],
+                "url": url,
+                "source_role": "public_page",
+                "source_cluster_id": urlsplit(url).netloc[:100],
+                # Not a support relation: `strength` stays empty so the row
+                # cannot authorize a claim by itself.
+                "relation": "read",
+                "strength": "",
+                "locator": "",
+                "anchored_spans": _question_excerpts(body, question),
+                "caveats": ("read_by_inline_tool_loop",),
+                "grounding_text": body[:12_000],
+            }
+        )
+    if not rows:
+        return None
+    return {
+        "evidence_rows": rows,
+        "allowed_attempts": 1,
+        "source": "inline_tool_loop",
+    }
+
+
+def _question_excerpts(body: str, question: str, *, limit: int = 3) -> tuple[str, ...]:
+    """Excerpts from anywhere in the body that mention the question's terms.
+
+    The head of a page is often navigation or an introduction; a fact the answer
+    needs may sit far below it. Windows are taken around the first occurrences of
+    the question's distinctive tokens, always including the head as a fallback.
+    """
+
+    text = str(body or "")
+    if not text.strip():
+        return ()
+    windows: list[tuple[int, int]] = [(0, min(len(text), 300))]
+    folded = text.casefold()
+    tokens = [
+        token
+        for token in re.findall(r"[0-9a-z.]{4,}|[\u4e00-\u9fff]{2,}", question.casefold())
+        if token
+    ]
+    for token in sorted(set(tokens), key=len, reverse=True)[:8]:
+        position = folded.find(token)
+        if position < 0:
+            continue
+        start = max(0, position - 80)
+        end = min(len(text), position + 220)
+        if any(start < used_end and used_start < end for used_start, used_end in windows):
+            continue
+        windows.append((start, end))
+        if len(windows) >= limit:
+            break
+    return tuple(text[start:end] for start, end in windows)
 
 
 class TurnCancelled(Exception):
@@ -751,6 +861,23 @@ class ChatService:
             else:
                 web_tools = WebToolTrace(enabled=False)
             rag["web_tools"] = {**web_tools.to_dict(), "policy_reason": web_use.reason}
+            # A research turn that read real pages keeps its publication gate:
+            # the plan is built from those reads instead of being absent (which
+            # used to end the turn without ever calling the model). A plan that
+            # came with the command (a ResearchRun) always wins.
+            answer_validation = command.answer_validation
+            if (
+                answer_validation is None
+                and _research_intent(route)
+                and web_tools.used
+                and not _official_plan_for(command.user_input)
+            ):
+                # Known-source turns keep their deterministic field publication:
+                # that seam withholds model prose on purpose. It is the general
+                # research turn that must not lose its answer.
+                answer_validation = _tool_read_validation_plan(
+                    web_tools, command.user_input
+                )
             from src.web.research.research_interaction import steering_answer_instruction
 
             effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
@@ -937,7 +1064,7 @@ class ChatService:
             learning_state_before=learning_state,
             disclosure_policy=disclosed.policy,
             learner_evaluation=learner_evaluation,
-            answer_validation=command.answer_validation,
+            answer_validation=answer_validation,
         )
 
     def _check_research_model_budget(self, prepared: PreparedChatTurn, next_calls: int) -> None:
@@ -1327,6 +1454,7 @@ class ChatService:
                     str(span) for span in row.get("anchored_spans") or ()
                 ),
                 caveats=tuple(str(caveat) for caveat in row.get("caveats") or ()),
+                grounding_text=str(row.get("grounding_text") or ""),
             )
             for row in raw_rows
             if isinstance(row, dict)
@@ -1457,6 +1585,50 @@ class ChatService:
             True,
         )
 
+    def _lookup_terminal_snapshot(self, prepared: PreparedChatTurn) -> dict[str, Any]:
+        """The bounded-research handoff decision for this turn's tool trace."""
+
+        from src.web.research.lookup_terminal import (
+            decide_lookup_terminal,
+            requested_lookup_fields,
+        )
+
+        tool_data = (prepared.rag or {}).get("web_tools") or {}
+        calls = tool_data.get("calls") or []
+        semantics = tool_data.get("semantics") or {}
+        related_ids = semantics.get("question_coverage") or []
+        rq_ids = (
+            tuple(item for item in related_ids if isinstance(item, str))
+            if isinstance(related_ids, list)
+            else ()
+        )
+        terminal = decide_lookup_terminal(
+            prepared.turn.user_message,
+            calls,
+            requested_fields=requested_lookup_fields(prepared.turn.user_message),
+            requested_rq_ids=rq_ids,
+            allow_standard=self.dependencies.allow_standard_handoff,
+            recovery=tool_data.get("recovery"),
+            identity_conflict=any(
+                isinstance(call.get("result"), dict)
+                and call["result"].get("adequacy_reason")
+                == "requested_official_version_mismatch"
+                for call in calls
+            ),
+        )
+        return {
+            "schema_version": "lookup-terminal-v1",
+            "state": terminal.state,
+            "reason": terminal.reason,
+            "handoff": terminal.handoff,
+            "dispatch_status": "pending" if terminal.handoff else "not_requested",
+            "owner": {
+                "thread_id": prepared.thread.id,
+                "turn_id": prepared.turn.id,
+                "run_id": str(tool_data.get("run_id") or ""),
+            },
+        }
+
     def _blocked_audit_phases(
         self, generation_phase: dict[str, Any], error_type: str
     ) -> dict[str, Any]:
@@ -1509,30 +1681,7 @@ class ChatService:
             field_audit["answer_generation_calls"] = _route_generation_calls(prepared.route)
             prepared = replace(prepared, rag={**deepcopy(prepared.rag), "official_field_publication": field_audit})
             published_rag = deepcopy(prepared.rag)
-            from src.web.research.lookup_terminal import decide_lookup_terminal, requested_lookup_fields
-
-            tool_data = (prepared.rag or {}).get("web_tools") or {}
-            calls = tool_data.get("calls") or []
-            semantics = tool_data.get("semantics") or {}
-            related_ids = semantics.get("question_coverage") or []
-            rq_ids = tuple(item for item in related_ids if isinstance(item, str)) if isinstance(related_ids, list) else ()
-            terminal = decide_lookup_terminal(
-                prepared.turn.user_message, calls,
-                requested_fields=requested_lookup_fields(prepared.turn.user_message),
-                requested_rq_ids=rq_ids, allow_standard=self.dependencies.allow_standard_handoff,
-                recovery=tool_data.get("recovery"),
-                identity_conflict=any(
-                    isinstance(call.get("result"), dict)
-                    and call["result"].get("adequacy_reason") == "requested_official_version_mismatch"
-                    for call in calls),
-            )
-            published_rag["lookup_terminal"] = {
-                "schema_version": "lookup-terminal-v1", "state": terminal.state,
-                "reason": terminal.reason, "handoff": terminal.handoff,
-                "dispatch_status": "pending" if terminal.handoff else "not_requested",
-                "owner": {"thread_id": prepared.thread.id, "turn_id": prepared.turn.id,
-                          "run_id": str(tool_data.get("run_id") or "")},
-            }
+            published_rag["lookup_terminal"] = self._lookup_terminal_snapshot(prepared)
             # A diagnostic field-backed answer never advances learning authority.
             gate_blocked_pedagogy = True
         elif answer_validation_active(prepared):
@@ -1576,6 +1725,10 @@ class ChatService:
                     if isinstance(row, dict)
                     and str(row.get("evidence_id") or "") in linked_evidence_ids
                 ]
+            # The research continuation is decided by what was read, not by
+            # which publication branch produced the text: a validated answer
+            # still needs the same handoff when fields remain unresolved.
+            published_rag["lookup_terminal"] = self._lookup_terminal_snapshot(prepared)
         else:
             published_rag = deepcopy(prepared.rag)
         evaluation = self.dependencies.pedagogy_engine.evaluate_response(

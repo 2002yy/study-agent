@@ -46,6 +46,12 @@ _MAX_ANCHORED_SPANS_PER_ROW = 6
 _MAX_CAVEATS_PER_ROW = 6
 _MAX_SEGMENTS = 16
 _MAX_SEGMENT_CHARS = 1200
+#: Verification text is never rendered into the prompt; it exists so the server
+#: can check a claim against what the page actually said.
+_MAX_GROUNDING_CHARS = 12_000
+# Formatting-insensitive identity is suitable for *literal source statements*,
+# not for semantic entailment. Paraphrased claims need the qualified Evidence Gate.
+_GROUNDING_KEEP = re.compile(r"[0-9a-z\u4e00-\u9fff]+")
 
 _ALLOWED_SEGMENT_KINDS = frozenset(
     {"factual", "instructional", "question", "recommendation", "uncertainty"}
@@ -83,6 +89,11 @@ class AnswerClaimBindingRow:
     locator: str = ""
     anchored_spans: tuple[str, ...] = ()
     caveats: tuple[str, ...] = ()
+    #: The page body this row stands for, when the row was derived from an
+    #: inline read rather than a validated claim-engine relation. A row with
+    #: verification text is never trusted by its labels: support is granted only
+    #: when the claim itself is found in this text.
+    grounding_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -268,7 +279,7 @@ def _parse_binder_output(
             row = rows_by_link.get((research_claim_id, evidence_id))
             if row is None:
                 return None, "claim_evidence_mismatch"
-            confidence = _positive_support_confidence(row)
+            confidence = _supported_confidence(row, ref_to_text[ref])
             if confidence is None:
                 return None, "ineligible_evidence_support"
             support_rows.append((evidence_id, confidence))
@@ -330,6 +341,58 @@ def _infer_research_claim_id(
     if len(candidates) != 1:
         return None
     return next(iter(candidates))
+
+
+def _supported_confidence(
+    row: AnswerClaimBindingRow, claim_text: str
+) -> float | None:
+    """Confidence for a claim/evidence link, decided by the server.
+
+    A row that carries the page body cannot be trusted by its labels: reading a
+    page is not support for a claim. Support is granted only when the claim's own
+    content is found in that body (see :func:`claim_grounded_in_text`). Rows
+    without verification text keep the claim-engine rule, which is validated
+    upstream by the Evidence Gate.
+    """
+
+    if row.grounding_text:
+        if not claim_grounded_in_text(claim_text, row.grounding_text):
+            return None
+        # A literal source sentence is evidence of what that page states,
+        # not a semantic entailment proof or maximal confidence.
+        return STRONG_EVIDENCE_THRESHOLD
+    return _positive_support_confidence(row)
+
+
+def claim_grounded_in_text(claim_text: str, page_text: str) -> bool:
+    """Allow only a literal full-sentence source assertion for inline reads.
+
+    A shared substring, matched version, or matching negation is *not* evidence
+    of entailment: A acquired B and B acquired A share most words.
+    Inline reads have no claim-engine Evidence Gate, so the server only accepts
+    formatting-insensitive identity with a complete source sentence. Other
+    factual paraphrases must fail closed until claim-level evidence is qualified.
+
+    This proves what the retrieved page *states*, not whether the page is true.
+    The existing binder still decides which source id belongs to each segment.
+    """
+    claim = _grounding_text(claim_text)
+    if not claim or not _grounding_text(page_text):
+        return False
+    return any(
+        _grounding_text(sentence) == claim
+        for sentence in _SENTENCE_SPLIT.split(str(page_text or ""))
+    )
+
+
+# Keep decimals/versions and URLs intact; an ASCII full stop is only a
+# sentence boundary if followed by whitespace or the end of the text.
+_SENTENCE_SPLIT = re.compile(r"(?<=[。！？\n;；])|(?<=[.!?])(?=\s|$)")
+
+
+def _grounding_text(value: Any) -> str:
+    """Normalize formatting only; never discard or paraphrase predicates."""
+    return "".join(_GROUNDING_KEEP.findall(str(value or "").casefold()))
 
 
 def _positive_support_confidence(row: AnswerClaimBindingRow) -> float | None:
@@ -443,6 +506,11 @@ def _binding_messages(
         "copied from the evidence rows; if omitted, the server accepts it only "
         "when all chosen evidence ids uniquely imply the same claim. Use only "
         "evidence rows that positively and strongly support the segment.\n"
+        "4b. A 'read' row is not a qualified support relation. Only cite it "
+        "when the answer segment reproduces a COMPLETE sentence from that "
+        "page (ignoring formatting). The server checks full-sentence identity "
+        "against the original page; paraphrases require a separately qualified "
+        "Evidence Gate and will be rejected here.\n"
         "5. Non-factual segments must omit status/research_claim_id and have an "
         "empty evidence_support list.\n"
         "6. If the whole answer cannot be safely bound, set refused=true.\n"
@@ -538,6 +606,7 @@ def _bounded_rows(
             caveats=tuple(
                 _clip(caveat, _MAX_CAVEAT_CHARS) for caveat in row.caveats
             )[:_MAX_CAVEATS_PER_ROW],
+            grounding_text=_clean_text(row.grounding_text)[:_MAX_GROUNDING_CHARS],
         )
 
 

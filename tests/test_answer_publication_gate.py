@@ -9,6 +9,7 @@ copy while the rejected audit truth is persisted in the same commit.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Callable, Sequence
 
 from src.application.chat_service import (
@@ -28,6 +29,7 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.mode_manager import RuntimeModes
 from src.pedagogy.evaluation import PedagogyEvaluationService
 from src.repositories.runtime_repository import RuntimeRepository
+from src.web.research.official_publication import ABSTENTION
 from src.tools.web_agent import WebToolTrace
 
 EVIDENCE_ID = "evidence_abc123"
@@ -139,19 +141,27 @@ def _command(
     return ChatCommand(**base)
 
 
-def _dependencies(chat_fn: Callable[..., str]) -> ChatDependencies:
+def _dependencies(
+    chat_fn: Callable[..., str],
+    *,
+    web_tools: WebToolTrace | None = None,
+    route: dict[str, Any] | None = None,
+) -> ChatDependencies:
     return ChatDependencies(
         load_runtime_modes=lambda: RuntimeModes(
             memory_mode="preview", performance_mode="standard"
         ),
         read_memory_bundle=lambda context_mode: {},
         build_role_prompt=lambda role, **kwargs: f"role:{role}",
-        route_request=lambda **kwargs: {
-            "role": "nahida",
-            "mode": "普通",
-            "model_profile": "flash",
-            "reason": "test",
-        },
+        route_request=lambda **kwargs: dict(
+            route
+            or {
+                "role": "nahida",
+                "mode": "普通",
+                "model_profile": "flash",
+                "reason": "test",
+            }
+        ),
         retrieve_local_knowledge=lambda *args, **kwargs: _FakeRagResult(),
         build_messages=lambda **kwargs: [
             {"role": "system", "content": kwargs["role_prompt"]},
@@ -160,17 +170,28 @@ def _dependencies(chat_fn: Callable[..., str]) -> ChatDependencies:
         chat=chat_fn,
         stream_chat=lambda *args, **kwargs: iter(["part", " two"]),
         chat_max_tokens=lambda performance_mode: 1000,
-        resolve_web_tools=lambda *args, **kwargs: WebToolTrace(enabled=False),
+        resolve_web_tools=(
+            (lambda *args, **kwargs: web_tools)
+            if web_tools is not None
+            else (lambda *args, **kwargs: WebToolTrace(enabled=False))
+        ),
         pedagogy_evaluation=PedagogyEvaluationService(),
     )
 
 
 def _service(
-    tmp_path, chat_fn: Callable[..., str], *, policy_service: bool = False
+    tmp_path,
+    chat_fn: Callable[..., str],
+    *,
+    policy_service: bool = False,
+    web_tools: WebToolTrace | None = None,
+    route: dict[str, Any] | None = None,
 ) -> tuple[ChatService, RuntimeRepository]:
     repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
     service_class = ExternalDataPolicyChatService if policy_service else ChatService
-    service = service_class(repository, _dependencies(chat_fn))
+    service = service_class(
+        repository, _dependencies(chat_fn, web_tools=web_tools, route=route)
+    )
     return service, repository
 
 
@@ -887,3 +908,411 @@ def test_consistency_gate_publishes_clean_answer(tmp_path, monkeypatch) -> None:
     consistency = turn.rag_snapshot.get("answer_consistency") or {}
     assert consistency.get("ok") is True
     assert consistency.get("codes") == []
+
+
+# --- P1-A: research turns whose inline tool loop read real pages -----------------
+#
+# A research turn normally receives its publication plan from a ResearchRun. The
+# inline tool loop has no claim-engine brief, so it used to fall through to the
+# blocked copy without ever calling the model, even after a successful read.
+# These controls pin the corrected behaviour without loosening the gate.
+
+
+def _read_backed_calls(
+    url: str = "https://official.example/release",
+) -> tuple[dict[str, Any], ...]:
+    """The search that discovered the page plus the read of it.
+
+    A read is evidence only when an earlier trusted search discovered the same
+    URL, so the fixture must carry both calls exactly like a real tool loop.
+    """
+
+    return (
+        {
+            "name": "web_search",
+            "arguments": {"query": "release notes"},
+            "result": {
+                "status": "ok",
+                "providers_attempted": ["duckduckgo_html"],
+                "results": [
+                    {"title": "Official release notes", "url": url, "snippet": ""}
+                ],
+            },
+        },
+        {
+            "name": "web_read",
+            "arguments": {"url": url},
+            "result": {
+                "ok": True,
+                "url": url,
+                "title": "Official release notes",
+                # The claim must be verifiable in the body: reading a page is
+                # not support, so the fixture page has to state the fact.
+                "content": (
+                    "Release notes. 该版本已正式发布，并修复了已知问题。"
+                    "v9.9.0 released 2026-10-30."
+                ),
+                "answer_eligible": True,
+                "method": "article_http",
+            },
+        },
+    )
+
+
+def _research_route() -> dict[str, Any]:
+    return {
+        "role": "nahida",
+        "mode": "普通",
+        "model_profile": "flash",
+        "reason": "test",
+        "task_contract": {"task_intent": "research"},
+    }
+
+
+def _research_command() -> PolicyChatCommand:
+    return PolicyChatCommand(
+        user_input="这个版本什么时候发布的？",
+        selected_role="nahida",
+        task_intent="research",
+    )
+
+
+def _messages(args: Any, kwargs: Any) -> Any:
+    """The binder passes its messages positionally; the answer path by name."""
+
+    if args:
+        return args[0]
+    return kwargs.get("messages") or []
+
+
+def _prompt_text(messages: Any) -> str:
+    return "\n".join(str(message.get("content") or "") for message in messages)
+
+
+def _support_id(messages: Any) -> str:
+    """The first evidence id the binder was actually shown.
+
+    Rows render as `[evidence_id] | claim=...`; anything else in brackets is
+    prose from the question or the answer and must not be mistaken for an id.
+    """
+
+    found = re.findall(r"\[([^\]]+)\] \| claim=", _prompt_text(messages))
+    return found[0] if found else ""
+
+
+def test_a_read_backed_research_turn_generates_and_validates_an_answer(tmp_path) -> None:
+    seen: dict[str, Any] = {"tasks": [], "binder_prompt": ""}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        task = str(kwargs.get("task_name", ""))
+        seen["tasks"].append(task)
+        if task == "answer_claim_binding":
+            messages = _messages(args, kwargs)
+            seen["binder_prompt"] = _prompt_text(messages)
+            return _binding_payload(
+                [_segment_entry("s1", support=(_support_id(messages),))]
+            )
+        return CANDIDATE
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=_read_backed_calls()),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert seen["tasks"] == ["single_chat", "answer_claim_binding"]
+    assert reply == CANDIDATE
+    audit = _audit(turn)
+    assert audit["phases"]["answer_generation"]["model_calls"] == 1
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "passed"
+    # The rows offered to the binder are the pages the turn actually read.
+    assert "https://official.example/release" in seen["binder_prompt"]
+
+
+def test_a_read_backed_research_turn_is_still_blocked_when_claims_do_not_bind(
+    tmp_path,
+) -> None:
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            return json.dumps({"refused": True, "segments": []})
+        return CANDIDATE
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=_read_backed_calls()),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert turn.assistant_message == RESEARCH_ANSWER_BLOCKED_COPY
+    audit = _audit(turn)
+    assert audit["candidate_answer_sha256"] == sha256_text(CANDIDATE)
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "rejected"
+
+
+def test_a_research_turn_without_readable_pages_blocks_without_a_model_call(
+    tmp_path,
+) -> None:
+    calls: list[str] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        calls.append(str(kwargs.get("task_name", "")))
+        return CANDIDATE
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=()),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert calls == []
+    assert reply == ABSTENTION
+    assert (turn.rag_snapshot or {}).get("answer_validation_audit") is None
+
+
+def test_a_supplied_run_plan_is_not_replaced_by_tool_rows(tmp_path) -> None:
+    seen = {"binder_prompt": ""}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            seen["binder_prompt"] = _prompt_text(_messages(args, kwargs))
+            return _binding_payload([_segment_entry("s1", support=(EVIDENCE_ID,))])
+        return CANDIDATE
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=_read_backed_calls("https://tool.example/other")),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == CANDIDATE
+    assert "https://official.example/release" in seen["binder_prompt"]
+    assert "https://tool.example/other" not in seen["binder_prompt"]
+    assert _audit(turn)["phases"]["answer_claim_binding"]["outcome"] == "passed"
+
+
+def test_a_non_research_turn_still_answers_without_the_publication_gate(
+    tmp_path,
+) -> None:
+    tasks: list[str] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        tasks.append(str(kwargs.get("task_name", "")))
+        return CANDIDATE
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=_read_backed_calls()),
+        route={
+            "role": "nahida",
+            "mode": "普通",
+            "model_profile": "flash",
+            "reason": "test",
+            "task_contract": {"task_intent": "quick_answer"},
+        },
+    )
+    reply, turn = _run_turn(
+        service, repository, ChatCommand(user_input="这个版本什么时候发布的？")
+    )
+
+    assert tasks == ["single_chat"]
+    assert reply == CANDIDATE
+    assert (turn.rag_snapshot or {}).get("answer_validation_audit") is None
+
+
+def test_reading_a_page_never_labels_it_as_strong_support(tmp_path) -> None:
+    """Read eligibility is not support eligibility."""
+
+    from src.application.chat_service import _tool_read_validation_plan
+
+    plan = _tool_read_validation_plan(
+        WebToolTrace(calls=_read_backed_calls()), "这个版本什么时候发布的？"
+    )
+
+    assert plan is not None
+    row = plan["evidence_rows"][0]
+    assert row["relation"] != "supports"
+    assert row["strength"] == ""
+    # The full body is what the server verifies against, not a 300-char head.
+    assert "v9.9.0" in row["grounding_text"]
+    assert row["anchored_spans"]
+
+
+def test_a_page_that_does_not_contain_the_claim_cannot_authorize_it(tmp_path) -> None:
+    """B01 control: a dictionary page must not authorize a game-build answer."""
+
+    dictionary = (
+        "千（汉语汉字）_百度百科：千，数目，十百为千。古文千作人。"
+        "相关条目：万、百。"
+    )
+    claim = "刃在黄泉队里应该使用莳者四件套，主堆暴击率。"
+    seen = {"binder_prompt": ""}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            messages = _messages(args, kwargs)
+            seen["binder_prompt"] = _prompt_text(messages)
+            return _binding_payload(
+                [_segment_entry("s1", support=(_support_id(messages),))]
+            )
+        return claim
+
+    calls = list(_read_backed_calls("https://baike.example/千"))
+    calls[1] = {
+        **calls[1],
+        "result": {**calls[1]["result"], "content": dictionary},
+    }
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=tuple(calls)),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert seen["binder_prompt"] != ""
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    audit = _audit(turn)
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "rejected"
+    assert audit["phases"]["answer_claim_binding"]["error_type"] == (
+        "ineligible_evidence_support"
+    )
+    assert not (turn.rag_snapshot or {}).get("research_evidence_refs")
+
+
+def test_claim_grounding_requires_the_claim_not_just_the_topic() -> None:
+    from src.application.answer_claim_binder import claim_grounded_in_text
+
+    node_page = (
+        "Node.js 当前 LTS 是 24.11.0，代号 Krypton，支持到 2028 年 4 月。"
+        "上一个 LTS 是 22.x。"
+    )
+    # A whole, literal source statement can be bound even when it occurs
+    # beyond the document heading. Rephrasings require claim-level evidence.
+    assert claim_grounded_in_text(
+        "Node.js 当前 LTS 是 24.11.0，代号 Krypton，支持到 2028 年 4 月。",
+        node_page,
+    )
+    assert not claim_grounded_in_text(
+        "Node.js 当前 LTS 是 24.11.0，代号 Krypton", node_page
+    )
+    # A different patch version is not in the page.
+    assert not claim_grounded_in_text("Node.js 当前 LTS 是 24.11.1", node_page)
+    # Sharing only the topic word is not support.
+    dictionary = "千，数目，十百为千。万、百、千。"
+    assert not claim_grounded_in_text("刃在黄泉队里应该使用莳者四件套", dictionary)
+
+
+def test_a_contradictory_page_never_authorizes_the_claim() -> None:
+    """Review reproductions: shared words are not the same assertion."""
+
+    from src.application.answer_claim_binder import claim_grounded_in_text
+
+    # The page says the opposite of the claim.
+    assert not claim_grounded_in_text(
+        "Node.js 24.11.0 支持 Windows 7", "Node.js 24.11.0 不支持 Windows 7。"
+    )
+    assert not claim_grounded_in_text(
+        "Python 3.14 已发布", "Python 3.14 尚未发布。"
+    )
+    assert not claim_grounded_in_text(
+        "FastAPI 0.120.0 没有安全漏洞", "FastAPI 0.120.0 存在严重安全漏洞。"
+    )
+    # A literal source statement still passes after punctuation normalization,
+    # but semantic equivalence is NOT guessed by polarity/keyword heuristics.
+    assert claim_grounded_in_text(
+        "Node.js 24.11.0 不支持 Windows 7", "Node.js 24.11.0 不支持 Windows 7。"
+    )
+    assert not claim_grounded_in_text("Python 3.14 未发布", "Python 3.14 尚未发布。")
+    assert claim_grounded_in_text("Python 3.14 尚未发布", "Python 3.14 尚未发布。")
+
+
+def test_same_polarity_contradictions_are_not_literal_support() -> None:
+    """P1: lexical overlap and equal negation cannot prove a fact."""
+    from src.application.answer_claim_binder import claim_grounded_in_text
+
+    contradictions = (
+        ("2026年10月，A公司收购了B公司", "2026年10月，B公司收购了A公司。"),
+        ("2026年第一季度营业收入增长20%", "2026年第一季度营业收入下降20%。"),
+        ("Node.js 24.11.0 支持 Windows 7", "Node.js 24.11.0 禁止在 Windows 7 上运行。"),
+        ("2026年10月31日会议已通过", "2026年10月31日会议被否决。"),
+    )
+    for claim, page in contradictions:
+        assert not claim_grounded_in_text(claim, page), (claim, page)
+
+    # Quoted assertions embedded in a longer negating sentence are not accepted.
+    assert not claim_grounded_in_text(
+        "2026年10月，A公司收购了B公司",
+        "错误消息声称2026年10月，A公司收购了B公司，事实上并非如此。",
+    )
+
+
+def test_same_polarity_refuting_page_blocks_publication(tmp_path) -> None:
+    """A binder that cites an authentic ID cannot promote a reversed claim."""
+    page = "2026年10月，B公司收购了A公司。"
+    claim = "2026年10月，A公司收购了B公司。"
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            messages = _messages(args, kwargs)
+            return _binding_payload(
+                [_segment_entry("s1", support=(_support_id(messages),))]
+            )
+        return claim
+
+    calls = list(_read_backed_calls("https://example.org/acquisition"))
+    calls[1] = {**calls[1], "result": {**calls[1]["result"], "content": page}}
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=tuple(calls)),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert _audit(turn)["phases"]["answer_claim_binding"]["error_type"] == (
+        "ineligible_evidence_support"
+    )
+    assert not (turn.rag_snapshot or {}).get("research_evidence_refs")
+
+
+def test_a_contradictory_page_blocks_publication(tmp_path) -> None:
+    """End to end: the published answer must not survive a refuting page."""
+
+    page = "Node.js 24.11.0 不支持 Windows 7，官方已在发布说明中说明。"
+    claim = "Node.js 24.11.0 支持 Windows 7。"
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            messages = _messages(args, kwargs)
+            return _binding_payload(
+                [_segment_entry("s1", support=(_support_id(messages),))]
+            )
+        return claim
+
+    calls = list(_read_backed_calls("https://nodejs.example/release"))
+    calls[1] = {**calls[1], "result": {**calls[1]["result"], "content": page}}
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=tuple(calls)),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    audit = _audit(turn)
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "rejected"
+    assert audit["phases"]["answer_claim_binding"]["error_type"] == (
+        "ineligible_evidence_support"
+    )
+    assert not (turn.rag_snapshot or {}).get("research_evidence_refs")

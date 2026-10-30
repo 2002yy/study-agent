@@ -1,5 +1,6 @@
 """Saved-parent admission and reuse controls; no automatic Standard agent loop."""
 
+import json
 from dataclasses import replace
 from datetime import datetime, timedelta
 
@@ -36,10 +37,18 @@ def saved_parent(tmp_path):
         )
         return deterministic_trace()
 
+    # The read-backed research turn now answers (and is still gated); this
+    # fixture only needs the handoff, so the answer is intentionally refused by
+    # the binder rather than asserted here.
+    def chat(*_args, **kwargs):
+        if kwargs.get("task_name") == "answer_claim_binding":
+            return json.dumps({"refused": True, "segments": []})
+        return "parent answer"
+
     service.dependencies = replace(
         service.dependencies,
         resolve_web_tools=resolve,
-        chat=lambda *_a, **_k: pytest.fail("no answer model"),
+        chat=chat,
     )
     prepared = service.start_turn(
         ChatCommand(user_input=QUERY, thread_id="standard-parent")
