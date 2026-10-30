@@ -117,7 +117,7 @@ describe("EvidenceTrail display layering", () => {
     fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
 
     expect(container).toHaveTextContent("本轮没有通过发布校验的引用");
-    expect(container).toHaveTextContent("已读取但未引用（1 条）");
+    expect(container).toHaveTextContent("已读取或已选中但未引用（1 条）");
     expect(container).toHaveTextContent("Selected source");
     expect(container).not.toHaveTextContent("0.82");
 
@@ -317,7 +317,7 @@ describe("verified citations", () => {
 
     expect(container).toHaveTextContent("已核验引用（1 条）");
     expect(container).toHaveTextContent("Official release notes");
-    expect(container).not.toHaveTextContent("已读取但未引用");
+    expect(container).not.toHaveTextContent("已读取或已选中但未引用");
     expect(container).not.toHaveTextContent("本轮没有通过发布校验的引用");
   });
 
@@ -344,10 +344,49 @@ describe("verified citations", () => {
     fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
 
     expect(container).toHaveTextContent("已核验引用（1 条）");
-    expect(container).not.toHaveTextContent("已读取但未引用");
+    expect(container).not.toHaveTextContent("已读取或已选中但未引用");
     expect(
       container.querySelectorAll('[aria-label="已核验引用"] .evidence-ref-row'),
     ).toHaveLength(1);
+  });
+
+  it("preserves case-sensitive path and query values when grouping pages", () => {
+    const { container } = render(
+      <EvidenceTrail
+        evidence={{
+          rag: ragWithServerRefs([
+            serverRef("cited-release", "Upper-case Release", "selected", {
+              type: "research",
+              url: "https://EXAMPLE.org/Release",
+              citation_status: "cited",
+            }),
+            serverRef("cited-lower", "Lower-case release", "selected", {
+              type: "research",
+              url: "https://example.org/release",
+              citation_status: "cited",
+            }),
+            serverRef("unverified-query", "Different query value", "read", {
+              type: "web_read",
+              url: "https://example.org/Release?file=abc",
+              citation_status: "unverified",
+            }),
+            serverRef("cited-query", "Upper-case query value", "selected", {
+              type: "research",
+              url: "https://example.org/Release?file=ABC",
+              citation_status: "cited",
+            }),
+          ]),
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
+    expect(container).toHaveTextContent("已核验引用（3 条）");
+    expect(
+      container.querySelectorAll('[aria-label="已核验引用"] .evidence-ref-row'),
+    ).toHaveLength(3);
+    expect(container).toHaveTextContent("已读取或已选中但未引用（1 条）");
+    expect(container).toHaveTextContent("Different query value");
   });
 
   it("treats a missing citation status as none", () => {
@@ -363,7 +402,7 @@ describe("verified citations", () => {
 
     expect(container).not.toHaveTextContent("已核验引用");
     fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
-    expect(container).toHaveTextContent("已读取但未引用（1 条）");
+    expect(container).toHaveTextContent("已读取或已选中但未引用（1 条）");
   });
 
   it("does not invent a citation when the server sent no cited ref", () => {
@@ -387,6 +426,6 @@ describe("verified citations", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
     expect(container).not.toHaveTextContent("已核验引用（");
-    expect(container).toHaveTextContent("已读取但未引用（1 条）");
+    expect(container).toHaveTextContent("已读取或已选中但未引用（1 条）");
   });
 });
