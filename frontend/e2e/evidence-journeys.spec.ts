@@ -99,7 +99,8 @@ async function openEvidence(page: Page) {
   const toggle = page.getByRole("button", { name: /证据轨迹/ }).last();
   await expect(toggle).toBeVisible();
   await toggle.click();
-  return page.getByRole("region", { name: "已核验引用" });
+  // The seeded evidence is selected, not a claim-binder verified citation.
+  return page.getByRole("region", { name: "已读取或已选中但未引用" });
 }
 
 test("uploaded material becomes a learning choice with adopted local evidence", async ({ page }, testInfo) => {
