@@ -86,7 +86,59 @@ export type EvidenceRef = {
   providerStatus?: string;
   selectionReason?: string;
   rejectionReason?: string;
+  /**
+   * Whether the *published* answer cites this source. Only the server decides
+   * this (``citation_links`` + ``research_evidence_refs``); a missing value
+   * means "none", never "cited".
+   */
+  citationStatus?: "cited" | "unverified" | "none";
 };
+
+export function citationStatusOf(ref: EvidenceRef): "cited" | "unverified" | "none" {
+  return ref.citationStatus === "cited" || ref.citationStatus === "unverified"
+    ? ref.citationStatus
+    : "none";
+}
+
+/** Display identity: one page must not be shown twice under two server ids. */
+function displayKey(ref: EvidenceRef): string {
+  const url = ref.url.trim().toLowerCase().replace(/\/+$/, "");
+  return url || ref.id;
+}
+
+/** Sources the published answer actually cites, one entry per page. */
+export function verifiedCitations(refs: EvidenceRef[]): EvidenceRef[] {
+  const seen = new Set<string>();
+  const cited: EvidenceRef[] = [];
+  for (const ref of refs) {
+    if (citationStatusOf(ref) !== "cited") continue;
+    const key = displayKey(ref);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cited.push(ref);
+  }
+  return cited;
+}
+
+/**
+ * Pages that were read or selected but are not part of the published answer's
+ * citations. A page cited under another server id is excluded, so the same
+ * source never appears in both sections.
+ */
+export function uncitedReadSources(refs: EvidenceRef[]): EvidenceRef[] {
+  const cited = new Set(verifiedCitations(refs).map(displayKey));
+  const seen = new Set<string>();
+  const pending: EvidenceRef[] = [];
+  for (const ref of refs) {
+    if (citationStatusOf(ref) === "cited") continue;
+    if (ref.status !== "read" && ref.status !== "selected") continue;
+    const key = displayKey(ref);
+    if (cited.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    pending.push(ref);
+  }
+  return pending;
+}
 
 const STATUS_PRIORITY: Record<EvidenceRef["status"], number> = {
   selected: 0,
@@ -140,6 +192,12 @@ function serverEvidenceRefs(rag: ChatResponse["rag"] | undefined): EvidenceRef[]
       providerStatus: String(ref.provider_status ?? "").trim() || undefined,
       selectionReason: String(ref.selection_reason ?? "").trim() || undefined,
       rejectionReason: String(ref.rejection_reason ?? "").trim() || undefined,
+      citationStatus:
+        String(ref.citation_status ?? "") === "cited"
+          ? "cited"
+          : String(ref.citation_status ?? "") === "unverified"
+            ? "unverified"
+            : "none",
     }];
   });
 }

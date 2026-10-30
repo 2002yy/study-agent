@@ -100,7 +100,7 @@ describe("EvidenceTrail display layering", () => {
     expect(container).not.toHaveTextContent("research-recovered-1");
   });
 
-  it("shows selected evidence plainly and hides lifecycle and score by default", () => {
+  it("does not turn a selected source into a citation", () => {
     const { container } = render(
       <EvidenceTrail
         evidence={{
@@ -113,23 +113,22 @@ describe("EvidenceTrail display layering", () => {
       />,
     );
 
-    expect(container).toHaveTextContent("采用证据 1");
+    expect(container).not.toHaveTextContent("已核验引用");
     fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
 
-    expect(container).toHaveTextContent("回答采用的证据（1 条）");
+    expect(container).toHaveTextContent("本轮没有通过发布校验的引用");
+    expect(container).toHaveTextContent("已读取但未引用（1 条）");
     expect(container).toHaveTextContent("Selected source");
-    expect(container).not.toHaveTextContent("已采用");
     expect(container).not.toHaveTextContent("0.82");
-    expect(container).not.toHaveTextContent("采用原因：原因待确认");
 
     fireEvent.click(screen.getByRole("button", { name: "显示诊断详情" }));
 
-    expect(container).toHaveTextContent("已采用");
+    expect(container).toHaveTextContent("已选中");
     expect(container).toHaveTextContent("0.82");
     expect(container).toHaveTextContent("采用原因：原因待确认");
   });
 
-  it("does not present candidate, read, or rejected refs as adopted evidence", () => {
+  it("does not present unverified sources as citations", () => {
     const { container } = render(
       <EvidenceTrail
         evidence={{
@@ -148,21 +147,20 @@ describe("EvidenceTrail display layering", () => {
       />,
     );
 
-    expect(container).not.toHaveTextContent("采用证据");
+    expect(container).not.toHaveTextContent("已核验引用");
     fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
 
-    expect(container).toHaveTextContent("本轮没有标记为已采用的可核对证据");
+    expect(container).toHaveTextContent("本轮没有通过发布校验的引用");
+    expect(container).toHaveTextContent("Read source");
     expect(container).not.toHaveTextContent("Candidate source");
-    expect(container).not.toHaveTextContent("Read source");
     expect(container).not.toHaveTextContent("Rejected source");
 
     fireEvent.click(screen.getByRole("button", { name: "显示诊断详情" }));
 
     expect(container).toHaveTextContent("Candidate source");
-    expect(container).toHaveTextContent("Read source");
     expect(container).toHaveTextContent("Rejected source");
     expect(container).toHaveTextContent("候选");
-    expect(container).toHaveTextContent("已阅读");
+    expect(container).toHaveTextContent("已读取");
     expect(container).toHaveTextContent("已排除");
     expect(container).toHaveTextContent("重复来源");
   });
@@ -228,7 +226,7 @@ describe("EvidenceTrail display layering", () => {
     expect(overflow).toHaveAttribute("open");
   });
 
-  it("keeps an explicitly referenced pedagogy evidence unit visible even when legacy status is candidate", () => {
+  it("does not treat a pedagogy evidence id as citation authority", () => {
     const { container } = render(
       <EvidenceTrail
         evidence={{
@@ -248,13 +246,17 @@ describe("EvidenceTrail display layering", () => {
       />,
     );
 
-    expect(container).toHaveTextContent("采用证据 1");
+    expect(container).not.toHaveTextContent("已核验引用");
     fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
+
+    expect(container).toHaveTextContent("本轮没有通过发布校验的引用");
+    expect(container).not.toHaveTextContent("TaskContract");
+
+    fireEvent.click(screen.getByRole("button", { name: "显示诊断详情" }));
 
     expect(container).toHaveTextContent("TaskContract");
     expect(container).toHaveTextContent("引");
-    expect(container).not.toHaveTextContent("候选");
-    expect(container).not.toHaveTextContent("0.82");
+    expect(container).toHaveTextContent("候选");
   });
 });
 
@@ -275,9 +277,9 @@ describe("formatEvidencePlainText", () => {
   it("keeps ordinary copy free of lifecycle, scores, and provider diagnostics", () => {
     const text = formatEvidencePlainText(undefined, [ref]);
 
-    expect(text).toContain("采用证据");
+    expect(text).toContain("已核验引用");
     expect(text).toContain("Official source");
-    expect(text).not.toContain("[已采用]");
+    expect(text).not.toContain("[已选中]");
     expect(text).not.toContain("score=");
     expect(text).not.toContain("provider=");
     expect(text).not.toContain("research_run:research-1");
@@ -287,9 +289,104 @@ describe("formatEvidencePlainText", () => {
     const text = formatEvidencePlainText(undefined, [ref], true);
 
     expect(text).toContain("证据诊断");
-    expect(text).toContain("[已采用]");
+    expect(text).toContain("[已选中]");
     expect(text).toContain("相关度：0.95");
     expect(text).toContain("来源状态：部分通过");
     expect(text).toContain("采用原因：原因待确认");
+  });
+});
+
+describe("verified citations", () => {
+  it("shows a cited source in the verified section only", () => {
+    const { container } = render(
+      <EvidenceTrail
+        evidence={{
+          rag: ragWithServerRefs([
+            serverRef("tool_read_1", "Official release notes", "selected", {
+              type: "research",
+              url: "https://official.example/release",
+              citation_status: "cited",
+            }),
+          ]),
+        }}
+      />,
+    );
+
+    expect(container).toHaveTextContent("已核验引用 1");
+    fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
+
+    expect(container).toHaveTextContent("已核验引用（1 条）");
+    expect(container).toHaveTextContent("Official release notes");
+    expect(container).not.toHaveTextContent("已读取但未引用");
+    expect(container).not.toHaveTextContent("本轮没有通过发布校验的引用");
+  });
+
+  it("renders one row per page when a source carries two server ids", () => {
+    const { container } = render(
+      <EvidenceTrail
+        evidence={{
+          rag: ragWithServerRefs([
+            serverRef("tool_read_1", "Official release notes", "selected", {
+              type: "research",
+              url: "https://official.example/release",
+              citation_status: "cited",
+            }),
+            serverRef("https://official.example/release", "Official release notes", "read", {
+              type: "web_read",
+              url: "https://official.example/release/",
+              citation_status: "unverified",
+            }),
+          ]),
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
+
+    expect(container).toHaveTextContent("已核验引用（1 条）");
+    expect(container).not.toHaveTextContent("已读取但未引用");
+    expect(
+      container.querySelectorAll('[aria-label="已核验引用"] .evidence-ref-row'),
+    ).toHaveLength(1);
+  });
+
+  it("treats a missing citation status as none", () => {
+    const { container } = render(
+      <EvidenceTrail
+        evidence={{
+          rag: ragWithServerRefs([
+            serverRef("legacy-1", "Legacy selected source", "selected"),
+          ]),
+        }}
+      />,
+    );
+
+    expect(container).not.toHaveTextContent("已核验引用");
+    fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
+    expect(container).toHaveTextContent("已读取但未引用（1 条）");
+  });
+
+  it("does not invent a citation when the server sent no cited ref", () => {
+    const { container } = render(
+      <EvidenceTrail
+        evidence={{
+          rag: {
+            ...ragWithServerRefs([
+              serverRef("read-1", "Read source", "read", {
+                type: "web_read",
+                url: "https://example.com/read",
+              }),
+            ]),
+            citation_links: [
+              { claim_id: "claim_x", evidence_id: "missing_source", confidence: 0.9 },
+            ],
+          } as ChatResponse["rag"],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
+    expect(container).not.toHaveTextContent("已核验引用（");
+    expect(container).toHaveTextContent("已读取但未引用（1 条）");
   });
 });
