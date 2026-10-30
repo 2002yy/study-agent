@@ -259,9 +259,9 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
           ) : null}
 
           {uncitedRefs.length ? (
-            <section className="evidence-uncited" aria-label="已读取但未引用">
+            <section className="evidence-uncited" aria-label="已读取或已选中但未引用">
               <div className="evidence-unified-header">
-                <span>已读取但未引用（{uncitedRefs.length} 条）</span>
+                <span>已读取或已选中但未引用（{uncitedRefs.length} 条）</span>
               </div>
               <div className="evidence-primary-list">
                 {uncitedRefs.map((ref) => (
