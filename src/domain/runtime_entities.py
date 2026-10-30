@@ -111,7 +111,16 @@ class ChatTurn:
             self.rag_snapshot["answer_validation_audit"] = audit
         # A source is a citation only when the answer that was actually kept
         # passed publication and links it. Selection is not citation.
-        cited = _verified_citation_links(claim_snapshot, audit, known_evidence_ids)
+        citation_source_ids = {
+            str(row.get("evidence_id") or "").strip()
+            for row in self.rag_snapshot.get("research_evidence_refs") or ()
+            if isinstance(row, dict)
+        }
+        cited = _verified_citation_links(
+            claim_snapshot,
+            audit,
+            (evidence_id for evidence_id in known_evidence_ids if evidence_id in citation_source_ids),
+        )
         self.rag_snapshot["citation_links"] = [link.to_dict() for link in cited]
         self.rag_snapshot["evidence_snapshot"] = self._project_evidence_snapshot(
             claim_links=claim_snapshot.claim_links,
@@ -395,15 +404,15 @@ def _verified_citation_links(
         return ()
     known = {str(evidence_id) for evidence_id in known_evidence_ids}
     cited: list[ClaimEvidenceLinkV1] = []
-    seen: set[str] = set()
     for link in getattr(claim_snapshot, "claim_links", ()) or ():
         if link.support_type not in {"direct_support", "indirect_support"}:
             continue
         if float(link.confidence) < MIN_VERIFIED_CITATION_CONFIDENCE:
             continue
-        if link.evidence_id not in known or link.evidence_id in seen:
+        if link.evidence_id not in known:
             continue
-        seen.add(link.evidence_id)
+        # Retain every claim→evidence link. The snapshot normalizer already
+        # rejects duplicate link tuples; ref status below only needs an id set.
         cited.append(link)
     return tuple(cited)
 
