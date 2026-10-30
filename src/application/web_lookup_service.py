@@ -377,6 +377,58 @@ def _gateway_search(
     return list(gateway.search(query, max_items=max_items)), {}
 
 
+def _usable_read_count(records: list[dict[str, Any]]) -> int:
+    """Sources whose body was read and whose topic actually matches the query.
+
+    Read success alone is not usable content: a dictionary page or a navigation
+    page reads fine and answers nothing. The assessor already classifies that in
+    ``directness`` (``weak``/``unmatched``/``unknown`` mean the source shares no
+    meaningful topic with the query), so this reuses its judgement instead of
+    inventing a second relevance scorer.
+    """
+
+    usable = 0
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        raw_read = record.get("read")
+        read = raw_read if isinstance(raw_read, dict) else {}
+        if str(read.get("status") or "") != "read":
+            continue
+        raw_assessment = record.get("assessment")
+        assessment = raw_assessment if isinstance(raw_assessment, dict) else {}
+        if str(assessment.get("directness") or "") in {
+            "",
+            "weak",
+            "unmatched",
+            "unknown",
+        }:
+            continue
+        usable += 1
+    return usable
+
+
+def _next_unused_variant(
+    context: dict[str, Any], query_attempts: list[dict[str, Any]]
+) -> str:
+    """The first planned variant this run has not searched yet."""
+
+    variants = [
+        str(value)
+        for value in context.get("query_variants", []) or []
+        if str(value).strip()
+    ]
+    attempted = {
+        str(attempt.get("query") or "")
+        for attempt in query_attempts
+        if isinstance(attempt, dict)
+    }
+    for variant in variants:
+        if variant not in attempted:
+            return variant
+    return ""
+
+
 def _gateway_warning_text(items: list[dict[str, str]]) -> list[str]:
     result: list[str] = []
     for item in items:
@@ -1263,126 +1315,217 @@ class WebLookupService:
             if stage == "reading":
                 read_method = getattr(self.gateway, "read", None)
                 budget = ResearchReadBudget.from_env()
-                if callable(read_method):
-                    for index, record in enumerate(list(selected_sources)):
-                        ensure_active()
-                        assessment = dict(record.get("assessment") or {})
-                        existing_read = record.get("read")
-                        if (
-                            isinstance(existing_read, dict)
-                            and existing_read.get("status") == "read"
-                        ):
-                            continue
-                        summary = _read_summary(selected_sources, budget)
-                        url = _source_url(record)
-                        if assessment.get("worth_reading") is not True or not url:
-                            selected_sources[index] = {
-                                **record,
-                                "item": dict(record.get("item") or {}),
-                                "assessment": assessment,
-                                "read": {
-                                    "ok": False,
-                                    "status": "skipped",
-                                    "reason": (
-                                        "not_worth_reading"
-                                        if assessment.get("worth_reading") is not True
-                                        else "missing_url"
-                                    ),
-                                },
-                            }
-                            checkpoint()
-                            continue
-                        if (
-                            int(summary["attempted"]) >= budget.max_reads
-                            or int(summary["used_chars"]) >= budget.max_total_chars
-                        ):
-                            selected_sources[index] = {
-                                **record,
-                                "item": dict(record.get("item") or {}),
-                                "assessment": assessment,
-                                "read": {
-                                    "ok": False,
-                                    "status": "skipped",
-                                    "reason": "read_budget_exhausted",
-                                },
-                            }
-                            checkpoint()
-                            continue
-                        remaining = budget.max_total_chars - int(summary["used_chars"])
-                        source_limit = min(budget.max_chars_per_source, remaining)
-                        try:
-                            raw_result = read_method(url, max_chars=source_limit)
-                            read_result, _ = _bounded_read_result(
-                                dict(raw_result or {}),
-                                max_chars=source_limit,
-                            )
-                            read_result["status"] = (
-                                "read" if _is_read_ok(read_result) else "failed"
-                            )
-                            if not _is_read_ok(read_result):
-                                read_reason = str(
-                                    read_result.get("error")
-                                    or read_result.get("reason")
-                                    or "read_failed"
-                                )
-                                warnings.append(
-                                    f"source read failed ({url}): {read_reason}"
-                                )
-                        except Exception as exc:
-                            read_result = {
-                                "ok": False,
-                                "status": "failed",
-                                "url": url,
-                                "error": f"{type(exc).__name__}: {exc}",
-                            }
-                            warnings.append(
-                                f"source read failed ({url}): {type(exc).__name__}: {exc}"
-                            )
-                        from src.web.research.read_evidence import (
-                            normalize_read_result,
-                            with_attempt_recorded,
-                        )
 
-                        read_round = int(context.get("run_round") or 0)
-                        read_result = normalize_read_result(
-                            read_result,
-                            run_id=run_id,
-                            url=url,
-                            round_index=read_round,
-                            record=record,
-                            at=utc_now(),
-                        )
-                        updated_record = with_attempt_recorded(
-                            {
-                                **record,
-                                "item": dict(record.get("item") or {}),
-                                "assessment": assessment,
+                def read_source(index: int) -> None:
+                    """Read one selected source, inside the run's read budget."""
+
+                    ensure_active()
+                    reader = read_method
+                    if reader is None:  # pragma: no cover - caller checked
+                        return
+                    record = selected_sources[index]
+                    assessment = dict(record.get("assessment") or {})
+                    existing_read = record.get("read")
+                    if (
+                        isinstance(existing_read, dict)
+                        and existing_read.get("status") == "read"
+                    ):
+                        return
+                    summary = _read_summary(selected_sources, budget)
+                    url = _source_url(record)
+                    if assessment.get("worth_reading") is not True or not url:
+                        selected_sources[index] = {
+                            **record,
+                            "item": dict(record.get("item") or {}),
+                            "assessment": assessment,
+                            "read": {
+                                "ok": False,
+                                "status": "skipped",
+                                "reason": (
+                                    "not_worth_reading"
+                                    if assessment.get("worth_reading") is not True
+                                    else "missing_url"
+                                ),
                             },
-                            read_result,
-                        )
-                        if record.get("evidence_state") == "inherited_candidate":
-                            if read_result.get("status") == "read":
-                                updated_record["evidence_state"] = "revalidated"
-                                seed = updated_record.pop("inherited_note_seed", None)
-                                if isinstance(seed, dict):
-                                    updated_record["inherited_note"] = seed
-                            else:
-                                updated_record["evidence_state"] = "invalid_or_rejected"
-                                updated_record.pop("inherited_note_seed", None)
-                        selected_sources[index] = updated_record
-                        self._record_read_event(
-                            context,
-                            run_id=run_id,
-                            records=selected_sources,
-                            record=updated_record,
-                            round_index=int(context.get("run_round") or 0),
-                        )
-                        context["read_summary"] = _read_summary(
-                            selected_sources,
-                            budget,
-                        )
+                        }
                         checkpoint()
-                        ensure_active()
+                        return
+                    if (
+                        int(summary["attempted"]) >= budget.max_reads
+                        or int(summary["used_chars"]) >= budget.max_total_chars
+                    ):
+                        selected_sources[index] = {
+                            **record,
+                            "item": dict(record.get("item") or {}),
+                            "assessment": assessment,
+                            "read": {
+                                "ok": False,
+                                "status": "skipped",
+                                "reason": "read_budget_exhausted",
+                            },
+                        }
+                        checkpoint()
+                        return
+                    remaining = budget.max_total_chars - int(summary["used_chars"])
+                    source_limit = min(budget.max_chars_per_source, remaining)
+                    try:
+                        raw_result = reader(url, max_chars=source_limit)
+                        read_result, _ = _bounded_read_result(
+                            dict(raw_result or {}),
+                            max_chars=source_limit,
+                        )
+                        read_result["status"] = (
+                            "read" if _is_read_ok(read_result) else "failed"
+                        )
+                        if not _is_read_ok(read_result):
+                            read_reason = str(
+                                read_result.get("error")
+                                or read_result.get("reason")
+                                or "read_failed"
+                            )
+                            warnings.append(
+                                f"source read failed ({url}): {read_reason}"
+                            )
+                    except Exception as exc:
+                        read_result = {
+                            "ok": False,
+                            "status": "failed",
+                            "url": url,
+                            "error": f"{type(exc).__name__}: {exc}",
+                        }
+                        warnings.append(
+                            f"source read failed ({url}): {type(exc).__name__}: {exc}"
+                        )
+                    from src.web.research.read_evidence import (
+                        normalize_read_result,
+                        with_attempt_recorded,
+                    )
+
+                    read_round = int(context.get("run_round") or 0)
+                    read_result = normalize_read_result(
+                        read_result,
+                        run_id=run_id,
+                        url=url,
+                        round_index=read_round,
+                        record=record,
+                        at=utc_now(),
+                    )
+                    updated_record = with_attempt_recorded(
+                        {
+                            **record,
+                            "item": dict(record.get("item") or {}),
+                            "assessment": assessment,
+                        },
+                        read_result,
+                    )
+                    if record.get("evidence_state") == "inherited_candidate":
+                        if read_result.get("status") == "read":
+                            updated_record["evidence_state"] = "revalidated"
+                            seed = updated_record.pop("inherited_note_seed", None)
+                            if isinstance(seed, dict):
+                                updated_record["inherited_note"] = seed
+                        else:
+                            updated_record["evidence_state"] = "invalid_or_rejected"
+                            updated_record.pop("inherited_note_seed", None)
+                    selected_sources[index] = updated_record
+                    self._record_read_event(
+                        context,
+                        run_id=run_id,
+                        records=selected_sources,
+                        record=updated_record,
+                        round_index=int(context.get("run_round") or 0),
+                    )
+                    context["read_summary"] = _read_summary(
+                        selected_sources,
+                        budget,
+                    )
+                    checkpoint()
+                    ensure_active()
+
+                if callable(read_method):
+                    for index in range(len(list(selected_sources))):
+                        read_source(index)
+
+                    # Search-3A: a non-empty result set is not an answer. When
+                    # the first query's batch produced no usable content (every
+                    # read failed, was skipped as irrelevant, or only reached an
+                    # unrelated page), spend one unused query variant instead of
+                    # synthesising from junk. Once per run, and only while the
+                    # read budget still allows a read: this moves a wasted
+                    # opportunity to a better query instead of adding queries.
+                    retry_summary = _read_summary(selected_sources, budget)
+                    if (
+                        not context.get("search_retry")
+                        and selected_sources
+                        and _usable_read_count(selected_sources) == 0
+                        and int(retry_summary["attempted"]) < budget.max_reads
+                        and int(retry_summary["used_chars"]) < budget.max_total_chars
+                    ):
+                        retry_query = _next_unused_variant(context, query_attempts)
+                        if retry_query:
+                            context["search_retry"] = {
+                                "used": True,
+                                "variant": retry_query,
+                                "reason": "no_usable_read_content",
+                            }
+                            ensure_active()
+                            retry_results: list[dict[str, Any]] = []
+                            try:
+                                retry_results, retry_trace = _gateway_search(
+                                    self.gateway,
+                                    retry_query,
+                                    max_items=run.max_items,
+                                )
+                                retry_payload = successful_attempt(
+                                    retry_query, len(retry_results)
+                                ).to_dict()
+                                if retry_trace:
+                                    retry_payload["search_trace"] = retry_trace
+                            except Exception as exc:
+                                retry_payload = failed_attempt(
+                                    retry_query, exc
+                                ).to_dict()
+                                failure_trace = getattr(exc, "search_trace", None)
+                                if isinstance(failure_trace, dict) and failure_trace:
+                                    retry_payload["search_trace"] = dict(failure_trace)
+                                warnings.append(
+                                    f"research query failed ({retry_query}): {exc}"
+                                )
+                            retry_payload.update(
+                                {
+                                    "run_attempt": context["run_attempt"],
+                                    "operation_id": operation_id,
+                                }
+                            )
+                            query_attempts.append(retry_payload)
+                            warnings.extend(
+                                _gateway_warning_text(self.gateway.warnings())
+                            )
+                            if retry_results:
+                                retry_items = [dict(item) for item in retry_results]
+                                context["candidate_items"] = [
+                                    dict(item)
+                                    for item in context.get("candidate_items", [])
+                                    if isinstance(item, dict)
+                                ] + retry_items
+                                retry_selected, retry_rejected = assess_sources(
+                                    retry_items,
+                                    canonical_query=str(
+                                        context.get("canonical_query") or run.query
+                                    ),
+                                )
+                                first_retry_index = len(selected_sources)
+                                for record in retry_selected:
+                                    selected_sources.append(
+                                        {**record, "evidence_state": "new"}
+                                    )
+                                rejected_sources.extend(retry_rejected)
+                                checkpoint()
+                                for index in range(
+                                    first_retry_index, len(selected_sources)
+                                ):
+                                    read_source(index)
+                            checkpoint()
                 else:
                     context["read_summary"] = _read_summary(
                         selected_sources,
