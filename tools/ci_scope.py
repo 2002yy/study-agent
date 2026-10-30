@@ -381,14 +381,23 @@ def classify(paths: list[str]) -> dict:
 
     e2e_specs: set[str] = set()
     e2e_surface_changed = False
+    e2e_assets_changed = False
     for path in by_category.get("frontend", []):
+        normalized = str(path or "").strip().replace("\\", "/")
+        if normalized.startswith("frontend/e2e/"):
+            # A browser test or one of its helpers is only exercised by the browser
+            # job. Ignoring it as a *surface* (no component contract) must not also
+            # skip the gate that runs it.
+            e2e_assets_changed = True
         if _is_e2e_ignored(path):
             continue
         specs = frontend_e2e_specs(path)
         if specs:
             e2e_surface_changed = True
             e2e_specs.update(specs)
-    frontend_e2e_required = e2e_surface_changed or bool(unknown) or router_changed
+    frontend_e2e_required = (
+        e2e_surface_changed or e2e_assets_changed or bool(unknown) or router_changed
+    )
 
     research_browser_required = (
         "browser" in category_set or bool(unknown) or router_changed

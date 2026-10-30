@@ -16,6 +16,8 @@ import {
   buildCitations,
   normalizeEvidence,
   summarizeWebCalls,
+  uncitedReadSources,
+  verifiedCitations,
 } from "./evidenceHelpers";
 import type { EvidenceRef } from "./evidenceHelpers";
 import { ExternalDataDisclosure } from "./ExternalDataDisclosure";
@@ -23,8 +25,8 @@ import "./evidenceTrail.css";
 import { useReadingWorkspace } from "../reading/ReadingContext";
 
 const STATUS_LABELS: Record<EvidenceRef["status"], string> = {
-  selected: "已采用",
-  read: "已阅读",
+  selected: "已选中",
+  read: "已读取",
   candidate: "候选",
   rejected: "已排除",
 };
@@ -36,8 +38,10 @@ const STATUS_ORDER: EvidenceRef["status"][] = [
   "rejected",
 ];
 
-type CopyTarget = "adopted" | "diagnostics";
+type CopyTarget = "cited" | "diagnostics";
 type CopyState = "idle" | "success" | "error";
+
+const CITATION_LABEL = "已核验引用";
 
 function evidenceTypeLabel(type: EvidenceRef["type"]): string {
   if (type === "local") return "本地";
@@ -51,7 +55,7 @@ export function formatEvidencePlainText(
   refs: EvidenceRef[],
   includeDiagnostics = false,
 ): string {
-  const lines: string[] = [includeDiagnostics ? "证据诊断" : "采用证据"];
+  const lines: string[] = [includeDiagnostics ? "证据诊断" : CITATION_LABEL];
   if (pedagogy) {
     lines.push(`${protocolLabel(pedagogy.mode)} · ${moveLabel(pedagogy.move)}`);
   }
@@ -78,18 +82,20 @@ export function formatEvidencePlainText(
 function copyButtonLabel(target: CopyTarget, state: CopyState): string {
   if (state === "success") return "已复制";
   if (state === "error") return "复制失败";
-  return target === "diagnostics" ? "复制诊断" : "复制";
+  return target === "diagnostics" ? "复制诊断" : "复制引用";
 }
 
 function EvidenceRow({
   ref,
   supported,
   diagnostic = false,
+  citationLabel = "",
   onRead,
 }: {
   ref: EvidenceRef;
   supported: boolean;
   diagnostic?: boolean;
+  citationLabel?: string;
   onRead?: () => void;
 }) {
   return (
@@ -98,6 +104,9 @@ function EvidenceRow({
         <span className="evidence-ref-supported" title="教学法引用">
           引
         </span>
+      ) : null}
+      {citationLabel ? (
+        <span className="evidence-ref-citation">{citationLabel}</span>
       ) : null}
       <span className="evidence-ref-type">{evidenceTypeLabel(ref.type)}</span>
       {ref.url ? (
@@ -151,9 +160,8 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
         ? reading?.webCitation(ref.url || "",evidence) : null;
     return target && reading ? () => reading.open(target) : undefined;
   };
-  const adoptedRefs = evidenceRefs.filter(
-    (ref) => ref.status === "selected" || supportedIds.has(ref.id),
-  );
+  const citedRefs = verifiedCitations(evidenceRefs);
+  const uncitedRefs = uncitedReadSources(evidenceRefs);
   const webError = rag?.web_tools?.error;
   const recoveredResearchUsed = Boolean(rag?.web_context?.used && rag.web_context.run_id);
   const hasExternalDataPolicy = Boolean(
@@ -174,7 +182,7 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
       if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
       await navigator.clipboard.writeText(text);
       setCopyResult({ target, state: "success" });
-      setCopyAnnouncement(target === "diagnostics" ? "证据诊断已复制" : "采用证据已复制");
+      setCopyAnnouncement(target === "diagnostics" ? "证据诊断已复制" : "已核验引用已复制");
     } catch {
       setCopyResult({ target, state: "error" });
       setCopyAnnouncement("复制失败，请检查浏览器剪贴板权限后重试");
@@ -210,34 +218,35 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
             {protocolLabel(pedagogy.mode)} · {moveLabel(pedagogy.move)}
           </span>
         ) : null}
-        {adoptedRefs.length ? (
-          <span className="evidence-summary-flag">采用证据 {adoptedRefs.length}</span>
+        {citedRefs.length ? (
+          <span className="evidence-summary-flag">已核验引用 {citedRefs.length}</span>
         ) : null}
       </button>
 
       {open ? (
         <div className="evidence-detail">
-          {adoptedRefs.length ? (
-            <section className="evidence-primary" aria-label="回答采用的证据">
+          {citedRefs.length ? (
+            <section className="evidence-primary" aria-label={CITATION_LABEL}>
               <div className="evidence-unified-header">
-                <span>回答采用的证据（{adoptedRefs.length} 条）</span>
+                <span>{CITATION_LABEL}（{citedRefs.length} 条）</span>
                 <button
-                  className={`ghost-action compact evidence-copy${stateFor("adopted") === "error" ? " copy-error" : ""}`}
+                  className={`ghost-action compact evidence-copy${stateFor("cited") === "error" ? " copy-error" : ""}`}
                   onClick={() =>
-                    void copyEvidence("adopted", formatEvidencePlainText(pedagogy, adoptedRefs))
+                    void copyEvidence("cited", formatEvidencePlainText(pedagogy, citedRefs))
                   }
                   type="button"
-                  title="复制采用证据"
+                  title="复制已核验引用"
                 >
-                  <Clipboard size={12} /> {copyButtonLabel("adopted", stateFor("adopted"))}
+                  <Clipboard size={12} /> {copyButtonLabel("cited", stateFor("cited"))}
                 </button>
               </div>
               <div className="evidence-primary-list">
-                {adoptedRefs.map((ref) => (
+                {citedRefs.map((ref) => (
                   <EvidenceRow
-                    key={ref.id}
+                    key={`${ref.id}-cited`}
                     ref={ref}
-                    supported={supportedIds.has(ref.id)}
+                    supported={false}
+                    citationLabel={CITATION_LABEL}
                     onRead={readAction(ref)}
                   />
                 ))}
@@ -245,8 +254,27 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
             </section>
           ) : hasDiagnostics ? (
             <p className="evidence-empty-note">
-              本轮没有标记为已采用的可核对证据。
+              本轮没有通过发布校验的引用。
             </p>
+          ) : null}
+
+          {uncitedRefs.length ? (
+            <section className="evidence-uncited" aria-label="已读取或已选中但未引用">
+              <div className="evidence-unified-header">
+                <span>已读取或已选中但未引用（{uncitedRefs.length} 条）</span>
+              </div>
+              <div className="evidence-primary-list">
+                {uncitedRefs.map((ref) => (
+                  <EvidenceRow
+                    key={`${ref.id}-uncited`}
+                    ref={ref}
+                    supported={false}
+                    citationLabel={STATUS_LABELS[ref.status]}
+                    onRead={readAction(ref)}
+                  />
+                ))}
+              </div>
+            </section>
           ) : null}
 
           {hasDiagnostics ? (

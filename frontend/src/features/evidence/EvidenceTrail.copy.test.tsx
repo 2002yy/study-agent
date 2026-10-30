@@ -37,6 +37,7 @@ const rag = {
         published_at: "",
         score: 0.82,
         lifecycle_status: "selected",
+        citation_status: "cited",
         provider_status: "found",
         selection_reason: "",
         rejection_reason: "",
@@ -61,10 +62,10 @@ describe("EvidenceTrail clipboard feedback", () => {
     });
     renderTrail();
 
-    fireEvent.click(screen.getByRole("button", { name: "复制" }));
+    fireEvent.click(screen.getByRole("button", { name: "复制引用" }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: "已复制" })).toBeTruthy());
-    expect(screen.getByRole("status")).toHaveTextContent("采用证据已复制");
+    expect(screen.getByRole("status")).toHaveTextContent("已核验引用已复制");
     expect(writeText).toHaveBeenCalledTimes(1);
   });
 
