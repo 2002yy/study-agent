@@ -526,7 +526,9 @@ def get_web_lookup_service():
     from src.application.research_web_lookup_dispatch import (
         ClaimEngineDispatchWebLookupService,
     )
+    from src.web.research.backup_query import plan_backup_query
     from src.web.research.deep_planner import ModelDeepPlanner
+    from src.web.semantic_recovery import configured_completion
 
     # P1: the Deep pipeline needs a real planner in production, otherwise query
     # decomposition and the compute decision are unreachable (WEB_DEEP_MODEL_PLANNER=0
@@ -537,8 +539,16 @@ def get_web_lookup_service():
         "off",
     }
     planner = ModelDeepPlanner() if enabled else None
+
+    def backup_query(query: str) -> str:
+        # Only reached when a lookup read nothing usable and the deterministic
+        # normalizer left no spare variant; one bounded planning call.
+        return plan_backup_query(query=query, completion=configured_completion)
+
     return ClaimEngineDispatchWebLookupService(
-        get_web_lookup_repository(), planner=planner
+        get_web_lookup_repository(),
+        planner=planner,
+        backup_query=backup_query,
     )
 
 

@@ -1,7 +1,7 @@
 """Application service for durable, resumable general-web research."""
 
 from __future__ import annotations
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
 from dataclasses import asdict, dataclass
 import os
@@ -429,6 +429,31 @@ def _next_unused_variant(
     return ""
 
 
+def _ask_backup_query(
+    planner: Callable[[str], str],
+    query: str,
+    query_attempts: list[dict[str, Any]],
+    warnings: list[str],
+) -> tuple[str, str]:
+    """Ask the semantic planner for one different query; never re-search a used one."""
+
+    attempted = {
+        str(attempt.get("query") or "").strip().casefold()
+        for attempt in query_attempts
+        if isinstance(attempt, dict)
+    }
+    try:
+        candidate = " ".join(str(planner(query) or "").split())
+    except Exception as exc:  # noqa: BLE001 - planning is optional, not authoritative
+        warnings.append(f"backup query planning failed: {type(exc).__name__}: {exc}")
+        return "", ""
+    if not candidate or len(candidate) > 400:
+        return "", ""
+    if candidate.casefold() in attempted:
+        return "", ""
+    return candidate, "backup_planner"
+
+
 def _gateway_warning_text(items: list[dict[str, str]]) -> list[str]:
     result: list[str] = []
     for item in items:
@@ -543,6 +568,7 @@ class WebLookupService:
         gateway: WebLookupGateway | None = None,
         planner: Any = None,
         compute_registry: Any = None,
+        backup_query: Callable[[str], str] | None = None,
     ):
         self.repository = repository
         self.gateway = gateway or ResearchWebGateway()
@@ -555,6 +581,11 @@ class WebLookupService:
         # {"done": bool, "additional": [sub_question]}`` for per-round gap
         # analysis. When absent, deterministic fallbacks are used.
         self.planner = planner
+        # Search-3A: the deterministic normalizer often yields one query, so a
+        # failed first batch can leave nothing to retry. This callable asks the
+        # existing semantic planner for one different query wording. It is only
+        # called when the retry gate fires, so the normal path spends nothing.
+        self.backup_query = backup_query
 
     @property
     def compute_registry(self) -> Any:
@@ -1462,10 +1493,19 @@ class WebLookupService:
                         and int(retry_summary["used_chars"]) < budget.max_total_chars
                     ):
                         retry_query = _next_unused_variant(context, query_attempts)
+                        retry_source = "planned_variant"
+                        if not retry_query and self.backup_query is not None:
+                            retry_query, retry_source = _ask_backup_query(
+                                self.backup_query,
+                                run.query,
+                                query_attempts,
+                                warnings,
+                            )
                         if retry_query:
                             context["search_retry"] = {
                                 "used": True,
                                 "variant": retry_query,
+                                "source": retry_source,
                                 "reason": "no_usable_read_content",
                             }
                             ensure_active()

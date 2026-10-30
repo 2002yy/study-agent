@@ -9,6 +9,7 @@ when nothing readable actually matches the question.
 from __future__ import annotations
 
 import hashlib
+import json
 from typing import Any
 
 from src.application.web_lookup_service import WebLookupService
@@ -59,7 +60,13 @@ def _body(text: str, url: str) -> dict[str, Any]:
     }
 
 
-def _run(tmp_path, *, variants: list[str], query: str = QUERY) -> tuple[WebLookupService, WebLookupRepository, str]:
+def _run(
+    tmp_path,
+    *,
+    variants: list[str],
+    query: str = QUERY,
+    backup_query=None,
+) -> tuple[WebLookupService, WebLookupRepository, str]:
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
     run = WebLookupRun(
         id="web_lookup_search3a",
@@ -76,7 +83,11 @@ def _run(tmp_path, *, variants: list[str], query: str = QUERY) -> tuple[WebLooku
         },
     )
     repository.create(run)
-    return WebLookupService(repository), repository, run.id
+    return (
+        WebLookupService(repository, backup_query=backup_query),
+        repository,
+        run.id,
+    )
 
 
 def test_an_unrelated_first_batch_is_retried_with_one_more_variant(tmp_path):
@@ -290,3 +301,116 @@ def test_without_a_spare_variant_the_run_still_finishes(tmp_path):
     assert gateway.queries == [QUERY]
     assert "search_retry" not in executed.research_context
     assert executed.status in {"completed", "partial"}
+
+
+def test_one_variant_with_a_useful_failure_falls_back_to_the_planner(tmp_path):
+    """A single normalized query must still be able to look elsewhere."""
+
+    gateway = ScriptedGateway(
+        batches={
+            QUERY: [
+                _item("千（汉语汉字）_百度百科", "https://baike.example/qian", "千，数目")
+            ],
+            "千冶·刃 遗器 攻略": [
+                _item(
+                    "千冶·刃 遗器 推荐 黄泉队",
+                    "https://game.example/b01",
+                    "千冶·刃 遗器 推荐 黄泉队",
+                )
+            ],
+        },
+        reads={
+            "https://baike.example/qian": _body(
+                "千，数目。", "https://baike.example/qian"
+            ),
+            "https://game.example/b01": _body(
+                "千冶·刃 遗器 推荐：莳者四件套。", "https://game.example/b01"
+            ),
+        },
+    )
+    asked: list[str] = []
+
+    def backup(query: str) -> str:
+        asked.append(query)
+        return "千冶·刃 遗器 攻略"
+
+    service, repository, run_id = _run(tmp_path, variants=[QUERY], backup_query=backup)
+    service.gateway = gateway
+
+    executed = service.execute(run_id, raise_on_error=True)
+
+    assert asked == [QUERY]
+    assert gateway.queries == [QUERY, "千冶·刃 遗器 攻略"]
+    retry = executed.research_context["search_retry"]
+    assert retry["source"] == "backup_planner"
+    assert retry["variant"] == "千冶·刃 遗器 攻略"
+    assert "千冶·刃" in executed.source_block
+
+
+def test_a_planner_failure_does_not_break_the_run(tmp_path):
+    gateway = ScriptedGateway(
+        batches={QUERY: [_item("千（汉字）", "https://baike.example/qian")]},
+        reads={
+            "https://baike.example/qian": _body("千，数目。", "https://baike.example/qian")
+        },
+    )
+
+    def backup(_query: str) -> str:
+        raise RuntimeError("planner unavailable")
+
+    service, repository, run_id = _run(tmp_path, variants=[QUERY], backup_query=backup)
+    service.gateway = gateway
+
+    executed = service.execute(run_id, raise_on_error=True)
+
+    assert gateway.queries == [QUERY]
+    assert "search_retry" not in executed.research_context
+    assert any(
+        "backup query planning failed" in warning for warning in executed.warnings
+    )
+
+
+def test_a_planner_cannot_re_search_an_attempted_query(tmp_path):
+    gateway = ScriptedGateway(
+        batches={QUERY: [_item("千（汉字）", "https://baike.example/qian")]},
+        reads={
+            "https://baike.example/qian": _body("千，数目。", "https://baike.example/qian")
+        },
+    )
+    service, repository, run_id = _run(
+        tmp_path, variants=[QUERY], backup_query=lambda _query: QUERY
+    )
+    service.gateway = gateway
+
+    executed = service.execute(run_id, raise_on_error=True)
+
+    assert gateway.queries == [QUERY]
+    assert "search_retry" not in executed.research_context
+
+
+def test_the_planner_adapter_returns_a_different_query() -> None:
+    from src.web.research.backup_query import plan_backup_query
+
+    seen: list[str] = []
+
+    def completion(*, messages, timeout, task_name):  # noqa: ANN001 - test stub
+        seen.append(task_name)
+        return json.dumps(
+            {
+                "task_id": "backup-query",
+                "intent": "NEW_RESEARCH",
+                "subject": "千冶·刃",
+                "constraints_delta": {},
+                "unresolved_questions": [{"id": "rq-question", "question": QUERY}],
+                "suggested_next_action": "search",
+                "proposed_queries": [
+                    {"rq_id": "rq-question", "query": "千冶·刃 遗器 攻略"}
+                ],
+            },
+            ensure_ascii=False,
+        )
+
+    planned = plan_backup_query(query=QUERY, completion=completion, timeout_seconds=5)
+
+    assert planned == "千冶·刃 遗器 攻略"
+    assert seen == ["research_turn_interpretation"]
