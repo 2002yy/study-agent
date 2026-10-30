@@ -57,8 +57,11 @@
 规则（全部必须成立）：
 
 1. `evidence_id` 属于本回合 `research_evidence_refs`；
-2. 该来源在 `read_evidence` 中有 `status=read` 的记录，且 `content_sha256`
-   与本回合保存的正文一致；
+2. 该来源在本轮保留的读取记录中有 `status=read`，其 `read_id` 与 URL 对应同一次读取；
+   **按实际持久化范围**核对内容哈希：现有 `read_evidence` 的 `excerpt_sha256`
+   是读取正文**前 3000 字摘录**的哈希，并非任意完整正文的哈希。A1 必须明确
+   候选片段定位的权威正文与哈希采用同一可访问、已保存的字节范围；不得用
+   12k 正文的偏移量去核验 3k 摘录哈希，也不得假设每种读取工具都保存全文；
 3. `span_text` 是**该正文**的子串，且 `[span_start, span_end)` 与实际位置一致；
 4. URL / 读取身份未被替换或截断（来源身份与正文身份同源）。
 
@@ -83,29 +86,47 @@
 - `contradicts` 优先于 `supports`：同一 claim 有一个已核验的反对片段时，不得按"已支持"发布；
 - 多个来源相互矛盾且都通过核验 → 该 claim 记 `unresolved_conflict`，不得作为确定结论发布。
 
-### 2.4 进入现有 binder 的行
+### 2.4 语义支持如何进入现有 binder（必须先取得服务端资格）
 
-只有 `provenance.verified == true` **且** `verdict == supports` 的片段才允许生成支持行：
+**旧设计的关键错误**：`answer_claim_binder._supported_confidence()` 对任何非空
+`grounding_text` 都先执行 `claim_grounded_in_text()` 的**完整原句匹配**；
+即便 `relation="supports"`、`strength="strong"`，仅将 `grounding_text` 缩成片段，
+仍会拒绝合法改写。**因此不能声称「行结构不改、只换输入即可让改写通过」。**
+
+现有 binder 已有两种真实路径，A3 必须明确选择并保留来源资格：
+
+1. **普通 inline 读取（未获 claim 级资格）**：仍携带非空 `grounding_text`，
+   沿用 #321 的完整来源原句等价检查，不授予改写支持权。
+2. **经过 claim 级核验、语义支持与冲突门禁的行**：由**服务端**根据
+   `read_id/evidence_id/claim_id/片段位置/哈希/verdict` 建立只读的资格记录，
+   且仅在同一 claim 没有任何已核验反对/未决冲突、Gate 允许发布时才投影；
+   复用现有 `research_binding_rows` 的「上游已核验正向关系」约定，
+   将 `grounding_text=""` 交给 binder 既有 `_positive_support_confidence()` 分支。
+   **不能直接相信模型输出的 `supports` 标签**，也不能把读取成功标成 strong。
+
+只读投影的示例（此处**不是**模型可直接提交的行）：
 
 ```jsonc
 {
   "evidence_id": "tool_read_1",
-  "claim_id": "…",
+  "claim_id": "…",                  // 必须与实际待发布事实对应
   "title": "…",
   "url": "…",
   "relation": "supports",
-  "strength": 0.7,
+  "strength": "0.7",               // binder 的 strength 字段是字符串
   "locator": "span:1204-1290",
   "anchored_spans": ["研发费用增加导致净利润下降"],
-  "grounding_text": "研发费用增加导致净利润下降"   // 只放被核验的片段，不是整页
+  "grounding_text": ""             // 仅在已取得服务端 claim 级资格后允许为空
 }
 ```
 
-`grounding_text` 是有意收窄的：binder 的既有检查仍会执行，但只在**已核验片段**上执行，
-不再依赖整页词面重合。
+资格记录仍需在服务端审计中保留经核验的原文、读取身份和哈希，**不能因为给
+binder 的 `grounding_text` 为空就失去可复查性**。A3 先独立验证
+「原文存在 → 语义 verdict → 反对/冲突门禁 → 授权行」的连贯链路；
+无资格或资格缺失时只能走第 1 条严格回退，不能给模型提供冒充已核验的标签。
 
-原有"完整原句等价"规则保留给没有经过 Analysis-1A 流程的路径（未核验的行、旧回合、
-或模型未给出可核验片段的判断）。这条规则是**降级路径**，不是唯一路径。
+该方式保留 binder 的现有判定逻辑，但需要在 A3 明确建立**可信上游资格投影**，
+不是复制模型的三分类判断为最终支持权。A3 没完成以前，**不允许改写型发布**。
 
 ## 3. 责任边界（不变量）
 
@@ -125,7 +146,7 @@
 | 定位 | `read_evidence.normalize_read_result` 保存的正文与哈希 | claim → span 的候选选择（确定性窗口 + 可选模型候选） |
 | 出处核验 | `read_evidence` 的读取身份/哈希；`research_evidence_refs` 的 id 归属 | 一个确定性校验函数与错误码 |
 | 语义判断 | `claim_evidence_assessment` 的判断契约；`evidence_gate` 的阈值 | 把 verdict 落成 gate 可消费的 link |
-| 发布 | `answer_claim_binder`（行结构不变）、发布校验、`evidence_snapshot` | 行里带核验片段与 locator |
+| 发布 | `answer_claim_binder._positive_support_confidence` 的可信上游行、原句回退、发布校验 | A3 建立服务端 claim 级资格投影；`grounding_text` 的空/非空必须与资格对应 |
 | 展示 | B1/B2 的 `citation_links` / `citation_status` | 无 |
 
 ## 5. 实现切片（每片独立 PR、独立负控）
@@ -163,7 +184,7 @@
 
 ## 7. 非范围
 
-- 不重写 `bind_answer_claims` 的判定逻辑（只喂给它更可信的输入）
+- 不重写 `bind_answer_claims` 的判定逻辑；A3 必须完成可信上游资格投影，并证明只有真实核验后的正向关系才能进入不走原句匹配的分支
 - 不改检索与读取预算
 - 不引入新的引用数据结构和第二套评分器
 - 不覆盖 Deep 档的 claim-engine 路径（它已有 Evidence Gate）
