@@ -233,7 +233,9 @@ export async function visibleProductSurfaceNames(page: Page) {
     ["returning_restore", page.getByRole("region", { name: "继续当前任务" })],
     ["interrupted_recovery", page.getByRole("region", { name: "中断任务恢复" })],
     ["upload_handoff", page.getByText("资料已准备好", { exact: true })],
-    ["adopted_evidence", page.getByRole("region", { name: "已核验引用" })],
+    // Historical metric key is retained; the legacy journeys have selected
+    // sources, not server-verified citations.
+    ["adopted_evidence", page.getByRole("region", { name: "已读取或已选中但未引用" })],
     ["closure_review", page.getByTestId("learning-closure-review")],
   ] as const;
   const visible: string[] = [];
