@@ -288,6 +288,8 @@ def test_a_mapping_and_a_claim_span_object_agree():
         _candidate(), evidence=[record], evidence_ids=EVIDENCE_IDS, evidence_urls=REF_URLS
     )
     span = ClaimSpan.from_mapping(_candidate())
-    typed = verify_claim_span(span, evidence=[record], evidence_ids=EVIDENCE_IDS, evidence_urls=REF_URLS)
+    typed = verify_claim_span(
+        span, evidence=[record], evidence_ids=EVIDENCE_IDS, evidence_urls=REF_URLS
+    )
 
     assert mapping.as_record() == typed.as_record()
