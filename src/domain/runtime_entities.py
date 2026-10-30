@@ -119,7 +119,11 @@ class ChatTurn:
         cited = _verified_citation_links(
             claim_snapshot,
             audit,
-            (evidence_id for evidence_id in known_evidence_ids if evidence_id in citation_source_ids),
+            (
+                evidence_id
+                for evidence_id in known_evidence_ids
+                if evidence_id in citation_source_ids
+            ),
         )
         self.rag_snapshot["citation_links"] = [link.to_dict() for link in cited]
         self.rag_snapshot["evidence_snapshot"] = self._project_evidence_snapshot(
