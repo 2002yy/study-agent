@@ -325,8 +325,11 @@ def test_unregistered_frontend_paths_keep_the_cheap_tier_only():
         assert result['frontend_e2e_required'] is False, path
         assert result['frontend_e2e_specs'] == [], path
 
+    # A Playwright spec is not a component surface, but it is only ever executed by
+    # the browser job: changing it must run the gate that runs it.
     ignored = classify(['frontend/e2e/reading-panels.spec.ts'])
-    assert ignored['frontend_e2e_required'] is False
+    assert ignored['frontend_e2e_required'] is True
+    assert ignored['frontend_e2e_specs'] == []
 
 
 def test_every_registered_surface_and_spec_exists_on_disk():
@@ -579,3 +582,30 @@ def test_other_qualification_path_alone_is_not_a_slice():
     result = classify(["tests/test_rq1c_protocol_probes.py"])
     assert result["impact_set"] == ""
     assert result["full_scope"] is False
+
+
+# --- B2 follow-up: a browser test change must run the browser gate -------------------
+
+
+def test_a_playwright_spec_change_requires_the_browser_tier():
+    result = classify(["frontend/e2e/real-stack.spec.ts"])
+
+    assert result["frontend_required"] is True
+    assert result["frontend_e2e_required"] is True
+    assert result["browser_required"] is True
+
+
+def test_a_playwright_helper_change_requires_the_browser_tier():
+    # Helpers under frontend/e2e are only executed by the browser job.
+    result = classify(["frontend/e2e/journey-metrics.ts"])
+
+    assert result["frontend_e2e_required"] is True
+
+
+def test_a_componentless_evidence_change_still_skips_the_browser_tier():
+    # The evidence feature has no registered interaction surface; only e2e assets
+    # force the browser tier, not every unregistered component.
+    result = classify(["frontend/src/features/evidence/EvidenceTrail.tsx"])
+
+    assert result["frontend_required"] is True
+    assert result["frontend_e2e_required"] is False
