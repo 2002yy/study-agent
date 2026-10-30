@@ -65,6 +65,12 @@ def _normalize_url(url: object) -> str:
     return f"{parts.scheme.lower()}://{parts.netloc.lower()}{path}{query}"
 
 
+def normalize_read_url(url: object) -> str:
+    """The persisted spelling of a read URL, exposed for identity checks."""
+
+    return _normalize_url(url)
+
+
 def read_excerpt(read: Mapping[str, Any]) -> str:
     """The usable text of one read payload ("" when there is none)."""
 
