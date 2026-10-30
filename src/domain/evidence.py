@@ -8,7 +8,7 @@ frontend inference.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from hashlib import sha256
 from pathlib import PurePath
 from typing import Any, Iterable, Literal
@@ -16,6 +16,13 @@ from urllib.parse import urlparse
 
 EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "evidence-snapshot-v1"
 EvidenceLifecycleStatus = Literal["candidate", "read", "selected", "rejected"]
+#: How a source relates to the answer that was actually published.
+#: ``cited`` requires a passed publication gate; see ``runtime_entities``.
+CitationStatus = Literal["cited", "unverified", "none"]
+#: Same bar as the binder's strong-support threshold. A link below it never
+#: becomes a visible citation, even if it exists in the snapshot.
+MIN_VERIFIED_CITATION_CONFIDENCE = 0.7
+_POSITIVE_SUPPORT_TYPES = frozenset({"direct_support", "indirect_support"})
 
 _STATUS_PRIORITY: dict[EvidenceLifecycleStatus, int] = {
     "selected": 0,
@@ -39,6 +46,10 @@ class EvidenceRefV1:
     provider_status: str = ""
     selection_reason: str = ""
     rejection_reason: str = ""
+    #: ``cited`` only when the published answer passed publication and links
+    #: this source; ``unverified`` when it was read/selected but is not a
+    #: citation; ``none`` for candidates and legacy rows.
+    citation_status: CitationStatus = "none"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -54,6 +65,7 @@ class EvidenceRefV1:
             "provider_status": self.provider_status,
             "selection_reason": self.selection_reason,
             "rejection_reason": self.rejection_reason,
+            "citation_status": self.citation_status,
         }
 
 
@@ -118,6 +130,7 @@ def build_evidence_snapshot(
     disclosure_policy: str = "none",
     pedagogy_evidence_ids: Iterable[str] = (),
     claim_links: Iterable[ClaimEvidenceLinkV1] = (),
+    cited_evidence_ids: Iterable[str] = (),
 ) -> EvidenceSnapshotV1:
     """Project current authoritative evidence into a durable v1 snapshot.
 
@@ -155,8 +168,22 @@ def build_evidence_snapshot(
         for link in claim_links
         if _text(link.claim_id) and link.evidence_id in known_ids
     )
+    cited_ids = {evidence_id for evidence_id in cited_evidence_ids if evidence_id in known_ids}
+    annotated = tuple(
+        replace(
+            ref,
+            citation_status=(
+                "cited"
+                if ref.id in cited_ids
+                else "unverified"
+                if ref.lifecycle_status in {"read", "selected"}
+                else "none"
+            ),
+        )
+        for ref in projected
+    )
     return EvidenceSnapshotV1(
-        refs=projected,
+        refs=annotated,
         pedagogy_evidence_ids=pedagogy_refs,
         claim_links=validated_links,
         disclosure_policy=disclosure_policy or "none",

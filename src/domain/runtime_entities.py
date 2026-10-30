@@ -12,7 +12,11 @@ from src.domain.answer_claims import normalize_answer_claim_snapshot_for_turn
 from src.domain.answer_validation import (
     normalize_answer_validation_audit_for_turn,
 )
-from src.domain.evidence import ClaimEvidenceLinkV1, build_evidence_snapshot
+from src.domain.evidence import (
+    MIN_VERIFIED_CITATION_CONFIDENCE,
+    ClaimEvidenceLinkV1,
+    build_evidence_snapshot,
+)
 
 # G14 decision 1: first-version temporary attachment types. Text types reuse
 # the long-term loader; image types are stored (and only described when the
@@ -94,9 +98,6 @@ class ChatTurn:
             known_evidence_ids=known_evidence_ids,
         )
         self.rag_snapshot["answer_claim_snapshot"] = claim_snapshot.to_dict()
-        self.rag_snapshot["evidence_snapshot"] = self._project_evidence_snapshot(
-            claim_links=claim_snapshot.claim_links
-        )
         # Server-owned answer-stage model audit: rebuilt against the assistant
         # message actually kept, so a client-shaped or stale audit never
         # survives with forged fields.
@@ -108,6 +109,14 @@ class ChatTurn:
             self.rag_snapshot.pop("answer_validation_audit", None)
         else:
             self.rag_snapshot["answer_validation_audit"] = audit
+        # A source is a citation only when the answer that was actually kept
+        # passed publication and links it. Selection is not citation.
+        cited = _verified_citation_links(claim_snapshot, audit, known_evidence_ids)
+        self.rag_snapshot["citation_links"] = [link.to_dict() for link in cited]
+        self.rag_snapshot["evidence_snapshot"] = self._project_evidence_snapshot(
+            claim_links=claim_snapshot.claim_links,
+            cited_evidence_ids=tuple(link.evidence_id for link in cited),
+        )
 
     @property
     def answer_claim_snapshot(self) -> dict[str, Any]:
@@ -139,6 +148,7 @@ class ChatTurn:
         self,
         *,
         claim_links: Iterable[ClaimEvidenceLinkV1] = (),
+        cited_evidence_ids: Iterable[str] = (),
     ) -> dict[str, Any]:
         raw_units = self.pedagogy_snapshot.get("evidence_units") or ()
         units = (
@@ -160,6 +170,7 @@ class ChatTurn:
             ),
             pedagogy_evidence_ids=evidence_ids,
             claim_links=claim_links,
+            cited_evidence_ids=cited_evidence_ids,
         ).to_dict()
 
 
@@ -347,6 +358,54 @@ class OperationRecord:
     status: str = "running"
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
+
+
+def _verified_citation_links(
+    claim_snapshot: Any,
+    audit: dict[str, Any] | None,
+    known_evidence_ids: Iterable[str],
+) -> tuple[ClaimEvidenceLinkV1, ...]:
+    """The links the published answer may show as verified citations.
+
+    Every condition is server-owned state, never a model claim:
+
+    * the claim snapshot is ``validated`` - normalization already rejected it if
+      its answer hash differs from the published message, which is what happens
+      when the consistency gate replaced the answer;
+    * the publication audit exists, bound the candidate (``passed``), and the
+      learner answer hash still equals the candidate hash;
+    * the link is positive support at or above the binder's strong bar, and the
+      evidence id is a real ref of this turn.
+
+    Selection alone never qualifies: a source can be selected and the answer
+    still be refused or published without citing it.
+    """
+
+    if audit is None:
+        return ()
+    if str(getattr(claim_snapshot, "status", "")) != "validated":
+        return ()
+    phases = audit.get("phases") if isinstance(audit.get("phases"), dict) else {}
+    binding = phases.get("answer_claim_binding") if isinstance(phases, dict) else None
+    if not isinstance(binding, dict) or str(binding.get("outcome") or "") != "passed":
+        return ()
+    candidate = str(audit.get("candidate_answer_sha256") or "")
+    learner = str(audit.get("learner_answer_sha256") or "")
+    if not candidate or candidate != learner:
+        return ()
+    known = {str(evidence_id) for evidence_id in known_evidence_ids}
+    cited: list[ClaimEvidenceLinkV1] = []
+    seen: set[str] = set()
+    for link in getattr(claim_snapshot, "claim_links", ()) or ():
+        if link.support_type not in {"direct_support", "indirect_support"}:
+            continue
+        if float(link.confidence) < MIN_VERIFIED_CITATION_CONFIDENCE:
+            continue
+        if link.evidence_id not in known or link.evidence_id in seen:
+            continue
+        seen.add(link.evidence_id)
+        cited.append(link)
+    return tuple(cited)
 
 
 def _claim_links_from_snapshot(snapshot: dict[str, Any]) -> tuple[ClaimEvidenceLinkV1, ...]:
