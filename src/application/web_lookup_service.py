@@ -1515,10 +1515,19 @@ class WebLookupService:
                                     ),
                                 )
                                 first_retry_index = len(selected_sources)
+                                existing_urls = {
+                                    _canonical_source_url(_source_url(record))
+                                    for record in selected_sources
+                                }
                                 for record in retry_selected:
+                                    url_key = _canonical_source_url(_source_url(record))
+                                    if url_key and url_key in existing_urls:
+                                        continue
                                     selected_sources.append(
                                         {**record, "evidence_state": "new"}
                                     )
+                                    if url_key:
+                                        existing_urls.add(url_key)
                                 rejected_sources.extend(retry_rejected)
                                 checkpoint()
                                 for index in range(
