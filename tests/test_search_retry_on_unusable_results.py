@@ -128,6 +128,45 @@ def test_an_unrelated_first_batch_is_retried_with_one_more_variant(tmp_path):
     assert "千冶·刃" in executed.source_block
 
 
+
+def test_retry_does_not_reread_first_batch_url_before_a_new_useful_page(tmp_path):
+    """With 2/3 reads spent, the duplicated URL must not crowd out page 3."""
+    first = "https://baike.example/qian"
+    second = "https://baike.example/wan"
+    useful = "https://game.example/relics"
+    gateway = ScriptedGateway(
+        batches={
+            QUERY: [
+                _item("千（汉字）", first, "千字释义"),
+                _item("万（汉字）", second, "万字释义"),
+            ],
+            VARIANT_2: [
+                _item("千（汉字）复现", first, "千字释义"),
+                _item(
+                    "千冶·刃 遗器 推荐 黄泉队",
+                    useful,
+                    "千冶·刃 遗器 推荐 黄泉队 配装",
+                ),
+            ],
+        },
+        reads={
+            first: _body("千，数字单位。", first),
+            second: _body("万，数字单位。", second),
+            useful: _body("千冶·刃 遗器 推荐与黄泉队伍配装。", useful),
+        },
+    )
+    service, _, run_id = _run(tmp_path, variants=[QUERY, VARIANT_2])
+    service.gateway = gateway
+
+    executed = service.execute(run_id, raise_on_error=True)
+
+    assert gateway.queries == [QUERY, VARIANT_2]
+    assert gateway.read_urls == [first, second, useful]
+    assert useful in executed.source_block
+    assert executed.research_context["read_summary"]["attempted"] == 3
+
+
+
 def test_a_usable_first_batch_does_not_spend_a_second_query(tmp_path):
     gateway = ScriptedGateway(
         batches={
