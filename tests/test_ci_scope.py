@@ -596,10 +596,12 @@ def test_a_playwright_spec_change_requires_the_browser_tier():
 
 
 def test_a_playwright_helper_change_requires_the_browser_tier():
-    # Helpers under frontend/e2e are only executed by the browser job.
+    # Helpers have no component surface, but are only executed by the browser job.
     result = classify(["frontend/e2e/journey-metrics.ts"])
 
     assert result["frontend_e2e_required"] is True
+    assert result["browser_required"] is True
+    assert result["frontend_e2e_specs"] == []
 
 
 def test_a_componentless_evidence_change_still_skips_the_browser_tier():
