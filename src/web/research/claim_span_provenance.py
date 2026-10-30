@@ -42,6 +42,7 @@ BODY_SCOPE = "read_excerpt"
 # fabricated span from a stale offset without reading the record again.
 EVIDENCE_ID_REQUIRED = "evidence_id_required"
 EVIDENCE_NOT_IN_RUN = "evidence_not_in_run"
+EVIDENCE_SOURCE_MISMATCH = "evidence_source_mismatch"
 READ_IDENTITY_MISMATCH = "read_identity_mismatch"
 URL_MISMATCH = "url_mismatch"
 HASH_REQUIRED = "hash_required"
@@ -135,13 +136,14 @@ def verify_claim_span(
     *,
     evidence: Sequence[ReadEvidence],
     evidence_ids: Iterable[str],
+    evidence_urls: Mapping[str, str],
 ) -> ClaimSpanVerification:
     """Verify one candidate against the reads this run really stored.
 
     ``evidence`` is ``read_evidence.read_evidence_from_records(...)`` for the
-    current run, and ``evidence_ids`` is the run's ``research_evidence_refs`` id
-    set. Both are inputs rather than lookups: this function performs no I/O and
-    cannot invent evidence.
+    current run. ``evidence_ids`` and ``evidence_urls`` must be derived from the
+    SAME server-owned research refs (id membership and id-to-URL mapping), never
+    from a model-proposed candidate. All are inputs, not external lookups.
     """
 
     span = candidate if isinstance(candidate, ClaimSpan) else ClaimSpan.from_mapping(
@@ -154,7 +156,7 @@ def verify_claim_span(
     body_chars = len(record.excerpt) if record is not None else 0
     stored_hash = record.content_sha256 if record is not None else ""
 
-    reason = _refusal(span, records, allowed)
+    reason = _refusal(span, records, allowed, evidence_urls)
     return ClaimSpanVerification(
         span=span,
         verified=not reason,
@@ -170,6 +172,7 @@ def _refusal(
     span: ClaimSpan,
     records: Sequence[ReadEvidence],
     allowed: set[str],
+    evidence_urls: Mapping[str, str],
 ) -> str:
     if not span.evidence_id:
         return EVIDENCE_ID_REQUIRED
@@ -180,6 +183,11 @@ def _refusal(
     if not span.read_id or len(records) != 1:
         return READ_IDENTITY_MISMATCH
     record = records[0]
+    # Membership alone is not provenance: a valid ID for page A could be
+    # spliced to a perfectly genuine read of page B. Bind both identities.
+    authoritative_url = str(evidence_urls.get(span.evidence_id) or "").strip()
+    if not authoritative_url or normalize_read_url(authoritative_url) != normalize_read_url(record.url):
+        return EVIDENCE_SOURCE_MISMATCH
     if not span.url or normalize_read_url(span.url) != normalize_read_url(record.url):
         return URL_MISMATCH
     if not _record_is_intact(record):
