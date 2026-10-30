@@ -188,8 +188,11 @@ class ClaimEngineDispatchWebLookupService(WebLookupService):
         *,
         active_gateway_factory: ActiveGatewayFactory | None = None,
         active_runtime_factory: ActiveRuntimeFactory | None = None,
+        backup_query: Callable[[str], str] | None = None,
     ) -> None:
-        super().__init__(repository, gateway=gateway, planner=planner)
+        super().__init__(
+            repository, gateway=gateway, planner=planner, backup_query=backup_query
+        )
         self._active_gateway_factory = active_gateway_factory or ActiveResearchGateway
         self._active_runtime_factory = active_runtime_factory or (
             lambda repository, gateway: ActiveResearchRuntimeExecutor(
