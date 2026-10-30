@@ -152,7 +152,8 @@ async function openEvidence(page: Page) {
   const toggle = page.getByRole("button", { name: /证据轨迹/ }).last();
   await expect(toggle).toBeVisible();
   await toggle.click();
-  return page.getByRole("region", { name: "已核验引用" });
+  // Local upload turns only select evidence; they do not publish a verified citation.
+  return page.getByRole("region", { name: "已读取或已选中但未引用" });
 }
 
 async function completeReasonedLearning(page: Page): Promise<string> {
