@@ -56,14 +56,28 @@ def test_an_exact_sentence_is_located_at_its_true_offsets():
     location = _locate(_claim(claim_text), [_source()])
 
     assert location.located is True
-    assert len(location.candidates) == 1
     candidate = location.candidates[0]
     assert candidate.verified is True
-    assert candidate.span.span_text == claim_text
-    assert BODY[candidate.span.span_start : candidate.span.span_end] == claim_text
+    assert claim_text in candidate.span.span_text
+    assert BODY[candidate.span.span_start : candidate.span.span_end] == (
+        candidate.span.span_text
+    )
     assert candidate.locator == (
         f"span:{candidate.span.span_start}-{candidate.span.span_end}"
     )
+
+
+def test_exact_hit_keeps_negation_and_following_correction_for_a3():
+    claim = "revenue increased by 30%"
+    body = "It is false that revenue increased by 30%; revenue actually fell."
+    location = _locate(_claim(claim), [_source(body=body)])
+
+    assert location.located is True
+    top = location.candidates[0]
+    assert "It is false that" in top.span.span_text
+    assert "revenue actually fell" in top.span.span_text
+    assert body[top.span.span_start : top.span.span_end] == top.span.span_text
+    assert not hasattr(top, "verdict")
 
 
 def test_shared_topic_terms_produce_candidates_without_deciding_support():
