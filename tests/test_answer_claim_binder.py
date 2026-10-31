@@ -19,6 +19,7 @@ from src.application.answer_claim_binder import (
     AnswerClaimBindingRow,
     bind_answer_claims,
     factual_claims_fully_bound,
+    segment_answer_with_stats,
 )
 from src.domain.answer_claims import (
     AnswerClaimSnapshotV1,
@@ -446,6 +447,62 @@ def test_overlong_or_too_many_segments_fail_closed_without_provider_call() -> No
     )
     assert bound.snapshot.status == "rejected"
     assert bound.snapshot.reason == "answer_not_segmentable"
+    assert bound.segment_stats["overflow_reason"] == "segment_chars"
+    assert calls["count"] == 0
+
+
+def test_too_many_short_segments_fail_closed_without_provider_call() -> None:
+    # The char limit is not the only ceiling: 17 ordinary sentences are rejected
+    # even though every one of them is short. This is the shape that blocked 13
+    # of the 20 archived answers.
+    answer = "该版本已正式发布。" * 17
+    calls = {"count": 0}
+
+    def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
+        calls["count"] += 1
+        return _payload([])
+
+    bound = bind_answer_claims(
+        request=_request(answer=answer, rows=(_row(),)), model_fn=model_fn
+    )
+
+    assert bound.snapshot.status == "rejected"
+    assert bound.snapshot.reason == "answer_not_segmentable"
+    assert bound.segment_stats["overflow_reason"] == "segment_count"
+    assert bound.segment_stats["raw_nonempty_segment_count"] == 17
+    assert calls["count"] == 0
+
+
+def test_the_segment_count_limit_is_exclusive_at_sixteen() -> None:
+    sixteen, accepted_stats = segment_answer_with_stats("该版本已正式发布。" * 16)
+    seventeen, rejected_stats = segment_answer_with_stats("该版本已正式发布。" * 17)
+
+    assert len(sixteen) == 16
+    assert accepted_stats["accepted"] is True
+    assert accepted_stats["overflow_reason"] == ""
+    assert seventeen == ()
+    assert rejected_stats["accepted"] is False
+    assert rejected_stats["overflow_reason"] == "segment_count"
+
+
+def test_a_truncated_segment_prompt_is_refused_instead_of_partially_bound() -> None:
+    # Sixteen segments are within the count limit, but their rendered prompt
+    # exceeds the context budget. Truncating it would ask the producer to
+    # classify segments it never saw, so the binding must fail closed.
+    answer = "。".join("该版本" + "甲" * 990 + "已发布" for _ in range(16)) + "。"
+    calls = {"count": 0}
+
+    def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
+        calls["count"] += 1
+        return _payload([])
+
+    bound = bind_answer_claims(
+        request=_request(answer=answer, rows=(_row(),)), model_fn=model_fn
+    )
+
+    assert bound.snapshot.status == "rejected"
+    assert bound.snapshot.reason == "answer_context_truncated"
+    assert bound.segment_stats["context_truncated"] is True
     assert calls["count"] == 0
 
 

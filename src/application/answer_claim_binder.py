@@ -134,6 +134,21 @@ def bind_answer_claims(
             attempt_count=0,
             segment_stats=segment_stats,
         )
+    if len(_numbered_segments(segments)) > _MAX_CONTEXT_CHARS:
+        # The prompt builder truncates its segment block to this budget. If the
+        # tail is cut, the producer is asked to classify segments it never saw:
+        # either it omits them (the binding is rejected anyway) or it guesses and
+        # a partially-seen answer is accepted. Refuse instead of truncating, so a
+        # long answer can never pass on a partial view.
+        return BoundAnswerClaims(
+            snapshot=rejected_answer_claim_snapshot(
+                answer=answer,
+                producer=producer,
+                reason="answer_context_truncated",
+            ),
+            attempt_count=0,
+            segment_stats={**segment_stats, "context_truncated": True},
+        )
     rows = tuple(_bounded_rows(request.evidence_rows))
     rows_by_link = {
         (row.claim_id, row.evidence_id): row
@@ -482,6 +497,14 @@ def factual_claims_fully_bound(snapshot: AnswerClaimSnapshotV1) -> bool:
 _POSITIVE_SUPPORT_TYPES = frozenset({"direct_support", "indirect_support"})
 
 
+def _numbered_segments(segments: tuple[str, ...]) -> str:
+    """The prompt's segment block, built once so its size can be enforced."""
+
+    return "\n".join(
+        f"[{_segment_ref(index)}] {segment}" for index, segment in enumerate(segments)
+    )
+
+
 def _binding_messages(
     *,
     question: str,
@@ -490,9 +513,7 @@ def _binding_messages(
     rows: tuple[AnswerClaimBindingRow, ...],
 ) -> list[dict[str, str]]:
     context = _render_context(rows)
-    numbered = "\n".join(
-        f"[{_segment_ref(index)}] {segment}" for index, segment in enumerate(segments)
-    )
+    numbered = _numbered_segments(segments)
     system = (
         "You classify every segment of an already-written final answer against "
         "server-owned research claim/evidence relations.\n"
