@@ -194,6 +194,19 @@ def test_the_batch_has_a_hard_total_cap():
     assert MAX_TOTAL_CANDIDATES >= 2
 
 
+def test_the_default_budget_does_not_starve_a_full_answer():
+    # The binder yields at most 16 segments; the default batch budget must cover
+    # all of them, or the tail of a real answer is never even attempted.
+    claims = [
+        _claim("净利润同比下降百分之十二", claim_id=f"claim_{i}") for i in range(16)
+    ]
+
+    locations = locate_claim_spans(claims, sources=[_source()])
+
+    assert all(location.located for location in locations)
+    assert not any(location.reason == REASON_TOTAL_CAP for location in locations)
+
+
 def test_every_candidate_is_provenance_verified_and_carries_no_verdict():
     location = _locate(_claim("净利润同比下降百分之十二"), [_source()])
 

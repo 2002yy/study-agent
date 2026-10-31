@@ -37,7 +37,13 @@ from src.web.research.read_evidence import ReadEvidence
 #: Hard bounds. A claim gets a handful of candidates, and one batch cannot grow
 #: without limit just because the answer has many segments.
 MAX_CANDIDATES_PER_CLAIM = 3
-MAX_TOTAL_CANDIDATES = 12
+
+#: The binder never hands over more than its own segment limit (16), so one
+#: answer can produce at most 16 x 3 candidates. A smaller batch budget starves
+#: the tail of a real answer: replaying the archived A/B answers showed 20 of 64
+#: claims never even attempted at a budget of 12 (see
+#: ``docs/research_quality/A2_LOCATION_REPLAY.md``).
+MAX_TOTAL_CANDIDATES = MAX_CANDIDATES_PER_CLAIM * 16
 
 #: A single 2-character CJK bigram is a topic mention ("利润" appears on most
 #: earnings pages), not a locating signal. One anchor only counts when it is
