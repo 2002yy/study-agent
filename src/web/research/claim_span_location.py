@@ -206,11 +206,32 @@ def _locate(
     best_partial = 0
     for source in sources:
         excerpt = source.evidence.excerpt
+        windows = _windows(excerpt)
         exact = _exact_span(claim.text, excerpt)
         if exact is not None:
-            scored.append((float("inf"), len(claim.text), source, *exact))
-            continue
-        for start, end in _windows(excerpt):
+            # A substring alone can invert meaning by stripping "not",
+            # "it is false that", or a following correction. Offer the exact
+            # hit with one neighbouring sentence on each side to A3.
+            overlaps = [
+                index
+                for index, (start, end) in enumerate(windows)
+                if start < exact[1] and end > exact[0]
+            ]
+            if overlaps:
+                context_start = windows[max(0, overlaps[0] - 1)][0]
+                context_end = windows[min(len(windows) - 1, overlaps[-1] + 1)][1]
+                scored.append(
+                    (
+                        float("inf"),
+                        len(claim.text),
+                        source,
+                        context_start,
+                        context_end,
+                    )
+                )
+        # Do not suppress alternative windows when an exact hit exists:
+        # another passage in the page may explicitly contradict the quote.
+        for start, end in windows:
             passage = excerpt[start:end]
             score, longest = _score(passage, anchors)
             if not score:
