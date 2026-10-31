@@ -18,7 +18,10 @@ The split this module implements:
   that this module qualified.
 
 Nothing here calls a model: verdicts arrive as data, and this module is the part
-that decides what a verdict is allowed to buy.
+that decides what a verdict is allowed to buy. It does **not** establish that a
+verdict is semantically correct - only that the passage exists, that the quoted
+evidence is inside it, and that the claim, passage and judgement name the same
+fact. Whether `supports` is the right verdict remains an open measurement.
 """
 
 from __future__ import annotations
@@ -44,9 +47,12 @@ REASON_EVIDENCE_OUTSIDE_PASSAGE = "evidence_outside_passage"
 REASON_INVALID_VERDICT = "invalid_verdict"
 REASON_OTHER_CLAIM = "other_claim"
 REASON_LOW_WINDOW = "low_window"  # kept for callers that pre-filter
+REASON_PASSAGE_IDENTITY_CONFLICT = "passage_identity_conflict"
 
 #: A qualified support is strong enough for publication, and deliberately not
 #: maximal: the server verified a passage and a judgement, not the claim's truth.
+#: ``0.7`` is a **policy level the server assigns**, not a probability that the
+#: judgement is semantically correct, and must never be reported as confidence.
 QUALIFIED_STRENGTH = f"{STRONG_EVIDENCE_THRESHOLD:.1f}"
 
 
@@ -115,8 +121,40 @@ class ClaimSupportDecision:
 
 
 def passage_key(candidate: ClaimSpanVerification) -> str:
+    """Identity of one claim's passage, not just a position in some read.
+
+    The same read span can be offered for two different claims, so a key built
+    from offsets alone would let one claim's verification answer another claim's
+    judgement. Claim, evidence and read identity are all part of the key.
+    """
+
     span = candidate.span
-    return f"{span.read_id}:{span.span_start}-{span.span_end}"
+    return (
+        f"{span.claim_id}|{span.evidence_id}|{span.read_id}"
+        f"|{span.span_start}-{span.span_end}"
+    )
+
+
+def _passage_index(
+    claim_id: str, candidates: Sequence[ClaimSpanVerification]
+) -> tuple[dict[str, ClaimSpanVerification], str]:
+    """Verified passages belonging to *this* claim, or a conflict reason."""
+
+    verified: dict[str, ClaimSpanVerification] = {}
+    for candidate in candidates:
+        if not (candidate.verified and candidate.locator):
+            continue
+        # Support eligibility is per fact: a passage verified for another claim
+        # cannot be lent to this one, even if the text is the same.
+        if candidate.span.claim_id != claim_id:
+            continue
+        key = passage_key(candidate)
+        existing = verified.get(key)
+        if existing is not None and existing.span.span_text != candidate.span.span_text:
+            # Same identity, different body: refuse rather than pick one.
+            return {}, REASON_PASSAGE_IDENTITY_CONFLICT
+        verified[key] = candidate
+    return verified, ""
 
 
 def decide_claim_support(
@@ -131,11 +169,21 @@ def decide_claim_support(
     passage, and with no contradiction anywhere in the claim, produce a row.
     """
 
-    verified = {
-        passage_key(candidate): candidate
-        for candidate in candidates
-        if candidate.verified and candidate.locator
-    }
+    if not claim_id:
+        return ClaimSupportDecision(
+            claim_id="",
+            verdict=INSUFFICIENT,
+            publishable=False,
+            reason=REASON_NO_VERIFIED_PASSAGE,
+        )
+    verified, conflict = _passage_index(claim_id, candidates)
+    if conflict:
+        return ClaimSupportDecision(
+            claim_id=claim_id,
+            verdict=INSUFFICIENT,
+            publishable=False,
+            reason=conflict,
+        )
     if not verified:
         return ClaimSupportDecision(
             claim_id=claim_id,
@@ -151,7 +199,7 @@ def decide_claim_support(
         judgement = (
             raw if isinstance(raw, ClaimJudgement) else ClaimJudgement.from_mapping(raw)
         )
-        if judgement.claim_id and judgement.claim_id != claim_id:
+        if judgement.claim_id != claim_id:
             refused.append(
                 {
                     "passage": judgement.passage_key,

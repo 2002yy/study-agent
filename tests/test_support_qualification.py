@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from typing import Any, Mapping, Sequence
 
 from src.application.answer_claim_binder import (
@@ -23,8 +24,10 @@ from src.web.research.support_qualification import (
     CONTRADICTS,
     INSUFFICIENT,
     REASON_EVIDENCE_OUTSIDE_PASSAGE,
+    REASON_NO_VERIFIED_PASSAGE,
     REASON_INVALID_VERDICT,
     REASON_OTHER_CLAIM,
+    REASON_PASSAGE_IDENTITY_CONFLICT,
     REASON_UNKNOWN_PASSAGE,
     SUPPORTS,
     UNRESOLVED_CONFLICT,
@@ -92,8 +95,11 @@ def test_a_verified_support_qualifies_a_paraphrase():
 
 
 def test_the_qualified_row_is_what_makes_the_paraphrase_publishable():
-    # The literal rule alone refuses this paraphrase, which is the whole reason
-    # the qualification layer exists.
+    # The literal rule alone refuses this paraphrase, which is the reason the
+    # qualification layer exists. This proves the *path*, not the judgement: the
+    # example evidence states co-occurrence, not causation, so whether this
+    # `supports` verdict is correct is exactly what A4's shadow run must
+    # measure rather than assume.
     assert claim_grounded_in_text(CLAIM, BODY) is False
 
     candidate = _verified(claim_text=CLAIM)
@@ -314,3 +320,65 @@ def test_no_judgement_means_insufficient_not_publishable():
 
     assert decision.publishable is False
     assert decision.verdict == INSUFFICIENT
+
+
+def test_a_passage_verified_for_another_claim_cannot_be_lent_to_this_one():
+    # Provenance is per claim: the same text verified for claim A must not
+    # qualify claim B, and the judgement cannot be reused either.
+    other = _verified("另一个事实")
+    decision = decide_claim_support(
+        "claim_other",
+        candidates=[other],
+        judgements=[
+            ClaimJudgement(
+                claim_id="claim_other",
+                passage_key=passage_key(other),
+                verdict=SUPPORTS,
+                evidence_span=PASSAGE,
+            )
+        ],
+    )
+
+    assert decision.publishable is False
+    assert decision.reason == REASON_NO_VERIFIED_PASSAGE
+    assert decision.qualified == ()
+
+
+def test_a_judgement_without_a_claim_id_is_refused():
+    candidate = _verified()
+    decision = _decision(
+        [candidate],
+        [
+            ClaimJudgement(
+                claim_id="",
+                passage_key=passage_key(candidate),
+                verdict=SUPPORTS,
+                evidence_span=PASSAGE,
+            )
+        ],
+    )
+
+    assert decision.publishable is False
+    assert decision.refused[0]["reason"] == REASON_OTHER_CLAIM
+
+
+def test_two_passages_with_one_identity_but_different_text_are_refused():
+    # Same claim, evidence, read and offsets: the identity cannot describe two
+    # different bodies. Taking either one would be a silent choice.
+    first = _verified()
+    second = replace(first, span=replace(first.span, span_text="另一段完全不同的原文"))
+    decision = _decision(
+        [first, second],
+        [
+            ClaimJudgement(
+                claim_id="claim_x",
+                passage_key=passage_key(first),
+                verdict=SUPPORTS,
+                evidence_span=PASSAGE,
+            )
+        ],
+    )
+
+    assert decision.publishable is False
+    assert decision.reason == REASON_PASSAGE_IDENTITY_CONFLICT
+    assert decision.qualified == ()
