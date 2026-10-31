@@ -83,8 +83,11 @@ def _unit_maps_back(answer: str, unit) -> bool:
     if not span.strip():
         return False
     if unit.kind == "table_row":
-        numbers = _NUMBER.findall(unit.text)
-        return bool(numbers) and all(number in span for number in numbers)
+        # A row may legitimately carry no digits (a status, a name). Check the
+        # values the unit renders, not the presence of a number.
+        values = [part.split(":", 1)[-1].strip() for part in unit.text.split("；")]
+        values = [value for value in values if value]
+        return bool(values) and all(value in span for value in values)
     if unit.kind == "code":
         return unit.text.strip() and unit.text.strip() in span
     return unit.text.strip() in span

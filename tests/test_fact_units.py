@@ -139,3 +139,62 @@ def test_a_budget_of_zero_refuses_any_answer_with_units():
     assert result.reason == REASON_UNIT_BUDGET
     assert result.units == ()
     assert result.candidate_budget == 0
+
+def test_indented_prose_offsets_point_at_the_real_characters():
+    answer = "    缩进写下的第一句事实。第二句事实。\n"
+
+    result = build_fact_units(answer)
+
+    prose = [unit for unit in result.units if unit.kind == "prose"]
+    assert prose
+    for unit in prose:
+        assert answer[unit.start : unit.end] == unit.text
+
+
+def test_two_tables_do_not_share_their_header():
+    answer = (
+        "| 版本 | 日期 |\n"
+        "|---|---|\n"
+        "| 19 | 2026-10-15 |\n"
+        "\n"
+        "| 名称 | 状态 |\n"
+        "|---|---|\n"
+        "| 纯文本 | 已发布 |\n"
+    )
+
+    result = build_fact_units(answer)
+
+    rows = [unit for unit in result.units if unit.kind == "table_row"]
+    assert len(rows) == 2
+    assert "版本: 19" in rows[0].text
+    assert "名称: 纯文本" in rows[1].text
+    assert "状态: 已发布" in rows[1].text
+    assert rows[1].context == "名称 | 状态"
+
+
+def test_a_row_wider_than_its_header_does_not_crash():
+    answer = (
+        "| 版本 | 日期 |\n"
+        "|---|---|\n"
+        "| 19 | 2026-10-15 | 备注 |\n"
+    )
+
+    result = build_fact_units(answer)
+
+    rows = [unit for unit in result.units if unit.kind == "table_row"]
+    assert len(rows) == 1
+    assert "备注" in rows[0].text
+
+def test_a_digit_free_table_row_still_maps_back():
+    from tools.structure24_precheck import _unit_maps_back
+
+    answer = (
+        "| 名称 | 状态 |\n"
+        "|---|---|\n"
+        "| 纯文本 | 已发布 |\n"
+    )
+    result = build_fact_units(answer)
+    rows = [unit for unit in result.units if unit.kind == "table_row"]
+
+    assert rows
+    assert _unit_maps_back(answer, rows[0]) is True

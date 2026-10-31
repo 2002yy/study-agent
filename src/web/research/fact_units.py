@@ -129,6 +129,7 @@ def build_fact_units(
             fence_lines.append(line.rstrip("\r\n"))
             continue
         if not stripped:
+            table_header = ()
             continue
 
         heading = _HEADING.match(stripped)
@@ -185,7 +186,9 @@ def build_fact_units(
             continue
 
         table_header = ()
-        for segment_start, segment in _sentences(stripped):
+        # Split the original line, not the stripped one: a leading indent would
+        # otherwise shift every reported offset by that many characters.
+        for segment_start, segment in _sentences(line.rstrip("\r\n")):
             add(
                 FactUnit(
                     text=segment,
@@ -240,7 +243,7 @@ def _table_unit(
     """A row unit keeps the header names, so a value is never context-free."""
 
     pairs = [
-        f"{header[index] or f'列{index + 1}'}: {value}"
+        f"{(header[index] if index < len(header) else '') or f'列{index + 1}'}: {value}"
         for index, value in enumerate(cells)
         if value
     ]
