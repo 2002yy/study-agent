@@ -97,6 +97,33 @@ def test_missing_contract_and_bad_json_block_doctor(repo, capsys):
     assert result["exit_code"] == 3 and not result["data"]["checks"]["gate_schema"]
 
 
+def test_list_tests_exposes_manifest_without_running_it(repo, capsys, monkeypatch):
+    manifest = {
+        "schema_version": "staged-regression-policy-v1",
+        "impact_sets": {"search_flow": ["tests/test_web_search_flow.py"]},
+        "stage_gates": {"retrieval": ["tests/test_web_search_flow.py"]},
+    }
+    path = repo / "tests/stage_gates.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    before = path.read_bytes()
+    monkeypatch.setattr(studyctl, "run_tests", lambda *a: pytest.fail("must not run"))
+    result = invoke(capsys, "test", "list", "--repo", str(repo), "--json")
+    assert result["status"] == "PASS"
+    assert result["command"] == "test list"
+    assert result["data"]["impact_sets"] == manifest["impact_sets"]
+    assert result["data"]["stage_gates"] == manifest["stage_gates"]
+    assert result["data"]["execution"] == "not_started"
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("text", ["{", '{"schema_version":"wrong"}', "[]"])
+def test_list_tests_invalid_manifest_returns_json_error(repo, capsys, text):
+    (repo / "tests/stage_gates.json").write_text(text, encoding="utf-8")
+    result = invoke(capsys, "test", "list", "--repo", str(repo))
+    assert result["exit_code"] == 3
+    assert result["errors"][0]["code"] == "invalid_gate_manifest"
+
+
 @pytest.mark.parametrize(
     "error,expected",
     [(FileNotFoundError(), 3), (subprocess.TimeoutExpired("git", 5), 5)],

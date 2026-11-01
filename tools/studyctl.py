@@ -45,6 +45,7 @@ def parser_for_cli() -> Parser:
     test = children.add_parser("test", add_help=False)
     common(test)
     plans = test.add_subparsers(dest="test_command")
+    common(plans.add_parser("list", add_help=False))
     plan = plans.add_parser("plan", add_help=False)
     common(plan)
     plan.add_argument("--base")
@@ -419,6 +420,26 @@ def run_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
     return outcome
 
 
+def list_tests(root: Path) -> dict[str, Any]:
+    """Expose the existing gate manifest so agents can select a runnable set."""
+    if __package__ in (None, ""):
+        sys.path.insert(0, str(ROOT))
+    from tools.run_stage_gate import load_manifest
+
+    try:
+        manifest = load_manifest(root / "tests/stage_gates.json")
+    except (OSError, ValueError, AttributeError, SystemExit):
+        raise CLIError(
+            3, "invalid_gate_manifest", "Cannot read the gate manifest."
+        ) from None
+    return {
+        "manifest": str(root / "tests/stage_gates.json"),
+        "impact_sets": manifest.get("impact_sets", {}),
+        "stage_gates": manifest.get("stage_gates", {}),
+        "execution": "not_started",
+    }
+
+
 def plan_tests(root: Path, options: argparse.Namespace) -> dict[str, Any]:
     # Load only this CLI checkout's trusted implementations, never Python from
     # an arbitrary --repo directory. The policy source is explicit in the result.
@@ -726,6 +747,7 @@ def main(argv: list[str] | None = None) -> int:
                 "commands": [
                     "status",
                     "doctor",
+                    "test list",
                     "test plan",
                     "test run",
                     "research inspect",
@@ -744,7 +766,10 @@ def main(argv: list[str] | None = None) -> int:
                 raise CLIError(2, "missing_command", "Select a command; see --help.")
             result["command"] = options.command
             root, result["head_sha"] = repository(getattr(options, "repo", ROOT))
-            if options.command == "test":
+            if options.command == "test" and options.test_command == "list":
+                result["command"] = "test list"
+                result["data"] = list_tests(root)
+            elif options.command == "test":
                 running = options.test_command == "run"
                 result["command"] = "test run" if running else "test plan"
                 result["data"] = (

@@ -1,5 +1,32 @@
 # studyctl
 
+## 功能开发与回归的最短入口
+
+在当前检出中使用已安装项目依赖的 Python。日常验证无需操作桌面或手动点击：
+
+```powershell
+python tools/studyctl.py test list --json
+python tools/studyctl.py test run --impact-set search_flow --timeout 300 --json
+python tools/studyctl.py test run --impact-set studyctl --timeout 300 --json
+```
+
+`test list` 只读现有 `tests/stage_gates.json`，返回 L1 的 `impact_sets`、
+L2 的 `stage_gates` 及其测试路径；没有第二份测试注册表，也不执行测试。
+`search_flow` 覆盖提供商调度、域名约束、URL 去重、检索调用方与读取/回答边界。
+这些是离线真实代码回归，网络和模型由固定测试替身提供，不产生 API 费用。
+
+修改后复跑受影响集合，读取 JSON 的 `status`、`exit_code`、`steps` 与日志路径；
+失败返回非零退出码。需要保留回执时加 `--output <新文件路径>`。
+工作区含未提交修改时，回执中的 `uncommitted_source=true` 会明确标记，
+不能把 `head_sha` 当作已提交代码的验收结果。若仓库或父目录存在 `.env`，
+使用不带它的独立 worktree，避免测试读取真实令牌。
+
+前端现有入口仍是 `frontend/package.json`：在 frontend 目录运行
+`npm test -- <测试路径>`、`npm run build` 或
+`npm run test:e2e -- --project=desktop-chromium <用例路径>`。
+Playwright 脚本直接断言 DOM、请求与交互；截图仅用于视觉检查。
+真实模型质量对比必须另行授权预算，不能用上述离线 PASS 代替。
+
 ## GitHub可信采集核心
 
 实时只读入口（需要已登录的`gh`，不会等待CI）：
