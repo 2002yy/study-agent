@@ -1,0 +1,20 @@
+[
+  {
+    "viewport": [
+      1440,
+      900
+    ],
+    "checks": 17,
+    "page_errors": [],
+    "result": "pass"
+  },
+  {
+    "viewport": [
+      375,
+      812
+    ],
+    "checks": 17,
+    "page_errors": [],
+    "result": "pass"
+  }
+]

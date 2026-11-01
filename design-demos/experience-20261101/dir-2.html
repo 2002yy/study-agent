@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Study Agent — 夜航</title>
+  <style>
+    :root{--bg:#10191e;--surface:#172229;--line:#334149;--text:#ecf1ef;--muted:#afbec0;--accent:#a6dace;--faint:#1f3035;--body-size:17px}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:var(--body-size)/1.8 'Segoe UI','Microsoft YaHei',sans-serif}button,textarea,input{font:inherit}button,a,textarea{ -webkit-tap-highlight-color:transparent}button{cursor:pointer;color:inherit;background:none;border:0}button:disabled{opacity:.4;cursor:default}button:focus-visible,a:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:4px}a{color:var(--accent);text-underline-offset:4px}button,a{touch-action:manipulation}svg{display:block;flex-shrink:0}button svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}[hidden]{display:none!important}
+    .header{height:80px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 4.5vw;gap:20px}
+    .brand{display:flex;align-items:center;gap:13px;white-space:nowrap;font-size:18px;font-weight:650;letter-spacing:-.5px}.brand-symbol{display:grid;grid-template-columns:repeat(2,8px);gap:3px;transform:rotate(-12deg)}.brand-symbol i{width:8px;height:8px;border:1.6px solid var(--accent);border-radius:2px}.brand-symbol i:nth-child(4){background:var(--accent)}
+    .top-actions{display:flex;align-items:center;gap:8px}.button{display:inline-flex;justify-content:center;align-items:center;gap:8px;min-height:44px;padding:8px 15px;border:1px solid transparent;border-radius:8px;font-size:14px}.button:hover{background:#223038}.button.outline{border-color:#475a61}.button.active{background:var(--faint);color:#d3ede4;border-color:#405c5c}.divider{height:22px;width:1px;background:var(--line);margin:0 9px}.layout{max-width:1260px;margin:0 auto;padding:38px 32px 24px;display:grid;grid-template-columns:minmax(0,820px) 280px;gap:54px}.layout.sources-closed{grid-template-columns:minmax(0,820px);justify-content:center}.conversation{min-width:0}.context{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:28px;color:var(--muted);font-size:13px}.crumb{display:flex;align-items:center;gap:11px}.crumb span:nth-child(2){color:#617780}.demo{font-size:12px;color:#bac8c9;border:1px solid #3c4b51;border-radius:5px;padding:3px 8px}.question-label{color:var(--muted);font-size:13px;margin-bottom:8px}.question h1{font-size:29px;font-weight:600;line-height:1.5;letter-spacing:-.8px;margin:0 0 25px}.answer{border-top:1px solid var(--line);padding-top:25px}.answer-heading{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;margin-bottom:16px}.answer-heading .spark{width:18px;height:18px;color:var(--accent)}p{margin:0 0 16px}.lead{font-size:19px;line-height:1.85;letter-spacing:.1px}.lead strong{color:#d9eee6;font-weight:600}.body-copy{color:#becdce;font-size:16px;line-height:1.95}.citation{color:var(--accent);border:1px solid #435d60;border-radius:6px;min-width:44px;height:44px;padding:5px 8px;font-size:12px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-left:7px}.citation:hover{background:var(--faint)}
+    .flow{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin:23px 0 19px;padding:19px 22px 17px}.flow-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:12px}.flow-head strong{font-size:14px;font-weight:500}.flow-head span{font-size:12px;color:#afbec0}.flow svg{width:100%;height:auto;overflow:visible}.flow svg text{font-family:'Segoe UI','Microsoft YaHei',sans-serif}.flow-caption{font-size:12px;color:#afbec0;border-top:1px solid #31414a;padding-top:10px;margin:9px 0 0}.caution{font-size:15px;color:#bacacb;margin-bottom:20px}.caution strong{font-weight:600;color:#e3eae8}.followups{display:flex;gap:9px;flex-wrap:wrap;margin-top:22px;margin-bottom:28px}.followups .button{border:1px solid #394c52;border-radius:24px;font-size:13px;color:#c9d8d7;padding:8px 14px}.followups .button:hover{border-color:#789c9a;background:var(--faint)}
+    .composer{border:1px solid #52666d;border-radius:14px;background:#1a272e;padding:14px 15px 11px;box-shadow:0 9px 35px #0002}.composer:focus-within{border-color:#a6dace}.composer textarea{border:0;background:transparent;resize:none;display:block;width:100%;color:var(--text);font-size:16px;line-height:1.7;min-height:55px;max-height:180px;padding:0 2px}.composer textarea:focus{outline:0}.composer textarea::placeholder{color:#a8bbbd}.composer-footer{display:flex;align-items:center;justify-content:space-between;gap:10px}.composer-tools{display:flex;align-items:center;gap:8px}.icon-button{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:#bfcccc}.icon-button:hover{background:#304248}.composer-hint{font-size:12px;color:#b0c2c4}.send{background:var(--accent);color:#17342f;border-radius:10px}.send:hover{background:#c6e9dd}.send:disabled{background:#496963;color:#cad9d5}.below-composer{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#a9bdc0;margin-top:10px;gap:10px}.below-composer button{font-size:12px;min-height:44px;text-decoration:underline;text-underline-offset:4px;color:#b8cfce}.attachment{display:flex;align-items:center;gap:8px;max-width:100%;margin-bottom:9px;color:#d3e1df;font-size:13px}.attachment span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.attachment .icon-button{margin-left:auto;flex-shrink:0}.turn{border-top:1px solid var(--line);padding:20px 0}.turn-label{font-size:12px;color:var(--muted);margin-bottom:9px}.turn p{overflow-wrap:anywhere;white-space:pre-wrap}.demo-reply{font-size:15px;color:#c2d2d2}.empty{padding:65px 0 80px}.empty h1{font-size:32px;font-weight:500;margin:0 0 14px}.empty p{color:var(--muted)}.empty .button{margin-top:10px;border:1px solid #536e74}
+    .sources{border-left:1px solid var(--line);padding-left:26px;align-self:start;margin-top:74px}.source-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:22px}.source-title h2{font-size:14px;font-weight:600;margin:0}.source-title .icon-button{width:44px}.source-overline{font-size:12px;color:#acbec0;margin-bottom:8px}.source-card h3{font-size:19px;line-height:1.4;font-weight:500;margin:0 0 11px;letter-spacing:-.3px}.source-card .domain{font-size:12px;color:#b5c5c7}.source-section{margin-top:26px;padding-top:20px;border-top:1px solid var(--line)}.source-section h3{font-size:13px;color:#d7e4df;margin:0 0 12px;font-weight:600}.source-section p{font-size:14px;color:#b6c8c9;line-height:1.9}.source-section p strong{color:#e1e9e6;font-weight:500}.source-link{display:flex;align-items:center;justify-content:space-between;font-size:13px;min-height:44px;margin-top:14px;text-decoration:none}.source-link svg{width:17px;stroke:currentColor;fill:none;stroke-width:1.5}.source-note{font-size:12px;color:#a8bfc1;margin-top:30px;line-height:1.9}.source-note::before{content:'';display:block;width:26px;height:1px;background:#779c96;margin-bottom:15px}.mobile-source-close{display:none}.scrim{display:none}.status{color:#b8cecd;font-size:13px;margin:8px 0;min-height:1px}.large-text{--body-size:19px}.large-text .body-copy{font-size:18px}.large-text .lead{font-size:21px}
+    .mobile-flow{display:none}.layout{padding-top:26px}.context{margin-bottom:20px}.question h1{margin-bottom:20px}.answer{padding-top:20px}.answer-heading{margin-bottom:12px}.lead{font-size:18px;line-height:1.75}.flow{margin:18px 0 15px;padding-top:15px;padding-bottom:13px}.flow svg{max-height:115px}.caution{margin-bottom:15px}.followups{margin-top:17px;margin-bottom:20px}.composer textarea{min-height:48px}.sources{margin-top:64px}
+    @media(min-width:1100px){.conversation{animation:appear .45s ease-out}.sources{animation:appear .6s ease-out}}@keyframes appear{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+    @media(max-width:1150px){.layout{gap:30px;padding-left:28px;padding-right:28px;grid-template-columns:minmax(0,1fr) 245px}.sources{padding-left:22px}.demo{max-width:180px}.question h1{font-size:26px}}
+    @media(max-width:800px){.header{height:68px;padding:0 22px}.layout,.layout.sources-closed{grid-template-columns:minmax(0,1fr);padding:25px 22px}.sources{position:fixed;z-index:20;right:0;top:0;bottom:0;width:min(390px,calc(100vw - 28px));padding:25px;margin:0;background:#18252b;overflow-y:auto;border-left:1px solid #52676d;box-shadow:-15px 0 70px #0005}.sources[hidden]{display:none}.source-title{margin-bottom:26px}.mobile-source-close{display:inline-flex}.scrim:not([hidden]){position:fixed;inset:0;z-index:19;background:#0008;display:block;width:100%;height:100%;cursor:default}.top-actions .divider{display:none}.top-actions .new-label{display:none}.top-actions .button{padding:8px 12px}.context{margin-bottom:24px}.flow{padding:16px 14px}.question h1{font-size:26px}.lead{font-size:18px}.body-copy{font-size:16px}}
+    @media(max-width:480px){.header{padding:0 17px;gap:10px}.brand{font-size:16px;gap:10px}.brand-symbol{grid-template-columns:repeat(2,7px)}.brand-symbol i{width:7px;height:7px}.top-actions{gap:3px}.top-actions .button{font-size:13px;padding:8px 10px}.layout,.layout.sources-closed{padding:22px 19px 18px}.crumb{font-size:12px;gap:8px}.context{flex-wrap:wrap;gap:11px}.demo{max-width:none;font-size:12px;padding:2px 6px}.question h1{font-size:24px;letter-spacing:-.7px;line-height:1.65;margin-bottom:22px}.question-label{font-size:12px}.answer{padding-top:20px}.lead{font-size:17px}.body-copy{font-size:16px}.caution{font-size:16px}.flow{margin-top:21px}.flow-head{align-items:start}.flow-head span{font-size:12px;text-align:right}.flow-head strong{font-size:13px}.flow-caption{line-height:1.75}.followups{margin:20px 0}.followups .button{font-size:13px;padding:8px 12px}.composer{padding:13px 12px 9px}.composer-hint{font-size:12px}.below-composer{align-items:start}.below-composer span{padding-top:12px}.source-section p{font-size:16px}.source-note{font-size:13px}}
+    @media(max-width:480px){.flow>svg{display:none}.mobile-flow{display:grid;gap:10px}.flow-path{display:grid;grid-template-columns:1fr 28px 1.4fr;gap:8px;align-items:center;font-size:14px}.flow-node{border:1px solid #668f87;border-radius:7px;padding:12px 8px;text-align:center;background:#263a3e;color:#dbece7}.flow-node.wal{background:#a6dace;color:#17342f}.flow-path b{font-weight:400;color:#a6dace;font-size:20px;text-align:center}.merge-label{font-size:12px;color:#bbcdca;text-align:right;padding-right:4px;margin-top:4px}.sources{margin-top:0}}
+    @media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
+  </style>
+</head>
+<body>
+<header class="header">
+  <div class="brand"><span class="brand-symbol" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Study Agent</div>
+  <div class="top-actions">
+    <button class="button" id="new-chat" type="button" aria-label="新对话"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="new-label">新对话</span></button>
+    <span class="divider" aria-hidden="true"></span>
+    <button class="button active" id="source-toggle" type="button" aria-expanded="true" aria-controls="sources"><svg viewBox="0 0 24 24"><path d="M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-2H4zM13 7a3 3 0 0 1 3-3h4v15h-3a4 4 0 0 0-4 2"/></svg>来源</button>
+  </div>
+</header>
+<main class="layout" id="layout">
+  <section class="conversation" aria-label="对话">
+    <div class="context"><div class="crumb"><span>对话</span><span>/</span><span id="topic-label">WAL 与读写并发</span></div><span class="demo">交互设计演示 · 非真实模型回答</span></div>
+    <div id="sample">
+      <div class="question"><div class="question-label">你的问题</div><h1>为什么 WAL 模式能改善读写并发？</h1></div>
+      <article class="answer">
+        <div class="answer-heading"><svg class="spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5z"/></svg>Study Agent</div>
+        <p class="lead">它把读和写分开了：<strong>写入先追加到日志，读者继续读取自己的快照。</strong><button class="citation" type="button" data-open-source aria-label="查看这段回答的来源">1</button></p>
+        <p class="body-copy">新的修改先进入 WAL 日志，而不是立刻改写数据库文件。因此，写入可以继续，读者也能保持一致的视图。</p>
+        <figure class="flow" aria-labelledby="flow-title">
+          <div class="flow-head"><strong id="flow-title">同一数据库，两条路径</strong><span>概念示意</span></div>
+          <svg viewBox="0 0 680 128" role="img" aria-label="读者查看数据库快照，写入者向 WAL 日志追加，checkpoint 将日志内容合并回数据库">
+            <defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M1 1 9 5 1 9" fill="none" stroke="#9ccabc" stroke-width="1.5"/></marker></defs>
+            <rect x="0" y="25" width="110" height="62" rx="10" fill="#24373c" stroke="#4f7775"/><text x="55" y="62" text-anchor="middle" fill="#dbece7" font-size="17">读者</text>
+            <path d="M121 56H197" fill="none" stroke="#9ccabc" stroke-width="1.5" marker-end="url(#arr)"/>
+            <rect x="209" y="25" width="150" height="62" rx="10" fill="#263a3e" stroke="#668f87"/><text x="284" y="62" text-anchor="middle" fill="#dbece7" font-size="17">数据库快照</text>
+            <rect x="529" y="25" width="150" height="62" rx="10" fill="#24373c" stroke="#4f7775"/><text x="604" y="62" text-anchor="middle" fill="#dbece7" font-size="17">写入者</text>
+            <path d="M518 56H460" fill="none" stroke="#9ccabc" stroke-width="1.5" marker-end="url(#arr)"/>
+            <rect x="381" y="25" width="66" height="62" rx="8" fill="#a6dace"/><text x="414" y="53" text-anchor="middle" fill="#17342f" font-size="16" font-weight="600">WAL</text><text x="414" y="73" text-anchor="middle" fill="#17342f" font-size="13">日志</text>
+            <path d="M414 93v17H284V94" fill="none" stroke="#93afa8" stroke-width="1.2" marker-end="url(#arr)"/><text x="445" y="116" fill="#bbcdca" font-size="13">checkpoint 合并</text>
+          </svg>
+          <div class="mobile-flow" aria-hidden="true"><div class="flow-path"><span class="flow-node">读者</span><b>→</b><span class="flow-node">数据库快照</span></div><div class="flow-path"><span class="flow-node">写入者</span><b>→</b><span class="flow-node wal">WAL 日志</span></div><div class="merge-label">checkpoint：日志合并回数据库</div></div>
+          <figcaption class="flow-caption">读者的视图保持稳定；日志里的修改在 checkpoint 时合并回数据库。</figcaption>
+        </figure>
+        <p class="caution"><strong>仍有一个限制：</strong>同一时刻只有一个写入者。长读事务也可能让 checkpoint 无法继续推进。</p>
+      </article>
+      <div class="followups" aria-label="继续探索"><button class="button" type="button" data-prompt="那长事务会带来什么影响？">那长事务会带来什么影响？</button><button class="button" type="button" data-prompt="给我一个具体例子">给我一个具体例子</button></div>
+    </div>
+    <div class="empty" id="empty" hidden><h1>今晚，想弄懂什么？</h1><p>从一个问题开始，也可以带上你的资料。</p><button class="button" type="button" data-reset>回到 WAL 示例</button></div>
+    <div id="turns" aria-live="polite" aria-relevant="additions"></div>
+    <form id="composer" class="composer">
+      <div class="attachment" id="attachment" hidden><span id="attachment-name"></span><button type="button" class="icon-button" id="remove-file" aria-label="移除附件"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <label for="prompt" hidden>继续提问</label><textarea id="prompt" rows="2" placeholder="继续追问，或换一个角度…" aria-label="继续提问"></textarea>
+      <div class="composer-footer"><div class="composer-tools"><button class="icon-button" type="button" id="attach" aria-label="添加本地附件"><svg viewBox="0 0 24 24"><path d="m8 13 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9a2 2 0 0 1 3 3l-8 8a1 1 0 0 1-2-2l6-6"/></svg></button><span class="composer-hint">资料仅保留在本地</span></div><button class="icon-button send" type="submit" id="send" aria-label="发送消息" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+    </form>
+    <input id="file" type="file" hidden>
+    <p class="status" id="status" role="status"></p>
+    <div class="below-composer"><span>Enter 发送，Shift + Enter 换行</span><button type="button" id="text-size" aria-pressed="false">大字阅读</button><button type="button" data-reset>重置示例</button></div>
+  </section>
+  <aside class="sources" id="sources" aria-label="参考来源">
+    <div class="source-title"><h2>这份回答的来源</h2><button class="icon-button mobile-source-close" type="button" id="source-close" aria-label="关闭来源"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+    <div class="source-card"><div class="source-overline">文档 1</div><h3>Write-Ahead<br>Logging</h3><div class="domain">sqlite.org</div><a class="source-link" href="https://www.sqlite.org/wal.html" target="_blank" rel="noopener noreferrer">打开官方文档<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6m0-6L9 15M10 4H4v16h16v-6"/></svg></a></div>
+    <div class="source-section"><h3>对应回答</h3><p>读者不会阻塞写入者，写入者也不会阻塞读者。<strong>读和写可以同时进行。</strong></p><p>但 WAL 文件同一时刻只能有一个写入者。</p></div>
+    <div class="source-section"><h3>还要留意</h3><p>长时间的读取事务可能阻碍 checkpoint，导致 WAL 文件持续增长。</p></div>
+    <p class="source-note">以上是官方文档的中文转述，用于展示来源阅读方式。这里没有运行真实检索。</p>
+  </aside>
+</main>
+<button class="scrim" id="scrim" type="button" aria-label="关闭来源遮罩" hidden></button>
+<script>
+  const $ = id => document.getElementById(id);
+  const narrow = window.matchMedia('(max-width:800px)');
+  let composing = false;
+  let sourceOpener = null;
+  function showSources(show, focus = false) {
+    $('sources').hidden = !show;
+    $('source-toggle').setAttribute('aria-expanded', String(show));
+    $('source-toggle').classList.toggle('active', show);
+    $('layout').classList.toggle('sources-closed', !show);
+    $('scrim').hidden = !(show && narrow.matches);
+    if (show && narrow.matches) {
+      $('sources').setAttribute('role', 'dialog');
+      $('sources').setAttribute('aria-modal', 'true');
+      if (focus) $('source-close').focus();
+    } else {
+      $('sources').removeAttribute('role');
+      $('sources').removeAttribute('aria-modal');
+    }
+    if (!show && focus) (sourceOpener || $('source-toggle')).focus();
+  }
+  $('source-toggle').addEventListener('click', () => { sourceOpener = $('source-toggle'); showSources($('sources').hidden, true); });
+  document.querySelectorAll('[data-open-source]').forEach(button => button.addEventListener('click', () => { sourceOpener = button; showSources(true, true); }));
+  $('source-close').addEventListener('click', () => showSources(false, true));
+  $('scrim').addEventListener('click', () => showSources(false, true));
+  document.addEventListener('keydown', event => {
+    if (narrow.matches && !$('sources').hidden) {
+      if (event.key === 'Escape') showSources(false, true);
+      if (event.key === 'Tab') {
+        const items = [...$('sources').querySelectorAll('button,a')];
+        if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items.at(-1).focus(); }
+        else if (!event.shiftKey && document.activeElement === items.at(-1)) { event.preventDefault(); items[0].focus(); }
+      }
+    }
+  });
+  narrow.addEventListener('change', () => showSources(!narrow.matches));
+  showSources(!narrow.matches);
+  const syncSend = () => { $('send').disabled = !$('prompt').value.trim(); };
+  $('prompt').addEventListener('input', syncSend);
+  $('prompt').addEventListener('compositionstart', () => composing = true);
+  $('prompt').addEventListener('compositionend', () => { composing = false; syncSend(); });
+  $('prompt').addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !composing && !event.isComposing && event.keyCode !== 229) {
+      event.preventDefault(); if (!$('send').disabled) $('composer').requestSubmit();
+    }
+  });
+  document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => { $('prompt').value = button.dataset.prompt; syncSend(); $('prompt').focus(); }));
+  function addTurn(label, content, className = '') {
+    const turn = document.createElement('article'); turn.className = 'turn ' + className;
+    const name = document.createElement('div'); name.className = 'turn-label'; name.textContent = label;
+    const text = document.createElement('p'); text.textContent = content;
+    turn.append(name, text); $('turns').append(turn);
+  }
+  $('composer').addEventListener('submit', event => {
+    event.preventDefault(); const value = $('prompt').value.trim(); if (!value) return;
+    $('empty').hidden = true;
+    addTurn('你', value);
+    addTurn('Study Agent · 本地预置演示', '这是本地交互演示，不会调用模型。以 WAL 为例：读事务持有自己的快照；如果持续不结束，checkpoint 就可能无法合并它仍需读取的部分。你可以打开来源阅读原文。', 'demo-reply');
+    $('prompt').value = ''; syncSend(); removeFile(); $('status').textContent = '已展示预置回复；没有发起模型或网络请求。'; $('prompt').focus();
+  });
+  function removeFile() { $('file').value = ''; $('attachment').hidden = true; $('attachment-name').textContent = ''; }
+  $('attach').addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', () => {
+    const file = $('file').files[0]; if (!file) return;
+    $('attachment-name').textContent = file.name + ' · 未上传'; $('attachment').hidden = false;
+    $('status').textContent = '仅展示本地文件名，不读取或上传文件内容。';
+  });
+  $('remove-file').addEventListener('click', removeFile);
+  $('new-chat').addEventListener('click', () => {
+    $('sample').hidden = true; $('empty').hidden = false; $('turns').replaceChildren();
+    $('topic-label').textContent = '新对话'; $('prompt').value = ''; $('status').textContent = '';
+    removeFile(); syncSend(); showSources(false); $('prompt').focus();
+  });
+  document.querySelectorAll('[data-reset]').forEach(button => button.addEventListener('click', () => {
+    $('sample').hidden = false; $('empty').hidden = true; $('turns').replaceChildren();
+    $('topic-label').textContent = 'WAL 与读写并发'; $('prompt').value = ''; $('status').textContent = '';
+    removeFile(); syncSend(); showSources(!narrow.matches); window.scrollTo({top:0, behavior:'instant'});
+  }));
+  $('text-size').addEventListener('click', () => {
+    const large = document.body.classList.toggle('large-text');
+    $('text-size').setAttribute('aria-pressed', String(large)); $('text-size').textContent = large ? '标准字号' : '大字阅读';
+  });
+</script>
+</body></html>

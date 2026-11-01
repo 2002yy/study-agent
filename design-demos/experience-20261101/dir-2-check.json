@@ -1,0 +1,21 @@
+{
+  "result": "PASS",
+  "checks": [
+    "desktop: no horizontal overflow",
+    "desktop: empty and whitespace submit disabled",
+    "desktop: IME safe and explicit demo reply",
+    "desktop: source pane and close/focus return",
+    "desktop: local file selection and removal",
+    "desktop: new conversation and reset",
+    "desktop: font size toggle",
+    "desktop: zero page errors",
+    "mobile: no horizontal overflow",
+    "mobile: empty and whitespace submit disabled",
+    "mobile: IME safe and explicit demo reply",
+    "mobile: source pane and close/focus return",
+    "mobile: local file selection and removal",
+    "mobile: new conversation and reset",
+    "mobile: font size toggle",
+    "mobile: zero page errors"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "checks": [
+    {
+      "viewport": "desktop",
+      "size": [
+        1440,
+        900
+      ],
+      "assertions": "PASS",
+      "console_errors": [],
+      "undersized_buttons": []
+    },
+    {
+      "viewport": "mobile",
+      "size": [
+        375,
+        812
+      ],
+      "assertions": "PASS",
+      "console_errors": [],
+      "undersized_buttons": []
+    }
+  ],
+  "model_calls": 0,
+  "backend_calls": 0
+}

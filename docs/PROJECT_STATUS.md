@@ -13,6 +13,19 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-02 用户选定的体验/检索重构（独立本地分支）
+
+工作树 `D:/study-agent-validation/experience-retrieval-20261101`，分支
+`codex/experience-retrieval-20261101`，基线 main `abf40b49`。
+搜索提交 `d61b108c` 将三套提供商调度合一，修复域名过滤阻断回退与 URL 大小写误去重；
+CLI 提交 `16b94b95` 增加现有测试集的 JSON 发现入口。
+检索影响集 230 PASS，CLI 445 PASS/1 SKIP，Ruff/mypy 无新增错误/diff-check PASS。
+huashu-design 三方向原型完成桌面/窄屏与离线交互验收；生产 UI 尚未接线。
+本地实现与验证见 [交付记录](EXPERIENCE_RETRIEVAL_REFACTOR.md)，
+未 push/PR/merge，无本次付费动态运行或远端资格，原桌面工作区未改动。
+**唯一下一片：用户选择视觉方向后，将其接入现有 UI 与控制器并用 CLI/Vitest/Playwright 验证。**
+这段只记录本工作树，不能当成 main 已交付。
+
 ### 验收基线与未验收能力分开记录
 
 | 方向 | 已证实进入 main | 尚未取得的资格 |
