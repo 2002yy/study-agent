@@ -103,7 +103,34 @@ def _unwrap_duckduckgo_url(url: str) -> str:
 
 
 def _result_key(item: dict[str, str]) -> str:
-    return (item.get("url") or item.get("title") or "").strip().casefold()
+    url = (item.get("url") or "").strip()
+    if not url:
+        return (item.get("title") or "").strip().casefold()
+    parsed = urlparse(url)
+    # Hosts are case-insensitive; paths and query values can name different pages.
+    return parsed._replace(
+        scheme=parsed.scheme.lower(), netloc=parsed.netloc.lower(), fragment=""
+    ).geturl()
+
+
+def _query_domain(query: str) -> str:
+    """Only enforce the existing simple, positive site: form."""
+    match = re.fullmatch(r"site:([A-Za-z0-9.-]+)\s+[^()]+", query)
+    if match and not re.search(r"(?:\bOR\b|-site:|\bsite:)", query[match.end(1) :]):
+        return match.group(1).lower().rstrip(".")
+    return ""
+
+
+def _domain_results(rows: list[dict[str, str]], domain: str) -> list[dict[str, str]]:
+    if not domain:
+        return rows
+    return [
+        item
+        for item in rows
+        if (host := (urlparse(item.get("url", "")).hostname or "").lower().rstrip("."))
+        == domain
+        or host.endswith("." + domain)
+    ]
 
 
 def _provider_timeout(
@@ -179,9 +206,7 @@ def merge_trace(outcome: dict[str, Any]) -> dict[str, Any]:
     return {key: outcome[key] for key in _MERGE_TRACE_KEYS if key in outcome}
 
 
-def _rank_merged(
-    results: list[dict[str, str]], query: str
-) -> list[dict[str, str]]:
+def _rank_merged(results: list[dict[str, str]], query: str) -> list[dict[str, str]]:
     """Order merged results with the repository's own source scorer.
 
     The scorer is deliberately not the evaluation rule: ranking by the signal the
@@ -201,7 +226,10 @@ def _rank_merged(
         assessment = record.get("assessment") if isinstance(record, dict) else {}
         score = float((assessment or {}).get("relevance") or 0.0)
         scored.append((score, index, item))
-    ranked = [item for _score, _index, item in sorted(scored, key=lambda row: (-row[0], row[1]))]
+    ranked = [
+        item
+        for _score, _index, item in sorted(scored, key=lambda row: (-row[0], row[1]))
+    ]
     # Anything the assessor dropped keeps its relative order at the end rather
     # than disappearing: a merge that silently loses one provider's results would
     # look like a ranking improvement.
@@ -323,19 +351,7 @@ class GeneralWebGateway:
 
         outcome = self._search_single(focused, limit)
         results = list(outcome["results"])
-        # Engines do not consistently honor site: syntax. A single positive
-        # domain constraint is enforceable locally; complex OR/negative queries
-        # keep their existing behavior rather than inventing parser semantics.
-        domain_filter = re.fullmatch(r"site:([A-Za-z0-9.-]+)\s+[^()]+", focused)
-        filtered_count = 0
-        if domain_filter and not re.search(r"(?:\bOR\b|-site:|\bsite:)", focused[domain_filter.end(1):]):
-            domain = domain_filter.group(1).lower().rstrip(".")
-            scoped = [item for item in results if (
-                (urlparse(item.get("url", "")).hostname or "").lower().rstrip(".") == domain
-                or (urlparse(item.get("url", "")).hostname or "").lower().rstrip(".").endswith("." + domain)
-            )]
-            filtered_count = len(results) - len(scoped)
-            results = scoped
+        filtered_count = outcome.get("domain_filtered_count", 0)
         provider_errors = list(outcome["provider_errors"])
         providers_enabled = bool(outcome["providers_attempted"])
         if results:
@@ -360,7 +376,9 @@ class GeneralWebGateway:
             trace["ranked_urls"] = [str(item.get("url") or "") for item in results]
         return {
             "status": status,
-            "reason": "domain_constraint_rejected_results" if filtered_count and not results else reason,
+            "reason": "domain_constraint_rejected_results"
+            if filtered_count and not results
+            else reason,
             "query": focused,
             "results": results,
             "domain_filtered_count": filtered_count,
@@ -469,240 +487,106 @@ class GeneralWebGateway:
         return payload
 
     def _search_single(self, query: str, limit: int) -> dict[str, Any]:
+        """One provider loop; strategies choose order and whether to keep searching."""
         provider_timeout = _env_float(
-            "WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS",
-            6.0,
-            minimum=1.0,
-            maximum=8.0,
+            "WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS", 6.0, minimum=1.0, maximum=8.0
         )
-        total_timeout = _env_float(
-            "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS",
-            8.0,
-            minimum=3.0,
-            maximum=10.0,
+        deadline = time.monotonic() + _env_float(
+            "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", 8.0, minimum=3.0, maximum=10.0
         )
-        deadline = time.monotonic() + total_timeout
-        results: list[dict[str, str]] = []
-        provider_errors: list[str] = []
-        providers_attempted: list[str] = []
-
-        if self.search_strategy == "merge":
-            return self._search_merged(query, limit, provider_timeout, deadline)
-        if self.search_strategy == "ddg_first":
-            return self._search_ddg_first(query, limit, provider_timeout, deadline)
-
-        def remaining_timeout(provider: str) -> float:
-            return _provider_timeout(deadline, provider_timeout, provider, provider_errors)
-
-        if searxng_enabled():
-            providers_attempted.append("searxng")
-            timeout = remaining_timeout("searxng")
-            searx_results = (
-                search_searxng(
-                    query,
-                    max_results=limit,
-                    timeout=timeout,
-                    categories=os.getenv("WEB_SEARXNG_CATEGORIES", "general"),
-                )
-                if timeout
-                else []
-            )
-            if searx_results:
-                results = [
-                    {
-                        "title": str(item.get("title", "")),
-                        "url": str(
-                            item.get("link") or item.get("resolved_link") or ""
-                        ),
-                        "snippet": str(
-                            item.get("search_excerpt") or item.get("summary") or ""
-                        ),
-                        "source": str(item.get("source") or "SearXNG"),
-                        "published_at": str(item.get("published_at") or ""),
-                    }
-                    for item in searx_results[:limit]
-                    if item.get("title")
-                    and (item.get("link") or item.get("resolved_link"))
-                ]
-            else:
-                error = get_last_searxng_error()
-                if error:
-                    provider_errors.append(f"searxng:{error}")
-
-        if not results and _env_flag("WEB_ENABLE_BING_RSS", default=True):
-            providers_attempted.append("bing_rss")
-            timeout = remaining_timeout("bing_rss")
-            if timeout:
-                bing_results, bing_error = self._search_bing_rss(
-                    query, limit, timeout
-                )
-                results = bing_results
-                if bing_error:
-                    provider_errors.append(bing_error)
-
-        if not results and _env_flag("WEB_ENABLE_DUCKDUCKGO", default=True):
-            providers_attempted.append("duckduckgo_html")
-            timeout = remaining_timeout("duckduckgo_html")
-            if timeout:
-                ddg_results, ddg_error = self._search_duckduckgo(
-                    query, limit, timeout
-                )
-                results = ddg_results
-                if ddg_error:
-                    provider_errors.append(ddg_error)
-
-        return {
-            "results": _dedupe_results(results, limit),
-            "provider_errors": provider_errors,
-            "providers_attempted": providers_attempted,
+        plan = {
+            "fallback": ("searxng", "bing_rss", "duckduckgo_html"),
+            "ddg_first": ("duckduckgo_html", "bing_rss"),
+            "merge": ("bing_rss", "duckduckgo_html"),
+        }[self.search_strategy]
+        providers = {
+            "searxng": (searxng_enabled(), self._search_searxng),
+            "bing_rss": (_env_flag("WEB_ENABLE_BING_RSS", True), self._search_bing_rss),
+            "duckduckgo_html": (
+                _env_flag("WEB_ENABLE_DUCKDUCKGO", True),
+                self._search_duckduckgo,
+            ),
         }
-
-    def _search_ddg_first(
-        self,
-        query: str,
-        limit: int,
-        provider_timeout: float,
-        deadline: float,
-    ) -> dict[str, Any]:
-        """D2: DuckDuckGo's own ranking first, Bing only when it is empty.
-
-        Search-1 measured this network on 31 real questions: DuckDuckGo's own
-        first result was an answer-bearing page in 30/31 cases, while the
-        SearXNG/Bing first result was a site homepage or a dictionary entry in
-        30/31. Asking a second engine for the same query cost a request and
-        about one second of P50 latency and did not change the first result, so
-        the second engine is asked only when the first produced nothing.
-
-        SearXNG is deliberately not consulted here: its results were the worst
-        of the three in that run. A deployment that depends on its aggregation
-        keeps ``fallback``.
-        """
-
-        provider_errors: list[str] = []
-        providers_attempted: list[str] = []
-        provider_counts: dict[str, int] = {}
-        results: list[dict[str, str]] = []
+        domain = _query_domain(query)
+        errors: list[str] = []
+        attempted: list[str] = []
+        skipped: list[dict[str, str]] = []
+        counts: dict[str, int] = {}
+        collected: list[dict[str, str]] = []
+        filtered_count = 0
         fallback_used = False
-
-        def remaining(provider: str) -> float:
-            return _provider_timeout(deadline, provider_timeout, provider, provider_errors)
-
-        plan = (
-            ("duckduckgo_html", "WEB_ENABLE_DUCKDUCKGO", self._search_duckduckgo),
-            ("bing_rss", "WEB_ENABLE_BING_RSS", self._search_bing_rss),
-        )
-        for index, (name, flag, fetch) in enumerate(plan):
-            if not _env_flag(flag, default=True):
-                # The trace keeps the reason: a caller that sees a single-engine
-                # answer must be able to tell "the other engine was off" from
-                # "the other engine failed".
-                provider_errors.append(f"{name}:provider_disabled")
+        for index, name in enumerate(plan):
+            enabled, fetch = providers[name]
+            if not enabled:
+                if self.search_strategy != "fallback":
+                    errors.append(f"{name}:provider_disabled")
+                skipped.append({"provider": name, "reason": "provider_disabled"})
                 continue
-            timeout = remaining(name)
+            timeout = _provider_timeout(deadline, provider_timeout, name, errors)
             if not timeout:
+                skipped.append({"provider": name, "reason": "search_budget_exhausted"})
                 continue
-            providers_attempted.append(name)
-            # Set before the call: "the fallback engine was consulted" is true
-            # even when it then returns nothing. Deciding it from the rows would
-            # report a two-engine run as a single-engine answer.
-            if index > 0:
-                fallback_used = True
+            attempted.append(name)
+            fallback_used = fallback_used or index > 0
             rows, error = fetch(query, limit, timeout)
-            provider_counts[name] = len(rows)
+            counts[name] = len(rows)
             if error:
-                provider_errors.append(error)
-            if rows:
-                results = rows
+                errors.append(error)
+            eligible = _domain_results(rows, domain)
+            filtered_count += len(rows) - len(eligible)
+            collected.extend(eligible)
+            # A provider returning unrelated sites is not a successful search.
+            if eligible and self.search_strategy != "merge":
                 break
 
-        return {
-            "results": _dedupe_results(results, limit),
-            "provider_errors": provider_errors,
-            "providers_attempted": providers_attempted,
-            "provider_counts": provider_counts,
-            "search_strategy": self.search_strategy,
-            "fallback_used": fallback_used,
-        }
-
-    def _search_merged(
-        self,
-        query: str,
-        limit: int,
-        provider_timeout: float,
-        deadline: float,
-    ) -> dict[str, Any]:
-        """E2: ask both engines for the same query, merge, then rank.
-
-        The fallback strategy stops at the first engine that answers, so a query
-        that two engines would rank differently is decided by whichever answered
-        first. This strategy pays a second request to remove that accident, then
-        deduplicates and re-ranks with the production source scorer.
-
-        Everything about the decision is reported - which providers were really
-        attempted, how many rows each returned, how many were duplicates, and the
-        final order - because "both providers were merged" is otherwise only a
-        claim about the code, not about the run.
-        """
-
-        provider_errors: list[str] = []
-        providers_attempted: list[str] = []
-        providers_skipped: list[dict[str, str]] = []
-        collected: list[dict[str, str]] = []
-        provider_counts: dict[str, int] = {}
-
-        def remaining(provider: str) -> float:
-            return _provider_timeout(deadline, provider_timeout, provider, provider_errors)
-
-        plan = (
-            ("bing_rss", "WEB_ENABLE_BING_RSS", self._search_bing_rss),
-            ("duckduckgo_html", "WEB_ENABLE_DUCKDUCKGO", self._search_duckduckgo),
+        unique = _dedupe_results(collected, len(collected))
+        results = (
+            _rank_merged(unique, query)[:limit]
+            if self.search_strategy == "merge"
+            else unique[:limit]
         )
-        for name, flag, fetch in plan:
-            if not _env_flag(flag, default=True):
-                provider_errors.append(f"{name}:provider_disabled")
-                providers_skipped.append(
-                    {"provider": name, "reason": "provider_disabled"}
-                )
-                continue
-            timeout = remaining(name)
-            if not timeout:
-                providers_skipped.append(
-                    {"provider": name, "reason": "search_budget_exhausted"}
-                )
-                continue
-            # Recorded immediately before the call, never before the decision to
-            # make it: a run that reports two engines while calling one would be
-            # claiming the experiment it was supposed to prove.
-            providers_attempted.append(name)
-            rows, error = fetch(query, limit, timeout)
-            if error:
-                provider_errors.append(error)
-            provider_counts[name] = len(rows)
-            collected.extend(rows)
-
-        seen: set[str] = set()
-        merged: list[dict[str, str]] = []
-        duplicates = 0
-        for item in collected:
-            key = _result_key(item)
-            if not key or key in seen:
-                duplicates += 1
-                continue
-            seen.add(key)
-            merged.append(item)
-
-        ranked = _dedupe_results(_rank_merged(merged, query), limit)
-        return {
-            "results": ranked,
-            "provider_errors": provider_errors,
-            "providers_attempted": providers_attempted,
-            "search_strategy": self.search_strategy,
-            "merged_count": len(collected),
-            "duplicate_count": duplicates,
-            "provider_counts": provider_counts,
-            "providers_skipped": providers_skipped,
-            "ranked_urls": [str(item.get("url") or "") for item in ranked],
+        payload: dict[str, Any] = {
+            "results": results,
+            "provider_errors": errors,
+            "providers_attempted": attempted,
+            "domain_filtered_count": filtered_count,
         }
+        if self.search_strategy != "fallback":
+            payload.update(search_strategy=self.search_strategy, provider_counts=counts)
+        if self.search_strategy == "ddg_first":
+            payload["fallback_used"] = fallback_used
+        elif self.search_strategy == "merge":
+            payload.update(
+                merged_count=sum(counts.values()),
+                duplicate_count=len(collected) - len(unique),
+                providers_skipped=skipped,
+                ranked_urls=[item.get("url", "") for item in results],
+            )
+        return payload
+
+    @staticmethod
+    def _search_searxng(
+        query: str, limit: int, timeout: float
+    ) -> tuple[list[dict[str, str]], str]:
+        rows = search_searxng(
+            query,
+            max_results=limit,
+            timeout=timeout,
+            categories=os.getenv("WEB_SEARXNG_CATEGORIES", "general"),
+        )
+        results = [
+            {
+                "title": str(item.get("title", "")),
+                "url": str(item.get("link") or item.get("resolved_link") or ""),
+                "snippet": str(item.get("search_excerpt") or item.get("summary") or ""),
+                "source": str(item.get("source") or "SearXNG"),
+                "published_at": str(item.get("published_at") or ""),
+            }
+            for item in rows[:limit]
+            if item.get("title") and (item.get("link") or item.get("resolved_link"))
+        ]
+        error = get_last_searxng_error() if not rows else ""
+        return results, f"searxng:{error}" if error else ""
 
     @staticmethod
     def _merge_trace(outcome: dict[str, Any]) -> dict[str, Any]:
@@ -874,9 +758,7 @@ class GeneralWebGateway:
                 {
                     "title": title,
                     "url": url,
-                    "snippet": " ".join(
-                        (item.findtext("description") or "").split()
-                    ),
+                    "snippet": " ".join((item.findtext("description") or "").split()),
                     "source": "Bing RSS",
                     "published_at": "",
                 }
@@ -923,9 +805,7 @@ class GeneralWebGateway:
         proxy = (os.getenv("WEB_DUCKDUCKGO_PROXY") or "").strip()
         try:
             if proxy:
-                opener = build_opener(
-                    ProxyHandler({"http": proxy, "https": proxy})
-                )
+                opener = build_opener(ProxyHandler({"http": proxy, "https": proxy}))
                 with opener.open(request, timeout=timeout) as response:
                     status = int(getattr(response, "status", 200) or 200)
                     payload = response.read(500_000).decode("utf-8", errors="ignore")
@@ -945,8 +825,7 @@ class GeneralWebGateway:
         # query into the document title, so searching for "coding challenge"
         # returned ten results and used to be reported as a challenge.
         challenge = any(
-            marker in payload.casefold()
-            for marker in _DUCKDUCKGO_CHALLENGE_MARKERS
+            marker in payload.casefold() for marker in _DUCKDUCKGO_CHALLENGE_MARKERS
         )
         if challenge:
             return [], "duckduckgo_html:challenge"

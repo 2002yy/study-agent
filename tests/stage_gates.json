@@ -29,6 +29,26 @@
     }
   },
   "impact_sets": {
+    "search_flow": [
+      "tests/test_web_search_flow.py",
+      "tests/test_web_search_strategy.py",
+      "tests/test_web_search_ddg_first.py",
+      "tests/test_web_query_normalizer.py",
+      "tests/test_research_gateway_trace.py",
+      "tests/test_research_provider_search.py",
+      "tests/test_web_tool_agent.py",
+      "tests/test_source_assessment.py",
+      "tests/test_searxng_source.py",
+      "tests/test_search_to_answer_baseline.py",
+      "tests/test_lookup_official_identity.py",
+      "tests/test_lookup_rescue_support.py",
+      "tests/test_lookup_terminal.py",
+      "tests/test_recovery_source_boundaries.py",
+      "tests/test_web_lookup_reading.py",
+      "tests/test_web_lookup_run.py",
+      "tests/test_web_lookup_research_contract.py",
+      "tests/test_stage_gates_policy.py"
+    ],
     "conversation_decision_admission": [
       "tests/test_conversation_decision_admission.py",
       "tests/test_conversation_decision_runner.py",
