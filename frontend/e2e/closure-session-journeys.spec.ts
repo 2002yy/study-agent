@@ -63,7 +63,7 @@ test("the shared session navigator is usable from desktop sidebar and mobile dra
     await page.getByRole("button", { name: "打开会话历史" }).click();
     await expect(page.getByRole("heading", { name: "会话历史" })).toBeVisible();
   } else {
-    await expect(page.locator(".workspace-sidebar-brand").getByText("学习工作台", { exact: true })).toBeVisible();
+    await expect(page.locator(".workspace-sidebar-brand").getByText("Study Agent", { exact: true })).toBeVisible();
   }
 
   const navigator = page.getByRole("navigation", { name: "学习会话" }).last();
