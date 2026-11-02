@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from unittest.mock import Mock
+
 from src.mode_manager import RuntimeModes
 from src.application.session_service import SessionService
 from src.domain.runtime_entities import ChatThread, ChatTurn
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.pedagogy.engine import PedagogyEngine
+from src.pedagogy.evaluation import PedagogyEvaluationService, SemanticEvaluation
 from src.pedagogy.evidence import EvidenceDisclosurePolicy
 from src.pedagogy.types import LearningState
 from src.router import route_request
@@ -200,28 +203,40 @@ def test_mode_transition_isolates_and_restores_protocol_payload():
     assert restored.payload["path"] == "counterexample"
 
 
-def test_feynman_protocol_repairs_one_unconditional_gap():
+def test_feynman_considers_the_explanation_without_declaring_a_keyword_gap():
     plan, state = PedagogyEngine().plan(
         user_input="索引像目录，所以任何查询一定都会更快。",
         mode="费曼",
         state=LearningState(protocol="feynman_diagnosis"),
     )
-    assert plan.phase == "repair"
-    assert plan.move == "minimal_repair"
-    assert state.payload["current_gap"]
-    assert state.payload["repair_given"] == "counterexample"
+    assert plan.move == "reconstruct"
+    assert "actual reasoning" in " ".join(plan.constraints)
+    assert not state.payload.get("current_gap")
+    assert not state.payload.get("repair_given")
 
 
 def test_feynman_transfer_records_evidence_before_closing():
+    text = "因为输入为空时没有元素，所以这个边界情况应直接返回空结果。"
+    before = LearningState(
+        protocol="feynman_diagnosis", objective="解释空输入边界",
+        phase="transfer", payload={"repair_given": "boundary"},
+    )
+    semantic = Mock()
+    semantic.evaluate.return_value = SemanticEvaluation(
+        claims=("空输入直接返回空结果",), correct_points=("空输入没有元素",),
+        reasoning_complete=True, transfer_ready=True, confidence=0.95,
+        evidence_refs=("empty-input",),
+    )
+    receipt = PedagogyEvaluationService(semantic).evaluate_learner(
+        learner_input=text, state=before, evidence=("empty-input",),
+    )
+    assert receipt.final_decision == "accept"
     plan, state = PedagogyEngine().plan(
-        user_input="因为输入为空时没有元素，所以这个边界情况应直接返回空结果。",
+        user_input=text,
         mode="费曼",
-        state=LearningState(
-            protocol="feynman_diagnosis",
-            objective="解释空输入边界",
-            phase="transfer",
-            payload={"repair_given": "boundary", "reexplanation_passed": True},
-        ),
+        state=LearningState.from_dict({
+            **before.to_dict(), "payload": {**before.payload, "pedagogy_evaluation": receipt.to_dict()},
+        }),
     )
     assert plan.phase == "complete"
     assert state.payload["transfer_passed"] is True
@@ -275,7 +290,7 @@ def test_failed_assistant_contract_does_not_commit_planned_progress():
         state=before,
     )
     evaluation = engine.evaluate_response(
-        "你认为剩多少？为什么？还能举例吗？",
+        "",  # An empty reply still must not commit planned progress.
         plan=plan,
     )
     committed = engine.apply_transition(

@@ -86,8 +86,7 @@ def evaluate_assistant_response(
 ) -> AssistantResponseEvaluation:
     violations: list[str] = []
     question_count = len(re.findall(r"[?？]", response))
-    if plan.mode == "socratic_rediscovery" and question_count > 1:
-        violations.append("multiple_central_questions")
+    # Question count is telemetry, not evidence of a failed dialogue.
     if not response.strip():
         violations.append("empty_response")
     if plan.disclosure_level <= 1 and any(

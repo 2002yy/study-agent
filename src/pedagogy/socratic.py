@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from src.pedagogy.types import LearningState, PedagogyTurnPlan
-from src.pedagogy.intent import requests_direct_answer
+from src.pedagogy.types import KnowledgeKind, LearningState, PedagogyTurnPlan
+from src.pedagogy.intent import requests_direct_answer, requests_thinking_time
 
 STUCK_MARKERS = ("不知道", "不会", "没思路", "想不出来", "卡住")
 CONCLUSION_MARKERS = ("所以", "因此", "也就是说", "结论是", "我明白了")
@@ -11,7 +11,7 @@ CONCLUSION_MARKERS = ("所以", "因此", "也就是说", "结论是", "我明�
 
 def plan_socratic(
     user_input: str,
-    knowledge_kind: str,
+    knowledge_kind: KnowledgeKind,
     state: LearningState,
 ) -> tuple[PedagogyTurnPlan, LearningState]:
     text = user_input.strip()
@@ -38,6 +38,17 @@ def plan_socratic(
             constraints=("Respect the learner's explicit request for a direct answer.",),
         )
         return plan, replace(state, phase="direct_explanation", learner_claim=text, turn_count=next_count)
+
+    if requests_thinking_time(text):
+        plan = PedagogyTurnPlan(
+            mode="socratic_rediscovery", phase="test_assumption",
+            knowledge_kind=knowledge_kind, move="request_prediction", disclosure_level=1,
+            target_understanding=state.objective or text,
+            constraints=("Leave the requested inference to the learner and wait before revealing the answer.",),
+        )
+        return plan, replace(
+            state, objective=state.objective or text, phase="test_assumption", turn_count=next_count,
+        )
 
     if external:
         plan = PedagogyTurnPlan(
@@ -71,7 +82,7 @@ def plan_socratic(
             mode="socratic_rediscovery", phase="transfer",
             knowledge_kind=knowledge_kind, move="transfer", disclosure_level=2,
             learner_claim=text, target_understanding=state.objective,
-            constraints=("Briefly summarize the reconstructed path, then test one new situation.",),
+            constraints=("Build on the reconstructed reasoning. Explore implications or a new context when useful, without requiring another quiz.",),
         )
         return plan, replace(
             state, phase="transfer", learner_claim=text,
@@ -104,19 +115,22 @@ def plan_socratic(
     if state.turn_count == 0:
         move = "elicit_claim"
         phase = "orientation"
-    elif state.phase in {"orientation", "scaffold"}:
-        move = "test_example"
+    elif any(marker in text for marker in ("所有", "一定", "总是", "任何")):
+        move = "offer_counterexample"
         phase = "test_assumption"
     else:
-        move = "offer_counterexample"
+        move = "reconstruct"
         phase = "test_assumption"
     plan = PedagogyTurnPlan(
         mode="socratic_rediscovery", phase=phase,
-        knowledge_kind=knowledge_kind, move=move, disclosure_level=1,
+        knowledge_kind=knowledge_kind, move=move, disclosure_level=1 if state.turn_count == 0 else 3,
         learner_claim=text if state.turn_count else "",
         unresolved_gap=state.unresolved_gap,
         target_understanding=state.objective or text,
-        constraints=("Use one concrete central question and one cognitive move only.",),
+        constraints=(
+            "Follow the learner's actual premises and reasoning; adapt dialogue, examples, or explanation to what helps discovery.",
+            "Do not impose a question quota, a fixed sequence, or a mandatory quiz. Leave room to think when inviting a response.",
+        ),
     )
     return plan, replace(
         state, objective=state.objective or text, phase=phase,
