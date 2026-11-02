@@ -1,4 +1,4 @@
-"""Repository-local, offline Study Agent operations. No global install required."""
+"""Repository-local Study Agent operations; live checks require explicit paid-run flags."""
 
 from __future__ import annotations
 
@@ -42,6 +42,19 @@ def parser_for_cli() -> Parser:
     children = parser.add_subparsers(dest="command")
     for name in ("status", "doctor", "help"):
         common(children.add_parser(name, add_help=False))
+    live = children.add_parser("live", add_help=False)
+    common(live)
+    live_commands = live.add_subparsers(dest="live_command")
+    check = live_commands.add_parser("check", add_help=False)
+    common(check)
+    check.add_argument("--allow-paid", action="store_true")
+    check.add_argument("--budget-cny", type=float)
+    check.add_argument("--artifact-dir", type=Path)
+    check.add_argument("--experiment-id")
+    check.add_argument("--config-path", type=Path)
+    check.add_argument("--desktop-launcher", type=Path)
+    check.add_argument("--backend-port", type=int, default=18001)
+    check.add_argument("--frontend-port", type=int, default=15174)
     test = children.add_parser("test", add_help=False)
     common(test)
     plans = test.add_subparsers(dest="test_command")
@@ -750,6 +763,7 @@ def main(argv: list[str] | None = None) -> int:
                     "test list",
                     "test plan",
                     "test run",
+                    "live check",
                     "research inspect",
                     "research list",
                     "research compare",
@@ -759,7 +773,7 @@ def main(argv: list[str] | None = None) -> int:
                     "ci main",
                     "help",
                 ],
-                "side_effects": "test run executes the selected gate and writes isolated logs; other commands are read-only unless --output is explicit",
+                "side_effects": "test run executes offline gates; live check starts the desktop app and calls real models only with --allow-paid and --budget-cny; remaining commands are read-only unless --output is explicit",
             }
         else:
             if not options.command:
@@ -788,6 +802,23 @@ def main(argv: list[str] | None = None) -> int:
                             "message": "No single registered impact set covers these changes.",
                         }
                     ]
+            elif options.command == "live":
+                if options.live_command != "check":
+                    raise CLIError(2, "missing_live_command", "Use live check.")
+                # Running `python tools\studyctl.py` puts tools/ on sys.path, not
+                # the repository root, so the package import needs the root too.
+                if str(root) not in sys.path:
+                    sys.path.insert(0, str(root))
+                from tools.studyctl_live import run_live
+
+                result["command"] = "live check"
+                try:
+                    result["data"] = run_live(options, root)
+                except ValueError as exc:
+                    raise CLIError(2, "invalid_live_configuration", str(exc)) from exc
+                for key in ("status", "exit_code"):
+                    if key in result["data"]:
+                        result[key] = result["data"][key]
             elif options.command == "research":
                 result["command"] = "research " + (options.research_command or "")
                 result["data"] = inspect_research(options)
