@@ -11,7 +11,12 @@ import pytest
 
 from src.api.models.chat import ChatRequest
 from src.api.routes.chat_routes import _chat_command
-from src.application.chat_service import _turn_attachment_material
+from src.application.chat_service import (
+    ATTACHMENT_BLOCK_HEADING,
+    ATTACHMENT_BLOCK_MAX_CHARS,
+    _turn_attachment_material,
+    attachment_context_block,
+)
 from src.application.session_attachment_service import SessionAttachmentService
 from src.domain.runtime_entities import ChatThread, ChatTurn
 from src.infrastructure.sqlite.database import RuntimeDatabase
@@ -130,6 +135,36 @@ def test_turn_material_reads_the_stored_binding(tmp_path, monkeypatch):
     assert [item["attachment_id"] for item in material] == [ready.id]
     assert "attention" in material[0]["text"]
     assert _turn_attachment_material(repository, "turn-missing") == []
+
+
+def test_prompt_block_carries_attachment_text_for_a_plain_turn(tmp_path, monkeypatch):
+    """A just-uploaded file must reach the model even with local RAG off.
+
+    Attachment text used to join the prompt only through retrieval, so a plain
+    turn answered "I cannot see any attachment" while the file was ready.
+    """
+    repository, attachments = _context(tmp_path)
+    ready = _ready(attachments)
+    repository.add_chat_turn(
+        ChatTurn(
+            id="turn-block", thread_id="thread-a", user_message="q", status="pending",
+            attachment_refs=(
+                {"attachment_id": ready.id, "content_hash": ready.content_hash, "filename": "notes.md"},
+            ),
+        )
+    )
+    import src.application.runtime_repository as runtime_repository
+
+    monkeypatch.setattr(runtime_repository, "get_session_attachment_service", lambda: attachments)
+
+    block = attachment_context_block(repository, "turn-block")
+
+    assert block.startswith(ATTACHMENT_BLOCK_HEADING)
+    assert "notes.md" in block
+    assert "attention" in block
+    assert len(block) <= ATTACHMENT_BLOCK_MAX_CHARS + 400
+    assert attachment_context_block(repository, None) == ""
+    assert attachment_context_block(repository, "turn-without-attachments") == ""
 
 
 def test_retry_does_not_replace_a_stored_binding(tmp_path):

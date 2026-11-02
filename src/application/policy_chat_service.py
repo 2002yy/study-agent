@@ -25,6 +25,7 @@ from src.application.chat_service import (
     _preferred_partial_reply,
     _previous_assistant_role,
     _research_resume_requested,
+    attachment_context_block,
     _route_generation_calls,
     _session_settings,
     _tool_context,
@@ -634,6 +635,9 @@ class ExternalDataPolicyChatService(ChatService):
                 context_blocks.append(disclosed.private_context)
             if disclosed.context:
                 context_blocks.append(disclosed.context)
+            attachment_block = attachment_context_block(self.repository, turn_id)
+            if attachment_block:
+                context_blocks.append(attachment_block)
             if web_use.run_tools and (
                 task_contract.task_intent == "research"
                 or web_tools.to_dict().get("recovery") is not None

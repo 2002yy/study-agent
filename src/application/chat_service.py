@@ -319,6 +319,46 @@ def _turn_attachment_material(
         return []
 
 
+ATTACHMENT_BLOCK_HEADING = "【本轮用户上传的附件原文】"
+ATTACHMENT_BLOCK_MAX_CHARS = 12_000
+ATTACHMENT_ITEM_MAX_CHARS = 4_000
+
+
+def attachment_context_block(
+    repository: Any, turn_id: str | None
+) -> str:
+    """The decoded attachment text a turn's model call must actually see.
+
+    Attachment chunks only join the prompt through local RAG, so a plain turn
+    with a just-uploaded file used to answer "I cannot see any attachment"
+    while the file sat ready on the server.  The block is bounded because it is
+    spent from the same token budget as every other context block.
+    """
+
+    material = _turn_attachment_material(repository, turn_id)
+    parts: list[str] = []
+    remaining = ATTACHMENT_BLOCK_MAX_CHARS
+    for item in material or []:
+        if not isinstance(item, dict) or remaining <= 0:
+            continue
+        body = str(item.get("text") or item.get("description") or "").strip()
+        if not body:
+            continue
+        name = str(item.get("filename") or item.get("name") or "附件").strip()
+        clipped = body[: min(ATTACHMENT_ITEM_MAX_CHARS, remaining)]
+        remaining -= len(clipped)
+        parts.append(f"--- {name} ---\n{clipped}")
+    if not parts:
+        return ""
+    return (
+        f"{ATTACHMENT_BLOCK_HEADING}\n"
+        + "\n\n".join(parts)
+        + "\n\n以上是这个用户刚刚上传的文件原文，可以直接据此回答。"
+        "数值保持原样与原始单位，不要估算或改写；字段确实缺失时说明缺失，"
+        "不要用其他数字填补。"
+    )
+
+
 @dataclass(frozen=True)
 class ChatCommand:
     user_input: str
@@ -914,6 +954,9 @@ class ChatService:
                 context_blocks.append(disclosed.private_context)
             if disclosed.context:
                 context_blocks.append(disclosed.context)
+            attachment_block = attachment_context_block(self.repository, turn_id)
+            if attachment_block:
+                context_blocks.append(attachment_block)
             if web_tool_error and not web_tools.used:
                 context_blocks.append(
                     "联网搜索未获得可信来源。必须明确说明本回答未使用联网来源；"
