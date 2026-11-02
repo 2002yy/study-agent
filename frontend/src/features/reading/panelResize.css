@@ -16,5 +16,5 @@
 }
 @media (min-width: 901px) {
   .panel-resize-reading { display: block; top: 0; bottom: 0; }
-  .reading-layout.has-document[data-reading-resized]:not(.reading-focused) { grid-template-columns: minmax(360px, min(var(--resized-reader-width), calc(100% - 376px))) minmax(360px, 1fr); }
+  .reading-layout.has-document[data-reading-resized]:not(.reading-focused) { grid-template-columns: minmax(360px, 1fr) minmax(360px, min(var(--resized-reader-width), calc(100% - 360px))); }
 }

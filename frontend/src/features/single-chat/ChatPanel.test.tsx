@@ -562,6 +562,46 @@ describe("ChatPanel conversation interaction safety", () => {
     expect(container.querySelector(".back-to-latest")).toBeNull();
   });
 
+  it("follows late content growth but never overrides a manual reading position", () => {
+    const observers: Array<{ callback: () => void; targets: Element[] }> = [];
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("ResizeObserver", class {
+      targets: Element[] = [];
+      constructor(callback: () => void) { observers.push({ callback, targets: this.targets }); }
+      observe(target: Element) { this.targets.push(target); }
+      disconnect() {}
+    });
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => {
+      frames.push(callback);
+      return frames.length;
+    });
+    try {
+      const { container } = renderPanel({ messages: [{ role: "assistant", content: "回答中的图片稍后加载" }] });
+      const viewport = container.querySelector(".conversation")! as HTMLElement;
+      let height = 900;
+      Object.defineProperty(viewport, "scrollHeight", { configurable: true, get: () => height });
+      Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 200 });
+      const observer = observers.find(item => item.targets.includes(viewport));
+      const grow = () => act(() => {
+        observer?.callback();
+        while (frames.length) frames.shift()!(0);
+      });
+      grow();
+      expect(viewport.scrollTop).toBe(900);
+      height = 1200;
+      grow();
+      expect(viewport.scrollTop).toBe(1200);
+      viewport.scrollTop = 50;
+      fireEvent.scroll(viewport);
+      height = 1600;
+      grow();
+      expect(viewport.scrollTop).toBe(50);
+    } finally {
+      raf.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("labels live updates when the user scrolls away during generation", () => {
     const { container } = renderPanel({
       isSending: true,

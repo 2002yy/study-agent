@@ -21,10 +21,22 @@ describe("inline learning interactions", () => {
     expect(screen.getByRole("slider", { name: "二次函数 系数 a" })).toHaveValue("1");
   });
   it("switches chart presentation without changing source data, including negative and zero values", () => {
-    render(<MarkdownMessage interactive content={block({ type: "chart", title: "样例", points: [{ label: "甲", value: -3 }, { label: "乙", value: 0 }] })} />);
+    const { container } = render(<MarkdownMessage interactive content={block({ type: "chart", title: "样例", unit: "秒", points: [{ label: "甲", value: -3 }, { label: "乙", value: 0 }, { label: "丙", value: 3 }] })} />);
+    expect(screen.getByRole("list", { name: "样例，条形图" })).toHaveTextContent("甲-3乙0丙3");
+    const bars = container.querySelectorAll<HTMLElement>(".answer-bar-fill");
+    expect(Array.from(bars, bar => [bar.style.left, bar.style.width])).toEqual([["0%", "50%"], ["50%", "0%"], ["50%", "50%"]]);
+    expect(screen.getByText("单位：秒")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "折线图" }));
     expect(screen.getByRole("img")).toHaveAccessibleName(/折线图/);
     expect(screen.getByRole("table")).toHaveTextContent("-3");
+  });
+  it("starts ordered data in the requested line view and keeps the units when switching", () => {
+    render(<MarkdownMessage interactive content={block({ type: "chart", title: "月度样例", view: "line", unit: "次", points: [{ label: "一月", value: 0 }, { label: "二月", value: 0 }] })} />);
+    expect(screen.getByRole("button", { name: "折线图" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("img")).toHaveAccessibleName(/折线图/);
+    fireEvent.click(screen.getByRole("button", { name: "条形图" }));
+    expect(screen.getByRole("list")).toHaveTextContent("一月0二月0");
+    expect(screen.getByRole("columnheader", { hidden: true, name: "数值（次）" })).toBeInTheDocument();
   });
   it("offers explicit draft actions only for assistant-rendered components", () => {
     const onDraft = vi.fn();

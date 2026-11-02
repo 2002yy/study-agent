@@ -1,25 +1,36 @@
-.answer-card { min-width: 0; margin: 16px 0; padding: 18px; background: #f8fafb; border: 1px solid #e1e8ed; border-radius: 14px; color: var(--text); overflow-wrap: anywhere; }
+.answer-card { min-width: 0; margin: 20px 0; padding: 20px; background: #f7f9f5; border: 1px solid #dce5da; border-radius: 14px; color: var(--text); overflow-wrap: anywhere; }
 .answer-card:first-child { margin-top: 0; }
 .answer-card:last-child { margin-bottom: 0; }
-.answer-card h3 { font-family: var(--font-interface); font-size: 15px; line-height: 1.5; margin: 0 0 12px; font-weight: 600; }
-.answer-card svg[role="img"] { display: block; width: 100%; height: auto; color: #4c7290; }
-.answer-card svg text { fill: #64717e; font-family: var(--font-interface); font-size: 12px; }
-.answer-grid { stroke: #d9e2e9; stroke-width: 1; }
+.answer-card h3 { font-family: var(--font-interface); font-size: 16px; line-height: 1.5; margin: 0 0 12px; font-weight: 600; }
+.answer-card svg[role="img"] { display: block; width: 100%; height: auto; color: #296b55; }
+.answer-card svg text { fill: #52685a; font-family: var(--font-interface); font-size: 16px; }
+.answer-grid { stroke: #d7e2d5; stroke-width: 1; }
 .answer-formula { display: flex; flex-direction: column; gap: 5px; margin: 0 0 8px; }
 .answer-formula output { font-variant-numeric: tabular-nums; font-size: 16px; }
 .answer-formula span, .answer-card small, .answer-card figcaption, .answer-coordinate { color: var(--muted); font-size: 12px; line-height: 1.6; }
 .answer-controls, .answer-view-toggle, .answer-followups, .answer-places { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .answer-card :is(button, a) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 7px 10px; border: 1px solid #dce4ea; border-radius: 8px; background: #fff; color: var(--text); font-size: 12px; line-height: 1.5; text-decoration: none; cursor: pointer; white-space: normal; }
-.answer-card button[aria-pressed="true"] { background: #eaf1f6; border-color: #b9ccd9; }
-.answer-card button:hover:not(:disabled), .answer-card a:hover { background: #edf3f7; }
+.answer-card button[aria-pressed="true"] { background: #e8f0e5; border-color: #adc3ad; color: #245840; }
+.answer-card button:hover:not(:disabled), .answer-card a:hover { background: #eef3eb; }
 .answer-card button:disabled { opacity: .55; cursor: default; }
-.answer-card :is(button, a, input, summary):focus-visible { outline: 2px solid #567f9a; outline-offset: 3px; }
+.answer-card :is(button, a, input, summary, [tabindex]):focus-visible { outline: 2px solid #296b55; outline-offset: 3px; }
 .answer-controls label { flex: 1 1 110px; display: grid; grid-template-columns: 1fr auto; gap: 6px; color: var(--muted); font-size: 12px; }
-.answer-controls input[type="range"] { grid-column: 1 / -1; width: 100%; min-width: 0; height: 30px; margin: 0; accent-color: #4c7290; padding: 0; }
+.answer-controls input[type="range"] { grid-column: 1 / -1; width: 100%; min-width: 0; height: 30px; margin: 0; accent-color: #296b55; padding: 0; }
 .answer-data { margin-top: 12px; font-size: 12px; }
 .answer-data summary { cursor: pointer; color: var(--muted); padding: 8px 0; }
 .answer-card .answer-data table { width: 100%; margin: 6px 0; border-collapse: collapse; }
 .answer-card .answer-data :is(th, td) { text-align: left; padding: 7px; border-bottom: 1px solid #e1e8ed; font-size: 12px; }
+.answer-chart-unit { margin: 12px 0 4px; font-size: 13px; color: #52685a; }
+.answer-card .answer-bars { display: grid; gap: 16px; margin: 20px 0; padding: 0; list-style: none; }
+.answer-bars li { display: grid; grid-template-columns: minmax(64px, 1fr) minmax(60px, 2fr) minmax(32px, auto); align-items: center; gap: 12px; }
+.answer-card .answer-bar-label, .answer-card .answer-bar-value { display: block; font: 14px/1.5 var(--font-interface); color: var(--text); }
+.answer-card .answer-bar-value { text-align: right; font-variant-numeric: tabular-nums; }
+.answer-card .answer-bar-track { position: relative; display: block; height: 12px; background: #e6ede2; border-radius: 3px; }
+.answer-bar-fill { position: absolute; top: 0; height: 100%; background: #39765d; border-radius: 3px; }
+.answer-bar-zero { position: absolute; top: -3px; height: 18px; width: 1px; background: #809981; }
+.answer-chart-scroll { max-width: 100%; margin-top: 16px; overflow-x: auto; }
+.answer-chart-scroll svg { min-width: 420px; }
+.answer-card-chart .answer-data :is(th, td) { font-size: 14px; font-variant-numeric: tabular-nums; }
 .answer-picture { margin: 0; }
 .answer-picture img { display: block; width: 100%; max-height: 260px; object-fit: contain; border-radius: 8px; background: #fff; }
 .answer-picture.is-expanded img { max-height: 75vh; }
@@ -51,7 +62,8 @@
 @media (max-width: 600px) {
   .answer-card { padding: 12px; border-radius: 12px; }
   .answer-card :is(button, a) { min-height: 44px; }
-  .answer-card h3 { font-size: 14px; }
+  .answer-card h3 { font-size: 16px; }
+  .answer-bars li { gap: 8px; }
 }
 
 /* Browser-side resource consent applies to both study-ui cards and Markdown images. */

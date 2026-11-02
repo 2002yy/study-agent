@@ -186,6 +186,8 @@ test("two supplements and one queued task stay in one continuous research conver
     await expect(page.getByText("我会先比较功能与 PSD 兼容性，再核对哪些操作能由 Agent 完成。")).toBeVisible();
     // Only this message's selection travels with the request...
     expect(firstChatBody?.attachment_ids).toEqual(["att1"]);
+    expect(firstChatBody?.conversation_instruction).toContain("聊天图表设计准则 v1");
+    expect(firstChatBody?.conversation_instruction).toContain("缺失值不是零");
     // ...and it is cleared once the message was sent.
     await expect(page.getByText("本次选中 1 个")).toHaveCount(0);
     // No duplicated global status surface while the run is live.
@@ -194,7 +196,8 @@ test("two supplements and one queued task stay in one continuous research conver
     await expect(portrait).toBeVisible();
     await expect.poll(() => portrait.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(512);
     const avatarBox = await page.locator('.message.assistant > .avatar').first().boundingBox();
-    expect(avatarBox?.width).toBe(page.viewportSize()!.width > 900 ? 96 : 80);
+    // Keep the character's expression visible without narrowing the answer body.
+    expect(avatarBox?.width).toBe(page.viewportSize()!.width <= 600 ? 72 : 88);
     const composerBox = await page.locator('.composer-main').boundingBox();
     expect(composerBox?.height).toBeLessThan(170);
     const filename = page.locator('.composer-attachment-name').first();

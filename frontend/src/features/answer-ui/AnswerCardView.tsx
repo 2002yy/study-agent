@@ -30,28 +30,36 @@ function Plot({ card }: { card: Extract<AnswerCard, { type: "plot" }> }) {
 }
 
 function Chart({ card }: { card: Extract<AnswerCard, { type: "chart" }> }) {
-  const [mode, setMode] = useState<"bar" | "line">("bar");
+  const [mode, setMode] = useState<"bar" | "line">(card.view ?? "bar");
   const min = Math.min(0, ...card.points.map(p => p.value));
   const max = Math.max(0, ...card.points.map(p => p.value));
   const range = max - min || 1;
   const y = (value: number) => 195 - (value - min) / range * 165;
   const x = (i: number) => 55 + i / (card.points.length - 1) * 360;
-  const barWidth = Math.min(28, 300 / card.points.length);
+  const position = (value: number) => (value - min) / range * 100;
   return <>
     <div className="answer-view-toggle" aria-label={`${card.title} 图表类型`}>
-      <button type="button" aria-pressed={mode === "bar"} onClick={() => setMode("bar")}>柱状图</button>
+      <button type="button" aria-pressed={mode === "bar"} onClick={() => setMode("bar")}>条形图</button>
       <button type="button" aria-pressed={mode === "line"} onClick={() => setMode("line")}>折线图</button>
     </div>
-    <svg viewBox="0 0 480 230" role="img" aria-label={`${card.title}，${mode === "bar" ? "柱状图" : "折线图"}，${card.points.length} 项；完整数值在下方表格`}>
+    {card.unit ? <p className="answer-chart-unit">单位：{card.unit}</p> : null}
+    {mode === "bar" ? <ul className="answer-bars" aria-label={`${card.title}，条形图`}>
+      {card.points.map((point, index) => <li key={index}>
+        <span className="answer-bar-label">{point.label}</span>
+        <span className="answer-bar-track" aria-hidden="true">
+          <span className="answer-bar-zero" style={{ left: `${position(0)}%` }} />
+          <span className="answer-bar-fill" style={{ left: `${Math.min(position(0), position(point.value))}%`, width: `${Math.abs(point.value) / range * 100}%` }} />
+        </span>
+        <span className="answer-bar-value">{point.value.toLocaleString()}</span>
+      </li>)}
+    </ul> : <div className="answer-chart-scroll" role="region" aria-label="折线图画布，可横向滚动" tabIndex={0}><svg viewBox="0 0 480 230" role="img" aria-label={`${card.title}，折线图，${card.points.length} 项；完整数值在下方表格`}>
       <line x1="40" x2="440" y1={y(0)} y2={y(0)} className="answer-grid" />
       <text x="36" y="24">{max.toLocaleString()}</text><text x="36" y="215">{min.toLocaleString()}</text>
-      {mode === "line" ? <polyline points={card.points.map((p, i) => `${x(i)},${y(p.value)}`).join(" ")} stroke="currentColor" strokeWidth="3" fill="none" /> : null}
-      {card.points.map((p, i) => mode === "bar"
-        ? <rect key={i} x={x(i) - barWidth / 2} y={Math.min(y(0), y(p.value))} width={barWidth} height={Math.abs(y(p.value) - y(0))} rx="3" fill="currentColor"><title>{p.label}：{p.value}</title></rect>
-        : <circle key={i} cx={x(i)} cy={y(p.value)} r="4" fill="currentColor"><title>{p.label}：{p.value}</title></circle>)}
+      <polyline points={card.points.map((p, i) => `${x(i)},${y(p.value)}`).join(" ")} stroke="currentColor" strokeWidth="3" fill="none" />
+      {card.points.map((p, i) => <circle key={i} cx={x(i)} cy={y(p.value)} r="4" fill="currentColor"><title>{p.label}：{p.value}{card.unit ? ` ${card.unit}` : ""}</title></circle>)}
       <text x="55" y="228" textAnchor="start">{card.points[0].label.slice(0, 10)}</text><text x="415" y="228" textAnchor="end">{card.points[card.points.length - 1].label.slice(0, 10)}</text>
-    </svg>
-    <details className="answer-data"><summary>查看完整数据</summary><table><thead><tr><th>项目</th><th>数值</th></tr></thead><tbody>{card.points.map((p, i) => <tr key={i}><td>{p.label}</td><td>{p.value.toLocaleString()}</td></tr>)}</tbody></table></details>
+    </svg></div>}
+    <details className="answer-data"><summary>查看完整数据</summary><table><thead><tr><th scope="col">项目</th><th scope="col">数值{card.unit ? `（${card.unit}）` : ""}</th></tr></thead><tbody>{card.points.map((p, i) => <tr key={i}><td>{p.label}</td><td>{p.value.toLocaleString()}</td></tr>)}</tbody></table></details>
   </>;
 }
 

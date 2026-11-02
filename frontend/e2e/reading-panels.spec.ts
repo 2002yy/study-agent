@@ -26,7 +26,8 @@ test("separate reading and chat panels keep the draft, evidence and focus contro
   if (page.viewportSize()!.width > 900) {
     const reader = (await page.locator(".document-reader").boundingBox())!;
     const chat = (await page.locator(".chat-column").boundingBox())!;
-    expect(chat.x - reader.x - reader.width).toBeGreaterThanOrEqual(15.5);
+    // A+C keeps the answer on the left and the source on the right.
+    expect(reader.x).toBeGreaterThanOrEqual(chat.x + chat.width - 1);
     await page.getByRole("button", { name: "专注", exact: true }).click();
     await expect(page.locator(".chat-column")).toBeHidden();
     await page.getByRole("button", { name: "恢复并排", exact: true }).click();

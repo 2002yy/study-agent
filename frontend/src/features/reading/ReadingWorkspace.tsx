@@ -6,7 +6,6 @@ import { readDocument, type DocumentReading, type ReadingTarget } from "./readin
 import { DocumentReader } from "./DocumentReader";
 import "./readingWorkspace.css";
 import "./workspaceInterior.css";
-import "./chatAppearance.css";
 import "./workspacePolish.css";
 import { PanelResizeHandle } from "./PanelResizeHandle";
 
@@ -100,9 +99,11 @@ export function ReadingLayout({children}: {children: ReactNode}) {
         <button type="button" aria-pressed={reader?.mode === "read"} onClick={reader?.showReader}><BookOpen size={15}/>资料</button>
         <button type="button" aria-pressed={reader?.mode === "chat"} onClick={reader?.showChat}><MessageSquare size={15}/>对话</button>
       </nav>
+    </> : null}
+    {children}
+    {active ? <>
       <DocumentReader/>
       {!reader?.focused ? <PanelResizeHandle panel="reading" /> : null}
     </> : null}
-    {children}
   </div>;
 }

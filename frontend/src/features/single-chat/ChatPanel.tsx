@@ -263,6 +263,7 @@ export function ChatPanel(props: ChatPanelProps) {
   const roleSettingsId = useId();
   const [roleSettingsOpen, setRoleSettingsOpen] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const followLatestRef = useRef(true);
   const [messageCopy, setMessageCopy] = useState<{ index: number; state: CopyState } | null>(null);
   const [interruptedCopy, setInterruptedCopy] = useState<CopyState>("idle");
   const [copyAnnouncement, setCopyAnnouncement] = useState("");
@@ -334,14 +335,19 @@ export function ChatPanel(props: ChatPanelProps) {
     const element = conversationRef.current;
     if (!element) return;
     const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
-    setIsAtBottom(distanceFromBottom < 80);
+    followLatestRef.current = distanceFromBottom < 80;
+    setIsAtBottom(followLatestRef.current);
   };
 
   const scrollToLatest = () => {
     const element = conversationRef.current;
     if (!element) return;
+    followLatestRef.current = true;
     setIsAtBottom(true);
-    element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+    element.scrollTo({
+      top: element.scrollHeight,
+      behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
   };
 
   const copyMessage = async (content: string, index: number) => {
@@ -388,7 +394,10 @@ export function ChatPanel(props: ChatPanelProps) {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!canSubmit || !input.trim()) return;
-    if (!isSending) setIsAtBottom(true);
+    if (!isSending) {
+      followLatestRef.current = true;
+      setIsAtBottom(true);
+    }
     clearPendingTaskIntentOverride();
     if (isSending && busyInputMode === "queue") { await props.onQueue?.(input.trim()); return; }
     await onSubmit(event, !isSending && composerMode === "search" ? searchMessage(input) : input.trim());
@@ -402,17 +411,21 @@ export function ChatPanel(props: ChatPanelProps) {
     if (!element) return;
 
     const pinToLatest = () => {
-      element.scrollTop = element.scrollHeight;
+      // A scroll event can arrive before React commits the new state.
+      if (followLatestRef.current) element.scrollTop = element.scrollHeight;
     };
     pinToLatest();
-    let followupFrame = 0;
-    const frame = window.requestAnimationFrame(() => {
-      pinToLatest();
-      followupFrame = window.requestAnimationFrame(pinToLatest);
+    let frame = 0;
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(pinToLatest);
     });
+    // Follow late image/layout growth only while the reader remains at the end.
+    observer?.observe(element);
+    Array.from(element.children).forEach(child => observer?.observe(child));
     return () => {
       window.cancelAnimationFrame(frame);
-      if (followupFrame) window.cancelAnimationFrame(followupFrame);
+      observer?.disconnect();
     };
   }, [messages, streamRecovery, isAtBottom]);
 
@@ -420,6 +433,7 @@ export function ChatPanel(props: ChatPanelProps) {
     // A previous session may have been scrolled up. A newly opened session
     // should display its newest turn rather than inherit that scroll lock.
     setIsAtBottom(true);
+    followLatestRef.current = true;
     clearPendingTaskIntentOverride();
     setComposerMode("chat");
     setRoleSettingsOpen(false);

@@ -48,11 +48,6 @@
 .app-shell .sources-library .inline-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .app-shell .sources-library .session-row :is(strong,small) { overflow-wrap: anywhere; }
 .app-shell .slide-over .ghost-action { border-color: var(--border); color: var(--text); }
-@media (min-width: 1101px) {
-  .app-shell:has(.reading-layout) { padding: 16px 16px 16px 24px; gap: 16px; background: #f0f4f3; }
-  .app-shell:has(.reading-layout) > .session-sidebar { border: 1px solid var(--border); border-radius: 12px; background: #fbfcfa; }
-  .app-shell:has(.reading-layout) > .reading-layout { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-}
 @media (max-width: 600px) {
   .app-shell .slide-over-body { padding: 16px; }
   .app-shell .slide-over-header { padding: 12px 16px; }

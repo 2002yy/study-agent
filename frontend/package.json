@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run src",
     "test:e2e": "playwright test",
+    "test:experience": "playwright test --config=playwright.experience.config.ts",
     "test:e2e:real-stack": "playwright test --config=playwright.real-stack.config.ts",
     "test:e2e:g12": "playwright test --config=playwright.g12-acceptance.config.ts"
   },

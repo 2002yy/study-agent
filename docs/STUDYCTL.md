@@ -22,10 +22,19 @@ L2 的 `stage_gates` 及其测试路径；没有第二份测试注册表，也�
 使用不带它的独立 worktree，避免测试读取真实令牌。
 
 前端现有入口仍是 `frontend/package.json`：在 frontend 目录运行
-`npm test -- <测试路径>`、`npm run build` 或
+`npx vitest run <测试路径>`、`npm run build` 或
 `npm run test:e2e -- --project=desktop-chromium <用例路径>`。
 Playwright 脚本直接断言 DOM、请求与交互；截图仅用于视觉检查。
 真实模型质量对比必须另行授权预算，不能用上述离线 PASS 代替。
+
+A+C 界面的有界回归使用 `npm run test:experience`。它复用项目 Playwright
+设置与 API fixture，覆盖输入、连续对话、来源、阅读分栏、拖动、字号和可访问性。
+也覆盖角色头像、图表单位/视图与实际聊天请求的设计准则。设置
+`$env:UI_EVIDENCE_DIR = '<绝对输出目录>'` 可保存桌面和手机截图供视觉复核。
+这是独立的 UI 子集，不要求完整 Golden Journey 的产物清单；
+原 `npm run test:e2e` 及 CI 全门保持不变。
+`npm test` 固定运行整个 src 测试集，传入额外文件名不能缩小它；
+局部验证应使用上面的 Vitest 直接命令。
 
 ## GitHub可信采集核心
 

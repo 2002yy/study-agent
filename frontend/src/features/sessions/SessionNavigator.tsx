@@ -74,7 +74,7 @@ export function SessionNavigator({
       <header className="session-sidebar-header">
         <div className="workspace-sidebar-brand">
           <BookOpen size={20} aria-hidden="true"/>
-          <strong>学习工作台</strong>
+          <strong>Study Agent</strong>
         </div>
         <button
           className="ghost-action compact"

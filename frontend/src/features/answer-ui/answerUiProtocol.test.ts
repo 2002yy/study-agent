@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { answerCopyText, packAnswerUiContext, parseAnswerCard, safeImageUrl, splitAnswerContent } from "./answerUiProtocol";
+import { CHAT_VISUAL_DESIGN } from "./chatVisualDesign";
 
 const plot = JSON.stringify({ type: "plot", title: "函数", fn: "quadratic", a: 1, b: 0 });
 const block = (raw: string) => `\`\`\`study-ui\n${raw}\n\`\`\``;
@@ -34,12 +35,23 @@ describe("answer UI wire format", () => {
     expect(safeImageUrl("/assets/avatars/nahida.png")).toBe(true);
     expect(safeImageUrl("https://example.com/a.png")).toBe(true);
   });
+  it("keeps legacy charts readable and validates optional presentation without accepting styles", () => {
+    const chart = { type: "chart", title: "两个月的耗时", points: [{ label: "一月", value: 2 }, { label: "二月", value: 3 }] };
+    expect(parseAnswerCard(JSON.stringify(chart))).toMatchObject(chart);
+    const formatted = { ...chart, view: "line", unit: "秒", style: { color: "red" } };
+    expect(parseAnswerCard(JSON.stringify(formatted))).toMatchObject({ view: "line", unit: "秒" });
+    expect(parseAnswerCard(JSON.stringify(formatted))).not.toHaveProperty("style");
+    expect(answerCopyText(block(JSON.stringify(formatted)))).toContain("一月：2 秒");
+    expect(parseAnswerCard(JSON.stringify({ ...chart, view: "pie" }))).toBeNull();
+    expect(parseAnswerCard(JSON.stringify({ ...chart, unit: "字".repeat(21) }))).toBeNull();
+  });
   it("strips unknown fields and frames UI instructions separately from durable preferences", () => {
     expect(parseAnswerCard(JSON.stringify({ type: "plot", title: "函数", fn: "quadratic", a: 1, b: 0, onClick: "bad()" }))).not.toHaveProperty("onClick");
     const encoded = packAnswerUiContext(" 用户手写要求 ", "原有示例状态");
     const payload = JSON.parse(encoded.replace("__STUDY_AGENT_TURN_CONTEXT_V1__", ""));
     expect(payload.conversation_instruction).toBe(" 用户手写要求 ");
     expect(payload.turn_context).toContain("study-ui");
+    expect(payload.turn_context).toContain(CHAT_VISUAL_DESIGN);
     expect(payload.turn_context).toContain("原有示例状态");
     expect(payload.turn_context.length).toBeLessThan(12000);
   });

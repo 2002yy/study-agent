@@ -47,7 +47,7 @@ test("panel widths can be dragged, restored and kept across reload without chang
   const initialReading = await width(".document-reader");
   await reading.focus();
   await reading.press("ArrowLeft");
-  await expect.poll(() => width(".document-reader")).toBeCloseTo(initialReading - 16, 0);
+  await expect.poll(() => width(".document-reader")).toBeCloseTo(initialReading + 16, 0);
   const savedReading = await width(".document-reader");
   await expect(page.getByLabel("输入学习问题")).toHaveValue("调整宽度时保留这段草稿");
   await page.reload();

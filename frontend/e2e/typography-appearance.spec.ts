@@ -23,6 +23,6 @@ test("reading fonts switch immediately and persist without a settings API write"
   expect(writes).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   if (page.viewportSize()!.width > 1100) {
-    expect((await page.locator(".session-sidebar").boundingBox())!.x).toBeGreaterThanOrEqual(24);
+    expect((await page.locator(".session-sidebar").boundingBox())!.x).toBe(0);
   }
 });

@@ -54,7 +54,8 @@ export function PanelResizeHandle({ panel }: { panel: Panel }) {
       }
       const rect = target.getBoundingClientRect();
       current = rect.width;
-      element.style.left = `${rect.right - root.getBoundingClientRect().left + 2}px`;
+      const edge = panel === "reading" ? rect.left - 6 : rect.right - 6;
+      element.style.left = `${edge - root.getBoundingClientRect().left}px`;
       setSize(previous => previous.min === bounds.min && previous.max === bounds.max && previous.value === current
         ? previous : { ...bounds, value: current });
     };
@@ -109,7 +110,8 @@ export function PanelResizeHandle({ panel }: { panel: Panel }) {
     onDoubleClick={() => controller.current?.reset()}
     onKeyDown={event => {
       const step = event.shiftKey ? 32 : 16;
-      const value = event.key === "ArrowLeft" ? size.value - step : event.key === "ArrowRight" ? size.value + step
+      const direction = panel === "reading" ? -1 : 1;
+      const value = event.key === "ArrowLeft" ? size.value - step * direction : event.key === "ArrowRight" ? size.value + step * direction
         : event.key === "Home" ? size.min : event.key === "End" ? size.max : null;
       if (event.key === "Enter") { event.preventDefault(); controller.current?.reset(); }
       if (value !== null) { event.preventDefault(); controller.current?.move(value); controller.current?.save(); }
@@ -125,7 +127,7 @@ export function PanelResizeHandle({ panel }: { panel: Panel }) {
     onPointerMove={event => {
       if (drag.current?.pointer !== event.pointerId) return;
       event.preventDefault();
-      controller.current?.move(drag.current.width + event.clientX - drag.current.x);
+      controller.current?.move(drag.current.width + (event.clientX - drag.current.x) * (panel === "reading" ? -1 : 1));
     }}
     onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}
   />;

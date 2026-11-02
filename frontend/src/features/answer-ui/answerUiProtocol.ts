@@ -1,10 +1,12 @@
+import { CHAT_VISUAL_DESIGN } from "./chatVisualDesign";
+
 export type AnswerCard =
   | { type: "memory_lab"; title: string; initialName: string; updatedName: string }
   | { type: "performance_lab"; title: string; pages: number; concurrency: number; readSeconds: number; summarySeconds: number }
   | { type: "evidence_lab"; title: string; mode: "simulation"; sources: ({ label: string; kind: "measurement"; aSeconds: number; bSeconds: number } | { label: string; kind: "opinion"; text: string })[] }
   | { type: "image"; title: string; src: string; alt: string; caption?: string }
   | { type: "plot"; title: string; fn: "linear" | "quadratic" | "sine"; a: number; b: number }
-  | { type: "chart"; title: string; points: { label: string; value: number }[] }
+  | { type: "chart"; title: string; view?: "bar" | "line"; unit?: string; points: { label: string; value: number }[] }
   | { type: "actions"; title: string; items: { label: string; prompt: string }[] }
   | { type: "map"; title: string; points: { label: string; lat: number; lon: number }[] };
 
@@ -54,8 +56,10 @@ export function parseAnswerCard(raw: string): AnswerCard | null {
       && number(c.a) && Math.abs(c.a) <= 5 && number(c.b) && Math.abs(c.b) <= 10)
       return { type: "plot", title, fn: c.fn as "linear" | "quadratic" | "sine", a: c.a, b: c.b };
     if (c.type === "chart" && Array.isArray(c.points) && c.points.length >= 2 && c.points.length <= 40
+      && (c.view === undefined || c.view === "bar" || c.view === "line")
+      && (c.unit === undefined || text(c.unit, 20))
       && c.points.every(p => record(p) && text(p.label, 60) && number(p.value)))
-      return { type: "chart", title, points: c.points.map(p => ({ label: p.label, value: p.value })) };
+      return { type: "chart", title, view: c.view, unit: c.unit, points: c.points.map(p => ({ label: p.label, value: p.value })) };
     if (c.type === "actions" && Array.isArray(c.items) && c.items.length >= 1 && c.items.length <= 4
       && c.items.every(p => record(p) && text(p.label, 40) && text(p.prompt, 600)))
       return { type: "actions", title, items: c.items.map(p => ({ label: p.label, prompt: p.prompt })) };
@@ -100,7 +104,7 @@ export function splitAnswerContent(content: string, streaming = false): AnswerPa
 export const ANSWER_UI_CONTEXT = `【回答中的学习交互组件 v1；仅本轮界面能力，不是学习事实】
 优先给出简洁文字，只有确实帮助理解时才添加组件。遵守当前教学策略、引用与证据发布约束；不要输出内部思维链，不要宣称尚未核验的事实。正文继续使用 Markdown，组件放在独立的 study-ui fenced JSON 代码块中，每块仅一个对象，完整关闭后即可显示。最多4块。支持以下格式：
 {"type":"plot","title":"探索函数","fn":"quadratic","a":1,"b":0}：fn只能linear/quadratic/sine，分别y=a*x+b、y=a*x*x+b、y=a*sin(x)+b；a在[-5,5]、b在[-10,10]，x固定[-5,5]，控件可调a/b。适合说明，不是实测数据。
-{"type":"chart","title":"数据比较","points":[{"label":"甲","value":2},{"label":"乙","value":3}]}：2到40项，只用有依据的数据；示例必须在正文标注。原有引用写在相邻正文中。
+{"type":"chart","title":"示意：两种方案的耗时","view":"bar","unit":"秒","points":[{"label":"方案甲","value":2},{"label":"方案乙","value":3}]}：2到40项；view可选bar/line，省略默认bar；unit可选，最多20字。只用有依据的数据；示例必须在标题和正文标注。原有引用写在相邻正文中。
 {"type":"image","title":"示意图","src":"https://...","alt":"图像描述","caption":"来源与说明"}：仅用已知可访问的真实图片URL或/assets/路径，不编造URL、不使用代码或data URL。
 {"type":"actions","title":"继续探索","items":[{"label":"练习一下","prompt":"给我一道相关练习题"}]}：1到4个按钮，仅将问题放入输入框由用户决定发送，不执行外部操作。
 {"type":"map","title":"地点","points":[{"label":"地点名","lat":30,"lon":120}]}：只用有依据的坐标，lat在[-85,85]、lon在[-180,180]；地点选择可打开OpenStreetMap底图，没有坐标时改用文字。
@@ -114,7 +118,7 @@ export function packAnswerUiContext(instruction: string, lesson: string): string
   // Reuse the server's existing transient envelope; UI guidance is never saved as a user's instruction.
   return "__STUDY_AGENT_TURN_CONTEXT_V1__" + JSON.stringify({
     conversation_instruction: instruction,
-    turn_context: [ANSWER_UI_CONTEXT, lesson.trim()].filter(Boolean).join("\n\n"),
+    turn_context: [ANSWER_UI_CONTEXT, CHAT_VISUAL_DESIGN, lesson.trim()].filter(Boolean).join("\n\n"),
   });
 }
 
@@ -126,7 +130,7 @@ export function answerCopyText(content: string): string {
     const detail = c.type === "memory_lab" ? `Java概念实验：初始 a、b 指向 name=${c.initialName} 的同一对象；修改值=${c.updatedName}。`
       : c.type === "performance_lab" ? `模拟参数：${c.pages}页，并发${c.concurrency}，每页${c.readSeconds}秒，总结${c.summarySeconds}秒。不是实测。`
       : c.type === "evidence_lab" ? `虚构证据实验：${c.sources.map(p => p.label).join("、")}；本地选择不改变正式研究结论。`
-      : c.type === "chart" ? c.points.map(p => `${p.label}：${p.value}`).join("\n")
+      : c.type === "chart" ? c.points.map(p => `${p.label}：${p.value}${c.unit ? ` ${c.unit}` : ""}`).join("\n")
       : c.type === "image" ? [c.alt, c.caption, c.src].filter(Boolean).join("\n")
       : c.type === "map" ? c.points.map(p => `${p.label}：${p.lat}°, ${p.lon}°`).join("\n")
       : c.type === "actions" ? c.items.map(p => `${p.label}：${p.prompt}`).join("\n")
