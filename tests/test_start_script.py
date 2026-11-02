@@ -60,6 +60,17 @@ def test_start_script_never_hands_the_token_to_vite():
     assert "Remove-Item Env:VITE_STUDY_AGENT_API_TOKEN" in text
 
 
+def test_opened_browser_receives_the_token_in_the_url_fragment_only():
+    """A fragment never reaches the server or a Referer, so it is the one safe
+    place to hand a token to the page the launcher opens."""
+
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert '"$FrontendUrl/#token="' in text
+    assert "[uri]::EscapeDataString" in text
+    assert "Start-Process $openUrl" in text
+
+
 def test_start_script_probes_providers_with_the_token_or_says_it_is_missing():
     text = SCRIPT.read_text(encoding="utf-8")
 

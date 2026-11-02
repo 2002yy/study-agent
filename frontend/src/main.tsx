@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { humanizeUiError } from "./utils/uiLabels";
+import { adoptTokenFromLocation } from "./apiToken";
 import App from "./App";
 import { WorkspaceProvider } from "./app/WorkspaceProvider";
 import { seedMessages } from "./features/single-chat/chatHistory";
@@ -43,6 +44,9 @@ class AppErrorBoundary extends React.Component<React.PropsWithChildren, AppError
     return this.props.children;
   }
 }
+
+// Adopt the launcher's one-time #token=... handoff before the first request.
+adoptTokenFromLocation();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

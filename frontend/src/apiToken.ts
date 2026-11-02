@@ -49,6 +49,33 @@ export function setApiToken(token: string): void {
   }
 }
 
+/**
+ * Adopt a token the launcher handed over in the URL fragment.
+ *
+ * `#token=...` never reaches the server (fragments are client-only) and is not
+ * sent as a Referer, so the launcher can open a ready-to-use page without
+ * pasting anything, while the 401-without-token contract stays intact.
+ */
+export function adoptTokenFromLocation(): boolean {
+  const location = (globalThis as { location?: Location }).location;
+  const history = (globalThis as { history?: History }).history;
+  if (!location) return false;
+  const hash = String(location.hash || "");
+  if (!hash.startsWith("#")) return false;
+  const params = new URLSearchParams(hash.slice(1));
+  const candidate = (params.get("token") ?? "").trim();
+  if (!candidate) return false;
+  setApiToken(candidate);
+  params.delete("token");
+  const rest = params.toString();
+  try {
+    history?.replaceState(null, "", `${location.pathname}${location.search}${rest ? `#${rest}` : ""}`);
+  } catch {
+    // History may be blocked; the token is already stored either way.
+  }
+  return true;
+}
+
 export function authHeaders(): Record<string, string> {
   const token = apiToken();
   return token ? { "X-Study-Agent-Token": token } : {};

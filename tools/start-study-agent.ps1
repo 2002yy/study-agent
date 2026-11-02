@@ -276,4 +276,13 @@ New-Item -ItemType Directory -Path $LaunchLogDirectory -Force | Out-Null
     started_process_ids = $StartedProcessIds; started_at = (Get-Date).ToString('o')
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $LaunchLogDirectory 'receipt.json') -Encoding UTF8
 Write-Host "Study Agent 已就绪：$FrontendUrl" -ForegroundColor Green
-if (-not $NoBrowser) { Start-Process $FrontendUrl }
+if (-not $NoBrowser) {
+    # Hand the token over in the URL fragment: fragments never reach the server
+    # or a Referer header, and the app strips it on load. Without this the user
+    # had to paste the token by hand before the first request succeeded.
+    $openUrl = $FrontendUrl
+    if (-not [string]::IsNullOrWhiteSpace([string]$env:STUDY_AGENT_API_TOKEN)) {
+        $openUrl = "$FrontendUrl/#token=" + [uri]::EscapeDataString([string]$env:STUDY_AGENT_API_TOKEN)
+    }
+    Start-Process $openUrl
+}
