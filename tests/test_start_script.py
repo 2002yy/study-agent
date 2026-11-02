@@ -66,7 +66,7 @@ def test_opened_browser_receives_the_token_in_the_url_fragment_only():
 
     text = SCRIPT.read_text(encoding="utf-8")
 
-    assert '"$FrontendUrl/#token="' in text
+    assert '"/#token" + "="' in text
     assert "[uri]::EscapeDataString" in text
     assert "Start-Process $openUrl" in text
 
