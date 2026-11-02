@@ -65,7 +65,7 @@ from src.llm_spend_guard import (
 )
 from src.memory import read_memory_bundle
 from src.mode_manager import load_runtime_modes
-from src.performance_budget import chat_max_tokens
+from src.performance_budget import chat_max_tokens, interactive_reply_max_tokens
 from src.pedagogy.engine import PedagogyEngine
 from src.pedagogy.evaluation import PedagogyEvalRun, PedagogyEvaluationService
 from src.pedagogy.evidence import EvidenceDisclosurePolicy, build_evidence_units
@@ -1164,9 +1164,7 @@ class ChatService:
                 self.fail_turn(prepared)
                 raise
             return self.complete_turn(prepared, "").assistant_message
-        max_tokens = self.dependencies.chat_max_tokens(
-            prepared.runtime_modes.performance_mode
-        )
+        max_tokens = self._answer_max_tokens(prepared)
         try:
             remaining_seconds(prepared.research_deadline)
         except TimeoutError:
@@ -1347,13 +1345,17 @@ class ChatService:
             self.dependencies.async_stream_chat, admission, scope=prepared.turn.id
         )
 
+    def _answer_max_tokens(self, prepared: PreparedChatTurn) -> int:
+        return interactive_reply_max_tokens(
+            self.dependencies.chat_max_tokens(prepared.runtime_modes.performance_mode),
+            prepared.messages,
+        )
+
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
         remaining_seconds(prepared.research_deadline)
         if answer_validation_active(prepared) and prepared.answer_validation is None:
             return
-        max_tokens = self.dependencies.chat_max_tokens(
-            prepared.runtime_modes.performance_mode
-        )
+        max_tokens = self._answer_max_tokens(prepared)
         if not self._begin_generation_call(prepared):
             return
         with self._spend_scope(prepared):
@@ -1375,9 +1377,7 @@ class ChatService:
         remaining_seconds(prepared.research_deadline)
         if answer_validation_active(prepared) and prepared.answer_validation is None:
             return
-        max_tokens = self.dependencies.chat_max_tokens(
-            prepared.runtime_modes.performance_mode
-        )
+        max_tokens = self._answer_max_tokens(prepared)
         started = self._begin_generation_call(prepared)
         if not started:
             return

@@ -18,6 +18,60 @@ from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
 from src.tools.web_agent import WebToolTrace
 
 
+@pytest.mark.parametrize("transport", ["generate", "stream", "stream_async"])
+@pytest.mark.parametrize("capability", [False, True])
+def test_interactive_output_budget_reaches_every_answer_transport(
+    tmp_path, transport, capability
+):
+    import asyncio
+
+    service, _ = _service(tmp_path)
+    captured = []
+
+    def chat(*args, **kwargs):
+        captured.append(kwargs["max_tokens"])
+        return "complete interactive answer"
+
+    def stream(*args, **kwargs):
+        yield chat(*args, **kwargs)
+
+    async def stream_async(*args, **kwargs):
+        yield chat(*args, **kwargs)
+
+    service.dependencies = replace(
+        service.dependencies,
+        chat=chat,
+        stream_chat=stream,
+        async_stream_chat=stream_async,
+    )
+    prepared = service.start_turn(
+        ChatCommand(
+            user_input="制作交互示意",
+            selected_role="nahida",
+            thread_id="interactive-budget",
+            rag_enabled=False,
+        )
+    )
+    # A quoted capability in user/history content must not change the ceiling.
+    prepared.messages.append(
+        {
+            "role": "system" if capability else "user",
+            "content": "【自由交互界面 v1】",
+        }
+    )
+    if transport == "generate":
+        service.generate(prepared)
+    elif transport == "stream":
+        list(service.stream(prepared))
+    else:
+
+        async def collect():
+            return [text async for text in service.stream_async(prepared)]
+
+        asyncio.run(collect())
+    assert captured == [6000 if capability else 1000]
+
+
 class FakeRagResult:
     context = "local context"
 

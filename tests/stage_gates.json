@@ -29,6 +29,18 @@
     }
   },
   "impact_sets": {
+    "intelligent_ui": [
+      "tests/test_chat_service.py",
+      "tests/test_turn_context_transport.py",
+      "tests/test_chat_lifecycle_e2e.py",
+      "tests/test_answer_publication_gate.py",
+      "tests/test_chat_routes_pedagogy.py",
+      "tests/test_api.py",
+      "tests/test_llm_spend_guard.py",
+      "tests/test_spend_guard_experiment.py",
+      "tests/test_spend_ledger_persistence.py",
+      "tests/test_stage_gates_policy.py"
+    ],
     "teaching_voice": [
       "tests/test_vivid_teaching.py",
       "tests/test_pedagogy_engine.py",
