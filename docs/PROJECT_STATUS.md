@@ -51,6 +51,60 @@ P2 owner=orchestration-prompt/UI，Static Loop：CLI `teaching_voice` 231 PASS�
 **唯一下一片：将此本地分支作为集成候选，按各片提交边界准备增量 PR 评审与所需远端门禁。**
 这段只记录本工作树，不能当成 main 已交付。
 
+### 2026-11-03 桌面启动链修复 + 首次真实模型验收（同分支续接）
+
+工作树同上，分支 `codex/experience-retrieval-20261101`，起始 HEAD
+`e885c863d29bf8093d80e9709d87e0f631612dc6`；本轮改动未提交前现场已备份到
+`D:/study-agent-validation/_wip-backup-20261102/`（patch + 三个未跟踪文件）。
+用户授权的本轮真实调用上限为 **¥30 累计**，实际使用见下。
+
+**P1 桌面启动链（此前从未跑通，三处真实缺陷）**
+1. `tools/manage-searxng.ps1` 为 UTF-8 无 BOM 且含中文：Windows PowerShell 5.1 按 ANSI
+   解析，实测 6 处语法错误（`Try 语句缺少 Catch 或 Finally`），Docker/SearXNG 编排整体失效。
+   补 BOM 后 0 错误；新增测试要求含非 ASCII 的 `tools/*.ps1` 必须带 BOM。
+2. 该 manager 只接受挂载本仓库 `settings.yml` 的容器，多检出场景直接把启动打成失败。
+   改为“内容相同（SHA256）即复用”，内容不同仍拒绝；旧的路径断言同时弱化。
+3. 启动器存在两个可观测缺陷：`-Install` 缺失时前端依赖检查会掩盖半装好的 `.venv`
+   （已拆分 Python/前端安装门），以及日志用嵌套隐藏 PowerShell 中转导致可诊断性差。
+   改为直接启动 `uvicorn` / `vite` 真实进程，回执 `started_process_ids` 记真实 PID，
+   并新增 `tools/stop-study-agent.ps1`（按回执端口 + 进程指纹收敛，绝不触碰 Docker）。
+
+实机验收（真实桌面入口 `C:\Users\Zhang\Desktop\study-agent-launcher.ps1`，默认端口 8001/5174）：
+Docker 引擎 29.9.2 → 固定 digest SearXNG 健康 → 后端 `/health` → 前端标题校验 →
+回执与 `logs/launcher/*.log` 落盘 → 重复启动零新增进程（幂等）→ 停止后端口全释放、
+SearXNG 容器仍在运行。
+
+**P3 首次真实模型验收（`tools/studyctl.py live check`，DeepSeek 官方端点）**
+首两次运行为工具自身缺陷（`.ps1` 被当 Win32 程序执行 → WinError 193；spend 账本未
+`initialize()`），均在模型调用前失败，**花费 ¥0**；修好后第三次为端口占用自检拦截（同样 ¥0）。
+最终 `checks-20261102-235918.json`：**PASS 10/10**，10 次调用，`reserved=2,598,860 µ`，
+即 **¥2.60 / ¥30，余 ¥27.40**。覆盖桌面+Docker、401 访问控制、三角色、费曼追问、
+附件、SearXNG 检索、持久化。
+
+**P1 附件真实缺陷（本轮唯一功能性修复）**
+真实链路下模型回答“看不到任何附件内容”。根因：附件正文只经本地 RAG 检索进入提示，
+`rag_enabled=false` 的普通轮次里 `attachment_material` 仅用于发布判定，从未进入模型上下文。
+`chat_service.attachment_context_block()` 现把绑定附件的解码文本作为独立上下文块注入
+（单附件 4000 字符、整块 12000 字符上限），基础与策略两条链路都调用。
+修复后同一用例回答 “当前库存 37 件 / 锁定 5 件 / 可售 32 件”，`attachment_values` PASS。
+
+**P2 冗余与视觉**
+清理：死变量 `$rootQuoted/$pythonQuoted`、服务启动的 PowerShell 中转层、Python 安装与
+前端 `node_modules` 的错误耦合；62 条被后续规则覆盖的 CSS 声明清零（随 A+C 接线一并提交）。
+界面延续 Codex 风格的浅色中性化（`--content-width` 840、去绿色强调、去顶部重复元信息），
+顶部栏只留标题与动作，任务契约改由 `WorkspaceActions` 单独承载。
+两处旧测试仍在断言已删除的顶部元信息，已改为断言新契约（保持“不泄露原始会话 ID”）。
+
+验证（L0+L1）：附件 43 PASS、聊天/策略/发布/教学影响集 157 PASS、启动与 SearXNG 及
+CLI 34 PASS；前端 610/610 通过（含 `tsc -b` + vite build）、桌面/手机 Playwright 32/32；
+Ruff 全绿、`git diff --check` 干净。**未运行 L2/L3，未 push/PR/merge。**
+真实模型证据只证明“链路可跑通、附件可读、三角色风格可区分”，**不构成回答质量优于其他产品的结论**。
+
+**下一执行片**：把本分支整理成可评审的增量 PR（先启动链、再附件、再 UI），并补齐
+`Test-FrontendIdentity` 标题与语言不一致的独立 P2；桌面入口默认指向主仓库而非本工作树，
+合并前不得用双击结果代表本分支能力。
+
+
 ### 验收基线与未验收能力分开记录
 
 | 方向 | 已证实进入 main | 尚未取得的资格 |
