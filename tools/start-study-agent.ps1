@@ -1,11 +1,21 @@
 ﻿param(
     [switch]$Install,
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$SkipSearXNG,
+    [ValidateRange(1024, 65535)][int]$BackendPort = 8000,
+    [ValidateRange(1024, 65535)][int]$FrontendPort = 5173,
+    [string]$ConfigPath = '',
+    [string]$PythonExecutable = ''
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
+if (-not $ConfigPath) { $ConfigPath = Join-Path $Root '.env' }
+$BackendUrl = "http://127.0.0.1:$BackendPort"
+$FrontendUrl = "http://127.0.0.1:$FrontendPort"
+$LaunchLogDirectory = Join-Path $Root 'logs\launcher'
+$StartedProcessIds = @()
 
 # The frontend identity probe lives in its own file so the tests can exercise
 # the same code the launcher runs.
@@ -29,7 +39,10 @@ function Import-DotEnv([string]$Path) {
             ($value.StartsWith("'") -and $value.EndsWith("'"))) {
             $value = $value.Substring(1, $value.Length - 2)
         }
-        [Environment]::SetEnvironmentVariable($name, $value, "Process")
+        # Explicit CLI environment wins, including the shared live-test budget.
+        if ($null -eq [Environment]::GetEnvironmentVariable($name, "Process")) {
+            [Environment]::SetEnvironmentVariable($name, $value, "Process")
+        }
     }
 }
 
@@ -49,7 +62,7 @@ function Test-Listening([int]$Port) {
 
 function Test-BackendIdentity {
     try {
-        $health = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health" -TimeoutSec 3
+        $health = Invoke-RestMethod -Uri "$BackendUrl/health" -TimeoutSec 3
         return $health.service -eq "study-agent"
     } catch {
         return $false
@@ -58,7 +71,7 @@ function Test-BackendIdentity {
 
 function Test-FrontendIdentity {
     try {
-        $response = Invoke-WebRequest -Uri "http://127.0.0.1:5173" -UseBasicParsing -TimeoutSec 3
+        $response = Invoke-WebRequest -Uri $FrontendUrl -UseBasicParsing -TimeoutSec 3
         return Test-StudyAgentFrontendContent -Content $response.Content
     } catch {
         return $false
@@ -83,37 +96,16 @@ function Wait-Until([scriptblock]$Probe, [int]$TimeoutSeconds = 45) {
     return $false
 }
 
-function Start-PowerShellWindow([string]$Title, [string]$Command) {
-    $safeTitle = $Title.Replace("'", "''")
-    $fullCommand = (
-        "`$Host.UI.RawUI.WindowTitle = '$safeTitle'" +
-        [Environment]::NewLine +
-        $Command
-    )
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($fullCommand))
-    Start-Process powershell.exe -ArgumentList @(
-        "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded
-    ) | Out-Null
-}
-
-function Test-DockerReady([string]$Docker) {
-    & $Docker info --format "{{.ServerVersion}}" *> $null
-    return $LASTEXITCODE -eq 0
-}
-
-function Start-DockerDesktop([string]$Docker) {
-    if (Test-DockerReady $Docker) { return $true }
-
-    $desktopCandidates = @(
-        "C:\Program Files\Docker\Docker\Docker Desktop.exe",
-        (Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe")
-    ) | Select-Object -Unique
-    $desktop = $desktopCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-    if (-not $desktop) { return $false }
-
-    Write-Host "正在启动 Docker Desktop，以恢复本地 SearXNG..." -ForegroundColor Cyan
-    Start-Process -FilePath $desktop -WindowStyle Hidden | Out-Null
-    return Wait-Until { Test-DockerReady $Docker } 120
+function Start-ServiceProcess([string]$Name, [string]$FilePath, [string[]]$Arguments, [string]$WorkingDirectory) {
+    New-Item -ItemType Directory -Path $LaunchLogDirectory -Force | Out-Null
+    # Launch the service executable directly: the recorded PID is the process a
+    # stop request must end, and its output lands in the launcher logs without a
+    # hidden PowerShell hop swallowing it.
+    $process = Start-Process -FilePath $FilePath -ArgumentList $Arguments `
+        -WorkingDirectory $WorkingDirectory -WindowStyle Hidden -PassThru `
+        -RedirectStandardOutput (Join-Path $LaunchLogDirectory "$Name.stdout.log") `
+        -RedirectStandardError (Join-Path $LaunchLogDirectory "$Name.stderr.log")
+    $script:StartedProcessIds += $process.Id
 }
 
 function Start-SearXNG {
@@ -123,17 +115,7 @@ function Start-SearXNG {
         }
     }
 
-    $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
-    if (-not $dockerCommand) {
-        Write-Warning "找不到 Docker CLI；应用仍会启动，但 SearXNG 状态为 unavailable。"
-        return $false
-    }
-    $docker = $dockerCommand.Source
-    if (-not (Start-DockerDesktop $docker)) {
-        Write-Warning "Docker Desktop 未能在 120 秒内就绪；应用仍会启动，但 SearXNG 状态为 unavailable。"
-        return $false
-    }
-
+    # The manager owns Docker startup and the pinned container lifecycle.
     $manager = Join-Path $PSScriptRoot "manage-searxng.ps1"
     if (-not (Test-Path -LiteralPath $manager -PathType Leaf)) {
         Write-Warning "找不到固定版本 SearXNG manager；应用仍会启动，但 SearXNG 状态为 unavailable。"
@@ -159,8 +141,8 @@ function Write-HealthLine([string]$Label, [string]$Status, [ConsoleColor]$Color)
 function Write-StartupSummary([bool]$SearXNGStarted) {
     Write-Host ""
     Write-Host "Study Agent 运行状态" -ForegroundColor Cyan
-    Write-HealthLine "后端 API" "ready · http://127.0.0.1:8000" Green
-    Write-HealthLine "前端 Web" "ready · http://127.0.0.1:5173" Green
+    Write-HealthLine "后端 API" "ready · $BackendUrl" Green
+    Write-HealthLine "前端 Web" "ready · $FrontendUrl" Green
 
     if ($SearXNGStarted -and (Test-SearXNGIdentity)) {
         Write-HealthLine "SearXNG 服务" "ready · http://127.0.0.1:8080" Green
@@ -173,7 +155,7 @@ function Write-StartupSummary([bool]$SearXNGStarted) {
             Write-HealthLine "检索能力" "未配置 API 令牌，跳过探针（先设置 STUDY_AGENT_API_TOKEN）" Yellow
         } else {
             $probeHeaders = @{ "X-Study-Agent-Token" = [string]$env:STUDY_AGENT_API_TOKEN }
-            $providerHealth = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health/providers?probe=true" -Headers $probeHeaders -TimeoutSec 10
+            $providerHealth = Invoke-RestMethod -Uri "$BackendUrl/health/providers?probe=true" -Headers $probeHeaders -TimeoutSec 10
             $provider = $providerHealth.providers | Where-Object { $_.name -eq "searxng" } | Select-Object -First 1
             if ($provider) {
                 $providerColor = if ($provider.status -eq "ready") { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow }
@@ -185,30 +167,25 @@ function Write-StartupSummary([bool]$SearXNGStarted) {
     }
 
     Write-Host ""
-    Write-Host "人工检查清单（本次启动不自动判定通过）" -ForegroundColor Cyan
-    Write-Host "  [ ] 1. 首页、恢复卡和输入框可见，无横向滚动或遮挡"
-    Write-Host "  [ ] 2. 发送一个真实学习问题，回复、Learning 状态与引用一致"
-    Write-Host "  [ ] 3. 设置 → 检测联网搜索显示 SearXNG 可用；研究结果含可点击来源"
-    Write-Host "  [ ] 4. Enter / Ctrl+Enter 设置、焦点返回和错误提示符合预期"
-    Write-Host "  [ ] 5. 缩窄窗口后检查抽屉、输入区、来源和恢复操作"
-    Write-Host "  [ ] 6. 使用真实屏幕阅读器检查 landmark、按钮名称与动态播报"
-    Write-Host "  [ ] 7. 检查普通/高对比度下的正文、焦点环、状态与链接辨识度"
-    Write-Host "  [ ] 8. 实体手机验收仍须按 docs/MOBILE_ACCEPTANCE_D4D.md 单独记录"
+    Write-Host "启动回执与服务日志：$LaunchLogDirectory"
+    Write-Host "功能验证使用 CLI；实体手机人工检查清单见 docs/MOBILE_ACCEPTANCE_D4D.md。"
     Write-Host ""
 }
 
 if (-not (Test-Path "requirements.txt")) { Fail "找不到 requirements.txt" }
 if (-not (Test-Path "frontend\package.json")) { Fail "找不到 frontend\package.json" }
-if (-not (Test-Path ".env")) {
+if (-not (Test-Path -LiteralPath $ConfigPath)) {
+    if ($ConfigPath -ne (Join-Path $Root '.env')) { Fail "找不到指定配置文件" }
     if (-not (Test-Path ".env.example")) { Fail "找不到 .env.example" }
     Copy-Item ".env.example" ".env"
-    Start-Process notepad.exe (Join-Path $Root ".env")
     Fail "已创建 .env；请填写配置后重新运行脚本"
 }
-Import-DotEnv (Join-Path $Root ".env")
+Import-DotEnv $ConfigPath
 
-$Python = Join-Path $Root ".venv\Scripts\python.exe"
+$Python = if ($PythonExecutable) { $PythonExecutable } else { Join-Path $Root ".venv\Scripts\python.exe" }
+$FreshPython = $false
 if (-not (Test-Path $Python)) {
+    if ($PythonExecutable) { Fail "找不到指定 Python" }
     if (Get-Command py -ErrorAction SilentlyContinue) {
         & py -3.12 -m venv ".venv"
         if ($LASTEXITCODE -ne 0) { & py -3 -m venv ".venv" }
@@ -218,14 +195,19 @@ if (-not (Test-Path $Python)) {
         Fail "找不到 Python"
     }
     $Install = $true
+    $FreshPython = $true
 }
 
 $Npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
 if (-not $Npm) { Fail "找不到 npm.cmd，请安装 Node.js LTS" }
 
-if ($Install -or -not (Test-Path "frontend\node_modules")) {
+# Python and frontend dependencies install independently: a half-populated
+# .venv must not be masked by an existing frontend\node_modules.
+if ($Install -or $FreshPython) {
     & $Python -m pip install -r "requirements.txt"
     if ($LASTEXITCODE -ne 0) { Fail "Python 依赖安装失败" }
+}
+if ($Install -or $FreshPython -or -not (Test-Path "frontend\node_modules")) {
     Push-Location "frontend"
     try {
         if (Test-Path "package-lock.json") { & $Npm ci } else { & $Npm install }
@@ -235,41 +217,49 @@ if ($Install -or -not (Test-Path "frontend\node_modules")) {
     }
 }
 
-$SearXNGStarted = Start-SearXNG
+# Piped child output is block buffered otherwise: the launcher logs would stay
+# empty for minutes even while the service is serving traffic.
+$env:PYTHONUNBUFFERED = "1"
+$env:PYTHONIOENCODING = "utf-8"
 
-$rootQuoted = $Root.Replace("'", "''")
-$pythonQuoted = $Python.Replace("'", "''")
+$SearXNGStarted = if ($SkipSearXNG) { Test-SearXNGIdentity } else { Start-SearXNG }
+if (-not $SkipSearXNG -and -not $SearXNGStarted) { Fail "Docker / SearXNG 尚未就绪" }
 
-if (Test-Listening 8000) {
+if (Test-Listening $BackendPort) {
     if (-not (Test-BackendIdentity)) {
-        Fail "端口 8000 已被非 Study Agent 服务占用"
+        Fail "端口 $BackendPort 已被非 Study Agent 服务占用"
     }
 } else {
-    $backend = [string]::Join([Environment]::NewLine, @(
-        ("Set-Location '{0}'" -f $rootQuoted),
-        ("& '{0}' -m uvicorn src.api.app:app --host 127.0.0.1 --port 8000 --reload" -f $pythonQuoted)
-    ))
-    Start-PowerShellWindow "Study Agent API :8000" $backend
+    Start-ServiceProcess 'backend' $Python `
+        @("-m", "uvicorn", "src.api.app:app", "--host", "127.0.0.1", "--port", "$BackendPort") `
+        $Root
 }
 
-# Child processes inherit these values. The API token is never embedded in the
-# encoded PowerShell command or exposed in process command-line arguments.
-$env:VITE_DEV_API_TARGET = "http://127.0.0.1:8000"
+# Child processes inherit these values. The API token is never written into the
+# service command line, where any local process could read it.
+$env:VITE_DEV_API_TARGET = $BackendUrl
 # Vite exposes every VITE_* variable to client code, so the server secret must
 # never be handed to the dev server under that name - not even to "help" a
 # browser. The app reads the token from its own settings (localStorage) instead.
 # Clear any value inherited from the parent shell or an old .env.
 Remove-Item Env:VITE_STUDY_AGENT_API_TOKEN -ErrorAction SilentlyContinue
-if (Test-Listening 5173) {
+if (Test-Listening $FrontendPort) {
     if (-not (Test-FrontendIdentity)) {
-        Fail "端口 5173 已被非 Study Agent 服务占用"
+        Fail "端口 $FrontendPort 已被非 Study Agent 服务占用"
     }
 } else {
-    $frontend = [string]::Join([Environment]::NewLine, @(
-        ("Set-Location '{0}\frontend'" -f $rootQuoted),
-        ("& '{0}' run dev -- --host 127.0.0.1" -f $Npm)
-    ))
-    Start-PowerShellWindow "Study Agent Web :5173" $frontend
+    $Node = (Get-Command node.exe -ErrorAction SilentlyContinue).Source
+    $ViteBin = Join-Path $Root "frontend\node_modules\vite\bin\vite.js"
+    if ($Node -and (Test-Path -LiteralPath $ViteBin -PathType Leaf)) {
+        Start-ServiceProcess 'frontend' $Node `
+            @("$ViteBin", "--host", "127.0.0.1", "--port", "$FrontendPort", "--strictPort") `
+            (Join-Path $Root "frontend")
+    } else {
+        # Fall back to the package script when the local Vite entry is absent.
+        Start-ServiceProcess 'frontend' $Npm `
+            @("run", "dev", "--", "--host", "127.0.0.1", "--port", "$FrontendPort", "--strictPort") `
+            (Join-Path $Root "frontend")
+    }
 }
 
 if (-not (Wait-Until { Test-BackendIdentity })) {
@@ -280,5 +270,10 @@ if (-not (Wait-Until { Test-FrontendIdentity })) {
 }
 
 Write-StartupSummary $SearXNGStarted
-Write-Host "Study Agent 已就绪：http://127.0.0.1:5173" -ForegroundColor Green
-if (-not $NoBrowser) { Start-Process "http://127.0.0.1:5173" }
+New-Item -ItemType Directory -Path $LaunchLogDirectory -Force | Out-Null
+@{
+    root = $Root; backend_url = $BackendUrl; frontend_url = $FrontendUrl
+    started_process_ids = $StartedProcessIds; started_at = (Get-Date).ToString('o')
+} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $LaunchLogDirectory 'receipt.json') -Encoding UTF8
+Write-Host "Study Agent 已就绪：$FrontendUrl" -ForegroundColor Green
+if (-not $NoBrowser) { Start-Process $FrontendUrl }

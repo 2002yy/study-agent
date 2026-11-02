@@ -82,7 +82,7 @@ def test_start_script_reuses_loopback_searxng_and_prints_acceptance_summary():
     assert 'Join-Path $PSScriptRoot "manage-searxng.ps1"' in text
     assert "& $manager -Action Ensure" in text
     assert '"http://127.0.0.1:8080/healthz"' in text
-    assert '"http://127.0.0.1:8000/health/providers?probe=true"' in text
+    assert '"$BackendUrl/health/providers?probe=true"' in text
     assert "人工检查清单" in text
     assert "MOBILE_ACCEPTANCE_D4D.md" in text
 

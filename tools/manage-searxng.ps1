@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet("Ensure", "Upgrade", "Status", "ListRetained", "RemoveRetained")]
     [string]$Action = "Status",
@@ -244,7 +244,20 @@ function Assert-ManagedContainer([string]$DockerPath, [string]$Name, [int]$Expec
     $expectedSettings = [IO.Path]::GetFullPath($SettingsPath)
     $actualSettings = [IO.Path]::GetFullPath([string]$settingsMount.Source)
     if (-not $actualSettings.Equals($expectedSettings, [StringComparison]::OrdinalIgnoreCase)) {
-        Fail "容器 $Name 使用了仓库外 settings.yml"
+        # Another checkout may legitimately own the healthy pinned container. Reuse
+        # it only when the settings bytes match, so behaviour cannot drift silently.
+        $sameSettings = $false
+        if (Test-Path -LiteralPath $actualSettings -PathType Leaf) {
+            $sameSettings = (
+                Get-FileHash -LiteralPath $actualSettings -Algorithm SHA256
+            ).Hash -eq (
+                Get-FileHash -LiteralPath $expectedSettings -Algorithm SHA256
+            ).Hash
+        }
+        if (-not $sameSettings) {
+            Fail "容器 $Name 使用了仓库外 settings.yml，且内容与本仓库不一致"
+        }
+        Write-Warning "复用其他检出创建的同内容 settings.yml：$actualSettings"
     }
 
     $secretEntry = @($container.Config.Env) |
