@@ -104,6 +104,31 @@ Ruff 全绿、`git diff --check` 干净。**未运行 L2/L3，未 push/PR/merge�
 `Test-FrontendIdentity` 标题与语言不一致的独立 P2；桌面入口默认指向主仓库而非本工作树，
 合并前不得用双击结果代表本分支能力。
 
+### 2026-11-03 收尾：依赖预置、桌面入口、刻晴、本地合并 main
+
+**依赖预置**：本工作树 `.venv` 首次安装被 `files.pythonhosted.org` 读超时（≈10 kB/s）拖死；
+改用清华镜像 `-i https://pypi.tuna.tsinghua.edu.cn/simple` 约一分钟装完全部固定版本，
+`requirements.txt` 一行未改。现在**无参数双击**即可启动，不再需要 `-PythonExecutable`。
+
+**桌面入口**：`C:\Users\Zhang\Desktop\study-agent-launcher.ps1` 默认 `-ProjectRoot` 由
+`$PSScriptRoot\study agent` 改为本工作树（备份 `study-agent-launcher.bak-20261103-001121.ps1`）；
+另加 `C:\Users\Zhang\Desktop\Study Agent.cmd`——`.ps1` 双击默认是编辑而非运行，`.cmd` 才是真正可双击的入口。
+
+**刻晴同级优化**：`build_role_prompt` 本来就为每个角色选取「11. 语言纹理」，只有
+`roles/keqing.md` 缺这一节，所以她的提示是四人中唯一没有具体措辞的。补入短句先落判断、
+给依据的纹理与三条措辞参照，并把「收束」从唯一职能改为强项；角色说明改为
+「直接清醒，砍到下一步」。`test_vivid_teaching` 的参数集补入 keqing，三种模式共 51 PASS。
+
+**本地合并**：`git switch main` 后 `git merge --ff-only codex/experience-retrieval-20261101`，
+本地 main 由 `65a58eac` 快进到 `d1bcfbb8`，工作树干净；合并后针对性影响集 96 PASS、
+前端 610 PASS，并从桌面 `.cmd` 无参数复验启动成功。
+**未 push、未开 PR、未跑远端 CI**：主线仍只在本地，远端 `origin/main` 仍是 `abf40b49`。
+
+**工作树清理**：移除 `frontend/dist`、`playwright-report`、`test-results`、`tsconfig.tsbuildinfo`、
+`.pytest_cache`、`.ruff_cache`、`.mypy_cache` 与 23 个 `__pycache__`；保留 `.venv`、
+`node_modules`、`.env`、`infra/searxng/.env.local`、`logs/`、`backups/`、`chat/`（运行所需与用户数据）。
+
+
 
 ### 验收基线与未验收能力分开记录
 
