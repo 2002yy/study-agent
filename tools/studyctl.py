@@ -11,6 +11,10 @@ import sys
 import tempfile
 import time
 from typing import Any, NoReturn
+import urllib.error
+import urllib.request
+import webbrowser
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "agent-cli-result-v1"
@@ -28,6 +32,109 @@ class Parser(argparse.ArgumentParser):
         raise CLIError(2, "invalid_arguments", "Invalid arguments; see --help.")
 
 
+def read_env_value(path: Path, key: str) -> str:
+    """One key from a dotted config file, without a dotenv dependency."""
+
+    if not path.is_file():
+        return ""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, _, value = line.partition("=")
+        if name.strip() != key:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+        return value
+    return ""
+
+
+def build_ui_url(frontend_url: str, token: str) -> str:
+    """The exact URL a browser needs, token included as a fragment."""
+
+    base = frontend_url.rstrip("/")
+    if not token:
+        return base
+    return f"{base}/#token={quote(token, safe='')}"
+
+
+def describe_ui(root: Path, open_browser: bool = False) -> dict[str, Any]:
+    """Where the running instance is, and whether the token we have is accepted."""
+
+    receipt_path = root / "logs" / "launcher" / "receipt.json"
+    if not receipt_path.is_file():
+        raise CLIError(
+            3,
+            "not_running",
+            "没有启动回执：先运行桌面入口或 tools\\start-study-agent.bat。",
+        )
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as exc:
+        raise CLIError(3, "unreadable_receipt", f"启动回执无法解析：{exc}") from exc
+    frontend = str(receipt.get("frontend_url") or "").rstrip("/")
+    backend = str(receipt.get("backend_url") or "").rstrip("/")
+    if not frontend:
+        raise CLIError(3, "unreadable_receipt", "启动回执里没有前端地址。")
+
+    token = (
+        os.environ.get("STUDY_AGENT_API_TOKEN")
+        or read_env_value(root / ".env", "STUDY_AGENT_API_TOKEN")
+    ).strip()
+    url = build_ui_url(frontend, token)
+
+    # A URL that would land on the "需要访问令牌" banner is worse than no URL, so
+    # the probe reports what the server does with the token we are about to hand over.
+    auth = "unknown"
+    if backend:
+        request = urllib.request.Request(
+            backend + "/sessions",
+            headers={"X-Study-Agent-Token": token} if token else {},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=4) as response:
+                auth = "ok" if response.status == 200 else f"http_{response.status}"
+        except urllib.error.HTTPError as exc:
+            if exc.code == 200:
+                auth = "ok"
+            elif exc.code == 401:
+                auth = "rejected_token" if token else "missing_token"
+            else:
+                auth = f"http_{exc.code}"
+        except Exception as exc:  # noqa: BLE001 - a probe must never be fatal
+            auth = "unreachable:" + type(exc).__name__
+
+    if open_browser:
+        if auth != "ok":
+            raise CLIError(
+                4,
+                "ui_auth_failed",
+                f"服务端未接受当前令牌（auth={auth}）；"
+                "检查 .env 的 STUDY_AGENT_API_TOKEN 是否与服务端一致，"
+                "或该端口是否被另一次运行（如 live 沙箱）占用。",
+            )
+        webbrowser.open(url)
+    return {
+        "frontend_url": frontend,
+        "backend_url": backend,
+        "url": url,
+        "token_present": bool(token),
+        "auth": auth,
+        "opened": bool(open_browser),
+        "hint": (
+            ""
+            if auth == "ok"
+            else "服务端不会接受这个令牌：页面仍会显示“需要访问令牌”。"
+        ),
+    }
+
+
 def common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--repo", type=Path, default=argparse.SUPPRESS)
     parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
@@ -42,6 +149,9 @@ def parser_for_cli() -> Parser:
     children = parser.add_subparsers(dest="command")
     for name in ("status", "doctor", "help"):
         common(children.add_parser(name, add_help=False))
+    ui = children.add_parser("ui", add_help=False)
+    common(ui)
+    ui.add_argument("--open", action="store_true")
     live = children.add_parser("live", add_help=False)
     common(live)
     live_commands = live.add_subparsers(dest="live_command")
@@ -760,6 +870,7 @@ def main(argv: list[str] | None = None) -> int:
                 "commands": [
                     "status",
                     "doctor",
+                    "ui",
                     "test list",
                     "test plan",
                     "test run",
@@ -802,6 +913,9 @@ def main(argv: list[str] | None = None) -> int:
                             "message": "No single registered impact set covers these changes.",
                         }
                     ]
+            elif options.command == "ui":
+                result["command"] = "ui"
+                result["data"] = describe_ui(root, bool(getattr(options, "open", False)))
             elif options.command == "live":
                 if options.live_command != "check":
                     raise CLIError(2, "missing_live_command", "Use live check.")
