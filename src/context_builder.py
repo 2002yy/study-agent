@@ -3,6 +3,7 @@ from __future__ import annotations
 from src.memory import CONTEXT_FILE_GROUPS, extract_core_section
 from src.mode_manager import RuntimeModes, load_runtime_modes
 from src.pedagogy.prompt_compiler import format_turn_plan
+from src.pedagogy.teaching_style import VIVID_TEACHING_GUIDE
 from src.pedagogy.types import LearningState, PedagogyTurnPlan
 from src.prompt_policies import scene_policy
 
@@ -241,6 +242,8 @@ def build_system_prompt(
     mode_rule = MODE_RULES.get(mode, "")
     if mode_rule:
         parts.append(mode_rule)
+
+    parts.append(VIVID_TEACHING_GUIDE)
 
     if pedagogy_plan is not None:
         parts.append(format_turn_plan(pedagogy_plan, learning_state or LearningState()))

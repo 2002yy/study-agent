@@ -3,12 +3,20 @@ from __future__ import annotations
 from dataclasses import replace
 
 from src.pedagogy.types import PedagogyTurnPlan
+from src.pedagogy.intent import requests_direct_answer
 
 
 def plan_feynman(user_input, knowledge_kind, state):
     text = user_input.strip()
     payload = dict(state.payload)
     count = state.turn_count + 1
+    if requests_direct_answer(text):
+        return PedagogyTurnPlan(
+            mode="feynman_diagnosis", phase="direct_explanation",
+            knowledge_kind=knowledge_kind, move="direct_explain", disclosure_level=5,
+            target_understanding=state.objective or text,
+            constraints=("Respect the request for a complete explanation; do not require re-explanation this turn.",),
+        ), replace(state, phase="direct_explanation", turn_count=count)
     re_explanation = bool(payload.get("repair_given"))
     transfer_passed = bool(payload.get("transfer_passed"))
     if transfer_passed:

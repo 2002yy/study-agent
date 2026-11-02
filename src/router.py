@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal, cast
 
 from src.mode_manager import RuntimeModes
+from src.pedagogy.intent import requests_direct_answer
 from src.model_stats import suggest_model_by_rules
 from src.log_utils import get_logger
 
@@ -31,7 +32,7 @@ FALLBACK_RULES = [
 FALLBACK_DEFAULT: tuple[str, str, str, str] = ("nahida", "普通", "flash", "无匹配规则，使用默认")
 
 EXPLICIT_MODE_INTENTS = {
-    "苏格拉底": ("别直接告诉我", "引导我思考", "让我自己推出", "用苏格拉底法"),
+    "苏格拉底": ("别直接告诉我", "不要直接告诉我", "不要直接回答", "别直接回答", "不要马上给答案", "先让我猜", "一步步问我", "引导我思考", "让我自己推出", "用苏格拉底法"),
     "费曼": ("我来讲", "我解释一遍", "检查我理解", "你找漏洞", "我复述"),
     "普通": ("直接回答", "直接告诉我", "给我答案", "停止引导", "不要追问"),
     "项目": ("现在帮我写成代码", "开始实现", "应用补丁", "帮我排查"),
@@ -196,7 +197,8 @@ def route_request(
         (
             candidate
             for candidate, markers in EXPLICIT_MODE_INTENTS.items()
-            if any(marker in user_input for marker in markers)
+            if (requests_direct_answer(user_input) if candidate == "普通"
+                else any(marker in user_input for marker in markers))
         ),
         None,
     )

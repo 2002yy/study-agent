@@ -29,6 +29,27 @@
     }
   },
   "impact_sets": {
+    "teaching_voice": [
+      "tests/test_vivid_teaching.py",
+      "tests/test_pedagogy_engine.py",
+      "tests/test_pedagogy_quality_gates.py",
+      "tests/test_pedagogy_evaluation.py",
+      "tests/test_router.py",
+      "tests/test_atomic_routing.py",
+      "tests/test_system_learning_routing.py",
+      "tests/test_chat_search_routing.py",
+      "tests/test_architecture_flows.py",
+      "tests/test_chat_routes_pedagogy.py",
+      "tests/test_chat_service.py",
+      "tests/test_chat_lifecycle_e2e.py",
+      "tests/test_turn_context_transport.py",
+      "tests/test_evidence_units.py",
+      "tests/test_answer_publication_gate.py",
+      "tests/test_learner_state_shadow_acceptance.py",
+      "tests/test_learning_authority_projection.py",
+      "tests/test_learning_verification_e2e.py",
+      "tests/test_stage_gates_policy.py"
+    ],
     "search_flow": [
       "tests/test_web_search_flow.py",
       "tests/test_web_search_strategy.py",

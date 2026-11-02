@@ -3,10 +3,9 @@ from __future__ import annotations
 from dataclasses import replace
 
 from src.pedagogy.types import LearningState, PedagogyTurnPlan
+from src.pedagogy.intent import requests_direct_answer
 
 STUCK_MARKERS = ("不知道", "不会", "没思路", "想不出来", "卡住")
-DIRECT_MARKERS = ("直接告诉我", "直接回答", "给我答案", "完整讲解", "停止引导")
-REDISCOVERY_MARKERS = ("别直接告诉我", "不要直接告诉我", "不要马上给答案")
 CONCLUSION_MARKERS = ("所以", "因此", "也就是说", "结论是", "我明白了")
 
 
@@ -17,10 +16,7 @@ def plan_socratic(
 ) -> tuple[PedagogyTurnPlan, LearningState]:
     text = user_input.strip()
     next_count = state.turn_count + 1
-    direct = (
-        any(marker in text for marker in DIRECT_MARKERS)
-        and not any(marker in text for marker in REDISCOVERY_MARKERS)
-    )
+    direct = requests_direct_answer(text)
     stuck = any(marker in text for marker in STUCK_MARKERS)
     learner_evaluation = state.payload.get("learner_response_evaluation", {})
     concluded = bool(
