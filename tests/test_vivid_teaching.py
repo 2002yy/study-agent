@@ -18,6 +18,7 @@ from src.router import route_request
         ("nahida", "先看谁拥有这份状态"),
         ("march7", "这份数据到底算谁的"),
         ("firefly", "先停在这一行"),
+        ("keqing", "final 锁的是这张地址条"),
     ],
 )
 @pytest.mark.parametrize("mode", ["普通", "苏格拉底", "费曼"])

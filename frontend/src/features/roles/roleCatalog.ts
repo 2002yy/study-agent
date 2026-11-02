@@ -18,7 +18,7 @@ export const roleVoices: Record<string, string> = {
   nahida: "温和拆解，连接原理",
   march7: "轻快好奇，抓住反直觉",
   firefly: "细致陪练，一步步看清",
-  keqing: "直接判断，推进任务",
+  keqing: "直接清醒，砍到下一步",
 };
 
 export const speakerToRole: Record<string, string> = {
