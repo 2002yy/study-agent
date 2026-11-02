@@ -405,14 +405,13 @@ describe("ChatPanel learning product boundary", () => {
     expect(headings[0]).toHaveTextContent("对话");
   });
 
-  it("shows user-facing task state without leaking the raw session id", () => {
+  it("keeps task metadata out of the header without leaking the raw session id", () => {
     const { container } = renderPanel();
-    const statusTexts = Array.from(container.querySelectorAll("span")).map(
-      (el) => el.textContent ?? "",
-    );
+    const header = container.querySelector("header.topbar");
 
-    expect(statusTexts).toContain("任务 临时研究 · 手动");
-    expect(statusTexts).toContain("会话 进行中");
+    expect(header).not.toBeNull();
+    expect(header?.textContent).not.toContain("任务");
+    expect(header?.textContent).not.toContain("会话");
     expect(container.innerHTML).not.toContain("session-secret-raw-id");
   });
 

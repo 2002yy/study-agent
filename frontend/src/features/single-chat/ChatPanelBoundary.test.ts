@@ -24,11 +24,12 @@ describe("active ChatPanel interaction boundary", () => {
   });
 
   it("derives closure actions from the persisted task contract", () => {
-    expect(source).toContain("taskContractFromRoute(lastChat?.route)");
     const view=readFileSync(fileURLToPath(new URL("../../app/WorkspaceView.tsx",import.meta.url)),"utf8");
     const actions=readFileSync(fileURLToPath(new URL("./WorkspaceActions.tsx",import.meta.url)),"utf8");
     expect(view).toContain("closureActionLabel(taskContractFromRoute(chatController.lastChat?.route))");
     expect(actions).toContain("{closureLabel && canClose ? (");
     expect(actions).toContain("{closureLabel}");
+    // The header no longer mirrors the contract; showing it twice was noise.
+    expect(source).not.toContain("taskIntentLabel(taskContract");
   });
 });

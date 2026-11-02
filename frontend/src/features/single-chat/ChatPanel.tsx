@@ -4,6 +4,7 @@ import {
   BookOpen,
   Clipboard,
   Clock,
+  Leaf,
   Search,
   MessageSquare,
   PanelRight,
@@ -40,8 +41,6 @@ import { roleLabel } from "../roles/roleCatalog";
 import type { SemanticSessionRow } from "../sessions/sessionNavigation";
 import {
   clearPendingTaskIntentOverride,
-  taskContractFromRoute,
-  taskIntentLabel,
   type TaskIntent,
 } from "../task/taskContract";
 import { ChatResearchRecovery } from "../web-lookup/ChatResearchRecovery";
@@ -268,10 +267,6 @@ export function ChatPanel(props: ChatPanelProps) {
   const [interruptedCopy, setInterruptedCopy] = useState<CopyState>("idle");
   const [copyAnnouncement, setCopyAnnouncement] = useState("");
   const [composerMode, setComposerMode] = useState<"chat" | "search">("chat");
-  const taskContract = taskContractFromRoute(lastChat?.route);
-  const taskLabel = taskContract
-    ? `${taskIntentLabel(taskContract.task_intent)}${taskContract.explicit_override ? " · 手动" : ""}`
-    : "等待提问";
   const displayMessages = sessionNavigation?.has_completed_turns
     ? messages
     : messages.filter(
@@ -454,13 +449,7 @@ export function ChatPanel(props: ChatPanelProps) {
       </span>
       <header className="topbar">
           <div className="topbar-copy">
-            <h1>{reading?.target ? "伴读对话" : "对话"}</h1>
-            <p>搜索资料，或从一个问题开始。</p>
-            <div className="topbar-meta" aria-label="当前学习状态">
-              <span>任务 {taskLabel}</span>
-              <span>资料 {ragEnabled ? "按需使用" : "未启用"}</span>
-              <span>会话 {sessionId ? "进行中" : "未开始"}</span>
-            </div>
+            <h1>{reading?.target ? "伴读对话" : displayMessages.length ? "对话" : "新对话"}</h1>
           </div>
           <div className="topbar-actions">
             <button aria-label="打开会话历史" className="icon-button session-dock-button" onClick={()=>onOpenDrawer("sessions")} title="会话历史" type="button"><BookOpen size={18}/></button>
@@ -473,7 +462,7 @@ export function ChatPanel(props: ChatPanelProps) {
       <div className="conversation-shell">
         <section className="conversation" aria-label="学习对话" onScroll={updateScrollState} ref={conversationRef}>
           {firstUseNotice}
-          {streamRecovery ? restoreCard : sessionNavigation?.has_completed_turns ? <details className="reading-session-context"><summary>本会话学习上下文</summary>{restoreCard}</details> : !displayMessages.length ? <section className="chat-welcome" aria-label="开始新任务"><span>你的学习空间</span><h2>今天想了解什么？</h2><p>直接对话，或搜索你想核对的资料。</p></section> : null}
+          {streamRecovery ? restoreCard : sessionNavigation?.has_completed_turns ? <details className="reading-session-context"><summary>本会话学习上下文</summary>{restoreCard}</details> : !displayMessages.length ? <section className="chat-welcome" aria-label="开始新任务"><Leaf size={52} strokeWidth={1.35} aria-hidden="true"/><h2>今天想了解什么？</h2><p>从一个问题开始，把原理想明白。</p></section> : null}
           {displayMessages.map((message, index) => {
             const avatarRole = message.avatarRole ?? (message.role === "user" ? "user" : "auto");
             const label = message.role === "user" ? "你" : roleLabel(avatarRole);

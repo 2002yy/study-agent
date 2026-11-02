@@ -1,14 +1,14 @@
 .app-shell[data-typography="sans"] { --font-display: var(--font-interface); }
 .app-shell[data-typography="serif"] { --font-reading: var(--font-display); }
 .document-paper { font-family: var(--font-reading); }
-.reading-layout .message-copy-button { width: auto; justify-self: start; display: inline-flex; min-height: 32px; padding: 4px 8px; border: 0; background: transparent; color: var(--muted); font-size: 11px; }
+.reading-layout .message-copy-button { width: auto; justify-self: start; display: inline-flex; border: 0; background: transparent; color: var(--muted); }
 .reading-layout .message-copy-button:hover { background: var(--surface-strong); color: var(--accent); }
 .reading-layout .message-body { padding-inline: 0; }
 .reading-layout .message-body > span { font-size: 12px; font-weight: 500; color: var(--muted); }
 .reading-layout .message.user .avatar { color: var(--text); background: #edf2f5; }
 .reading-layout .reading-session-context { border-bottom-style: solid; }
-.reading-layout .markdown-message :is(h1,h2,h3) { font-family: var(--font-display); font-weight: 600; line-height: 1.5; }
-.reading-layout .markdown-message blockquote { margin-inline: 0; padding: 8px 16px; border-left: 2px solid #aabfce; color: var(--muted); background: #f0f4f6; }
+.reading-layout .markdown-message :is(h1,h2,h3) { font-weight: 600; line-height: 1.5; }
+.reading-layout .markdown-message blockquote { margin-inline: 0; padding: 8px 16px; border-left: 2px solid #aabfce; color: var(--muted); }
 .app-shell .slide-over { background: var(--bg); border-left: 1px solid var(--border); box-shadow: -8px 0 40px #203a5110; }
 .app-shell .slide-over-backdrop { background: #203a5138; }
 .app-shell .slide-over-header { padding: 16px 20px; }
