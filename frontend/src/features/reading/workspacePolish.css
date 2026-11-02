@@ -73,6 +73,10 @@
 .reading-layout .composer-footer .send-button:disabled { background: #e4ece6; border-color: #e4ece6; color: #62796c; }
 .reading-layout .composer-footer .stop-button { background: #edf3ee; border-color: #b8cbbd; color: var(--text); }
 .reading-layout .composer-modes button, .reading-layout .chat-role-settings-toggle { min-height: 44px; border-radius: 8px; font-size: 13px; }
+.reading-layout .chat-role-settings-toggle { gap: 4px; padding: 6px; }
+.chat-role-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; }
+.chat-role-copy small, .chat-role-hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.chat-role-hint { margin: 8px 0 0; }
 .reading-layout .composer-research-mode { min-height: 44px; max-width: 126px; border: 0; background: transparent; color: var(--muted); font: 13px var(--font-interface); }
 .reading-layout .composer-modes button[aria-pressed="true"] { color: var(--accent); background: #edf3ee; }
 .reading-layout .document-reader { border: 0; border-left: 1px solid var(--border); border-radius: 0; background: #eef3e9; }

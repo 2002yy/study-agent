@@ -1,14 +1,17 @@
 import { expect, test } from "@playwright/test";
 import { FIRST_REPLY, installApiFixture } from "./api-fixture";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 
 for (const [role, label] of [["march7", "三月七"], ["keqing", "刻晴"], ["nahida", "纳西妲"], ["firefly", "流萤"]]) {
-  test(`internal conversation setting sends the selected ${label} role without covering input`, async ({ page }) => {
+  test(`internal conversation setting sends the selected ${label} role without covering input`, async ({ page }, info) => {
     await installApiFixture(page);
     await page.goto("/");
     const input = page.getByLabel("输入学习问题");
     await input.fill("保留的学习问题");
     const toggle = page.getByRole("button", { name: "对话设置", exact: true });
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(toggle).toHaveText(/选角色|三月七|刻晴|纳西妲|流萤/);
     await toggle.click();
     const settings = page.getByRole("region", { name: "对话角色设置" });
     await expect(settings.getByRole("group", { name: "选择对话角色" }).getByRole("button")).toHaveCount(4);
@@ -18,9 +21,17 @@ for (const [role, label] of [["march7", "三月七"], ["keqing", "刻晴"], ["na
     const panelBox = await settings.boundingBox();
     const inputBox = await input.boundingBox();
     expect(panelBox!.y + panelBox!.height).toBeLessThanOrEqual(inputBox!.y);
+    for (const image of await settings.locator("img").all()) {
+      await expect.poll(() => image.evaluate(img => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    }
+    if (role === "nahida" && process.env.UI_EVIDENCE_DIR) {
+      mkdirSync(process.env.UI_EVIDENCE_DIR, { recursive: true });
+      await page.screenshot({ path: join(process.env.UI_EVIDENCE_DIR, `${info.project.name}-roles.png`) });
+    }
     await settings.getByRole("button", { name: label, exact: true }).click();
     await expect(settings).toHaveCount(0);
     await expect(input).toBeFocused();
+    await expect(toggle).toHaveText(label);
     const request = page.waitForRequest(request => request.method() === "POST" && /\/chat(?:\/stream)?$/.test(new URL(request.url()).pathname));
     await input.press("Enter");
     expect((await request).postDataJSON()).toMatchObject({ selected_role: role, user_input: "保留的学习问题" });

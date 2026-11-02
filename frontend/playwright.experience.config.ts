@@ -12,6 +12,7 @@ export default defineConfig({
     "**/typography-appearance.spec.ts",
     "**/sources-layers.spec.ts",
     "**/conversation-continuous.spec.ts",
+    "**/chat-role-settings.spec.ts",
     "**/composer-layout.spec.ts",
     "**/accessibility-responsive.spec.ts",
   ],

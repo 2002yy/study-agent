@@ -5,7 +5,7 @@ import { checkSearchProviderHealth, saveRuntimeSettings } from "../../api";
 import { humanizeUiError, labelFor } from "../../utils/uiLabels";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { StatusDot } from "../../components/StatusDot";
-import { roleLabel, roleOptions } from "../roles/roleCatalog";
+import { roleLabel, roleOptions, roleVoices } from "../roles/roleCatalog";
 import { TypographySettings } from "./TypographySettings";
 import { ApiTokenSettings } from "./ApiTokenSettings";
 import { serverQueryCache } from "../../app/serverQueryCache";
@@ -35,13 +35,7 @@ export const RAG_SETTINGS_DEFAULTS: RagSettings = {
   chatTopK: 3,
 };
 
-const roleDescriptions: Record<string, string> = {
-  auto: "后端根据问题自动选择合适角色。",
-  march7: "更轻快、鼓励式的学习伙伴。",
-  keqing: "偏执行、判断和推进项目。",
-  nahida: "偏概念解释、连接知识脉络。",
-  firefly: "偏陪伴、感受整理和收束。",
-};
+const roleDescriptions = roleVoices;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -111,8 +105,8 @@ export const modeOptions = [
 
 const modeDescriptions: Record<string, string> = {
   auto: "根据学习行为选择协议；需要直接解释时不会强制进入提问流程。",
-  普通: "直接、完整地回答当前问题；必要时才澄清。",
-  苏格拉底: "通过问题、反例和有限线索帮助你完成关键推理。",
+  普通: "直接讲清当前问题；从场景、基本事实与约束推导机制，不强制测验。",
+  苏格拉底: "从场景与一个预测问题出发，等你回答，再用线索和反例推进。",
   费曼: "先由你解释，模型定位理解缺口，再补充并让你重新说明。",
   项目: "围绕当前项目阶段给出最小修改、实施顺序、验证方式和主要风险。",
 };

@@ -487,11 +487,11 @@ export async function installApiFixture(
     const request = route.request();
     const path = new URL(request.url()).pathname;
 
-    if (path === "/assets/avatars/nahida.png") {
+    if (["nahida", "march7", "firefly", "keqing"].some(role => path === `/assets/avatars/${role}.png`)) {
       await route.fulfill({
         status: 200,
         contentType: "image/png",
-        path: fileURLToPath(new URL("../../assets/avatars/nahida.png", import.meta.url)),
+        path: fileURLToPath(new URL(`../..${path}`, import.meta.url)),
       });
       return;
     }

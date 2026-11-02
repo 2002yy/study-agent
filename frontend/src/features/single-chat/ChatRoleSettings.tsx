@@ -1,5 +1,5 @@
 import { RoleAvatar } from "../../components/RoleAvatar";
-import { roleLabel, roleOptions } from "../roles/roleCatalog";
+import { roleLabel, roleOptions, roleVoices } from "../roles/roleCatalog";
 
 export function ChatRoleSettings({ id, selectedRole, disabled, onSelect, onClose }: {
   id: string;
@@ -21,12 +21,14 @@ export function ChatRoleSettings({ id, selectedRole, disabled, onSelect, onClose
       <div className="chat-role-options" role="group" aria-label="选择对话角色">
         {roleOptions.filter(([role]) => role !== "auto").map(([role, label]) => (
           <button key={role} type="button" disabled={disabled} aria-pressed={selectedRole === role}
+            aria-label={label} aria-description={roleVoices[role]}
             onClick={() => onSelect(role)}>
             <RoleAvatar roleId={role} fallback="assistant"/>
-            <span>{label}</span>
+            <span className="chat-role-copy"><span>{label}</span><small>{roleVoices[role]}</small></span>
           </button>
         ))}
       </div>
+      <p className="chat-role-hint">角色决定说话风格，都能讲解与带学。选定后从下一条回复生效。</p>
     </section>
   );
 }

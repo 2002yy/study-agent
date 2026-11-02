@@ -666,7 +666,7 @@ export function ChatPanel(props: ChatPanelProps) {
           </select> : null}
           {!isSending && composerMode === "chat" && props.onSelectRole ? <button className="chat-role-settings-toggle" type="button"
             aria-label="对话设置" title="对话设置" aria-expanded={roleSettingsOpen} aria-controls={roleSettingsId}
-            ref={roleSettingsButtonRef} onClick={()=>setRoleSettingsOpen(open=>!open)}><Settings2 size={16}/></button> : null}
+            ref={roleSettingsButtonRef} onClick={()=>setRoleSettingsOpen(open=>!open)}><Settings2 size={16}/><span>{!props.selectedRole || props.selectedRole === "auto" ? "选角色" : roleLabel(props.selectedRole)}</span></button> : null}
           </div>
           {!isSending && composerMode === "chat" && roleSettingsOpen && props.onSelectRole ? <ChatRoleSettings
             id={roleSettingsId} selectedRole={props.selectedRole ?? "auto"} disabled={isSending}

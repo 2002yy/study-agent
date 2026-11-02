@@ -13,6 +13,14 @@ export const roleAvatarPaths: Record<string, string> = {
   firefly: "/assets/avatars/firefly.png"
 };
 
+export const roleVoices: Record<string, string> = {
+  auto: "随问题自动选择，也可固定一位伙伴",
+  nahida: "温和拆解，连接原理",
+  march7: "轻快好奇，抓住反直觉",
+  firefly: "细致陪练，一步步看清",
+  keqing: "直接判断，推进任务",
+};
+
 export const speakerToRole: Record<string, string> = {
   三月七: "march7",
   刻晴: "keqing",

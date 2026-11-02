@@ -460,10 +460,11 @@ describe("ChatPanel learning product boundary", () => {
     const select=vi.fn();const {container}=renderPanel({selectedRole:"nahida",onSelectRole:select});
     const toggle=container.querySelector('[aria-label="对话设置"]')!;
     expect(toggle).toHaveAttribute("aria-expanded","false");
+    expect(toggle).toHaveTextContent("纳西妲");
     expect(container.querySelector('.chat-role-settings')).toBeNull();
     fireEvent.click(toggle);
     const choices=Array.from(container.querySelectorAll('.chat-role-options button'));
-    expect(choices.map(button=>button.textContent)).toEqual(["三月七","刻晴","纳西妲","流萤"]);
+    expect(choices.map(button=>button.getAttribute("aria-label"))).toEqual(["三月七","刻晴","纳西妲","流萤"]);
     expect(choices[2]).toHaveAttribute("aria-pressed","true");
     fireEvent.click(choices[3]);expect(select).toHaveBeenCalledWith("firefly");
     expect(container.querySelector('.chat-role-settings')).toBeNull();
