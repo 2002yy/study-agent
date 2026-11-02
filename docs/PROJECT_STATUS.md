@@ -113,6 +113,9 @@ Ruff 全绿、`git diff --check` 干净。**未运行 L2/L3，未 push/PR/merge�
 **桌面入口**：`C:\Users\Zhang\Desktop\study-agent-launcher.ps1` 默认 `-ProjectRoot` 由
 `$PSScriptRoot\study agent` 改为本工作树（备份 `study-agent-launcher.bak-20261103-001121.ps1`）；
 另加 `C:\Users\Zhang\Desktop\Study Agent.cmd`——`.ps1` 双击默认是编辑而非运行，`.cmd` 才是真正可双击的入口。
+令牌经 URL fragment 交给页面：fragment 不进服务器、不进 Referer，页面加载后立即 `replaceState` 抹掉。
+内置浏览器与终端用 `tools\studyctl.py ui` 现算同一个地址并先探一次 `/sessions`；
+默认打码（`#token=***`），`--show-token` 才输出完整地址，`--open` 在服务端会拒绝时直接 exit 4、不打开坏页面。
 
 **刻晴同级优化**：`build_role_prompt` 本来就为每个角色选取「11. 语言纹理」，只有
 `roles/keqing.md` 缺这一节，所以她的提示是四人中唯一没有具体措辞的。补入短句先落判断、

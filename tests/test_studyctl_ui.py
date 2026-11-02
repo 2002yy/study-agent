@@ -9,7 +9,13 @@ from __future__ import annotations
 
 import pytest
 
-from tools.studyctl import CLIError, build_ui_url, describe_ui, read_env_value
+from tools.studyctl import (
+    CLIError,
+    build_ui_url,
+    describe_ui,
+    mask_ui_url,
+    read_env_value,
+)
 
 
 def test_ui_url_carries_the_token_as_a_fragment():
@@ -78,8 +84,32 @@ def test_ui_returns_the_url_with_its_auth_verdict(tmp_path, monkeypatch):
 
     data = describe_ui(tmp_path)
 
-    assert data["url"].endswith("#token=saved")
+    assert data["url"].endswith("#token=***")
+    assert data["token_masked"] is True
     assert data["token_present"] is True
     # Nothing listens on port 1, so the verdict must say so rather than "ok".
     assert data["auth"].startswith("unreachable") or data["auth"].startswith("http_")
     assert data["hint"]
+
+
+def test_full_url_requires_the_explicit_show_token_flag(tmp_path, monkeypatch):
+    (tmp_path / "logs" / "launcher").mkdir(parents=True)
+    (tmp_path / "logs" / "launcher" / "receipt.json").write_text(
+        '{"backend_url": "http://127.0.0.1:1", "frontend_url": "http://127.0.0.1:2"}',
+        encoding="utf-8",
+    )
+    (tmp_path / ".env").write_text("STUDY_AGENT_API_TOKEN=saved\n", encoding="utf-8")
+    monkeypatch.delenv("STUDY_AGENT_API_TOKEN", raising=False)
+
+    data = describe_ui(tmp_path, show_token=True)
+
+    assert data["url"] == "http://127.0.0.1:2/#token=saved"
+    assert data["token_masked"] is False
+
+
+def test_masking_keeps_everything_but_the_secret():
+    assert (
+        mask_ui_url("http://127.0.0.1:5174/#token=abc123")
+        == "http://127.0.0.1:5174/#token=***"
+    )
+    assert mask_ui_url("http://127.0.0.1:5174") == "http://127.0.0.1:5174"

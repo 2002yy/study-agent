@@ -64,7 +64,19 @@ def build_ui_url(frontend_url: str, token: str) -> str:
     return f"{base}/#token={quote(token, safe='')}"
 
 
-def describe_ui(root: Path, open_browser: bool = False) -> dict[str, Any]:
+def mask_ui_url(url: str) -> str:
+    """Keep the address useful in logs while dropping the secret."""
+
+    marker = "/#token="
+    index = url.find(marker)
+    if index < 0:
+        return url
+    return url[: index + len(marker)] + "***"
+
+
+def describe_ui(
+    root: Path, open_browser: bool = False, show_token: bool = False
+) -> dict[str, Any]:
     """Where the running instance is, and whether the token we have is accepted."""
 
     receipt_path = root / "logs" / "launcher" / "receipt.json"
@@ -123,7 +135,10 @@ def describe_ui(root: Path, open_browser: bool = False) -> dict[str, Any]:
     return {
         "frontend_url": frontend,
         "backend_url": backend,
-        "url": url,
+        # Masked by default: this output usually lands in a terminal, a log or a
+        # chat transcript. --show-token is the explicit opt-in.
+        "url": url if show_token else mask_ui_url(url),
+        "token_masked": not show_token,
         "token_present": bool(token),
         "auth": auth,
         "opened": bool(open_browser),
@@ -152,6 +167,7 @@ def parser_for_cli() -> Parser:
     ui = children.add_parser("ui", add_help=False)
     common(ui)
     ui.add_argument("--open", action="store_true")
+    ui.add_argument("--show-token", action="store_true")
     live = children.add_parser("live", add_help=False)
     common(live)
     live_commands = live.add_subparsers(dest="live_command")
@@ -915,7 +931,11 @@ def main(argv: list[str] | None = None) -> int:
                     ]
             elif options.command == "ui":
                 result["command"] = "ui"
-                result["data"] = describe_ui(root, bool(getattr(options, "open", False)))
+                result["data"] = describe_ui(
+                    root,
+                    bool(getattr(options, "open", False)),
+                    bool(getattr(options, "show_token", False)),
+                )
             elif options.command == "live":
                 if options.live_command != "check":
                     raise CLIError(2, "missing_live_command", "Use live check.")
