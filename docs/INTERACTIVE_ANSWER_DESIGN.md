@@ -38,14 +38,56 @@
 **验证入口**：`npm test`、`npm run build`、`npm run test:experience`；后端命名 L1 为
 `intelligent_ui`。`interactive-document.spec.ts` 验证 DOM/SVG/Canvas、草稿、刷新、错误、
 窄屏及隔离；`interactive-live-replay.spec.ts` 仅在指定 `INTERACTIVE_LIVE_REPLAY_DIR` 时
-重放已存真实回答，绝不调用提供商，默认跳过。现有 CLI、API 和 SSE 不新增传输格式。
+重放已存真实回答，绝不调用提供商，默认跳过。`interactive-cross-domain-replay.spec.ts`
+以同一方式重放代码故事与 Canvas，当前默认读取 response-7（代码）及 response-4（Canvas）。
+现有 CLI、API 和 SSE 不新增传输格式。
 
 本轮真实证据位于 `D:/study-agent-validation/intelligent-ui-20261103/`：真实 `/chat` 路由
 经 TestClient 调用 DeepSeek，浏览器再重放原始回答。第一版滑块从 5 改为 12 后可售 32→25；
-第二版保留 37/12/25 并增加支付操作。不是本轮重新执行桌面启动全流程，也没有 ChatGPT 对照。
+第二版保留 37/12/25 并增加支付操作。付费调用传输与桌面启动验收分开，未跑同进程全链路，
+也没有 ChatGPT 对照。
 动态运行器曾漏传前端原本会传的 `chat_history`，导致新版 ID 漂移、围栏变成 json；失败原文
 保存在 `followup-without-history/`。补齐真实请求形状后复验，协议仍只认 study-ui，未放宽解析。
 成本包含失败尝试，始终使用先前 ¥30 共享账本；具体余额与验证结果由当前交接记录。
+
+### 跨学科动态证据与局限（2026-11-03 下午）
+
+| 样例 | 独立检查 | 结果 |
+| --- | --- | --- |
+| Java 引用故事 | 执行前无实例；a/b 共用实例；b 改指新实例后旧值保留；回退/重置；字号和 SVG 端点 | 最终 response-7 PASS，桌面/手机共两项 |
+| Canvas 振子 | x=A*sin(phase) 的数值、调参后的画布像素、播放/暂停/重置、减少动态效果 | response-4 PASS，桌面/手机共两项 |
+
+代码样例原 response-3 在 step=0 就绘制对象；response-5 修正语义，但 SVG 字体在双列
+缩成约 9px。response-6 改为 HTML 标签后漏了对象框绝对定位，箭头指向空白。
+最终 response-7 统一坐标后通过；用旧 response-6 重放同一几何断言，箭头偏差 **248px**，
+明确失败（`cross-domain-geometry-negative.log`）。新断言同时检查端点横向距离与落在对象高度内，
+不以文本正确冒充图形正确；局部横向滚动保留窄屏文字尺寸，页面没有横向溢出。
+
+这些样例验证自由运行与追问修复能力，不证明模型首轮生成质量稳定。全局提示补充了初始状态
+真实性及缩放后字号要求；response-5/6 的请求读取了旧导出提示，但用户追问明确包含修复要求，
+不得把它们算作新提示独立提升质量的 A/B 证据。当前 CLI 导出提示已改为本地 TypeScript 转译，
+不再依赖浏览器预览服务是否运行。所有 input/response/live-N 文件均保留原始内容与预算快照。
+
+### 桌面启动与恢复证据
+
+本片另修复一个实际冷启动阻断：Windows PowerShell 5.1 在上层收集函数输出时，会把 Docker
+尚未运行的 stderr 转成终止异常，使 `Start-DockerIfNeeded` 来不及启动 Docker Desktop。
+仅在两个只读存在性探测内设置局部 Continue 策略，仍用退出码判断；真正 Docker 操作继续
+检查失败并停止。`desktop_docker_startup` 包含真实 PS 5/7 子进程、daemon/container 的正反样例、
+调用者错误策略不泄漏及启动身份合同，共 41 PASS。脚本保留 UTF-8 BOM，PS 解析零错误。
+
+本机 Docker 自身也因 Secrets Engine 的陈旧 `engine.sock` 无法重命名而退出。
+原父目录 `AppData/Local` 带 EFS 属性，同父目录备份和空目录解密均被系统拒绝；未删除 socket。
+停止本次启动的 Docker 进程后，验证同盘明确源/目标路径，将完整故障目录保留移入未加密的
+`C:/StudyAgentDockerRecovery-20261103/docker-secrets-engine-154308`，随后从原桌面脚本恢复 Docker。
+现有 SearXNG 与 retained 容器仍在，镜像及 volume 未改动。没有系统重置、WSL 全局关闭或数据清理。
+恢复时创建但未使用的空目录 `C:/Users/Zhang/AppData/Local/study-agent-docker-recovery-20261103-154243`
+因自动审批拦截清理而保留；不影响运行。恢复收据为证据目录内的 `startup-recovery.json`。
+
+PS 7 的 `Start-Process` 还会把其模块路径原样传给 PS 5，导致 Get-FileHash 自动加载失败；
+验收运行器为 PS 5 子进程显式设置 Windows 系统 PSModulePath，生产脚本无需为运行器环境改动。
+`accepted-start.stdout.log` 记录前后端身份、Docker 搜索与真实返回；`studyctl ui --json` 为 auth=ok。
+最终桌面入口 `C:/Users/Zhang/Desktop/Study Agent.cmd` 默认启动本开发工作树，未使用 SkipSearXNG。
 
 核对日期：2026-10-08。实施工作区：`D:/study-agent-validation/reading-notebook-ui`，分支 `codex/reading-notebook-ui`，本批基线 `fb1d80d13126346d3fe18fa6f8b878130fc80ea4`。本文件是本批设计与接口记录；执行状态仍以 PROJECT_STATUS.md Current Handoff 为准。
 
