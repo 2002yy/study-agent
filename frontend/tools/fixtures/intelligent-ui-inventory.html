@@ -12,6 +12,7 @@ function draw() {
   $('available').textContent=total-locked;
   $('locked').max=total;
   $('locked').value=locked;
+  window.studyUI.setState({total,locked,available:total-locked});
 }
 $('locked').addEventListener('input',e=>{locked=+e.target.value;draw()});
 $('pay').addEventListener('click',()=>{if(locked>0){const paid=Math.min(5,locked);total-=paid;locked-=paid;draw()}});
