@@ -24,20 +24,23 @@
 
 **结果（P2，owner=orchestration/context）**：新增独立模块 `src/interactive_history.py`，
 并在 `build_messages` 拼接历史前调用一次，普通与策略聊天共用入口。只处理助手消息中完整闭合、
-`type=interactive` 且带合法 `id/revision/html` 的块；同一 id 的旧 revision 换成
-“id + revision + title + summary + 源码未提供”的摘要，当前 revision 逐字保留；正文、用户原话、
-其它组件、未闭合或解析失败的块一律原样保留。目标组件由“继续探索「标题」（版本 N）”或显式 id 决定，
-多组件且无明确选择时**不压缩**，所以不会把“最后一段 HTML”误当成当前界面。
-摘要不推测旧版修复了什么；需要旧版源码时摘要明确写出应从已保存会话恢复。
-解析兼容 CRLF/LF 但不改写存储；摘要比源码还长时放弃替换；异常时返回原历史。
-未声明 `【自由交互界面 v1】` 的请求不压缩。
+字段与前端协议一致的 `type=interactive` 块；同一 id 中**早于**目标 revision 的版本换成
+“id + revision + title + summary + 源码未提供”的摘要，目标版本与**更新的**版本源码都逐字保留；
+正文、用户原话、其它组件、未闭合或解析失败的块一律原样保留。目标组件由
+“继续探索「标题」（版本 N）”或显式 id 决定，且必须唯一：多组件、同标题不同 id、
+指定版本不在窗口内时都不压缩，所以不会把“最后一段 HTML”误当成当前界面。普通代码围栏里的
+`study-ui` 示例按文档跳过，不当成运行中的组件。摘要不推测旧版修复了什么；需要旧版源码时
+摘要明确写出应从已保存会话恢复。解析兼容 CRLF/LF 但不改写存储；摘要比源码还长时放弃替换；
+异常时返回原历史。未声明 `【自由交互界面 v1】` 的请求不压缩。
 
-**提交**：`19d1cef8` 实现、测试与命名 L1；随后仅文档提交。未推送、无 PR/CI。
+**提交**：`387309bd` 实现、测试与命名 L1；`d0028bf5` 文档；其后的审查修复提交见
+`git log`。未推送、无 PR/CI（修复后按审阅意见另立基线）。
 
-**静态证据**：新增 `tests/test_interactive_history.py` **18 PASS**（含 CRLF、坏 JSON、未闭合围栏、
-两个 id、按钮指定旧 revision、幂等、摘要过大回退、只改副本不碰存储），并加一条服务级回归
+**静态证据**：新增 `tests/test_interactive_history.py` **31 PASS**（含 CRLF、坏 JSON、未闭合围栏、
+嵌套普通代码围栏、两个 id、同标题同版本不同 id、按钮指定旧版本（更新的版本保留）、幂等、
+摘要过大回退、只改副本不碰存储、前端会拒绝的字段与超长块），并加一条服务级回归
 证明提供商实际收到的就是压缩后的历史（旧版 HTML 不在、当前版在、用户原话在）；命名 L1
-`interactive_history_compression` 影响集 **131 PASS**；Ruff PASS；mypy
+`interactive_history_compression` 影响集 **144 PASS**；Ruff PASS；mypy
 **118/128，新增 0**（`config/mypy_baseline.json` 门禁通过）。按 AGENTS.md §4，无共享核心模型、
 持久化 schema 或发布权改动，本片不触发 L2/L3。
 
@@ -48,6 +51,13 @@
 另一真实会话 `chat_0f6b490c…` 同对话出现两个 id，工具如实报告无明确选择并**不压缩**。
 报告在 `D:/study-agent-validation/interactive-history-stage1-20261103/`。这是成本与保真对照，
 **不是**修改成功率；小规模真实调用对比尚未执行，共享账本未新增预留（仍 ¥8.63/¥30）。
+
+**审查修复**：用户复核指出三处边界并已修：①重新打开 V2 时不再把 V3 当作“被 V2 替代”而压缩，
+只有 `revision < 目标` 才删源码；②同标题不同 id（或同版本不同 id）一律判为
+`ambiguous_target`/`ambiguous_multiple_ids`，不再用 `max()` 猜一个；③解析改为按围栏块推进，
+普通代码围栏内的 `study-ui` 示例不再被当成运行组件；`_valid_block` 与前端
+`parseAnswerCard` 对齐（id 正则与 64、revision 1–999、summary ≤1200、html ≤60000、整块 ≤96000）。
+原断言“V3 源码会消失”的测试已按正确语义改写，而不是让生产代码迁就它。
 
 **边界**：两个真实会话、两次可压缩轮次只是初始样本，不能据此声称生成质量提高；压缩按字符和
 heuristic token 计量，不是提供商账单或真实 tokenizer 计数；未实现按需恢复旧版源码、局部补丁、

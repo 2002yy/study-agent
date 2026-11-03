@@ -30,9 +30,15 @@ from typing import Any
 INTERACTIVE_CAPABILITY_MARKER = "【自由交互界面 v1】"
 
 MAX_ID_CHARS = 64
-MAX_SUMMARY_CHARS = 2000
+MAX_SUMMARY_CHARS = 1200
+MAX_TITLE_CHARS = 100
+MAX_HTML_CHARS = 60000
+MAX_BLOCK_CHARS = 96000
 
-_OPEN_FENCE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})[ \t]*study-ui[ \t]*$")
+_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+# Any fence opens a block. Only `study-ui` is interpreted; everything else is
+# skipped whole so a demo inside a plain code block is never a component.
+_OPEN_FENCE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$")
 _CLOSE_FENCE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})[ \t]*$")
 # The follow-up button writes `继续探索「标题」（版本 N）`; that is the one
 # reliable statement of which component the learner is currently editing.
@@ -60,7 +66,6 @@ class InteractiveVersion:
     html_chars: int
     start: int
     end: int
-    summary_truncated: bool = False
 
 
 @dataclass(frozen=True)
@@ -94,19 +99,40 @@ def _close_index(
     return None
 
 
-def _valid_block(payload: Any) -> dict[str, Any] | None:
+def _valid_block(payload: Any, raw_length: int) -> dict[str, Any] | None:
+    """Accept exactly what the browser protocol accepts.
+
+    The frontend refuses a card whose id/revision/summary/html are out of
+    bounds, so compressing such a block would hide content from the model while
+    also being invisible to the learner.
+    """
+
+    if raw_length > MAX_BLOCK_CHARS:
+        return None
     if not isinstance(payload, dict) or payload.get("type") != "interactive":
         return None
-    identifier = payload.get("id")
-    if not isinstance(identifier, str) or not identifier.strip():
+    title = payload.get("title")
+    if not isinstance(title, str) or not title.strip() or len(title) > MAX_TITLE_CHARS:
         return None
-    if len(identifier.strip()) > MAX_ID_CHARS:
+    identifier = payload.get("id")
+    if not isinstance(identifier, str) or not _ID_PATTERN.match(identifier):
+        return None
+    if len(identifier) > MAX_ID_CHARS:
         return None
     revision = payload.get("revision")
-    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+    if isinstance(revision, bool) or not isinstance(revision, int):
+        return None
+    if revision < 1 or revision > 999:
+        return None
+    summary = payload.get("summary")
+    if not isinstance(summary, str) or not summary.strip():
+        return None
+    if len(summary) > MAX_SUMMARY_CHARS:
         return None
     html = payload.get("html")
     if not isinstance(html, str) or not html.strip():
+        return None
+    if len(html) > MAX_HTML_CHARS:
         return None
     return payload
 
@@ -116,8 +142,10 @@ def find_interactive_versions(
 ) -> list[InteractiveVersion]:
     """Every complete, valid interactive block, in history order.
 
-    An unclosed fence, a non-object payload, a missing id/revision, or an empty
-    document is not a component: it is left alone rather than guessed at.
+    Fences are tracked as blocks: a ``study-ui`` example shown inside a plain
+    code fence is documentation, not a running component. An unclosed fence, a
+    non-object payload, or fields the browser would reject are not components
+    and are left alone rather than guessed at.
     """
 
     found: list[InteractiveVersion] = []
@@ -128,40 +156,39 @@ def find_interactive_versions(
         if not isinstance(content, str) or "study-ui" not in content:
             continue
         lines = _line_spans(content)
-        for line_index, (_, _, text) in enumerate(lines):
-            opening = _OPEN_FENCE.match(text)
+        index = 0
+        while index < len(lines):
+            opening = _OPEN_FENCE.match(lines[index][2])
             if not opening:
+                index += 1
                 continue
-            closing = _close_index(lines, line_index, opening.group("marker"))
+            closing = _close_index(lines, index, opening.group("marker"))
             if closing is None:
-                # Half-written markup is not a version; keep the text as it is.
+                # Half-written markup is not a version; nothing after it can be
+                # trusted as a complete block either.
                 break
-            raw = content[lines[line_index][1] : lines[closing][0]]
+            if opening.group("info").strip() != "study-ui":
+                index = closing + 1
+                continue
+            raw = content[lines[index][1] : lines[closing][0]]
             try:
-                payload = _valid_block(json.loads(raw))
+                payload = _valid_block(json.loads(raw), len(raw))
             except (ValueError, TypeError):
                 payload = None
-            if payload is None:
-                continue
-            summary = payload.get("summary")
-            summary_text = summary if isinstance(summary, str) else ""
-            truncated = len(summary_text) > MAX_SUMMARY_CHARS
-            if truncated:
-                summary_text = summary_text[:MAX_SUMMARY_CHARS]
-            title = payload.get("title")
-            found.append(
-                InteractiveVersion(
-                    message_index=message_index,
-                    id=str(payload["id"]).strip(),
-                    revision=int(payload["revision"]),
-                    title=title if isinstance(title, str) else "",
-                    summary=summary_text,
-                    html_chars=len(str(payload["html"])),
-                    start=lines[line_index][0],
-                    end=lines[closing][1],
-                    summary_truncated=truncated,
+            if payload is not None:
+                found.append(
+                    InteractiveVersion(
+                        message_index=message_index,
+                        id=str(payload["id"]),
+                        revision=int(payload["revision"]),
+                        title=str(payload["title"]),
+                        summary=str(payload["summary"]),
+                        html_chars=len(str(payload["html"])),
+                        start=lines[index][0],
+                        end=lines[closing][1],
+                    )
                 )
-            )
+            index = closing + 1
     return found
 
 
@@ -191,24 +218,23 @@ def _resolve_target(
     title, referenced_revision = _revision_from_user(user_input)
     if title:
         matching = [item for item in versions if item.title == title]
+        if matching and referenced_revision is not None:
+            exact = [item for item in matching if item.revision == referenced_revision]
+            if not exact:
+                # The button names a revision that is not in this window; do
+                # not fall back to a different one and call it the same thing.
+                return None, None, "referenced_revision_missing"
+            matching = exact
         if matching:
-            chosen = target_revision or referenced_revision
-            if chosen is not None:
-                exact = [item for item in matching if item.revision == chosen]
-                if exact:
-                    matching = exact
-                else:
-                    chosen = None
-            # Same title can appear under two ids when a model renamed the
-            # component mid-conversation; keep the newest matching one.
+            # Same title under two ids means the model renamed the component.
+            # Keeping one and hiding the other would be a guess, so refuse.
+            if len({item.id for item in matching}) > 1:
+                return None, None, "ambiguous_target"
             representative = max(
                 matching, key=lambda item: (item.revision, item.message_index)
             )
-            return (
-                representative.id,
-                chosen or representative.revision,
-                "followup_title",
-            )
+            chosen = referenced_revision or representative.revision
+            return representative.id, chosen, "followup_title"
 
     identifiers = sorted({item.id for item in versions})
     if len(identifiers) == 1:
@@ -229,8 +255,6 @@ def _stub(version: InteractiveVersion) -> str:
         lines.append(f"title: {version.title}")
     if version.summary:
         lines.append(f"summary: {version.summary}")
-    if version.summary_truncated:
-        lines.append("summary_truncated: true")
     lines.append(f"status: {STUB_STATUS}")
     lines.append(STUB_FOOTER)
     return "\n".join(lines)
@@ -303,7 +327,7 @@ def compress_interactive_history(
         versions, user_input, target_id, target_revision
     )
     report["reason"] = reason
-    if resolved_id is None:
+    if resolved_id is None or resolved_revision is None:
         report["status"] = "unresolved_target"
         report["versions"] = [
             {"id": item.id, "revision": item.revision, "message_index": item.message_index}
@@ -320,7 +344,7 @@ def compress_interactive_history(
             "title": item.title,
             "message_index": item.message_index,
             "html_chars": item.html_chars,
-            "kept": item.id == resolved_id and item.revision == resolved_revision,
+            "kept": not (item.id == resolved_id and item.revision < resolved_revision),
         }
         for item in versions
     ]
@@ -328,10 +352,12 @@ def compress_interactive_history(
         {item.id for item in versions if item.id != resolved_id}
     )
 
+    # Only versions older than the chosen one are superseded. A newer revision
+    # is not replaced by the one the learner reopened, and its source stays.
     superseded = [
         item
         for item in versions
-        if item.id == resolved_id and item.revision != resolved_revision
+        if item.id == resolved_id and item.revision < resolved_revision
     ]
     if not superseded:
         report["status"] = "nothing_superseded"

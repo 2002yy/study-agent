@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from src.context_builder import build_messages
 from src.interactive_history import (
     INTERACTIVE_CAPABILITY_MARKER,
@@ -190,25 +192,53 @@ def test_the_follow_up_button_identifies_the_component_and_its_revision():
     assert result.report["target_revision"] == 2
     assert "<div>rv2</div>" in result.messages[3]["content"]
     assert "rv1" not in result.messages[1]["content"]
-    # The user asked to continue from revision 2, so revision 3 is not the base.
-    assert "rv3" not in result.messages[5]["content"]
+    # Revision 3 is newer than the one the learner reopened, so it is not
+    # "superseded by V2" and its source stays available.
+    assert "<div>rv3</div>" in result.messages[5]["content"]
+    assert [item["revision"] for item in result.report["stubbed_revisions"]] == [1]
 
 
-def test_same_title_under_two_ids_uses_the_revision_the_button_named():
+def test_same_title_and_revision_under_two_ids_stays_untouched():
     messages = [
         assistant(block(card("stock-lock-lab", 1, html=big("a1")))),
         assistant(block(card("inventory-lock-lab", 2, html=big("b2")))),
         assistant(block(card("stock-lock-lab", 2, html=big("a2")))),
     ]
+    original = json.loads(json.dumps(messages))
     follow_up = "继续探索「Java 引用关系」（版本 2）。"
 
     result = compress_interactive_history(messages, user_input=follow_up)
 
-    # Only the newest matching revision is current; the older one is summarized.
+    # Two ids answer to the same title and revision, so no source may be hidden.
+    assert result.report["status"] == "unresolved_target"
+    assert result.report["reason"] == "ambiguous_target"
+    assert result.messages == original
+
+
+def test_same_title_is_disambiguated_by_the_named_revision():
+    messages = [
+        assistant(block(card("stock-lock-lab", 1, html=big("a1")))),
+        assistant(block(card("inventory-lock-lab", 2, html=big("b2")))),
+    ]
+    follow_up = "继续探索「Java 引用关系」（版本 1）。"
+
+    result = compress_interactive_history(messages, user_input=follow_up)
+
     assert result.report["target_id"] == "stock-lock-lab"
-    assert result.report["target_revision"] == 2
-    assert [item["revision"] for item in result.report["stubbed_revisions"]] == [1]
+    assert result.report["target_revision"] == 1
+    assert result.report["status"] == "nothing_superseded"
     assert "b2" in result.messages[1]["content"]
+
+
+def test_a_named_revision_missing_from_the_window_compresses_nothing():
+    messages = history_with_versions(1, 2)
+    original = json.loads(json.dumps(messages))
+    follow_up = "继续探索「Java 引用关系」（版本 5）。"
+
+    result = compress_interactive_history(messages, user_input=follow_up)
+
+    assert result.report["reason"] == "referenced_revision_missing"
+    assert result.messages == original
 
 
 def test_several_components_without_a_clear_selection_compress_nothing():
@@ -259,6 +289,56 @@ def test_other_components_keep_their_source():
     assert "b1" in result.messages[1]["content"]
     assert "b2" in result.messages[3]["content"]
     assert "a1" not in result.messages[0]["content"]
+
+
+def test_a_study_ui_example_inside_a_plain_code_fence_is_documentation():
+    inner = block(card("demo", 1, html=big("demo")))
+    messages = [
+        assistant("````markdown\n" + inner + "\n````"),
+        assistant(block(card("demo", 2, html=big("real")))),
+    ]
+    original = json.loads(json.dumps(messages))
+
+    result = compress_interactive_history(messages, user_input="继续")
+
+    # The nested example is not a running component, so only v2 is a version
+    # and there is nothing older to compress.
+    assert [item.revision for item in find_interactive_versions(messages)] == [2]
+    assert result.report["status"] == "nothing_superseded"
+    assert result.messages == original
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {**card(), "id": "has space"},
+        {**card(), "id": "中文标识"},
+        {**card(), "id": "x" * 65},
+        {**card(), "revision": 0},
+        {**card(), "revision": 1000},
+        {**card(), "revision": True},
+        {**card(), "html": "x" * 60001},
+        {key: value for key, value in card().items() if key != "summary"},
+        {**card(), "title": "  "},
+    ],
+)
+def test_fields_the_browser_rejects_are_not_versions(payload):
+    messages = [
+        assistant(block(payload)),
+        assistant(block(card("java-reference", 2, html=big("v2")))),
+    ]
+
+    assert [item.revision for item in find_interactive_versions(messages)] == [2]
+
+
+def test_an_oversized_block_is_not_a_version():
+    payload = {**card(), "html": "x" * 59990, "notes": "y" * 40000}
+    messages = [
+        assistant(block(payload)),
+        assistant(block(card("java-reference", 2, html=big("v2")))),
+    ]
+
+    assert [item.revision for item in find_interactive_versions(messages)] == [2]
 
 
 def test_capability_marker_gates_the_rewrite():
