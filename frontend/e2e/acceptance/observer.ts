@@ -31,6 +31,10 @@ export type CanvasCapture = {
   height: number;
   /** Sampled RGBA grid, or null when the canvas cannot be read. */
   pixels: number[] | null;
+  /** Centre of the dominant saturated colour, in canvas pixels. */
+  marker: { x: number; y: number; radius: number } | null;
+  /** Columns of tall vertical strokes, used as an amplitude reference. */
+  verticalMarks: number[];
   error: string | null;
 };
 
@@ -81,6 +85,7 @@ export async function capture(page: Page, rootSelector = "body"): Promise<RawEvi
       });
     });
     root.querySelectorAll("line[data-arrow]").forEach(element => {
+      if (element.hasAttribute("hidden") || getComputedStyle(element).display === "none") return;
       const id = element.getAttribute("data-arrow") ?? "";
       if (!id) return;
       const x1 = Number(element.getAttribute("x1"));
@@ -139,7 +144,15 @@ export async function capture(page: Page, rootSelector = "body"): Promise<RawEvi
         try {
           const context = canvas.getContext("2d");
           if (!context) {
-            return { id, width: canvas.width, height: canvas.height, pixels: null, error: "no-2d-context" };
+            return {
+              id,
+              width: canvas.width,
+              height: canvas.height,
+              pixels: null,
+              marker: null,
+              verticalMarks: [],
+              error: "no-2d-context",
+            };
           }
           const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
           // A full-pixel hash: an 8x8 sample can alias when a moving element
@@ -150,7 +163,102 @@ export async function capture(page: Page, rootSelector = "body"): Promise<RawEvi
             hash = Math.imul(hash, 16777619);
           }
           const pixels = [hash >>> 0, canvas.width, canvas.height];
-          return { id, width: canvas.width, height: canvas.height, pixels, error: null };
+
+          // The drawn object is the dominant saturated colour. Counting colour
+          // frequency is enough because a filled marker has far more pixels
+          // than labels or strokes of the same hue.
+          const buckets = new Map<number, number>();
+          for (let offset = 0; offset < data.length; offset += 4) {
+            if (data[offset + 3] < 128) continue;
+            const r = data[offset];
+            const g = data[offset + 1];
+            const b = data[offset + 2];
+            const high = Math.max(r, g, b);
+            const low = Math.min(r, g, b);
+            if (high < 70 || high - low < 45) continue;
+            const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+            buckets.set(key, (buckets.get(key) ?? 0) + 1);
+          }
+          let dominant: number | null = null;
+          let dominantCount = 0;
+          buckets.forEach((count, key) => {
+            if (count > dominantCount) {
+              dominant = key;
+              dominantCount = count;
+            }
+          });
+          let marker: { x: number; y: number; radius: number } | null = null;
+          if (dominant !== null && dominantCount >= 24) {
+            const dr = ((dominant >> 10) & 31) << 3;
+            const dg = ((dominant >> 5) & 31) << 3;
+            const db = (dominant & 31) << 3;
+            let sumX = 0;
+            let sumY = 0;
+            let matched = 0;
+            for (let offset = 0; offset < data.length; offset += 4) {
+              const diffR = data[offset] - dr;
+              const diffG = data[offset + 1] - dg;
+              const diffB = data[offset + 2] - db;
+              if (diffR * diffR + diffG * diffG + diffB * diffB > 3600) continue;
+              const pixel = offset / 4;
+              sumX += pixel % canvas.width;
+              sumY += Math.floor(pixel / canvas.width);
+              matched++;
+            }
+            if (matched) {
+              marker = {
+                x: sumX / matched,
+                y: sumY / matched,
+                radius: Math.sqrt(matched / Math.PI),
+              };
+            }
+          }
+
+          // Tall vertical strokes are the drawn amplitude reference. The ball
+          // itself is excluded by its measured radius, and short zig-zag
+          // strokes stay below the run threshold.
+          const verticalMarks: number[] = [];
+          const backgroundR = data[0];
+          const backgroundG = data[1];
+          const backgroundB = data[2];
+          const minRun = Math.max(8, Math.round(canvas.height * 0.2));
+          const yStart = Math.max(0, Math.floor(canvas.height * 0.1));
+          const yEnd = Math.min(canvas.height - 1, Math.ceil(canvas.height * 0.9));
+          for (let x = 0; x < canvas.width; x++) {
+            if (marker && Math.abs(x - marker.x) <= marker.radius + 2) continue;
+            let run = 0;
+            let longest = 0;
+            for (let y = yStart; y <= yEnd; y++) {
+              const offset = (y * canvas.width + x) * 4;
+              const differs =
+                Math.abs(data[offset] - backgroundR) +
+                  Math.abs(data[offset + 1] - backgroundG) +
+                  Math.abs(data[offset + 2] - backgroundB) >
+                36;
+              if (differs) {
+                run++;
+                if (run > longest) longest = run;
+              } else {
+                run = 0;
+              }
+            }
+            if (longest >= minRun) verticalMarks.push(x);
+          }
+          const merged: number[] = [];
+          for (const x of verticalMarks) {
+            if (!merged.length || x - merged[merged.length - 1] > 2) merged.push(x);
+            else merged[merged.length - 1] = (merged[merged.length - 1] + x) / 2;
+          }
+
+          return {
+            id,
+            width: canvas.width,
+            height: canvas.height,
+            pixels,
+            marker,
+            verticalMarks: merged,
+            error: null,
+          };
         } catch (error) {
           // A tainted canvas cannot be read; that is missing evidence, not a pass.
           return {
@@ -158,6 +266,8 @@ export async function capture(page: Page, rootSelector = "body"): Promise<RawEvi
             width: canvas.width,
             height: canvas.height,
             pixels: null,
+            marker: null,
+            verticalMarks: [],
             error: String(error).slice(0, 200),
           };
         }

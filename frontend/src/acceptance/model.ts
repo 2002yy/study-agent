@@ -32,7 +32,7 @@ export type Phase = {
   /** What the checker measured from controls, geometry or pixels. */
   observed: Record<string, number>;
   svg?: SvgShape[];
-  canvas?: { pixels: number[][]; marker?: { x: number; y: number } };
+  canvas?: { pixels: number[][]; marker?: { x: number; y: number }; verticalMarks?: number[] };
 };
 
 export type Observation = {

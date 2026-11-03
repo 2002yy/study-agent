@@ -37,15 +37,37 @@ export const J01_WRONG_ARROW = PAGE(`
   </svg>
   <p>箭头画到了空白处。</p>`);
 
-/** The page prints the right counts; its picture shows only one target for b. */
+/** The page prints two objects; its re-pointed arrow still lands on the first. */
 export const J01_PICTURE_LIES = PAGE(`
   <div data-acceptance-declared='{"objectOfA":1,"objectOfB":2}'>b = new Object()</div>
   ${NODES}
   <svg width="420" height="220" viewBox="0 0 420 220">
     <line data-arrow="arrow-a" data-from="node-a" data-to="node-a" x1="60" y1="70" x2="60" y2="40" stroke="#333" stroke-width="2"></line>
-    <line data-arrow="arrow-b" data-from="node-b" data-to="node-new-object" x1="100" y1="160" x2="260" y2="50" stroke="#333" stroke-width="2"></line>
+    <line data-arrow="arrow-b" data-from="node-b" data-to="node-a" x1="100" y1="160" x2="100" y2="70" stroke="#333" stroke-width="2"></line>
   </svg>
-  <p>文字说有两个对象，图上只有一条来自 b 的箭头。</p>`);
+  <p>文字说 b 已指向新对象，图上却仍然指向旧对象。</p>`);
+
+/**
+ * J01 as a two-step page: the shared phase and the re-pointed phase are read
+ * from the same document, so the reference matrix can judge both.
+ */
+export const J01_STEPS = PAGE(`
+  <div data-acceptance-declared='{"objectOfA":1,"objectOfB":1}'></div>
+  ${NODES}
+  <svg width="420" height="220" viewBox="0 0 420 220">
+    <line data-arrow="arrow-a" data-from="node-a" data-to="node-a" x1="60" y1="70" x2="60" y2="40" stroke="#333" stroke-width="2"></line>
+    <line data-arrow="arrow-b-shared" data-from="node-b" data-to="node-a" x1="60" y1="140" x2="60" y2="70" stroke="#333" stroke-width="2"></line>
+    <line data-arrow="arrow-b" data-from="node-b" data-to="node-new-object" x1="100" y1="160" x2="260" y2="50" stroke="#333" stroke-width="2" hidden></line>
+  </svg>
+  <button type="button" style="position:relative;z-index:10;margin-top:240px">b = new Object()</button>
+  <script>
+    const declared = document.querySelector('[data-acceptance-declared]');
+    const rePointed = document.querySelector('line[data-arrow="arrow-b"]');
+    document.querySelector('button').addEventListener('click', () => {
+      declared.setAttribute('data-acceptance-declared', JSON.stringify({ objectOfA: 1, objectOfB: 2 }));
+      rePointed.removeAttribute('hidden');
+    });
+  </script>`);
 
 export const RUNTIME_ERROR = PAGE(`
   <p>正在加载…</p>
@@ -90,6 +112,80 @@ const P01_SCRIPT = `
   </script>`;
 
 export const P01_ANIMATED = PAGE(P01_SCRIPT);
+
+/**
+ * A deterministic phase-position reference: the ball is drawn from the phase,
+ * the page prints the matching number, and the amplitude is visible as two
+ * tall marks. The observer must recover the position from pixels, not text.
+ */
+const P01_STEPPED_SCRIPT = (drawnFactor: number) => `
+  <canvas data-canvas="p01" width="240" height="120"></canvas>
+  <label>相位 <input type="range" min="0" max="6.2832" step="0.01" value="0" data-phase></label>
+  <button data-play>播放</button>
+  <button data-pause>暂停</button>
+  <p>振幅 A = 2</p>
+  <p>位移 x = <span data-position>0.00</span></p>
+  <div data-acceptance-declared='{"position":0}'></div>
+  <script>
+    const canvas = document.querySelector('canvas[data-canvas]');
+    const context = canvas.getContext('2d');
+    const phaseInput = document.querySelector('[data-phase]');
+    const declared = document.querySelector('[data-acceptance-declared]');
+    const positionText = document.querySelector('[data-position]');
+    const CX = 120, CY = 60, AMP = 80, R = 20;
+    let phaseValue = 0;
+    let playing = false;
+    let last = 0;
+    function render() {
+      const position = 2 * Math.sin(phaseValue);
+      declared.setAttribute('data-acceptance-declared', JSON.stringify({ position: Number(position.toFixed(3)) }));
+      positionText.textContent = position.toFixed(2);
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, 240, 120);
+      context.strokeStyle = '#cbd2d9';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.moveTo(10, CY);
+      context.lineTo(230, CY);
+      context.stroke();
+      context.strokeStyle = '#9aa5b1';
+      [CX - AMP, CX, CX + AMP].forEach(x => {
+        context.beginPath();
+        context.moveTo(x, CY - 20);
+        context.lineTo(x, CY + 20);
+        context.stroke();
+      });
+      context.fillStyle = '#2680c2';
+      context.beginPath();
+      context.arc(CX + AMP * ${drawnFactor} * Math.sin(phaseValue), CY, R, 0, Math.PI * 2);
+      context.fill();
+    }
+    phaseInput.addEventListener('input', () => {
+      playing = false;
+      phaseValue = Number(phaseInput.value);
+      render();
+    });
+    document.querySelector('[data-play]').addEventListener('click', () => {
+      if (!playing) { playing = true; last = 0; requestAnimationFrame(tick); }
+    });
+    document.querySelector('[data-pause]').addEventListener('click', () => { playing = false; });
+    function tick(timestamp) {
+      if (!playing) return;
+      if (!last) last = timestamp;
+      const dt = (timestamp - last) / 1000;
+      last = timestamp;
+      phaseValue = (phaseValue + 2 * dt) % (Math.PI * 2);
+      phaseInput.value = String(phaseValue);
+      render();
+      requestAnimationFrame(tick);
+    }
+    render();
+  </script>`;
+
+export const P01_STEPPED = PAGE(P01_STEPPED_SCRIPT(1));
+
+/** The number says 2, but the drawn marker only reaches half the amplitude. */
+export const P01_STEPPED_LIES = PAGE(P01_STEPPED_SCRIPT(0.5));
 
 /** The button looks like it pauses, but the animation keeps running. */
 export const P01_IGNORES_PAUSE = PAGE(`

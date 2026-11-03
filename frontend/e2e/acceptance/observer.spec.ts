@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { TASK_SPECS, judge, summarize, type Observation, type Phase } from "../../src/acceptance/model";
-import { canvasPhase, evidencePhase, j01Phase } from "./adapters";
+import { canvasPhase, declaredAmplitude, evidencePhase, j01Phase, positionFromCanvas } from "./adapters";
 import * as fixtures from "./fixtures";
 import { HTML_FAULTS, type HtmlFault } from "./htmlFaults";
 import { capture, watchErrors, type ErrorCapture, type RawEvidence } from "./observer";
@@ -28,6 +28,24 @@ async function run(page: Parameters<typeof capture>[0], html: string) {
   await page.setContent(html, { waitUntil: "load" });
   const evidence = await capture(page);
   return { evidence, observation: asObservation(evidence, errors) };
+}
+
+/** Read both J01 steps from one document: shared first, then re-pointed. */
+async function runJ01Steps(
+  page: Parameters<typeof capture>[0],
+  html: string
+): Promise<Observation> {
+  const errors = watchErrors(page);
+  await page.setContent(html, { waitUntil: "load" });
+  const phases: Record<string, Phase> = {};
+
+  const shared = await capture(page);
+  phases.shared = j01Phase(shared, shared.text);
+  await page.getByRole("button", { name: "b = new Object()" }).click();
+  const reassigned = await capture(page);
+  phases.reassigned = j01Phase(reassigned, reassigned.text);
+
+  return observationOf(phases, errors, reassigned);
 }
 
 function result(observation: Observation, checkId: string, spec = j01) {
@@ -138,6 +156,47 @@ test("reports a canvas that keeps moving after pause", async ({ page }) => {
   expect(result(observation, "paused", p01)?.status).toBe("fail");
 });
 
+test("maps a canvas marker to task units and confirms the declared position", async ({ page }) => {
+  const observation = await runP01Calibrated(page, fixtures.P01_STEPPED);
+
+  expect(summarize(judge(p01, observation)).indeterminate).toEqual([]);
+  expect(result(observation, "position-at-phases", p01)?.status).toBe("pass");
+  expect(result(observation, "evidence-consistent", p01)?.status).toBe("pass");
+  expect(result(observation, "motion-visible", p01)?.status).toBe("pass");
+  expect(result(observation, "paused", p01)?.status).toBe("pass");
+});
+
+test("catches a marker that only reaches half of the declared position", async ({ page }) => {
+  const observation = await runP01Calibrated(page, fixtures.P01_STEPPED_LIES);
+
+  // The page still prints the correct number, so only the picture can object.
+  expect(result(observation, "position-at-phases", p01)?.status).toBe("pass");
+  expect(result(observation, "evidence-consistent", p01)?.status).toBe("fail");
+});
+
+test("keeps the position open when the page draws no amplitude marks", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.setContent(fixtures.P01_ANIMATED, { waitUntil: "load" });
+  await page.waitForTimeout(120);
+
+  const phases: Record<string, Phase> = {};
+  const zero = await capture(page);
+  phases["phase-zero"] = canvasPhase(zero, zero.text);
+  await page.waitForTimeout(220);
+  const half = await capture(page);
+  const measured = positionFromCanvas(
+    phases["phase-zero"],
+    canvasPhase(half, half.text),
+    declaredAmplitude(half.text)
+  );
+  if (measured) phases["pi-half"] = measured;
+
+  const observation = await canvasObservation(page, phases, errors, half);
+
+  expect(result(observation, "position-at-phases", p01)?.status).toBe("indeterminate");
+  expect(result(observation, "evidence-consistent", p01)?.status).toBe("indeterminate");
+});
+
 test("sees a canvas follow the input", async ({ page }) => {
   const errors = watchErrors(page);
   await page.setContent(fixtures.M01_CANVAS, { waitUntil: "load" });
@@ -228,6 +287,47 @@ async function runP01(page: Parameters<typeof capture>[0], html: string): Promis
   return observationOf(phases, errors, basis);
 }
 
+/**
+ * Deterministic P01 reference: read the resting marker, move the phase to π/2,
+ * convert the marker's displacement into task units, then verify the pause.
+ */
+async function runP01Calibrated(
+  page: Parameters<typeof capture>[0],
+  html: string
+): Promise<Observation> {
+  const errors = watchErrors(page);
+  await page.setContent(html, { waitUntil: "load" });
+  const phases: Record<string, Phase> = {};
+
+  const zero = await capture(page);
+  phases["phase-zero"] = canvasPhase(zero, zero.text);
+
+  await page.locator("[data-phase]").evaluate(element => {
+    const input = element as HTMLInputElement;
+    input.value = String(Math.PI / 2);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.waitForTimeout(60);
+  const half = await capture(page);
+  const measured = positionFromCanvas(
+    phases["phase-zero"],
+    canvasPhase(half, half.text),
+    declaredAmplitude(half.text)
+  );
+  if (measured) phases["pi-half"] = measured;
+
+  await page.getByRole("button", { name: "播放" }).click();
+  await page.waitForTimeout(200);
+  await page.getByRole("button", { name: "暂停" }).click();
+  await page.waitForTimeout(120);
+  const basis = await capture(page);
+  phases["paused-a"] = canvasPhase(basis, basis.text);
+  await page.waitForTimeout(300);
+  phases["paused-b"] = canvasPhase(await capture(page), "");
+
+  return observationOf(phases, errors, basis);
+}
+
 async function runFault(
   page: Parameters<typeof capture>[0],
   fault: HtmlFault
@@ -310,11 +410,11 @@ test.describe("reference matrix", () => {
     test(`judges ${entry.id} from a reference page`, async ({ page }) => {
       let observation: Observation;
       if (entry.id === "J01") {
-        observation = (await run(page, fixtures.J01_CORRECT)).observation;
+        observation = await runJ01Steps(page, fixtures.J01_STEPS);
       } else if (entry.id === "M01") {
         observation = await runM01(page, fixtures.M01_CANVAS);
       } else if (entry.id === "P01") {
-        observation = await runP01(page, fixtures.P01_ANIMATED);
+        observation = await runP01Calibrated(page, fixtures.P01_STEPPED);
       } else {
         const errors = watchErrors(page);
         await page.setContent(entry.html!, { waitUntil: "load" });
@@ -332,6 +432,7 @@ test.describe("reference matrix", () => {
       const summary = summarize(judge(spec, observation));
 
       expect(summary.failed).toEqual([]);
+      expect(summary.indeterminate).toEqual([]);
       expect(summary.passed).toBeGreaterThan(0);
     });
   }
