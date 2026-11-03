@@ -49,7 +49,9 @@ export function watchErrors(page: Page): ErrorCapture {
 export async function capture(page: Page, rootSelector = "body"): Promise<RawEvidence> {
   return page.evaluate((selector: string) => {
     const root = document.querySelector(selector) ?? document.body;
-    const declaredNode = root.querySelector("[data-acceptance-declared]");
+    const declaredNode = root.matches("[data-acceptance-declared]")
+      ? root
+      : root.querySelector("[data-acceptance-declared]");
     let declared: Record<string, number> = {};
     try {
       const raw =

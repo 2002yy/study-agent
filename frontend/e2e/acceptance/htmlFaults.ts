@@ -1,10 +1,8 @@
 /**
- * Twenty-four known defects injected into the real reference HTML.
- *
- * The observation-level catalogue measures the judge. These measure the whole
- * chain: a page is mutated, the observer measures it, and the judge must report
- * the defect on the named check. Twenty-four is the same count as the frozen
- * catalogue: eight runtime, eight state and eight visual.
+ * Twenty-four known defects injected into the real reference HTML, two per task
+ * across the frozen twelve. The observation-level catalogue measures the judge;
+ * these measure the whole chain: mutate a page, measure it, and require the
+ * judge to report the defect on the named check.
  */
 import type { Layer } from "../../src/acceptance/model";
 
@@ -12,11 +10,24 @@ import * as fixtures from "./fixtures";
 
 export type HtmlFault = {
   id: string;
-  taskId: "J01" | "M01" | "P01" | "M02" | "A02";
+  taskId:
+    | "J01"
+    | "J02"
+    | "A01"
+    | "A02"
+    | "D01"
+    | "D02"
+    | "C01"
+    | "M01"
+    | "M02"
+    | "P01"
+    | "S01"
+    | "N01";
   layer: Extract<Layer, "runtime" | "state" | "geometry" | "usability">;
   checkId: string;
   description: string;
   html: string;
+  phases?: Array<{ name: string; selector: string }>;
 };
 
 function inject(html: string, code: string): string {
@@ -31,17 +42,29 @@ function withOverflow(html: string): string {
   return html.replace("</body>", `<div style="width:2000px">溢出内容</div></body>`);
 }
 
-const J01_DECLARED = '{"objectOfA":1,"objectOfB":2}';
-
-function j01Declared(values: { objectOfA: number; objectOfB: number }): string {
-  return fixtures.J01_CORRECT.replace(
-    J01_DECLARED,
-    JSON.stringify({ objectOfA: values.objectOfA, objectOfB: values.objectOfB })
-  );
-}
+const SINGLE: Record<string, Array<{ name: string; selector: string }>> = {
+  J02: [{ name: "call", selector: '[data-phase="call"]' }],
+  A01: [{ name: "found", selector: '[data-phase="found"]' }],
+  A02: [{ name: "result", selector: '[data-phase="result"]' }],
+  C01: [{ name: "running", selector: '[data-phase="running"]' }],
+  S01: [{ name: "metrics", selector: '[data-phase="metrics"]' }],
+  N01: [{ name: "complete", selector: '[data-phase="complete"]' }],
+  D01: [
+    { name: "committed", selector: '[data-phase="committed"]' },
+    { name: "rolled_back", selector: '[data-phase="rolled_back"]' },
+  ],
+  D02: [
+    { name: "interleaved", selector: '[data-phase="interleaved"]' },
+    { name: "serialized", selector: '[data-phase="serialized"]' },
+  ],
+  M02: [
+    { name: "base", selector: '[data-phase="base"]' },
+    { name: "adjusted", selector: '[data-phase="adjusted"]' },
+  ],
+};
 
 export const HTML_FAULTS: HtmlFault[] = [
-  // runtime: eight
+  // runtime: eight, spread across tasks
   {
     id: "HR01",
     taskId: "J01",
@@ -52,19 +75,19 @@ export const HTML_FAULTS: HtmlFault[] = [
   },
   {
     id: "HR02",
-    taskId: "J01",
+    taskId: "A01",
     layer: "runtime",
     checkId: "runtime",
-    description: "点击处理里打印错误",
-    html: inject(fixtures.J01_CORRECT, 'console.error("handler failed");'),
+    description: "查找脚本报错",
+    html: inject(fixtures.A01_PAGE, 'console.error("search failed");'),
   },
   {
     id: "HR03",
-    taskId: "J01",
+    taskId: "D01",
     layer: "runtime",
     checkId: "runtime",
-    description: "未处理的 Promise 拒绝",
-    html: inject(fixtures.J01_CORRECT, 'Promise.reject(new Error("async failed"));'),
+    description: "回滚脚本抛错",
+    html: inject(fixtures.D01_PAGES, 'throw new Error("rollback failed");'),
   },
   {
     id: "HR04",
@@ -76,11 +99,11 @@ export const HTML_FAULTS: HtmlFault[] = [
   },
   {
     id: "HR05",
-    taskId: "M01",
+    taskId: "S01",
     layer: "runtime",
     checkId: "runtime",
-    description: "输入监听打印错误",
-    html: inject(fixtures.M01_CANVAS, 'console.error("input failed");'),
+    description: "矩阵计算报错",
+    html: inject(fixtures.S01_PAGE, 'console.error("matrix failed");'),
   },
   {
     id: "HR06",
@@ -92,85 +115,92 @@ export const HTML_FAULTS: HtmlFault[] = [
   },
   {
     id: "HR07",
-    taskId: "P01",
+    taskId: "N01",
     layer: "runtime",
     checkId: "runtime",
-    description: "暂停回调打印错误",
-    html: inject(fixtures.P01_ANIMATED, 'console.error("pause failed");'),
+    description: "时序推进抛错",
+    html: inject(fixtures.N01_PAGE, 'throw new Error("handshake failed");'),
   },
   {
     id: "HR08",
-    taskId: "P01",
+    taskId: "C01",
     layer: "runtime",
     checkId: "runtime",
-    description: "未处理的 Promise 拒绝",
-    html: inject(fixtures.P01_ANIMATED, 'Promise.reject(new Error("loop failed"));'),
+    description: "许可释放回调报错",
+    html: inject(fixtures.C01_PAGE, 'console.error("release failed");'),
   },
 
-  // state: eight (the page shows a wrong or missing value)
+  // state: eight, one per remaining task
   {
     id: "HS01",
-    taskId: "J01",
+    taskId: "J02",
     layer: "state",
-    checkId: "reassigned-objects",
-    description: "重新指向后仍写同一个对象",
-    html: j01Declared({ objectOfA: 1, objectOfB: 1 }),
+    checkId: "dynamic-dispatch",
+    description: "声明没有发生动态分派",
+    html: fixtures.J02_PAGE.replace('"dispatchedImplementations":1', '"dispatchedImplementations":0'),
+    phases: SINGLE.J02,
   },
   {
     id: "HS02",
     taskId: "J01",
     layer: "state",
     checkId: "reassigned-objects",
-    description: "把 a 的对象数写成 2",
-    html: j01Declared({ objectOfA: 2, objectOfB: 2 }),
+    description: "重新指向后仍写同一个对象",
+    html: fixtures.J01_CORRECT.replace('"objectOfB":2', '"objectOfB":1'),
   },
   {
     id: "HS03",
-    taskId: "J01",
+    taskId: "A02",
     layer: "state",
-    checkId: "reassigned-objects",
-    description: "两个计数都写成 0",
-    html: j01Declared({ objectOfA: 0, objectOfB: 0 }),
+    checkId: "shortest-distance",
+    description: "把 A-C-D 当成最短路（8）",
+    html: fixtures.A02_PAGE.replace('"distance":6', '"distance":8'),
+    phases: SINGLE.A02,
   },
   {
     id: "HS04",
-    taskId: "J01",
+    taskId: "A01",
     layer: "state",
-    checkId: "reassigned-objects",
-    description: "计数写反",
-    html: j01Declared({ objectOfA: 2, objectOfB: 1 }),
+    checkId: "checked-indexes",
+    description: "从索引 0 开始线性扫描",
+    html: fixtures.A01_PAGE.replace('"firstChecked":2', '"firstChecked":0'),
+    phases: SINGLE.A01,
   },
   {
     id: "HS05",
-    taskId: "M01",
+    taskId: "D01",
     layer: "state",
-    checkId: "value-at-3",
-    description: "函数值少算常数项",
-    html: fixtures.M01_CANVAS.replace("const y = 2 * x + 1;", "const y = 2 * x;"),
+    checkId: "committed",
+    description: "转账后总额变成 130",
+    html: fixtures.D01_PAGES.replace('"A":70', '"A":60'),
+    phases: SINGLE.D01,
   },
   {
     id: "HS06",
-    taskId: "M01",
+    taskId: "D02",
     layer: "state",
-    checkId: "value-at-3",
-    description: "函数值多加一",
-    html: fixtures.M01_CANVAS.replace("const y = 2 * x + 1;", "const y = 2 * x + 2;"),
+    checkId: "lost-update",
+    description: "把丢失更新显示成 10",
+    html: fixtures.D02_PAGES.replace('"stock":9', '"stock":10'),
+    phases: SINGLE.D02,
   },
   {
     id: "HS07",
-    taskId: "M01",
+    taskId: "C01",
     layer: "state",
-    checkId: "value-at-minus-1",
-    description: "斜率为负",
-    html: fixtures.M01_CANVAS.replace("const y = 2 * x + 1;", "const y = -2 * x + 1;"),
+    checkId: "permits-hold",
+    description: "三个任务同时运行",
+    html: fixtures.C01_PAGE.replace('"running":2', '"running":3'),
+    phases: SINGLE.C01,
   },
   {
     id: "HS08",
-    taskId: "M01",
+    taskId: "M02",
     layer: "state",
-    checkId: "value-at-minus-1",
-    description: "函数值恒为 0",
-    html: fixtures.M01_CANVAS.replace("const y = 2 * x + 1;", "const y = 0;"),
+    checkId: "zeros-and-vertex",
+    description: "顶点写成 -3",
+    html: fixtures.M02_PAGES.replace('"vertexY":-4', '"vertexY":-3'),
+    phases: SINGLE.M02,
   },
 
   // visual and usability: eight
@@ -184,11 +214,12 @@ export const HTML_FAULTS: HtmlFault[] = [
   },
   {
     id: "HV02",
-    taskId: "J01",
+    taskId: "N01",
     layer: "geometry",
-    checkId: "arrow-points-at-its-object",
-    description: "箭头指向另一个对象",
-    html: fixtures.J01_CORRECT.replace('x2="260" y2="50"', 'x2="60" y2="40"'),
+    checkId: "ack-direction",
+    description: "ACK 箭头指向反方向",
+    html: fixtures.N01_PAGE.replace('x2="310" y2="20"', 'x2="10" y2="200"'),
+    phases: SINGLE.N01,
   },
   {
     id: "HV03",
@@ -212,30 +243,34 @@ export const HTML_FAULTS: HtmlFault[] = [
     layer: "usability",
     checkId: "readable",
     description: "坐标文字缩到 12px",
-    html: withFont(fixtures.TINY_FONT, 12),
+    html: withFont(fixtures.M02_PAGES, 12),
+    phases: SINGLE.M02,
   },
   {
     id: "HV06",
-    taskId: "M02",
+    taskId: "S01",
     layer: "usability",
     checkId: "readable",
-    description: "坐标文字缩到 11px",
-    html: withFont(fixtures.TINY_FONT, 11),
+    description: "矩阵标签缩到 11px",
+    html: withFont(fixtures.S01_PAGE, 11),
+    phases: SINGLE.S01,
   },
   {
     id: "HV07",
     taskId: "A02",
     layer: "usability",
     checkId: "no-overflow",
-    description: "画布页面横向溢出",
-    html: withOverflow(fixtures.M01_CANVAS),
+    description: "路径页面横向溢出",
+    html: withOverflow(fixtures.A02_PAGE),
+    phases: SINGLE.A02,
   },
   {
     id: "HV08",
-    taskId: "A02",
+    taskId: "D02",
     layer: "usability",
     checkId: "no-overflow",
-    description: "动画页面横向溢出",
-    html: withOverflow(fixtures.P01_ANIMATED),
+    description: "事务时间线横向溢出",
+    html: withOverflow(fixtures.D02_PAGES),
+    phases: SINGLE.D02,
   },
 ];

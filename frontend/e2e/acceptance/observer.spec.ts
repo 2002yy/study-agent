@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { TASK_SPECS, judge, summarize, type Observation, type Phase } from "../../src/acceptance/model";
 import { canvasPhase, evidencePhase, j01Phase } from "./adapters";
 import * as fixtures from "./fixtures";
-import { HTML_FAULTS } from "./htmlFaults";
+import { HTML_FAULTS, type HtmlFault } from "./htmlFaults";
 import { capture, watchErrors, type ErrorCapture, type RawEvidence } from "./observer";
 
 const j01 = TASK_SPECS.find(spec => spec.id === "J01")!;
@@ -228,11 +228,24 @@ async function runP01(page: Parameters<typeof capture>[0], html: string): Promis
   return observationOf(phases, errors, basis);
 }
 
-async function runSimple(page: Parameters<typeof capture>[0], html: string): Promise<Observation> {
+async function runFault(
+  page: Parameters<typeof capture>[0],
+  fault: HtmlFault
+): Promise<Observation> {
+  if (fault.taskId === "J01") return (await run(page, fault.html)).observation;
+  if (fault.taskId === "M01") return runM01(page, fault.html);
+  if (fault.taskId === "P01") return runP01(page, fault.html);
+
   const errors = watchErrors(page);
-  await page.setContent(html, { waitUntil: "load" });
-  const basis = await capture(page);
-  return observationOf({}, errors, basis);
+  await page.setContent(fault.html, { waitUntil: "load" });
+  const phases: Record<string, Phase> = {};
+  let basis = await capture(page);
+  for (const phase of fault.phases ?? []) {
+    const evidence = await capture(page, phase.selector);
+    phases[phase.name] = evidencePhase(evidence, evidence.text);
+    basis = evidence;
+  }
+  return observationOf(phases, errors, basis);
 }
 
 test.describe("HTML-level faults", () => {
@@ -242,14 +255,7 @@ test.describe("HTML-level faults", () => {
         testInfo.project.name !== "desktop-chromium",
         "the HTML fault catalogue runs once, not per viewport"
       );
-      const observation =
-        fault.taskId === "J01"
-          ? (await run(page, fault.html)).observation
-          : fault.taskId === "M01"
-            ? await runM01(page, fault.html)
-            : fault.taskId === "P01"
-              ? await runP01(page, fault.html)
-              : await runSimple(page, fault.html);
+      const observation = await runFault(page, fault);
       const spec = TASK_SPECS.find(item => item.id === fault.taskId)!;
 
       expect(result(observation, fault.checkId, spec)?.status).toBe("fail");
