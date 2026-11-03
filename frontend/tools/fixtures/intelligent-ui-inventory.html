@@ -1,0 +1,19 @@
+<!doctype html><html lang="zh"><meta charset="utf-8">
+<style>body{font:16px system-ui;padding:12px}input{width:100%;max-width:400px}</style>
+<body>
+<label>锁定量 <input id="locked" type="range" min="0" max="37" value="5"></label>
+<p>总量 <output id="total">37</output>，锁定 <output id="lockedView">5</output>，可售 <output id="available">32</output></p>
+<button id="pay">支付成功</button><button id="reset">重置</button>
+<script>
+let total=37,locked=5;const $=id=>document.getElementById(id);
+function draw() {
+  $('total').textContent=total;
+  $('lockedView').textContent=locked;
+  $('available').textContent=total-locked;
+  $('locked').max=total;
+  $('locked').value=locked;
+}
+$('locked').addEventListener('input',e=>{locked=+e.target.value;draw()});
+$('pay').addEventListener('click',()=>{if(locked>0){total-=5;locked=Math.max(0,locked-5);draw()}});
+$('reset').addEventListener('click',()=>{total=37;locked=5;draw()});
+</script></body></html>
