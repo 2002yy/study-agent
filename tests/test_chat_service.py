@@ -85,7 +85,7 @@ class FakeRagResult:
         }
 
 
-def _service(tmp_path) -> tuple[ChatService, RuntimeRepository]:
+def _service(tmp_path, *, build_messages=None, chat=None) -> tuple[ChatService, RuntimeRepository]:
     repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
     dependencies = ChatDependencies(
         load_runtime_modes=lambda: RuntimeModes(
@@ -101,16 +101,77 @@ def _service(tmp_path) -> tuple[ChatService, RuntimeRepository]:
             "reason": "test",
         },
         retrieve_local_knowledge=lambda *args, **kwargs: FakeRagResult(),
-        build_messages=lambda **kwargs: [
-            {"role": "system", "content": kwargs["role_prompt"]},
-            {"role": "user", "content": kwargs["user_input"]},
-        ],
-        chat=lambda *args, **kwargs: "complete reply",
+        build_messages=build_messages
+        or (
+            lambda **kwargs: [
+                {"role": "system", "content": kwargs["role_prompt"]},
+                {"role": "user", "content": kwargs["user_input"]},
+            ]
+        ),
+        chat=chat or (lambda *args, **kwargs: "complete reply"),
         stream_chat=lambda *args, **kwargs: iter(["part", " two"]),
         chat_max_tokens=lambda performance_mode: 1000,
         resolve_web_tools=lambda *args, **kwargs: WebToolTrace(enabled=False),
     )
     return ChatService(repository, dependencies), repository
+
+
+def test_compressed_history_is_what_the_provider_receives(tmp_path):
+    import json
+
+    from src.context_builder import build_messages as real_build_messages
+    from src.interactive_history import INTERACTIVE_CAPABILITY_MARKER
+
+    captured = {}
+
+    def chat(messages, **kwargs):
+        captured["messages"] = messages
+        return "ok"
+
+    def block(revision):
+        return (
+            "```study-ui\n"
+            + json.dumps(
+                {
+                    "type": "interactive",
+                    "id": "java-reference",
+                    "revision": revision,
+                    "title": "Java 引用关系",
+                    "summary": "引用共享与重新赋值实验",
+                    "html": f"<div>rv{revision}</div>" + "x" * 1200,
+                }
+            )
+            + "\n```"
+        )
+
+    history = [
+        {"role": "user", "content": "生成引用实验"},
+        {"role": "assistant", "content": "说明\n\n" + block(1)},
+        {"role": "user", "content": "对象出现太早"},
+        {"role": "assistant", "content": "说明\n\n" + block(2)},
+    ]
+    service, _ = _service(
+        tmp_path, build_messages=real_build_messages, chat=chat
+    )
+
+    prepared = service.start_turn(
+        ChatCommand(
+            user_input="再加一步回退",
+            thread_id="chat_compress",
+            chat_history=history,
+            conversation_instruction=INTERACTIVE_CAPABILITY_MARKER,
+        )
+    )
+    service.generate(prepared)
+
+    sent = "\n".join(str(message["content"]) for message in captured["messages"])
+    assert "<div>rv1</div>" not in sent
+    assert "<div>rv2</div>" in sent
+    assert "已被后续版本替代" in sent
+    assert any(
+        message["role"] == "user" and message["content"] == "再加一步回退"
+        for message in captured["messages"]
+    )
 
 
 def test_chat_service_persists_pending_streaming_and_completed_turn(tmp_path):
