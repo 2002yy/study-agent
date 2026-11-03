@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateScenario, applyOfflinePolicy, escapeAttribute } from './audit-generated-ui.mjs';
+import { validateScenario, applyOfflinePolicy, escapeAttribute, htmlFromInteractiveCard } from './audit-generated-ui.mjs';
 
 const spec = {
   version: 1, name: '库存演示',
@@ -38,4 +38,13 @@ test('accepts published state assertions and blocks unsafe or invalid paths', ()
     { op: 'expectState', path: 'stock..locked', equals: 2 },
     { op: 'expectState', path: 'inventory', equals: { stock: 2 } },
   ]) assert.throws(() => validateScenario({ ...spec, steps: [bad] }), /Invalid state assertion/);
+});
+
+test('loads a bounded saved real-model card directly for replay', () => {
+  const card = { type: 'interactive', id: 'stock', revision: 1, title: '库存', summary: '测试模型结果', html: '<button>操作</button>' };
+  assert.equal(htmlFromInteractiveCard(JSON.stringify(card)), card.html);
+  for (const bad of [{ ...card, type: 'chart' }, { ...card, id: '../escape' }, { ...card, revision: 0 }, { ...card, html: '' }]) {
+    assert.throws(() => htmlFromInteractiveCard(JSON.stringify(bad)), /bounded interactive card/);
+  }
+  assert.throws(() => htmlFromInteractiveCard('{incomplete'), /Invalid interactive card/);
 });
