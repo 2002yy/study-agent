@@ -20,8 +20,9 @@ from src.tools.web_agent import WebToolTrace
 
 @pytest.mark.parametrize("transport", ["generate", "stream", "stream_async"])
 @pytest.mark.parametrize("capability", [False, True])
+@pytest.mark.parametrize(("question", "budget"), [("制作交互示意", 6000), ("解释 final 的含义", 1000), ("做一个简单交互图", 3500), ("制作多面板交互界面", 9000)])
 def test_interactive_output_budget_reaches_every_answer_transport(
-    tmp_path, transport, capability
+    tmp_path, transport, capability, question, budget
 ):
     import asyncio
 
@@ -46,7 +47,7 @@ def test_interactive_output_budget_reaches_every_answer_transport(
     )
     prepared = service.start_turn(
         ChatCommand(
-            user_input="制作交互示意",
+            user_input=question,
             selected_role="nahida",
             thread_id="interactive-budget",
             rag_enabled=False,
@@ -69,7 +70,7 @@ def test_interactive_output_budget_reaches_every_answer_transport(
             return [text async for text in service.stream_async(prepared)]
 
         asyncio.run(collect())
-    assert captured == [6000 if capability else 1000]
+    assert captured == [budget if capability else 1000]
 
 
 class FakeRagResult:

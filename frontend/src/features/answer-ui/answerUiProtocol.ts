@@ -85,7 +85,7 @@ export type AnswerPart = { kind: "markdown"; content: string; key: number }
 
 export function splitAnswerContent(content: string, streaming = false): AnswerPart[] {
   const parts: AnswerPart[] = [];
-  const lines = content.split("\n");
+  const lines = content.split(/\r?\n/);
   let start = 0;
   let cards = 0;
   for (let i = 0; i < lines.length; i++) {

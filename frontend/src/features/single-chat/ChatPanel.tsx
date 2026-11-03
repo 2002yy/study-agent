@@ -518,6 +518,7 @@ export function ChatPanel(props: ChatPanelProps) {
                       {message.role === "assistant" && (message.researchProgress || (isSending && !displayMessages.slice(index + 1).some(item => item.role === "assistant")))
                         ? <AnswerProgress hasContent={!!message.content.trim()} progress={message.researchProgress ?? researchProgress} /> : null}
                       <MarkdownMessage content={message.content} interactive={message.role === "assistant"}
+                        generation={message.evidence?.route?.generation}
                         streaming={message.role === "assistant" && isSending && !displayMessages.slice(index + 1).some(item => item.role === "assistant")}
                         onDraft={prompt => {
                           setComposerMode("chat");

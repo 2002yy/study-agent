@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import time
+import json
+import pytest
 
 from src.tools.web_agent import WebToolTrace
 
@@ -47,6 +49,36 @@ class DisconnectRequest:
 class ConnectedRequest:
     async def is_disconnected(self) -> bool:
         return False
+
+
+@pytest.mark.parametrize(("reason", "expected"), [("stop", "completed"), ("length", "output_limit")])
+def test_generation_outcome_reaches_sse_and_saved_turn(runtime_test_context, reason, expected):
+    async def tokens(*args, **kwargs):
+        yield "partial answer"
+        kwargs["on_completion"](reason)
+
+    service = _service(runtime_test_context, tokens)
+    body = asyncio.run(_consume_stream(service, runtime_test_context.web_lookup_service, ConnectedRequest(), "generation-outcome"))
+    events = [json.loads(block.split("data: ", 1)[1]) for block in body.split("\n\n") if block.startswith("event: done")]
+    assert events[0]["generation"]["status"] == expected
+    saved = service.repository.get_chat_turn(events[0]["turn_id"])
+    assert saved.route_snapshot["generation"]["status"] == expected
+    assert saved.assistant_message == "partial answer"
+
+
+def test_timeout_preserves_partial_and_reports_typed_outcome(runtime_test_context):
+    async def tokens(*args, **kwargs):
+        yield "partial answer"
+        raise TimeoutError("test deadline")
+
+    service = _service(runtime_test_context, tokens)
+    body = asyncio.run(_consume_stream(service, runtime_test_context.web_lookup_service, ConnectedRequest(), "generation-timeout"))
+    events = [json.loads(block.split("data: ", 1)[1]) for block in body.split("\n\n") if block.startswith("event: error")]
+    assert events[0]["generation"]["status"] == "timeout"
+    saved = service.repository.list_chat_turns("generation-timeout")[0]
+    assert saved.assistant_message == "partial answer"
+    assert saved.status == "interrupted"
+    assert saved.route_snapshot["generation"]["status"] == "timeout"
 
 
 def _service(runtime_test_context, async_stream_chat) -> ChatService:

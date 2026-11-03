@@ -609,6 +609,9 @@ export function useChatController(options: ControllerOptions) {
           },
           onDone: (done) => {
             if (!isCurrent()) return;
+            if (done.generation && typeof done.generation === "object") {
+              streamedRoute = { ...streamedRoute, generation: done.generation };
+            }
             // The answer state is committed now; the next frame is the first
             // point at which the reader can actually see it.
             noteTiming({ kind: "answer_done", at: performance.now() });
@@ -627,9 +630,7 @@ export function useChatController(options: ControllerOptions) {
                         ...message,
                         content: done.reply as string,
                         turnStatus: "completed",
-                        evidence: donePedagogy
-                          ? { pedagogy: donePedagogy, route: streamedRoute, rag: streamedRag ?? undefined }
-                          : message.evidence,
+                        evidence: { ...message.evidence, pedagogy: donePedagogy, route: streamedRoute, rag: streamedRag ?? undefined },
                       }
                     : index === userIndex
                       ? { ...message, turnStatus: "completed" }
@@ -642,6 +643,14 @@ export function useChatController(options: ControllerOptions) {
                   value: phaseTrail([...state.pedagogyPhases, donePedagogy.phase]),
                 });
               }
+            }
+          },
+          onError: (data) => {
+            if (!isCurrent()) return;
+            if (data.generation && typeof data.generation === "object") {
+              streamedRoute = { ...streamedRoute, generation: data.generation };
+              setMessages(current => current.map((message, index) => index === assistantIndex
+                ? { ...message, evidence: { ...message.evidence, route: streamedRoute } } : message));
             }
           },
         },

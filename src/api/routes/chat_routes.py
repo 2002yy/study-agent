@@ -25,6 +25,7 @@ from src.application.chat_service import (
     answer_validation_active,
 )
 from src.application.helpers import sse_event, stream_usage_payload
+from src.application.generation_outcome import error_outcome
 from src.application.policy_chat_service import PolicyChatCommand
 from src.application.research_evidence import (
     research_binding_rows,
@@ -101,6 +102,7 @@ def chat_endpoint(
             status_code=499,
             detail={
                 "message": "Chat turn cancelled",
+                "generation": {"status": "cancelled", "finish_reason": "unknown"},
                 "turn_id": exc.turn_id,
                 "operation_id": exc.operation_id,
                 "stage": exc.stage,
@@ -108,6 +110,12 @@ def chat_endpoint(
         ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (RuntimeError, TimeoutError) as exc:
+        outcome = error_outcome(exc)
+        raise HTTPException(
+            status_code=504 if outcome["status"] == "timeout" else 502,
+            detail={"message": "生成请求未能完成", "generation": outcome},
+        ) from exc
     return ChatResponse(
         reply=reply,
         session_id=prepared.thread.id,
@@ -321,10 +329,12 @@ async def chat_stream_endpoint(
                     "session_id": prepared.thread.id,
                     "turn_id": prepared.turn.id,
                     "reply": completed.assistant_message,
+                    "generation": prepared.route.get("generation"),
                     "pedagogy": pedagogy_summary_from_plan(prepared.pedagogy_plan),
                 },
             )
         except _ClientDisconnected:
+            prepared.route["generation"] = {"status": "disconnected", "finish_reason": "unknown"}
             with suppress(ValueError):
                 service.interrupt_turn(
                     prepared,
@@ -332,6 +342,7 @@ async def chat_stream_endpoint(
                 )
             return
         except _TurnCancelled as exc:
+            prepared.route["generation"] = {"status": "cancelled", "finish_reason": "unknown"}
             partial = _publishable_partial(reply_parts, buffered_validation)
             with suppress(ValueError):
                 service.finish_cancelled_turn(prepared, partial)
@@ -342,10 +353,12 @@ async def chat_stream_endpoint(
                     "operation_id": exc.operation_id,
                     "stage": "generation",
                     "partial": partial,
+                    "generation": prepared.route["generation"],
                 },
             )
             return
         except asyncio.CancelledError:
+            prepared.route["generation"] = {"status": "cancelled", "finish_reason": "unknown"}
             with suppress(ValueError):
                 service.interrupt_turn(
                     prepared,
@@ -353,6 +366,7 @@ async def chat_stream_endpoint(
                 )
             raise
         except Exception as exc:
+            prepared.route["generation"] = error_outcome(exc)
             partial = _publishable_partial(reply_parts, buffered_validation)
             with suppress(ValueError):
                 if partial:
@@ -361,7 +375,7 @@ async def chat_stream_endpoint(
                     service.fail_turn(prepared)
             yield sse_event(
                 "error",
-                {"message": str(exc), "error_type": type(exc).__name__},
+                {"message": str(exc), "error_type": type(exc).__name__, "generation": prepared.route["generation"]},
             )
         finally:
             with suppress(RuntimeError):

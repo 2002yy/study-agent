@@ -44,6 +44,7 @@ from src.application.learning_authority_projection import (
 )
 from src.application.shadow_isolation import BestEffortTelemetry
 from src.context_builder import build_messages
+from src.application.generation_outcome import error_outcome, record_finish
 from src.domain.answer_claims import rejected_answer_claim_snapshot
 from src.domain.answer_validation import (
     PHASE_ANSWER_CLAIM_BINDING,
@@ -65,7 +66,7 @@ from src.llm_spend_guard import (
 )
 from src.memory import read_memory_bundle
 from src.mode_manager import load_runtime_modes
-from src.performance_budget import chat_max_tokens, interactive_reply_max_tokens
+from src.performance_budget import chat_max_tokens, interactive_reply_budget
 from src.pedagogy.engine import PedagogyEngine
 from src.pedagogy.evaluation import PedagogyEvalRun, PedagogyEvaluationService
 from src.pedagogy.evidence import EvidenceDisclosurePolicy, build_evidence_units
@@ -1193,6 +1194,7 @@ class ChatService:
                     max_tokens=max_tokens,
                     task_name="single_chat",
                     request_max_retries=0,
+                    on_completion=lambda reason: record_finish(prepared.route, reason),
                     extra_body=_answer_generation_extra_body(prepared),
                     **request_options(prepared.research_deadline),
                 ),
@@ -1205,7 +1207,8 @@ class ChatService:
                 assistant_message=prepared.base_reply if prepared.is_continuation else "",
             )
             raise
-        except Exception:
+        except Exception as exc:
+            prepared.route["generation"] = error_outcome(exc)
             self.fail_turn(prepared)
             raise
         try:
@@ -1346,10 +1349,22 @@ class ChatService:
         )
 
     def _answer_max_tokens(self, prepared: PreparedChatTurn) -> int:
-        return interactive_reply_max_tokens(
+        budget = interactive_reply_budget(
             self.dependencies.chat_max_tokens(prepared.runtime_modes.performance_mode),
             prepared.messages,
+            prepared.turn.user_message,
         )
+        prepared.route["output_budget"] = budget
+        prepared.route["generation"] = {"status": "unknown", "finish_reason": "unknown"}
+        # Match generation instructions to the reserved ceiling. The capability
+        # remains available on later turns; it is not a request to create a UI.
+        if budget["kind"] == "text":
+            guidance = "本轮以文字或已有轻量组件回答，不生成自由HTML应用。用户要求制作或修改界面时再提供。"
+        else:
+            guidance = f"本轮输出上限{budget['max_tokens']} tokens。先完成可运行的核心交互，精简源码；完整闭合JSON和围栏，更多功能可在后续扩展。"
+        if budget["capability_enabled"]:
+            prepared.messages.append({"role": "system", "content": guidance})
+        return int(budget["max_tokens"])
 
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
         remaining_seconds(prepared.research_deadline)
@@ -1358,20 +1373,25 @@ class ChatService:
         max_tokens = self._answer_max_tokens(prepared)
         if not self._begin_generation_call(prepared):
             return
-        with self._spend_scope(prepared):
-            yield from bounded_stream(
-                prepared.research_deadline,
-                self._stream_source(prepared)(
-                    prepared.messages,
-                    model_profile=prepared.route["model_profile"],
-                    max_tokens=max_tokens,
-                    task_name="single_chat",
-                    should_cancel=should_cancel,
-                    request_max_retries=0,
-                    extra_body=_answer_generation_extra_body(prepared),
-                    **request_options(prepared.research_deadline),
-                ),
-            )
+        try:
+            with self._spend_scope(prepared):
+                yield from bounded_stream(
+                    prepared.research_deadline,
+                    self._stream_source(prepared)(
+                        prepared.messages,
+                        model_profile=prepared.route["model_profile"],
+                        max_tokens=max_tokens,
+                        task_name="single_chat",
+                        should_cancel=should_cancel,
+                        on_completion=lambda reason: record_finish(prepared.route, reason),
+                        request_max_retries=0,
+                        extra_body=_answer_generation_extra_body(prepared),
+                        **request_options(prepared.research_deadline),
+                    ),
+                )
+        except Exception as exc:
+            prepared.route["generation"] = error_outcome(exc)
+            raise
 
     async def stream_async(self, prepared: PreparedChatTurn) -> AsyncIterator[str]:
         remaining_seconds(prepared.research_deadline)
@@ -1392,10 +1412,14 @@ class ChatService:
                     max_tokens=max_tokens,
                     task_name="single_chat",
                     request_max_retries=0,
+                    on_completion=lambda reason: record_finish(prepared.route, reason),
                     extra_body=_answer_generation_extra_body(prepared),
                     **request_options(prepared.research_deadline),
                 ):
                     yield token
+        except Exception as exc:
+            prepared.route["generation"] = error_outcome(exc)
+            raise
         finally:
             pop_scope(scope_token)
 

@@ -5,6 +5,7 @@ import base from "./playwright.config";
 export default defineConfig({
   ...base,
   testMatch: [
+    "**/generation-outcome.spec.ts",
     "**/interactive-document.spec.ts",
     "**/interactive-live-replay.spec.ts",
     "**/interactive-cross-domain-replay.spec.ts",

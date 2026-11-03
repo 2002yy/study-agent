@@ -1,13 +1,32 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MarkdownMessage } from "./MarkdownMessage";
 
 afterEach(cleanup);
 
 describe("MarkdownMessage", () => {
+  it("lets the user draft a continuation after a text output limit", () => {
+    const draft = vi.fn();
+    render(<MarkdownMessage content="已经收到的说明" interactive generation={{ status: "output_limit" }} onDraft={draft} />);
+    expect(draft).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "继续未完成的说明" }));
+    expect(draft).toHaveBeenCalledWith(expect.stringContaining("只用文字继续"));
+  });
+  it.each([
+    ["output_limit", "本次回答达到输出长度上限"],
+    ["completed", "模型已结束回答，但交互格式不完整"],
+    ["timeout", "生成请求超时"],
+    ["cancelled", "已停止生成"],
+  ])("distinguishes %s without submitting an automatic repair", (status, text) => {
+    const draft = vi.fn();
+    render(<MarkdownMessage content={'```study-ui\n{"type":"interactive","html":"'} interactive generation={{ status }} onDraft={draft} />);
+    expect(screen.getByText(new RegExp(text))).toBeInTheDocument();
+    expect(draft).not.toHaveBeenCalled();
+    expect(document.querySelector("iframe")).toBeNull();
+  });
   it("renders markdown headings, emphasis and lists", () => {
     render(<MarkdownMessage content={"# 标题\n\n- 第一项\n- **第二项**"} />);
 
