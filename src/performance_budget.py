@@ -72,18 +72,23 @@ def interactive_reply_budget(
     )
     create = bool(
         re.search(
-            r"(制作|生成|做|创建|构建|设计|实现|画|build|create|make|generate).{0,45}(界面|交互|画布|图表|可视化|模拟器|仪表盘|canvas|svg|html|interactive|dashboard)",
+            r"(制作|生成|做|创建|构建|设计|实现|画|给我|想要|需要|提供|展示|演示|build|create|make|generate|show|give me).{0,45}(界面|交互|画布|图表|可视化|模拟器|仪表盘|canvas|svg|html|interactive|dashboard)",
             text,
         )
     )
+    explore = bool(
+        re.search(r"(让我|我想|可以|能否).{0,12}(拖动|调节|逐步运行|逐行执行)", text)
+    )
+    if re.search(r"(并|再|同时|and).{0,6}(做|制作|生成|create|build)", text):
+        explanation = False
     modify = existing and bool(
         re.search(
-            r"修改|调整|增加|添加|改成|改为|修复|重做|继续|按钮|滑块|change|modify|add|fix|continue",
+            r"修改|调整|增加|添加|改成|改为|修复|重做|继续|完整版本|重新生成|按钮|滑块|change|modify|add|fix|continue",
             text,
         )
     )
     kind = "text"
-    if enabled and not text_only and not explanation and (modify or create):
+    if enabled and not text_only and not explanation and (modify or create or explore):
         kind = "interactive"
         if re.search(
             r"多面板|多个视图|联动面板|复杂动画|multi.panel|dashboard", text
@@ -99,7 +104,11 @@ def interactive_reply_budget(
         "interactive": 6000,
         "interactive_complex": 9000,
     }[kind]
-    return {"kind": kind, "max_tokens": max(default, ceiling), "capability_enabled": enabled}
+    return {
+        "kind": kind,
+        "max_tokens": max(default, ceiling),
+        "capability_enabled": enabled,
+    }
 
 
 def wechat_history_lines(mode: str | None) -> int:
