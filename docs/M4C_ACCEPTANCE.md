@@ -71,25 +71,46 @@ Three.js、3D、联网数据分析不进入第一版：它们引入的环境变�
 
 耗时、token、预算档位作为诊断指标单独记录，不揉进正确率。
 
-## 4. 当前实现（本片）
+## 4. 当前实现
+
+### 4.1 判定核心（C1）
 
 - `frontend/src/acceptance/model.ts`：12 题规格 + 判定器（运行/状态/几何/可用性）
 - `frontend/src/acceptance/fixtures.ts`：每题一份“正确观察”，用于证明判定器不误报
 - `frontend/src/acceptance/faults.ts`：24 个已知故障（运行 8、状态 8、几何/可用性 8）
-- `frontend/src/acceptance/model.test.ts`：40 项断言
+- `frontend/src/acceptance/model.test.ts`：45 项断言
 
 已验证：12 题正确样本全部 pass 且无 `indeterminate`；24 个故障各自只在目标检查上 fail，
 不牵连其它检查；空观察被判定为 `indeterminate` 而不是 pass；每题另有声明/观测一致性检查。
 
-负控（本轮按复核意见补充）：`NaN` 声明值、`Infinity` 观测值、声明与观测不一致、缺少观测证据、
-SVG 坐标非有限，均按上述语义返回 `fail` 或 `indeterminate`，没有一项被误判为 pass。
+负控：`NaN` 声明值、`Infinity` 观测值、声明与观测不一致、缺少观测证据、SVG 坐标非有限，
+均按语义返回 `fail` 或 `indeterminate`，没有一项被误判为 pass。
 
-**尚未验证**：故障样本作用在“观察”上，而不是渲染后的 HTML；浏览器抽取器（DOM/SVG/Canvas →
-Observation）与 12 份参考实现还未实现，因此现在不能声称检测器已能判断真实模型输出。
+### 4.2 真实页面观察器（C2a）
+
+- `frontend/e2e/acceptance/observer.ts`：在真实 Chromium 页面里采集运行错误、可见文字、
+  声明数值、SVG 用户坐标、字号、控件尺寸、横向溢出
+- `frontend/e2e/acceptance/adapters.ts`：J01 适配器，从箭头拓扑独立数出对象数
+- `frontend/e2e/acceptance/fixtures.ts`：正确页、箭头错位页、文字与图不一致页、运行错误页、
+  字号过小页、横向溢出页、无证据页
+- `frontend/e2e/acceptance/observer.spec.ts`：7 项浏览器检查，桌面与手机各跑一遍
+
+已验证（真实页面，非手写观察）：正确页的运行/箭头/一致性检查通过；箭头错位在几何层失败；
+文字正确但图只画了一条箭头时，声明检查通过而 `cross-check` 失败；运行错误被捕获；没有证据的
+页面数值与几何都返回 `indeterminate`；12px 字号与横向溢出分别被可用性检查发现。
+
+**边界**：目前只有 J01 一个任务适配器；参考页用 `data-acceptance-declared` 暴露“页面声明值”，
+真实模型输出没有这个属性，需要后续用语义标签与几何启发式定位，定位不到就返回
+`indeterminate`。Canvas 采集、12 份参考实现与 24 个 HTML 级故障仍属下一片。
+
+### 4.3 自动判定覆盖率
+
+定义：`得到确定 pass/fail 的必要检查数 ÷ 必要检查总数`。它衡量“检查器能判多少”，
+不能反过来当作模型失败率；无法判定的部分必须单独报告。
 
 ## 5. 后续切片
 
-1. 浏览器观察器：Playwright 驱动，采集控制台、文本、数字、SVG 几何、Canvas 采样、字号与溢出
+1. SVG 坐标与 Canvas 实际画面采集，并扩展到其余 11 个任务的适配器
 2. 12 份参考实现 + 24 个 HTML 级故障注入，验证“抽取 + 判定”整链
 3. 用已保存的真实回答离线重放，先量出基线，不发起付费生成
 4. 经用户单独授权后，再做固定题集的真实生成与一次修复评测

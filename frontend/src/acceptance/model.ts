@@ -20,6 +20,9 @@ export type SvgShape = {
   text?: string;
   from?: { x: number; y: number };
   to?: { x: number; y: number };
+  /** Optional identity of the endpoints, when the page states them. */
+  fromNode?: string;
+  toNode?: string;
 };
 
 export type Phase = {
