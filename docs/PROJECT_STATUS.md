@@ -35,8 +35,9 @@
 **提交**：`19d1cef8` 实现、测试与命名 L1；随后仅文档提交。未推送、无 PR/CI。
 
 **静态证据**：新增 `tests/test_interactive_history.py` **18 PASS**（含 CRLF、坏 JSON、未闭合围栏、
-两个 id、按钮指定旧 revision、幂等、摘要过大回退、只改副本不碰存储）；命名 L1
-`interactive_history_compression` 影响集 **130 PASS**；Ruff PASS；mypy
+两个 id、按钮指定旧 revision、幂等、摘要过大回退、只改副本不碰存储），并加一条服务级回归
+证明提供商实际收到的就是压缩后的历史（旧版 HTML 不在、当前版在、用户原话在）；命名 L1
+`interactive_history_compression` 影响集 **131 PASS**；Ruff PASS；mypy
 **118/128，新增 0**（`config/mypy_baseline.json` 门禁通过）。按 AGENTS.md §4，无共享核心模型、
 持久化 schema 或发布权改动，本片不触发 L2/L3。
 
