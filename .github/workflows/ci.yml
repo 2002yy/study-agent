@@ -54,10 +54,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
+          # No pip cache here: this job installs nothing, and the cache post-step
+          # fails when the folder was never created. Caching belongs to the backend.
 
       - name: Classify pull request scope
         id: ci_scope
