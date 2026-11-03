@@ -1,5 +1,52 @@
 # GPT-6 Chat 更新拆解与 Study Agent 应用
 
+## 2026-11-03：自由生成与交互探索
+
+用户确认本轮重点为「符合，优先自由生成与交互探索」，并明确 SVG、Canvas、HTML
+均可使用、最终效果优先。本节取代下文历史版本中“仅预设模板、不支持模型 HTML/JS”
+的能力限制；旧组件及原有研究证据发布边界保留。当前交接见 PROJECT_STATUS.md。
+
+新增 `study-ui` 中的 `interactive` 对象：`id`、`revision`、`title`、`summary`、`html`。
+模型提供自包含 HTML/CSS/JavaScript，可以自行组织 DOM、SVG、Canvas 和交互逻辑。
+图形、参数、解释可共享一份状态，不再需要为每个学科预写实验模板。
+最多四个组件，文档最多 60000 字符、编码后的单块最多 96000 字符；旧类型仍为 24000。
+
+- 完整关闭的块才运行；流式追加正文不重建画布或丢失参数。失败或未完成时保留正文、
+  说明与可读恢复入口，不执行残缺代码，不自动追加付费调用。
+- 用户可以展开、重置、停止；源码与当前状态可查看。刷新从原始参数恢复。
+- `window.studyUI.setState({...})` 发布至多 4000 字符的 JSON 状态；没有显式状态时捕获
+  有 name/id 的普通控件。点击“带着当前状态继续问”才追加到草稿，由用户编辑、发送。
+  它不是长期记忆或研究核验结论，也不替用户调用工具。
+- 追问由现有聊天历史携带原内容，模型返回同 id、递增 revision 的完整新版。
+  新旧版本各在自己的回答中保持可操作；本片不做跨消息覆盖或版本合并。
+
+**执行边界**：生成内容运行在两层 `sandbox="allow-scripts"`、无同源权限的 iframe 中。
+内层 CSP 限制资源、网络、表单和子 frame；外层为应用持有的固定文档，以 `frame-src 'none'`
+阻止内层通过导航绕开自身 CSP。外层只转发已知类型、来自内层 window 的消息，宿主再次
+校验 source、opaque origin、channel 和大小。没有宿主数据下发，没有 API/文件/存储桥。
+源码先经 inert template 解析；模型脚本从不进入应用 DOM。能力不包含外部依赖、联网、
+文件处理、任意工具执行或可靠的 CPU 配额；浏览器不是通用代码运行服务。
+依据：[iframe sandbox](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe)、
+[CSP](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy)、
+[postMessage](https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage)。实际隔离验收为 Chromium 桌面/手机，非全浏览器资格。
+
+**真实发现与修复**：旧 fast 预算只有 700 tokens，第一次实际调用在 HTML 中途截断。
+当前系统提示声明 `【自由交互界面 v1】` 时，回答输出上限至少 6000 tokens；普通未声明该能力的
+渠道保留旧预算。同步、流式、异步流式三条回答通路统一处理，引用绑定通路不改。
+费用仍由同一共享账本按实际请求上限预留；无新增规划调用、自动重试、绕过预算或发布门。
+
+**验证入口**：`npm test`、`npm run build`、`npm run test:experience`；后端命名 L1 为
+`intelligent_ui`。`interactive-document.spec.ts` 验证 DOM/SVG/Canvas、草稿、刷新、错误、
+窄屏及隔离；`interactive-live-replay.spec.ts` 仅在指定 `INTERACTIVE_LIVE_REPLAY_DIR` 时
+重放已存真实回答，绝不调用提供商，默认跳过。现有 CLI、API 和 SSE 不新增传输格式。
+
+本轮真实证据位于 `D:/study-agent-validation/intelligent-ui-20261103/`：真实 `/chat` 路由
+经 TestClient 调用 DeepSeek，浏览器再重放原始回答。第一版滑块从 5 改为 12 后可售 32→25；
+第二版保留 37/12/25 并增加支付操作。不是本轮重新执行桌面启动全流程，也没有 ChatGPT 对照。
+动态运行器曾漏传前端原本会传的 `chat_history`，导致新版 ID 漂移、围栏变成 json；失败原文
+保存在 `followup-without-history/`。补齐真实请求形状后复验，协议仍只认 study-ui，未放宽解析。
+成本包含失败尝试，始终使用先前 ¥30 共享账本；具体余额与验证结果由当前交接记录。
+
 核对日期：2026-10-08。实施工作区：`D:/study-agent-validation/reading-notebook-ui`，分支 `codex/reading-notebook-ui`，本批基线 `fb1d80d13126346d3fe18fa6f8b878130fc80ea4`。本文件是本批设计与接口记录；执行状态仍以 PROJECT_STATUS.md Current Handoff 为准。
 
 ## 公开机制

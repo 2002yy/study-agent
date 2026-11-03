@@ -13,6 +13,52 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-03 当前片：自由生成的智能 UI
+
+用户确认「优先自由生成与交互探索」，后续开发从 DeepSeek 收尾后的**本地 main**
+`7d7b210937b96bc1769567d7d930651a8daa0bdf` 开始；远端 main
+本次 fetch 仍为 `abf40b494272c547f1fe29ca15edd13c4c470e7b`。
+工作树 `D:/study-agent-validation/experience-retrieval-20261101`，新分支
+`codex/intelligent-ui-20261103`，实现提交 `685218e57cb309ed128f7e9ea653ff0167a4ecea`。
+显示兼容修订 `9468f67c565f7a4de5466618dbd09f633111acd6` 使用 React 实例标识，
+读取旧界面不再依赖安全上下文专属的 UUID API。
+原桌面源码工作树的未跟踪资料未改动。当前本地 main 未吸收本片，无 push/PR/远端 CI。
+
+**结果**：回答中新增自由 `interactive` 文档，模型可生成 HTML/CSS/JS、SVG、Canvas；
+完整块才运行，可展开/重置/停止，运行失败及未完成有修复入口，文字始终可读。
+当前参数经用户点击追加到草稿；追问用现有历史生成同 id 新版，旧回答仍可操作。
+不是新的一组学科模板，不新增服务端执行器、数据表、模型路由或研究发布权。
+双层 opaque-origin iframe + CSP 隔离，浏览器证明父页面数据、fetch、弹窗、外部自身导航
+被阻止；不把模型输出或操作状态提升为可信研究证据。详情：[设计及验收边界](INTERACTIVE_ANSWER_DESIGN.md)。
+
+**真实失败与修复**：第一次生成在 700 tokens 处截断。已声明自由交互能力的当前 system
+上下文使用至少 6000 tokens 的回答上限，同步/流式/异步流式统一；未声明能力的渠道仍用
+原预算。无自动续写、额外调用，原共享支出门按新请求上限预留。动态运行器还曾漏传
+前端本来会携带的聊天历史，修正后验证连续版本；失败样本与费用均保留。
+
+**验证**：P1 owner=orchestration/output-budget；P2 owner=UI/prompt。Static Loop：
+前端完整 **123 文件 / 622 PASS**，构建含 tsc PASS，CLI Playwright **42 PASS**
+（桌面/手机，包括四项真实回答重放）；UUID 修订后直接影响集 **10 PASS**。
+后端命名 `intelligent_ui` L1 **163 PASS**，
+Ruff、diff-check PASS，mypy **118/128，新增 0**。后端第一次 44 项 401 是本机 `.env`
+令牌使测试 fixture 不注入 header；改为明确 fake token/credentials 的隔离测试进程后通过，
+没有改动生产鉴权或放宽测试断言。未运行 L2/L3，未授予合并或全浏览器发布资格。
+
+**限定动态样例 PASS**：真实 FastAPI `/chat` 路由 + DeepSeek 提供商，两轮成功回答在浏览器
+原样重放；第一版锁定 5→12、可售 32→25，第二版保持 37/12/25 后支付，锁定归零、可售
+仍为 25，旧版本仍为初始 32。不是模拟提供商；本轮付费传输使用 TestClient，不冒称
+桌面启动全流程或 ChatGPT 对照。默认离线 CI 不读真实响应，也不发起模型调用。
+复用 `D:/study-agent-validation/live-20261102/spend.db`、实验 `study-agent-live-20261102`
+及用户原先授权 **¥30 累计上限**；本片 4 次调用预留 **¥1.774882**，全实验 14 次，
+累计 **¥4.373742**，余 **¥25.626258**。均为保守预留，不是提供商账单结算。
+证据、真实请求/响应、失败原文及截图位于 `D:/study-agent-validation/intelligent-ui-20261103/`。
+
+代码提交后只余本片设计/交接文档；最终文档提交后应干净。桌面入口仍指向此工作树，
+已重启并通过后端/前端身份、SearXNG 真实查询及 `studyctl ui --json` 鉴权探针；
+本地启动可使用当前开发分支。这不是 main 合并或远端发布。
+**唯一下一片**：扩大自由生成的任务样本（代码执行故事、Canvas 动态机制、数据分析），
+测量完整生成与交互正确率，优先修实际失败；本片两个成功版本不代表所有任务可靠。
+
 ### 2026-11-02 用户选定的体验/检索重构（独立本地分支）
 
 工作树 `D:/study-agent-validation/experience-retrieval-20261101`，分支
