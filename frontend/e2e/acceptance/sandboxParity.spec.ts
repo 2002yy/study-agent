@@ -119,7 +119,7 @@ test.describe("real product sandbox parity", () => {
     test.skip(testInfo.project.name !== "desktop-chromium", "runs once");
     test.setTimeout(240_000);
 
-    await page.goto("/");
+    await page.goto("/m4c-harness.html");
     await page.setContent("<!doctype html><html><body></body></html>");
 
     const sandboxErrors = watchErrors(page);
@@ -211,5 +211,9 @@ test.describe("real product sandbox parity", () => {
       );
     }
     expect(behavioral.map(report => report.case_id)).toEqual([]);
+    // The 13.33px vs 14px span is a measured environment difference, not a
+    // behavioural one; it stays in `environment_differences`.
+    const explorer = reports.find(report => report.case_id === "fixture-explorer");
+    expect(explorer?.behavioral_differences).toEqual([]);
   });
 });

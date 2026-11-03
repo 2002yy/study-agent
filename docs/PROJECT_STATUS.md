@@ -13,6 +13,31 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-04 后续片：沙箱内完整判定
+
+按评审要求，把“直接渲染 vs 沙箱观察一致”推进到“沙箱内能否正确判定”：
+
+- `sandboxJudgment.spec.ts` 在真实产品沙箱内重新取证据并执行完整判定；
+- 直接矩阵、故障目录、沙箱判定共用 `taskObservers.ts`，避免观察路径漂移；
+- **12/12 正确参考页**无失败、无 `indeterminate`；**24/24 HTML 故障**目标检查 `fail`；
+  **3/3 缺证据负控**保持 `indeterminate`（P01 刻度歧义、主导色块、无证据页）；
+- P01 在沙箱内同样检查 0、π/2、π 三相位，9 项全确定；
+- 动画故障（HR06/HV04）按运行时错误与暂停性质判定，不要求逐帧像素相等；
+- `13.33px` vs `14px` 只记在 `environment_differences`，不记为行为差异；9 份真实文档的
+  **13px 仍是 `usability-font = fail`**，门槛未降低。
+
+测试用 `frontend/public/m4c-harness.html` 提供同源空白页，避免加载应用/API 噪音；动态导入的
+仍是产品自己的 `interactiveRuntime.ts`。
+
+**验证**：e2e **95 passed / 27 skipped**；前端单元 124 文件 / 686 PASS；tsc PASS；
+Ruff / diff-check PASS；**0 次模型调用**。
+
+**CI**：`1af8ebe7` 的 run `41695015435` 中 classify / frontend / browser 已 green，backend
+仍在运行；本片新 HEAD 需重新跑完整门禁后才能宣称全绿。
+
+**唯一下一片**：等待本片精确 HEAD 全绿。三项前置满足后，建议按 **12 题各一次首次生成**、
+固定模型版本/预算档/随机性做小规模评测；调用次数、单次上限和总预算另行由用户授权。
+
 ### 2026-11-04 后续片：P01 三相位 + 真实沙箱 + 通用可用性
 
 按评审裁定完成的离线收口：

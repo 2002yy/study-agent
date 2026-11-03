@@ -224,7 +224,36 @@ J01 的参考页改为两步：共享阶段只有一条 b 箭头，重新指向�
 报告保存在 `D:/study-agent-validation/m4c-sandbox-parity-20261104/parity.json`，含每例的
 `source_sha256`、操作步骤、两侧证据与截图。
 
-### 4.8 跨领域真实文档调查
+### 4.8 沙箱内完整判定
+
+`frontend/e2e/acceptance/sandboxJudgment.spec.ts` 把同一批参考页与故障送进真实产品沙箱，
+**重新取证据并执行完整判定**。直接矩阵、故障目录和沙箱判定共用
+`frontend/e2e/acceptance/taskObservers.ts`，避免两条观察路径漂移。
+
+| 项目 | 要求 | 结果 |
+| --- | --- | --- |
+| 12 份正确参考页 | 12/12 完整通过 | **12/12**，无失败、无 `indeterminate` |
+| 24 个 HTML 故障 | 24/24 目标错误被发现 | **24/24** |
+| 缺证据负控 | 返回 `indeterminate` | **3/3** |
+| 通用可用性 | 沙箱内实际显示尺寸 | 12/12 参考页无失败 |
+| 模型调用 | 0 | 0 |
+
+负控包括：P01 两套对称刻度（比例歧义）、P01 主导色块过大（不是运动标记）、无证据页面。
+三例都保持 `indeterminate`，没有被算成通过。
+
+动画故障（HR06 / HV04）按运行时错误与暂停性质判定，不要求像素与直接渲染逐帧相等；P01
+在沙箱里同样检查 0、π/2、π 三个相位，9 项全确定。
+
+`13.33px`（explorer 直接渲染）与 `14px`（沙箱显示）的差异仍只记在
+`environment_differences`，不记为行为差异；9 份真实文档的 **13px 仍是
+`usability-font = fail`**，没有降低门槛。
+
+报告：`D:/study-agent-validation/m4c-sandbox-judgment-20261104/judgment.json`。
+
+测试用一个只含空白页的 `frontend/public/m4c-harness.html` 提供同源 dev-server 页面，避免
+加载应用和 API 噪音；动态导入的仍是产品自己的 `interactiveRuntime.ts`。
+
+### 4.9 跨领域真实文档调查
 
 `tools/interactive_replay_survey.py` 扫描 `D:/study-agent-validation` 下 **214 个 SQLite 库**，
 按 HTML 内容哈希去重后得到 **9 份真实交互文档**：
@@ -239,7 +268,7 @@ J01 的参考页改为两步：共享阶段只有一条 b 箭头，重新指向�
 结论：**目前没有 J01 之外符合冻结题的原始模型输出**。这不是“跨领域覆盖率已达 95%”的证据；
 样本缺口必须如实保留，不能把参考 HTML 或库存页算进 12 题成绩。
 
-### 4.9 自动判定覆盖率
+### 4.10 自动判定覆盖率
 
 定义：`得到确定 pass/fail 的必要检查数 ÷ 必要检查总数`。它衡量“检查器能判多少”，
 不能反过来当作模型失败率；无法判定的部分必须单独报告。

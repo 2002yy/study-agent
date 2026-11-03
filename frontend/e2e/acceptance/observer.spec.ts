@@ -1,10 +1,19 @@
 import { expect, test } from "@playwright/test";
 
 import { TASK_SPECS, judge, judgeUsability, summarize, type Observation, type Phase } from "../../src/acceptance/model";
-import { canvasPhase, declaredAmplitude, evidencePhase, j01Phase, positionFromCanvas } from "./adapters";
+import { canvasPhase, declaredAmplitude, j01Phase, positionFromCanvas } from "./adapters";
 import * as fixtures from "./fixtures";
 import { HTML_FAULTS, type HtmlFault } from "./htmlFaults";
 import { capture, watchErrors, type ErrorCapture, type RawEvidence } from "./observer";
+import {
+  observeFault,
+  observeJ01Steps,
+  observeM01,
+  observeP01,
+  observeP01Fault,
+  observePhases,
+  observationOf,
+} from "./taskObservers";
 
 const j01 = TASK_SPECS.find(spec => spec.id === "J01")!;
 const m02 = TASK_SPECS.find(spec => spec.id === "M02")!;
@@ -37,15 +46,7 @@ async function runJ01Steps(
 ): Promise<Observation> {
   const errors = watchErrors(page);
   await page.setContent(html, { waitUntil: "load" });
-  const phases: Record<string, Phase> = {};
-
-  const shared = await capture(page);
-  phases.shared = j01Phase(shared, shared.text);
-  await page.getByRole("button", { name: "b = new Object()" }).click();
-  const reassigned = await capture(page);
-  phases.reassigned = j01Phase(reassigned, reassigned.text);
-
-  return observationOf(phases, errors, reassigned);
+  return observeJ01Steps(page, errors);
 }
 
 function result(observation: Observation, checkId: string, spec = j01) {
@@ -149,7 +150,7 @@ test("sees a canvas animate and then hold still when paused", async ({ page }) =
   await page.waitForTimeout(400);
   phases["paused-b"] = canvasPhase(await capture(page), "");
 
-  const observation = await canvasObservation(page, phases, errors, basis);
+  const observation = await observationOf(phases, errors, basis);
 
   expect(result(observation, "motion-visible", p01)?.status).toBe("pass");
   expect(result(observation, "paused", p01)?.status).toBe("pass");
@@ -167,7 +168,7 @@ test("reports a canvas that keeps moving after pause", async ({ page }) => {
   await page.waitForTimeout(400);
   phases["paused-b"] = canvasPhase(await capture(page), "");
 
-  const observation = await canvasObservation(page, phases, errors, basis);
+  const observation = await observationOf(phases, errors, basis);
 
   expect(result(observation, "paused", p01)?.status).toBe("fail");
 });
@@ -234,7 +235,7 @@ test("keeps the position open when the page draws no amplitude marks", async ({ 
   );
   if (measured) phases["pi-half"] = measured;
 
-  const observation = await canvasObservation(page, phases, errors, half);
+  const observation = await observationOf(phases, errors, half);
 
   expect(result(observation, "position-at-phases", p01)?.status).toBe("indeterminate");
   expect(result(observation, "evidence-consistent", p01)?.status).toBe("indeterminate");
@@ -255,7 +256,7 @@ test("sees a canvas follow the input", async ({ page }) => {
   await page.waitForTimeout(60);
   phases["xminus1"] = canvasPhase(await capture(page), "");
 
-  const observation = await canvasObservation(page, phases, errors, basis);
+  const observation = await observationOf(phases, errors, basis);
 
   expect(result(observation, "chart-follows-x", m01)?.status).toBe("pass");
   expect(result(observation, "value-at-3", m01)?.status).toBe("pass");
@@ -276,134 +277,41 @@ test("reports a canvas that never redraws", async ({ page }) => {
   await page.waitForTimeout(60);
   phases["xminus1"] = canvasPhase(await capture(page), "");
 
-  const observation = await canvasObservation(page, phases, errors, basis);
+  const observation = await observationOf(phases, errors, basis);
 
   expect(result(observation, "chart-follows-x", m01)?.status).toBe("fail");
 });
 
-function observationOf(
-  phases: Record<string, Phase>,
-  errors: ErrorCapture,
-  basis: RawEvidence
-): Observation {
-  return {
-    phases,
-    consoleErrors: errors.consoleErrors,
-    pageErrors: errors.pageErrors,
-    fontSizes: basis.fontSizes,
-    controlSizes: basis.controlSizes,
-    horizontalOverflow: basis.horizontalOverflow,
-  };
-}
-
 async function runM01(page: Parameters<typeof capture>[0], html: string): Promise<Observation> {
   const errors = watchErrors(page);
   await page.setContent(html, { waitUntil: "load" });
-  const phases: Record<string, Phase> = {};
-  let basis = await capture(page);
-  phases.x3 = canvasPhase(basis, basis.text);
-  await page.locator("input[data-x]").evaluate(element => {
-    const input = element as HTMLInputElement;
-    input.value = "-1";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  await page.waitForTimeout(60);
-  basis = await capture(page);
-  phases["xminus1"] = canvasPhase(basis, basis.text);
-  return observationOf(phases, errors, basis);
+  return observeM01(page, errors);
 }
 
 async function runP01(page: Parameters<typeof capture>[0], html: string): Promise<Observation> {
   const errors = watchErrors(page);
   await page.setContent(html, { waitUntil: "load" });
   await page.waitForTimeout(120);
-  const phases: Record<string, Phase> = {};
-  phases["phase-zero"] = canvasPhase(await capture(page), "");
-  await page.waitForTimeout(220);
-  phases["pi-half"] = canvasPhase(await capture(page), "");
-  await page.getByRole("button", { name: "暂停" }).click();
-  await page.waitForTimeout(120);
-  const basis = await capture(page);
-  phases["paused-a"] = canvasPhase(basis, basis.text);
-  await page.waitForTimeout(320);
-  phases["paused-b"] = canvasPhase(await capture(page), "");
-  return observationOf(phases, errors, basis);
+  return observeP01Fault(page, errors);
 }
 
-/**
- * Deterministic P01 reference: read the resting marker, move the phase to π/2,
- * convert the marker's displacement into task units, then verify the pause.
- */
 async function runP01Calibrated(
   page: Parameters<typeof capture>[0],
   html: string
 ): Promise<Observation> {
   const errors = watchErrors(page);
   await page.setContent(html, { waitUntil: "load" });
-  const phases: Record<string, Phase> = {};
-
-  const zero = await capture(page);
-  const amplitude = declaredAmplitude(zero.text);
-  const zeroPhase = canvasPhase(zero, zero.text);
-  const resting = positionFromCanvas(zeroPhase, zeroPhase, amplitude);
-  phases["phase-zero"] = resting ?? zeroPhase;
-
-  const setPhase = async (value: number) => {
-    await page.locator("[data-phase]").evaluate((element, next) => {
-      const input = element as HTMLInputElement;
-      input.value = String(next);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    }, value);
-    await page.waitForTimeout(60);
-    return capture(page);
-  };
-
-  const half = await setPhase(Math.PI / 2);
-  const measuredHalf = positionFromCanvas(
-    phases["phase-zero"],
-    canvasPhase(half, half.text),
-    amplitude
-  );
-  if (measuredHalf) phases["pi-half"] = measuredHalf;
-
-  const pi = await setPhase(Math.PI);
-  const measuredPi = positionFromCanvas(
-    phases["phase-zero"],
-    canvasPhase(pi, pi.text),
-    amplitude
-  );
-  if (measuredPi) phases["pi"] = measuredPi;
-
-  await page.getByRole("button", { name: "播放" }).click();
-  await page.waitForTimeout(200);
-  await page.getByRole("button", { name: "暂停" }).click();
-  await page.waitForTimeout(120);
-  const basis = await capture(page);
-  phases["paused-a"] = canvasPhase(basis, basis.text);
-  await page.waitForTimeout(300);
-  phases["paused-b"] = canvasPhase(await capture(page), "");
-
-  return observationOf(phases, errors, basis);
+  return observeP01(page, errors);
 }
 
 async function runFault(
   page: Parameters<typeof capture>[0],
   fault: HtmlFault
 ): Promise<Observation> {
-  if (fault.taskId === "J01") return (await run(page, fault.html)).observation;
-  if (fault.taskId === "M01") return runM01(page, fault.html);
-  if (fault.taskId === "P01") return runP01(page, fault.html);
-
   const errors = watchErrors(page);
   await page.setContent(fault.html, { waitUntil: "load" });
-  const phases: Record<string, Phase> = {};
-  let basis = await capture(page);
-  for (const phase of fault.phases ?? []) {
-    const evidence = await capture(page, phase.selector);
-    phases[phase.name] = evidencePhase(evidence, evidence.text);
-    basis = evidence;
-  }
-  return observationOf(phases, errors, basis);
+  await page.waitForTimeout(120);
+  return observeFault(page, fault, errors);
 }
 
 test.describe("HTML-level faults", () => {
@@ -476,14 +384,7 @@ test.describe("reference matrix", () => {
       } else {
         const errors = watchErrors(page);
         await page.setContent(entry.html!, { waitUntil: "load" });
-        const phases: Record<string, Phase> = {};
-        let basis: RawEvidence | null = null;
-        for (const phase of entry.phases!) {
-          const evidence = await capture(page, phase.selector);
-          phases[phase.name] = evidencePhase(evidence, evidence.text);
-          basis = evidence;
-        }
-        observation = observationOf(phases, errors, basis!);
+        observation = await observePhases(page, entry.phases!, errors);
       }
 
       const spec = TASK_SPECS.find(item => item.id === entry.id)!;
