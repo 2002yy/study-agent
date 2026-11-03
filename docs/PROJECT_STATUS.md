@@ -13,6 +13,39 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-03 后续片：交互状态快照与显式恢复
+
+用户选定“新增快照表 + 显式按钮恢复”。本片从源码恢复分支
+`codex/interactive-version-restore-20261103`（`6c64617a`）新建栈式分支
+`codex/interactive-state-snapshots-20261103`。main、#338、预算分支、#339 与 #340 均未改动。
+
+**结果（P2，owner=orchestration/persistence + UI）**：新增迁移 31
+`interactive_state_snapshots`，按 `(thread_id, component_id)` 保存最新状态快照（revision、
+state_json、updated_at），不存源码。宿主新增
+`PUT/GET /sessions/{id}/interactive-state[/{component_id}]`，只接受 JSON 对象、序列化 ≤4000 字符、
+component id 与前端协议一致、revision 1–999；未知会话与无快照明确 404。前端在用户操作后
+（跳过界面首次发布的初始状态）防抖保存；卡片在**快照 revision 与当前卡片一致**时提供
+「恢复上次状态」，不一致时明确拒绝并说明原因。生成界面通过新增的
+`window.studyUI.onRestore(handler)` 接收快照；未实现该钩子的版本会得到确定性提示，
+不静默失败。未做自动恢复、操作日志或跨版本状态迁移。
+
+**提交**：实现与测试提交随后记录；文档提交在末。推送后以源码恢复分支为基线建立草稿 PR。
+
+**静态证据**：新增 `tests/test_interactive_state.py` **11 PASS**（保存/读取、最新覆盖、
+跨会话隔离、超限、非对象、路由 404/422）；`tests/test_spend_settlement.py` 的 schema 断言
+改为跟随 `SCHEMA_VERSION`，**53 PASS**；schema 相关影响集（state/api/spend settlement/spend
+ledger/chat lifecycle/stage policy）**138 PASS**；前端完整 **123 文件 / 638 PASS**，tsc 与构建
+PASS；Ruff PASS；mypy **118/128，新增 0**。迁移 31 属持久化 schema 变更：本机全量 6925 项
+pytest 单机运行约 3 小时，本片未在本地跑完；全量证据以 PR 的 backend 作业在精确 head 上的
+pytest 为准，CI 未绿前不得称为已交付。
+
+**动态证据**：**0 次模型调用**，账本仍 ¥8.63/¥30。未做真实刷新后恢复的浏览器端到端。
+
+**边界**：快照不解释操作过程；不同 revision 的状态不能迁移；模型输出的界面若未实现
+`onRestore`，只能从初始状态重来（这是显式失败，不是假装恢复成功）。
+
+**唯一下一片**：M4-C 自动验收闭环（运行/状态/视觉三层，先检测与报告，不默认自动修复）。
+
 ### 2026-11-03 后续片：从保存的旧版本恢复源码
 
 用户选定“旧版本卡片上的「以此版本为基础继续」”，并要求确定性的版本管理：源码定位、权限、
