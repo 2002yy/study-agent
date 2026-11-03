@@ -78,6 +78,37 @@
     },
     {
       "op": "expectNoOverflow"
+    },
+    {
+      "op": "set",
+      "selector": "#locked",
+      "value": 2
+    },
+    {
+      "op": "click",
+      "selector": "#pay"
+    },
+    {
+      "op": "expectText",
+      "selector": "#total",
+      "equals": "35"
+    },
+    {
+      "op": "expectText",
+      "selector": "#lockedView",
+      "equals": "0"
+    },
+    {
+      "op": "expectText",
+      "selector": "#available",
+      "equals": "35"
+    },
+    {
+      "op": "expectEquation",
+      "selector": "#total",
+      "total": "#total",
+      "locked": "#lockedView",
+      "available": "#available"
     }
   ]
 }
