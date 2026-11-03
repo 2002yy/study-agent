@@ -16,19 +16,31 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
   const [state, setState] = useState<string | null>(null);
   const [savedState, setSavedState] = useState<{ state: Record<string, unknown>; revision: number } | null>(null);
   const [restoreNote, setRestoreNote] = useState("");
-  const initialRef = useRef<string | null>(null);
-  const saveTimer = useRef<number | null>(null);
+  const seenInitialRef = useRef(false);
+  const generationRef = useRef(0);
+  const saveTimerRef = useRef<number | null>(null);
+  const restorePendingRef = useRef(false);
+  const restoreTimerRef = useRef<number | null>(null);
   const channel = `${instance}:${generation}`;
   const document = useMemo(() => makeInteractiveDocument(card.html, channel), [card.html, channel]);
+  const cancelPendingSave = () => {
+    if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
+  };
+  const cancelRestoreWait = () => {
+    if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
+    restoreTimerRef.current = null;
+    restorePendingRef.current = false;
+  };
   useEffect(() => {
     if (!sessionId) return;
     let cancelled = false;
-    loadInteractiveState(sessionId, card.id)
+    loadInteractiveState(sessionId, card.id, card.revision)
       .then(snapshot => { if (!cancelled) setSavedState({ state: snapshot.state, revision: snapshot.revision }); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [sessionId, card.id]);
-  useEffect(() => () => { if (saveTimer.current !== null) window.clearTimeout(saveTimer.current); }, []);
+  }, [sessionId, card.id, card.revision]);
+  useEffect(() => () => { cancelPendingSave(); cancelRestoreWait(); }, []);
   useEffect(() => {
     if (!running) return;
     const receive = (event: MessageEvent) => {
@@ -39,32 +51,77 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
         const text = stateText(data.value);
         if (text) {
           setState(text);
-          // The first publish is the document's own initial state; saving it
-          // would overwrite a real snapshot just by re-rendering an old answer.
-          if (initialRef.current === null) initialRef.current = text;
-          else if (sessionId && text !== initialRef.current) {
-            if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+          if (restorePendingRef.current) {
+            restorePendingRef.current = false;
+            if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
+            restoreTimerRef.current = null;
+            setRestoreNote("已恢复上次状态。");
+          }
+          if (!seenInitialRef.current) {
+            // Only the first publish after mount/restart is the document's own
+            // initial state. Later publishes are user actions even when the
+            // value happens to equal the initial one again.
+            seenInitialRef.current = true;
+            return;
+          }
+          if (sessionId) {
+            const scheduledFor = generationRef.current;
             const snapshot = JSON.parse(text) as Record<string, unknown>;
-            saveTimer.current = window.setTimeout(() => {
-              saveInteractiveState(sessionId, card.id, card.revision, snapshot).catch(() => {});
+            cancelPendingSave();
+            saveTimerRef.current = window.setTimeout(() => {
+              saveTimerRef.current = null;
+              if (generationRef.current !== scheduledFor) return;
+              saveInteractiveState(sessionId, card.id, card.revision, snapshot)
+                .then(result => setSavedState({ state: result.state, revision: result.revision }))
+                .catch(() => {});
             }, 800);
+          }
+          if (restorePendingRef.current) {
+            restorePendingRef.current = false;
+            if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
+            restoreTimerRef.current = null;
+            setRestoreNote("已恢复上次状态。");
           }
         }
       }
       if (data.type === "height" && typeof data.value === "number" && Number.isFinite(data.value)) setHeight(Math.min(720, Math.max(180, data.value + 2)));
       if (data.type === "ready") setStatus("可交互");
-      if (data.type === "restore_unavailable") setRestoreNote("这个版本没有实现状态恢复，只能从初始状态重新操作。");
+      if (data.type === "restore_unavailable") {
+        cancelRestoreWait();
+        setRestoreNote("这个版本没有实现状态恢复，只能从初始状态重新操作。");
+      }
       if (data.type === "error" && typeof data.value === "string") { setError(data.value.slice(0, 500)); setStatus("部分交互未能运行"); }
     };
     window.addEventListener("message", receive);
     const timer = window.setTimeout(() => setStatus(current => current === "正在准备交互…" ? "界面未就绪，可重新运行或请模型修复" : current), 8000);
     return () => { window.removeEventListener("message", receive); window.clearTimeout(timer); };
   }, [channel, running, sessionId, card.id, card.revision]);
-  const restart = () => { setState(null); setError(""); setStatus("正在准备交互…"); setRunning(true); setGeneration(n => n + 1); };
+  const restart = () => {
+    // A rebuilt document is a new generation: drop pending writes for the old
+    // one and let its first publish count as initial state again.
+    cancelPendingSave();
+    cancelRestoreWait();
+    seenInitialRef.current = false;
+    generationRef.current += 1;
+    setRestoreNote("");
+    setState(null);
+    setError("");
+    setStatus("正在准备交互…");
+    setRunning(true);
+    setGeneration(n => n + 1);
+  };
   const restoreSavedState = () => {
     if (!savedState) return;
-    frame.current?.contentWindow?.postMessage({ channel, type: "restore", value: savedState.state }, "*");
+    cancelRestoreWait();
+    restorePendingRef.current = true;
+    restoreTimerRef.current = window.setTimeout(() => {
+      restoreTimerRef.current = null;
+      if (!restorePendingRef.current) return;
+      restorePendingRef.current = false;
+      setRestoreNote("已发送恢复请求，但界面没有回报状态。");
+    }, 1500);
     setRestoreNote("");
+    frame.current?.contentWindow?.postMessage({ channel, type: "restore", value: savedState.state }, "*");
   };
   return <div className={`interactive-document${expanded ? " is-expanded" : ""}`}>
     <p className="interactive-summary">{card.summary}</p>

@@ -27,35 +27,37 @@ def test_a_snapshot_is_saved_and_read_back(tmp_path):
     saved = repository.upsert("chat_state", "java-reference", 3, state)
 
     assert saved.revision == 3
-    snapshot = repository.get("chat_state", "java-reference")
+    snapshot = repository.get("chat_state", "java-reference", 3)
     assert snapshot is not None
     assert snapshot.state == state
     assert snapshot.revision == 3
 
 
-def test_the_latest_snapshot_wins_and_keeps_its_revision(tmp_path):
+def test_each_revision_keeps_its_own_progress(tmp_path):
     repository = seeded(tmp_path)
 
-    repository.upsert("chat_state", "java-reference", 3, {"step": 1})
-    repository.upsert("chat_state", "java-reference", 4, {"step": 2})
+    repository.upsert("chat_state", "java-reference", 1, {"step": 4})
+    repository.upsert("chat_state", "java-reference", 3, {"step": 9})
+    # Operating an older version must not erase the newer version's progress.
+    repository.upsert("chat_state", "java-reference", 1, {"step": 5})
 
-    snapshot = repository.get("chat_state", "java-reference")
-    assert snapshot is not None
-    assert snapshot.revision == 4
-    assert snapshot.state == {"step": 2}
+    older = repository.get("chat_state", "java-reference", 1)
+    newer = repository.get("chat_state", "java-reference", 3)
+    assert older is not None and older.state == {"step": 5}
+    assert newer is not None and newer.state == {"step": 9}
 
 
 def test_a_missing_component_has_no_snapshot(tmp_path):
     repository = seeded(tmp_path)
 
-    assert repository.get("chat_state", "never-saved") is None
+    assert repository.get("chat_state", "never-saved", 1) is None
 
 
 def test_another_thread_cannot_read_the_snapshot(tmp_path):
     repository = seeded(tmp_path)
     repository.upsert("chat_state", "java-reference", 1, {"step": 1})
 
-    assert repository.get("chat_other", "java-reference") is None
+    assert repository.get("chat_other", "java-reference", 1) is None
 
 
 def test_state_larger_than_the_bridge_limit_is_refused(tmp_path):
@@ -91,7 +93,9 @@ def test_the_route_saves_and_reads_a_snapshot(tmp_path):
                 "state": {"step": 7},
             },
         )
-        loaded = client.get("/sessions/chat_state/interactive-state/java-reference")
+        loaded = client.get(
+            "/sessions/chat_state/interactive-state/java-reference?revision=3"
+        )
     finally:
         app.dependency_overrides.pop(get_interactive_state_repository, None)
 
@@ -133,6 +137,27 @@ def test_the_route_refuses_state_above_the_limit(tmp_path):
         app.dependency_overrides.pop(get_interactive_state_repository, None)
 
     assert response.status_code == 422
+
+
+def test_the_route_serves_only_the_revision_it_was_asked_for(tmp_path):
+    repository = seeded(tmp_path)
+    repository.upsert("chat_state", "java-reference", 1, {"step": 4})
+    repository.upsert("chat_state", "java-reference", 3, {"step": 9})
+    app.dependency_overrides[get_interactive_state_repository] = lambda: repository
+    client = TestClient(app)
+    try:
+        older = client.get(
+            "/sessions/chat_state/interactive-state/java-reference?revision=1"
+        )
+        missing = client.get(
+            "/sessions/chat_state/interactive-state/java-reference?revision=2"
+        )
+    finally:
+        app.dependency_overrides.pop(get_interactive_state_repository, None)
+
+    assert older.status_code == 200
+    assert older.json()["state"] == {"step": 4}
+    assert missing.status_code == 404
 
 
 def test_the_route_rejects_an_invalid_component_identity(tmp_path):

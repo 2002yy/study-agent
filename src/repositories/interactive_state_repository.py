@@ -54,8 +54,7 @@ class InteractiveStateRepository:
                 "INSERT INTO interactive_state_snapshots "
                 "(thread_id, component_id, revision, state_json, updated_at) "
                 "VALUES (?, ?, ?, ?, ?) "
-                "ON CONFLICT(thread_id, component_id) DO UPDATE SET "
-                "revision = excluded.revision, "
+                "ON CONFLICT(thread_id, component_id, revision) DO UPDATE SET "
                 "state_json = excluded.state_json, "
                 "updated_at = excluded.updated_at",
                 (thread_id, component_id, revision, payload, updated_at),
@@ -68,13 +67,15 @@ class InteractiveStateRepository:
             updated_at=updated_at,
         )
 
-    def get(self, thread_id: str, component_id: str) -> InteractiveStateSnapshot | None:
+    def get(
+        self, thread_id: str, component_id: str, revision: int
+    ) -> InteractiveStateSnapshot | None:
         with self.database.connect() as connection:
             row = connection.execute(
                 "SELECT thread_id, component_id, revision, state_json, updated_at "
                 "FROM interactive_state_snapshots "
-                "WHERE thread_id = ? AND component_id = ?",
-                (thread_id, component_id),
+                "WHERE thread_id = ? AND component_id = ? AND revision = ?",
+                (thread_id, component_id, revision),
             ).fetchone()
         if row is None:
             return None

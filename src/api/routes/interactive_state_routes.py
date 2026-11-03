@@ -62,9 +62,12 @@ def save_interactive_state(
 def read_interactive_state(
     session_id: str,
     component_id: str,
+    revision: int,
     repository: InteractiveStateRepositoryDependency,
 ) -> InteractiveStateResponse:
-    snapshot = repository.get(session_id, component_id)
+    if revision < 1 or revision > 999:
+        raise HTTPException(status_code=422, detail="revision must be between 1 and 999")
+    snapshot = repository.get(session_id, component_id, revision)
     if snapshot is None:
         raise HTTPException(status_code=404, detail="no saved state for this component")
     return InteractiveStateResponse(

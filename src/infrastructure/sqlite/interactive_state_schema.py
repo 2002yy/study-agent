@@ -15,6 +15,6 @@ CREATE TABLE interactive_state_snapshots (
     revision INTEGER NOT NULL CHECK(revision BETWEEN 1 AND 999),
     state_json TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    PRIMARY KEY (thread_id, component_id)
+    PRIMARY KEY (thread_id, component_id, revision)
 );
 """

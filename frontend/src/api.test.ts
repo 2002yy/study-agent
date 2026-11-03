@@ -107,7 +107,7 @@ describe("sendChatStream", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await saveInteractiveState("session-1", "orders", 2, { step: 7 });
-    await loadInteractiveState("session-1", "orders");
+    await loadInteractiveState("session-1", "orders", 2);
 
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
     expect(calls[0][0]).toContain("/sessions/session-1/interactive-state");
@@ -115,7 +115,7 @@ describe("sendChatStream", () => {
     expect(JSON.parse(String(calls[0][1].body))).toEqual({
       component_id: "orders", revision: 2, state: { step: 7 },
     });
-    expect(calls[1][0]).toContain("/sessions/session-1/interactive-state/orders");
+    expect(calls[1][0]).toContain("/sessions/session-1/interactive-state/orders?revision=2");
   });
   afterEach(() => {
     vi.unstubAllGlobals();

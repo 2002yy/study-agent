@@ -688,10 +688,11 @@ export async function saveInteractiveState(
 
 export async function loadInteractiveState(
   sessionId: string,
-  componentId: string
+  componentId: string,
+  revision: number
 ): Promise<InteractiveStateSnapshot> {
   return requestJson<InteractiveStateSnapshot>(
-    `/sessions/${encodeURIComponent(sessionId)}/interactive-state/${encodeURIComponent(componentId)}`
+    `/sessions/${encodeURIComponent(sessionId)}/interactive-state/${encodeURIComponent(componentId)}?revision=${revision}`
   );
 }
 
