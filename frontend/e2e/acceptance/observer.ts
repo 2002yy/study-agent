@@ -17,6 +17,7 @@ export type ErrorCapture = { consoleErrors: string[]; pageErrors: string[] };
 export type RawEvidence = {
   text: string;
   declared: Record<string, number>;
+  observed: Record<string, number>;
   svg: SvgShape[];
   canvases: CanvasCapture[];
   fontSizes: number[];
@@ -45,9 +46,10 @@ export function watchErrors(page: Page): ErrorCapture {
   return capture;
 }
 
-export async function capture(page: Page): Promise<RawEvidence> {
-  return page.evaluate(() => {
-    const declaredNode = document.querySelector("[data-acceptance-declared]");
+export async function capture(page: Page, rootSelector = "body"): Promise<RawEvidence> {
+  return page.evaluate((selector: string) => {
+    const root = document.querySelector(selector) ?? document.body;
+    const declaredNode = root.querySelector("[data-acceptance-declared]");
     let declared: Record<string, number> = {};
     try {
       const raw =
@@ -63,7 +65,7 @@ export async function capture(page: Page): Promise<RawEvidence> {
     }
 
     const svg: SvgShape[] = [];
-    document.querySelectorAll("rect[data-node]").forEach(element => {
+    root.querySelectorAll("rect[data-node]").forEach(element => {
       const id = element.getAttribute("data-node") ?? "";
       if (!id || !(element instanceof SVGGraphicsElement)) return;
       const box = element.getBBox();
@@ -76,7 +78,7 @@ export async function capture(page: Page): Promise<RawEvidence> {
         height: box.height,
       });
     });
-    document.querySelectorAll("line[data-arrow]").forEach(element => {
+    root.querySelectorAll("line[data-arrow]").forEach(element => {
       const id = element.getAttribute("data-arrow") ?? "";
       if (!id) return;
       const x1 = Number(element.getAttribute("x1"));
@@ -103,13 +105,13 @@ export async function capture(page: Page): Promise<RawEvidence> {
       return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
     };
     const fontSizes = Array.from(
-      document.querySelectorAll("p, span, div, button, label, li, td, th, h1, h2, h3")
+      root.querySelectorAll("p, span, div, button, label, li, td, th, h1, h2, h3")
     )
       .filter(visible)
       .map(element => Number.parseFloat(getComputedStyle(element).fontSize))
       .filter(value => Number.isFinite(value));
     const controlSizes = Array.from(
-      document.querySelectorAll("button, input, select, textarea")
+      root.querySelectorAll("button, input, select, textarea")
     )
       .filter(visible)
       .map(element => {
@@ -118,11 +120,19 @@ export async function capture(page: Page): Promise<RawEvidence> {
       })
       .filter(value => Number.isFinite(value));
 
+    const observed: Record<string, number> = {};
+    root.querySelectorAll("[data-value]").forEach(element => {
+      const key = element.getAttribute("data-value") ?? "";
+      const value = Number.parseFloat((element.textContent ?? "").trim());
+      if (key && Number.isFinite(value)) observed[key] = value;
+    });
+
     return {
-      text: document.body.innerText,
+      text: (root as HTMLElement).innerText ?? root.textContent ?? "",
       declared,
+      observed,
       svg,
-      canvases: Array.from(document.querySelectorAll("canvas")).map((canvas, index) => {
+      canvases: Array.from(root.querySelectorAll("canvas")).map((canvas, index) => {
         const id = canvas.getAttribute("data-canvas") ?? `canvas-${index}`;
         try {
           const context = canvas.getContext("2d");
@@ -130,16 +140,14 @@ export async function capture(page: Page): Promise<RawEvidence> {
             return { id, width: canvas.width, height: canvas.height, pixels: null, error: "no-2d-context" };
           }
           const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
-          const pixels: number[] = [];
-          const grid = 8;
-          for (let row = 0; row < grid; row++) {
-            for (let column = 0; column < grid; column++) {
-              const x = Math.min(canvas.width - 1, Math.floor(((column + 0.5) * canvas.width) / grid));
-              const y = Math.min(canvas.height - 1, Math.floor(((row + 0.5) * canvas.height) / grid));
-              const offset = (y * canvas.width + x) * 4;
-              pixels.push(data[offset], data[offset + 1], data[offset + 2], data[offset + 3]);
-            }
+          // A full-pixel hash: an 8x8 sample can alias when a moving element
+          // never crosses a sample point, which would hide real motion.
+          let hash = 2166136261;
+          for (let offset = 0; offset < data.length; offset += 4) {
+            hash ^= data[offset] + 3 * data[offset + 1] + 7 * data[offset + 2] + 11 * data[offset + 3];
+            hash = Math.imul(hash, 16777619);
           }
+          const pixels = [hash >>> 0, canvas.width, canvas.height];
           return { id, width: canvas.width, height: canvas.height, pixels, error: null };
         } catch (error) {
           // A tainted canvas cannot be read; that is missing evidence, not a pass.
@@ -156,5 +164,5 @@ export async function capture(page: Page): Promise<RawEvidence> {
       controlSizes,
       horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
     };
-  }) as Promise<RawEvidence>;
+  }, rootSelector) as Promise<RawEvidence>;
 }

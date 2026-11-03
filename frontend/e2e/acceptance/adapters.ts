@@ -25,15 +25,18 @@ export function j01Phase(evidence: RawEvidence, text: string): Phase {
   };
 }
 
-/** Canvas phase: the pixels are the evidence; numbers stay declared only. */
-export function canvasPhase(evidence: RawEvidence, text: string): Phase {
+/** Canvas phase: pixels and structured values are the evidence. */
+export function evidencePhase(evidence: RawEvidence, text: string): Phase {
   const pixels = evidence.canvases
     .map(canvas => canvas.pixels)
     .filter((value): value is number[] => Array.isArray(value));
   return {
     text,
     declared: evidence.declared,
-    observed: {},
+    observed: evidence.observed,
+    svg: evidence.svg,
     ...(pixels.length ? { canvas: { pixels } } : {}),
   };
 }
+
+export const canvasPhase = evidencePhase;

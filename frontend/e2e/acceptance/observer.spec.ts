@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-import { TASK_SPECS, judge, type Observation, type Phase } from "../../src/acceptance/model";
-import { canvasPhase, j01Phase } from "./adapters";
+import { TASK_SPECS, judge, summarize, type Observation, type Phase } from "../../src/acceptance/model";
+import { canvasPhase, evidencePhase, j01Phase } from "./adapters";
 import * as fixtures from "./fixtures";
 import { HTML_FAULTS } from "./htmlFaults";
 import { capture, watchErrors, type ErrorCapture, type RawEvidence } from "./observer";
@@ -253,6 +253,80 @@ test.describe("HTML-level faults", () => {
       const spec = TASK_SPECS.find(item => item.id === fault.taskId)!;
 
       expect(result(observation, fault.checkId, spec)?.status).toBe("fail");
+    });
+  }
+});
+
+type MatrixEntry = {
+  id: string;
+  html?: string;
+  phases?: Array<{ name: string; selector: string }>;
+};
+
+const MATRIX: MatrixEntry[] = [
+  { id: "J01" },
+  { id: "J02", html: fixtures.J02_PAGE, phases: [{ name: "call", selector: '[data-phase="call"]' }] },
+  { id: "A01", html: fixtures.A01_PAGE, phases: [{ name: "found", selector: '[data-phase="found"]' }] },
+  { id: "A02", html: fixtures.A02_PAGE, phases: [{ name: "result", selector: '[data-phase="result"]' }] },
+  {
+    id: "D01",
+    html: fixtures.D01_PAGES,
+    phases: [
+      { name: "committed", selector: '[data-phase="committed"]' },
+      { name: "rolled_back", selector: '[data-phase="rolled_back"]' },
+    ],
+  },
+  {
+    id: "D02",
+    html: fixtures.D02_PAGES,
+    phases: [
+      { name: "interleaved", selector: '[data-phase="interleaved"]' },
+      { name: "serialized", selector: '[data-phase="serialized"]' },
+    ],
+  },
+  { id: "C01", html: fixtures.C01_PAGE, phases: [{ name: "running", selector: '[data-phase="running"]' }] },
+  { id: "M01" },
+  {
+    id: "M02",
+    html: fixtures.M02_PAGES,
+    phases: [
+      { name: "base", selector: '[data-phase="base"]' },
+      { name: "adjusted", selector: '[data-phase="adjusted"]' },
+    ],
+  },
+  { id: "P01" },
+  { id: "S01", html: fixtures.S01_PAGE, phases: [{ name: "metrics", selector: '[data-phase="metrics"]' }] },
+  { id: "N01", html: fixtures.N01_PAGE, phases: [{ name: "complete", selector: '[data-phase="complete"]' }] },
+];
+
+test.describe("reference matrix", () => {
+  for (const entry of MATRIX) {
+    test(`judges ${entry.id} from a reference page`, async ({ page }) => {
+      let observation: Observation;
+      if (entry.id === "J01") {
+        observation = (await run(page, fixtures.J01_CORRECT)).observation;
+      } else if (entry.id === "M01") {
+        observation = await runM01(page, fixtures.M01_CANVAS);
+      } else if (entry.id === "P01") {
+        observation = await runP01(page, fixtures.P01_ANIMATED);
+      } else {
+        const errors = watchErrors(page);
+        await page.setContent(entry.html!, { waitUntil: "load" });
+        const phases: Record<string, Phase> = {};
+        let basis: RawEvidence | null = null;
+        for (const phase of entry.phases!) {
+          const evidence = await capture(page, phase.selector);
+          phases[phase.name] = evidencePhase(evidence, evidence.text);
+          basis = evidence;
+        }
+        observation = observationOf(phases, errors, basis!);
+      }
+
+      const spec = TASK_SPECS.find(item => item.id === entry.id)!;
+      const summary = summarize(judge(spec, observation));
+
+      expect(summary.failed).toEqual([]);
+      expect(summary.passed).toBeGreaterThan(0);
     });
   }
 });

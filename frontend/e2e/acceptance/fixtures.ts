@@ -76,7 +76,7 @@ const P01_SCRIPT = `
       context.fillStyle = '#fff';
       const x = 120 + 80 * Math.sin(phase);
       context.beginPath();
-      context.arc(x, 60, 12, 0, Math.PI * 2);
+      context.arc(x, 60, 30, 0, Math.PI * 2);
       context.fill();
     }
     function loop() {
@@ -107,7 +107,7 @@ export const P01_IGNORES_PAUSE = PAGE(`
       context.fillStyle = '#fff';
       const x = 120 + 80 * Math.sin(phase);
       context.beginPath();
-      context.arc(x, 60, 12, 0, Math.PI * 2);
+      context.arc(x, 60, 30, 0, Math.PI * 2);
       context.fill();
     }
     function loop() {
@@ -122,6 +122,7 @@ export const P01_IGNORES_PAUSE = PAGE(`
 const M01_BODY = `
   <label>x <input type="range" min="-5" max="5" step="1" value="3" data-x></label>
   <output data-y>7</output>
+  <span data-value="y">7</span>
   <canvas data-canvas="m01" width="240" height="120"></canvas>`;
 
 export const M01_CANVAS = PAGE(`
@@ -133,10 +134,12 @@ export const M01_CANVAS = PAGE(`
     const input = document.querySelector('input[data-x]');
     const output = document.querySelector('output[data-y]');
     const declared = document.querySelector('[data-acceptance-declared]');
+    const observedY = document.querySelector('[data-value="y"]');
     function draw() {
       const x = Number(input.value);
       const y = 2 * x + 1;
       output.textContent = String(y);
+      observedY.textContent = String(y);
       declared.setAttribute('data-acceptance-declared', JSON.stringify({ y }));
       context.fillStyle = '#fff';
       context.fillRect(0, 0, 240, 120);
@@ -162,3 +165,81 @@ export const M01_FROZEN_CANVAS = PAGE(`
     const output = document.querySelector('output[data-y]');
     input.addEventListener('input', () => { output.textContent = String(2 * Number(input.value) + 1); });
   </script>`);
+
+/** Remaining task references: each phase section carries its own declared and
+ *  structured values, so the matrix can judge every task from real DOM. */
+
+export const J02_PAGE = PAGE(`
+  <div data-phase="call" data-acceptance-declared='{"dispatchedImplementations":1}'>
+    <p>Animal a = new Dog(); a.sound() 执行 Dog 的实现</p>
+    <span data-value="dispatchedImplementations">1</span>
+  </div>`);
+
+export const A01_PAGE = PAGE(`
+  <div data-phase="found" data-acceptance-declared='{"firstChecked":2,"secondChecked":3}'>
+    <p>先检查索引 2（值 5），再检查索引 3（值 7），找到 7</p>
+    <span data-value="firstChecked">2</span>
+    <span data-value="secondChecked">3</span>
+  </div>`);
+
+export const A02_PAGE = PAGE(`
+  <div data-phase="result" data-acceptance-declared='{"distance":6}'>
+    <p>最短路径 A-B-C-D，距离 6</p>
+    <span data-value="distance">6</span>
+  </div>`);
+
+export const D01_PAGES = PAGE(`
+  <section data-phase="committed" data-acceptance-declared='{"A":70,"B":70}'>
+    <p>转账完成</p>
+    <span data-value="A">70</span><span data-value="B">70</span>
+  </section>
+  <section data-phase="rolled_back" data-acceptance-declared='{"A":100,"B":40}'>
+    <p>事务回滚，A=100，B=40</p>
+    <span data-value="A">100</span><span data-value="B">40</span>
+  </section>`);
+
+export const D02_PAGES = PAGE(`
+  <section data-phase="interleaved" data-acceptance-declared='{"stock":9}'>
+    <p>交错执行</p><span data-value="stock">9</span>
+  </section>
+  <section data-phase="serialized" data-acceptance-declared='{"stock":8}'>
+    <p>串行执行</p><span data-value="stock">8</span>
+  </section>`);
+
+export const C01_PAGE = PAGE(`
+  <div data-phase="running" data-acceptance-declared='{"running":2,"waiting":1}'>
+    <p>两个任务运行，一个任务等待</p>
+    <span data-value="running">2</span><span data-value="waiting">1</span>
+  </div>`);
+
+export const M02_PAGES = PAGE(`
+  <section data-phase="base" data-acceptance-declared='{"zero1":-2,"zero2":2,"vertexY":-4}'>
+    <p>零点 -2 与 2，顶点 (0,-4)</p>
+    <span data-value="zero1">-2</span><span data-value="zero2">2</span><span data-value="vertexY">-4</span>
+  </section>
+  <section data-phase="adjusted" data-acceptance-declared='{"zero1":-1,"zero2":1}'>
+    <p>零点 -1 与 1</p>
+    <span data-value="zero1">-1</span><span data-value="zero2">1</span>
+  </section>`);
+
+export const S01_PAGE = PAGE(`
+  <div data-phase="metrics" data-acceptance-declared='{"precision":0.8,"recall":0.6667}'>
+    <p>TP=40 FP=10 FN=20 TN=30</p>
+    <span data-value="precision" id="precision">0.8</span>
+    <span data-value="recall" id="recall">0.6667</span>
+    <script>
+      const tp = 40, fp = 10, fn = 20;
+      document.getElementById("precision").textContent = String(tp / (tp + fp));
+      document.getElementById("recall").textContent = String(tp / (tp + fn));
+    </script>
+  </div>`);
+
+export const N01_PAGE = PAGE(`
+  <div data-phase="complete" data-acceptance-declared='{"syn":1,"synAck":2,"ack":3}'>
+    <p>SYN → SYN-ACK → ACK</p>
+    <span data-value="syn">1</span><span data-value="synAck">2</span><span data-value="ack">3</span>
+    <svg width="420" height="220" viewBox="0 0 420 220">
+      <rect data-node="node-server" x="300" y="0" width="60" height="40" fill="#eef"></rect>
+      <line data-arrow="arrow-ack" data-from="node-client" data-to="node-server" x1="20" y1="60" x2="310" y2="20" stroke="#333" stroke-width="2"></line>
+    </svg>
+  </div>`);
