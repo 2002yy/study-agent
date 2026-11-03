@@ -8,7 +8,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
-const POLICY = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'";
+const POLICY = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; media-src 'none'; worker-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; script-src-attr 'none'";
 const OPS = new Set(['click', 'set', 'expectText', 'expectAbsent', 'expectCount', 'expectEquation', 'expectLineAnchored', 'expectNoOverflow', 'expectState', 'wait']);
 const validStatePath = path => typeof path === 'string' && path.length <= 120 && path.length > 0 && path.split('.').every(piece => /^[\p{L}\p{N}_-]+$/u.test(piece) && !['__proto__', 'constructor', 'prototype'].includes(piece));
 const selector = s => typeof s === 'string' && s.length > 0 && s.length <= 300;
@@ -22,7 +22,7 @@ export function validateScenario(s) {
   if (!Array.isArray(s.steps) || s.steps.length < 1 || s.steps.length > 100) throw Error('Expected 1–100 steps');
   for (const [i, step] of s.steps.entries()) {
     if (!step || !OPS.has(step.op)) throw Error('Invalid operation at step ' + i);
-    if (!['expectNoOverflow', 'expectState'].includes(step.op) && !selector(step.selector)) throw Error('Invalid selector at step ' + i);
+    if (!['expectNoOverflow', 'expectState', 'wait'].includes(step.op) && !selector(step.selector)) throw Error('Invalid selector at step ' + i);
     if (step.op === 'set' && !['string', 'number'].includes(typeof step.value)) throw Error('Invalid value at step ' + i);
     if (step.op === 'expectText' && typeof step.equals !== 'string' && typeof step.includes !== 'string') throw Error('Missing text expectation at step ' + i);
     if (step.op === 'expectCount' && (!Number.isInteger(step.count) || step.count < 0)) throw Error('Invalid count at step ' + i);
