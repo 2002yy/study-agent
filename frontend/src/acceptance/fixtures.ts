@@ -91,6 +91,7 @@ export function correctObservation(taskId: string): Observation {
     case "P01":
       observation.phases["phase-zero"] = { text: "相位 0", ...values({ position: 0 }), canvas: { pixels: [[0, 0, 0]] } };
       observation.phases["pi-half"] = { text: "相位 π/2", ...values({ position: 2 }), canvas: { pixels: [[1, 2, 3]] } };
+      observation.phases["pi"] = { text: "相位 π", ...values({ position: 0 }), canvas: { pixels: [[4, 5, 6]] } };
       observation.phases["paused-a"] = { text: "已暂停", ...values({}), canvas: { pixels: [[9, 9, 9]] } };
       observation.phases["paused-b"] = { text: "仍暂停", ...values({}), canvas: { pixels: [[9, 9, 9]] } };
       break;

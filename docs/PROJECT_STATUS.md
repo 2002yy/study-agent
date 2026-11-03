@@ -13,6 +13,41 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-04 后续片：P01 三相位 + 真实沙箱 + 通用可用性
+
+按评审裁定完成的离线收口：
+
+1. **P01 三相位**：冻结题补齐 0、π/2、π 三个相位的独立画面观测与声明一致性检查；数值判据
+   读取 `observed`，不再由页面自报。新增负控：半幅画面、π 处错误、两套对称刻度（歧义）、
+   主导色块过大（不是运动标记）——后两者返回 `indeterminate`。P01 参考页 9 项检查全部确定。
+2. **真实沙箱等价性**：`sandboxParity.spec.ts` 用 `makeInteractiveDocument` → 外层 sandbox
+   iframe → 内层隔离 iframe 跑 12 参考页 + 24 故障 + 1 状态页，共 **39 case**。行为差异 **0**；
+   37 例 `same`，2 例动画画布未做像素比较，1 例仅环境字号差异（explorer 13.33 vs 14）。
+3. **通用可用性**：`judgeUsability` 对每份文档统一检查字号 ≥14px、控件 ≥40px、无横向溢出。
+   9 份真实文档全部因 **13px** 触发 `usability-font = fail`，不再漏报。
+4. **跨领域调查**：`tools/interactive_replay_survey.py` 扫描 **214 个 SQLite 库**，按内容去重
+   得到 **9 份真实文档**：J01 4、P01 相关 1（A=40px）、库存 4；**没有** A02/D01/M02/N01 等
+   其他冻结题的真实样本。样本缺口如实保留，未用参考 HTML 冒充模型成绩。
+5. **证据可追溯**：重放报告 schema `m4c-replay-report-v3`，每例保存 `source_sha256`、截图、
+   操作步骤、各阶段 `declared`/`observed`/标记/刻度；沙箱报告同样保存源码哈希、步骤、
+   两侧证据与截图。
+
+**结果**：9 份真实文档 0 运行错误；J01 4 份任务检查自动判定率仍为 **19/20 = 95%**（r3 箭头
+缺陷仍被检出）；通用字号门禁 9/9 失败（13px）。**0 次模型调用**。
+
+证据：`D:/study-agent-validation/m4c-real-doc-survey-20261104/survey.json`、
+`D:/study-agent-validation/m4c-real-docs-20261104/`、
+`D:/study-agent-validation/m4c-sandbox-parity-20261104/parity.json`。
+
+**验证**：e2e **94 passed / 26 skipped**；桌面观察器 54 项；前端单元 124 文件 / 686 PASS；
+tsc PASS；Ruff / diff-check PASS。无后端/schema 改动，不触发 L2/L3。
+
+**CI**：上一精确 HEAD `7e66e711` 的 run `41688484234` **5/5 全绿**（classify/frontend/backend/
+browser/test）。本片新 HEAD 需重新跑完整门禁后才能宣称全绿。
+
+**唯一下一片**：等待本片精确 HEAD 的远端门禁；三项前置（精确 HEAD 全绿、真实沙箱通过、
+P01 三相位判据完整）满足后，才讨论受预算限制的真实生成实验（需单独授权）。
+
 ### 2026-11-04 后续片：M4-C Canvas 像素→坐标
 
 在同一分支继续。观察器现在从画布像素里提取两类证据：主导饱和色区域的质心作为标记位置，

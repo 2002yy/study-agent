@@ -271,6 +271,25 @@ export function judge(spec: TaskSpec, observation: Observation): CheckResult[] {
   return spec.checks.map(check => judgeOne(check, observation));
 }
 
+/**
+ * Universal usability gate, applied to every document regardless of task.
+ * A model answer can skip a specific task's font check, but it cannot skip the
+ * baseline that all text is readable and all controls are usable.
+ */
+export const USABILITY_MIN_FONT = 14;
+export const USABILITY_MIN_CONTROL = 40;
+
+export function judgeUsability(observation: Observation): CheckResult[] {
+  return [
+    judgeOne({ kind: "min-font-size", id: "usability-font", min: USABILITY_MIN_FONT }, observation),
+    judgeOne(
+      { kind: "min-control-size", id: "usability-control", min: USABILITY_MIN_CONTROL },
+      observation
+    ),
+    judgeOne({ kind: "no-horizontal-overflow", id: "usability-overflow" }, observation),
+  ];
+}
+
 export function summarize(results: CheckResult[]): {
   failed: CheckResult[];
   indeterminate: CheckResult[];
@@ -394,7 +413,30 @@ export const TASK_SPECS: TaskSpec[] = [
     prompt: "制作简谐运动 Canvas 动画 x=2sin(φ)，相位 0、π/2、π 时位置分别为 0、2、0，暂停后不推进。",
     checks: [
       { kind: "runtime-clean", id: "runtime" },
-      { kind: "numbers-approx", id: "position-at-phases", phase: "pi-half", expected: { position: 2 }, tolerance: 0.05 },
+      {
+        kind: "numbers-approx",
+        id: "position-at-zero",
+        phase: "phase-zero",
+        source: "observed",
+        expected: { position: 0 },
+        tolerance: 0.05,
+      },
+      {
+        kind: "numbers-approx",
+        id: "position-at-phases",
+        phase: "pi-half",
+        source: "observed",
+        expected: { position: 2 },
+        tolerance: 0.05,
+      },
+      {
+        kind: "numbers-approx",
+        id: "position-at-pi",
+        phase: "pi",
+        source: "observed",
+        expected: { position: 0 },
+        tolerance: 0.05,
+      },
       { kind: "canvas-differs", id: "motion-visible", first: "phase-zero", second: "pi-half" },
       { kind: "canvas-same", id: "paused", first: "paused-a", second: "paused-b" },
     ],
@@ -466,3 +508,25 @@ for (const spec of TASK_SPECS) {
     ...evidence,
   });
 }
+
+// P01's prompt fixes three phases, so each one gets its own declared-vs-drawn
+// consistency check rather than letting a correct pi/2 hide a wrong pi.
+const p01 = TASK_SPECS.find(spec => spec.id === "P01");
+p01?.checks.push(
+  {
+    kind: "cross-check",
+    id: "evidence-consistent-zero",
+    phase: "phase-zero",
+    declaredKey: "position",
+    observedKey: "position",
+    tolerance: 0.05,
+  },
+  {
+    kind: "cross-check",
+    id: "evidence-consistent-pi",
+    phase: "pi",
+    declaredKey: "position",
+    observedKey: "position",
+    tolerance: 0.05,
+  }
+);

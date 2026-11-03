@@ -8,7 +8,7 @@
  * Numbers the page prints are collected as `declared`. They are not evidence
  * on their own; task adapters derive `observed` values from geometry.
  */
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
 
 import type { SvgShape } from "../../src/acceptance/model";
 
@@ -50,8 +50,10 @@ export function watchErrors(page: Page): ErrorCapture {
   return capture;
 }
 
-export async function capture(page: Page, rootSelector = "body"): Promise<RawEvidence> {
-  return page.evaluate((selector: string) => {
+export type EvidenceHost = Page | Frame;
+
+export async function capture(host: EvidenceHost, rootSelector = "body"): Promise<RawEvidence> {
+  return host.evaluate((selector: string) => {
     const root = document.querySelector(selector) ?? document.body;
     const declaredNode = root.matches("[data-acceptance-declared]")
       ? root
@@ -212,6 +214,12 @@ export async function capture(page: Page, rootSelector = "body"): Promise<RawEvi
                 radius: Math.sqrt(matched / Math.PI),
               };
             }
+          }
+          // A saturated background panel is not a moving marker. Reject a
+          // colour region larger than a quarter of the shorter canvas side, so
+          // the position check stays indeterminate instead of reading a block.
+          if (marker && marker.radius > Math.min(canvas.width, canvas.height) * 0.25) {
+            marker = null;
           }
 
           // Tall vertical strokes are the drawn amplitude reference. The ball

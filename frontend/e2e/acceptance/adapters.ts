@@ -79,17 +79,22 @@ function amplitudeScale(
   marks: number[]
 ): { centre: number; half: number } | null {
   const sorted = Array.from(new Set(marks)).sort((a, b) => a - b);
-  let best: { centre: number; half: number } | null = null;
+  const pairs: Array<{ centre: number; half: number }> = [];
   for (let left = 0; left < sorted.length; left++) {
     for (let right = left + 1; right < sorted.length; right++) {
       const half = (sorted[right] - sorted[left]) / 2;
       if (half < 8) continue;
       const centre = (sorted[left] + sorted[right]) / 2;
       if (Math.abs(centre - centreX) > Math.max(6, half * 0.15)) continue;
-      if (!best || half > best.half) best = { centre, half };
+      pairs.push({ centre, half });
     }
   }
-  return best;
+  if (!pairs.length) return null;
+  const widest = pairs.reduce((best, pair) => (pair.half > best.half ? pair : best));
+  // Two symmetric pairs of different spans mean the page has several
+  // plausible scales; choosing one would be a guess.
+  if (pairs.some(pair => Math.abs(pair.half - widest.half) > 2)) return null;
+  return widest;
 }
 
 /**

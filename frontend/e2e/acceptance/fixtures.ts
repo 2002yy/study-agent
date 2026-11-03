@@ -8,6 +8,7 @@ const PAGE = (body: string) => `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <style>body { margin: 0; padding: 16px; font: 16px/1.6 system-ui, sans-serif; }
 svg { position: absolute; left: 0; top: 0; }
+button, input, select, textarea { min-height: 40px; font: inherit; }
 </style></head><body>${body}</body></html>`;
 
 const NODES = `
@@ -78,6 +79,12 @@ export const TINY_FONT = PAGE(`
     <p style="font-size:12px">坐标轴说明文字</p>
   </div>`);
 
+export const SMALL_CONTROL = PAGE(`
+  <div data-acceptance-declared='{}'>
+    <p>小控件</p>
+    <button style="height:24px;min-height:24px">按钮</button>
+  </div>`);
+
 export const OVERFLOW = PAGE(`
   <div data-acceptance-declared='{}' style="width:2000px">很宽的时间线</div>`);
 
@@ -118,9 +125,11 @@ export const P01_ANIMATED = PAGE(P01_SCRIPT);
  * the page prints the matching number, and the amplitude is visible as two
  * tall marks. The observer must recover the position from pixels, not text.
  */
-const P01_STEPPED_SCRIPT = (drawnFactor: number) => `
+const P01_STEPPED_SCRIPT = (
+  mode: "correct" | "half" | "pi-wrong" | "ambiguous" | "big-block"
+) => `
   <canvas data-canvas="p01" width="240" height="120"></canvas>
-  <label>相位 <input type="range" min="0" max="6.2832" step="0.01" value="0" data-phase></label>
+  <label>相位 <input type="range" min="0" max="6.2832" step="0.01" value="0" data-phase style="height:40px"></label>
   <button data-play>播放</button>
   <button data-pause>暂停</button>
   <p>振幅 A = 2</p>
@@ -132,12 +141,16 @@ const P01_STEPPED_SCRIPT = (drawnFactor: number) => `
     const phaseInput = document.querySelector('[data-phase]');
     const declared = document.querySelector('[data-acceptance-declared]');
     const positionText = document.querySelector('[data-position]');
+    const MODE = ${JSON.stringify(mode)};
     const CX = 120, CY = 60, AMP = 80, R = 20;
     let phaseValue = 0;
     let playing = false;
     let last = 0;
     function render() {
       const position = 2 * Math.sin(phaseValue);
+      let drawn = Math.sin(phaseValue);
+      if (MODE === 'half') drawn *= 0.5;
+      if (MODE === 'pi-wrong' && Math.abs(phaseValue - Math.PI) < 0.2) drawn = 1;
       declared.setAttribute('data-acceptance-declared', JSON.stringify({ position: Number(position.toFixed(3)) }));
       positionText.textContent = position.toFixed(2);
       context.fillStyle = '#fff';
@@ -149,15 +162,22 @@ const P01_STEPPED_SCRIPT = (drawnFactor: number) => `
       context.lineTo(230, CY);
       context.stroke();
       context.strokeStyle = '#9aa5b1';
-      [CX - AMP, CX, CX + AMP].forEach(x => {
+      const ticks = MODE === 'ambiguous'
+        ? [CX - AMP, CX - AMP / 2, CX + AMP / 2, CX + AMP]
+        : [CX - AMP, CX, CX + AMP];
+      ticks.forEach(x => {
         context.beginPath();
         context.moveTo(x, CY - 20);
         context.lineTo(x, CY + 20);
         context.stroke();
       });
-      context.fillStyle = '#2680c2';
+      if (MODE === 'big-block') {
+        context.fillStyle = '#2680c2';
+        context.fillRect(20, 80, 200, 30);
+      }
+      context.fillStyle = MODE === 'big-block' ? '#e12d39' : '#2680c2';
       context.beginPath();
-      context.arc(CX + AMP * ${drawnFactor} * Math.sin(phaseValue), CY, R, 0, Math.PI * 2);
+      context.arc(CX + AMP * drawn, CY, R, 0, Math.PI * 2);
       context.fill();
     }
     phaseInput.addEventListener('input', () => {
@@ -182,10 +202,19 @@ const P01_STEPPED_SCRIPT = (drawnFactor: number) => `
     render();
   </script>`;
 
-export const P01_STEPPED = PAGE(P01_STEPPED_SCRIPT(1));
+export const P01_STEPPED = PAGE(P01_STEPPED_SCRIPT("correct"));
 
 /** The number says 2, but the drawn marker only reaches half the amplitude. */
-export const P01_STEPPED_LIES = PAGE(P01_STEPPED_SCRIPT(0.5));
+export const P01_STEPPED_LIES = PAGE(P01_STEPPED_SCRIPT("half"));
+
+/** Correct at pi/2, but the marker stays at the right extreme at pi. */
+export const P01_STEPPED_PI_LIES = PAGE(P01_STEPPED_SCRIPT("pi-wrong"));
+
+/** Two symmetric mark pairs compete, so the pixel scale is ambiguous. */
+export const P01_AMBIGUOUS_MARKS = PAGE(P01_STEPPED_SCRIPT("ambiguous"));
+
+/** A large static block dominates the colour, so it is not the moving marker. */
+export const P01_BIG_BLOCK = PAGE(P01_STEPPED_SCRIPT("big-block"));
 
 /** The button looks like it pauses, but the animation keeps running. */
 export const P01_IGNORES_PAUSE = PAGE(`

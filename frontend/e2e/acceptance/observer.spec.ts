@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { TASK_SPECS, judge, summarize, type Observation, type Phase } from "../../src/acceptance/model";
+import { TASK_SPECS, judge, judgeUsability, summarize, type Observation, type Phase } from "../../src/acceptance/model";
 import { canvasPhase, declaredAmplitude, evidencePhase, j01Phase, positionFromCanvas } from "./adapters";
 import * as fixtures from "./fixtures";
 import { HTML_FAULTS, type HtmlFault } from "./htmlFaults";
@@ -100,6 +100,22 @@ test("detects horizontal overflow measured from the page", async ({ page }) => {
   expect(result(observation, "no-overflow", a02)?.status).toBe("fail");
 });
 
+test("applies the universal usability gate to every document", async ({ page }) => {
+  const errors = watchErrors(page);
+  const cases = [
+    [fixtures.TINY_FONT, "usability-font"],
+    [fixtures.SMALL_CONTROL, "usability-control"],
+    [fixtures.OVERFLOW, "usability-overflow"],
+  ] as const;
+
+  for (const [html, checkId] of cases) {
+    await page.setContent(html, { waitUntil: "load" });
+    const observation = observationOf({}, errors, await capture(page));
+    const check = judgeUsability(observation).find(item => item.checkId === checkId);
+    expect(check?.status, checkId).toBe("fail");
+  }
+});
+
 async function canvasObservation(
   page: Parameters<typeof capture>[0],
   phases: Record<string, Phase>,
@@ -160,8 +176,12 @@ test("maps a canvas marker to task units and confirms the declared position", as
   const observation = await runP01Calibrated(page, fixtures.P01_STEPPED);
 
   expect(summarize(judge(p01, observation)).indeterminate).toEqual([]);
+  expect(result(observation, "position-at-zero", p01)?.status).toBe("pass");
   expect(result(observation, "position-at-phases", p01)?.status).toBe("pass");
+  expect(result(observation, "position-at-pi", p01)?.status).toBe("pass");
+  expect(result(observation, "evidence-consistent-zero", p01)?.status).toBe("pass");
   expect(result(observation, "evidence-consistent", p01)?.status).toBe("pass");
+  expect(result(observation, "evidence-consistent-pi", p01)?.status).toBe("pass");
   expect(result(observation, "motion-visible", p01)?.status).toBe("pass");
   expect(result(observation, "paused", p01)?.status).toBe("pass");
 });
@@ -169,10 +189,33 @@ test("maps a canvas marker to task units and confirms the declared position", as
 test("catches a marker that only reaches half of the declared position", async ({ page }) => {
   const observation = await runP01Calibrated(page, fixtures.P01_STEPPED_LIES);
 
-  // The page still prints the correct number, so only the picture can object.
-  expect(result(observation, "position-at-phases", p01)?.status).toBe("pass");
+  expect(result(observation, "position-at-zero", p01)?.status).toBe("pass");
+  expect(result(observation, "position-at-phases", p01)?.status).toBe("fail");
   expect(result(observation, "evidence-consistent", p01)?.status).toBe("fail");
 });
+
+test("checks the pi phase independently instead of only pi/2", async ({ page }) => {
+  const observation = await runP01Calibrated(page, fixtures.P01_STEPPED_PI_LIES);
+
+  expect(result(observation, "position-at-zero", p01)?.status).toBe("pass");
+  expect(result(observation, "position-at-phases", p01)?.status).toBe("pass");
+  expect(result(observation, "position-at-pi", p01)?.status).toBe("fail");
+  expect(result(observation, "evidence-consistent-pi", p01)?.status).toBe("fail");
+});
+
+for (const [name, html] of [
+  ["two competing amplitude scales", fixtures.P01_AMBIGUOUS_MARKS],
+  ["a dominant colour that is not the moving marker", fixtures.P01_BIG_BLOCK],
+] as const) {
+  test(`keeps position indeterminate with ${name}`, async ({ page }) => {
+    const observation = await runP01Calibrated(page, html);
+
+    expect(result(observation, "position-at-zero", p01)?.status).toBe("indeterminate");
+    expect(result(observation, "position-at-phases", p01)?.status).toBe("indeterminate");
+    expect(result(observation, "position-at-pi", p01)?.status).toBe("indeterminate");
+    expect(result(observation, "evidence-consistent", p01)?.status).toBe("indeterminate");
+  });
+}
 
 test("keeps the position open when the page draws no amplitude marks", async ({ page }) => {
   const errors = watchErrors(page);
@@ -300,21 +343,36 @@ async function runP01Calibrated(
   const phases: Record<string, Phase> = {};
 
   const zero = await capture(page);
-  phases["phase-zero"] = canvasPhase(zero, zero.text);
+  const amplitude = declaredAmplitude(zero.text);
+  const zeroPhase = canvasPhase(zero, zero.text);
+  const resting = positionFromCanvas(zeroPhase, zeroPhase, amplitude);
+  phases["phase-zero"] = resting ?? zeroPhase;
 
-  await page.locator("[data-phase]").evaluate(element => {
-    const input = element as HTMLInputElement;
-    input.value = String(Math.PI / 2);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  await page.waitForTimeout(60);
-  const half = await capture(page);
-  const measured = positionFromCanvas(
+  const setPhase = async (value: number) => {
+    await page.locator("[data-phase]").evaluate((element, next) => {
+      const input = element as HTMLInputElement;
+      input.value = String(next);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }, value);
+    await page.waitForTimeout(60);
+    return capture(page);
+  };
+
+  const half = await setPhase(Math.PI / 2);
+  const measuredHalf = positionFromCanvas(
     phases["phase-zero"],
     canvasPhase(half, half.text),
-    declaredAmplitude(half.text)
+    amplitude
   );
-  if (measured) phases["pi-half"] = measured;
+  if (measuredHalf) phases["pi-half"] = measuredHalf;
+
+  const pi = await setPhase(Math.PI);
+  const measuredPi = positionFromCanvas(
+    phases["phase-zero"],
+    canvasPhase(pi, pi.text),
+    amplitude
+  );
+  if (measuredPi) phases["pi"] = measuredPi;
 
   await page.getByRole("button", { name: "播放" }).click();
   await page.waitForTimeout(200);
@@ -430,10 +488,12 @@ test.describe("reference matrix", () => {
 
       const spec = TASK_SPECS.find(item => item.id === entry.id)!;
       const summary = summarize(judge(spec, observation));
+      const usability = summarize(judgeUsability(observation));
 
       expect(summary.failed).toEqual([]);
       expect(summary.indeterminate).toEqual([]);
       expect(summary.passed).toBeGreaterThan(0);
+      expect(usability.failed).toEqual([]);
     });
   }
 });
