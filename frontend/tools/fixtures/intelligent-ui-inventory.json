@@ -30,14 +30,14 @@
       "available": "#available"
     },
     {
-      "op": "expectState",
-      "path": "locked",
-      "equals": 12
-    },
-    {
       "op": "set",
       "selector": "#locked",
       "value": 12
+    },
+    {
+      "op": "expectState",
+      "path": "locked",
+      "equals": 12
     },
     {
       "op": "expectText",
@@ -52,11 +52,6 @@
       "available": "#available"
     },
     {
-      "op": "expectState",
-      "path": "available",
-      "equals": 25
-    },
-    {
       "op": "click",
       "selector": "#pay"
     },
@@ -64,6 +59,16 @@
       "op": "expectText",
       "selector": "#total",
       "equals": "32"
+    },
+    {
+      "op": "expectState",
+      "path": "locked",
+      "equals": 7
+    },
+    {
+      "op": "expectState",
+      "path": "available",
+      "equals": 25
     },
     {
       "op": "expectText",
@@ -74,11 +79,6 @@
       "op": "expectText",
       "selector": "#available",
       "equals": "25"
-    },
-    {
-      "op": "expectState",
-      "path": "locked",
-      "equals": 5
     },
     {
       "op": "expectEquation",
@@ -92,14 +92,14 @@
       "selector": "#reset"
     },
     {
+      "op": "expectState",
+      "path": "locked",
+      "equals": 5
+    },
+    {
       "op": "expectText",
       "selector": "#available",
       "equals": "32"
-    },
-    {
-      "op": "expectState",
-      "path": "available",
-      "equals": 35
     },
     {
       "op": "expectNoOverflow"
@@ -127,6 +127,11 @@
       "op": "expectText",
       "selector": "#available",
       "equals": "35"
+    },
+    {
+      "op": "expectState",
+      "path": "available",
+      "equals": 35
     },
     {
       "op": "expectEquation",
