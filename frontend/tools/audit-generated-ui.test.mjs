@@ -29,3 +29,13 @@ test('places restrictive CSP before generated scripts', () => {
 test('escapes malicious srcdoc attribute termination', () => {
   assert.equal(escapeAttribute('" onload="alert(1)<script>&'), '&quot; onload=&quot;alert(1)&lt;script&gt;&amp;');
 });
+
+test('accepts published state assertions and blocks unsafe or invalid paths', () => {
+  const sample = { ...spec, steps: [{ op: 'expectState', path: 'controls.锁定', equals: 12 }] };
+  assert.equal(validateScenario(sample), sample);
+  for (const bad of [
+    { op: 'expectState', path: '__proto__.evil', equals: 2 },
+    { op: 'expectState', path: 'stock..locked', equals: 2 },
+    { op: 'expectState', path: 'inventory', equals: { stock: 2 } },
+  ]) assert.throws(() => validateScenario({ ...spec, steps: [bad] }), /Invalid state assertion/);
+});
