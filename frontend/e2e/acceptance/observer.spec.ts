@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { TASK_SPECS, judge, type Observation, type Phase } from "../../src/acceptance/model";
 import { canvasPhase, j01Phase } from "./adapters";
 import * as fixtures from "./fixtures";
+import { HTML_FAULTS } from "./htmlFaults";
 import { capture, watchErrors, type ErrorCapture, type RawEvidence } from "./observer";
 
 const j01 = TASK_SPECS.find(spec => spec.id === "J01")!;
@@ -143,7 +144,7 @@ test("sees a canvas follow the input", async ({ page }) => {
 
   const phases: Record<string, Phase> = {};
   const basis = await capture(page);
-  phases["x3"] = canvasPhase(basis, basis.text);
+  phases.x3 = canvasPhase(basis, basis.text);
   await page.locator("input[data-x]").evaluate(element => {
     const input = element as HTMLInputElement;
     input.value = "-1";
@@ -155,6 +156,7 @@ test("sees a canvas follow the input", async ({ page }) => {
   const observation = await canvasObservation(page, phases, errors, basis);
 
   expect(result(observation, "chart-follows-x", m01)?.status).toBe("pass");
+  expect(result(observation, "value-at-3", m01)?.status).toBe("pass");
 });
 
 test("reports a canvas that never redraws", async ({ page }) => {
@@ -175,4 +177,82 @@ test("reports a canvas that never redraws", async ({ page }) => {
   const observation = await canvasObservation(page, phases, errors, basis);
 
   expect(result(observation, "chart-follows-x", m01)?.status).toBe("fail");
+});
+
+function observationOf(
+  phases: Record<string, Phase>,
+  errors: ErrorCapture,
+  basis: RawEvidence
+): Observation {
+  return {
+    phases,
+    consoleErrors: errors.consoleErrors,
+    pageErrors: errors.pageErrors,
+    fontSizes: basis.fontSizes,
+    controlSizes: basis.controlSizes,
+    horizontalOverflow: basis.horizontalOverflow,
+  };
+}
+
+async function runM01(page: Parameters<typeof capture>[0], html: string): Promise<Observation> {
+  const errors = watchErrors(page);
+  await page.setContent(html, { waitUntil: "load" });
+  const phases: Record<string, Phase> = {};
+  let basis = await capture(page);
+  phases.x3 = canvasPhase(basis, basis.text);
+  await page.locator("input[data-x]").evaluate(element => {
+    const input = element as HTMLInputElement;
+    input.value = "-1";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.waitForTimeout(60);
+  basis = await capture(page);
+  phases["xminus1"] = canvasPhase(basis, basis.text);
+  return observationOf(phases, errors, basis);
+}
+
+async function runP01(page: Parameters<typeof capture>[0], html: string): Promise<Observation> {
+  const errors = watchErrors(page);
+  await page.setContent(html, { waitUntil: "load" });
+  await page.waitForTimeout(120);
+  const phases: Record<string, Phase> = {};
+  phases["phase-zero"] = canvasPhase(await capture(page), "");
+  await page.waitForTimeout(220);
+  phases["pi-half"] = canvasPhase(await capture(page), "");
+  await page.getByRole("button", { name: "暂停" }).click();
+  await page.waitForTimeout(120);
+  const basis = await capture(page);
+  phases["paused-a"] = canvasPhase(basis, basis.text);
+  await page.waitForTimeout(320);
+  phases["paused-b"] = canvasPhase(await capture(page), "");
+  return observationOf(phases, errors, basis);
+}
+
+async function runSimple(page: Parameters<typeof capture>[0], html: string): Promise<Observation> {
+  const errors = watchErrors(page);
+  await page.setContent(html, { waitUntil: "load" });
+  const basis = await capture(page);
+  return observationOf({}, errors, basis);
+}
+
+test.describe("HTML-level faults", () => {
+  for (const fault of HTML_FAULTS) {
+    test(`${fault.id} ${fault.description}`, async ({ page }, testInfo) => {
+      test.skip(
+        testInfo.project.name !== "desktop-chromium",
+        "the HTML fault catalogue runs once, not per viewport"
+      );
+      const observation =
+        fault.taskId === "J01"
+          ? (await run(page, fault.html)).observation
+          : fault.taskId === "M01"
+            ? await runM01(page, fault.html)
+            : fault.taskId === "P01"
+              ? await runP01(page, fault.html)
+              : await runSimple(page, fault.html);
+      const spec = TASK_SPECS.find(item => item.id === fault.taskId)!;
+
+      expect(result(observation, fault.checkId, spec)?.status).toBe("fail");
+    });
+  }
 });

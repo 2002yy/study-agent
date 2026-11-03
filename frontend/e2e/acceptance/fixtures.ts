@@ -126,15 +126,18 @@ const M01_BODY = `
 
 export const M01_CANVAS = PAGE(`
   ${M01_BODY}
+  <div data-acceptance-declared='{"y":7}'></div>
   <script>
     const canvas = document.querySelector('canvas[data-canvas]');
     const context = canvas.getContext('2d');
     const input = document.querySelector('input[data-x]');
     const output = document.querySelector('output[data-y]');
+    const declared = document.querySelector('[data-acceptance-declared]');
     function draw() {
       const x = Number(input.value);
       const y = 2 * x + 1;
       output.textContent = String(y);
+      declared.setAttribute('data-acceptance-declared', JSON.stringify({ y }));
       context.fillStyle = '#fff';
       context.fillRect(0, 0, 240, 120);
       context.strokeStyle = '#888';
