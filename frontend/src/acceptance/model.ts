@@ -24,9 +24,12 @@ export type SvgShape = {
 
 export type Phase = {
   text: string;
-  numbers: Record<string, number>;
+  /** What the page displays or reports; not independent evidence on its own. */
+  declared: Record<string, number>;
+  /** What the checker measured from controls, geometry or pixels. */
+  observed: Record<string, number>;
   svg?: SvgShape[];
-  canvas?: { pixels: number[][] };
+  canvas?: { pixels: number[][]; marker?: { x: number; y: number } };
 };
 
 export type Observation = {
@@ -45,13 +48,23 @@ export type Check =
       kind: "numbers-equal";
       id: string;
       phase: string;
+      source?: "declared" | "observed";
       expected: Record<string, number>;
     }
   | {
       kind: "numbers-approx";
       id: string;
       phase: string;
+      source?: "declared" | "observed";
       expected: Record<string, number>;
+      tolerance: number;
+    }
+  | {
+      kind: "cross-check";
+      id: string;
+      phase: string;
+      declaredKey: string;
+      observedKey: string;
       tolerance: number;
     }
   | {
@@ -94,10 +107,40 @@ function layerOf(check: Check): Layer {
   return "state";
 }
 
-function distanceToBox(shape: SvgShape, point: { x: number; y: number }): number {
+function finitePoint(point: { x: number; y: number } | undefined): point is { x: number; y: number } {
+  return !!point && Number.isFinite(point.x) && Number.isFinite(point.y);
+}
+
+function finiteShape(shape: SvgShape | undefined): shape is SvgShape {
+  return (
+    !!shape &&
+    Number.isFinite(shape.x) &&
+    Number.isFinite(shape.y) &&
+    Number.isFinite(shape.width) &&
+    Number.isFinite(shape.height) &&
+    shape.width >= 0 &&
+    shape.height >= 0
+  );
+}
+
+function distanceToBox(shape: SvgShape, point: { x: number; y: number }): number | null {
+  if (!finiteShape(shape) || !finitePoint(point)) return null;
   const dx = Math.max(shape.x - point.x, 0, point.x - (shape.x + shape.width));
   const dy = Math.max(shape.y - point.y, 0, point.y - (shape.y + shape.height));
-  return Math.hypot(dx, dy);
+  const distance = Math.hypot(dx, dy);
+  return Number.isFinite(distance) ? distance : null;
+}
+
+function readNumber(
+  phase: Phase,
+  source: "declared" | "observed",
+  key: string
+): { status: "missing" } | { status: "invalid" } | { status: "ok"; value: number } {
+  const map = phase[source];
+  if (!(key in map)) return { status: "missing" };
+  const value = map[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) return { status: "invalid" };
+  return { status: "ok", value };
 }
 
 function judgeOne(check: Check, observation: Observation): CheckResult {
@@ -153,19 +196,43 @@ function judgeOne(check: Check, observation: Observation): CheckResult {
   }
   if (check.kind === "numbers-equal") {
     for (const [key, expected] of Object.entries(check.expected)) {
-      const actual = phase.numbers[key];
-      if (actual === undefined) return { ...base, status: "indeterminate", detail: `没有读取到 ${key}` };
-      if (actual !== expected) return { ...base, status: "fail", detail: `${key}=${actual}，应为 ${expected}` };
+      if (!Number.isFinite(expected)) {
+        return { ...base, status: "fail", detail: `规格里的 ${key} 不是有限数` };
+      }
+      const reading = readNumber(phase, check.source ?? "declared", key);
+      if (reading.status === "missing") return { ...base, status: "indeterminate", detail: `没有读取到 ${key}` };
+      if (reading.status === "invalid") return { ...base, status: "fail", detail: `${key} 的观测值不是有限数` };
+      if (reading.value !== expected) return { ...base, status: "fail", detail: `${key}=${reading.value}，应为 ${expected}` };
     }
     return { ...base, status: "pass", detail: "" };
   }
   if (check.kind === "numbers-approx") {
     for (const [key, expected] of Object.entries(check.expected)) {
-      const actual = phase.numbers[key];
-      if (actual === undefined) return { ...base, status: "indeterminate", detail: `没有读取到 ${key}` };
-      if (Math.abs(actual - expected) > check.tolerance) {
-        return { ...base, status: "fail", detail: `${key}=${actual}，应为 ${expected}±${check.tolerance}` };
+      if (!Number.isFinite(expected) || !Number.isFinite(check.tolerance)) {
+        return { ...base, status: "fail", detail: `规格里的 ${key} 或容差不是有限数` };
       }
+      const reading = readNumber(phase, check.source ?? "declared", key);
+      if (reading.status === "missing") return { ...base, status: "indeterminate", detail: `没有读取到 ${key}` };
+      if (reading.status === "invalid") return { ...base, status: "fail", detail: `${key} 的观测值不是有限数` };
+      if (Math.abs(reading.value - expected) > check.tolerance) {
+        return { ...base, status: "fail", detail: `${key}=${reading.value}，应为 ${expected}±${check.tolerance}` };
+      }
+    }
+    return { ...base, status: "pass", detail: "" };
+  }
+  if (check.kind === "cross-check") {
+    const declared = readNumber(phase, "declared", check.declaredKey);
+    if (declared.status === "missing") return { ...base, status: "indeterminate", detail: `页面没有给出 ${check.declaredKey}` };
+    if (declared.status === "invalid") return { ...base, status: "fail", detail: `${check.declaredKey} 的声明值不是有限数` };
+    const observed = readNumber(phase, "observed", check.observedKey);
+    if (observed.status === "missing") return { ...base, status: "indeterminate", detail: `没有独立观测到 ${check.observedKey}` };
+    if (observed.status === "invalid") return { ...base, status: "fail", detail: `${check.observedKey} 的观测值不是有限数` };
+    if (Math.abs(declared.value - observed.value) > check.tolerance) {
+      return {
+        ...base,
+        status: "fail",
+        detail: `声明 ${check.declaredKey}=${declared.value} 与观测 ${check.observedKey}=${observed.value} 不一致`,
+      };
     }
     return { ...base, status: "pass", detail: "" };
   }
@@ -174,15 +241,22 @@ function judgeOne(check: Check, observation: Observation): CheckResult {
   const shapes = phase.svg ?? [];
   const arrow = shapes.find(shape => shape.id === check.arrowId);
   const target = shapes.find(shape => shape.id === check.targetId);
-  if (!arrow || !arrow.to || !target) return { ...base, status: "indeterminate", detail: "缺少箭头或目标对象" };
+  if (!arrow || !target) return { ...base, status: "indeterminate", detail: "缺少箭头或目标对象" };
+  if (!finiteShape(arrow) || !finiteShape(target) || !finitePoint(arrow.to)) {
+    return { ...base, status: "fail", detail: "箭头或目标对象的坐标不是有限数" };
+  }
   const source = check.sourceId ? shapes.find(shape => shape.id === check.sourceId) : undefined;
   if (check.sourceId && (!source || !arrow.from)) return { ...base, status: "indeterminate", detail: "缺少箭头起点或来源对象" };
+  if (source && !finiteShape(source)) return { ...base, status: "fail", detail: "来源对象坐标不是有限数" };
   const targetDistance = distanceToBox(target, arrow.to);
+  if (targetDistance === null) return { ...base, status: "fail", detail: "无法计算箭头端点距离" };
   if (targetDistance > check.tolerance) {
     return { ...base, status: "fail", detail: `箭头终点距目标 ${targetDistance.toFixed(1)}px，超过 ${check.tolerance}px` };
   }
   if (source && arrow.from) {
+    if (!finitePoint(arrow.from)) return { ...base, status: "fail", detail: "箭头起点不是有限数" };
     const sourceDistance = distanceToBox(source, arrow.from);
+    if (sourceDistance === null) return { ...base, status: "fail", detail: "无法计算箭头起点距离" };
     if (sourceDistance > check.tolerance) {
       return { ...base, status: "fail", detail: `箭头起点距来源 ${sourceDistance.toFixed(1)}px，超过 ${check.tolerance}px` };
     }
@@ -352,3 +426,40 @@ export const TASK_SPECS: TaskSpec[] = [
     ],
   },
 ];
+
+/**
+ * One declared-vs-observed check per task: the page's own claim only passes
+ * when the checker measured the same thing independently.
+ */
+const EVIDENCE_CHECKS: Record<
+  string,
+  { phase: string; declaredKey: string; observedKey: string; tolerance: number }
+> = {
+  J01: { phase: "reassigned", declaredKey: "objectOfB", observedKey: "objectOfB", tolerance: 0 },
+  J02: {
+    phase: "call",
+    declaredKey: "dispatchedImplementations",
+    observedKey: "dispatchedImplementations",
+    tolerance: 0,
+  },
+  A01: { phase: "found", declaredKey: "secondChecked", observedKey: "secondChecked", tolerance: 0 },
+  A02: { phase: "result", declaredKey: "distance", observedKey: "distance", tolerance: 0 },
+  D01: { phase: "committed", declaredKey: "A", observedKey: "A", tolerance: 0 },
+  D02: { phase: "interleaved", declaredKey: "stock", observedKey: "stock", tolerance: 0 },
+  C01: { phase: "running", declaredKey: "running", observedKey: "running", tolerance: 0 },
+  M01: { phase: "x3", declaredKey: "y", observedKey: "y", tolerance: 0.01 },
+  M02: { phase: "base", declaredKey: "vertexY", observedKey: "vertexY", tolerance: 0.01 },
+  P01: { phase: "pi-half", declaredKey: "position", observedKey: "position", tolerance: 0.05 },
+  S01: { phase: "metrics", declaredKey: "precision", observedKey: "precision", tolerance: 0.005 },
+  N01: { phase: "complete", declaredKey: "synAck", observedKey: "synAck", tolerance: 0 },
+};
+
+for (const spec of TASK_SPECS) {
+  const evidence = EVIDENCE_CHECKS[spec.id];
+  if (!evidence) continue;
+  spec.checks.push({
+    kind: "cross-check",
+    id: "evidence-consistent",
+    ...evidence,
+  });
+}

@@ -1,9 +1,13 @@
-import type { Layer, Observation } from "./model";
+import type { Layer, Observation, Phase } from "./model";
 
 /**
  * Twenty-four known defects, eight per layer, applied to an otherwise correct
  * observation. They measure the detector itself: a known fault must be reported
  * as a failure on the named check, never silently pass.
+ *
+ * A fault mutates both what the page declares and what the checker observes,
+ * because a page can be consistently wrong. Declared-vs-observed disagreement
+ * is exercised separately by the evidence tests.
  */
 export type Fault = {
   id: string;
@@ -16,6 +20,11 @@ export type Fault = {
 
 const clone = (observation: Observation): Observation =>
   JSON.parse(JSON.stringify(observation)) as Observation;
+
+function setNumber(phase: Phase, key: string, value: number): void {
+  phase.declared[key] = value;
+  phase.observed[key] = value;
+}
 
 export const FAULTS: Fault[] = [
   // runtime: eight defects
@@ -116,7 +125,7 @@ export const FAULTS: Fault[] = [
     },
   },
 
-  // state: eight defects
+  // state: eight defects (the page consistently shows the wrong value)
   {
     id: "S01",
     taskId: "J01",
@@ -125,7 +134,7 @@ export const FAULTS: Fault[] = [
     description: "重新指向后仍显示同一个对象",
     apply: observation => {
       const next = clone(observation);
-      next.phases.reassigned.numbers.objectOfB = 1;
+      setNumber(next.phases.reassigned, "objectOfB", 1);
       return next;
     },
   },
@@ -137,7 +146,7 @@ export const FAULTS: Fault[] = [
     description: "从索引 0 开始线性扫描",
     apply: observation => {
       const next = clone(observation);
-      next.phases.found.numbers.firstChecked = 0;
+      setNumber(next.phases.found, "firstChecked", 0);
       return next;
     },
   },
@@ -149,7 +158,7 @@ export const FAULTS: Fault[] = [
     description: "把 A-C-D 当成最短路（8）",
     apply: observation => {
       const next = clone(observation);
-      next.phases.result.numbers.distance = 8;
+      setNumber(next.phases.result, "distance", 8);
       return next;
     },
   },
@@ -161,7 +170,7 @@ export const FAULTS: Fault[] = [
     description: "转账后总额变成 130",
     apply: observation => {
       const next = clone(observation);
-      next.phases.committed.numbers.A = 60;
+      setNumber(next.phases.committed, "A", 60);
       return next;
     },
   },
@@ -173,7 +182,7 @@ export const FAULTS: Fault[] = [
     description: "把丢失更新显示成 8",
     apply: observation => {
       const next = clone(observation);
-      next.phases.interleaved.numbers.stock = 8;
+      setNumber(next.phases.interleaved, "stock", 8);
       return next;
     },
   },
@@ -185,8 +194,8 @@ export const FAULTS: Fault[] = [
     description: "三个任务同时运行",
     apply: observation => {
       const next = clone(observation);
-      next.phases.running.numbers.running = 3;
-      next.phases.running.numbers.waiting = 0;
+      setNumber(next.phases.running, "running", 3);
+      setNumber(next.phases.running, "waiting", 0);
       return next;
     },
   },
@@ -198,7 +207,7 @@ export const FAULTS: Fault[] = [
     description: "x=3 时显示 y=6",
     apply: observation => {
       const next = clone(observation);
-      next.phases.x3.numbers.y = 6;
+      setNumber(next.phases.x3, "y", 6);
       return next;
     },
   },
@@ -210,7 +219,7 @@ export const FAULTS: Fault[] = [
     description: "精确率算成 40/60",
     apply: observation => {
       const next = clone(observation);
-      next.phases.metrics.numbers.precision = 0.667;
+      setNumber(next.phases.metrics, "precision", 0.667);
       return next;
     },
   },
