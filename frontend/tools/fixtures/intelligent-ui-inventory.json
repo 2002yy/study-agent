@@ -13,6 +13,11 @@
   ],
   "steps": [
     {
+      "op": "expectState",
+      "path": "available",
+      "equals": 32
+    },
+    {
       "op": "expectText",
       "selector": "#available",
       "equals": "32"
@@ -23,6 +28,11 @@
       "total": "#total",
       "locked": "#lockedView",
       "available": "#available"
+    },
+    {
+      "op": "expectState",
+      "path": "locked",
+      "equals": 12
     },
     {
       "op": "set",
@@ -40,6 +50,11 @@
       "total": "#total",
       "locked": "#lockedView",
       "available": "#available"
+    },
+    {
+      "op": "expectState",
+      "path": "available",
+      "equals": 25
     },
     {
       "op": "click",
@@ -61,6 +76,11 @@
       "equals": "25"
     },
     {
+      "op": "expectState",
+      "path": "locked",
+      "equals": 5
+    },
+    {
       "op": "expectEquation",
       "selector": "#total",
       "total": "#total",
@@ -75,6 +95,11 @@
       "op": "expectText",
       "selector": "#available",
       "equals": "32"
+    },
+    {
+      "op": "expectState",
+      "path": "available",
+      "equals": 35
     },
     {
       "op": "expectNoOverflow"
