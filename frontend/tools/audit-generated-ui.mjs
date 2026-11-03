@@ -128,6 +128,7 @@ export async function auditHtml({ html, scenario, browserName = 'chromium', repo
       await page.setContent('<!doctype html><style>html,body{width:100%;height:100%;margin:0}</style>' + body);
       const handle = await page.locator('#generated').elementHandle();
       const frame = await handle.contentFrame();
+      await frame.waitForLoadState('load');
       await frame.locator('body').waitFor({ state: 'attached' });
       const current = { ...viewport, passed: true, steps: [] };
       for (const [index, step] of scenario.steps.entries()) {
