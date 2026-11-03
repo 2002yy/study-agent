@@ -148,6 +148,43 @@ describe("generated interactive documents", () => {
     }
   });
 
+  it("never lets an older save finish after a newer one", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveFirst!: (value: { component_id: string; revision: number; state: Record<string, unknown>; updated_at: string }) => void;
+      vi.mocked(saveInteractiveState).mockImplementationOnce(
+        () => new Promise(resolve => { resolveFirst = resolve; })
+      );
+      vi.mocked(saveInteractiveState).mockImplementation(async (_session, _id, revision, state) => ({
+        component_id: "orders", revision, state, updated_at: "t",
+      }));
+
+      const view = render(<MarkdownMessage interactive sessionId="s1" content={block({ ...card, revision: 2 })} />);
+      const channel = channelOf(view.container);
+      publish(view.container, channel, { locked: 5 });
+      publish(view.container, channel, { locked: 12 });
+      await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+      expect(saveInteractiveState).toHaveBeenCalledTimes(1);
+
+      publish(view.container, channel, { locked: 7 });
+      await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+      // The newer value waits instead of overtaking the in-flight request.
+      expect(saveInteractiveState).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveFirst({ component_id: "orders", revision: 2, state: { locked: 12 }, updated_at: "t" });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(saveInteractiveState).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(saveInteractiveState).mock.calls[1][3]).toEqual({ locked: 7 });
+      expect(vi.mocked(saveInteractiveState).mock.calls[0][3]).toEqual({ locked: 12 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("confirms a restore only after the document reports state back", async () => {
     vi.mocked(loadInteractiveState).mockResolvedValue({
       component_id: "orders", revision: 2, state: { step: 7 }, updated_at: "t",

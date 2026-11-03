@@ -19,6 +19,8 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
   const seenInitialRef = useRef(false);
   const generationRef = useRef(0);
   const saveTimerRef = useRef<number | null>(null);
+  const saveInFlightRef = useRef(false);
+  const queuedSaveRef = useRef<{ snapshot: Record<string, unknown>; generation: number } | null>(null);
   const restorePendingRef = useRef(false);
   const restoreTimerRef = useRef<number | null>(null);
   const channel = `${instance}:${generation}`;
@@ -26,6 +28,21 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
   const cancelPendingSave = () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = null;
+  };
+  const writeSnapshot = (snapshot: Record<string, unknown>, generation: number) => {
+    if (!sessionId || generationRef.current !== generation) return;
+    saveInFlightRef.current = true;
+    saveInteractiveState(sessionId!, card.id, card.revision, snapshot)
+      .then(result => setSavedState({ state: result.state, revision: result.revision }))
+      .catch(() => {})
+      .finally(() => {
+        saveInFlightRef.current = false;
+        const queued = queuedSaveRef.current;
+        queuedSaveRef.current = null;
+        // One write at a time, latest wins: an older request finishing late can
+        // never land after a newer value has already been captured.
+        if (queued) writeSnapshot(queued.snapshot, queued.generation);
+      });
   };
   const cancelRestoreWait = () => {
     if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
@@ -71,9 +88,11 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
             saveTimerRef.current = window.setTimeout(() => {
               saveTimerRef.current = null;
               if (generationRef.current !== scheduledFor) return;
-              saveInteractiveState(sessionId, card.id, card.revision, snapshot)
-                .then(result => setSavedState({ state: result.state, revision: result.revision }))
-                .catch(() => {});
+              if (saveInFlightRef.current) {
+                queuedSaveRef.current = { snapshot, generation: scheduledFor };
+                return;
+              }
+              writeSnapshot(snapshot, scheduledFor);
             }, 800);
           }
           if (restorePendingRef.current) {
@@ -101,6 +120,7 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
     // one and let its first publish count as initial state again.
     cancelPendingSave();
     cancelRestoreWait();
+    queuedSaveRef.current = null;
     seenInitialRef.current = false;
     generationRef.current += 1;
     setRestoreNote("");

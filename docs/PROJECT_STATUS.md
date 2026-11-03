@@ -37,11 +37,13 @@
 重置标记并递增代际号，旧代际的迟到保存被丢弃。③快照键从 `(thread, component)` 改为
 `(thread, component, revision)`：操作旧版本不再覆盖新版本进度，读取时必须指明 revision。
 ④恢复增加回执：界面回报一次状态才显示“已恢复”，超时或未实现钩子都明确提示。
+⑤写入串行化：同一时刻只有一个保存请求在途，更新的值排队等待；旧请求晚到也不能覆盖
+更新的值（不再只依赖定时器取消）。
 
 **静态证据**：`tests/test_interactive_state.py` **12 PASS**（保存/读取、各版本互不覆盖、
 跨会话隔离、超限、非对象、路由 404/422/指定版本）；`tests/test_spend_settlement.py` 的 schema
 断言改为跟随 `SCHEMA_VERSION`，**53 PASS**；schema 相关影响集 **139 PASS**；前端完整
-**123 文件 / 641 PASS**，tsc 与构建 PASS；Ruff PASS；mypy **118/128，新增 0**。迁移 31 属
+**123 文件 / 642 PASS**，tsc 与构建 PASS；Ruff PASS；mypy **118/128，新增 0**。迁移 31 属
 持久化 schema 变更：本机全量 6925 项 pytest 单机约 3 小时，本片未在本地跑完；全量证据以
 PR 的 backend 作业在精确 head 上的 pytest 为准，CI 未绿前不得称为已交付。
 
