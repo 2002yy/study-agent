@@ -36,6 +36,19 @@ export function validateScenario(s) {
   return s;
 }
 
+export function htmlFromInteractiveCard(raw) {
+  if (typeof raw !== 'string' || Buffer.byteLength(raw) > 100000) throw Error('Card JSON exceeds 100KB');
+  let card;
+  try { card = JSON.parse(raw); } catch { throw Error('Invalid interactive card JSON'); }
+  if (!card || typeof card !== 'object' || Array.isArray(card) || card.type !== 'interactive'
+    || typeof card.id !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(card.id)
+    || !Number.isInteger(card.revision) || card.revision < 1 || card.revision > 999
+    || typeof card.title !== 'string' || !card.title.trim() || card.title.length > 100
+    || typeof card.summary !== 'string' || !card.summary.trim() || card.summary.length > 1200
+    || typeof card.html !== 'string' || !card.html.trim() || card.html.length > 60000) throw Error('Not a valid bounded interactive card');
+  return card.html;
+}
+
 export function applyOfflinePolicy(html) {
   const tag = '<meta http-equiv="Content-Security-Policy" content="' + POLICY + '">';
   const dt = /^\s*<!doctype[^>]*>/i.exec(html);
@@ -186,11 +199,13 @@ async function main() {
   const options = {}, args = process.argv.slice(2);
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i], value = args[i + 1];
-    if (!['--html', '--scenario', '--report', '--browser'].includes(key) || !value) throw Error('Usage: --html file.html --scenario checks.json [--report result.json] [--browser chromium|firefox|webkit]');
+    if (!['--html', '--card', '--scenario', '--report', '--browser'].includes(key) || !value) throw Error('Usage: (--html file.html | --card saved-card.json) --scenario checks.json [--report result.json] [--browser chromium|firefox|webkit]');
     options[key.slice(2)] = value;
   }
-  if (!options.html || !options.scenario) throw Error('Both --html and --scenario are required');
-  const html = await readFile(options.html, 'utf8'), raw = await readFile(options.scenario, 'utf8');
+  if (!options.scenario || Boolean(options.html) === Boolean(options.card)) throw Error('Provide exactly one of --html or --card, plus --scenario');
+  const input = await readFile(options.html ?? options.card, 'utf8');
+  const html = options.card ? htmlFromInteractiveCard(input) : input;
+  const raw = await readFile(options.scenario, 'utf8');
   if (Buffer.byteLength(raw) > 100000) throw Error('Scenario exceeds 100KB');
   const result = await auditHtml({ html, scenario: JSON.parse(raw), browserName: options.browser, reportPath: options.report });
   console.log(JSON.stringify({ name: result.name, passed: result.passed, viewports: result.viewports, blockedRequests: result.blockedRequests }, null, 2));
