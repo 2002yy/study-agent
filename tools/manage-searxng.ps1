@@ -28,6 +28,9 @@ function Get-DockerCommand {
 }
 
 function Test-DockerReady([string]$DockerPath) {
+    # PS 5.1 promotes native stderr to a terminating error when the caller
+    # captures output. An unavailable daemon is an expected probe result.
+    $ErrorActionPreference = "Continue"
     & $DockerPath info --format "{{.ServerVersion}}" *> $null
     return $LASTEXITCODE -eq 0
 }
@@ -59,6 +62,8 @@ function Start-DockerIfNeeded([string]$DockerPath) {
 }
 
 function Get-Container([string]$DockerPath, [string]$Name) {
+    # A missing container is expected during first startup, not an exception.
+    $ErrorActionPreference = "Continue"
     $json = & $DockerPath container inspect $Name 2> $null
     if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
     return ($json | ConvertFrom-Json)[0]
