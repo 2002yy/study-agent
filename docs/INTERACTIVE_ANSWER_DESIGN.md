@@ -12,14 +12,16 @@
 
 | 项 | 决定 |
 | --- | --- |
-| 位置 | 新表 `interactive_state_snapshots`（迁移 31），按 `(thread_id, component_id)` 唯一，最新一次覆盖 |
+| 位置 | 新表 `interactive_state_snapshots`（迁移 31），按 `(thread_id, component_id, revision)` 唯一：每个版本各自保存进度，操作旧版本不会覆盖新版本的快照 |
 | 内容 | 只存 `state_json` 与它所属的 `revision`、`updated_at`；不存源码、不存 HTML |
 | 写入方 | 只有宿主的 `PUT /sessions/{id}/interactive-state`；生成的界面不能直接写存储 |
 | 校验 | component id 与前端协议一致、revision 1–999、state 必须是 JSON 对象、序列化 ≤4000 字符 |
-| 读取 | `GET /sessions/{id}/interactive-state/{component_id}`；会话不存在或没有快照都明确 404 |
+| 读取 | `GET /sessions/{id}/interactive-state/{component_id}?revision=N`；会话不存在或该版本没有快照都明确 404 |
 | 恢复 | 卡片上的「恢复上次状态」，且**仅当快照 revision 与卡片 revision 相同**；不同版本明确拒绝，避免用旧结构读新界面 |
 | 协议 | 生成界面可调用 `window.studyUI.onRestore(handler)` 接收快照；未注册时宿主显示“该版本不支持恢复”，不静默失败 |
-| 初始值 | 界面首次发布的状态只是初始状态，不写回快照，避免打开旧回答就覆盖用户真实进度 |
+| 初始值 | 只有挂载/重置后的**首次发布**视为初始状态，不写回快照；之后的每次发布都是用户操作，即使数值恰好回到初始值也要保存 |
+| 重置 | 取消待执行的保存、重置初始标记并递增代际号，旧代际的迟到保存不会写进重建后的界面 |
+| 回执 | 恢复后要等界面回报一次状态才显示“已恢复”；超时或界面未实现钩子都明确提示，不假装成功 |
 
 本片不做：自动恢复（刷新即回填）、操作日志与回放、跨版本状态迁移、跨会话快照共享。
 
