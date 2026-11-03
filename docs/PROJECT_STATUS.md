@@ -13,6 +13,49 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-03 后续片：从保存的旧版本恢复源码
+
+用户选定“旧版本卡片上的「以此版本为基础继续」”，并要求确定性的版本管理：源码定位、权限、
+状态和提交顺序交给程序。本片从历史压缩分支
+`codex/interactive-history-compression-20261103`（`b7a0629e`）新建栈式分支
+`codex/interactive-version-restore-20261103`，工作树
+`D:/study-agent-validation/intelligent-ui-budget-lifecycle-20261103`。main、#338、预算分支和
+#339 均未改动。
+
+**结果（P2，owner=orchestration/versioning + UI）**：新增 `src/interactive_restore.py`。
+前端在每张生成界面上提供「以此版本为基础继续」，只提交 `id + revision`（一次性，发送/取消/
+切换会话即清除，不进入对话正文）。后端在该会话**所有已完成轮次**中定位该版本，校验协议字段、
+会话归属与源码唯一性；命中后把源码作为有界上下文块注入本轮，并令派生版本 =
+该 id 的最大 revision + 1（V1→V4，不会与已有 V2/V3 冲突）。失败分 `not_found` / `conflict` /
+`revision_exhausted`：模型收到“不得凭摘要、记忆或其它版本重建”的明确指令，前端同时按
+`route.interactive_restore` 显示确定性错误，不依赖模型自觉。派生关系写入现有
+`route_snapshot`，不新增表、不改协议、不改已保存回答。
+
+**提交**：`9e4ca96d` 实现、前后端测试与命名 L1；随后仅文档提交。推送后以历史压缩分支
+`codex/interactive-history-compression-20261103` 为基线建立草稿 PR；远端门禁结果以该 PR 的
+精确 head 为准，不以本文档代替。
+
+**静态证据**：`tests/test_interactive_restore.py` **23 PASS**（跨全部轮次定位、V1→V4 派生、
+同 id 同 revision 冲突、副本去重、未完成轮次不算、跨会话不可见、版本耗尽、失败块禁止重建、
+记录不含源码、请求体只有身份）；服务级回归证明 V1 源码确实进入提供商消息、V2/V3 不在、
+`expected_new_revision=4`、`route.interactive_restore` 记录正确且存储回答未被改写。
+影响集（restore + history + chat_service + turn_context + attachment binding + lifecycle e2e +
+stream cancellation + API + routes + stage policy）**189 PASS**；前端完整 **123 文件 / 634 PASS**，
+tsc 与构建 PASS；Ruff PASS；mypy **118/128，新增 0**。
+
+**动态证据**：**0 次模型调用**，共享账本仍为 ¥8.63/¥30。本片只证明定位、注入、派生与失败反馈的
+程序行为；没有验证模型拿到旧源码后的实际修改质量，也没有真实浏览器端到端点击。
+
+**边界**：未做局部 HTML 补丁、跨会话恢复、探索状态持久化或“从旧版派生”的数据库级关系表；
+`route_snapshot` 记录的是本轮意图与派生目标，不是对模型输出的强制改写（模型若输错 revision，
+仍由协议校验和后续冲突检测暴露）。
+
+**集成顺序（用户已定）**：#338 → 预算分支 → #339 → 本片。每层仍各自过门禁；若前层使用
+Squash Merge，重放后续分支时必须核对差异，避免把已合并内容再次带入 PR。
+
+**唯一下一片**：旧版本恢复的真实端到端与修改质量验证（可用现有付费预算，需再次显式授权），
+随后再做“只修改局部代码”。
+
 ### 2026-11-03 后续片：模型输入中的旧界面版本压缩
 
 用户要求下一片只做“完整历史不变 → 模型输入按版本压缩 → 当前源码与状态保真 → 验证成本和修改正确率”，
