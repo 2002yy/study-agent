@@ -11,6 +11,7 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.github_snapshot_repository import GitHubSnapshotRepository
 from src.repositories.group_repository import GroupRepository
 from src.repositories.learning_closure_repository import LearningClosureRepository
+from src.repositories.interactive_state_repository import InteractiveStateRepository
 from src.repositories.learning_truth_repository import LearningTruthRepository
 from src.repositories.news_repository import NewsRepository
 from src.repositories.memory_repository import MemoryRepository
@@ -124,6 +125,11 @@ def get_thread_summary_repository() -> ThreadSummaryRepository:
 @lru_cache(maxsize=1)
 def get_session_navigation_repository() -> SessionNavigationRepository:
     return SessionNavigationRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
+def get_interactive_state_repository() -> InteractiveStateRepository:
+    return InteractiveStateRepository(RuntimeDatabase(runtime_database_path()))
 
 
 @lru_cache(maxsize=1)

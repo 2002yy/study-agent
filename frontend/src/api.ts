@@ -662,6 +662,39 @@ export async function archiveSession(sessionId: string): Promise<SessionArchiveR
   return requestJson<SessionArchiveResponse>(`/sessions/${encodeURIComponent(sessionId)}/archive`, { method: "POST" });
 }
 
+export type InteractiveStateSnapshot = {
+  component_id: string;
+  revision: number;
+  state: Record<string, unknown>;
+  updated_at: string;
+};
+
+/** Host-owned snapshot of where the learner left one generated document. */
+export async function saveInteractiveState(
+  sessionId: string,
+  componentId: string,
+  revision: number,
+  state: Record<string, unknown>
+): Promise<InteractiveStateSnapshot> {
+  return requestJson<InteractiveStateSnapshot>(
+    `/sessions/${encodeURIComponent(sessionId)}/interactive-state`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ component_id: componentId, revision, state })
+    }
+  );
+}
+
+export async function loadInteractiveState(
+  sessionId: string,
+  componentId: string
+): Promise<InteractiveStateSnapshot> {
+  return requestJson<InteractiveStateSnapshot>(
+    `/sessions/${encodeURIComponent(sessionId)}/interactive-state/${encodeURIComponent(componentId)}`
+  );
+}
+
 export async function flushSession(sessionId: string): Promise<{ session_id: string; flushed: boolean }> {
   return requestJson<{ session_id: string; flushed: boolean }>(`/sessions/${encodeURIComponent(sessionId)}/flush`, { method: "POST" });
 }

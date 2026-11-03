@@ -568,6 +568,7 @@ export function ChatPanel(props: ChatPanelProps) {
                         generation={message.evidence?.route?.generation}
                         streaming={message.role === "assistant" && isSending && !displayMessages.slice(index + 1).some(item => item.role === "assistant")}
                         onRestoreBase={handleRestoreBase}
+                        sessionId={sessionId}
                         onDraft={prompt => {
                           setComposerMode("chat");
                           setInput(input.trim() ? `${input}\n\n${prompt}` : prompt);

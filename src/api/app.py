@@ -118,6 +118,7 @@ from .routes.reading_routes import router as _reading_router
 from .routes.research_routes import router as _research_router
 from .routes.github_routes import router as _github_router
 from .routes.github_review_routes import router as _github_review_router
+from .routes.interactive_state_routes import router as _interactive_state_router
 
 app.include_router(_health_router)
 app.include_router(_settings_router)
@@ -135,6 +136,7 @@ app.include_router(_reading_router)
 app.include_router(_research_router)
 app.include_router(_github_router)
 app.include_router(_github_review_router)
+app.include_router(_interactive_state_router)
 
 # ── Security helpers ──────────────────────────────────────────────────
 

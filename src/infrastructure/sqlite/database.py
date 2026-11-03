@@ -9,6 +9,9 @@ from typing import Callable
 
 from src.infrastructure.sqlite.learning_semantic_schema import LEARNING_SEMANTIC_MIGRATION_V18
 from src.infrastructure.sqlite.learning_truth_schema import LEARNING_TRUTH_MIGRATION_V17
+from src.infrastructure.sqlite.interactive_state_schema import (
+    INTERACTIVE_STATE_MIGRATION_V31,
+)
 from src.infrastructure.sqlite.research_authorization_schema import (
     RESEARCH_TIER_MIGRATION_V29,
 )
@@ -18,7 +21,7 @@ from src.infrastructure.sqlite.spend_settlement_schema import (
     LLM_SPEND_SETTLEMENT_MIGRATION_V30,
 )
 
-SCHEMA_VERSION = 30
+SCHEMA_VERSION = 31
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -606,6 +609,10 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     # appends observations and never moves money - the reservation tables are untouched
     # (see the contract's §12 and the module docstring for the epoch watermark).
     (30, LLM_SPEND_SETTLEMENT_MIGRATION_V30),
+    # 31 is the interactive-UI state snapshot: the host-owned record of where a
+    # learner left a generated document, keyed by component id so a restore can
+    # refuse state that belongs to a different revision.
+    (31, INTERACTIVE_STATE_MIGRATION_V31),
 )
 
 

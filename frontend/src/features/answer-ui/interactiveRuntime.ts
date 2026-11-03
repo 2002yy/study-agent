@@ -13,7 +13,7 @@ export const INTERACTIVE_CONTEXT = `【自由交互界面 v1】
 按问题选择表达方式：拖参数观察因果、逐步运行并同步代码/对象/说明、选择条件比较结果。所有控件操作必须真的改变同一状态，提供初始状态和重置。逐步执行时，尚未创建的对象不能画成已存在的实体；前进、后退、重置后图形和说明都从当前状态推导。不要生成假按钮或只有装饰的图。数据和计算要明确区分示意、假设、真实测量；图不是核验证据。
 使用原生DOM和addEventListener；无外部依赖、CDN、导入、网络请求、表单提交、链接跳转、弹窗、文件或存储访问。只使用本块显式给出的数据，不访问父页面。script中的</script>保持正常HTML语法，整个html必须正确JSON转义。
 布局适应240px到900px，正文至少14px、控件至少40px；白底深字、少量有含义的强调色。SVG用viewBox，但文字需按最终缩放后的显示尺寸保持至少14px；放不下时改布局、用HTML标签或局部滚动，不把整图缩成小字。Canvas随容器尺寸绘制并提供文字等价说明。输入需label，输出用output或有标签的区域，键盘可操作；动画可暂停并尊重prefers-reduced-motion。
-界面已提供window.studyUI.setState({参数名:值,观察:简短说明})。初始化与每次操作后调用它，把当前探索状态提供给用户的“带着当前状态继续问”按钮；仅JSON对象，序列化最多4000字符，无敏感信息。不要把用户参数当作已核验事实。未调用时，应用只记录带name/id的普通表单控件。
+界面已提供window.studyUI.setState({参数名:值,观察:简短说明})。初始化与每次操作后调用它，把当前探索状态提供给用户的“带着当前状态继续问”按钮；仅JSON对象，序列化最多4000字符，无敏感信息。不要把用户参数当作已核验事实。未调用时，应用只记录带name/id的普通表单控件。需要支持“恢复上次状态”时，调用window.studyUI.onRestore(snapshot => { ... })，用快照字段重建同一状态；快照可能来自旧版本，字段缺失时回退到初始状态而不是报错。
 收到对此界面的追问时，结合随问题附带的参数和观察修改；输出同id、revision加1的完整新版本，不输出补丁，旧版本会留在原回答。保留用户当前参数，除非其要求重置。界面失败时仍以summary和正文解释原理。`;
 
 export function stateText(value: unknown): string | null {
@@ -44,15 +44,28 @@ function makeSandboxContent(html: string, channel: string): string {
     const send = parent.postMessage.bind(parent);
     const channel = ${JSON.stringify(channel)};
     let latest = {};
+    let restoreHandler = null;
     const emit = (type, value) => send({channel, type, value}, '*');
     const publish = value => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return;
       try { const encoded = JSON.stringify(value); if (encoded.length <= 4000) { latest = JSON.parse(encoded); emit('state', latest); } } catch {}
     };
-    Object.defineProperty(window, 'studyUI', {value: Object.freeze({setState: publish}), writable: false});
+    Object.defineProperty(window, 'studyUI', {value: Object.freeze({
+      setState: publish,
+      // The host owns persistence; the document only rebuilds itself from a
+      // snapshot it accepts. A document that never registers cannot be restored.
+      onRestore: handler => { if (typeof handler === 'function') restoreHandler = handler; }
+    }), writable: false});
     addEventListener('error', event => emit('error', String(event.message).slice(0, 500)));
     addEventListener('unhandledrejection', event => emit('error', String(event.reason).slice(0, 500)));
     addEventListener('submit', event => event.preventDefault(), true);
+    addEventListener('message', event => {
+      const data = event.data;
+      if (!data || data.channel !== channel || data.type !== 'restore') return;
+      if (typeof restoreHandler !== 'function') { emit('restore_unavailable', true); return; }
+      try { restoreHandler(JSON.parse(JSON.stringify(data.value))); }
+      catch (error) { emit('error', String(error).slice(0, 500)); }
+    });
     const controls = () => {
       const values = Object.create(null);
       document.querySelectorAll('input,select,textarea').forEach(el => {
@@ -94,10 +107,15 @@ export function makeInteractiveDocument(html: string, channel: string): string {
     canvas.setAttribute('referrerpolicy', 'no-referrer');
     canvas.srcdoc = ${source};
     addEventListener('message', event => {
+      const data = event.data;
+      if (!data || data.type !== 'restore' || data.channel !== channel) return;
+      try { canvas.contentWindow.postMessage({channel, type: 'restore', value: data.value}, '*'); } catch {}
+    });
+    addEventListener('message', event => {
       if (event.source !== canvas.contentWindow || event.origin !== 'null') return;
       const data = event.data;
       if (!data || typeof data !== 'object' || data.channel !== channel) return;
-      if (['ready','height','state','error'].includes(data.type)) parent.postMessage(data, '*');
+      if (['ready','height','state','error','restore_unavailable'].includes(data.type)) parent.postMessage(data, '*');
     });
     document.body.append(canvas);
   </script></body></html>`;

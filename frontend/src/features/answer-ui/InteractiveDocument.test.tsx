@@ -7,6 +7,11 @@ import { answerCopyText, packAnswerUiContext, parseAnswerCard, splitAnswerConten
 import { makeInteractiveDocument, stateText } from "./interactiveRuntime";
 
 afterEach(cleanup);
+vi.mock("../../api", () => ({
+  loadInteractiveState: vi.fn(),
+  saveInteractiveState: vi.fn(),
+}));
+import { loadInteractiveState } from "../../api";
 const card = { type: "interactive", id: "orders", revision: 1, title: "库存探索", summary: "演示库存与锁定数量的关系。", html: "<label>库存<input id='stock' value='37'></label><script>window.studyUI.setState({stock:37})</script>" };
 const block = (value: unknown) => "```study-ui\n" + JSON.stringify(value) + "\n```";
 
@@ -25,6 +30,12 @@ describe("generated interactive documents", () => {
     const { container } = render(<MarkdownMessage content={block(card)} />);
     expect(container.querySelector("iframe")).toBeNull();
     expect(container.textContent).toContain("window.studyUI");
+  });
+
+  it("exposes an optional restore hook and reports a document that has none", () => {
+    const document = makeInteractiveDocument("<p>x</p>", "c:0");
+    expect(document).toContain("onRestore");
+    expect(document).toContain("restore_unavailable");
   });
 
   it("renders saved interfaces without requiring the secure-context UUID API", () => {
@@ -54,6 +65,30 @@ describe("generated interactive documents", () => {
     fireEvent.click(screen.getByRole("button", { name: "以此版本为基础继续" }));
 
     expect(onRestoreBase).toHaveBeenCalledWith({ id: "orders", revision: 2, title: "库存探索" });
+  });
+
+  it("offers a saved state only for the revision it belongs to", async () => {
+    vi.mocked(loadInteractiveState).mockResolvedValue({
+      component_id: "orders", revision: 2, state: { step: 7 }, updated_at: "t",
+    });
+    const view = render(<MarkdownMessage interactive sessionId="s1" content={block({ ...card, revision: 2 })} />);
+
+    const button = await screen.findByRole("button", { name: /恢复上次状态/ });
+    const frame = view.container.querySelector("iframe")!;
+    const post = vi.spyOn(frame.contentWindow!, "postMessage").mockImplementation(() => {});
+    fireEvent.click(button);
+
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: "restore", value: { step: 7 } }), "*");
+  });
+
+  it("refuses to apply state saved under another revision", async () => {
+    vi.mocked(loadInteractiveState).mockResolvedValue({
+      component_id: "orders", revision: 1, state: { step: 7 }, updated_at: "t",
+    });
+    render(<MarkdownMessage interactive sessionId="s1" content={block({ ...card, revision: 2 })} />);
+
+    expect(await screen.findByText(/上次状态属于版本 1/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /恢复上次状态/ })).toBeNull();
   });
 
   it("parses inertly and puts policy before model content, removing navigation markup", () => {
