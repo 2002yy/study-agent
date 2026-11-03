@@ -24,7 +24,7 @@ node --test tools/audit-generated-ui.test.mjs
 node tools/audit-generated-ui.mjs --html tools/fixtures/intelligent-ui-inventory.html --scenario tools/fixtures/intelligent-ui-inventory.json --report inventory-report.json
 ```
 
-独立断言操作：`click`、`set`、`expectText`、`expectAbsent`、`expectCount`、`expectEquation`、`expectLineAnchored`（仅 SVG line）、`expectNoOverflow`、`wait`。每个断言对渲染出的界面进行浏览器观测，不接受模型自报“已通过”。
+离线浏览器通过初始化脚本提供与生产一致的 \`window.studyUI.setState(对象)\` 状态上报接口，不注入认证令牌或父页面数据；增加 \`expectState\` 可验证发布状态（如库存 37、锁定 12、可售 25），与从可见控件读取的数值守恒断言相互独立。状态报告来自生成代码自身，因此**不能替代可见行为和数学真值的独立断言**。\n\n独立断言操作：`click`、`set`、`expectText`、`expectAbsent`、`expectCount`、`expectEquation`、`expectLineAnchored`（仅 SVG line）、`expectNoOverflow`、`expectState`、`wait`。每个断言对渲染出的界面进行浏览器观测，不接受模型自报“已通过”。
 
 ### 隔离边界
 
