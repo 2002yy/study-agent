@@ -18,9 +18,19 @@ export type RawEvidence = {
   text: string;
   declared: Record<string, number>;
   svg: SvgShape[];
+  canvases: CanvasCapture[];
   fontSizes: number[];
   controlSizes: number[];
   horizontalOverflow: boolean;
+};
+
+export type CanvasCapture = {
+  id: string;
+  width: number;
+  height: number;
+  /** Sampled RGBA grid, or null when the canvas cannot be read. */
+  pixels: number[] | null;
+  error: string | null;
 };
 
 /** Listeners must be attached before navigation, otherwise early errors are lost. */
@@ -112,6 +122,36 @@ export async function capture(page: Page): Promise<RawEvidence> {
       text: document.body.innerText,
       declared,
       svg,
+      canvases: Array.from(document.querySelectorAll("canvas")).map((canvas, index) => {
+        const id = canvas.getAttribute("data-canvas") ?? `canvas-${index}`;
+        try {
+          const context = canvas.getContext("2d");
+          if (!context) {
+            return { id, width: canvas.width, height: canvas.height, pixels: null, error: "no-2d-context" };
+          }
+          const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+          const pixels: number[] = [];
+          const grid = 8;
+          for (let row = 0; row < grid; row++) {
+            for (let column = 0; column < grid; column++) {
+              const x = Math.min(canvas.width - 1, Math.floor(((column + 0.5) * canvas.width) / grid));
+              const y = Math.min(canvas.height - 1, Math.floor(((row + 0.5) * canvas.height) / grid));
+              const offset = (y * canvas.width + x) * 4;
+              pixels.push(data[offset], data[offset + 1], data[offset + 2], data[offset + 3]);
+            }
+          }
+          return { id, width: canvas.width, height: canvas.height, pixels, error: null };
+        } catch (error) {
+          // A tainted canvas cannot be read; that is missing evidence, not a pass.
+          return {
+            id,
+            width: canvas.width,
+            height: canvas.height,
+            pixels: null,
+            error: String(error).slice(0, 200),
+          };
+        }
+      }),
       fontSizes,
       controlSizes,
       horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,

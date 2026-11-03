@@ -60,3 +60,102 @@ export const OVERFLOW = PAGE(`
   <div data-acceptance-declared='{}' style="width:2000px">很宽的时间线</div>`);
 
 export const NO_EVIDENCE = PAGE(`<p>只有一段说明文字，没有任何可核对的数据。</p>`);
+
+const P01_SCRIPT = `
+  <canvas data-canvas="p01" width="240" height="120"></canvas>
+  <button data-acceptance-pause>暂停</button>
+  <p>相位动画</p>
+  <script>
+    const canvas = document.querySelector('canvas[data-canvas]');
+    const context = canvas.getContext('2d');
+    let phase = 0;
+    let running = true;
+    function draw() {
+      context.fillStyle = '#000';
+      context.fillRect(0, 0, 240, 120);
+      context.fillStyle = '#fff';
+      const x = 120 + 80 * Math.sin(phase);
+      context.beginPath();
+      context.arc(x, 60, 12, 0, Math.PI * 2);
+      context.fill();
+    }
+    function loop() {
+      if (!running) return;
+      phase += 0.35;
+      draw();
+      requestAnimationFrame(loop);
+    }
+    document.querySelector('[data-acceptance-pause]').addEventListener('click', () => { running = false; });
+    requestAnimationFrame(loop);
+  </script>`;
+
+export const P01_ANIMATED = PAGE(P01_SCRIPT);
+
+/** The button looks like it pauses, but the animation keeps running. */
+export const P01_IGNORES_PAUSE = PAGE(`
+  <canvas data-canvas="p01" width="240" height="120"></canvas>
+  <button data-acceptance-pause>暂停</button>
+  <p>相位动画</p>
+  <script>
+    const canvas = document.querySelector('canvas[data-canvas]');
+    const context = canvas.getContext('2d');
+    let phase = 0;
+    let paused = false;
+    function draw() {
+      context.fillStyle = '#000';
+      context.fillRect(0, 0, 240, 120);
+      context.fillStyle = '#fff';
+      const x = 120 + 80 * Math.sin(phase);
+      context.beginPath();
+      context.arc(x, 60, 12, 0, Math.PI * 2);
+      context.fill();
+    }
+    function loop() {
+      phase += 0.35;
+      draw();
+      requestAnimationFrame(loop);
+    }
+    document.querySelector('[data-acceptance-pause]').addEventListener('click', () => { paused = true; });
+    requestAnimationFrame(loop);
+  </script>`);
+
+const M01_BODY = `
+  <label>x <input type="range" min="-5" max="5" step="1" value="3" data-x></label>
+  <output data-y>7</output>
+  <canvas data-canvas="m01" width="240" height="120"></canvas>`;
+
+export const M01_CANVAS = PAGE(`
+  ${M01_BODY}
+  <script>
+    const canvas = document.querySelector('canvas[data-canvas]');
+    const context = canvas.getContext('2d');
+    const input = document.querySelector('input[data-x]');
+    const output = document.querySelector('output[data-y]');
+    function draw() {
+      const x = Number(input.value);
+      const y = 2 * x + 1;
+      output.textContent = String(y);
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, 240, 120);
+      context.strokeStyle = '#888';
+      context.beginPath();
+      context.moveTo(0, 60);
+      context.lineTo(240, 60);
+      context.stroke();
+      context.fillStyle = '#c33';
+      context.beginPath();
+      context.arc(120 + x * 20, 60 - y * 10, 6, 0, Math.PI * 2);
+      context.fill();
+    }
+    input.addEventListener('input', draw);
+    draw();
+  </script>`);
+
+/** The label updates with x, but the canvas never redraws. */
+export const M01_FROZEN_CANVAS = PAGE(`
+  ${M01_BODY}
+  <script>
+    const input = document.querySelector('input[data-x]');
+    const output = document.querySelector('output[data-y]');
+    input.addEventListener('input', () => { output.textContent = String(2 * Number(input.value) + 1); });
+  </script>`);

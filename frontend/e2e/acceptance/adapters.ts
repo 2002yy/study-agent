@@ -24,3 +24,16 @@ export function j01Phase(evidence: RawEvidence, text: string): Phase {
     svg: evidence.svg,
   };
 }
+
+/** Canvas phase: the pixels are the evidence; numbers stay declared only. */
+export function canvasPhase(evidence: RawEvidence, text: string): Phase {
+  const pixels = evidence.canvases
+    .map(canvas => canvas.pixels)
+    .filter((value): value is number[] => Array.isArray(value));
+  return {
+    text,
+    declared: evidence.declared,
+    observed: {},
+    ...(pixels.length ? { canvas: { pixels } } : {}),
+  };
+}

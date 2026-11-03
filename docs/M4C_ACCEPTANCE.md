@@ -86,22 +86,26 @@ Three.js、3D、联网数据分析不进入第一版：它们引入的环境变�
 负控：`NaN` 声明值、`Infinity` 观测值、声明与观测不一致、缺少观测证据、SVG 坐标非有限，
 均按语义返回 `fail` 或 `indeterminate`，没有一项被误判为 pass。
 
-### 4.2 真实页面观察器（C2a）
+### 4.2 真实页面观察器（C2a / C2b）
 
 - `frontend/e2e/acceptance/observer.ts`：在真实 Chromium 页面里采集运行错误、可见文字、
-  声明数值、SVG 用户坐标、字号、控件尺寸、横向溢出
-- `frontend/e2e/acceptance/adapters.ts`：J01 适配器，从箭头拓扑独立数出对象数
+  声明数值、SVG 用户坐标、Canvas 采样像素、字号、控件尺寸、横向溢出
+- `frontend/e2e/acceptance/adapters.ts`：J01 从箭头拓扑独立数出对象数；Canvas 相位只提供像素
 - `frontend/e2e/acceptance/fixtures.ts`：正确页、箭头错位页、文字与图不一致页、运行错误页、
-  字号过小页、横向溢出页、无证据页
-- `frontend/e2e/acceptance/observer.spec.ts`：7 项浏览器检查，桌面与手机各跑一遍
+  字号过小页、横向溢出页、无证据页，以及动画 / 暂停失灵 / 输入联动 / 画布冻结四份 Canvas 页
+- `frontend/e2e/acceptance/observer.spec.ts`：11 项浏览器检查，桌面与手机各跑一遍
 
-已验证（真实页面，非手写观察）：正确页的运行/箭头/一致性检查通过；箭头错位在几何层失败；
-文字正确但图只画了一条箭头时，声明检查通过而 `cross-check` 失败；运行错误被捕获；没有证据的
-页面数值与几何都返回 `indeterminate`；12px 字号与横向溢出分别被可用性检查发现。
+Canvas 采集方式：读取每个 `canvas` 的 8×8 网格 RGBA 采样；读取失败（例如被跨源图像污染）
+时不返回像素，判定随之变成 `indeterminate`，不会当成“没有错误”。
 
-**边界**：目前只有 J01 一个任务适配器；参考页用 `data-acceptance-declared` 暴露“页面声明值”，
-真实模型输出没有这个属性，需要后续用语义标签与几何启发式定位，定位不到就返回
-`indeterminate`。Canvas 采集、12 份参考实现与 24 个 HTML 级故障仍属下一片。
+已验证（真实页面）：正确页的运行/箭头/一致性检查通过；箭头错位在几何层失败；文字正确但图只画
+一条箭头时 `cross-check` 失败；运行错误被捕获；无证据页数值与几何都 `indeterminate`；
+12px 字号与横向溢出被可用性检查发现；动画画布前后不同、暂停后相同；暂停失灵的页面
+`canvas-same` 失败；输入联动的画布会变化、画布冻结的页面 `canvas-differs` 失败。
+
+**边界**：只有 J01 一个任务适配器；参考页用 `data-acceptance-declared` 暴露“声明值”，
+真实模型输出没有这个属性；Canvas 只证明“变了/没变”，尚未把像素映射回坐标去验证
+`x=2sin(φ)` 这类数学关系。12 份参考实现与 24 个 HTML 级故障仍属下一片。
 
 ### 4.3 自动判定覆盖率
 
