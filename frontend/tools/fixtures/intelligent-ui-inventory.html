@@ -17,4 +17,5 @@ function draw() {
 $('locked').addEventListener('input',e=>{locked=+e.target.value;draw()});
 $('pay').addEventListener('click',()=>{if(locked>0){const paid=Math.min(5,locked);total-=paid;locked-=paid;draw()}});
 $('reset').addEventListener('click',()=>{total=37;locked=5;draw()});
+draw();
 </script></body></html>
