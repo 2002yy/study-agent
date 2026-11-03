@@ -13,6 +13,31 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-04 后续片：M4-C 真实文档语义定位
+
+在同一分支继续。新增 `frontend/e2e/acceptance/semantic.ts`：按钮文字驱动步骤、节点标签识别
+变量/对象、箭头端点与包围盒几何确定指向关系；`semanticFixtures.ts` + `semantic.spec.ts` 用
+SVG 节点、正确 HTML 节点、缺 `position` 的 HTML 节点三种布局做确定性回归。
+`replay.spec.ts` 改为“只有确实是冻结题实例的文档才按题判定”。
+
+**结果**（证据 `D:/study-agent-validation/m4c-replay-20261104/report.json`，schema v2）：
+7 份真实文档 0 运行错误、最小字号 13px、0 溢出；4 份 `cache-ref-canvas` 按 J01 判定，
+任务检查自动判定率 **19/20 = 95%**（上一版 5/25 = 20%）。r1/r2/r4 五项全确定通过；
+r3 的 `.obj` 缺 `position:absolute`，箭头终点距目标 119.3px，被判 fail，独立一致性保持
+`indeterminate`——与用户 r4 提示描述的缺陷一致；该缺陷是真实文档自带的，不是注入。
+
+**映射修正**：`spring_phase_lab` 不再按 P01 判定。它同公式但 A=40px，冻结 P01 要求 π/2 时
+位置为 2；按 P01 判会把它变成假失败。只测通用行为：播放后画布变化、暂停后不变，均 pass。
+2 份库存实验不是冻结题实例，只测通用层。
+
+**验证**：e2e **79 passed / 25 skipped**（12 题矩阵 + 24 HTML 故障 + 4 语义定位 × 2 viewport +
+1 真实重放）；前端单元 124 文件 / 686 PASS；tsc PASS。无后端/schema 改动，不触发 L2/L3。
+0 次模型调用。重放测试在未设置 `M4C_REPLAY_DIR` 时于测试体内跳过，不在模块加载时读取
+`index.json`——上一版在常规 e2e 中触发了 `ENOENT: index.json`，已修复。
+
+**唯一下一片**：P01 的 Canvas 像素→坐标映射（当前只证明“变化/不变”），或把语义定位扩展到
+更多真实文档族；固定题集的真实生成评测仍需单独费用授权。
+
 ### 2026-11-04 后续片：M4-C 离线重放基线
 
 在 M4-C 分支 `codex/m4c-acceptance-core-20261104` 继续。新增
