@@ -43,6 +43,7 @@ type RenderOptions = {
   } | null;
   researchReplies?: ChatResearchReply[];
   answerTurnId?: string | null;
+  setInput?: ReturnType<typeof vi.fn>;
 };
 
 function panelElement(options: RenderOptions = {}) {
@@ -52,7 +53,7 @@ function panelElement(options: RenderOptions = {}) {
       sessionId={options.sessionId ?? "session-secret-raw-id"}
       sessionNavigation={null}
       input={options.input ?? ""}
-      setInput={vi.fn()}
+      setInput={options.setInput ?? vi.fn()}
       selectedRole={options.selectedRole}
       onSelectRole={options.onSelectRole}
       isSending={options.isSending ?? false}
@@ -613,5 +614,54 @@ describe("ChatPanel conversation interaction safety", () => {
     viewport.scrollTop = 10;
     fireEvent.scroll(viewport);
     expect(container.querySelector(".back-to-latest")).toHaveTextContent("正在生成 · 回到最新");
+  });
+});
+
+describe("continuing from an older generated version", () => {
+  const card = {
+    type: "interactive",
+    id: "orders",
+    revision: 2,
+    title: "库存探索",
+    summary: "演示库存与锁定数量的关系。",
+    html: "<p>37</p><script>window.studyUI.setState({stock:37})</script>",
+  };
+  const content = "```study-ui\n" + JSON.stringify(card) + "\n```";
+
+  it("names the chosen version in the composer and can be cancelled", () => {
+    const setInput = vi.fn();
+    const { container } = render(
+      panelElement({ setInput, messages: [{ role: "assistant", content }] })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "以此版本为基础继续" }));
+
+    expect(setInput).toHaveBeenCalledWith(expect.stringContaining("版本 2"));
+    expect(container.querySelector(".restore-target")?.textContent).toContain("版本 2");
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(container.querySelector(".restore-target")).toBeNull();
+  });
+
+  it("reports a failed restore instead of pretending the source was found", () => {
+    render(
+      panelElement({
+        messages: [
+          {
+            role: "assistant",
+            content: "这个版本暂时无法恢复。",
+            evidence: {
+              route: {
+                interactive_restore: {
+                  status: "not_found",
+                  detail: "当前会话记录里没有这个版本的完整源码",
+                },
+              },
+            },
+          },
+        ],
+      })
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent("未能从所选版本恢复");
   });
 });

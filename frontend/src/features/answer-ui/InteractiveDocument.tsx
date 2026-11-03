@@ -3,7 +3,7 @@ import { ArrowUpRight, Maximize2, Minimize2, RotateCcw, Square, Play } from "luc
 import { interactiveFollowup, makeInteractiveDocument, stateText, type InteractiveCard } from "./interactiveRuntime";
 import "./interactiveDocument.css";
 
-export function InteractiveDocument({ card, onDraft }: { card: InteractiveCard; onDraft?: (prompt: string) => void }) {
+export function InteractiveDocument({ card, onDraft, onRestoreBase }: { card: InteractiveCard; onDraft?: (prompt: string) => void; onRestoreBase?: (target: { id: string; revision: number; title: string }) => void }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const instance = useId();
   const [generation, setGeneration] = useState(0);
@@ -46,6 +46,7 @@ export function InteractiveDocument({ card, onDraft }: { card: InteractiveCard; 
     {error ? <p className="interactive-error" role="alert">{error}</p> : null}
     <div className="interactive-footer">
       <button type="button" className="interactive-continue" disabled={!onDraft} onClick={() => onDraft?.(interactiveFollowup(card, state, error))}>{error ? "请模型修复" : "带着当前状态继续问"}<ArrowUpRight size={16} /></button>
+      <button type="button" className="interactive-restore" disabled={!onRestoreBase} onClick={() => onRestoreBase?.({ id: card.id, revision: card.revision, title: card.title })} title="从这一版的源码重新开始，而不是最近一版">以此版本为基础继续</button>
       <span>生成式交互 · 结果需结合原理核对</span>
     </div>
     <details className="interactive-source"><summary>查看内容与当前状态</summary><p>当前参数可随追问发送；刷新后从初始状态开始。</p><pre>{state ? JSON.stringify(JSON.parse(state), null, 2) : "尚未提供状态"}</pre><details><summary>界面源码</summary><pre>{card.html}</pre></details></details>

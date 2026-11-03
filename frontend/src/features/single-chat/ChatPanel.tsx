@@ -26,6 +26,11 @@ import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { AnswerProgress } from "../answer-ui/AnswerProgress";
 import { InteractiveComputation } from "../answer-ui/InteractiveComputation";
 import { answerCopyText, safeLinkUrl } from "../answer-ui/answerUiProtocol";
+import {
+  clearPendingRestoreTarget,
+  setPendingRestoreTarget,
+  type RestoreTarget,
+} from "../answer-ui/restoreTarget";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { useReadingWorkspace } from "../reading/ReadingContext";
 import type {
@@ -78,6 +83,16 @@ const steeringReceiptCopy: Record<string, string> = {
   applied: "已应用到后续研究",
   late: "本轮未应用这条补充，请在下一轮继续",
 };
+
+function restoreFailure(message: ChatMessage): string | null {
+  const route = message.evidence?.route;
+  const record = route ? route.interactive_restore : null;
+  if (!record || typeof record !== "object") return null;
+  const data = record as Record<string, unknown>;
+  if (data.status === "restored") return null;
+  const detail = typeof data.detail === "string" && data.detail ? data.detail : "所选版本的源码不可用";
+  return `未能从所选版本恢复：${detail}。可以选择其它版本，或先让模型重新给出完整版本。`;
+}
 
 type ChatPanelProps = {
   messages: ChatMessage[];
@@ -233,6 +248,7 @@ export function ChatPanel(props: ChatPanelProps) {
     enterToSend = true,
   } = props;
   const [busyInputMode, setBusyInputMode] = useState<"steer" | "queue">("steer");
+  const [restoreTarget, setRestoreTarget] = useState<RestoreTarget | null>(null);
   const canSubmit = !isSending || Boolean(!props.isSteering && (busyInputMode === "steer" ? props.canSteer : props.canQueue));
 
   const conversationRef = useRef<HTMLElement | null>(null);
@@ -395,8 +411,34 @@ export function ChatPanel(props: ChatPanelProps) {
     }
     clearPendingTaskIntentOverride();
     if (isSending && busyInputMode === "queue") { await props.onQueue?.(input.trim()); return; }
-    await onSubmit(event, !isSending && composerMode === "search" ? searchMessage(input) : input.trim());
+    try {
+      await onSubmit(event, !isSending && composerMode === "search" ? searchMessage(input) : input.trim());
+    } finally {
+      // The request builder consumed the identity; drop the visible chip too.
+      setRestoreTarget(null);
+      clearPendingRestoreTarget();
+    }
   };
+
+  const handleRestoreBase = (target: RestoreTarget) => {
+    setPendingRestoreTarget(target);
+    setRestoreTarget(target);
+    setComposerMode("chat");
+    const prefix = `基于「${target.title}」版本 ${target.revision} 继续修改：`;
+    if (!input.trim()) setInput(prefix);
+    composerRef.current?.focus();
+  };
+
+  const cancelRestoreBase = () => {
+    setRestoreTarget(null);
+    clearPendingRestoreTarget();
+  };
+
+  useEffect(() => {
+    // A different session must not inherit the previous one's base version.
+    setRestoreTarget(null);
+    clearPendingRestoreTarget();
+  }, [props.sessionId]);
 
   const handleRestoreEntry = (_intent: TaskIntent, prompt: string) => onQuickPrompt(prompt);
 
@@ -515,11 +557,17 @@ export function ChatPanel(props: ChatPanelProps) {
                           {cancelNotice}
                         </p>
                       ) : null}
+                      {restoreFailure(message) ? (
+                        <p aria-live="polite" className="turn-status-line tone-pending" role="alert">
+                          {restoreFailure(message)}
+                        </p>
+                      ) : null}
                       {message.role === "assistant" && (message.researchProgress || (isSending && !displayMessages.slice(index + 1).some(item => item.role === "assistant")))
                         ? <AnswerProgress hasContent={!!message.content.trim()} progress={message.researchProgress ?? researchProgress} /> : null}
                       <MarkdownMessage content={message.content} interactive={message.role === "assistant"}
                         generation={message.evidence?.route?.generation}
                         streaming={message.role === "assistant" && isSending && !displayMessages.slice(index + 1).some(item => item.role === "assistant")}
+                        onRestoreBase={handleRestoreBase}
                         onDraft={prompt => {
                           setComposerMode("chat");
                           setInput(input.trim() ? `${input}\n\n${prompt}` : prompt);
@@ -617,6 +665,12 @@ export function ChatPanel(props: ChatPanelProps) {
       />
 
       <form className="composer" onSubmit={handleSubmit}>
+        {restoreTarget ? (
+          <div className="restore-target" role="status">
+            <span>以「{restoreTarget.title}」版本 {restoreTarget.revision} 为基础</span>
+            <button type="button" onClick={cancelRestoreBase}>取消</button>
+          </div>
+        ) : null}
         <div className="composer-main">
           <textarea
             ref={composerRef}

@@ -341,6 +341,26 @@ def test_an_oversized_block_is_not_a_version():
     assert [item.revision for item in find_interactive_versions(messages)] == [2]
 
 
+def test_an_explicit_restore_keeps_the_version_the_learner_reopened():
+    messages = history_with_versions(1, 2, 3)
+
+    built = build_messages(
+        "基于「Java 引用关系」版本 1 继续修改：",
+        role_prompt="角色",
+        mode="普通",
+        memory_bundle={},
+        chat_history=messages,
+        runtime_modes=RuntimeModes(),
+        conversation_instruction=INTERACTIVE_CAPABILITY_MARKER,
+        interactive_target=("java-reference", 1),
+    )
+
+    # V1 is the base this turn, so its full source must survive compression even
+    # though newer revisions exist.
+    assert "<div>rv1</div>" in built[2]["content"]
+    assert "```study-ui" in built[2]["content"]
+
+
 def test_capability_marker_gates_the_rewrite():
     messages = history_with_versions(1, 2)
 

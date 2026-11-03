@@ -23,6 +23,13 @@ class ChatMessage(BaseModel):
     parentTurnId: str | None = None
 
 
+class InteractiveRestore(BaseModel):
+    """Identity only: the browser never supplies the source it restores."""
+
+    id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    revision: int = Field(ge=1, le=999)
+
+
 class ChatRequest(BaseModel):
     user_input: str = Field(min_length=1)
     selected_role: str = "auto"
@@ -58,6 +65,9 @@ class ChatRequest(BaseModel):
     # Message-level attachment identity: only ids the server validates against
     # the session are accepted; the default keeps plain-text turns unchanged.
     attachment_ids: list[str] = Field(default_factory=list, max_length=8)
+    # Explicit older-version choice. Identity is validated here; the HTML comes
+    # from the session's saved turns, never from this payload.
+    interactive_restore: InteractiveRestore | None = None
 
     @model_validator(mode="after")
     def split_transient_turn_context(self) -> ChatRequest:

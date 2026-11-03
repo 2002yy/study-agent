@@ -57,6 +57,11 @@ from src.domain.answer_validation import (
 )
 from src.domain.runtime_entities import ChatThread, ChatTurn, new_id, utc_now
 from src.llm_client import async_stream_chat, chat, stream_chat
+from src.interactive_restore import (
+    resolve_command_restore,
+    restore_context_block,
+    restore_record,
+)
 from src.llm_spend_guard import (
     experiment_id,
     new_scope,
@@ -390,6 +395,9 @@ class ChatCommand:
     operation_id: str | None = None
     answer_validation: dict[str, Any] | None = None
     review_prompt_turn_id: str | None = None
+    # Explicit learner choice of an older generated version to continue from.
+    # The source is resolved from saved turns; this payload carries identity only.
+    interactive_restore: dict[str, Any] | None = None
     # Server-validated message-level attachment identity (id + content_hash),
     # bound to the turn. Empty for plain-text turns.
     attachment_refs: list[dict[str, Any]] = field(default_factory=list)
@@ -958,6 +966,10 @@ class ChatService:
             attachment_block = attachment_context_block(self.repository, turn_id)
             if attachment_block:
                 context_blocks.append(attachment_block)
+            restore = resolve_command_restore(self.repository, thread.id, command)
+            if restore is not None:
+                context_blocks.append(restore_context_block(restore))
+                route["interactive_restore"] = restore_record(restore)
             if web_tool_error and not web_tools.used:
                 context_blocks.append(
                     "联网搜索未获得可信来源。必须明确说明本回答未使用联网来源；"
@@ -979,6 +991,11 @@ class ChatService:
                 conversation_instruction=effective_instruction,
                 pedagogy_plan=pedagogy_plan,
                 learning_state=learning_state,
+                interactive_target=(
+                    (restore.request.id, restore.request.revision)
+                    if restore is not None
+                    else None
+                ),
             )
             base_reply = ""
             if is_continuation:

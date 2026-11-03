@@ -29,6 +29,16 @@
     }
   },
   "impact_sets": {
+    "interactive_version_restore": [
+      "tests/test_interactive_restore.py",
+      "tests/test_interactive_history.py",
+      "tests/test_chat_service.py",
+      "tests/test_turn_context_transport.py",
+      "tests/test_chat_attachment_binding.py",
+      "tests/test_chat_lifecycle_e2e.py",
+      "tests/test_chat_stream_cancellation.py",
+      "tests/test_stage_gates_policy.py"
+    ],
     "interactive_history_compression": [
       "tests/test_interactive_history.py",
       "tests/test_interactive_budget.py",

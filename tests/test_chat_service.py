@@ -116,6 +116,78 @@ def _service(tmp_path, *, build_messages=None, chat=None) -> tuple[ChatService, 
     return ChatService(repository, dependencies), repository
 
 
+def test_restoring_an_older_version_injects_its_saved_source(tmp_path):
+    import json
+
+    from src.context_builder import build_messages as real_build_messages
+    from src.domain.runtime_entities import ChatTurn
+    from src.interactive_history import INTERACTIVE_CAPABILITY_MARKER
+
+    captured = {}
+
+    def chat(messages, **kwargs):
+        captured["messages"] = messages
+        return "ok"
+
+    def block(revision):
+        return (
+            "```study-ui\n"
+            + json.dumps(
+                {
+                    "type": "interactive",
+                    "id": "java-reference",
+                    "revision": revision,
+                    "title": "Java 引用关系",
+                    "summary": "引用共享与重新赋值实验",
+                    "html": f"<div>rv{revision}</div>" + "x" * 1200,
+                }
+            )
+            + "\n```"
+        )
+
+    service, repository = _service(
+        tmp_path, build_messages=real_build_messages, chat=chat
+    )
+    repository.ensure_chat_thread("chat_restore")
+    for revision in (1, 2, 3):
+        repository.add_chat_turn(
+            ChatTurn(
+                thread_id="chat_restore",
+                user_message=f"第 {revision} 轮",
+                assistant_message=block(revision),
+                status="completed",
+            )
+        )
+
+    prepared = service.start_turn(
+        ChatCommand(
+            user_input="在这个版本上再加一步回退",
+            thread_id="chat_restore",
+            conversation_instruction=INTERACTIVE_CAPABILITY_MARKER,
+            interactive_restore={"id": "java-reference", "revision": 1},
+        )
+    )
+    service.generate(prepared)
+
+    sent = "\n".join(str(message["content"]) for message in captured["messages"])
+    # V1's source travels, V2/V3 do not, and the new revision cannot collide.
+    assert "<div>rv1</div>" in sent
+    assert "<div>rv2</div>" not in sent
+    assert "expected_new_revision: 4" in sent
+    assert "base_revision: 1" in sent
+    assert prepared.route["interactive_restore"] == {
+        "status": "restored",
+        "component_id": "java-reference",
+        "base_revision": 1,
+        "source_turn_id": repository.list_chat_turns("chat_restore")[0].id,
+        "expected_new_revision": 4,
+        "detail": "",
+    }
+    # The saved answer for V1 is still the stored one, not the injected copy.
+    stored = repository.list_chat_turns("chat_restore")[0].assistant_message
+    assert "<div>rv1</div>" in stored
+
+
 def test_compressed_history_is_what_the_provider_receives(tmp_path):
     import json
 
