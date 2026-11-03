@@ -27,6 +27,15 @@ describe("generated interactive documents", () => {
     expect(container.textContent).toContain("window.studyUI");
   });
 
+  it("renders saved interfaces without requiring the secure-context UUID API", () => {
+    const random = vi.spyOn(crypto, "randomUUID").mockImplementation(() => { throw new Error("unavailable outside a secure context"); });
+    try {
+      const view = render(<MarkdownMessage interactive content={block(card)} />);
+      expect(view.container.querySelector("iframe")).not.toBeNull();
+      expect(random).not.toHaveBeenCalled();
+    } finally { random.mockRestore(); }
+  });
+
   it("offers a readable recovery for a truncated document without running partial code", () => {
     const onDraft = vi.fn();
     const content = "可售库存等于总量减去锁定。\n" + block(card).slice(0, -35);

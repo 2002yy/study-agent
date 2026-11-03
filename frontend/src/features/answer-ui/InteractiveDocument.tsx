@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, Maximize2, Minimize2, RotateCcw, Square, Play } from "lucide-react";
 import { interactiveFollowup, makeInteractiveDocument, stateText, type InteractiveCard } from "./interactiveRuntime";
 import "./interactiveDocument.css";
 
 export function InteractiveDocument({ card, onDraft }: { card: InteractiveCard; onDraft?: (prompt: string) => void }) {
   const frame = useRef<HTMLIFrameElement>(null);
+  const instance = useId();
   const [generation, setGeneration] = useState(0);
   const [running, setRunning] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -12,7 +13,7 @@ export function InteractiveDocument({ card, onDraft }: { card: InteractiveCard; 
   const [status, setStatus] = useState("正在准备交互…");
   const [error, setError] = useState("");
   const [state, setState] = useState<string | null>(null);
-  const channel = useMemo(() => crypto.randomUUID(), [generation]);
+  const channel = `${instance}:${generation}`;
   const document = useMemo(() => makeInteractiveDocument(card.html, channel), [card.html, channel]);
   useEffect(() => {
     if (!running) return;
