@@ -83,6 +83,7 @@ def _base_service(tmp_path: Path, *, route=None) -> _BaseHarness:
 
     def resolve_web(_query: str, **kwargs):
         captured["web_calls"] += 1
+        captured["deep_requested"] = kwargs["deep_requested"]
         captured["research_intent"].append(kwargs["research_intent"])
         return _web_trace()
 
@@ -115,6 +116,7 @@ def _policy_service(tmp_path: Path) -> _PolicyHarness:
 
     def resolve_web(_query: str, **kwargs):
         captured["web_calls"] += 1
+        captured["deep_requested"] = kwargs["deep_requested"]
         captured["research_intent"].append(kwargs["research_intent"])
         return _web_trace()
 
@@ -321,3 +323,19 @@ def test_a_short_follow_up_without_a_research_lead_does_not_search(tmp_path):
 
     assert harness.captured["web_calls"] == 0
     assert prepared.rag["web_tools"]["policy_reason"] == "task_does_not_require_web"
+
+
+def test_saved_deep_memory_scope_does_not_request_deep_research(monkeypatch, tmp_path):
+    from src import api
+
+    path = tmp_path / "frontend-settings.yaml"
+    path.write_text("context_mode: deep\n", encoding="utf-8")
+    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", path)
+    for policy in (False, True):
+        directory = tmp_path / str(policy)
+        harness = _policy_service(directory) if policy else _base_service(directory)
+        cls = PolicyChatCommand if policy else ChatCommand
+        prepared = harness.service.start_turn(cls(user_input=TODAY_NEWS, performance_mode="deep"))
+        assert harness.captured["web_calls"] == 1
+        assert harness.captured["deep_requested"] is False
+        assert prepared.thread.settings_snapshot["contextMode"] == "deep"
