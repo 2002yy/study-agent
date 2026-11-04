@@ -2,12 +2,40 @@
 
 ## 基线与执行资格
 
-2026-11-04 核验：代码/观察器基线 `ed9c598d22af7d447a6f4388380555ad3e42b9e5`；
-PR #342 仍 Draft，base 为 `codex/interactive-state-snapshots-20261103`。
-精确 HEAD pull_request CI [41698749484](https://github.com/2002yy/study-agent/actions/runs/41698749484)
-的 classify/frontend/backend/browser/test 五项成功。旧 fcd4347e 的 41698131420 已 cancelled。
-这只关闭该 HEAD 的静态 CI 等待，不代表完成 M4-C3、产品质量验收或授权合并。
-本计划为 docs-only，不改变受测生产树；执行时还须记录执行 HEAD、生产树与上述基线的差异和对应门禁。
+2026-11-04已核验main `5d4d8381`，精确main CI
+[41808661402](https://github.com/2002yy/study-agent/actions/runs/41808661402)成功，六层集成已结束。
+当前已实现完整执行器与离线浏览器评分；本批准备不包含真实付费调用。
+执行时保留当前SHA与实际出站请求。B线M4-D原型已获授权并行，不再等待本评测结束。
+
+## 一条命令执行完整演练
+
+在仓库根目录运行（输出目录与临时账本必须全新）：
+
+```powershell
+py -3.12 -m tools.m4c3_run --out D:/study-agent-validation/m4c3-demo-new --ledger D:/study-agent-validation/m4c3-demo-new/spend.db --pricing config/m4c3_pricing_20261104.json --browser
+```
+
+默认fake HTTP，仅供应商响应为构造数据，其余是真实ChatService、llm_client、SDK、计价/预留、
+回答存储、HTML提取与产品沙箱。一次运行12个独立会话，保存request-body.json/request.json、
+reservation.json、provider-response.txt/json、answer.txt、原始HTML与result.json；
+批次report.json/index.json与sandbox-1280/sandbox-390截图/观测/错误，scores.json汇总正确性。
+fake_http不生成真实模型质量结论；即使构造HTML通过，也不能当成生成成功率。
+
+授权后在同一命令添加 `--allow-paid --authorization <授权JSON>`，并将ledger明确设为
+`D:/study-agent-validation/live-20261102/spend.db`。授权结构见
+`config/m4c3_authorization.example.json`（当前authorized=false，不是许可）。付费模式拒绝其他账本、
+拒绝非当天官方价格快照、重复调用、额外请求与超限。不要用演练账本替代共享历史。
+
+完整请求计价发生在原有费用门，批次检查与预留在同一SQLite事务；HTTP发送必须持有该次新预留，
+每题固定invocation_key、SDK重试0，异常/未知发送占用保守预留，不能以新输出目录重发已付费题。
+截图/评分可独立恢复，不调用模型：
+`py -3.12 -m tools.m4c3_results --run-dir <已有运行目录>`；已有双视口报告则只核对哈希并汇总。
+报告部分缺失时保留原始回答和browser.log，先修复重放，不重跑付费生成。
+
+冻结产品配置：普通聊天、flash、fast、nahida角色、context_mode=none、无RAG/历史/个人记忆，
+settlement assembly关闭（使用现有标准聊天费用门）。未声称覆盖可选assembly-on路径。
+实际12题均max_tokens=6000，temperature请求值0.7，thinking=disabled；按实际wire保存，不拿配置猜请求。
+模型别名公开版本为DeepSeek-V4.1-Flash-1017；供应商仍可能更新别名，响应model与公开版本分列。
 
 ## 冻结批次
 
@@ -78,8 +106,8 @@ J01 r3箭头错误/独立一致性缺证据，J01其余三版任务检查全部�
 
 `tools/m4c3_budget.py` 已在现有共享账本的同一预留事务内实现固定批次12次、单次¥1、本批¥12、
 全实验¥30限额；每题首次请求使用固定key，重启后仍拒绝重复，其他实验工作占用共享余额。
-这只是离线验证的预留边界，没有提供模型发送器、价格计算或付费授权；尚未绑定实际产品出站请求。
-实际发送前仍须验证“真实请求→保守计价→该预留→单次发送”的完整链路，不能把调用者传入金额当实测费用。
+执行器 `tools/m4c3_run.py` 现已将“真实请求→保守计价→同事务预留→单次SDK发送”接通，
+完整12题假HTTP演练已验证；原有费用门保留，不能把调用者传入金额当费用，也没有新增付费授权。
 
 手机测量已新增独立沙箱视口探针：内层 window.innerWidth 必须等于1280/390；
 900px固定宽页面在390px视口必须报告溢出，响应式页通过。该证据不等于12题真实输出手机验收。
@@ -105,6 +133,6 @@ input_sha256，哈希值与提示词字节保持不变，未扩大扫描排除�
 若涉及 retrieval 则说明为何偏离无搜索计划），再提出条件建议。无预设成功率门槛，不在结果后补造。
 A：确定生成错误集中 → 先做 M4-C4 针对性修复，并将复现缺陷转为静态回归。
 C：人工可核验正确但观察器 indeterminate → 先扩观察器；保留原输出后离线重判，不能改写模型成绩。
-B：本批只测首次生成，不能证明“修改易破坏”。缺少真实修改数据时 B 证据不足，
-不得仅凭首次成功率启动 M4-D；后续需单独批准同批修改任务的局部修改/完整重建比较。
-不实施 M4-D/E/F/G，不整链合并，不发起 ChatGPT 对照；无对照时不声称优于 ChatGPT。
+B：首次生成不能证明修改稳定性；M4-D基础原型按用户新决定并行开发，模型接入与默认策略仍需
+同批真实修改任务的局部修改/完整重建比较。比较的付费调用单独授权。
+不实施M4-E/F/G或ChatGPT对照；无对照不声称优于ChatGPT。

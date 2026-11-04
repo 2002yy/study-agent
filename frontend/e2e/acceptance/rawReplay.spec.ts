@@ -26,7 +26,7 @@ for (const viewport of VIEWPORTS) {
     expect(runtime.checks.find(check => check.checkId === "runtime")?.status).toBe("fail");
   });
 
-  test(`saved model raw corpus at ${viewport.width}px`, async ({ page }, testInfo) => {
+  test(`raw corpus at ${viewport.width}px`, async ({ page }, testInfo) => {
     const directory = process.env.M4C3_RAW_DIR;
     test.skip(!directory, "set M4C3_RAW_DIR to an explicit raw export");
     test.skip(testInfo.project.name !== "desktop-chromium", "explicit viewport matrix");
@@ -42,7 +42,7 @@ for (const viewport of VIEWPORTS) {
     mkdirSync(out); // Fresh evidence only, never overwrite a previous replay.
     const reports = [];
     for (const [number, item] of index.cases.entries()) {
-      expect(item.source_kind).toBe("saved_model");
+      expect(item.source_kind).toBe(index.generation_mode === "fake_http" ? "fake_transport" : "saved_model");
       const file = realpathSync(resolve(root, item.file));
       const local = relative(root, file);
       if (isAbsolute(local) || local === ".." || local.startsWith("..\\") || local.startsWith("../")) {
@@ -59,7 +59,9 @@ for (const viewport of VIEWPORTS) {
       reports.push({ ...item, sha256, ...result, screenshot });
     }
     writeFileSync(join(out, "report.json"), JSON.stringify({
-      schema_version: "m4c3-raw-sandbox-v1", historical_replay_only: true,
+      schema_version: "m4c3-raw-sandbox-v1",
+      historical_replay_only: index.purpose !== "m4c3_first_generation",
+      source_generation_mode: index.generation_mode ?? "historical",
       model_calls: 0, cases: reports,
     }, null, 2));
     expect(reports.length).toBe(index.cases.length);

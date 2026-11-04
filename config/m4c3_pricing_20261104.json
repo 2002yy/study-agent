@@ -1,0 +1,21 @@
+{
+  "schema_version": "m4c3-pricing-v1",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "advertised_model_version": "DeepSeek-V4.1-Flash-1017",
+  "version_is_immutable_request_id": false,
+  "base_url": "https://api.deepseek.com",
+  "currency": "CNY",
+  "input_cny_per_mtok": 9,
+  "output_cny_per_mtok": 27,
+  "reservation_policy": "Preserve the existing shared ledger's conservative pricing fingerprint; never reduce or reset historical reservations.",
+  "observed_input_cny_per_mtok": 2,
+  "observed_output_cny_per_mtok": 8,
+  "observed_cache_hit_input_cny_per_mtok": 0.04,
+  "observed_rates_basis": "Published peak rates; no cache-hit or off-peak discount assumed in the bound.",
+  "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+  "thinking_mode_source": "https://api-docs.deepseek.com/guides/thinking_mode/",
+  "verified_at": "2026-11-04",
+  "recheck_before_paid_execution": true,
+  "paid_authorized": false
+}
