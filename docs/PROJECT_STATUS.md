@@ -20,6 +20,7 @@
 
 用户明确选择“先做本地技能导入与使用”，记忆复用现有面板/MemoryService。
 本片branch codex/local-skills-20261105，基于明确已提交f527b06a（前片PR #346，非兄弟WIP）。
+后续显式合入前片审阅修复67442d95；合并后技能/聊天研究/群聊新闻直接影响集48 PASS，未依赖未提交WIP。
 独立文本store与认证API支持SKILL.md导入、列表、启停、删除；新装默认停用。
 设置页可粘贴/上传、启用和选择“下条消息使用”，只将ID随下一次单聊发出，不改写用户问题；
 普通与Policy生成均按启用store取正文，瞬时拼入本轮指令，不写长期conversation_instruction。
