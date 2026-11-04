@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from src.interactive_history import (
+    INTERACTIVE_CAPABILITY_MARKER,
+    compress_interactive_history,
+)
 from src.memory import CONTEXT_FILE_GROUPS, extract_core_section
 from src.mode_manager import RuntimeModes, load_runtime_modes
 from src.pedagogy.prompt_compiler import format_turn_plan
@@ -280,10 +284,19 @@ def build_messages(
 
     clean_history = trim_duplicate_current_user_input(chat_history, user_input)
     if clean_history:
+        window = clean_history[-chat_history_limit(runtime_modes):]
+        # Only the copy sent to the model is rewritten; stored answers keep
+        # every version. Without the capability marker nothing needs the source.
+        compressed = compress_interactive_history(
+            window,
+            user_input=user_input,
+            capability_enabled=INTERACTIVE_CAPABILITY_MARKER
+            in messages[0]["content"],
+        )
         messages.extend(
             [
                 {"role": msg["role"], "content": msg["content"]}
-                for msg in clean_history[-chat_history_limit(runtime_modes):]
+                for msg in compressed.messages
             ]
         )
 

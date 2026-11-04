@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 import re
 
+from src.interactive_history import INTERACTIVE_CAPABILITY_MARKER
+
 
 def normalize_performance_mode(mode: str | None) -> str:
     if mode in {"fast", "standard", "deep"}:
@@ -29,7 +31,7 @@ def interactive_reply_budget(
     """
     enabled = any(
         message.get("role") == "system"
-        and "【自由交互界面 v1】" in str(message.get("content", ""))
+        and INTERACTIVE_CAPABILITY_MARKER in str(message.get("content", ""))
         for message in messages
     )
     current = (
