@@ -10,7 +10,7 @@
 import type { Page } from "@playwright/test";
 
 import type { Observation, Phase, SvgShape } from "../../src/acceptance/model";
-import { capture, type ErrorCapture } from "./observer";
+import { capture, type ErrorCapture, type EvidenceHost } from "./observer";
 
 export type Box = { x: number; y: number; width: number; height: number };
 type Arrow = { x1: number; y1: number; x2: number; y2: number };
@@ -40,7 +40,7 @@ function distanceToBox(box: Box, point: { x: number; y: number }): number {
 }
 
 /** Read labels and geometry without assuming any test attribute exists. */
-async function readSnapshot(page: Page): Promise<Snapshot> {
+async function readSnapshot(page: EvidenceHost): Promise<Snapshot> {
   return page.evaluate(() => {
     const VARIABLE = /^[A-Za-z_][A-Za-z0-9_]*$/;
     const OBJECT = /^对象\s*(\d+)/;
@@ -259,11 +259,11 @@ function phaseOf(snapshot: Snapshot): Phase {
   };
 }
 
-async function stepOf(page: Page): Promise<number | null> {
+async function stepOf(page: EvidenceHost): Promise<number | null> {
   return (await readSnapshot(page)).step;
 }
 
-async function driveTo(page: Page, target: number): Promise<Snapshot | null> {
+async function driveTo(page: EvidenceHost, target: number): Promise<Snapshot | null> {
   const next = page.getByRole("button", { name: "下一步" }).first();
   for (let attempt = 0; attempt < 10; attempt++) {
     const snapshot = await readSnapshot(page);
@@ -273,7 +273,7 @@ async function driveTo(page: Page, target: number): Promise<Snapshot | null> {
       return null;
     }
     await next.click();
-    await page.waitForTimeout(25);
+    await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 25)));
   }
   return null;
 }
@@ -288,6 +288,14 @@ export async function observeJ01(
   html: string
 ): Promise<Observation> {
   await page.setContent(html, { waitUntil: "load" });
+  return observeMountedJ01(page, errors);
+}
+
+/** Observe an already mounted raw document, including an opaque-origin frame. */
+export async function observeMountedJ01(
+  page: EvidenceHost,
+  errors: ErrorCapture
+): Promise<Observation> {
   const phases: Record<string, Phase> = {};
 
   const shared = await driveTo(page, 2);

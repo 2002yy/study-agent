@@ -77,7 +77,7 @@ def build_manifest() -> dict:
                 "task_id": task_id,
                 "invocation_key": f"m4c3-v1:{task_id}:first",
                 "prompt": prompt,
-                "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                "input_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
                 "offline_budget": budget,
             }
         )
@@ -102,7 +102,6 @@ def build_manifest() -> dict:
             "verify_provider_model_version_and_current_pricing",
             "enforce_batch_call_count_and_money_limits_before_send",
             "freeze_actual_product_requests_and_budget_tiers_offline",
-            "sandbox_replay_with_explicit_indeterminate_for_unsupported_tasks",
         ],
     }
 

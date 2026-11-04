@@ -31,7 +31,7 @@ def test_manifest_preserves_twelve_independent_first_attempts():
     assert len({case["invocation_key"] for case in cases}) == 12
     for case in cases:
         assert (
-            case["prompt_sha256"] == hashlib.sha256(case["prompt"].encode()).hexdigest()
+            case["input_sha256"] == hashlib.sha256(case["prompt"].encode()).hexdigest()
         )
         assert "data-acceptance" not in case["prompt"]
     assert manifest["paid_authorized"] is False

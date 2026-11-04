@@ -16,6 +16,41 @@
 > **M4 后续路线已记录在 §0B：M4-C3 真实生成评测 → M4-C4 针对性改进 → 分支集成 → M4-D 增量修改
 > → M4-E 受控修复 → M4-F 图形扩展 → M4-G 智能编排。当前不启动 M4-D，不发起付费调用。**
 
+### 2026-11-04 M4-C3 第二批：真实原文重放与批次费用边界
+
+基线 `bd3bf1c26e28b83876884f4c18af28394e6a6b87` 的 pull_request CI
+[41786784266](https://github.com/2002yy/study-agent/actions/runs/41786784266) 已失败：
+classify/frontend/browser成功，backend仅secrets失败（pytest及mypy baseline通过）。
+12个提示词SHA被熵扫描识别；本批将字段统一为既有规则识别的input_sha256，保留原提示词和哈希，
+未改workflow或放宽安全门；变更范围扫描0项。新HEAD仍须独立CI，不能借旧绿灯。
+
+- `tools/m4c3_export.py` 从显式数据库只读导出原始HTML，支持多个库、内容去重、全新目录；
+  不注入桥接桩/样式，不猜题。task-map显式映射冻结题实例，旧原始模型输出与参考页/负控不混计。
+- `rawReplay.ts/spec.ts` 在真实产品清洗/CSP/沙箱内按1280×800、390×844重放，核对源哈希、
+  导出原始观测/判据/错误/截图。J01复用语义定位，支持Page/Frame；未支持题族保持indeterminate，
+  非冻结实例unjudged并保留运行/可用性结果。观察器定位异常单列，不冒充模型运行错误。
+- 复用既有调查的两个数据库，9份真实原文×2视口=18次重放，0运行错误；J01 r1/r2/r4任务检查
+  全确定通过，r3箭头错误fail、一致性indeterminate；两视口9/9均因13px字体fail。
+  其余5份不是冻结题实例，未计入12题成绩。证据 `D:/study-agent-validation/m4c3-raw-batch2-20261104/`。
+- `tools/m4c3_budget.py` 在既有账本的同一BEGIN IMMEDIATE预留事务内加固定12次/单次¥1/
+  本批¥12/共享¥30限制；固定题目key跨重启拒绝重发。11次后两连接争抢最后名额只有一个成功，
+  共享余额、子费用、cap变更与非正整数金额拒绝均有离线回归。无schema/产品src变更。
+
+**验证**：Python L1（prepare/export/budget + interactive_history/interactive_budget/
+spend_ledger_persistence）**85 PASS/32.79s**；后续元数据更新与去重断言prepare/export **8 PASS**；
+浏览器rawReplay/semantic/sandboxViewport **10 PASS/13.3s**（含18次真实重放）；tsc、工具mypy
+3文件0错误、Ruff/format、diff-check通过。无L2/L3触发，不重复全量。费用模块只在临时测试库预留，
+真实共享账本0次新增预留，模型调用0，无ChatGPT对照，结果为engineering-only。
+
+分支仍 `codex/m4c-acceptance-core-20261104`，工作树
+`D:/study-agent-validation/intelligent-ui-budget-lifecycle-20261103`，基线bd3bf1c2；候选SHA以本段提交恢复。
+提交前仅本批清单内文件变更、无旁支WIP；新HEAD提交/推送/CI回执另记，#342不合并、不转Ready。
+日志 `D:/study-agent-validation/m4c3-batch2-*`；原始导出与双视口报告已落盘，可冷启动重放。
+
+**唯一下一片**：用假传输冻结12题完整产品出站请求（模型/参数/档位/输入/结束原因），
+将保守计价、上述批次预留与单次发送绑定验证；再核验供应商版本/现价并准备最终费用授权。
+目前费用模块尚未接入真实发送链路，不代表付费执行已就绪；12次/单次¥1/本批¥12提案仍未授权。
+
 ### 2026-11-04 M4-C3 离线准备批次（付费未执行）
 
 已只读核验 `ed9c598d22af7d447a6f4388380555ad3e42b9e5` 的 pull_request CI
