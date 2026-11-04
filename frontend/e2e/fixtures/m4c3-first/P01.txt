@@ -1,0 +1,390 @@
+这是一个用于演示简谐运动 x = 2sin(φ) 的交互式画布，您可以直接播放动画或跳转到指定相位，观察质点位置与三角函数值的对应关系。
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>简谐运动 x = 2sin(φ) 演示</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    background: #fff;
+    color: #1a1a2e;
+    padding: 16px;
+    max-width: 900px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { font-size: 14px; color: #555; margin-bottom: 12px; }
+  .formula {
+    font-size: 18px;
+    font-family: "Cambria Math", Georgia, serif;
+    background: #f0f4ff;
+    border-left: 3px solid #3b5bdb;
+    padding: 8px 12px;
+    margin-bottom: 14px;
+    border-radius: 4px;
+  }
+  .canvas-wrap {
+    width: 100%;
+    background: #fafbff;
+    border: 1px solid #dde3f0;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  canvas { display: block; width: 100%; height: auto; }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  button {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 8px 16px;
+    font-size: 15px;
+    font-family: inherit;
+    border: 1px solid #3b5bdb;
+    background: #fff;
+    color: #3b5bdb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  button:hover { background: #eef2ff; }
+  button:active { background: #dce4ff; }
+  button.active {
+    background: #3b5bdb;
+    color: #fff;
+  }
+  button:focus-visible {
+    outline: 3px solid #93b4ff;
+    outline-offset: 2px;
+  }
+  .readout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .readout > div {
+    background: #f5f7ff;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  .readout .label { color: #666; font-size: 14px; }
+  .readout .value {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a2e;
+    font-variant-numeric: tabular-nums;
+  }
+  .note {
+    font-size: 14px;
+    color: #555;
+    border-top: 1px solid #e5e9f5;
+    padding-top: 10px;
+  }
+  .note strong { color: #1a1a2e; }
+</style>
+</head>
+<body>
+
+<h1>简谐运动 x = 2sin(φ)</h1>
+<p class="sub">调整相位 φ，观察质点在 x 轴上的位置变化。</p>
+
+<div class="formula">x = 2 · sin(φ)　（振幅 A = 2，φ 为相位角）</div>
+
+<div class="canvas-wrap">
+  <canvas id="cv" width="800" height="320" aria-label="简谐运动示意：质点在水平轴上随相位移动"></canvas>
+</div>
+
+<div class="controls">
+  <button id="btnPlay" aria-pressed="false">▶ 播放</button>
+  <button id="btnPause" aria-pressed="false">⏸ 暂停</button>
+  <button id="btn0">φ = 0</button>
+  <button id="btnHalf">φ = π/2</button>
+  <button id="btnPi">φ = π</button>
+</div>
+
+<div class="readout">
+  <div>
+    <div class="label">相位 φ</div>
+    <div class="value" id="outPhi">0.00 rad</div>
+  </div>
+  <div>
+    <div class="label">位置 x</div>
+    <div class="value" id="outX">0.00</div>
+  </div>
+  <div>
+    <div class="label">sin(φ)</div>
+    <div class="value" id="outSin">0.000</div>
+  </div>
+</div>
+
+<p class="note">
+  <strong>观察要点：</strong>φ = 0 时 x = 0（平衡位置）；φ = π/2 时 x = 2（正向最大位移）；φ = π 时 x = 0（再次回到平衡位置，但运动方向相反）。
+</p>
+
+<script>
+(function () {
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d');
+  const btnPlay = document.getElementById('btnPlay');
+  const btnPause = document.getElementById('btnPause');
+  const btn0 = document.getElementById('btn0');
+  const btnHalf = document.getElementById('btnHalf');
+  const btnPi = document.getElementById('btnPi');
+  const outPhi = document.getElementById('outPhi');
+  const outX = document.getElementById('outX');
+  const outSin = document.getElementById('outSin');
+
+  const AMP = 2;
+  let phi = 0;
+  let playing = false;
+  let rafId = null;
+  let lastTime = null;
+  const SPEED = 1.2; // rad/s
+
+  // 布局参数（逻辑坐标，canvas 会按 CSS 宽度缩放）
+  const W = 800, H = 320;
+  const marginL = 70, marginR = 70;
+  const axisY = 210;
+  const plotW = W - marginL - marginR;
+  const scale = plotW / (2 * AMP); // 每单位 x 对应像素
+
+  function xToPx(x) {
+    return marginL + (x + AMP) * scale;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    const x = AMP * Math.sin(phi);
+
+    // 背景
+    ctx.fillStyle = '#fafbff';
+    ctx.fillRect(0, 0, W, H);
+
+    // 刻度轴
+    ctx.strokeStyle = '#8892b0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(marginL - 20, axisY);
+    ctx.lineTo(W - marginR + 20, axisY);
+    ctx.stroke();
+
+    // 箭头
+    ctx.fillStyle = '#8892b0';
+    ctx.beginPath();
+    ctx.moveTo(W - marginR + 20, axisY);
+    ctx.lineTo(W - marginR + 8, axisY - 5);
+    ctx.lineTo(W - marginR + 8, axisY + 5);
+    ctx.closePath();
+    ctx.fill();
+
+    // 刻度
+    ctx.font = '16px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#334';
+    const ticks = [-2, -1, 0, 1, 2];
+    ticks.forEach(t => {
+      const px = xToPx(t);
+      ctx.strokeStyle = '#b8c2d8';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px, axisY - 6);
+      ctx.lineTo(px, axisY + 6);
+      ctx.stroke();
+      ctx.fillStyle = '#334';
+      ctx.fillText(t.toString(), px, axisY + 12);
+    });
+
+    // 平衡位置虚线
+    ctx.strokeStyle = '#c5cee0';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(xToPx(0), axisY - 70);
+    ctx.lineTo(xToPx(0), axisY + 40);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 振幅范围标注
+    ctx.fillStyle = '#8a94ad';
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('-A', xToPx(-AMP), axisY + 40);
+    ctx.fillText('+A', xToPx(AMP), axisY + 40);
+
+    // 质点
+    const px = xToPx(x);
+    const py = axisY - 55;
+    ctx.beginPath();
+    ctx.arc(px, py, 14, 0, Math.PI * 2);
+    ctx.fillStyle = '#3b5bdb';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // 位置投影线
+    ctx.strokeStyle = '#93b4ff';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(px, py + 14);
+    ctx.lineTo(px, axisY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 位置数值
+    ctx.fillStyle = '#3b5bdb';
+    ctx.font = 'bold 16px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('x = ' + x.toFixed(2), px, py - 34);
+
+    // 相位弧示意（左上角）
+    const cx = 90, cy = 70, r = 40;
+    ctx.strokeStyle = '#dde3f0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 角度弧
+    const startAngle = -Math.PI / 2;
+    const endAngle = startAngle + phi;
+    ctx.strokeStyle = '#3b5bdb';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    if (phi >= 0) {
+      ctx.arc(cx, cy, r, startAngle, endAngle, false);
+    } else {
+      ctx.arc(cx, cy, r, startAngle, endAngle, true);
+    }
+    ctx.stroke();
+
+    // 半径线
+    ctx.strokeStyle = '#3b5bdb';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + r * Math.cos(endAngle), cy + r * Math.sin(endAngle));
+    ctx.stroke();
+
+    // 圆心
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#3b5bdb';
+    ctx.fill();
+
+    // 标签
+    ctx.fillStyle = '#555';
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('φ', cx, cy + r + 22);
+
+    // 更新读数
+    outPhi.textContent = phi.toFixed(2) + ' rad';
+    outX.textContent = x.toFixed(2);
+    outSin.textContent = Math.sin(phi).toFixed(3);
+
+    // 更新按钮高亮
+    btn0.classList.toggle('active', Math.abs(phi) < 0.01);
+    btnHalf.classList.toggle('active', Math.abs(phi - Math.PI / 2) < 0.01);
+    btnPi.classList.toggle('active', Math.abs(phi - Math.PI) < 0.01);
+
+    // 通知 studyUI
+    if (window.studyUI && window.studyUI.setState) {
+      window.studyUI.setState({
+        phi: parseFloat(phi.toFixed(3)),
+        x: parseFloat(x.toFixed(3)),
+        sinPhi: parseFloat(Math.sin(phi).toFixed(3)),
+        playing: playing
+      });
+    }
+  }
+
+  function loop(timestamp) {
+    if (!playing) return;
+    if (lastTime === null) lastTime = timestamp;
+    const dt = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+    phi += SPEED * dt;
+    // 保持在 [0, 2π) 循环更自然，但允许持续增长也可以；这里取模便于读数
+    if (phi > 2 * Math.PI) phi -= 2 * Math.PI;
+    draw();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function setPlaying(v) {
+    playing = v;
+    btnPlay.setAttribute('aria-pressed', v ? 'true' : 'false');
+    btnPause.setAttribute('aria-pressed', v ? 'true' : 'false');
+    if (v) {
+      lastTime = null;
+      rafId = requestAnimationFrame(loop);
+    } else {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+  }
+
+  function setPhi(v) {
+    phi = v;
+    draw();
+  }
+
+  btnPlay.addEventListener('click', () => setPlaying(true));
+  btnPause.addEventListener('click', () => setPlaying(false));
+  btn0.addEventListener('click', () => { setPlaying(false); setPhi(0); });
+  btnHalf.addEventListener('click', () => { setPlaying(false); setPhi(Math.PI / 2); });
+  btnPi.addEventListener('click', () => { setPlaying(false); setPhi(Math.PI); });
+
+  // 尊重减少动画偏好
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    setPlaying(false);
+  }
+
+  // 恢复状态支持
+  if (window.studyUI && window.studyUI.onRestore) {
+    window.studyUI.onRestore(function (snap) {
+      if (snap && typeof snap.phi === 'number') {
+        phi = snap.phi;
+      }
+      if (snap && typeof snap.playing === 'boolean') {
+        setPlaying(snap.playing);
+      }
+      draw();
+    });
+  }
+
+  draw();
+})();
+</script>
+</body>
+</html>
+```
+### 玩法与视觉设计
+
+页面围绕“相位驱动位置”这一核心关系，把抽象的三角函数变成看得见的运动。
+
+- **画布与刻度**：水平轴上标出 -2、-1、0、1、2 五个位置刻度，虚线标出平衡位置，让质点位置一目了然。
+- **相位控制**：三个快捷按钮分别将 φ 设为 0、π/2、π，点击后质点立即跳到对应位置，同时按钮高亮显示当前状态。
+- **播放与暂停**：播放时相位匀速增加，质点来回运动；暂停后画面定格，方便观察某一时刻的数值。
+- **实时读数**：下方同步显示 φ、x 和 sin(φ) 的精确数值，左上角还有一个小圆环直观展示相位角的大小。
+- **响应式适配**：画布宽度随容器缩放，按钮和字号满足触控要求，手机上不会横向溢出。
+---
+
+**优化建议：** 您可以在代码开头的 `SPEED = 1.2` 处调整播放速度（数值越大越快），在 `AMP = 2` 处修改振幅，刻度数组 `ticks` 也会随之适配。

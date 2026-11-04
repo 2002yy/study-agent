@@ -103,7 +103,7 @@ def interactive_reply_budget(
     ceiling = {
         "text": default,
         "interactive_simple": 3500,
-        "interactive": 6000,
+        "interactive": 9000,
         "interactive_complex": 9000,
     }[kind]
     return {

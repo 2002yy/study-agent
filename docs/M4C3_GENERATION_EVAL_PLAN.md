@@ -88,7 +88,8 @@ manifest 保存基线/执行 SHA、题目/提示词哈希、模型/参数/预算
 运行 `py -3.12 tools/m4c3_prepare.py --out <新文件路径> [--ledger <共享账本路径>]`：
 只生成固定输入/哈希/预算档，账本通过 mode=ro/query_only 和同一读事务观察；缺失不创建，
 共享cap不是¥30即拒绝，输出已存在即拒绝覆盖。始终 paid_authorized=false，没有模型发送代码。
-12题当前离线分类均为 interactive / 6000 tokens；这只验证分配函数，不能替代完整产品请求快照。
+首批冻结V1的12题分类为 interactive / 6000 tokens。M4-C4按用户要求将当前interactive档提高至9000；
+离线prepare显示当前预算，历史V1清单/实际首批请求仍保持6000，不覆写原成绩。
 
 原始文档入口已补齐：`py -3.12 -m tools.m4c3_export --db <runtime.db> --out <新目录>`，
 可重复传入 --db，按原始HTML哈希去重；不注入桥接桩、不包裹HTML、不覆盖旧目录。

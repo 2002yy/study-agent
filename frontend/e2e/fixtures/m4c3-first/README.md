@@ -1,0 +1,1 @@
+原始首次生成回答，2026-11-04授权批次，执行c641ec34。M01 finish_reason=length；P01=stop。字节未改写；仅离线复现普通html源码协议缺失，不作为成功界面或新模型质量成绩。源证据D:/study-agent-validation/m4c3-generation-paid-20261104。

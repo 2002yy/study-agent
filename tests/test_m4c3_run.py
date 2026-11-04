@@ -55,7 +55,7 @@ def test_product_chain_reserves_each_actual_request_before_one_fake_http_send(
         directory = out / case["task_id"]
         request = json.loads((directory / "request.json").read_text(encoding="utf-8"))
         assert request["model"] == "deepseek-flash"
-        assert request["max_tokens"] == 6000
+        assert request["max_tokens"] == 9000
         assert request["temperature"] == 0.7
         assert request["thinking"] == {"type": "disabled"}
         assert (directory / "answer.txt").read_text() == ANSWER

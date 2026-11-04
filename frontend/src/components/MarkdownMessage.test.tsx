@@ -2,12 +2,28 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { MarkdownMessage } from "./MarkdownMessage";
 
 afterEach(cleanup);
 
 describe("MarkdownMessage", () => {
+  it.each([["M01", "output_limit"], ["P01", "completed"]])("offers a draft for the real %s source-only answer without executing it", (task, status) => {
+    const content = readFileSync(resolve(`e2e/fixtures/m4c3-first/${task}.txt`), "utf-8");
+    const draft = vi.fn();
+    const view = render(<MarkdownMessage content={content} interactive generation={{ status }} onDraft={draft} />);
+    expect(view.container.querySelector("iframe, script")).toBeNull();
+    expect(screen.getByText("这段内容是网页源码，尚未作为交互界面运行。")).toBeVisible();
+    expect(draft).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "继续未完成的说明" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "生成可运行界面" }));
+    expect(draft).toHaveBeenCalledTimes(1);
+    expect(draft).toHaveBeenCalledWith(expect.stringContaining("study-ui"));
+    if (status === "output_limit") expect(screen.getByRole("status")).toHaveTextContent("输出长度上限");
+  });
+
   it("lets the user draft a continuation after a text output limit", () => {
     const draft = vi.fn();
     render(<MarkdownMessage content="已经收到的说明" interactive generation={{ status: "output_limit" }} onDraft={draft} />);
