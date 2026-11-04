@@ -305,3 +305,19 @@ the workflow drift apart.
 7. CI scope is derived from the changed paths (`tools/ci_scope.py`). A research-only change
    must not pay for the frontend or browser gates; a frontend-only change must not pay for
    the research qualification. Unknown paths widen the scope, never narrow it.
+
+## 15. Product capability delivery cadence (2026-11-04 user decision)
+
+Deliver a complete usable capability per reviewable batch. Carry routine implementation,
+local repairs, impact tests, push, review and authorized merge through without asking the
+user to choose each small detail. Parallelize independent scopes when authorized; do not
+preempt another worktree's owned work. Reports lead with capability, observed effect and
+the real remaining blocker, not command logs or unchanged CI snapshots.
+
+Apply the existing risk tiers: relevant checks for docs/prompts, frontend impact/browser
+checks for ordinary UI, frozen tasks/fault controls for evaluator changes, wider gates for
+state/persistence/permissions/security. Reuse evidence whose tested scope has not changed;
+final merge still requires necessary exact-head CI and current review. Paid calls, important
+architecture changes, user-data risks and material product-direction changes need explicit
+decisions. Never delay a bounded real experiment merely to perfect every observer; report
+unknown evidence honestly. The current authorized A/B scopes live in PROJECT_STATUS §0B.

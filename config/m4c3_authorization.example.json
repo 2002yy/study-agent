@@ -1,0 +1,10 @@
+{
+  "authorized": false,
+  "model": "deepseek-flash",
+  "experiment": "study-agent-live-20261102",
+  "max_calls": 12,
+  "per_call_cny": 1,
+  "batch_cny": 12,
+  "shared_cny": 30,
+  "approval_reference": ""
+}
