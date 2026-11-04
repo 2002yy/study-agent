@@ -259,6 +259,7 @@ def build_messages(
     conversation_instruction: str = "",
     pedagogy_plan: PedagogyTurnPlan | None = None,
     learning_state: LearningState | None = None,
+    interactive_target: tuple[str, int] | None = None,
 ) -> list[dict]:
     if runtime_modes is None:
         runtime_modes = load_runtime_modes()
@@ -292,6 +293,8 @@ def build_messages(
             user_input=user_input,
             capability_enabled=INTERACTIVE_CAPABILITY_MARKER
             in messages[0]["content"],
+            target_id=interactive_target[0] if interactive_target else None,
+            target_revision=interactive_target[1] if interactive_target else None,
         )
         messages.extend(
             [

@@ -36,6 +36,7 @@ import type {
   SearchProviderHealthResponse
 } from "./types";
 import { consumePendingTaskIntentOverride } from "./features/task/taskContract";
+import { consumePendingRestoreTarget } from "./features/answer-ui/restoreTarget";
 import { authHeaders } from "./apiToken";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -125,6 +126,9 @@ type SseMessage = {
 };
 
 function buildChatPayload(userInput: string, history: ChatMessage[], options: ChatRequestOptions): Record<string, unknown> {
+  // Identity only: the server resolves the source from saved turns, and the
+  // choice belongs to this one message (like the task-intent override).
+  const restore = consumePendingRestoreTarget();
   return {
     user_input: userInput,
     selected_role: options.chatSettings.selectedRole,
@@ -159,7 +163,9 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     turn_id: options.turnId ?? null,
     operation_id: options.operationId ?? null,
     // Message-level attachment identity: only this message's selection.
-    attachment_ids: options.attachmentIds ?? []
+    attachment_ids: options.attachmentIds ?? [],
+    // Explicit older-version choice; the HTML never travels from the browser.
+    interactive_restore: restore ? { id: restore.id, revision: restore.revision } : null
   };
 }
 

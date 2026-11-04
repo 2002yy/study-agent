@@ -39,6 +39,11 @@ from src.application.learning_authority_projection import (
 from src.context_builder import chat_history_limit, trim_duplicate_current_user_input
 from src.domain.runtime_entities import ChatThread, ChatTurn, new_id, utc_now
 from src.external_data_policy import decide_external_data, decide_web_use
+from src.interactive_restore import (
+    resolve_command_restore,
+    restore_context_block,
+    restore_record,
+)
 from src.pedagogy.evidence import build_evidence_units
 from src.pedagogy.types import LearningState
 from src.rag.cancellation import RetrievalCancelled
@@ -638,6 +643,10 @@ class ExternalDataPolicyChatService(ChatService):
             attachment_block = attachment_context_block(self.repository, turn_id)
             if attachment_block:
                 context_blocks.append(attachment_block)
+            restore = resolve_command_restore(self.repository, thread.id, command)
+            if restore is not None:
+                context_blocks.append(restore_context_block(restore))
+                route["interactive_restore"] = restore_record(restore)
             if web_use.run_tools and (
                 task_contract.task_intent == "research"
                 or web_tools.to_dict().get("recovery") is not None
@@ -706,6 +715,11 @@ class ExternalDataPolicyChatService(ChatService):
                 conversation_instruction=effective_instruction,
                 pedagogy_plan=model_pedagogy_plan,
                 learning_state=model_learning_state,
+                interactive_target=(
+                    (restore.request.id, restore.request.revision)
+                    if restore is not None
+                    else None
+                ),
             )
             base_reply = ""
             if is_continuation:

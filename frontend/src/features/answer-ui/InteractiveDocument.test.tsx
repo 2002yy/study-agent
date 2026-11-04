@@ -47,6 +47,15 @@ describe("generated interactive documents", () => {
     expect(answerCopyText(content)).not.toContain("<script>");
   });
 
+  it("reports the exact identity when the learner continues from an older version", () => {
+    const onRestoreBase = vi.fn();
+    render(<MarkdownMessage interactive content={block({ ...card, revision: 2 })} onRestoreBase={onRestoreBase} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "以此版本为基础继续" }));
+
+    expect(onRestoreBase).toHaveBeenCalledWith({ id: "orders", revision: 2, title: "库存探索" });
+  });
+
   it("parses inertly and puts policy before model content, removing navigation markup", () => {
     const doc = makeInteractiveDocument('<meta http-equiv="refresh" content="0;url=https://example.com"><base href="https://example.com"><iframe src="/settings"></iframe><button onclick="bad()">go</button><a href="https://example.com">link</a><svg><use href="#shape" /></svg><script>const safe = 1;</script>', "test-channel");
     expect(doc.indexOf("Content-Security-Policy")).toBeLessThan(doc.indexOf("const safe"));

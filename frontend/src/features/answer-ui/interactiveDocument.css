@@ -10,6 +10,7 @@
 .answer-card .interactive-document > iframe { display: block; width: 100%; max-width: 100%; border: 0; border-radius: 0; background: #fff; }
 .interactive-footer { padding: 14px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; border-top: 1px solid var(--border, #e5e5e5); }
 .answer-card .interactive-continue { font-size: 14px; min-height: 40px; border-color: #ddd; border-radius: 10px; }
+.answer-card .interactive-restore { font-size: 13px; min-height: 40px; border-color: #ddd; border-radius: 10px; background: transparent; color: #444; }
 .interactive-footer > span { font-size: 12px; color: #666; }
 .interactive-source { padding: 0 20px 14px; color: #666; font-size: 12px; }
 .interactive-source summary { min-height: 32px; padding: 5px 0; cursor: pointer; }

@@ -63,9 +63,13 @@ class InteractiveVersion:
     revision: int
     title: str
     summary: str
-    html_chars: int
+    html: str
     start: int
     end: int
+
+    @property
+    def html_chars(self) -> int:
+        return len(self.html)
 
 
 @dataclass(frozen=True)
@@ -183,7 +187,7 @@ def find_interactive_versions(
                         revision=int(payload["revision"]),
                         title=str(payload["title"]),
                         summary=str(payload["summary"]),
-                        html_chars=len(str(payload["html"])),
+                        html=str(payload["html"]),
                         start=lines[index][0],
                         end=lines[closing][1],
                     )
@@ -212,6 +216,12 @@ def _resolve_target(
         matching = [item for item in versions if item.id == target_id]
         if not matching:
             return None, None, "target_id_not_in_history"
+        if target_revision is not None and not any(
+            item.revision == target_revision for item in matching
+        ):
+            # An explicit revision that is not there must fail loudly; falling
+            # back to the newest would hide the caller's wrong assumption.
+            return None, None, "target_revision_missing"
         revision = target_revision or max(item.revision for item in matching)
         return target_id, revision, "explicit_id"
 

@@ -864,6 +864,30 @@ button {
   background: #fbfcfc;
 }
 
+.restore-target {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid #cfdcd4;
+  border-radius: 10px;
+  background: #f2f7f4;
+  color: #2f4f3f;
+  font-size: 13px;
+}
+
+.restore-target button {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid #cfdcd4;
+  border-radius: 8px;
+  background: white;
+  color: #2f4f3f;
+}
+
 .composer textarea {
   min-height: 78px;
   max-height: 170px;

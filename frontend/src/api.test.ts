@@ -25,6 +25,7 @@ import {
   uploadDocuments
 } from "./api";
 import type { ChatSettings, RagSettings } from "./types";
+import { clearPendingRestoreTarget, setPendingRestoreTarget } from "./features/answer-ui/restoreTarget";
 
 const chatSettings: ChatSettings = {
   selectedRole: "auto",
@@ -40,6 +41,10 @@ const ragSettings: RagSettings = {
   minScore: 0.01,
   chatTopK: 3
 };
+
+afterEach(() => {
+  clearPendingRestoreTarget();
+});
 
 function sseResponse(chunks: string[]): Response {
   const encoder = new TextEncoder();
@@ -76,6 +81,21 @@ describe("sendChatStream", () => {
     await expect(sendChatStream("test", [], { ragEnabled: false, chatSettings, ragSettings }, { onError, onToken })).rejects.toThrow("连接在回答完成前中断");
     expect(onToken).toHaveBeenCalledWith("partial");
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ generation: { status: "connection_error", finish_reason: "unknown" } }));
+  });
+
+  it("sends the chosen older version once and never on the next message", async () => {
+    setPendingRestoreTarget({ id: "orders", revision: 2, title: "库存探索" });
+    const fetchMock = vi.fn(async () => sseResponse(['event: done\ndata: {"session_id":"s","reply":"ok"}\n\n']));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendChatStream("基于这个版本改", [], { ragEnabled: false, chatSettings, ragSettings }, {});
+    await sendChatStream("再改一次", [], { ragEnabled: false, chatSettings, ragSettings }, {});
+
+    const bodies = (fetchMock.mock.calls as unknown as [string, RequestInit][]).map(
+      ([, init]) => JSON.parse(String(init.body))
+    );
+    expect(bodies[0].interactive_restore).toEqual({ id: "orders", revision: 2 });
+    expect(bodies[1].interactive_restore).toBeNull();
   });
   afterEach(() => {
     vi.unstubAllGlobals();
