@@ -22,7 +22,9 @@ import {
   queueResearchFollowup,
   sendWechatMessage,
   sendWechatMessageStream,
-  uploadDocuments
+  uploadDocuments,
+  saveInteractiveState,
+  loadInteractiveState
 } from "./api";
 import type { ChatSettings, RagSettings } from "./types";
 import { clearPendingRestoreTarget, setPendingRestoreTarget } from "./features/answer-ui/restoreTarget";
@@ -96,6 +98,24 @@ describe("sendChatStream", () => {
     );
     expect(bodies[0].interactive_restore).toEqual({ id: "orders", revision: 2 });
     expect(bodies[1].interactive_restore).toBeNull();
+  });
+
+  it("stores a snapshot and reads it back for one component", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      component_id: "orders", revision: 2, state: { step: 7 }, updated_at: "t",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await saveInteractiveState("session-1", "orders", 2, { step: 7 });
+    await loadInteractiveState("session-1", "orders", 2);
+
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls[0][0]).toContain("/sessions/session-1/interactive-state");
+    expect(calls[0][1].method).toBe("PUT");
+    expect(JSON.parse(String(calls[0][1].body))).toEqual({
+      component_id: "orders", revision: 2, state: { step: 7 },
+    });
+    expect(calls[1][0]).toContain("/sessions/session-1/interactive-state/orders?revision=2");
   });
   afterEach(() => {
     vi.unstubAllGlobals();

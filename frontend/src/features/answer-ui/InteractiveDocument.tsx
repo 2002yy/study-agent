@@ -1,9 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Maximize2, Minimize2, RotateCcw, Square, Play } from "lucide-react";
+import { ArrowUpRight, History, Maximize2, Minimize2, RotateCcw, Square, Play } from "lucide-react";
 import { interactiveFollowup, makeInteractiveDocument, stateText, type InteractiveCard } from "./interactiveRuntime";
+import { loadInteractiveState, saveInteractiveState } from "../../api";
 import "./interactiveDocument.css";
 
-export function InteractiveDocument({ card, onDraft, onRestoreBase }: { card: InteractiveCard; onDraft?: (prompt: string) => void; onRestoreBase?: (target: { id: string; revision: number; title: string }) => void }) {
+export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }: { card: InteractiveCard; onDraft?: (prompt: string) => void; onRestoreBase?: (target: { id: string; revision: number; title: string }) => void; sessionId?: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const instance = useId();
   const [generation, setGeneration] = useState(0);
@@ -13,24 +14,135 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase }: { card: In
   const [status, setStatus] = useState("正在准备交互…");
   const [error, setError] = useState("");
   const [state, setState] = useState<string | null>(null);
+  const [savedState, setSavedState] = useState<{ state: Record<string, unknown>; revision: number } | null>(null);
+  const [restoreNote, setRestoreNote] = useState("");
+  const seenInitialRef = useRef(false);
+  const generationRef = useRef(0);
+  const saveTimerRef = useRef<number | null>(null);
+  const saveInFlightRef = useRef(false);
+  const queuedSaveRef = useRef<{ snapshot: Record<string, unknown>; generation: number } | null>(null);
+  const restorePendingRef = useRef(false);
+  const restoreTimerRef = useRef<number | null>(null);
   const channel = `${instance}:${generation}`;
   const document = useMemo(() => makeInteractiveDocument(card.html, channel), [card.html, channel]);
+  const cancelPendingSave = () => {
+    if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
+  };
+  const writeSnapshot = (snapshot: Record<string, unknown>, generation: number) => {
+    if (!sessionId || generationRef.current !== generation) return;
+    saveInFlightRef.current = true;
+    saveInteractiveState(sessionId!, card.id, card.revision, snapshot)
+      .then(result => setSavedState({ state: result.state, revision: result.revision }))
+      .catch(() => {})
+      .finally(() => {
+        saveInFlightRef.current = false;
+        const queued = queuedSaveRef.current;
+        queuedSaveRef.current = null;
+        // One write at a time, latest wins: an older request finishing late can
+        // never land after a newer value has already been captured.
+        if (queued) writeSnapshot(queued.snapshot, queued.generation);
+      });
+  };
+  const cancelRestoreWait = () => {
+    if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
+    restoreTimerRef.current = null;
+    restorePendingRef.current = false;
+  };
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    loadInteractiveState(sessionId, card.id, card.revision)
+      .then(snapshot => { if (!cancelled) setSavedState({ state: snapshot.state, revision: snapshot.revision }); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [sessionId, card.id, card.revision]);
+  useEffect(() => () => { cancelPendingSave(); cancelRestoreWait(); }, []);
   useEffect(() => {
     if (!running) return;
     const receive = (event: MessageEvent) => {
       if (!frame.current || event.source !== frame.current.contentWindow || event.origin !== "null") return;
       const data: unknown = event.data;
       if (!data || typeof data !== "object" || !("channel" in data) || data.channel !== channel || !("type" in data) || !("value" in data)) return;
-      if (data.type === "state") { const text = stateText(data.value); if (text) setState(text); }
+      if (data.type === "state") {
+        const text = stateText(data.value);
+        if (text) {
+          setState(text);
+          if (restorePendingRef.current) {
+            restorePendingRef.current = false;
+            if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
+            restoreTimerRef.current = null;
+            setRestoreNote("已恢复上次状态。");
+          }
+          if (!seenInitialRef.current) {
+            // Only the first publish after mount/restart is the document's own
+            // initial state. Later publishes are user actions even when the
+            // value happens to equal the initial one again.
+            seenInitialRef.current = true;
+            return;
+          }
+          if (sessionId) {
+            const scheduledFor = generationRef.current;
+            const snapshot = JSON.parse(text) as Record<string, unknown>;
+            cancelPendingSave();
+            saveTimerRef.current = window.setTimeout(() => {
+              saveTimerRef.current = null;
+              if (generationRef.current !== scheduledFor) return;
+              if (saveInFlightRef.current) {
+                queuedSaveRef.current = { snapshot, generation: scheduledFor };
+                return;
+              }
+              writeSnapshot(snapshot, scheduledFor);
+            }, 800);
+          }
+          if (restorePendingRef.current) {
+            restorePendingRef.current = false;
+            if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
+            restoreTimerRef.current = null;
+            setRestoreNote("已恢复上次状态。");
+          }
+        }
+      }
       if (data.type === "height" && typeof data.value === "number" && Number.isFinite(data.value)) setHeight(Math.min(720, Math.max(180, data.value + 2)));
       if (data.type === "ready") setStatus("可交互");
+      if (data.type === "restore_unavailable") {
+        cancelRestoreWait();
+        setRestoreNote("这个版本没有实现状态恢复，只能从初始状态重新操作。");
+      }
       if (data.type === "error" && typeof data.value === "string") { setError(data.value.slice(0, 500)); setStatus("部分交互未能运行"); }
     };
     window.addEventListener("message", receive);
     const timer = window.setTimeout(() => setStatus(current => current === "正在准备交互…" ? "界面未就绪，可重新运行或请模型修复" : current), 8000);
     return () => { window.removeEventListener("message", receive); window.clearTimeout(timer); };
-  }, [channel, running]);
-  const restart = () => { setState(null); setError(""); setStatus("正在准备交互…"); setRunning(true); setGeneration(n => n + 1); };
+  }, [channel, running, sessionId, card.id, card.revision]);
+  const restart = () => {
+    // A rebuilt document is a new generation: drop pending writes for the old
+    // one and let its first publish count as initial state again.
+    cancelPendingSave();
+    cancelRestoreWait();
+    queuedSaveRef.current = null;
+    seenInitialRef.current = false;
+    generationRef.current += 1;
+    setRestoreNote("");
+    setState(null);
+    setError("");
+    setStatus("正在准备交互…");
+    setRunning(true);
+    setGeneration(n => n + 1);
+  };
+  const restoreSavedState = () => {
+    if (!savedState) return;
+    cancelRestoreWait();
+    restorePendingRef.current = true;
+    restoreTimerRef.current = window.setTimeout(() => {
+      restoreTimerRef.current = null;
+      if (!restorePendingRef.current) return;
+      restorePendingRef.current = false;
+      setRestoreNote("已发送恢复请求，但界面没有回报状态。");
+    }, 1500);
+    setRestoreNote("");
+    frame.current?.contentWindow?.postMessage({ channel, type: "restore", value: savedState.state }, "*");
+  };
   return <div className={`interactive-document${expanded ? " is-expanded" : ""}`}>
     <p className="interactive-summary">{card.summary}</p>
     <div className="interactive-toolbar">
@@ -47,6 +159,13 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase }: { card: In
     <div className="interactive-footer">
       <button type="button" className="interactive-continue" disabled={!onDraft} onClick={() => onDraft?.(interactiveFollowup(card, state, error))}>{error ? "请模型修复" : "带着当前状态继续问"}<ArrowUpRight size={16} /></button>
       <button type="button" className="interactive-restore" disabled={!onRestoreBase} onClick={() => onRestoreBase?.({ id: card.id, revision: card.revision, title: card.title })} title="从这一版的源码重新开始，而不是最近一版">以此版本为基础继续</button>
+      {savedState && savedState.revision === card.revision ? (
+        <button type="button" className="interactive-restore" onClick={restoreSavedState}><History size={14} /><span>恢复上次状态</span></button>
+      ) : null}
+      {savedState && savedState.revision !== card.revision ? (
+        <span className="interactive-restore-note" role="status">上次状态属于版本 {savedState.revision}，不能直接恢复到版本 {card.revision}。</span>
+      ) : null}
+      {restoreNote ? <span className="interactive-restore-note" role="status">{restoreNote}</span> : null}
       <span>生成式交互 · 结果需结合原理核对</span>
     </div>
     <details className="interactive-source"><summary>查看内容与当前状态</summary><p>当前参数可随追问发送；刷新后从初始状态开始。</p><pre>{state ? JSON.stringify(JSON.parse(state), null, 2) : "尚未提供状态"}</pre><details><summary>界面源码</summary><pre>{card.html}</pre></details></details>

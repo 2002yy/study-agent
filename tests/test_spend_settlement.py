@@ -148,9 +148,9 @@ def _v29_database(path: Path) -> None:
 # -- migration 30 ----------------------------------------------------------------
 
 
-def test_a_fresh_database_reaches_schema_30_with_the_audit_table(database):
+def test_a_fresh_database_reaches_the_current_schema_with_the_audit_table(database):
     with sqlite3.connect(database) as connection:
-        assert schema_version(connection) == 30
+        assert schema_version(connection) == schema.SCHEMA_VERSION
         names = {
             row[0]
             for row in connection.execute(
@@ -216,7 +216,7 @@ def test_initialising_twice_is_idempotent(database):
     RuntimeDatabase(database).initialize()
     RuntimeDatabase(database).initialize()
     with sqlite3.connect(database) as connection:
-        assert schema_version(connection) == 30
+        assert schema_version(connection) == schema.SCHEMA_VERSION
         assert connection.execute(
             "SELECT COUNT(*) FROM llm_spend_settlement_epoch"
         ).fetchone()[0] == 1
@@ -242,7 +242,7 @@ def test_a_failed_migration_30_leaves_no_audit_table_behind(tmp_path):
 
     RuntimeDatabase(path).initialize()
     with sqlite3.connect(path) as connection:
-        assert schema_version(connection) == 30
+        assert schema_version(connection) == schema.SCHEMA_VERSION
 
 
 def test_the_write_connection_enforces_the_foreign_key(database):

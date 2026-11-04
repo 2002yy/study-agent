@@ -1,16 +1,45 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { answerCopyText, packAnswerUiContext, parseAnswerCard, splitAnswerContent } from "./answerUiProtocol";
 import { makeInteractiveDocument, stateText } from "./interactiveRuntime";
 
 afterEach(cleanup);
+vi.mock("../../api", () => ({
+  loadInteractiveState: vi.fn(),
+  saveInteractiveState: vi.fn(),
+}));
+import { loadInteractiveState, saveInteractiveState } from "../../api";
 const card = { type: "interactive", id: "orders", revision: 1, title: "库存探索", summary: "演示库存与锁定数量的关系。", html: "<label>库存<input id='stock' value='37'></label><script>window.studyUI.setState({stock:37})</script>" };
 const block = (value: unknown) => "```study-ui\n" + JSON.stringify(value) + "\n```";
 
+function channelOf(container: HTMLElement): string {
+  const srcdoc = container.querySelector("iframe")?.getAttribute("srcdoc") ?? "";
+  const match = /const channel = ("[^"]*");/.exec(srcdoc);
+  return JSON.parse(match![1]);
+}
+
+function publish(container: HTMLElement, channel: string, value: unknown) {
+  const frame = container.querySelector("iframe")!;
+  act(() => {
+    window.dispatchEvent(new MessageEvent("message", {
+      data: { channel, type: "state", value },
+      origin: "null",
+      source: frame.contentWindow,
+    }));
+  });
+}
+
 describe("generated interactive documents", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(saveInteractiveState).mockResolvedValue({
+      component_id: "orders", revision: 2, state: {}, updated_at: "t",
+    });
+    vi.mocked(loadInteractiveState).mockRejectedValue(new Error("no snapshot"));
+  });
   it("accepts a bounded complete document, strips unknown fields and keeps old types restricted", () => {
     expect(parseAnswerCard(JSON.stringify({ ...card, onSend: "secret()" }))).toEqual(card);
     for (const change of [{ id: "../bad" }, { revision: 0 }, { revision: 1.5 }, { summary: "" }, { html: "x".repeat(60001) }, { type: "html" }]) expect(parseAnswerCard(JSON.stringify({ ...card, ...change }))).toBeNull();
@@ -25,6 +54,12 @@ describe("generated interactive documents", () => {
     const { container } = render(<MarkdownMessage content={block(card)} />);
     expect(container.querySelector("iframe")).toBeNull();
     expect(container.textContent).toContain("window.studyUI");
+  });
+
+  it("exposes an optional restore hook and reports a document that has none", () => {
+    const document = makeInteractiveDocument("<p>x</p>", "c:0");
+    expect(document).toContain("onRestore");
+    expect(document).toContain("restore_unavailable");
   });
 
   it("renders saved interfaces without requiring the secure-context UUID API", () => {
@@ -54,6 +89,115 @@ describe("generated interactive documents", () => {
     fireEvent.click(screen.getByRole("button", { name: "以此版本为基础继续" }));
 
     expect(onRestoreBase).toHaveBeenCalledWith({ id: "orders", revision: 2, title: "库存探索" });
+  });
+
+  it("offers a saved state only for the revision it belongs to", async () => {
+    vi.mocked(loadInteractiveState).mockResolvedValue({
+      component_id: "orders", revision: 2, state: { step: 7 }, updated_at: "t",
+    });
+    const view = render(<MarkdownMessage interactive sessionId="s1" content={block({ ...card, revision: 2 })} />);
+
+    const button = await screen.findByRole("button", { name: /恢复上次状态/ });
+    const frame = view.container.querySelector("iframe")!;
+    const post = vi.spyOn(frame.contentWindow!, "postMessage").mockImplementation(() => {});
+    fireEvent.click(button);
+
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: "restore", value: { step: 7 } }), "*");
+  });
+
+  it("refuses to apply state saved under another revision", async () => {
+    vi.mocked(loadInteractiveState).mockResolvedValue({
+      component_id: "orders", revision: 1, state: { step: 7 }, updated_at: "t",
+    });
+    render(<MarkdownMessage interactive sessionId="s1" content={block({ ...card, revision: 2 })} />);
+
+    expect(await screen.findByText(/上次状态属于版本 1/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /恢复上次状态/ })).toBeNull();
+  });
+
+  it("saves the last value even when the learner returns to the initial one", async () => {
+    vi.useFakeTimers();
+    try {
+      const view = render(<MarkdownMessage interactive sessionId="s1" content={block({ ...card, revision: 2 })} />);
+      const channel = channelOf(view.container);
+      publish(view.container, channel, { locked: 5 });
+      publish(view.container, channel, { locked: 12 });
+      publish(view.container, channel, { locked: 5 });
+      await act(async () => { await vi.advanceTimersByTimeAsync(900); });
+
+      expect(saveInteractiveState).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(saveInteractiveState).mock.calls[0][3]).toEqual({ locked: 5 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops a pending save when the document is reset", async () => {
+    vi.useFakeTimers();
+    try {
+      const view = render(<MarkdownMessage interactive sessionId="s1" content={block({ ...card, revision: 2 })} />);
+      const channel = channelOf(view.container);
+      publish(view.container, channel, { locked: 5 });
+      publish(view.container, channel, { locked: 12 });
+      act(() => { fireEvent.click(screen.getByTitle("恢复初始状态")); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1200); });
+
+      expect(saveInteractiveState).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never lets an older save finish after a newer one", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveFirst!: (value: { component_id: string; revision: number; state: Record<string, unknown>; updated_at: string }) => void;
+      vi.mocked(saveInteractiveState).mockImplementationOnce(
+        () => new Promise(resolve => { resolveFirst = resolve; })
+      );
+      vi.mocked(saveInteractiveState).mockImplementation(async (_session, _id, revision, state) => ({
+        component_id: "orders", revision, state, updated_at: "t",
+      }));
+
+      const view = render(<MarkdownMessage interactive sessionId="s1" content={block({ ...card, revision: 2 })} />);
+      const channel = channelOf(view.container);
+      publish(view.container, channel, { locked: 5 });
+      publish(view.container, channel, { locked: 12 });
+      await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+      expect(saveInteractiveState).toHaveBeenCalledTimes(1);
+
+      publish(view.container, channel, { locked: 7 });
+      await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+      // The newer value waits instead of overtaking the in-flight request.
+      expect(saveInteractiveState).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveFirst({ component_id: "orders", revision: 2, state: { locked: 12 }, updated_at: "t" });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(saveInteractiveState).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(saveInteractiveState).mock.calls[1][3]).toEqual({ locked: 7 });
+      expect(vi.mocked(saveInteractiveState).mock.calls[0][3]).toEqual({ locked: 12 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("confirms a restore only after the document reports state back", async () => {
+    vi.mocked(loadInteractiveState).mockResolvedValue({
+      component_id: "orders", revision: 2, state: { step: 7 }, updated_at: "t",
+    });
+    const view = render(<MarkdownMessage interactive sessionId="s1" content={block({ ...card, revision: 2 })} />);
+    const channel = channelOf(view.container);
+    publish(view.container, channel, { step: 0 });
+
+    fireEvent.click(await screen.findByRole("button", { name: /恢复上次状态/ }));
+    expect(screen.queryByText("已恢复上次状态。")).toBeNull();
+
+    publish(view.container, channel, { step: 7 });
+    expect(await screen.findByText("已恢复上次状态。")).toBeVisible();
   });
 
   it("parses inertly and puts policy before model content, removing navigation markup", () => {

@@ -5,9 +5,10 @@ import { AnswerCardView } from "../features/answer-ui/AnswerCardView";
 import { ConsentImage } from "./ConsentImage";
 import { splitAnswerContent } from "../features/answer-ui/answerUiProtocol";
 
-export function MarkdownMessage({ content, interactive = false, streaming = false, generation, onDraft, onRestoreBase }: {
+export function MarkdownMessage({ content, interactive = false, streaming = false, generation, onDraft, onRestoreBase, sessionId }: {
   content: string; interactive?: boolean; streaming?: boolean; generation?: unknown; onDraft?: (prompt: string) => void;
   onRestoreBase?: (target: { id: string; revision: number; title: string }) => void;
+  sessionId?: string;
 }) {
   const status = generation && typeof generation === "object" && "status" in generation ? generation.status : "unknown";
   const notices: Record<string, string> = {
@@ -24,7 +25,7 @@ export function MarkdownMessage({ content, interactive = false, streaming = fals
     <div className="markdown-message">
       {interactive && !streaming && notice ? <p role="status">{notice}</p> : null}
       {parts.map(part => part.kind === "card"
-        ? <AnswerCardView key={`${part.key}:${JSON.stringify(part.card)}`} card={part.card} onDraft={onDraft} onRestoreBase={onRestoreBase} />
+        ? <AnswerCardView key={`${part.key}:${JSON.stringify(part.card)}`} card={part.card} onDraft={onDraft} onRestoreBase={onRestoreBase} sessionId={sessionId} />
         : part.kind === "pending" ? <div className="answer-pending" role="status" key={part.key}>正在准备交互内容…</div>
         : part.kind === "incomplete" ? <section className="answer-card" key={part.key} aria-label="未完成的交互内容"><p>{status === "completed" ? "模型已结束回答，但交互格式不完整，暂时无法运行。" : "交互内容未完整生成，暂时无法运行。前面的文字仍然可以阅读。"}</p><button type="button" disabled={!onDraft} onClick={() => onDraft?.("刚才的交互界面没有完整生成，请给出精简、自包含的完整版本，保留原来的核心功能与参数。")}>生成完整界面</button><details className="interactive-source"><summary>查看未完成内容</summary><pre>{part.content}</pre></details></section>
         : (
