@@ -149,7 +149,11 @@ export async function readMessages(page: Page): Promise<SandboxMessage[]> {
  * Mount the real product path: `makeInteractiveDocument` plus an outer
  * `sandbox="allow-scripts"` iframe. The returned frame is the inner document.
  */
-export async function mountSandbox(page: Page, html: string): Promise<Frame> {
+export async function mountSandbox(
+  page: Page,
+  html: string,
+  viewport = { width: 900, height: 700 }
+): Promise<Frame> {
   await page.setContent("<!doctype html><html><body></body></html>");
   const wrapped = await page.evaluate(
     async ({ source, channel }) => {
@@ -162,7 +166,7 @@ export async function mountSandbox(page: Page, html: string): Promise<Frame> {
     { source: html, channel: CHANNEL }
   );
   await page.evaluate(
-    ({ source, channel }) => {
+    ({ source, channel, size }) => {
       const target = window as unknown as { __m4cMessages: SandboxMessage[] };
       target.__m4cMessages = [];
       window.addEventListener("message", event => {
@@ -175,12 +179,14 @@ export async function mountSandbox(page: Page, html: string): Promise<Frame> {
       frame.id = "m4c-outer";
       frame.setAttribute("sandbox", "allow-scripts");
       frame.setAttribute("referrerpolicy", "no-referrer");
-      frame.style.width = "900px";
-      frame.style.height = "700px";
+      document.body.style.margin = "0";
+      frame.style.border = "0";
+      frame.style.width = `${size.width}px`;
+      frame.style.height = `${size.height}px`;
       frame.srcdoc = source;
       document.body.append(frame);
     },
-    { source: wrapped, channel: CHANNEL }
+    { source: wrapped, channel: CHANNEL, size: viewport }
   );
 
   const deadline = Date.now() + 8000;

@@ -16,6 +16,42 @@
 > **M4 后续路线已记录在 §0B：M4-C3 真实生成评测 → M4-C4 针对性改进 → 分支集成 → M4-D 增量修改
 > → M4-E 受控修复 → M4-F 图形扩展 → M4-G 智能编排。当前不启动 M4-D，不发起付费调用。**
 
+### 2026-11-04 M4-C3 离线准备批次（付费未执行）
+
+已只读核验 `ed9c598d22af7d447a6f4388380555ad3e42b9e5` 的 pull_request CI
+[41698749484](https://github.com/2002yy/study-agent/actions/runs/41698749484)：
+classify/frontend/backend/browser/test **5/5 SUCCESS**；旧 fcd4347e 的 41698131420 cancelled。
+#342 仍 Draft，base 为 `codex/interactive-state-snapshots-20261103`；未合并。
+
+新增 [M4-C3 评测计划](M4C3_GENERATION_EVAL_PLAN.md)、[12题冻结输入](M4C3_PROMPTS_V1.json)
+与 `tools/m4c3_prepare.py`：离线输出提示词/哈希/预算，12题均为interactive/6000 tokens；
+共享账本只读事务核验23条预留、¥8.630826/¥30，余额¥21.369174，未新增预留。
+工具缺账本不创建、cap不一致拒绝、输出已存在不覆盖，始终paid_authorized=false，无发送代码。
+源码核验修正随机性方案为实际默认temperature=0.7、top_p/seed不发送，不将环境变量冒充已生效参数。
+
+沙箱测量不再只能固定900px：新增显式1280×800/390×844探针，检查内层实际宽度；
+响应式页通过，900px页面在390px内正确报告溢出。原默认尺寸保留；桌面参考/故障判定不变。
+新增 `playwright.m4c-offline.config.ts` 只收集acceptance影响集；完整浏览器配置的Golden Journey
+收尾校验不变。首次误用完整配置跑子集时2项测试通过但收尾缺success manifest，已改用专用入口；
+另一次准备命令从frontend目录调用根工具失败，改正cwd后通过，均未改产品源码掩盖失败。
+
+**L0/L1**：Python影响集（prepare + interactive_budget + spend_ledger_persistence）40 PASS；
+冻结清单最后措辞更新后prepare 6 PASS；前端model 45 + InteractiveDocument 15 PASS；
+浏览器sandboxViewport/sandboxParity/sandboxJudgment **4 PASS/36.5s**，内含12/12参考、24/24故障、
+3/3缺证据负控，parity无行为差异；tsc、Ruff/format、工具mypy（0错误）、diff-check通过。
+未改src，未放宽src mypy baseline；本批是评测基础设施局部改动，无L2/L3触发，无本地L3。
+日志/快照：`D:/study-agent-validation/m4c3-*-20261104.*`；既有用户根工作树未改。
+
+分支 `codex/m4c-acceptance-core-20261104`，工作树
+`D:/study-agent-validation/intelligent-ui-budget-lifecycle-20261103`；基线ed9c598d，候选SHA由本段提交恢复。
+本批仅上述8文件，提交前无其他脏改；提交后预期tracked clean。#342保持Draft，不合并；
+推送后的新HEAD CI单次观察另见回执，ed9c598d绿灯不授予新HEAD。
+0次模型调用、无ChatGPT对照、无真实生成质量结论；提案12次/单次¥1/本批¥12尚未授权。
+
+**唯一下一片**：补真实原始文档的沙箱重放入口（两视口；不支持的布局保持indeterminate），
+随后离线冻结完整产品请求并绑定调用次数/费用子限额；单独授权后才运行M4-C3，不启动M4-D。
+真实输出适配器不足是观测能力缺口，不要求付费前能判所有布局；不能用参考页data属性代替真实语义。
+
 ### 2026-11-04 后续片：沙箱内完整判定
 
 按评审要求，把“直接渲染 vs 沙箱观察一致”推进到“沙箱内能否正确判定”：
