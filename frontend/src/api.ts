@@ -966,6 +966,7 @@ export async function sendChatStream(
   let turnId = options.turnId ?? "";
   let route: Record<string, unknown> = {};
   let rag: ChatResponse["rag"] | null = null;
+  let terminalReceived = false;
 
   const handleMessage = (message: SseMessage) => {
     if (message.event === "session") {
@@ -1016,6 +1017,10 @@ export async function sendChatStream(
       return;
     }
     if (message.event === "done") {
+      terminalReceived = true;
+      if (message.data.generation && typeof message.data.generation === "object") {
+        route = { ...route, generation: message.data.generation };
+      }
       if (typeof message.data.session_id === "string") {
         sessionId = message.data.session_id;
       }
@@ -1026,6 +1031,8 @@ export async function sendChatStream(
       return;
     }
     if (message.event === "cancelled") {
+      terminalReceived = true;
+      route = { ...route, generation: { status: "cancelled", finish_reason: "unknown" } };
       handlers.onCancelled?.(message.data);
       return;
     }
@@ -1037,7 +1044,12 @@ export async function sendChatStream(
   };
 
   while (true) {
-    const { done, value } = await reader.read();
+    const { done, value } = await reader.read().catch(error => {
+      if (requestOptions.signal?.aborted) throw error;
+      const message = "连接在回答完成前中断，已保留收到的内容。";
+      handlers.onError?.({ message, generation: { status: "connection_error", finish_reason: "unknown" } });
+      throw new Error(message);
+    });
     if (done) {
       break;
     }
@@ -1052,6 +1064,12 @@ export async function sendChatStream(
   buffer += decoder.decode();
   for (const message of parseSseMessages(buffer)) {
     handleMessage(message);
+  }
+
+  if (!terminalReceived) {
+    const message = "连接在回答完成前中断，已保留收到的内容。";
+    handlers.onError?.({ message, generation: { status: "connection_error", finish_reason: "unknown" } });
+    throw new Error(message);
   }
 
   return {

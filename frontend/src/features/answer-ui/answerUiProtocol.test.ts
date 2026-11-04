@@ -5,6 +5,10 @@ import { CHAT_VISUAL_DESIGN } from "./chatVisualDesign";
 const plot = JSON.stringify({ type: "plot", title: "函数", fn: "quadratic", a: 1, b: 0 });
 const block = (raw: string) => `\`\`\`study-ui\n${raw}\n\`\`\``;
 describe("answer UI wire format", () => {
+  it("recognizes CRLF fences without executing nested examples", () => {
+    expect(splitAnswerContent(block(plot).replace(/\n/g, "\r\n"))[0].kind).toBe("card");
+    expect(splitAnswerContent(("````markdown\n" + block(plot) + "\n````").replace(/\n/g, "\r\n")).every(p => p.kind === "markdown")).toBe(true);
+  });
   it("copies readable descriptions and original values while preserving ordinary code examples", () => {
     expect(answerCopyText("结论\n\n" + block(plot))).toContain("y = 1x²");
     expect(answerCopyText(block(plot))).not.toContain('"type"');

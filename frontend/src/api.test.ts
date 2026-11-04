@@ -60,6 +60,23 @@ function sseResponse(chunks: string[]): Response {
 }
 
 describe("sendChatStream", () => {
+  it("retains the provider termination reason on the returned route", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => sseResponse([
+      'event: token\ndata: {"text":"partial"}\n\n',
+      'event: done\ndata: {"session_id":"s","reply":"partial","generation":{"status":"output_limit","finish_reason":"length"}}\n\n',
+    ])));
+    const response = await sendChatStream("test", [], { ragEnabled: false, chatSettings, ragSettings }, {});
+    expect(response.route.generation).toEqual({ status: "output_limit", finish_reason: "length" });
+  });
+
+  it("does not report an EOF without a terminal event as a completed answer", async () => {
+    const onError = vi.fn();
+    const onToken = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async () => sseResponse(['event: token\ndata: {"text":"partial"}\n\n'])));
+    await expect(sendChatStream("test", [], { ragEnabled: false, chatSettings, ragSettings }, { onError, onToken })).rejects.toThrow("连接在回答完成前中断");
+    expect(onToken).toHaveBeenCalledWith("partial");
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ generation: { status: "connection_error", finish_reason: "unknown" } }));
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
   });

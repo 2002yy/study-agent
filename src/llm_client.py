@@ -537,6 +537,7 @@ def stream_chat(
     request_max_retries: int | None = None,
     extra_body: Mapping[str, Any] | None = None,
     request_key: str | None = None,
+    on_completion: Callable[[str | None], None] | None = None,
 ) -> Iterator[str]:
     if not messages:
         return
@@ -567,17 +568,24 @@ def stream_chat(
         raise RuntimeError(_classify_error(e)) from e
 
     first_token_seen = False
+    finish_reason = None
     try:
         for chunk in response:
             if should_cancel is not None and should_cancel():
                 return
-            delta = chunk.choices[0].delta
+            if not chunk.choices:
+                continue  # Usage-only chunks have no choice.
+            choice = chunk.choices[0]
+            finish_reason = getattr(choice, "finish_reason", None) or finish_reason
+            delta = choice.delta
             if delta.content:
                 if not first_token_seen:
                     first_token_seen = True
                     if on_first_token is not None:
                         on_first_token()
                 yield delta.content
+        if on_completion is not None:
+            on_completion(finish_reason)
     except Exception as e:
         raise RuntimeError(_classify_error(e)) from e
     finally:
@@ -599,6 +607,7 @@ async def async_stream_chat(
     request_max_retries: int | None = None,
     extra_body: Mapping[str, Any] | None = None,
     request_key: str | None = None,
+    on_completion: Callable[[str | None], None] | None = None,
 ) -> AsyncIterator[str]:
     """Stream provider output without blocking the server event loop."""
 
@@ -631,15 +640,22 @@ async def async_stream_chat(
         raise RuntimeError(_classify_error(e)) from e
 
     first_token_seen = False
+    finish_reason = None
     try:
         async for chunk in response:
-            delta = chunk.choices[0].delta
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            finish_reason = getattr(choice, "finish_reason", None) or finish_reason
+            delta = choice.delta
             if delta.content:
                 if not first_token_seen:
                     first_token_seen = True
                     if on_first_token is not None:
                         on_first_token()
                 yield delta.content
+        if on_completion is not None:
+            on_completion(finish_reason)
     except Exception as e:
         raise RuntimeError(_classify_error(e)) from e
     finally:
@@ -662,6 +678,7 @@ def chat(
     request_max_retries: int | None = None,
     extra_body: Mapping[str, Any] | None = None,
     request_key: str | None = None,
+    on_completion: Callable[[str | None], None] | None = None,
 ) -> str:
     if not messages:
         return ""
@@ -688,6 +705,8 @@ def chat(
     )
     try:
         response = request_client.chat.completions.create(**request_kwargs)
+        if on_completion is not None:
+            on_completion(getattr(response.choices[0], "finish_reason", None))
         return response.choices[0].message.content or ""
     except Exception as e:
         raise RuntimeError(_classify_error(e)) from e
