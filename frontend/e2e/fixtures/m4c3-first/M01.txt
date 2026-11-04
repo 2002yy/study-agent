@@ -1,0 +1,509 @@
+这是您要的交互式函数演示界面，用滑块和按钮调整 x，直观看到 y=2x+1 的点与数值变化。
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>y = 2x + 1 · 交互演示</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #f9fbfd;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+      color: #1e2b3c;
+    }
+    .card {
+      max-width: 640px;
+      width: 100%;
+      background: white;
+      border-radius: 28px;
+      box-shadow: 0 12px 30px rgba(0, 20, 30, 0.08);
+      padding: 24px 20px 28px;
+      border: 1px solid #e2e9f0;
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 4px;
+      color: #0d1e2e;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .subhead {
+      font-size: 1rem;
+      color: #4e6279;
+      margin-bottom: 20px;
+      border-left: 4px solid #3a8fd9;
+      padding-left: 12px;
+      background: #f0f6fd;
+      border-radius: 0 12px 12px 0;
+      line-height: 1.4;
+      padding: 10px 12px;
+    }
+    .svg-wrap {
+      background: #ffffff;
+      border-radius: 24px;
+      padding: 8px 0 0 0;
+      margin-bottom: 20px;
+      border: 1px solid #dfe8f2;
+      box-shadow: inset 0 1px 4px rgba(0,0,0,0.02);
+    }
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-width: 100%;
+      background: transparent;
+    }
+    /* 坐标轴、网格颜色 */
+    .grid-line { stroke: #dbe4ed; stroke-width: 0.8; }
+    .axis-line { stroke: #8da2b8; stroke-width: 1.2; }
+    .axis-label { font-size: 14px; fill: #5a6e85; font-weight: 500; }
+    .point-label { font-size: 14px; font-weight: 600; fill: #0f2b46; }
+    .point-circle { fill: #e03a3a; stroke: #fff; stroke-width: 2.2; }
+    .line-graph { stroke: #1d6fbb; stroke-width: 2.8; stroke-linecap: round; }
+    .value-badge { font-size: 15px; font-weight: 600; fill: #0f2b46; }
+    .value-badge-bg { fill: #ffffffcc; stroke: #cbdae9; stroke-width: 1; rx: 8; }
+    .control-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      margin-top: 6px;
+    }
+    .slider-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+    }
+    .slider-row label {
+      font-size: 1rem;
+      font-weight: 500;
+      color: #1e3b5a;
+      min-width: 80px;
+    }
+    input[type="range"] {
+      flex: 1 1 180px;
+      height: 40px;
+      background: transparent;
+      cursor: pointer;
+      accent-color: #1d6fbb;
+      min-width: 140px;
+      padding: 0;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 8px;
+      background: #d6e2ef;
+      border-radius: 12px;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 28px;
+      height: 28px;
+      margin-top: -10px;
+      background: #1d6fbb;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      cursor: pointer;
+    }
+    input[type="range"]::-moz-range-track {
+      height: 8px;
+      background: #d6e2ef;
+      border-radius: 12px;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 28px;
+      height: 28px;
+      background: #1d6fbb;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      cursor: pointer;
+    }
+    .value-display {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 1.1rem;
+      background: #f1f7fe;
+      padding: 10px 16px;
+      border-radius: 40px;
+      border: 1px solid #d3e2f2;
+      justify-content: center;
+    }
+    .value-display span {
+      font-weight: 500;
+      color: #2f4a68;
+    }
+    .value-display output {
+      font-weight: 700;
+      font-size: 1.5rem;
+      color: #0f2b46;
+      background: white;
+      padding: 0 12px;
+      border-radius: 24px;
+      min-width: 3.2rem;
+      text-align: center;
+      border: 1px solid #b8d0e8;
+      line-height: 1.4;
+    }
+    .button-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 4px;
+    }
+    .btn {
+      background: white;
+      border: 1.5px solid #b6cee6;
+      color: #1d4a73;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0 20px;
+      height: 40px;
+      min-width: 80px;
+      border-radius: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+      flex: 1 1 auto;
+    }
+    .btn:hover, .btn:focus-visible {
+      background: #e8f1fb;
+      border-color: #1d6fbb;
+      outline: none;
+    }
+    .btn:active {
+      background: #d2e4f7;
+    }
+    .btn-primary {
+      background: #1d6fbb;
+      border-color: #1d6fbb;
+      color: white;
+    }
+    .btn-primary:hover, .btn-primary:focus-visible {
+      background: #135a9c;
+      border-color: #135a9c;
+    }
+    .note {
+      font-size: 0.9rem;
+      color: #5f738b;
+      text-align: center;
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+    /* 小屏微调 */
+    @media (max-width: 420px) {
+      .card { padding: 18px 14px 22px; }
+      h1 { font-size: 1.4rem; }
+      .subhead { font-size: 0.95rem; }
+      .value-display output { font-size: 1.3rem; min-width: 2.8rem; }
+      .btn { padding: 0 12px; font-size: 0.95rem; min-width: 64px; }
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>📈 y = 2x + 1</h1>
+  <div class="subhead">拖动滑块或点击按钮，观察直线上的点与数值变化。</div>
+
+  <!-- 图形区域：SVG 坐标轴 + 直线 + 点 -->
+  <div class="svg-wrap">
+    <svg viewBox="0 0 400 260" preserveAspectRatio="xMidYMid meet" aria-label="函数 y=2x+1 的图像，红色点随 x 变化">
+      <!-- 网格线（每10单位一条，对应x从-10到10，y从-10到10） -->
+      <g class="grid-line">
+        <!-- 垂直网格线：x = -10,-8,...,10 等间隔，但我们用更密的网格，每2单位一条？用每2单位一条，避免太密。这里用每2单位一条（缩放后） -->
+        <!-- 为了清晰，采用每2单位一条网格，但只画主要刻度线，视觉上够用 -->
+        <!-- 水平网格线 y = -10,-8,...,10 -->
+        <!-- 用循环生成？但静态SVG手写太多，改用JS动态生成？但为了简洁，用预置的路径？不如在JS里动态生成网格，但SVG内嵌JS也可以。不过为了不增加复杂度，改用<pattern>？但需要动态。我们用静态网格线，只画几条主要的。为了省事，直接画坐标轴和关键的几条线，避免代码膨胀。 -->
+        <!-- 这里改用CSS背景？不行。我们直接画几条关键网格线：x=-5,0,5; y=-5,0,5 等，但为了视觉参考，画每5单位一条。 -->
+      </g>
+      <!-- 手动绘制主要网格线（每5单位）和坐标轴，坐标映射：x范围[-10,10]映射到[30,370]，y范围[-10,10]映射到[230,30] 即 y轴向上为正，SVG向下为正，所以映射：y_svg = 130 - (y * 10) ？计算：原点(200,130)，x每单位10px，y每单位10px（因为x范围20单位映射到340px宽？不对，我们设定x从-10到10，共20单位，映射到x像素30到370，宽度340px，所以每单位17px。y从-10到10，映射到y像素230到30，高度200px，每单位10px。这样比例不同。为了视觉好看，让x和y比例一致：x范围20单位，宽度340px -> 每单位17px；y范围20单位，高度200px -> 每单位10px，比例不一致，直线会变形。需要等比例。我们调整：让x和y范围都是[-10,10]，映射到正方形区域？但宽高比400:260，所以需要让x和y像素比例一致。取y每单位 = 10px，则y总高度200px，x总宽度也应为200px（因为x范围20单位*10px=200px），但SVG宽400，所以x居中，左右留白。这样x映射：x_svg = 200 + x * 10；y_svg = 130 - y * 10。这样原点在(200,130)，x范围-10到10对应x_svg 100到300，y范围-10到10对应y_svg 230到30。完美。 -->
+      <!-- 重新计算：x_svg = 200 + x * 10; y_svg = 130 - y * 10; 这样直线y=2x+1在x=-10时y=-19，超出范围，但图像只显示可视区域，我们只画x从-6到6左右？但为了让用户看到x=3和x=-1，x=-1时y=-1，x=3时y=7，都在范围内。x=-10时y=-19超出，但直线会超出SVG视口，我们可以clip。为了简洁，直接绘制直线从x=-6到x=6（y=-11到13），部分超出但clip掉。或者用clipPath。简单起见，让直线只画在可见区域。我们计算直线与边界交点：x范围可视区域x_svg 100到300对应x -10到10，y_svg 30到230对应y 10到-10。直线y=2x+1。当y=10时x=4.5；当y=-10时x=-5.5。所以可见线段x从-5.5到4.5。我们就画这部分。 -->
+      <!-- 网格线：每2单位一条，在x_svg 100到300之间，x从-10到10步长2，共11条竖线；y从-10到10步长2，共11条横线。为了简洁，用JS生成？但我们在静态SVG里手写太多。改用JS动态生成网格和坐标轴，这样代码更清晰。但需要保证JS运行。我们在SVG内用<script>生成网格和坐标轴？但SVG内嵌script可能被某些环境阻止？一般可以。为了安全，我们在外面的script中操作SVG。 -->
+      <!-- 所以SVG只保留一个组，由JS填充。这样更简洁。 -->
+      <g id="grid-layer"></g>
+      <g id="axis-layer"></g>
+      <g id="graph-layer"></g>
+      <g id="point-layer"></g>
+    </svg>
+  </div>
+
+  <!-- 控制区 -->
+  <div class="control-panel">
+    <div class="slider-row">
+      <label for="xSlider">x 值</label>
+      <input type="range" id="xSlider" min="-5" max="5" step="0.1" value="3" aria-label="x 值滑块，范围 -5 到 5">
+    </div>
+
+    <div class="value-display">
+      <span>x =</span>
+      <output id="xOut">3.0</output>
+      <span>→</span>
+      <span>y = 2x + 1 =</span>
+      <output id="yOut">7.0</output>
+    </div>
+
+    <div class="button-group">
+      <button class="btn" id="setXneg1" aria-label="设置 x 为 -1">x = -1</button>
+      <button class="btn" id="setX3" aria-label="设置 x 为 3">x = 3</button>
+      <button class="btn btn-primary" id="resetBtn" aria-label="重置到 x=3">重置</button>
+    </div>
+    <div class="note">滑块范围 -5 到 5，步长 0.1。点始终在直线 y = 2x + 1 上。</div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    // ---------- 坐标映射 ----------
+    // 可视区域：x 从 -10 到 10 映射到 100 到 300（每单位10px）；y 从 -10 到 10 映射到 230 到 30（每单位10px）
+    const SVG_W = 400, SVG_H = 260;
+    const ORIGIN_X = 200, ORIGIN_Y = 130;
+    const SCALE = 10; // 每单位10像素
+
+    function toSvgX(x) { return ORIGIN_X + x * SCALE; }
+    function toSvgY(y) { return ORIGIN_Y - y * SCALE; }
+
+    // ---------- 获取 SVG 分组 ----------
+    const svg = document.querySelector('svg');
+    const gridLayer = document.getElementById('grid-layer');
+    const axisLayer = document.getElementById('axis-layer');
+    const graphLayer = document.getElementById('graph-layer');
+    const pointLayer = document.getElementById('point-layer');
+
+    // ---------- 清空图层 ----------
+    function clearLayer(layer) { while (layer.firstChild) layer.removeChild(layer.firstChild); }
+
+    // ---------- 绘制网格 ----------
+    function drawGrid() {
+      clearLayer(gridLayer);
+      const step = 2; // 每2单位一条网格线
+      // 垂直网格线（x = -10, -8, ..., 10）
+      for (let x = -10; x <= 10; x += step) {
+        if (x === 0) continue; // 轴线单独画
+        const sx = toSvgX(x);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', sx);
+        line.setAttribute('y1', toSvgY(-10));
+        line.setAttribute('x2', sx);
+        line.setAttribute('y2', toSvgY(10));
+        line.setAttribute('class', 'grid-line');
+        gridLayer.appendChild(line);
+      }
+      // 水平网格线（y = -10, -8, ..., 10）
+      for (let y = -10; y <= 10; y += step) {
+        if (y === 0) continue;
+        const sy = toSvgY(y);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', toSvgX(-10));
+        line.setAttribute('y1', sy);
+        line.setAttribute('x2', toSvgX(10));
+        line.setAttribute('y2', sy);
+        line.setAttribute('class', 'grid-line');
+        gridLayer.appendChild(line);
+      }
+    }
+
+    // ---------- 绘制坐标轴和刻度 ----------
+    function drawAxes() {
+      clearLayer(axisLayer);
+      // X 轴
+      const xAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      xAxis.setAttribute('x1', toSvgX(-10));
+      xAxis.setAttribute('y1', toSvgY(0));
+      xAxis.setAttribute('x2', toSvgX(10));
+      xAxis.setAttribute('y2', toSvgY(0));
+      xAxis.setAttribute('class', 'axis-line');
+      axisLayer.appendChild(xAxis);
+      // Y 轴
+      const yAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      yAxis.setAttribute('x1', toSvgX(0));
+      yAxis.setAttribute('y1', toSvgY(-10));
+      yAxis.setAttribute('x2', toSvgX(0));
+      yAxis.setAttribute('y2', toSvgY(10));
+      yAxis.setAttribute('class', 'axis-line');
+      axisLayer.appendChild(yAxis);
+
+      // 刻度标签（只标几个关键数字，避免拥挤）
+      const tickValues = [-5, 0, 5];
+      tickValues.forEach(val => {
+        if (val === 0) return;
+        // X 轴刻度
+        const tx = toSvgX(val);
+        const ty = toSvgY(0);
+        const labelX = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        labelX.setAttribute('x', tx);
+        labelX.setAttribute('y', ty + 18);
+        labelX.setAttribute('text-anchor', 'middle');
+        labelX.setAttribute('class', 'axis-label');
+        labelX.textContent = val;
+        axisLayer.appendChild(labelX);
+        // Y 轴刻度
+        const labelY = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        labelY.setAttribute('x', toSvgX(0) - 12);
+        labelY.setAttribute('y', toSvgY(val) + 5);
+        labelY.setAttribute('text-anchor', 'end');
+        labelY.setAttribute('class', 'axis-label');
+        labelY.textContent = val;
+        axisLayer.appendChild(labelY);
+      });
+      // 原点标签 0
+      const zeroLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      zeroLabel.setAttribute('x', toSvgX(0) - 10);
+      zeroLabel.setAttribute('y', toSvgY(0) + 18);
+      zeroLabel.setAttribute('text-anchor', 'end');
+      zeroLabel.setAttribute('class', 'axis-label');
+      zeroLabel.textContent = '0';
+      axisLayer.appendChild(zeroLabel);
+    }
+
+    // ---------- 绘制直线 y = 2x + 1 ----------
+    function drawLine() {
+      clearLayer(graphLayer);
+      // 计算可视区域内的线段端点（x从-6到6，足够覆盖）
+      const x1 = -6, y1 = 2 * x1 + 1; // -11
+      const x2 = 6, y2 = 2 * x2 + 1;  // 13
+      // 但为了不超出SVG太多，使用clipPath。简单起见，我们直接画，因为超出部分会被SVG视口裁剪。
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', toSvgX(x1));
+      line.setAttribute('y1', toSvgY(y1));
+      line.setAttribute('x2', toSvgX(x2));
+      line.setAttribute('y2', toSvgY(y2));
+      line.setAttribute('class', 'line-graph');
+      graphLayer.appendChild(line);
+    }
+
+    // ---------- 绘制当前点 ----------
+    function drawPoint(x) {
+      clearLayer(pointLayer);
+      const y = 2 * x + 1;
+      const cx = toSvgX(x);
+      const cy = toSvgY(y);
+
+      // 点
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', cx);
+      circle.setAttribute('cy', cy);
+      circle.setAttribute('r', 6);
+      circle.setAttribute('class', 'point-circle');
+      pointLayer.appendChild(circle);
+
+      // 标签背景（白色圆角矩形）
+      const labelText = `(${x.toFixed(1)}, ${y.toFixed(1)})`;
+      // 先创建文本以测量宽度？但测量需要DOM渲染，在SVG中可以用getComputedTextLength，但需要先挂载。简化：用固定宽度估算，或者直接画文本，背景用矩形宽度动态计算。
+      // 为了简单，我们使用带背景的文本，背景宽度根据文本长度估算。
+      const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      textEl.setAttribute('x', cx + 12);
+      textEl.setAttribute('y', cy - 10);
+      textEl.setAttribute('class', 'point-label');
+      textEl.textContent = labelText;
+      // 估算宽度：每个字符约8px
+      const approxWidth = labelText.length * 8 + 16;
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', cx + 8);
+      rect.setAttribute('y', cy - 26);
+      rect.setAttribute('width', approxWidth);
+      rect.setAttribute('height', 24);
+      rect.setAttribute('class', 'value-badge-bg');
+      rect.setAttribute('rx', 8);
+      pointLayer.appendChild(rect);
+      pointLayer.appendChild(textEl);
+    }
+
+    // ---------- 更新所有 ----------
+    function updateAll(x) {
+      // 更新输出
+      const y = 2 * x + 1;
+      document.getElementById('xOut').textContent = x.toFixed(1);
+      document.getElementById('yOut').textContent = y.toFixed(1);
+
+      // 重绘点
+      drawPoint(x);
+
+      // 通知 studyUI 状态
+      if (window.studyUI && typeof window.studyUI.setState === 'function') {
+        window.studyUI.setState({
+          x: parseFloat(x.toFixed(1)),
+          y: parseFloat(y.toFixed(1)),
+          observation: `当前 x = ${x.toFixed(1)}，y = 2x + 1 = ${y.toFixed(1)}`
+        });
+      }
+    }
+
+    // ---------- 初始化图形（网格、轴、直线） ----------
+    drawGrid();
+    drawAxes();
+    drawLine();
+
+    // ---------- 绑定控件 ----------
+    const slider = document.getElementById('xSlider');
+    const setXneg1 = document.getElementById('setXneg1');
+    const setX3 = document.getElementById('setX3');
+    const resetBtn = document.getElementById('resetBtn');
+
+    // 滑块事件
+    slider.addEventListener('input', (e) => {
+      const x = parseFloat(e.target.value);
+      updateAll(x);
+    });
+
+    // 按钮事件
+    setXneg1.addEventListener('click', () => {
+      slider.value = -1;
+      updateAll(-1);
+    });
+
+    setX3.addEventListener('click', () => {
+      slider.value = 3;
+      updateAll(3);
+    });
+
+    resetBtn.addEventListener('click', () => {
+      slider.value = 3;
+      updateAll(3);
+    });
+
+    // 初始状态 x = 3
+    slider.value = 3;
+    updateAll(3);
+
+    // ---------- 恢复上次状态（如果支持） ----------
+    if (window.studyUI && typeof window.studyUI.onRestore === 'function') {
+      window.studyUI.onRestore((snapshot) => {
+        // 从快照恢复 x，如果无效则回退到 3
+        let restoredX = 3;
+        if (snapshot && typeof snapshot.x === 'number' && !isNaN(snapshot.x)) {
+          // 限制在滑块范围内
+          restoredX = Math.min(5, Math.max(-5, snapshot.x));
+        }
+        slider.value = restoredX;
+        updateAll(restoredX);
+      });
+    }
+  })();
+</script>
+</body>
+</html>
+```
+### 操作方式与视觉反馈
+
+- **滑块与按钮**：拖动滑块或点击“x = -1”“x = 

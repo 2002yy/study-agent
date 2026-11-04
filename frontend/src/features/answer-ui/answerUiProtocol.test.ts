@@ -5,6 +5,17 @@ import { CHAT_VISUAL_DESIGN } from "./chatVisualDesign";
 const plot = JSON.stringify({ type: "plot", title: "函数", fn: "quadratic", a: 1, b: 0 });
 const block = (raw: string) => `\`\`\`study-ui\n${raw}\n\`\`\``;
 describe("answer UI wire format", () => {
+  it("identifies standalone HTML as unexecuted source and preserves copying and surrounding text", () => {
+    const source = '```html\n<!DOCTYPE html>\n<html><body><script>alert(1)</script></body></html>\n```';
+    const content = `说明\n${source}\n后文`;
+    expect(splitAnswerContent(content).map(p => p.kind)).toEqual(["markdown", "html-source", "markdown"]);
+    expect(answerCopyText(source)).toBe(source);
+    expect(splitAnswerContent(source, true).every(p => p.kind === "markdown")).toBe(true);
+    expect(splitAnswerContent(source.slice(0, -3))[0].kind).toBe("html-source");
+    for (const snippet of ['```html\n<button>例子</button>\n```', `~~~~markdown\n${source}\n~~~~`]) {
+      expect(splitAnswerContent(snippet).every(p => p.kind === "markdown")).toBe(true);
+    }
+  });
   it("recognizes CRLF fences without executing nested examples", () => {
     expect(splitAnswerContent(block(plot).replace(/\n/g, "\r\n"))[0].kind).toBe("card");
     expect(splitAnswerContent(("````markdown\n" + block(plot) + "\n````").replace(/\n/g, "\r\n")).every(p => p.kind === "markdown")).toBe(true);

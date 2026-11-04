@@ -110,7 +110,7 @@ def run_batch(
         "LLM_SPEND_INPUT_CNY_PER_MTOK": "9",
         "LLM_SPEND_OUTPUT_CNY_PER_MTOK": "27",
         "LLM_SPEND_DEFAULT_MAX_TOKENS": "1400",
-        "LLM_MAX_TOKENS": "9000",
+        "LLM_MAX_TOKENS": "16384",
         "LLM_EXPERIMENT_ALLOWED_MODELS": "deepseek-flash",
         spend.SETTLEMENT_ASSEMBLY_FLAG: "off",
     }

@@ -37,9 +37,14 @@ def test_manifest_preserves_twelve_independent_first_attempts():
     assert manifest["paid_authorized"] is False
     assert manifest["blocking_gates"]
     assert all(case["offline_budget"]["kind"] == "interactive" for case in cases)
-    assert all(case["offline_budget"]["max_tokens"] == 6000 for case in cases)
+    assert all(case["offline_budget"]["max_tokens"] == 16384 for case in cases)
     frozen = Path(__file__).resolve().parents[1] / "docs/M4C3_PROMPTS_V1.json"
-    assert json.loads(frozen.read_text(encoding="utf-8")) == manifest
+    baseline = json.loads(frozen.read_text(encoding="utf-8"))
+    # The completed V1 experiment stays immutable; current product budgets may grow.
+    assert all(c["offline_budget"]["max_tokens"] == 6000 for c in baseline["cases"])
+    for before, current in zip(baseline["cases"], cases, strict=True):
+        before["offline_budget"] = current["offline_budget"]
+    assert baseline == manifest
 
 
 def test_cli_never_overwrites_prior_batch_evidence(tmp_path, monkeypatch):

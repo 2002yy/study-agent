@@ -81,7 +81,8 @@ export function parseAnswerCard(raw: string): AnswerCard | null {
 
 export type AnswerPart = { kind: "markdown"; content: string; key: number }
   | { kind: "card"; card: AnswerCard; key: number } | { kind: "pending"; key: number }
-  | { kind: "incomplete"; content: string; key: number };
+  | { kind: "incomplete"; content: string; key: number }
+  | { kind: "html-source"; content: string; key: number };
 
 export function splitAnswerContent(content: string, streaming = false): AnswerPart[] {
   const parts: AnswerPart[] = [];
@@ -95,8 +96,19 @@ export function splitAnswerContent(content: string, streaming = false): AnswerPa
     const ui = open[2].trim() === "study-ui";
     let end = i + 1;
     while (end < lines.length && !new RegExp(`^ {0,3}${marker[0]}{${marker.length},}\\s*$`).test(lines[end])) end++;
-    if (!ui) { i = end; continue; }
     const raw = lines.slice(i + 1, end).join("\n");
+    if (!ui) {
+      // A standalone HTML document is still source, never an executable card.
+      // Keep snippets and nested Markdown examples on the ordinary code path.
+      if (!streaming && open[2].trim().toLowerCase() === "html"
+        && /^\s*(?:<!doctype\s+html\b[^>]*>\s*)?<html(?:\s|>)/i.test(raw)) {
+        if (i > start) parts.push({ kind: "markdown", content: lines.slice(start, i).join("\n"), key: start });
+        parts.push({ kind: "html-source", content: lines.slice(i, Math.min(end + 1, lines.length)).join("\n"), key: i });
+        start = Math.min(end + 1, lines.length);
+      }
+      i = end;
+      continue;
+    }
     const unfinishedApp = cards < 4 && !streaming && /"type"\s*:\s*"interactive"/.test(raw) && (end === lines.length || !parseAnswerCard(raw));
     if (unfinishedApp) {
       if (i > start) parts.push({ kind: "markdown", content: lines.slice(start, i).join("\n"), key: start });
@@ -144,7 +156,7 @@ export function packAnswerUiContext(instruction: string, lesson: string): string
 
 export function answerCopyText(content: string): string {
   return splitAnswerContent(content).map(part => {
-    if (part.kind === "markdown") return part.content.trimEnd();
+    if (part.kind === "markdown" || part.kind === "html-source") return part.content.trimEnd();
     if (part.kind === "pending") return "";
     if (part.kind === "incomplete") return "交互内容未完整生成，可请求生成完整版本。";
     const c = part.card;

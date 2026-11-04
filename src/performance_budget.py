@@ -13,12 +13,8 @@ def normalize_performance_mode(mode: str | None) -> str:
 
 
 def chat_max_tokens(mode: str | None) -> int:
-    mode = normalize_performance_mode(mode)
-    return {
-        "fast": 700,
-        "standard": 1100,
-        "deep": 1600,
-    }[mode]
+    # Keep the argument for persisted clients; speed modes no longer shorten answers.
+    return 8192
 
 
 def interactive_reply_budget(
@@ -92,20 +88,7 @@ def interactive_reply_budget(
     kind = "text"
     if enabled and not text_only and not explanation and (modify or create or explore):
         kind = "interactive"
-        if re.search(
-            r"多面板|多个视图|联动面板|复杂动画|multi.panel|dashboard", text
-        ) or (modify and len(previous) > 16000):
-            kind = "interactive_complex"
-        elif not modify and re.search(
-            r"简单|单个滑块|一个滑块|simple|single slider", text
-        ):
-            kind = "interactive_simple"
-    ceiling = {
-        "text": default,
-        "interactive_simple": 3500,
-        "interactive": 6000,
-        "interactive_complex": 9000,
-    }[kind]
+    ceiling = 16384 if kind == "interactive" else default
     return {
         "kind": kind,
         "max_tokens": max(default, ceiling),

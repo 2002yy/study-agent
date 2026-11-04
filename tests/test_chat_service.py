@@ -20,7 +20,7 @@ from src.tools.web_agent import WebToolTrace
 
 @pytest.mark.parametrize("transport", ["generate", "stream", "stream_async"])
 @pytest.mark.parametrize("capability", [False, True])
-@pytest.mark.parametrize(("question", "budget"), [("制作交互示意", 6000), ("解释 final 的含义", 1000), ("做一个简单交互图", 3500), ("制作多面板交互界面", 9000)])
+@pytest.mark.parametrize(("question", "budget"), [("制作交互示意", 16384), ("解释 final 的含义", 1000), ("做一个简单交互图", 16384), ("制作多面板交互界面", 16384)])
 def test_interactive_output_budget_reaches_every_answer_transport(
     tmp_path, transport, capability, question, budget
 ):
