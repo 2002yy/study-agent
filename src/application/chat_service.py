@@ -1573,8 +1573,11 @@ class ChatService:
                 lambda: self._chat_within_scope(prepared)(
                     list(messages),
                     model_profile=prepared.route["model_profile"],
-                    max_tokens=self.dependencies.chat_max_tokens(
-                        prepared.runtime_modes.performance_mode
+                    max_tokens=min(
+                        self.dependencies.chat_max_tokens(
+                            prepared.runtime_modes.performance_mode
+                        ),
+                        1600,  # Claim binding is structured metadata, not the user answer.
                     ),
                     task_name="answer_claim_binding",
                     request_max_retries=0,
