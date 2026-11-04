@@ -145,8 +145,11 @@ export const HTML_FAULTS: HtmlFault[] = [
     taskId: "J01",
     layer: "state",
     checkId: "reassigned-objects",
-    description: "重新指向后仍写同一个对象",
-    html: fixtures.J01_CORRECT.replace('"objectOfB":2', '"objectOfB":1'),
+    description: "重新指向后仍显示并指向同一个对象",
+    html: fixtures.J01_CORRECT.replace('"objectOfB":2', '"objectOfB":1')
+      .replace('data-arrow="arrow-b" data-from="node-b" data-to="node-new-object"',
+        'data-arrow="arrow-b" data-from="node-b" data-to="node-a"')
+      .replace('x2="260" y2="50"', 'x2="100" y2="70"'),
   },
   {
     id: "HS03",

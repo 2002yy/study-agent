@@ -154,6 +154,16 @@ async function readSnapshot(page: EvidenceHost): Promise<Snapshot> {
 
     const arrows: Arrow[] = [];
     document.querySelectorAll("line").forEach(line => {
+      const style = getComputedStyle(line);
+      const rect = line.getBoundingClientRect();
+      if ((!rect.width && !rect.height) || style.visibility !== "visible"
+        || style.stroke === "none" || style.stroke === "transparent"
+        || /rgba\([^)]*,\s*0\)$/.test(style.stroke)
+        || Number.parseFloat(style.strokeWidth) <= 0 || Number(style.strokeOpacity) === 0) return;
+      for (let ancestor: Element | null = line; ancestor; ancestor = ancestor.parentElement) {
+        const ancestorStyle = getComputedStyle(ancestor);
+        if (ancestorStyle.display === "none" || Number(ancestorStyle.opacity) === 0) return;
+      }
       const x1 = Number(line.getAttribute("x1"));
       const y1 = Number(line.getAttribute("y1"));
       const x2 = Number(line.getAttribute("x2"));

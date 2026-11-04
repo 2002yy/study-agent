@@ -5,6 +5,13 @@ import { FAULTS } from "./faults";
 import { TASK_SPECS, judge, summarize } from "./model";
 
 describe("frozen M4-C acceptance model", () => {
+  it.each(["shared", "reassigned"])("rejects incorrect observed J01 references in %s", phase => {
+    const observation = correctObservation("J01");
+    observation.phases[phase].observed.objectOfA = 2;
+    if (phase === "shared") observation.phases.shared.observed.objectOfB = 2;
+    const results = judge(TASK_SPECS.find(spec => spec.id === "J01")!, observation);
+    expect(results.find(check => check.checkId === (phase === "shared" ? "shared-object" : "reassigned-objects"))?.status).toBe("fail");
+  });
   it("freezes twelve tasks across eight domains", () => {
     expect(TASK_SPECS).toHaveLength(12);
     expect(new Set(TASK_SPECS.map(spec => spec.domain)).size).toBeGreaterThanOrEqual(8);

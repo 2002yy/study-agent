@@ -114,9 +114,11 @@ export async function capture(host: EvidenceHost, rootSelector = "body"): Promis
       return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
     };
     const fontSizes = Array.from(
-      root.querySelectorAll("p, span, div, button, label, li, td, th, h1, h2, h3")
+      [root, ...root.querySelectorAll("*")]
     )
       .filter(visible)
+      .filter(element => Array.from(element.childNodes).some(node =>
+        node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim())))
       .map(element => Number.parseFloat(getComputedStyle(element).fontSize))
       .filter(value => Number.isFinite(value));
     const controlSizes = Array.from(

@@ -21,6 +21,17 @@ const a02 = TASK_SPECS.find(spec => spec.id === "A02")!;
 const m01 = TASK_SPECS.find(spec => spec.id === "M01")!;
 const p01 = TASK_SPECS.find(spec => spec.id === "P01")!;
 
+for (const label of ["<svg width='150' height='60'><text x='5' y='25' style='font-size:10px'>small</text></svg>",
+  "<small style='font-size:10px'>small</small>", "<pre style='font-size:10px'>small</pre>",
+  "<code style='font-size:10px'>small</code>"]) {
+  test(`measures small visible text: ${label.slice(0, 6)}`, async ({ page }) => {
+    const errors = watchErrors(page);
+    await page.setContent(`<body style='font-size:16px'><div>${label}</div><button style='font-size:16px'>ok</button></body>`);
+    const evidence = await capture(page);
+    expect(judgeUsability(observationOf({}, errors, evidence)).find(check => check.checkId === "usability-font")?.status).toBe("fail");
+  });
+}
+
 function asObservation(evidence: RawEvidence, errors: ErrorCapture): Observation {
   return {
     phases: { reassigned: j01Phase(evidence, evidence.text) },
@@ -70,8 +81,8 @@ test("detects an arrow that does not reach its object", async ({ page }) => {
 test("detects a page whose printed numbers disagree with its picture", async ({ page }) => {
   const { observation } = await run(page, fixtures.J01_PICTURE_LIES);
 
-  // The declared counts are the correct ones, so only the cross-check can catch it.
-  expect(result(observation, "reassigned-objects")?.status).toBe("pass");
+  // Correct printed claims cannot override the independently drawn identities.
+  expect(result(observation, "reassigned-objects")?.status).toBe("fail");
   expect(result(observation, "evidence-consistent")?.status).toBe("fail");
 });
 

@@ -7,6 +7,15 @@ import { j01Page } from "./semanticFixtures";
 
 const j01 = TASK_SPECS.find(spec => spec.id === "J01")!;
 
+for (const style of ["display:none", "visibility:hidden", "stroke:none", "stroke-opacity:0", "opacity:0"]) {
+  test(`excludes invisible arrow evidence: ${style}`, async ({ page }) => {
+    const errors = watchErrors(page);
+    const observation = await observeJ01(page, errors, j01Page("html").replace("</head>", `<style>line{${style}}</style></head>`));
+    expect(judge(j01, observation).find(check => check.checkId === "evidence-consistent")?.status).toBe("indeterminate");
+    expect(summarize(judge(j01, observation)).indeterminate.length).toBeGreaterThan(0);
+  });
+}
+
 function check(observation: Awaited<ReturnType<typeof observeJ01>>, id: string) {
   return judge(j01, observation).find(result => result.checkId === id);
 }

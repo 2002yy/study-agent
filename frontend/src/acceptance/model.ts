@@ -309,8 +309,8 @@ export const TASK_SPECS: TaskSpec[] = [
     prompt: "制作两个引用共享对象的逐步实验：修改共享对象、再重新指向，观察对象数量与箭头。",
     checks: [
       { kind: "runtime-clean", id: "runtime" },
-      { kind: "numbers-equal", id: "shared-object", phase: "shared", expected: { objectOfA: 1, objectOfB: 1 } },
-      { kind: "numbers-equal", id: "reassigned-objects", phase: "reassigned", expected: { objectOfA: 1, objectOfB: 2 } },
+      { kind: "numbers-equal", id: "shared-object", phase: "shared", source: "observed", expected: { objectOfA: 1, objectOfB: 1 } },
+      { kind: "numbers-equal", id: "reassigned-objects", phase: "reassigned", source: "observed", expected: { objectOfA: 1, objectOfB: 2 } },
       {
         kind: "svg-arrow-near",
         id: "arrow-points-at-its-object",
