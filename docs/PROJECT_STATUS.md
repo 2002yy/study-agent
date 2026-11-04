@@ -52,6 +52,10 @@ owner=orchestration-contract/UI。自动模型只按任务路由规则选择，�
 验证：后端聊天/设置/策略/记忆及路由影响集341 PASS/137.30s；前端126文件703 PASS，tsc通过；
 桌面/手机设置保存→刷新→none/pro聊天请求2 PASS，手机截图目视PASS；src mypy118/128、新增0，Ruff/diff-check通过。
 浏览器保存回读用受控API fixture，真实后端设置往返另由TestClient测试覆盖。独立前后端增量审阅CLEAN。
+外部审阅2个有效P2已在同片修复：完整记忆范围/旧deep速度档不再触发deep_requested，
+显式深度研究仍由原请求文本/专用研究入口解析；普通/Policy保存deep范围的21项直接回归通过。
+新闻摘要、讨论、群聊开场的模型解析器也去除旧速度覆盖，显式模型优先，auto保留原flash默认；
+3真实入口×3模型选择×3旧档及相邻影响集46 PASS。未改变新闻输出预算或自动增加调用。
 用户随后明确选择“先做本地技能导入与使用”，下一片复用现有MemoryPanel/MemoryService，
 实现SKILL.md文本导入、启停和本轮选用；不执行技能脚本，不增加模型调用。
 

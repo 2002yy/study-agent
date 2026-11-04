@@ -917,8 +917,7 @@ class ChatService:
                     research_intent=bool(
                         (route.get("task_contract") or {}).get("task_intent") == "research"
                     ),
-                    deep_requested=(context_mode == "deep")
-                    or (command.performance_mode == "deep"),
+                    deep_requested=False,  # Memory scope is not a research instruction.
                 )
             else:
                 web_tools = WebToolTrace(enabled=False)

@@ -552,7 +552,7 @@ class ExternalDataPolicyChatService(ChatService):
                     attachment_material=_turn_attachment_material(self.repository, turn_id),
                     research_intent=task_contract.task_intent == "research",
                     history_allowed=decision.history_allowed,
-                    deep_requested=(context_mode == "deep") or (command.performance_mode == "deep"),
+                    deep_requested=False,  # Explicit research is selected by the request text.
                 )
             else:
                 web_tools = WebToolTrace(enabled=False)
