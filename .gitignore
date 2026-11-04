@@ -27,6 +27,7 @@ rag-quality-baseline.json
 # runtime
 config/runtime_state.yaml
 config/frontend_settings.yaml
+config/local_skills.json
 logs/
 backups/
 output/

@@ -33,6 +33,7 @@ from src.application.chat_service import (
     _web_context_provenance,
 )
 from src.application.helpers import load_frontend_settings, resolve_context_mode
+from src.application.skill_context import bound_skill_ids, selected_skill_context
 from src.application.learning_authority_projection import (
     resolve_expected_concepts,
 )
@@ -295,6 +296,10 @@ class ExternalDataPolicyChatService(ChatService):
             policy_command
         )
         command = cast(PolicyChatCommand, validated_command)
+        parent = existing or retry_parent
+        command = replace(command, selected_skill_ids=bound_skill_ids(
+            command.selected_skill_ids, parent.route_snapshot if parent else None
+        ))
         from src.application.review_turn_context import resolve_review_answer, review_evaluation_inputs
 
         review_binding = resolve_review_answer(self.repository, command, existing or retry_parent)
@@ -408,6 +413,9 @@ class ExternalDataPolicyChatService(ChatService):
         base_reply = ""
         try:
             cancel_check("route")
+            skill_instruction, skill_record = selected_skill_context(
+                command.selected_skill_ids, allowed=effective_cloud_context_policy == "allow_local_evidence"
+            )
             route = self.dependencies.route_request(
                 user_input=command.user_input,
                 selected_role=command.selected_role,
@@ -429,6 +437,8 @@ class ExternalDataPolicyChatService(ChatService):
                 memory_consent=memory_consent_granted,
             )
             route = {**route, "external_data_policy": decision.to_dict()}
+            if skill_record:
+                route["skills"] = skill_record
             if review_binding is not None:
                 route["review"] = review_binding.snapshot("answer")
             # Learning State-1 §2.4: expected_concepts are evaluation targets and
@@ -556,6 +566,7 @@ class ExternalDataPolicyChatService(ChatService):
             from src.web.research.research_interaction import steering_answer_instruction
 
             effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
+            effective_instruction = "\n\n".join(part for part in (effective_instruction, skill_instruction) if part)
             web_context = "\n\n".join(
                 part
                 for part in (
@@ -612,12 +623,14 @@ class ExternalDataPolicyChatService(ChatService):
                 ),
                 "answer_data_categories": [
                     "current_question",
+                    *(["skill_context"] if skill_instruction else []),
                     *(["recent_chat"] if sent_history else []),
                     *(["learning_state"] if decision.memory_allowed else []),
                     *(["memory_context"] if memory_bundle else []),
                     *(["local_evidence"] if local_evidence_units else []),
                     *(["web_results"] if web_context else []),
                 ],
+                "skill_count": skill_record.get("count", 0),
                 "external_calls": [
                     *(
                         [semantic_call]
@@ -851,6 +864,7 @@ class ExternalDataPolicyChatService(ChatService):
                 "memory_context": 1,
                 "local_evidence": int(current.get("local_evidence_chunk_count") or 0),
                 "web_results": 1,
+                "skill_context": int(current.get("skill_count") or 0),
             }
             answer = {
                 "call_id": "answer_generation:1",

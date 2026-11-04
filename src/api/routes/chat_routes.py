@@ -824,6 +824,7 @@ def _chat_command(
         scene=request.scene,
         conversation_instruction=request.conversation_instruction,
         performance_mode=request.performance_mode,
+        selected_skill_ids=request.selected_skill_ids,
         context_mode=request.context_mode,
         previous_mode=request.previous_mode,
         chat_history=[message.model_dump() for message in request.chat_history],
