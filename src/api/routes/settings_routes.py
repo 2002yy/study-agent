@@ -70,6 +70,10 @@ def get_runtime_settings() -> RuntimeSettingsResponse:
 @router.patch("/runtime/settings", response_model=RuntimeSettingsResponse)
 def patch_runtime_settings(request: RuntimeSettingsPatch) -> RuntimeSettingsResponse:
     frontend_settings = load_frontend_settings()
+    if request.context_mode is not None:
+        frontend_settings["context_mode"] = validate_choice(
+            request.context_mode, ("", "none", "fast", "light", "deep", "archive"), "context_mode"
+        )
     if request.selected_role is not None:
         frontend_settings["selected_role"] = validate_choice(
             request.selected_role, ROLE_OPTIONS, "selected_role"

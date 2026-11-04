@@ -124,17 +124,19 @@ const modelDescriptions: Record<string, string> = {
 };
 
 const contextModeOptions = [
-  ["", "自动"],
-  ["fast", "快速"],
-  ["light", "标准"],
-  ["deep", "深度"],
+  ["", "默认记忆范围"],
+  ["none", "不读个人记忆"],
+  ["fast", "当前学习要点"],
+  ["light", "学习摘要"],
+  ["deep", "完整记忆范围"],
 ] as const;
 
 const contextModeDescriptions: Record<string, string> = {
-  "": "沿用系统当前运行档位。",
-  fast: "优先速度，减少上下文和输出预算。",
-  light: "平衡速度和质量，适合大多数学习对话。",
-  deep: "读取更多上下文，适合复杂问题和复盘。",
+  "": "使用默认记忆读取范围，不改变模型或回答额度。",
+  none: "不读取个人记忆文件；当前问题和本会话内容仍可用于回答。",
+  fast: "只读取记忆索引与当前关注，不改变运行速度或回答额度。",
+  light: "读取常用资料与学习摘要，不改变模型或回答额度。",
+  deep: "读取较完整的记忆文件，适合需要既有背景的任务。",
 };
 
 const relationshipOptions = [
@@ -445,7 +447,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
           <small className="field-hint">{modelDescriptions[chatSettings.selectedModel]}</small>
 
           <label className="field-row">
-            <span>上下文深度</span>
+            <span>个人记忆读取范围</span>
             <select
               disabled={isSending}
               value={chatSettings.contextMode}

@@ -366,6 +366,7 @@ export function useLearningSessionRuntime(options: {
       selectedModel: settings.selected_model,
       relationshipMode: settings.relationship_mode,
       contextMode:
+        settings.context_mode === "none" ||
         settings.context_mode === "fast" ||
         settings.context_mode === "light" ||
         settings.context_mode === "deep"

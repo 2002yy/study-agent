@@ -83,11 +83,7 @@ def estimate_tokens(text: str) -> int:
 
 
 def suggest_model_by_rules(user_input: str, performance_mode: str = "standard") -> str:
-    if performance_mode == "fast":
-        return "flash"
-    if performance_mode == "deep":
-        return "pro"
-
+    # Legacy mode argument remains readable; task signals determine the model.
     text = user_input.lower()
     pro_keywords = ["论文", "代码", "bug", "方案", "架构", "原理", "机制"]
     flash_keywords = ["复盘", "总结", "简单", "闲聊", "入门"]

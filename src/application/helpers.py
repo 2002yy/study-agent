@@ -51,6 +51,7 @@ WORKFLOW_DIR_DEFAULT = ROOT / "logs" / "workflows"
 MEMORY_DIR_DEFAULT = ROOT / "memory"
 
 DEFAULT_FRONTEND_SETTINGS = {
+    "context_mode": "",
     "selected_role": "auto",
     "selected_mode": "auto",
     "selected_model": "auto",
@@ -131,6 +132,10 @@ def _frontend_settings_defaults() -> dict[str, Any]:
 
 def _normalize_frontend_settings(settings: dict[str, Any]) -> dict[str, Any]:
     normalized = _frontend_settings_defaults()
+    context_mode = settings.get("context_mode", "")
+    normalized["context_mode"] = (
+        context_mode if context_mode in ("", "none", "fast", "light", "deep", "archive") else "none"
+    )
     selected_role = settings.get("selected_role")
     if selected_role in ROLE_OPTIONS:
         normalized["selected_role"] = selected_role
@@ -209,6 +214,14 @@ def load_frontend_settings() -> dict[str, Any]:
     settings = _frontend_settings_defaults()
     settings.update({key: value for key, value in data.items() if key in settings})
     return _normalize_frontend_settings(settings)
+
+
+def resolve_context_mode(requested: str | None, fallback: str = "light") -> str:
+    """Resolve memory scope independently of legacy speed settings."""
+    from src.memory import CONTEXT_FILE_GROUPS
+
+    scope = requested or load_frontend_settings().get("context_mode") or fallback
+    return scope if isinstance(scope, str) and scope in CONTEXT_FILE_GROUPS else "none"
 
 
 def write_frontend_settings(settings: dict[str, Any]) -> None:
@@ -529,7 +542,7 @@ def runtime_settings_payload() -> Any:
         "debug_mode": modes.debug_mode,
         "safe_mode": modes.safe_mode,
         "route_mode": modes.route_mode,
-        "context_mode": modes.context_mode,
+        "context_mode": load_frontend_settings().get("context_mode", ""),
         "current_version": modes.current_version,
         "active_task": modes.active_task,
         "next_version": modes.next_version,
@@ -613,7 +626,7 @@ def prepare_chat_context(request: Any) -> dict[str, Any]:
     from src.context_builder import build_messages as _build_messages
 
     runtime_modes = runtime_modes_for_request(request.performance_mode)
-    context_mode = request.context_mode or runtime_modes.context_mode
+    context_mode = resolve_context_mode(request.context_mode, runtime_modes.context_mode)
 
     # If this is a continuation request, build a system instruction instead of
     # a user-visible message

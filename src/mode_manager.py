@@ -88,18 +88,18 @@ def build_runtime_profile(modes: RuntimeModes) -> RuntimeProfile:
     if modes.performance_mode == "fast":
         allow_llm_router = False
         llm_router_reason = "fast_mode"
-        preferred_model = "flash"
-        context_mode = "fast"
+        preferred_model = None
+        context_mode = "light"
     elif modes.route_mode == "hybrid":
         allow_llm_router = True
         llm_router_reason = "hybrid"
-        preferred_model = "pro" if modes.performance_mode == "deep" else None
-        context_mode = "deep" if modes.performance_mode == "deep" else "light"
+        preferred_model = None
+        context_mode = "light"
     else:
         allow_llm_router = False
         llm_router_reason = modes.route_mode
-        preferred_model = "pro" if modes.performance_mode == "deep" else None
-        context_mode = "deep" if modes.performance_mode == "deep" else "light"
+        preferred_model = None
+        context_mode = "light"
 
     if modes.safe_mode:
         allow_article_network_read = False

@@ -134,11 +134,7 @@ MODE_RULES = {
     "项目": PROJECT_MODE_PROMPT,
 }
 
-CHAT_HISTORY_LIMITS = {
-    "fast": 8,
-    "standard": 18,
-    "deep": 30,
-}
+CHAT_HISTORY_LIMIT = 30
 
 
 def build_internal_mode_prompt(modes: RuntimeModes) -> str:
@@ -156,7 +152,7 @@ def _select_memory(
     memory_bundle: dict[str, str], context_mode: str
 ) -> list[tuple[str, str]]:
     selected = []
-    for name in CONTEXT_FILE_GROUPS.get(context_mode, CONTEXT_FILE_GROUPS["light"]):
+    for name in CONTEXT_FILE_GROUPS.get(context_mode, []):
         content = memory_bundle.get(name, "")
         if not content or content.startswith("[missing:"):
             continue
@@ -226,7 +222,7 @@ def build_system_prompt(
 
 
 def chat_history_limit(runtime_modes: RuntimeModes) -> int:
-    return CHAT_HISTORY_LIMITS.get(runtime_modes.performance_mode, CHAT_HISTORY_LIMITS["standard"])
+    return CHAT_HISTORY_LIMIT
 
 
 def trim_duplicate_current_user_input(

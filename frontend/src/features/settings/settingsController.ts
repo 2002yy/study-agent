@@ -23,14 +23,7 @@ export function useSettingsController(options: {
         selected_mode: options.chatSettings.selectedMode,
         selected_model: options.chatSettings.selectedModel,
         relationship_mode: options.chatSettings.relationshipMode,
-        performance_mode:
-          options.chatSettings.contextMode === "fast"
-            ? "fast"
-            : options.chatSettings.contextMode === "deep"
-              ? "deep"
-              : options.chatSettings.contextMode === "light"
-                ? "standard"
-                : undefined,
+        context_mode: options.chatSettings.contextMode,
         rag_enabled: options.ragEnabled,
         rag_retrieval_mode: options.ragSettings.retrievalMode,
         rag_search_top_k: options.ragSettings.topK,

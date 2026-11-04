@@ -38,7 +38,11 @@ def get_memory_status(context_mode: str | None = None) -> MemoryStatusResponse:
     from src.memory import CONTEXT_FILE_GROUPS
 
     modes = _api.load_runtime_modes()
-    resolved_context_mode = context_mode or modes.context_mode
+    from src.application.helpers import resolve_context_mode
+
+    if context_mode and context_mode not in CONTEXT_FILE_GROUPS:
+        raise HTTPException(status_code=400, detail=f"Invalid context_mode: {context_mode}")
+    resolved_context_mode = resolve_context_mode(context_mode, modes.context_mode)
     if resolved_context_mode not in CONTEXT_FILE_GROUPS:
         raise HTTPException(status_code=400, detail=f"Invalid context_mode: {resolved_context_mode}")
     writable = _api.is_memory_write_allowed(modes)

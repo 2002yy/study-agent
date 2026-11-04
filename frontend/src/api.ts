@@ -137,7 +137,7 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     relationship_mode: options.chatSettings.relationshipMode,
     scene: options.scene ?? "single",
     conversation_instruction: options.conversationInstruction ?? "",
-    performance_mode: performanceModeFromContext(options.chatSettings.contextMode),
+    performance_mode: null,
     context_mode: options.chatSettings.contextMode || null,
     previous_mode: options.previousMode ?? null,
     chat_history: history.map((message) => ({
@@ -167,19 +167,6 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     // Explicit older-version choice; the HTML never travels from the browser.
     interactive_restore: restore ? { id: restore.id, revision: restore.revision } : null
   };
-}
-
-function performanceModeFromContext(contextMode: string): "fast" | "standard" | "deep" | null {
-  if (contextMode === "fast") {
-    return "fast";
-  }
-  if (contextMode === "deep") {
-    return "deep";
-  }
-  if (contextMode === "light") {
-    return "standard";
-  }
-  return null;
 }
 
 function parseSseMessages(raw: string): SseMessage[] {
@@ -353,7 +340,7 @@ export async function createWechatOpening(chatSettings: ChatSettings, groupThrea
       selected_role: chatSettings.selectedRole,
       selected_model: chatSettings.selectedModel,
       relationship_mode: chatSettings.relationshipMode,
-      performance_mode: performanceModeFromContext(chatSettings.contextMode),
+      performance_mode: null,
       group_thread_id: groupThreadId
     })
   });
@@ -388,7 +375,7 @@ function buildWechatPayload(
     group_thread_id: options.groupThreadId,
     selected_model: options.chatSettings.selectedModel,
     relationship_mode: options.chatSettings.relationshipMode,
-    performance_mode: performanceModeFromContext(options.chatSettings.contextMode),
+    performance_mode: null,
     rag_enabled: options.ragEnabled,
     rag_top_k: options.ragSettings.chatTopK,
     rag_search_top_k: options.ragSettings.topK,
@@ -573,7 +560,7 @@ export async function digestNewsRun(
     signal: requestOptions.signal,
     body: JSON.stringify({
       selected_model: chatSettings.selectedModel,
-      performance_mode: performanceModeFromContext(chatSettings.contextMode)
+      performance_mode: null
     })
   });
 }
@@ -591,7 +578,7 @@ export async function discussNewsRun(
       group_thread_id: groupThreadId,
       selected_model: chatSettings.selectedModel,
       relationship_mode: chatSettings.relationshipMode,
-      performance_mode: performanceModeFromContext(chatSettings.contextMode)
+      performance_mode: null
     })
   });
 }
