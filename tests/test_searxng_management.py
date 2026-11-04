@@ -1,4 +1,9 @@
 from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,7 +17,7 @@ def test_compose_pins_image_and_loopback_without_public_stack():
 
     assert "searxng/searxng@sha256:" in text
     assert "searxng/searxng:latest" not in text
-    assert '127.0.0.1:${SEARXNG_HOST_PORT:-8080}:8080' in text
+    assert "127.0.0.1:${SEARXNG_HOST_PORT:-8080}:8080" in text
     assert "SEARXNG_SECRET: ${SEARXNG_SECRET:?" in text
     assert "valkey" not in text.lower()
     assert "image-proxy" not in text.lower()
@@ -32,15 +37,15 @@ def test_settings_enable_json_but_keep_private_instance_features_off():
 def test_manager_has_candidate_backup_switch_and_guarded_retention_contract():
     text = MANAGER.read_text(encoding="utf-8")
 
-    assert '18080' in text
-    assert 'Copy-Item -LiteralPath $mount.Source -Destination $backupPath' in text
-    assert 'Test-SearXNGSearch 18080' in text
+    assert "18080" in text
+    assert "Copy-Item -LiteralPath $mount.Source -Destination $backupPath" in text
+    assert "Test-SearXNGSearch 18080" in text
     assert '@("rename", $ActiveContainerName, $retainedName)' in text
     assert 'Write-Warning "新 active 失败；旧容器已自动回滚到 8080"' in text
-    assert 'TotalDays -lt 7' in text
-    assert 'if (-not $ConfirmRemoval)' in text
-    assert 'docker.io/searxng/searxng@sha256:' in text
-    assert 'searxng/searxng:latest' not in text
+    assert "TotalDays -lt 7" in text
+    assert "if (-not $ConfirmRemoval)" in text
+    assert "docker.io/searxng/searxng@sha256:" in text
+    assert "searxng/searxng:latest" not in text
 
 
 def test_manager_never_rotates_existing_secret_or_opens_lan():
@@ -48,7 +53,7 @@ def test_manager_never_rotates_existing_secret_or_opens_lan():
 
     assert "脚本不会自动轮换已有 secret" in text
     assert '"http://127.0.0.1:$HostPort/"' in text
-    assert 'ExpectedPort' in text
+    assert "ExpectedPort" in text
     assert 'HostIp -ne "127.0.0.1"' in text
     assert "0.0.0.0:$HostPort" not in text
 
@@ -78,3 +83,62 @@ def test_powershell_scripts_carry_a_bom_when_they_contain_non_ascii():
         if all(byte < 128 for byte in raw):
             continue
         assert raw.startswith(b"\xef\xbb\xbf"), f"{script.name} needs a UTF-8 BOM"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows native stderr semantics")
+@pytest.mark.parametrize("shell", ["powershell.exe", "pwsh.exe"])
+@pytest.mark.parametrize(
+    ("function", "output", "exit_code", "expected"),
+    [
+        ("Test-DockerReady", "daemon unavailable 1>&2", 1, "False"),
+        ("Test-DockerReady", "27.0.0", 0, "True"),
+        ("Get-Container", "No such container 1>&2", 1, "missing"),
+        ("Get-Container", '[{"Id":"fixture-container"}]', 0, "fixture-container"),
+    ],
+)
+def test_native_probe_results_survive_captured_output(
+    tmp_path, shell, function, output, exit_code, expected
+):
+    """The desktop launcher captures the manager's output with Stop enabled.
+
+    PS 5.1 otherwise turns a daemon/container not found into RemoteException,
+    preventing the manager from reaching its startup branch.
+    """
+    executable = shutil.which(shell)
+    if not executable:
+        pytest.skip(f"{shell} unavailable")
+    fake = tmp_path / "docker.cmd"
+    fake.write_text(
+        f"@echo off\necho {output}\nexit /b {exit_code}\n", encoding="ascii"
+    )
+    harness = tmp_path / "probe.ps1"
+
+    def quote(path):
+        return str(path).replace("'", "''")
+
+    body = (
+        f"$result = {function} '{quote(fake)}' 'test-container'; "
+        "if ($null -eq $result) { 'missing' } else { $result.Id }"
+        if function == "Get-Container"
+        else f"$result = {function} '{quote(fake)}'; [string]$result"
+    )
+    harness.write_text(
+        "$ErrorActionPreference = 'Stop'\n"
+        f"$ast = [System.Management.Automation.Language.Parser]::ParseFile('{quote(MANAGER)}', [ref]$null, [ref]$null)\n"
+        "$fn = $ast.Find({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] "
+        f"-and $n.Name -eq '{function}'" + "}, $true)\n"
+        "Invoke-Expression $fn.Extent.Text\n"
+        f"function Invoke-Probe {{ {body} }}\n"
+        "$captured = Invoke-Probe\n"
+        "if ($ErrorActionPreference -ne 'Stop') { throw 'Probe leaked error policy' }\n"
+        "Write-Output $captured\n",
+        encoding="utf-8-sig",
+    )
+    result = subprocess.run(
+        [executable, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(harness)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == expected

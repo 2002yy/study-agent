@@ -3,6 +3,11 @@
 用户要求把 huashu-design 的部分设计方法内化到 Study Agent，让聊天图表有稳定的美学参考。
 本轮沿用已选 A+C：白色对话区、鼠尾草绿强调、清楚的阅读层级。
 
+2026-11-03 补充：自由 `interactive` 界面可由模型选择 HTML、SVG、Canvas 与交互逻辑，
+内容优先、单位来源、说明与响应式准则继续由临时上下文传递。预设组件保持统一外观，
+自由界面允许内容需要的布局和少量有含义的颜色；不强迫套固定模板。
+执行隔离与状态追问协议见 [自由交互设计](INTERACTIVE_ANSWER_DESIGN.md)。
+
 ## 已接入的产品路径
 
 `frontend/src/features/answer-ui/chatVisualDesign.ts` 保存精简准则，

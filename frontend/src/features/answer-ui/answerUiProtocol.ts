@@ -1,6 +1,8 @@
 import { CHAT_VISUAL_DESIGN } from "./chatVisualDesign";
+import { INTERACTIVE_CONTEXT, type InteractiveCard } from "./interactiveRuntime";
 
 export type AnswerCard =
+  | InteractiveCard
   | { type: "memory_lab"; title: string; initialName: string; updatedName: string }
   | { type: "performance_lab"; title: string; pages: number; concurrency: number; readSeconds: number; summarySeconds: number }
   | { type: "evidence_lab"; title: string; mode: "simulation"; sources: ({ label: string; kind: "measurement"; aSeconds: number; bSeconds: number } | { label: string; kind: "opinion"; text: string })[] }
@@ -32,12 +34,18 @@ export function safeLinkUrl(value: unknown): string | null {
 }
 
 export function parseAnswerCard(raw: string): AnswerCard | null {
-  if (raw.length > 24000) return null;
+  if (raw.length > 96000) return null;
   try {
     const c: unknown = JSON.parse(raw);
     if (!record(c) || !text(c.title)) return null;
-    // Copy only recognized data. Model-supplied HTML, script, styles and callbacks never reach the renderer.
+    // Copy recognized data only. The interactive document has its own opaque
+    // sandbox; legacy components never interpret model-supplied markup or code.
     const title = c.title;
+    if (c.type === "interactive" && text(c.id, 64) && /^[a-zA-Z0-9_-]+$/.test(c.id)
+      && Number.isInteger(c.revision) && typeof c.revision === "number" && c.revision >= 1 && c.revision <= 999
+      && text(c.summary, 1200) && text(c.html, 60000))
+      return { type: "interactive", id: c.id, revision: c.revision, title, summary: c.summary, html: c.html };
+    if (raw.length > 24000) return null;
     if (c.type === "memory_lab" && text(c.initialName, 30) && text(c.updatedName, 30))
       return { type: "memory_lab", title, initialName: c.initialName, updatedName: c.updatedName };
     if (c.type === "performance_lab" && number(c.pages) && Number.isInteger(c.pages) && c.pages >= 1 && c.pages <= 40
@@ -72,7 +80,8 @@ export function parseAnswerCard(raw: string): AnswerCard | null {
 }
 
 export type AnswerPart = { kind: "markdown"; content: string; key: number }
-  | { kind: "card"; card: AnswerCard; key: number } | { kind: "pending"; key: number };
+  | { kind: "card"; card: AnswerCard; key: number } | { kind: "pending"; key: number }
+  | { kind: "incomplete"; content: string; key: number };
 
 export function splitAnswerContent(content: string, streaming = false): AnswerPart[] {
   const parts: AnswerPart[] = [];
@@ -87,8 +96,18 @@ export function splitAnswerContent(content: string, streaming = false): AnswerPa
     let end = i + 1;
     while (end < lines.length && !new RegExp(`^ {0,3}${marker[0]}{${marker.length},}\\s*$`).test(lines[end])) end++;
     if (!ui) { i = end; continue; }
+    const raw = lines.slice(i + 1, end).join("\n");
+    const unfinishedApp = cards < 4 && !streaming && /"type"\s*:\s*"interactive"/.test(raw) && (end === lines.length || !parseAnswerCard(raw));
+    if (unfinishedApp) {
+      if (i > start) parts.push({ kind: "markdown", content: lines.slice(start, i).join("\n"), key: start });
+      parts.push({ kind: "incomplete", content: raw, key: i });
+      cards++;
+      start = Math.min(end + 1, lines.length);
+      i = end;
+      continue;
+    }
     if (end === lines.length && !streaming) break;
-    const card = end < lines.length && cards < 4 ? parseAnswerCard(lines.slice(i + 1, end).join("\n")) : null;
+    const card = end < lines.length && cards < 4 ? parseAnswerCard(raw) : null;
     if (card || end === lines.length) {
       if (i > start) parts.push({ kind: "markdown", content: lines.slice(start, i).join("\n"), key: start });
       parts.push(card ? { kind: "card", card, key: i } : { kind: "pending", key: i });
@@ -112,7 +131,8 @@ export const ANSWER_UI_CONTEXT = `【回答中的学习交互组件 v1；仅本�
 {"type":"memory_lab","title":"Java引用实验","initialName":"甲","updatedName":"乙"}：操作引用与对象，可连续执行修改属性/重新赋值/置空/重置。仅概念模拟，不执行Java。
 {"type":"performance_lab","title":"研究性能实验","pages":8,"concurrency":3,"readSeconds":4,"summarySeconds":6}：本地模拟读数量/并发/耗时，pages整数1-40、concurrency整数1-12、readSeconds 1-20、summarySeconds 0-30；必须说明等时长、无开销等假设，不能称为真实压测。
 {"type":"evidence_lab","title":"证据审查实验","mode":"simulation","sources":[{"label":"编码任务","kind":"measurement","aSeconds":1.4,"bSeconds":2},{"label":"检索任务","kind":"measurement","aSeconds":2.6,"bSeconds":2.1},{"label":"主观评论","kind":"opinion","text":"感觉A更快"}]}：检验“A在所有任务都比B快”的逻辑，只接受明确simulation教学数据，勾选后实时区分有限支持/反例/观点；不得用此控件表示真实研究已通过。
-不要生成HTML/JavaScript/自定义公式或调用外部操作；现有文本回答始终可用。`;
+以上预设组件只接受对应数据。更自由的交互使用下述interactive格式；任何组件都不能调用外部操作。现有文本回答始终可用。
+${INTERACTIVE_CONTEXT}`;
 
 export function packAnswerUiContext(instruction: string, lesson: string): string {
   // Reuse the server's existing transient envelope; UI guidance is never saved as a user's instruction.
@@ -126,8 +146,10 @@ export function answerCopyText(content: string): string {
   return splitAnswerContent(content).map(part => {
     if (part.kind === "markdown") return part.content.trimEnd();
     if (part.kind === "pending") return "";
+    if (part.kind === "incomplete") return "交互内容未完整生成，可请求生成完整版本。";
     const c = part.card;
-    const detail = c.type === "memory_lab" ? `Java概念实验：初始 a、b 指向 name=${c.initialName} 的同一对象；修改值=${c.updatedName}。`
+    const detail = c.type === "interactive" ? `${c.summary}\n交互界面 ${c.id} · 版本 ${c.revision}（当前操作状态可通过界面内的继续问按钮附带）。`
+      : c.type === "memory_lab" ? `Java概念实验：初始 a、b 指向 name=${c.initialName} 的同一对象；修改值=${c.updatedName}。`
       : c.type === "performance_lab" ? `模拟参数：${c.pages}页，并发${c.concurrency}，每页${c.readSeconds}秒，总结${c.summarySeconds}秒。不是实测。`
       : c.type === "evidence_lab" ? `虚构证据实验：${c.sources.map(p => p.label).join("、")}；本地选择不改变正式研究结论。`
       : c.type === "chart" ? c.points.map(p => `${p.label}：${p.value}${c.unit ? ` ${c.unit}` : ""}`).join("\n")

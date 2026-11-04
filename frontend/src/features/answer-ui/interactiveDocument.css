@@ -1,0 +1,27 @@
+.answer-card-interactive { padding: 0; background: var(--surface, #fff); border-color: var(--border, #e5e5e5); border-radius: 16px; overflow: hidden; }
+.answer-card-interactive > h3 { padding: 20px 22px 0; margin-bottom: 6px; font-size: 18px; }
+.interactive-summary { margin: 0; padding: 0 22px 18px; color: var(--muted, #666); font-size: 14px; line-height: 1.7; }
+.interactive-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px; border-block: 1px solid var(--border, #e5e5e5); background: #fafafa; }
+.interactive-version { font-size: 12px; color: #555; }
+.interactive-version > span { margin-left: 10px; color: #666; }
+.interactive-tools { display: flex; gap: 4px; flex-shrink: 0; }
+.answer-card .interactive-tools button { border: 0; background: transparent; min-height: 40px; padding: 8px; color: #444; }
+.answer-card .interactive-tools button:hover { background: #eee; }
+.answer-card .interactive-document > iframe { display: block; width: 100%; max-width: 100%; border: 0; border-radius: 0; background: #fff; }
+.interactive-footer { padding: 14px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; border-top: 1px solid var(--border, #e5e5e5); }
+.answer-card .interactive-continue { font-size: 14px; min-height: 40px; border-color: #ddd; border-radius: 10px; }
+.interactive-footer > span { font-size: 12px; color: #666; }
+.interactive-source { padding: 0 20px 14px; color: #666; font-size: 12px; }
+.interactive-source summary { min-height: 32px; padding: 5px 0; cursor: pointer; }
+.interactive-source pre { max-height: 240px; overflow: auto; white-space: pre-wrap; font-size: 12px; }
+.interactive-error, .interactive-stopped { padding: 14px 20px; font-size: 14px; }
+.interactive-error { color: #943b30; background: #fff6f3; margin: 0; }
+@media(max-width: 520px) {
+  .answer-card-interactive > h3 { padding: 16px 14px 0; font-size: 17px; }
+  .interactive-summary { padding: 0 14px 14px; }
+  .interactive-toolbar { align-items: flex-start; flex-wrap: wrap; padding: 6px 10px; }
+  .interactive-version { padding: 8px 0 0; }
+  .interactive-tools { margin-left: auto; }
+  .interactive-footer { padding: 12px; }
+  .interactive-source { padding-inline: 12px; }
+}

@@ -5,6 +5,9 @@ import base from "./playwright.config";
 export default defineConfig({
   ...base,
   testMatch: [
+    "**/interactive-document.spec.ts",
+    "**/interactive-live-replay.spec.ts",
+    "**/interactive-cross-domain-replay.spec.ts",
     "**/experience-layout.spec.ts",
     "**/experience-visuals.spec.ts",
     "**/reading-panels.spec.ts",
