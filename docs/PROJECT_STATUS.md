@@ -26,6 +26,8 @@
 
 已完成#338，merge `a5ada82ec8e190e149782212545516fb3304530f`；预算候选已补建#343，
 固定head `5d39ce3b`。#339/#340/#341原head的五项CI全绿；本段所在#342新head需独立CI。
+集成核对发现#342原先只基于#341的2ca73a1c，漏了后续f04ea68d状态保存串行化修复；
+现已显式合入f04ea68d，3文件自动合并无冲突，相关前端61 PASS、tsc通过，完整CI绑定新HEAD。
 当前审阅及合并回执 `D:/study-agent-validation/m4-integration-review-receipt-20261104.md`；
 执行者审阅与外部批准区分记录，没有把空review列表冒充外部批准。
 
@@ -344,11 +346,13 @@ tsc 与构建 PASS。本片为纯前端新增模块，无后端、schema 或持�
 重置标记并递增代际号，旧代际的迟到保存被丢弃。③快照键从 `(thread, component)` 改为
 `(thread, component, revision)`：操作旧版本不再覆盖新版本进度，读取时必须指明 revision。
 ④恢复增加回执：界面回报一次状态才显示“已恢复”，超时或未实现钩子都明确提示。
+⑤写入串行化：同一时刻只有一个保存请求在途，更新的值排队等待；旧请求晚到也不能覆盖
+更新的值（不再只依赖定时器取消）。
 
 **静态证据**：`tests/test_interactive_state.py` **12 PASS**（保存/读取、各版本互不覆盖、
 跨会话隔离、超限、非对象、路由 404/422/指定版本）；`tests/test_spend_settlement.py` 的 schema
 断言改为跟随 `SCHEMA_VERSION`，**53 PASS**；schema 相关影响集 **139 PASS**；前端完整
-**123 文件 / 641 PASS**，tsc 与构建 PASS；Ruff PASS；mypy **118/128，新增 0**。迁移 31 属
+**123 文件 / 642 PASS**，tsc 与构建 PASS；Ruff PASS；mypy **118/128，新增 0**。迁移 31 属
 持久化 schema 变更：本机全量 6925 项 pytest 单机约 3 小时，本片未在本地跑完；全量证据以
 PR 的 backend 作业在精确 head 上的 pytest 为准，CI 未绿前不得称为已交付。
 
