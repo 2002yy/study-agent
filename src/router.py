@@ -266,21 +266,11 @@ def route_request(
         auto_mode = cast(Mode, previous_mode)
         sticky_mode_applied = True
 
-    # Model selection with performance_mode awareness
+    # Explicit model choice wins; automatic selection follows the task, not a speed tier.
     if selected_model != "auto":
         model_profile = cast(Model, selected_model)
-    elif runtime_modes.performance_mode == "deep":
-        model_profile = "pro"
-    elif runtime_modes.performance_mode == "fast":
-        high_risk_kw = ["论文", "代码", "报错", "架构", "机制"]
-        if any(kw in user_input.lower() for kw in high_risk_kw):
-            model_profile = "pro"
-        else:
-            model_profile = "flash"
     else:
-        # standard: matched rule's model takes priority, fallback to rule-based suggestion
-        rule_model = suggest_model_by_rules(user_input, runtime_modes.performance_mode)
-        model_profile = auto_model or rule_model
+        model_profile = auto_model or suggest_model_by_rules(user_input)
 
     role = selected_role if selected_role != "auto" else auto_role
     mode = selected_mode if not mode_is_auto else auto_mode

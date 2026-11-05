@@ -260,7 +260,8 @@ describe("sendChatStream", () => {
     expect(body.conversation_instruction).toBe("不要转交给其他角色。");
     expect(body.web_context).toBe("recovered sources");
     expect(body.web_context_run_id).toBe("research-recovered-1");
-    expect(body.performance_mode).toBe("deep");
+    expect(body.performance_mode).toBeNull();
+    expect(body.context_mode).toBe("deep");
     expect(body.previous_mode).toBe("苏格拉底");
     expect(body.rag_min_score).toBe(0.42);
     expect(body.rag_search_top_k).toBe(ragSettings.topK);

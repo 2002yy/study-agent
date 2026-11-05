@@ -19,6 +19,7 @@ MEMORY_FILES = [
 ]
 
 CONTEXT_FILE_GROUPS = {
+    "none": [],
     "fast": ["index.md", "current_focus.md"],
     "light": ["index.md", "current_focus.md", "summary.md", "learner_profile.md"],
     "deep": [
@@ -69,7 +70,7 @@ def extract_core_section(text: str, max_lines: int = 12) -> str:
 
 
 def read_memory_bundle(context_mode: str = "archive") -> dict[str, str]:
-    file_list = CONTEXT_FILE_GROUPS.get(context_mode, CONTEXT_FILE_GROUPS["archive"])
+    file_list = CONTEXT_FILE_GROUPS.get(context_mode, [])
     bundle: dict[str, str] = {}
     for name in file_list:
         content = read_memory_file(name)

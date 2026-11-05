@@ -32,7 +32,7 @@ from src.application.chat_service import (
     _turn_attachment_material,
     _web_context_provenance,
 )
-from src.application.helpers import load_frontend_settings
+from src.application.helpers import load_frontend_settings, resolve_context_mode
 from src.application.learning_authority_projection import (
     resolve_expected_concepts,
 )
@@ -299,7 +299,7 @@ class ExternalDataPolicyChatService(ChatService):
 
         review_binding = resolve_review_answer(self.repository, command, existing or retry_parent)
         runtime_modes = self._runtime_modes(command.performance_mode)
-        context_mode = command.context_mode or runtime_modes.context_mode
+        context_mode = resolve_context_mode(command.context_mode, runtime_modes.context_mode)
         saved_policy = load_frontend_settings()
         effective_web_policy = command.web_policy or str(
             saved_policy.get("web_policy", "auto")
@@ -542,7 +542,7 @@ class ExternalDataPolicyChatService(ChatService):
                     attachment_material=_turn_attachment_material(self.repository, turn_id),
                     research_intent=task_contract.task_intent == "research",
                     history_allowed=decision.history_allowed,
-                    deep_requested=(context_mode == "deep") or (command.performance_mode == "deep"),
+                    deep_requested=False,  # Explicit research is selected by the request text.
                 )
             else:
                 web_tools = WebToolTrace(enabled=False)

@@ -261,8 +261,8 @@ def test_runtime_profile_centralizes_effective_permissions():
     assert profile.llm_router_reason == "fast_mode"
     assert profile.allow_article_network_read is False
     assert profile.article_network_read_reason == "safe_mode"
-    assert profile.preferred_model == "flash"
-    assert profile.context_mode == "fast"
+    assert profile.preferred_model is None
+    assert profile.context_mode == "light"
 
 
 def test_run_with_confirm_write_restores_original_mode(monkeypatch):
@@ -331,7 +331,7 @@ def test_build_messages_deduplicates_current_user_input_from_history():
     assert messages[-1] == {"role": "user", "content": "这个问题怎么修？"}
 
 
-def test_build_messages_history_window_follows_performance_mode():
+def test_build_messages_history_window_is_independent_of_legacy_speed_mode():
     history = [
         {"role": "user" if index % 2 == 0 else "assistant", "content": f"m{index}"}
         for index in range(40)
@@ -362,8 +362,8 @@ def test_build_messages_history_window_follows_performance_mode():
         runtime_modes=RuntimeModes(performance_mode="deep"),
     )
 
-    assert [message["content"] for message in fast_messages[1:-1]] == [f"m{index}" for index in range(32, 40)]
-    assert [message["content"] for message in standard_messages[1:-1]] == [f"m{index}" for index in range(22, 40)]
+    assert [message["content"] for message in fast_messages[1:-1]] == [f"m{index}" for index in range(10, 40)]
+    assert [message["content"] for message in standard_messages[1:-1]] == [f"m{index}" for index in range(10, 40)]
     assert [message["content"] for message in deep_messages[1:-1]] == [f"m{index}" for index in range(10, 40)]
 
 

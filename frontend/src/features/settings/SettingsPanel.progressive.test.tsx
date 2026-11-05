@@ -77,7 +77,7 @@ describe("SettingsPanel progressive disclosure", () => {
 
     expect(screen.getByRole("combobox", { name: "角色", hidden: true })).not.toBeVisible();
     expect(screen.getByRole("combobox", { name: "模型档位", hidden: true })).not.toBeVisible();
-    expect(screen.getByRole("combobox", { name: "上下文深度", hidden: true })).not.toBeVisible();
+    expect(screen.getByRole("combobox", { name: "个人记忆读取范围", hidden: true })).not.toBeVisible();
     expect(screen.getByRole("combobox", { name: "检索方式", hidden: true })).not.toBeVisible();
     expect(screen.getByRole("textbox", { name: "本会话微调", hidden: true })).not.toBeVisible();
   });
@@ -90,7 +90,11 @@ describe("SettingsPanel progressive disclosure", () => {
     expect(screen.getByRole("button", { name: "强制保持当前角色" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "本会话微调" })).toBeVisible();
     expect(screen.getByRole("combobox", { name: "模型档位" })).toBeVisible();
-    expect(screen.getByRole("combobox", { name: "上下文深度" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "个人记忆读取范围" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "不读个人记忆" })).toHaveValue("none");
+    expect(screen.getByRole("option", { name: "当前学习要点" })).toHaveValue("fast");
+    expect(screen.getByRole("option", { name: "学习摘要" })).toHaveValue("light");
+    expect(screen.getByRole("option", { name: "完整记忆范围" })).toHaveValue("deep");
     expect(screen.getByRole("combobox", { name: "检索方式" })).toBeVisible();
     expect(screen.getByRole("spinbutton", { name: "候选来源" })).toBeVisible();
     expect(screen.getByRole("spinbutton", { name: "回答引用" })).toBeVisible();

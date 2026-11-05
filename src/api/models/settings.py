@@ -12,6 +12,7 @@ class RuntimeSettingsPatch(BaseModel):
     relationship_mode: str | None = None
     entry_mode: str | None = None
     performance_mode: str | None = None
+    context_mode: str | None = None
     memory_mode: str | None = None
     debug_mode: bool | None = None
     safe_mode: bool | None = None

@@ -43,6 +43,7 @@ from src.application.learning_authority_projection import (
     resolve_expected_concepts,
 )
 from src.application.shadow_isolation import BestEffortTelemetry
+from src.application.helpers import resolve_context_mode
 from src.context_builder import build_messages
 from src.application.generation_outcome import error_outcome, record_finish
 from src.domain.answer_claims import rejected_answer_claim_snapshot
@@ -702,7 +703,7 @@ class ChatService:
 
         review_binding = resolve_review_answer(self.repository, command, existing or retry_parent)
         runtime_modes = self._runtime_modes(command.performance_mode)
-        context_mode = command.context_mode or runtime_modes.context_mode
+        context_mode = resolve_context_mode(command.context_mode, runtime_modes.context_mode)
         settings = _session_settings(command, context_mode)
         turn_id = command.turn_id or command.continuation_of_turn_id or new_id("turn")
         is_continuation = bool(command.continuation_of_turn_id)
@@ -904,8 +905,7 @@ class ChatService:
                     research_intent=bool(
                         (route.get("task_contract") or {}).get("task_intent") == "research"
                     ),
-                    deep_requested=(context_mode == "deep")
-                    or (command.performance_mode == "deep"),
+                    deep_requested=False,  # Memory scope is not a research instruction.
                 )
             else:
                 web_tools = WebToolTrace(enabled=False)

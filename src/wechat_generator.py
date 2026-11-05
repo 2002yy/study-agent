@@ -91,10 +91,7 @@ def _resolve_model_profile(
     selected_model: str = "auto",
     performance_mode: str = "standard",
 ) -> ModelProfile:
-    if performance_mode == "deep":
-        return "pro"
-    if performance_mode == "fast":
-        return "flash"
+    # Legacy speed settings still control output budgets, never model choice.
     if selected_model == "pro":
         return "pro"
     return "flash"
