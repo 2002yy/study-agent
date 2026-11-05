@@ -5,7 +5,7 @@ Extracted from src/api.py — Batch 3 refactor.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.task_intent import TaskIntent
 from src.turn_context import (
@@ -28,6 +28,12 @@ class InteractiveRestore(BaseModel):
 
     id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     revision: int = Field(ge=1, le=999)
+
+
+class InteractiveRepair(InteractiveRestore):
+    """Repair payloads cannot supply source HTML or override server budgets."""
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class ChatRequest(BaseModel):
@@ -69,6 +75,7 @@ class ChatRequest(BaseModel):
     # Explicit older-version choice. Identity is validated here; the HTML comes
     # from the session's saved turns, never from this payload.
     interactive_restore: InteractiveRestore | None = None
+    interactive_repair: InteractiveRepair | None = None
 
     @model_validator(mode="after")
     def split_transient_turn_context(self) -> ChatRequest:
