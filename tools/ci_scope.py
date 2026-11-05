@@ -187,6 +187,10 @@ _FRONTEND_CATEGORIES = frozenset({"frontend"})
 # dead registration behind and pretend the surface is still covered.
 _FRONTEND_E2E_SURFACES: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
+        "frontend/src/features/skills/*",
+        ("e2e/acceptance/localSkills.spec.ts",),
+    ),
+    (
         "frontend/src/features/single-chat/*",
         (
             "e2e/answer-interactions.spec.ts",

@@ -365,6 +365,12 @@ def test_every_frontend_feature_directory_is_registered_or_declared():
     assert not (registered & _FRONTEND_E2E_UNREGISTERED)
 
 
+def test_local_skills_routes_to_its_real_browser_contract():
+    result = classify(["frontend/src/features/skills/SkillPanel.tsx"])
+    assert result["frontend_e2e_required"] is True
+    assert "e2e/acceptance/localSkills.spec.ts" in result["frontend_e2e_specs"]
+
+
 def test_router_change_cannot_narrow_its_own_gates():
     # A change to the routing machinery must not be the one change that runs the fewest
     # gates, or the router becomes the cheapest way to weaken every other gate.
