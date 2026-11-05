@@ -43,7 +43,8 @@ from src.application.learning_authority_projection import (
     resolve_expected_concepts,
 )
 from src.application.shadow_isolation import BestEffortTelemetry
-from src.application.helpers import resolve_context_mode
+from src.application.helpers import resolve_context_mode, load_frontend_settings
+from src.application.skill_context import bound_skill_ids, selected_skill_context
 from src.context_builder import build_messages
 from src.application.generation_outcome import error_outcome, record_finish
 from src.domain.answer_claims import rejected_answer_claim_snapshot
@@ -372,6 +373,7 @@ class ChatCommand:
     selected_role: str = "auto"
     selected_mode: str = "auto"
     selected_model: str = "auto"
+    selected_skill_ids: list[str] = field(default_factory=list)
     relationship_mode: str = "standard"
     scene: str = "single"
     conversation_instruction: str = ""
@@ -699,6 +701,10 @@ class ChatService:
 
     def start_turn(self, command: ChatCommand) -> PreparedChatTurn:
         command, existing, retry_parent = self._validate_turn_command(command)
+        parent = existing or retry_parent
+        command = replace(command, selected_skill_ids=bound_skill_ids(
+            command.selected_skill_ids, parent.route_snapshot if parent else None
+        ))
         from src.application.review_turn_context import resolve_review_answer, review_evaluation_inputs
 
         review_binding = resolve_review_answer(self.repository, command, existing or retry_parent)
@@ -736,6 +742,7 @@ class ChatService:
                     user_message=command.user_input,
                     assistant_message="",
                     status="pending",
+                    route_snapshot={"skills": {"ids": list(command.selected_skill_ids)}},
                     parent_turn_id=retry_parent.id if retry_parent else None,
                     operation_id=operation_id,
                     conversation_instruction=command.conversation_instruction,
@@ -758,6 +765,10 @@ class ChatService:
         base_reply = ""
         try:
             cancel_check("route")
+            skill_instruction, skill_record = selected_skill_context(
+                command.selected_skill_ids,
+                allowed=load_frontend_settings().get("cloud_context_policy", "allow_local_evidence") == "allow_local_evidence",
+            )
             route = self.dependencies.route_request(
                 user_input=command.user_input,
                 selected_role=command.selected_role,
@@ -768,6 +779,8 @@ class ChatService:
                 previous_mode=command.previous_mode or self._previous_persisted_mode(thread.id),
                 keep_current_role=command.keep_current_role,
             )
+            if skill_record:
+                route["skills"] = skill_record
             learning_state = LearningState.from_dict(thread.learning_state)
             # C1b: every turn must leave this entrypoint with a complete task
             # contract, even when the injected router is the legacy one. The
@@ -930,6 +943,7 @@ class ChatService:
             from src.web.research.research_interaction import steering_answer_instruction
 
             effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
+            effective_instruction = "\n\n".join(part for part in (effective_instruction, skill_instruction) if part)
             web_tool_error = str(rag["web_tools"].get("error") or "")
             rag["web_context"] = _web_context_provenance(
                 command.web_context,

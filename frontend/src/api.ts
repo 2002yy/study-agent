@@ -37,9 +37,24 @@ import type {
 } from "./types";
 import { consumePendingTaskIntentOverride } from "./features/task/taskContract";
 import { consumePendingRestoreTarget } from "./features/answer-ui/restoreTarget";
+import { consumePendingSkillSelection } from "./features/skills/skillSelection";
 import { authHeaders } from "./apiToken";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+
+export type LocalSkill = { id: string; name: string; description: string; content: string; enabled: boolean };
+export function listLocalSkills(): Promise<{ skills: LocalSkill[] }> {
+  return requestJson("/skills");
+}
+export function importLocalSkill(content: string): Promise<LocalSkill> {
+  return requestJson("/skills", { method: "POST", body: JSON.stringify({ content }) });
+}
+export function setLocalSkillEnabled(id: string, enabled: boolean): Promise<LocalSkill> {
+  return requestJson(`/skills/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ enabled }) });
+}
+export function deleteLocalSkill(id: string): Promise<{ deleted: boolean }> {
+  return requestJson(`/skills/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
 
 async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {
   // Merge, don't replace: spreading the whole options object after `headers`
@@ -131,6 +146,7 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
   const restore = consumePendingRestoreTarget();
   return {
     user_input: userInput,
+    selected_skill_ids: options.scene && options.scene !== "single" ? [] : consumePendingSkillSelection(),
     selected_role: options.chatSettings.selectedRole,
     selected_mode: options.chatSettings.selectedMode,
     selected_model: options.chatSettings.selectedModel,

@@ -15,6 +15,12 @@ const STORAGE_KEY = "study-agent-api-token";
 // Browsers with storage disabled, and test environments without a DOM, still
 // need a working session: the token then lives for this process only.
 let sessionToken = "";
+const tokenListeners = new Set<() => void>();
+
+export function subscribeApiToken(listener: () => void): () => void {
+  tokenListeners.add(listener);
+  return () => { tokenListeners.delete(listener); };
+}
 
 function storage(): Storage | null {
   try {
@@ -37,6 +43,7 @@ export function apiToken(): string {
 
 export function setApiToken(token: string): void {
   const value = token.trim();
+  const previous = apiToken();
   sessionToken = value;
   try {
     const target = storage();
@@ -46,6 +53,8 @@ export function setApiToken(token: string): void {
   } catch {
     // Storage can be unavailable (private mode, disabled cookies). The session
     // value above still works until this page is closed.
+  } finally {
+    if (previous !== apiToken()) for (const listener of tokenListeners) listener();
   }
 }
 

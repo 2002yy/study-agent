@@ -9,6 +9,7 @@ import { SourcesPanel } from "../features/rag/SourcesPanel";
 import { UploadLearningPrompt } from "../features/rag/UploadLearningPrompt";
 import { RAG_UPLOAD_ACCEPT, RAG_UPLOAD_HELP_TEXT } from "../features/rag/uploadContract";
 import { SettingsPanel } from "../features/settings/SettingsPanel";
+import { SkillPanel } from "../features/skills/SkillPanel";
 import { useAuthRequired } from "./useAuthRequired";
 import { useTypographyPreference } from "../features/settings/typographyPreference";
 import { ExternalDataFirstUseNotice } from "../features/settings/ExternalDataFirstUseNotice";
@@ -366,6 +367,7 @@ export function WorkspaceView({
           refresh={refresh}
           lastChat={chatController.lastChat}
         />
+        {state.activeDrawer === "settings" ? <SkillPanel /> : null}
       </SlideOver>
 
       <ExtensionDrawers view={extensionView} onClose={closeDrawer} />

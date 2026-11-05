@@ -35,6 +35,7 @@ class ChatRequest(BaseModel):
     selected_role: str = "auto"
     selected_mode: str = "auto"
     selected_model: str = "auto"
+    selected_skill_ids: list[str] = Field(default_factory=list, max_length=3)
     relationship_mode: str = "standard"
     scene: str = "single"
     conversation_instruction: str = ""

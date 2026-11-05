@@ -573,6 +573,10 @@ export async function installApiFixture(
       await fulfillJson(route, { tools: [] });
       return;
     }
+    if (path === "/skills" && request.method() === "GET") {
+      await fulfillJson(route, { skills: [] });
+      return;
+    }
     if (path === "/workflows/runs") {
       await fulfillJson(route, { runs: [] });
       return;
