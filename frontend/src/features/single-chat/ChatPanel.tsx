@@ -1,3 +1,4 @@
+import { setPendingRepairTarget } from "../answer-ui/repairTarget";
 import {
   ArrowDown,
   ArrowUp,
@@ -417,10 +418,12 @@ export function ChatPanel(props: ChatPanelProps) {
       // The request builder consumed the identity; drop the visible chip too.
       setRestoreTarget(null);
       clearPendingRestoreTarget();
+    setPendingRepairTarget(null);
     }
   };
 
   const handleRestoreBase = (target: RestoreTarget) => {
+    setPendingRepairTarget(null);
     setPendingRestoreTarget(target);
     setRestoreTarget(target);
     setComposerMode("chat");
@@ -432,12 +435,14 @@ export function ChatPanel(props: ChatPanelProps) {
   const cancelRestoreBase = () => {
     setRestoreTarget(null);
     clearPendingRestoreTarget();
+    setPendingRepairTarget(null);
   };
 
   useEffect(() => {
     // A different session must not inherit the previous one's base version.
     setRestoreTarget(null);
     clearPendingRestoreTarget();
+    setPendingRepairTarget(null);
   }, [props.sessionId]);
 
   const handleRestoreEntry = (_intent: TaskIntent, prompt: string) => onQuickPrompt(prompt);
@@ -569,7 +574,11 @@ export function ChatPanel(props: ChatPanelProps) {
                         streaming={message.role === "assistant" && isSending && !displayMessages.slice(index + 1).some(item => item.role === "assistant")}
                         onRestoreBase={handleRestoreBase}
                         sessionId={sessionId}
-                        onDraft={prompt => {
+                        onDraft={(prompt, repair) => {
+                          clearPendingRestoreTarget();
+                          setRestoreTarget(null);
+                          setPendingRepairTarget(repair ?? null, sessionId);
+                          if (repair) setRestoreTarget({ ...repair, title: repair.id });
                           setComposerMode("chat");
                           setInput(input.trim() ? `${input}\n\n${prompt}` : prompt);
                           composerRef.current?.focus();

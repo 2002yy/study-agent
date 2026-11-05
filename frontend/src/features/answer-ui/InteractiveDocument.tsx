@@ -7,7 +7,7 @@ import { loadInteractiveState, saveInteractiveState } from "../../api";
 import { loadThreeSource } from "./threeSource";
 import "./interactiveDocument.css";
 
-export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }: { card: InteractiveCard; onDraft?: (prompt: string) => void; onRestoreBase?: (target: { id: string; revision: number; title: string }) => void; sessionId?: string }) {
+export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }: { card: InteractiveCard; onDraft?: (prompt: string, repair?: { id: string; revision: number }) => void; onRestoreBase?: (target: { id: string; revision: number; title: string }) => void; sessionId?: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const instance = useId();
   const [generation, setGeneration] = useState(0);
@@ -192,7 +192,7 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
       {diagnostics ? diagnostics.length ? <>
         <p>发现 {diagnostics.length} 项排版问题：</p>
         <ul>{diagnostics.map((issue, index) => <li key={index}>{issue.elementId} · {issue.checkId}：实测 {issue.measured?.toFixed(1)} {issue.unit}，阈值 {issue.threshold} {issue.unit}</li>)}</ul>
-        <button type="button" disabled={!onDraft || card.revision >= 999} onClick={() => onDraft?.(formatRepairFeedback(card, diagnostics) + "\n测量时的参数与观察：" + (state ?? "尚未提供，请保留原始参数。"))}>生成修复草稿</button>
+        <button type="button" disabled={!onDraft || card.revision >= 999} onClick={() => onDraft?.(formatRepairFeedback(card, diagnostics) + "\n测量时的参数与观察：" + (state ?? "尚未提供，请保留原始参数。"), { id: card.id, revision: card.revision })}>生成修复草稿</button>
       </> : <p>已覆盖的排版项目未发现问题；这不代表内容或交互逻辑正确。</p> : null}
     </section>
     <div className="interactive-footer">

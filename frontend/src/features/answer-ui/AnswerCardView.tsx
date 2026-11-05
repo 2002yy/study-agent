@@ -91,7 +91,7 @@ function Places({ card }: { card: Extract<AnswerCard, { type: "map" }> }) {
   </>;
 }
 
-export function AnswerCardView({ card, onDraft, onRestoreBase, sessionId }: { card: AnswerCard; onDraft?: (prompt: string) => void; onRestoreBase?: (target: { id: string; revision: number; title: string }) => void; sessionId?: string }) {
+export function AnswerCardView({ card, onDraft, onRestoreBase, sessionId }: { card: AnswerCard; onDraft?: (prompt: string, repair?: { id: string; revision: number }) => void; onRestoreBase?: (target: { id: string; revision: number; title: string }) => void; sessionId?: string }) {
   return <section className={`answer-card answer-card-${card.type}`} aria-label={card.title}>
     <h3>{card.title}</h3>
     {card.type === "interactive" ? <InteractiveDocument card={card} onDraft={onDraft} onRestoreBase={onRestoreBase} sessionId={sessionId} /> : card.type === "memory_lab" ? <MemoryLab card={card} /> : card.type === "performance_lab" ? <PerformanceLab card={card} /> : card.type === "evidence_lab" ? <EvidenceLab card={card} />

@@ -1,3 +1,4 @@
+import { consumePendingRepairTarget } from "./features/answer-ui/repairTarget";
 import type {
   ApiSnapshot,
   ChatMessage,
@@ -144,6 +145,7 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
   // Identity only: the server resolves the source from saved turns, and the
   // choice belongs to this one message (like the task-intent override).
   const restore = consumePendingRestoreTarget();
+  const repair = consumePendingRepairTarget(userInput, options.sessionId);
   return {
     user_input: userInput,
     selected_skill_ids: options.scene && options.scene !== "single" ? [] : consumePendingSkillSelection(),
@@ -181,6 +183,7 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     // Message-level attachment identity: only this message's selection.
     attachment_ids: options.attachmentIds ?? [],
     // Explicit older-version choice; the HTML never travels from the browser.
+    interactive_repair: !options.retryOfTurnId && !options.continuationOfTurnId && (!options.scene || options.scene === "single") ? repair : null,
     interactive_restore: restore ? { id: restore.id, revision: restore.revision } : null
   };
 }
