@@ -66,6 +66,7 @@ class InteractiveVersion:
     html: str
     start: int
     end: int
+    capabilities: tuple[str, ...] = ()
 
     @property
     def html_chars(self) -> int:
@@ -134,6 +135,8 @@ def _valid_block(payload: Any, raw_length: int) -> dict[str, Any] | None:
     if len(summary) > MAX_SUMMARY_CHARS:
         return None
     html = payload.get("html")
+    if payload.get("capabilities", []) not in ([], ["three"]):
+        return None
     if not isinstance(html, str) or not html.strip():
         return None
     if len(html) > MAX_HTML_CHARS:
@@ -190,6 +193,7 @@ def find_interactive_versions(
                         html=str(payload["html"]),
                         start=lines[index][0],
                         end=lines[closing][1],
+                        capabilities=tuple(payload.get("capabilities", [])),
                     )
                 )
             index = closing + 1

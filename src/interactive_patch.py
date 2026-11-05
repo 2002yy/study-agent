@@ -26,6 +26,7 @@ class PatchCandidate:
     revision: int
     base_sha256: str
     html: str
+    capabilities: tuple[str, ...] = ()
 
     @property
     def sha256(self) -> str:
@@ -83,5 +84,10 @@ def prepare_patch(
     if not result.strip() or len(result) > 60000:
         raise PatchConflict("candidate exceeds document bounds")
     return PatchCandidate(
-        request.id, request.revision, outcome.next_revision, expected_sha256, result
+        request.id,
+        request.revision,
+        outcome.next_revision,
+        expected_sha256,
+        result,
+        outcome.capabilities,
     )
