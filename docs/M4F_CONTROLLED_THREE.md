@@ -17,7 +17,7 @@
 - browser：frontend/e2e/acceptance/controlledThree.spec.ts。原始runtime双视口2例，真实App保存study-ui后
   经MarkdownMessage/异步InteractiveDocument/双sandbox的4例，全部6 PASS。覆盖实像素、参数、状态继续问、
   暂停稳定/恢复、CSP网络阻止、跨框架访问拒绝和零运行错误。浏览器API用受控fixture，无模型调用。
-- 本地自包含HTML及截图：D:/study-agent-validation/m4f-artifacts-20261105/，cube与oscillator各1280/390版本。
+- 本地自包含HTML及截图：D:/study-agent-validation/m4f-artifacts-responsive-20261105/，cube与oscillator各1280/390版本。
   HTML由真实产品outer.srcdoc导出，内嵌库；不依赖CDN。手机Three画面已目视确认。
 - 前端130文件713 PASS；审阅发现空能力数组前后端不一致，已规范为未声明并经直接13项回归通过。
 - 后端历史/恢复/补丁/评测及相邻聊天影响集208 PASS，src mypy118/128、新增0；Ruff通过。
@@ -27,3 +27,6 @@
 新的真实模型/自动修复评测仍需独立费用授权。M4-E证据反馈与M4-G媒介选择继续按原规划推进。
 
 合入前片恢复修复后的最终前端716 PASS；独立HTTP打开导出HTML另2 PASS，确证体积16、相位位置与暂停稳定及实际几何像素。
+
+最终修正样例容器比例：相机与buffer随实际显示宽度同步。6项回放均验证buffer/display比例差<0.01，
+手机React317×240、沙箱366×240与显示一致；独立HTML重新导出至responsive产物目录，旧产物保留。

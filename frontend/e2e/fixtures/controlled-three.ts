@@ -1,16 +1,21 @@
 import type { InteractiveCard } from "../../src/features/answer-ui/interactiveRuntime";
 
-const style = `<style>main{max-width:700px;margin:auto}label{display:inline-flex;flex-direction:column;margin:6px}input{width:76px}canvas{display:block;width:100%;height:240px;border-radius:12px}output{display:block}p{margin:8px 0}</style>`;
+const style = `<style>main{max-width:700px;margin:auto}label{display:inline-flex;flex-direction:column;margin:6px}input{width:76px}#scene{width:100%;height:240px;min-width:0}canvas{display:block;width:100%;height:100%;border-radius:12px}output{display:block}p{margin:8px 0}</style>`;
 const scene = `
 const renderer = new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
-renderer.setSize(640,360); renderer.setClearColor(0x14283f); document.querySelector('#scene').append(renderer.domElement);
-const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(42,640/360,0.1,100);
+const container=document.querySelector('#scene'); renderer.setClearColor(0x14283f); container.append(renderer.domElement);
+const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(42,1,0.1,100);
 camera.position.set(6,5,8); camera.lookAt(0,0,0);
 scene.add(new THREE.AmbientLight(0xffffff,2));
 const light = new THREE.DirectionalLight(0xffffff,3); light.position.set(4,8,6); scene.add(light);
 const mesh = new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:0x42d7b4,roughness:0.45})); scene.add(mesh);
 const number = id => Number(document.getElementById(id).value);
-const render = () => renderer.render(scene,camera);
+const render = () => {
+ const width=Math.max(1,container.clientWidth),height=240;
+ if(renderer.domElement.width!==width || renderer.domElement.height!==height) renderer.setSize(width,height,false);
+ camera.aspect=width/height;camera.updateProjectionMatrix();renderer.render(scene,camera);
+};
+new ResizeObserver(render).observe(container);
 `;
 const wrap = (controls: string, script: string) => `${style}<main><h2>受控 Three.js 实验</h2>${controls}<p id="support" role="status">正在初始化 WebGL2…</p><div id="scene"></div><output id="reading"></output></main><script>
 try { if (!document.createElement('canvas').getContext('webgl2')) throw new Error('当前设备不支持 WebGL2，无法运行此实验。');

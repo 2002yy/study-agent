@@ -104,6 +104,12 @@ async function state(page: Page) {
 }
 
 async function checkPixels(inner: Frame) {
+  const dimensions = await inner.locator("canvas").evaluate(canvas => {
+    const rect = canvas.getBoundingClientRect();
+    return { bufferWidth: canvas.width, bufferHeight: canvas.height, displayWidth: rect.width, displayHeight: rect.height };
+  });
+  expect(Math.abs(dimensions.bufferWidth / dimensions.bufferHeight - dimensions.displayWidth / dimensions.displayHeight)).toBeLessThan(0.01);
+  console.log("canvas geometry", JSON.stringify(dimensions));
   const pixels = await inner.locator("canvas").evaluate(canvas => {
     const gl = canvas.getContext("webgl2")!;
     const values = new Uint8Array(gl.drawingBufferWidth * gl.drawingBufferHeight * 4);
