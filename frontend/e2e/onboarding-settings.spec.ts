@@ -77,14 +77,18 @@ test("ordinary settings hide engineering controls until advanced disclosure", as
 
   await expect(settings.getByRole("combobox", { name: "角色" })).toHaveCount(0);
   await expect(settings.getByRole("combobox", { name: "模型档位" })).toHaveCount(0);
-  await expect(settings.getByRole("combobox", { name: "上下文深度" })).toHaveCount(0);
+  await expect(settings.getByRole("combobox", { name: "个人记忆读取范围" })).toHaveCount(0);
   await expect(settings.getByRole("combobox", { name: "检索方式" })).toHaveCount(0);
 
   await settings.getByText("高级设置", { exact: true }).click();
   await expect(settings.getByRole("combobox", { name: "角色" })).toBeVisible();
   await expect(settings.getByLabel("本会话微调")).toBeVisible();
   await expect(settings.getByRole("combobox", { name: "模型档位" })).toBeVisible();
-  await expect(settings.getByRole("combobox", { name: "上下文深度" })).toBeVisible();
+  const memoryScope = settings.getByRole("combobox", { name: "个人记忆读取范围" });
+  await expect(memoryScope).toBeVisible();
+  await memoryScope.selectOption("none");
+  await expect(memoryScope).toHaveValue("none");
+  await expect(settings.getByText("不读取个人记忆文件；当前问题和本会话内容仍可用于回答。", { exact: true })).toBeVisible();
   await expect(settings.getByRole("combobox", { name: "检索方式" })).toBeVisible();
   await expect(settings.getByRole("spinbutton", { name: "候选来源" })).toBeVisible();
   await expect(settings.getByRole("spinbutton", { name: "回答引用" })).toBeVisible();
