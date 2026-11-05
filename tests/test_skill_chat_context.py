@@ -122,6 +122,78 @@ def test_disabled_skill_is_rejected_without_a_model_call(tmp_path, installed, po
     assert sent == []
 
 
+@pytest.mark.parametrize("policy", [False, True])
+@pytest.mark.parametrize("resend_ids", [False, True])
+def test_preparation_failure_retains_skill_identity_for_retry(
+    tmp_path, installed, policy, resend_ids
+):
+    store, skill_id = installed
+    sent = []
+    service, repo = make_service(tmp_path, policy, sent)
+    cls = PolicyChatCommand if policy else ChatCommand
+    original = cls(
+        user_input="hello", selected_role="nahida", selected_mode="普通",
+        selected_skill_ids=[skill_id], turn_id="prepare-failure",
+    )
+    dependencies = service.dependencies
+
+    def failed_route(**kwargs):
+        raise RuntimeError("injected preparation failure")
+
+    service.dependencies = replace(dependencies, route_request=failed_route)
+    with pytest.raises(RuntimeError, match="injected preparation failure"):
+        service.start_turn(original)
+    parent = repo.get_chat_turn(original.turn_id)
+    assert parent.status == "failed"
+    assert parent.route_snapshot["skills"]["ids"] == [skill_id]
+    assert "SKILL_TEST_DIRECTIVE" not in str(parent.route_snapshot)
+    assert "SKILL_TEST_DIRECTIVE" not in parent.conversation_instruction
+    assert sent == []
+
+    service.dependencies = dependencies
+    retry = replace(
+        original, turn_id=None, thread_id=parent.thread_id,
+        retry_of_turn_id=parent.id,
+        selected_skill_ids=[skill_id] if resend_ids else [],
+    )
+    # Retaining identity must not bypass the current enabled-store check.
+    store.set_enabled(skill_id, False)
+    with pytest.raises(ValueError, match="disabled"):
+        service.start_turn(retry)
+    store.set_enabled(skill_id, True)
+    prepared = service.start_turn(retry)
+    assert prepared.route["skills"]["ids"] == [skill_id]
+    service.generate(prepared)
+    assert len(sent) == 1
+    assert "SKILL_TEST_DIRECTIVE" in str(sent[0])
+
+
+@pytest.mark.parametrize("policy", [False, True])
+def test_preparation_failure_without_skills_cannot_gain_them_on_retry(
+    tmp_path, installed, policy
+):
+    _, skill_id = installed
+    sent = []
+    service, repo = make_service(tmp_path, policy, sent)
+    cls = PolicyChatCommand if policy else ChatCommand
+    original = cls(user_input="hello", turn_id="prepare-without-skills")
+
+    def failed_route(**kwargs):
+        raise RuntimeError("injected preparation failure")
+
+    service.dependencies = replace(service.dependencies, route_request=failed_route)
+    with pytest.raises(RuntimeError, match="injected preparation failure"):
+        service.start_turn(original)
+    parent = repo.get_chat_turn(original.turn_id)
+    assert parent.route_snapshot["skills"]["ids"] == []
+    with pytest.raises(ValueError, match="cannot switch"):
+        service.start_turn(replace(
+            original, turn_id=None, thread_id=parent.thread_id,
+            retry_of_turn_id=parent.id, selected_skill_ids=[skill_id],
+        ))
+    assert sent == []
+
+
 def test_cloud_policy_blocks_skill_before_any_model_call(tmp_path, installed):
     _, skill_id = installed
     sent = []

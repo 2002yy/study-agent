@@ -4,12 +4,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import * as api from "../../api";
 import { SkillPanel } from "./SkillPanel";
+import { ApiTokenSettings } from "../settings/ApiTokenSettings";
+import { setApiToken } from "../../apiToken";
 import { consumePendingSkillSelection, getPendingSkillSelection, setPendingSkillSelection } from "./skillSelection";
 
 vi.mock("../../api", () => ({ listLocalSkills: vi.fn(), importLocalSkill: vi.fn(), setLocalSkillEnabled: vi.fn(), deleteLocalSkill: vi.fn() }));
 const skill = { id: "s1", name: "explain", description: "Readable explanation", enabled: false,
   content: "---\nname: explain\ndescription: Readable explanation\n---\n<script>window.bad=1</script>" };
-beforeEach(() => { vi.clearAllMocks(); setPendingSkillSelection([]); vi.mocked(api.listLocalSkills).mockResolvedValue({ skills: [] }); });
+beforeEach(() => { vi.clearAllMocks(); setApiToken(""); setPendingSkillSelection([]); vi.mocked(api.listLocalSkills).mockResolvedValue({ skills: [] }); });
 afterEach(cleanup);
 
 it("imports inert text disabled, requires enabling to select, and removes deleted selections", async () => {
@@ -51,4 +53,36 @@ it("reads an uploaded markdown file as text without automatically installing it"
   fireEvent.change(screen.getByLabelText("上传 SKILL.md"), { target: { files: [file] } });
   await waitFor(() => expect(screen.getByLabelText("粘贴 SKILL.md")).toHaveValue(skill.content));
   expect(api.importLocalSkill).not.toHaveBeenCalled();
+});
+
+it("retries a refused list after token save and clears the warning only after success", async () => {
+  vi.mocked(api.listLocalSkills).mockRejectedValueOnce(new Error("401"))
+    .mockResolvedValueOnce({ skills: [skill] });
+  render(<><SkillPanel /><ApiTokenSettings /></>);
+  expect(await screen.findByRole("alert")).toHaveTextContent("列表读取失败");
+  fireEvent.change(screen.getByLabelText("API 令牌"), { target: { value: "recovered-token" } });
+  fireEvent.click(screen.getByRole("button", { name: "保存令牌" }));
+  expect(await screen.findByRole("heading", { name: skill.name })).toBeVisible();
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(api.listLocalSkills).toHaveBeenCalledTimes(2);
+});
+
+it("preserves real list errors when a changed token cannot recover the request", async () => {
+  vi.mocked(api.listLocalSkills).mockRejectedValue(new Error("500"));
+  render(<SkillPanel />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("列表读取失败");
+  act(() => setApiToken("another-token"));
+  await waitFor(() => expect(api.listLocalSkills).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole("alert")).toHaveTextContent("列表读取失败");
+});
+
+it("ignores a stale refusal completing after the replacement token succeeded", async () => {
+  let rejectOld!: (reason: Error) => void;
+  vi.mocked(api.listLocalSkills).mockReturnValueOnce(new Promise((_, reject) => { rejectOld = reject; }))
+    .mockResolvedValueOnce({ skills: [skill] });
+  render(<SkillPanel />);
+  act(() => setApiToken("replacement-token"));
+  expect(await screen.findByRole("heading", { name: skill.name })).toBeVisible();
+  await act(async () => { rejectOld(new Error("401")); });
+  expect(screen.queryByRole("alert")).toBeNull();
 });

@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { deleteLocalSkill, importLocalSkill, listLocalSkills, setLocalSkillEnabled, type LocalSkill } from "../../api";
+import { apiToken, subscribeApiToken } from "../../apiToken";
 import { getPendingSkillSelection, setPendingSkillSelection, subscribeSkillSelection } from "./skillSelection";
 import "./SkillPanel.css";
 
@@ -9,16 +10,19 @@ export function SkillPanel() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(true);
   const selected = useSyncExternalStore(subscribeSkillSelection, getPendingSkillSelection);
+  const token = useSyncExternalStore(subscribeApiToken, apiToken);
   useEffect(() => {
     let active = true;
+    setBusy(true);
     listLocalSkills().then(result => { if (active) {
       setSkills(result.skills);
+      setError("");
       setPendingSkillSelection(getPendingSkillSelection().filter(id => result.skills.some(skill => skill.id === id && skill.enabled)));
     } })
       .catch(() => { if (active) setError("Skill 列表读取失败，请重新打开设置重试。"); })
       .finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
-  }, []);
+  }, [token]);
   const perform = async (action: () => Promise<void>) => {
     setBusy(true); setError("");
     try { await action(); } catch { setError("操作失败，请检查 SKILL.md 内容或稍后重试；现有选择仍保留。"); }
