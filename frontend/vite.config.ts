@@ -13,6 +13,7 @@ export default defineConfig({
       "/rag": API_TARGET,
       "/knowledge-base": API_TARGET,
       "/tools": API_TARGET,
+      "/skills": API_TARGET,
       "/tool-runs": API_TARGET,
       "/workflows": API_TARGET,
       "/memory": API_TARGET,
