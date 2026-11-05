@@ -250,7 +250,7 @@ export function ChatPanel(props: ChatPanelProps) {
   } = props;
   const [busyInputMode, setBusyInputMode] = useState<"steer" | "queue">("steer");
   const [restoreTarget, setRestoreTarget] = useState<RestoreTarget | null>(null);
-  const canSubmit = !isSending || Boolean(!props.isSteering && (busyInputMode === "steer" ? props.canSteer : props.canQueue));
+  const canSubmit = !isSending || Boolean(!restoreTarget && !props.isSteering && (busyInputMode === "steer" ? props.canSteer : props.canQueue));
 
   const conversationRef = useRef<HTMLElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -679,7 +679,7 @@ export function ChatPanel(props: ChatPanelProps) {
       <form className="composer" onSubmit={handleSubmit}>
         {restoreTarget ? (
           <div className="restore-target" role="status">
-            <span>以「{restoreTarget.title}」版本 {restoreTarget.revision} 为基础</span>
+            <span>以「{restoreTarget.title}」版本 {restoreTarget.revision} 为基础{isSending ? "；当前回答结束后可发送" : ""}</span>
             <button type="button" onClick={cancelRestoreBase}>取消</button>
           </div>
         ) : null}
