@@ -1,5 +1,6 @@
 /** A model document is data until mounted in an opaque-origin sandbox. */
 export { loadThreeSource } from "./threeSource";
+import { LAYOUT_DIAGNOSTICS } from "./layoutDiagnostics";
 export type InteractiveCard = {
   type: "interactive";
   id: string;
@@ -64,7 +65,9 @@ function makeSandboxContent(html: string, channel: string, threeSource = ""): st
     addEventListener('submit', event => event.preventDefault(), true);
     addEventListener('message', event => {
       const data = event.data;
-      if (!data || data.channel !== channel || data.type !== 'restore') return;
+      if (!data || data.channel !== channel) return;
+      if (data.type === 'diagnose') { try { emit('diagnostics', (${LAYOUT_DIAGNOSTICS})()); } catch { emit('diagnostics', null); } return; }
+      if (data.type !== 'restore') return;
       if (typeof restoreHandler !== 'function') { emit('restore_unavailable', true); return; }
       try { restoreHandler(JSON.parse(JSON.stringify(data.value))); }
       catch (error) { emit('error', String(error).slice(0, 500)); }
@@ -112,14 +115,14 @@ export function makeInteractiveDocument(html: string, channel: string, capabilit
     canvas.srcdoc = ${source};
     addEventListener('message', event => {
       const data = event.data;
-      if (!data || data.type !== 'restore' || data.channel !== channel) return;
-      try { canvas.contentWindow.postMessage({channel, type: 'restore', value: data.value}, '*'); } catch {}
+      if (!data || !['restore','diagnose'].includes(data.type) || data.channel !== channel) return;
+      try { canvas.contentWindow.postMessage({channel, type: data.type, value: data.value}, '*'); } catch {}
     });
     addEventListener('message', event => {
       if (event.source !== canvas.contentWindow || event.origin !== 'null') return;
       const data = event.data;
       if (!data || typeof data !== 'object' || data.channel !== channel) return;
-      if (['ready','height','state','error','restore_unavailable'].includes(data.type)) parent.postMessage(data, '*');
+      if (['ready','height','state','error','restore_unavailable','diagnostics'].includes(data.type)) parent.postMessage(data, '*');
     });
     document.body.append(canvas);
   </script></body></html>`;

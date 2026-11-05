@@ -189,7 +189,7 @@ Under this policy A2d-1/2/3 and A3-0 would **not** have required L3; A2d-4 (auth
 
 1. After push/opening a PR, query CI state once to capture run IDs and exact `head_sha`.
 2. Do **not** continuously run `gh run watch`, polling loops, or repeated status queries inside an agent session merely to wait for CI completion.
-3. Resume/check CI in a later turn or explicit follow-up. When checking, query only the known run(s) or exact head SHA.
+3. Query CI once after a push. An automatic goal continuation is not permission to query the same running CI again. While CI runs, advance the next authorized independent slice; inspect the known run(s) or exact SHA only at an explicit integration closeout or user-requested follow-up. Do not turn a persistent goal into a CI watch loop.
 4. Inspect detailed job logs only if a run fails or a required gate is ambiguous.
 5. For PR closeout, distinguish:
    - exact-head push CI;
