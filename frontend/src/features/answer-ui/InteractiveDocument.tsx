@@ -196,7 +196,11 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
       </> : <p>已覆盖的排版项目未发现问题；这不代表内容或交互逻辑正确。</p> : null}
     </section>
     <div className="interactive-footer">
-      <button type="button" className="interactive-continue" disabled={!onDraft} onClick={() => onDraft?.(interactiveFollowup(card, state, error))}>{error ? "请模型修复" : "带着当前状态继续问"}<ArrowUpRight size={16} /></button>
+      <button type="button" className="interactive-continue" disabled={!onDraft} onClick={() => {
+        const prompt = interactiveFollowup(card, state, error);
+        if (error) onDraft?.(prompt, { id: card.id, revision: card.revision });
+        else onDraft?.(prompt);
+      }}>{error ? "请模型修复" : "带着当前状态继续问"}<ArrowUpRight size={16} /></button>
       <button type="button" className="interactive-restore" disabled={!onRestoreBase} onClick={() => onRestoreBase?.({ id: card.id, revision: card.revision, title: card.title })} title="从这一版的源码重新开始，而不是最近一版">以此版本为基础继续</button>
       {savedState && savedState.revision === card.revision ? (
         <button type="button" className="interactive-restore" onClick={restoreSavedState}><History size={14} /><span>恢复上次状态</span></button>

@@ -243,7 +243,7 @@ describe("generated interactive documents", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("draw is not defined");
     fireEvent.click(screen.getByRole("button", { name: "请模型修复" }));
     expect(onDraft).toHaveBeenCalledTimes(1);
-    expect(onDraft).toHaveBeenCalledWith(expect.stringContaining("请修复这个界面"));
+    expect(onDraft).toHaveBeenCalledWith(expect.stringContaining("请修复这个界面"), { id: card.id, revision: card.revision });
   });
 
   it("keeps prompt capability and readable fallback within the existing transient envelope", () => {
