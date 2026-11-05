@@ -1,4 +1,4 @@
-import { setPendingRepairTarget } from "../answer-ui/repairTarget";
+import { clearRepairTarget, setPendingRepairTarget } from "../answer-ui/repairTarget";
 import {
   ArrowDown,
   ArrowUp,
@@ -423,7 +423,7 @@ export function ChatPanel(props: ChatPanelProps) {
   };
 
   const handleRestoreBase = (target: RestoreTarget) => {
-    setPendingRepairTarget(null);
+    clearRepairTarget();
     setPendingRestoreTarget(target);
     setRestoreTarget(target);
     setComposerMode("chat");
@@ -433,6 +433,7 @@ export function ChatPanel(props: ChatPanelProps) {
   };
 
   const cancelRestoreBase = () => {
+    clearRepairTarget();
     setRestoreTarget(null);
     clearPendingRestoreTarget();
     setPendingRepairTarget(null);
@@ -440,6 +441,7 @@ export function ChatPanel(props: ChatPanelProps) {
 
   useEffect(() => {
     // A different session must not inherit the previous one's base version.
+    clearRepairTarget();
     setRestoreTarget(null);
     clearPendingRestoreTarget();
     setPendingRepairTarget(null);

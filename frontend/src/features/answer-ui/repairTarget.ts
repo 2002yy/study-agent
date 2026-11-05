@@ -15,7 +15,15 @@ export function consumePendingRepairTarget(input: string, sessionId?: string): R
   }
   // A transport failure may precede creation of a server-side parent turn.
   // Re-sending the same draft must retain its original budget identity.
-  return lastAttempt && lastAttempt.sessionId === sessionId && lastAttempt.input === input
-    ? lastAttempt.target : null;
+  if (lastAttempt && lastAttempt.sessionId === sessionId && lastAttempt.input === input) {
+    return lastAttempt.target;
+  }
+  lastAttempt = null;
+  return null;
 }
 
+
+export function clearRepairTarget(): void {
+  pending = null;
+  lastAttempt = null;
+}
