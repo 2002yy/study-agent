@@ -44,9 +44,9 @@ export function parseAnswerCard(raw: string): AnswerCard | null {
     if (c.type === "interactive" && text(c.id, 64) && /^[a-zA-Z0-9_-]+$/.test(c.id)
       && Number.isInteger(c.revision) && typeof c.revision === "number" && c.revision >= 1 && c.revision <= 999
       && text(c.summary, 1200) && text(c.html, 60000)) {
-      if (c.capabilities !== undefined && (!Array.isArray(c.capabilities) || c.capabilities.length !== 1 || c.capabilities[0] !== "three")) return null;
+      if (c.capabilities !== undefined && (!Array.isArray(c.capabilities) || (c.capabilities.length !== 0 && (c.capabilities.length !== 1 || c.capabilities[0] !== "three")))) return null;
       return { type: "interactive", id: c.id, revision: c.revision, title, summary: c.summary, html: c.html,
-        ...(c.capabilities === undefined ? {} : { capabilities: ["three"] }) };
+        ...(!Array.isArray(c.capabilities) || c.capabilities.length === 0 ? {} : { capabilities: ["three"] }) };
     }
     if (raw.length > 24000) return null;
     if (c.type === "memory_lab" && text(c.initialName, 30) && text(c.updatedName, 30))

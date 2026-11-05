@@ -314,6 +314,7 @@ def run_batch(
                                 else "fake_transport",
                                 "task_id": case["task_id"],
                                 "revision": version.revision,
+                                "capabilities": list(version.capabilities),
                             }
                         )
                 except Exception as error:

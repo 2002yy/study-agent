@@ -8,11 +8,12 @@ import { observationOf } from "./taskObservers";
 
 export async function replayRaw(
   page: Page, html: string, taskId: string | null,
-  viewport: { width: number; height: number }, errors: ErrorCapture
+  viewport: { width: number; height: number }, errors: ErrorCapture,
+  capabilities: [] | ["three"] = []
 ) {
   const spec = taskId ? TASK_SPECS.find(task => task.id === taskId) : undefined;
   if (taskId && !spec) throw new Error(`Unknown task: ${taskId}`);
-  const inner = await mountSandbox(page, html, viewport);
+  const inner = await mountSandbox(page, html, viewport, capabilities);
   let observation = observationOf({}, errors, await capture(inner));
   let observerError: string | null = null;
   if (taskId === "J01") {
@@ -30,7 +31,7 @@ export async function replayRaw(
   const status = !spec ? "unjudged" : all.some(check => check.status === "fail") ? "failed"
     : all.some(check => check.status === "indeterminate") ? "indeterminate" : "passed";
   return {
-    task_id: taskId, status, viewport,
+    task_id: taskId, status, viewport, capabilities,
     inner_width: await inner.evaluate(() => window.innerWidth),
     observation: structuredClone(observation), checks, usability, observer_error: observerError,
     runtime_errors: [...errors.pageErrors, ...errors.consoleErrors],

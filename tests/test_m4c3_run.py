@@ -28,8 +28,9 @@ ANSWER = (
 )
 
 
+@pytest.mark.parametrize("capabilities", [[], ["three"]])
 def test_product_chain_reserves_each_actual_request_before_one_fake_http_send(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, capabilities
 ):
     import httpx
 
@@ -40,7 +41,11 @@ def test_product_chain_reserves_each_actual_request_before_one_fake_http_send(
     )
     spend.reset_spend()  # Tests only: durable reservations cannot be reset.
     out, ledger = tmp_path / "run", tmp_path / "spend.db"
-    report = run_batch(out, ledger, PRICING, fake_reply=ANSWER)
+    payload = json.loads(ANSWER.split("\n")[1])
+    if capabilities:
+        payload["capabilities"] = capabilities
+    answer = "```study-ui\n" + json.dumps(payload) + "\n```"
+    report = run_batch(out, ledger, PRICING, fake_reply=answer)
     assert len(report["cases"]) == 12
     assert all(
         case["status"] == "completed" and case["sent"] for case in report["cases"]
@@ -51,6 +56,7 @@ def test_product_chain_reserves_each_actual_request_before_one_fake_http_send(
     assert index["generation_mode"] == "fake_http"
     assert len(index["cases"]) == 12
     assert {case["source_kind"] for case in index["cases"]} == {"fake_transport"}
+    assert all(case["capabilities"] == capabilities for case in index["cases"])
     for case in report["cases"]:
         directory = out / case["task_id"]
         request = json.loads((directory / "request.json").read_text(encoding="utf-8"))
@@ -58,7 +64,7 @@ def test_product_chain_reserves_each_actual_request_before_one_fake_http_send(
         assert request["max_tokens"] == 16384
         assert request["temperature"] == 0.7
         assert request["thinking"] == {"type": "disabled"}
-        assert (directory / "answer.txt").read_text() == ANSWER
+        assert (directory / "answer.txt").read_text() == answer
         assert (directory / "reservation.json").exists()
         assert (directory / "provider-response.txt").exists()
         assert 0 < case["reserved_micros"] <= 1_000_000

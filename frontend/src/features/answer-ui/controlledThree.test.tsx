@@ -17,7 +17,8 @@ describe("controlled Three capability", () => {
   it("preserves old cards and accepts only the explicit supported capability", () => {
     expect(parseAnswerCard(JSON.stringify(card))).toEqual(card);
     expect(parseAnswerCard(JSON.stringify({ ...card, capabilities: ["three"] }))).toMatchObject({ capabilities: ["three"] });
-    for (const capabilities of [[], ["cdn"], ["three", "three"], "three", null]) {
+    expect(parseAnswerCard(JSON.stringify({ ...card, capabilities: [] }))).toEqual(card);
+    for (const capabilities of [["cdn"], ["three", "three"], "three", null]) {
       expect(parseAnswerCard(JSON.stringify({ ...card, capabilities }))).toBeNull();
     }
   });

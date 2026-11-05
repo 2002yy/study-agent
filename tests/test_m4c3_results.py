@@ -110,3 +110,48 @@ def test_unsent_tasks_leave_the_batch_incomplete(tmp_path):
     assert result["batch_complete"] is False
     assert result["counts"]["not_run"] == 1
     assert result["first_generation_success_rate"] is None
+
+
+@pytest.mark.parametrize(
+    "source_caps,observed_caps", [(["three"], []), ([], ["three"])]
+)
+def test_same_html_with_different_host_is_stale_evidence(
+    tmp_path, source_caps, observed_caps
+):
+    corpus(tmp_path)
+    path = tmp_path / "index.json"
+    index = json.loads(path.read_text())
+    index["cases"][0]["capabilities"] = source_caps
+    path.write_text(json.dumps(index))
+    path = tmp_path / "sandbox-1280/report.json"
+    report = json.loads(path.read_text())
+    report["cases"][0]["capabilities"] = observed_caps
+    path.write_text(json.dumps(report))
+    with pytest.raises(ValueError, match="stale browser evidence"):
+        evaluate_artifacts(tmp_path, render=False)
+
+
+@pytest.mark.parametrize("capabilities", [None, [], ["three"]])
+def test_matching_host_preserves_scores_including_legacy_empty(tmp_path, capabilities):
+    corpus(tmp_path)
+    if capabilities is not None:
+        path = tmp_path / "index.json"
+        index = json.loads(path.read_text())
+        index["cases"][0]["capabilities"] = capabilities
+        path.write_text(json.dumps(index))
+    for width in (1280, 390):
+        path = tmp_path / f"sandbox-{width}/report.json"
+        report = json.loads(path.read_text())
+        report["cases"][0]["capabilities"] = capabilities or []
+        path.write_text(json.dumps(report))
+    assert evaluate_artifacts(tmp_path, render=False)["counts"]["indeterminate"] == 1
+
+
+def test_unknown_source_host_is_rejected_even_before_browser_provenance(tmp_path):
+    corpus(tmp_path)
+    path = tmp_path / "index.json"
+    data = json.loads(path.read_text())
+    data["cases"][0]["capabilities"] = ["unknown"]
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="unsupported source host"):
+        evaluate_artifacts(tmp_path, render=False)
