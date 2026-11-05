@@ -742,6 +742,7 @@ class ChatService:
                     user_message=command.user_input,
                     assistant_message="",
                     status="pending",
+                    route_snapshot={"skills": {"ids": list(command.selected_skill_ids)}},
                     parent_turn_id=retry_parent.id if retry_parent else None,
                     operation_id=operation_id,
                     conversation_instruction=command.conversation_instruction,
