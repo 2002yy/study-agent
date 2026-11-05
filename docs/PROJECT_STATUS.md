@@ -16,6 +16,21 @@
 > **当前采用产品能力快速交付：A线M4-C3评测执行链路与B线M4-D增量修改原型并行，范围见§0B。
 > main `95e2bbc6` / CI `41847418702` 已success，A/B已交付；授权的首次真实12题已完成，下一片M4-C4。**
 
+### 2026-11-05 M4-E发送链路快速并行收口
+
+branch codex/interactive-repair-feedback-20261105；基线7ffae8c3已推送。
+本轮用户授权高速并行、可提交片立即推远程、不等CI；前后端独立提交，未执行合并。
+后端8d738ae9绑定本会话保存源码、版本/hash/能力声明，prepare/生成/重试经同一账本限额，
+无既有费用配置或未知源码时拒绝；HTTP只接受身份字段，拒绝传入HTML或额度覆盖。
+前端a336a362/a18c421d绑定修复草稿与当前会话，网络失败同文重发保留身份，
+取消、切换会话或发送其他内容清除；复用版本提示与取消操作。
+owner=orchestration-contract/UI；Static Loop。命名interactive_repair影响集249 PASS/138s，
+最终服务补充回归15 PASS；mypy118/128新增0、Ruff/diff-check PASS；前端直接集87 PASS、tsc PASS。
+日志保留D:/study-agent-validation/m4e-repair-evidence-20261105/。
+本轮未运行L2/L3、浏览器实测或动态模型比较，没有付费调用；工程候选不授予产品质量/合并资格。
+首次Git schannel握手失败，单次http.sslBackend=openssl推送成功，未改全局配置。
+下一片：浏览器正式修复发送与失败恢复验收，再按精确候选执行审阅/合并门禁；不轮询CI。
+
 ### 2026-11-05 用户纠正CI等待方式；继续M4-E证据反馈
 
 用户明确要求CI只查一次，goal持续运行应先推进后续，不能自动续轮询；永久规则已更新AGENTS §7。
