@@ -29,6 +29,21 @@
     }
   },
   "impact_sets": {
+    "interactive_repair": [
+      "tests/test_interactive_repair_service.py",
+      "tests/test_interactive_repair_budget.py",
+      "tests/test_chat_service.py",
+      "tests/test_interactive_restore.py",
+      "tests/test_chat_lifecycle_e2e.py",
+      "tests/test_chat_stream_cancellation.py",
+      "tests/test_local_skills.py",
+      "tests/test_llm_spend_guard.py",
+      "tests/test_spend_guard_experiment.py",
+      "tests/test_spend_ledger_persistence.py",
+      "tests/test_spend_admission_boundary.py",
+      "tests/test_spend_settlement.py",
+      "tests/test_stage_gates_policy.py"
+    ],
     "interactive_state_snapshots": [
       "tests/test_interactive_state.py",
       "tests/test_api.py",

@@ -916,6 +916,38 @@ def reservation_cny(*, prompt_chars: int, max_tokens: int | None, attempts: int)
     return max(1, int(attempts)) * per_attempt
 
 
+def validate_repair_configuration(model: str | None = None) -> None:
+    """Refuse unconfigured repair work before preparation can invoke a model."""
+    experiment = experiment_id()
+    experiment_cap = experiment_cap_cny() if experiment else None
+    if not experiment or experiment_cap is None or experiment_cap <= 0:
+        raise SpendConfigurationError(
+            "interactive repair requires an existing capped experiment"
+        )
+    input_price, output_price = _pricing()
+    if input_price <= 0 or output_price <= 0:
+        raise SpendConfigurationError(
+            "interactive repair requires positive verified prices"
+        )
+    priced_models = allowed_models()
+    if not priced_models or (model is not None and model not in priced_models):
+        raise SpendConfigurationError(
+            "interactive repair requires an explicitly priced model"
+        )
+    if not Path(_ledger_path()).is_file():
+        raise SpendConfigurationError(
+            "interactive repair requires the existing shared ledger"
+        )
+    existing_budget = _ledger().experiment_budget(experiment)
+    if (
+        existing_budget is None
+        or existing_budget.pricing_fingerprint != _pricing_fingerprint()
+    ):
+        raise SpendConfigurationError(
+            "interactive repair requires the original experiment pricing"
+        )
+
+
 def reserve_call(
     *,
     prompt_chars: int,
@@ -943,6 +975,11 @@ def reserve_call(
     cap = spend_cap_cny()
     experiment = experiment_id()
     experiment_cap = experiment_cap_cny() if experiment else None
+    from src.interactive_repair_budget import current_repair_budget
+
+    repair = current_repair_budget()
+    if repair is not None:
+        validate_repair_configuration(model)
 
     # The admission layer holds a signed authorization for this exact send. The
     # transport may send, but only within the reserved bounds, and it must not
@@ -953,6 +990,10 @@ def reserve_call(
         if not isinstance(slot, _SendSlot):
             raise SpendAuthorizationError("send_authorization_missing")
         active = slot.authorization
+        if repair is not None:
+            stored = _ledger().reserved_send(active.experiment_id, active.request_key)
+            if stored is None or stored.purpose != repair.purpose:
+                raise SpendAuthorizationError("interactive_repair_reservation_missing")
         if request_key is not None and request_key != active.request_key:
             raise SpendAuthorizationError("send_authorization_key_mismatch")
         if str(model or "") != active.model:
@@ -1027,6 +1068,16 @@ def reserve_call(
                     )
                 request_key = scope.next_key(purpose)
             amount_micros = cny_to_micros(reservation)
+            ledger_purpose = purpose
+            ledger_identity = resolved_identity.describe() if resolved_identity else ""
+            if repair is not None:
+                admission_guard = repair.admission_guard(
+                    amount_micros, max(1, int(attempts)), admission_guard
+                )
+                ledger_purpose = repair.purpose
+                ledger_identity = repair.reservation_identity(
+                    ledger_identity, purpose, max(1, int(attempts))
+                )
             ledger = _ledger()
             ledger.ensure_experiment(
                 experiment,
@@ -1039,9 +1090,9 @@ def reserve_call(
                     experiment,
                     request_key=request_key,
                     amount_micros=amount_micros,
-                    purpose=purpose,
+                    purpose=ledger_purpose,
                     model=model,
-                    identity=(resolved_identity.describe() if resolved_identity else ""),
+                    identity=ledger_identity,
                     now=_utc_now(),
                     admission_guard=admission_guard,
                 )

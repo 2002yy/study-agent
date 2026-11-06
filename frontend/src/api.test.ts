@@ -1,3 +1,4 @@
+import { setPendingRepairTarget } from "./features/answer-ui/repairTarget";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setApiToken } from "./apiToken";
 import {
@@ -46,6 +47,7 @@ const ragSettings: RagSettings = {
 
 afterEach(() => {
   clearPendingRestoreTarget();
+  setPendingRepairTarget(null);
 });
 
 function sseResponse(chunks: string[]): Response {
@@ -67,6 +69,24 @@ function sseResponse(chunks: string[]): Response {
 }
 
 describe("sendChatStream", () => {
+  it("binds repair identity to its session and consumes it even after network failure", async () => {
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error("offline"))
+      .mockImplementation(async () => sseResponse(['event: done\ndata: {"session_id":"s","reply":"ok"}\n\n']));
+    vi.stubGlobal("fetch", fetchMock);
+    const options = { ragEnabled: false, chatSettings, ragSettings, sessionId: "s" };
+    setPendingRepairTarget({ id: "scene", revision: 1 }, "s");
+    await expect(sendChatStream("repair", [], options, {})).rejects.toThrow();
+    await sendChatStream("repair", [], options, {});
+    await sendChatStream("ordinary", [], options, {});
+    setPendingRepairTarget({ id: "scene", revision: 1 }, "other");
+    await sendChatStream("another session", [], options, {});
+    const bodies = fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init.body)));
+    expect(bodies[0].interactive_repair).toEqual({ id: "scene", revision: 1 });
+    expect(bodies[1].interactive_repair).toEqual({ id: "scene", revision: 1 });
+    expect(bodies[2].interactive_repair).toBeNull();
+    expect(bodies[3].interactive_repair).toBeNull();
+  });
+
   it("retains the provider termination reason on the returned route", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => sseResponse([
       'event: token\ndata: {"text":"partial"}\n\n',

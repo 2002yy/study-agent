@@ -8,7 +8,7 @@ import asyncio
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
-from typing import Any, AsyncIterator, Callable, Iterator
+from typing import Any, AsyncGenerator, AsyncIterator, Callable, Generator, Iterator
 
 from src.application.research_deadline import (
     bounded_model_call,
@@ -64,12 +64,14 @@ from src.interactive_restore import (
     restore_context_block,
     restore_record,
 )
+from src.interactive_repair import resolve_repair, repair_scope
 from src.llm_spend_guard import (
     experiment_id,
     new_scope,
     pop_scope,
     push_scope,
     spend_scope,
+    validate_repair_configuration,
 )
 from src.memory import read_memory_bundle
 from src.mode_manager import load_runtime_modes
@@ -114,7 +116,11 @@ def _answer_attempt_budget(prepared: Any) -> int:
         allowed = 1
     semantic = ((getattr(prepared, "rag", {}) or {}).get("web_tools") or {}).get("semantics")
     if isinstance(semantic, dict):
-        remaining = 6 - int(semantic.get("model_calls", 0)) - _route_generation_calls(prepared.route)
+        remaining = (
+            6
+            - int(semantic.get("model_calls", 0))
+            - _route_generation_calls(prepared.route)
+        )
         allowed = min(allowed, max(0, remaining))
     return allowed
 
@@ -401,6 +407,7 @@ class ChatCommand:
     # Explicit learner choice of an older generated version to continue from.
     # The source is resolved from saved turns; this payload carries identity only.
     interactive_restore: dict[str, Any] | None = None
+    interactive_repair: dict[str, Any] | None = None
     # Server-validated message-level attachment identity (id + content_hash),
     # bound to the turn. Empty for plain-text turns.
     attachment_refs: list[dict[str, Any]] = field(default_factory=list)
@@ -700,14 +707,52 @@ class ChatService:
             raise
 
     def start_turn(self, command: ChatCommand) -> PreparedChatTurn:
+        if (
+            command.interactive_repair is None
+            and not command.retry_of_turn_id
+            and not command.continuation_of_turn_id
+        ):
+            return self._start_turn(command)
+        command, existing, retry_parent = self._validate_turn_command(command)
+        repair = resolve_repair(self.repository, command, existing or retry_parent)
+        if repair is None:
+            return self._start_turn(command)
+        validate_repair_configuration()
+        command = replace(
+            command,
+            interactive_repair=repair,
+            interactive_restore={"id": repair["id"], "revision": repair["revision"]},
+            turn_id=command.turn_id or command.continuation_of_turn_id or new_id("turn"),
+            operation_id=command.operation_id or new_id("op"),
+        )
+        with (
+            repair_scope(command.thread_id or "", repair),
+            spend_scope(
+                run_id=f"{command.turn_id}:prepare",
+                operation_id=command.operation_id or "",
+                purpose="interactive_repair_prepare",
+                experiment=experiment_id(),
+            ),
+        ):
+            return self._start_turn(command)
+
+    def _start_turn(self, command: ChatCommand) -> PreparedChatTurn:
         command, existing, retry_parent = self._validate_turn_command(command)
         parent = existing or retry_parent
-        command = replace(command, selected_skill_ids=bound_skill_ids(
-            command.selected_skill_ids, parent.route_snapshot if parent else None
-        ))
-        from src.application.review_turn_context import resolve_review_answer, review_evaluation_inputs
+        command = replace(
+            command,
+            selected_skill_ids=bound_skill_ids(
+                command.selected_skill_ids, parent.route_snapshot if parent else None
+            ),
+        )
+        from src.application.review_turn_context import (
+            resolve_review_answer,
+            review_evaluation_inputs,
+        )
 
-        review_binding = resolve_review_answer(self.repository, command, existing or retry_parent)
+        review_binding = resolve_review_answer(
+            self.repository, command, existing or retry_parent
+        )
         runtime_modes = self._runtime_modes(command.performance_mode)
         context_mode = resolve_context_mode(command.context_mode, runtime_modes.context_mode)
         settings = _session_settings(command, context_mode)
@@ -742,7 +787,14 @@ class ChatService:
                     user_message=command.user_input,
                     assistant_message="",
                     status="pending",
-                    route_snapshot={"skills": {"ids": list(command.selected_skill_ids)}},
+                    route_snapshot={
+                        "skills": {"ids": list(command.selected_skill_ids)},
+                        **(
+                            {"interactive_repair": command.interactive_repair}
+                            if command.interactive_repair
+                            else {}
+                        ),
+                    },
                     parent_turn_id=retry_parent.id if retry_parent else None,
                     operation_id=operation_id,
                     conversation_instruction=command.conversation_instruction,
@@ -781,6 +833,8 @@ class ChatService:
             )
             if skill_record:
                 route["skills"] = skill_record
+            if command.interactive_repair:
+                route["interactive_repair"] = command.interactive_repair
             learning_state = LearningState.from_dict(thread.learning_state)
             # C1b: every turn must leave this entrypoint with a complete task
             # contract, even when the injected router is the legacy one. The
@@ -940,10 +994,16 @@ class ChatService:
                 answer_validation = _tool_read_validation_plan(
                     web_tools, command.user_input
                 )
-            from src.web.research.research_interaction import steering_answer_instruction
+            from src.web.research.research_interaction import (
+                steering_answer_instruction,
+            )
 
-            effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
-            effective_instruction = "\n\n".join(part for part in (effective_instruction, skill_instruction) if part)
+            effective_instruction = steering_answer_instruction(
+                web_tools.calls, command.conversation_instruction
+            )
+            effective_instruction = "\n\n".join(
+                part for part in (effective_instruction, skill_instruction) if part
+            )
             web_tool_error = str(rag["web_tools"].get("error") or "")
             rag["web_context"] = _web_context_provenance(
                 command.web_context,
@@ -1023,7 +1083,11 @@ class ChatService:
                 "learning_state_after": next_learning_state.to_dict(),
                 "evidence_disclosure": disclosed.policy,
                 "evidence_units": list(disclosed.units),
-                **(({"durable_adjudication": durable_adjudication} if durable_adjudication else {})),
+                **(
+                    {"durable_adjudication": durable_adjudication}
+                    if durable_adjudication
+                    else {}
+                ),
             }
             streaming_truth = _normalized_turn_truth(
                 turn=reserved_existing,
@@ -1185,6 +1249,10 @@ class ChatService:
         return True
 
     def generate(self, prepared: PreparedChatTurn) -> str:
+        with repair_scope(prepared.thread.id, prepared.route.get("interactive_repair")):
+            return self._generate(prepared)
+
+    def _generate(self, prepared: PreparedChatTurn) -> str:
         cancel_check = self._make_cancel_check(
             prepared.turn.id, prepared.turn.operation_id or ""
         )
@@ -1397,7 +1465,28 @@ class ChatService:
             prepared.messages.append({"role": "system", "content": guidance})
         return int(budget["max_tokens"])
 
-    def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
+    def stream(
+        self, prepared: PreparedChatTurn, *, should_cancel=None
+    ) -> Iterator[str]:
+        source = self._stream(prepared, should_cancel=should_cancel)
+        try:
+            while True:
+                with repair_scope(
+                    prepared.thread.id, prepared.route.get("interactive_repair")
+                ):
+                    token = next(source)
+                yield token
+        except StopIteration:
+            return
+        finally:
+            with repair_scope(
+                prepared.thread.id, prepared.route.get("interactive_repair")
+            ):
+                source.close()
+
+    def _stream(
+        self, prepared: PreparedChatTurn, *, should_cancel=None
+    ) -> Generator[str, None, None]:
         remaining_seconds(prepared.research_deadline)
         if answer_validation_active(prepared) and prepared.answer_validation is None:
             return
@@ -1425,6 +1514,25 @@ class ChatService:
             raise
 
     async def stream_async(self, prepared: PreparedChatTurn) -> AsyncIterator[str]:
+        source = self._stream_async(prepared)
+        try:
+            while True:
+                with repair_scope(
+                    prepared.thread.id, prepared.route.get("interactive_repair")
+                ):
+                    token = await anext(source)
+                yield token
+        except StopAsyncIteration:
+            return
+        finally:
+            with repair_scope(
+                prepared.thread.id, prepared.route.get("interactive_repair")
+            ):
+                await source.aclose()
+
+    async def _stream_async(
+        self, prepared: PreparedChatTurn
+    ) -> AsyncGenerator[str, None]:
         remaining_seconds(prepared.research_deadline)
         if answer_validation_active(prepared) and prepared.answer_validation is None:
             return
@@ -1745,6 +1853,10 @@ class ChatService:
         }
 
     def complete_turn(self, prepared: PreparedChatTurn, suffix: str) -> ChatTurn:
+        with repair_scope(prepared.thread.id, prepared.route.get("interactive_repair")):
+            return self._complete_turn(prepared, suffix)
+
+    def _complete_turn(self, prepared: PreparedChatTurn, suffix: str) -> ChatTurn:
         reply = f"{prepared.base_reply}{suffix}" if prepared.is_continuation else suffix
         gate_blocked_pedagogy = False
         if answer_validation_active(prepared) and prepared.answer_validation is None:
@@ -2220,10 +2332,11 @@ def _persisted_generation_calls(turn: ChatTurn) -> int:
 
 
 def _requires_mastery_evidence(plan: PedagogyTurnPlan) -> bool:
-    return (
-        plan.phase in {"transfer", "complete", "deliver"}
-        or plan.move in {"transfer", "transfer_test", "close_stage"}
-    )
+    return plan.phase in {"transfer", "complete", "deliver"} or plan.move in {
+        "transfer",
+        "transfer_test",
+        "close_stage",
+    }
 
 
 def _previous_assistant_role(history: list[dict[str, Any]]) -> str | None:

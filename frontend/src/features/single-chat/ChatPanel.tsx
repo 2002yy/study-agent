@@ -1,3 +1,4 @@
+import { clearRepairTarget, setPendingRepairTarget } from "../answer-ui/repairTarget";
 import {
   ArrowDown,
   ArrowUp,
@@ -249,7 +250,7 @@ export function ChatPanel(props: ChatPanelProps) {
   } = props;
   const [busyInputMode, setBusyInputMode] = useState<"steer" | "queue">("steer");
   const [restoreTarget, setRestoreTarget] = useState<RestoreTarget | null>(null);
-  const canSubmit = !isSending || Boolean(!props.isSteering && (busyInputMode === "steer" ? props.canSteer : props.canQueue));
+  const canSubmit = !isSending || Boolean(!restoreTarget && !props.isSteering && (busyInputMode === "steer" ? props.canSteer : props.canQueue));
 
   const conversationRef = useRef<HTMLElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -417,10 +418,12 @@ export function ChatPanel(props: ChatPanelProps) {
       // The request builder consumed the identity; drop the visible chip too.
       setRestoreTarget(null);
       clearPendingRestoreTarget();
+    setPendingRepairTarget(null);
     }
   };
 
   const handleRestoreBase = (target: RestoreTarget) => {
+    clearRepairTarget();
     setPendingRestoreTarget(target);
     setRestoreTarget(target);
     setComposerMode("chat");
@@ -430,14 +433,18 @@ export function ChatPanel(props: ChatPanelProps) {
   };
 
   const cancelRestoreBase = () => {
+    clearRepairTarget();
     setRestoreTarget(null);
     clearPendingRestoreTarget();
+    setPendingRepairTarget(null);
   };
 
   useEffect(() => {
     // A different session must not inherit the previous one's base version.
+    clearRepairTarget();
     setRestoreTarget(null);
     clearPendingRestoreTarget();
+    setPendingRepairTarget(null);
   }, [props.sessionId]);
 
   const handleRestoreEntry = (_intent: TaskIntent, prompt: string) => onQuickPrompt(prompt);
@@ -569,7 +576,11 @@ export function ChatPanel(props: ChatPanelProps) {
                         streaming={message.role === "assistant" && isSending && !displayMessages.slice(index + 1).some(item => item.role === "assistant")}
                         onRestoreBase={handleRestoreBase}
                         sessionId={sessionId}
-                        onDraft={prompt => {
+                        onDraft={(prompt, repair) => {
+                          clearPendingRestoreTarget();
+                          setRestoreTarget(null);
+                          setPendingRepairTarget(repair ?? null, sessionId);
+                          if (repair) setRestoreTarget({ ...repair, title: repair.id });
                           setComposerMode("chat");
                           setInput(input.trim() ? `${input}\n\n${prompt}` : prompt);
                           composerRef.current?.focus();
@@ -668,7 +679,7 @@ export function ChatPanel(props: ChatPanelProps) {
       <form className="composer" onSubmit={handleSubmit}>
         {restoreTarget ? (
           <div className="restore-target" role="status">
-            <span>以「{restoreTarget.title}」版本 {restoreTarget.revision} 为基础</span>
+            <span>以「{restoreTarget.title}」版本 {restoreTarget.revision} 为基础{isSending ? "；当前回答结束后可发送" : ""}</span>
             <button type="button" onClick={cancelRestoreBase}>取消</button>
           </div>
         ) : null}

@@ -6,7 +6,7 @@ import { ConsentImage } from "./ConsentImage";
 import { splitAnswerContent } from "../features/answer-ui/answerUiProtocol";
 
 export function MarkdownMessage({ content, interactive = false, streaming = false, generation, onDraft, onRestoreBase, sessionId }: {
-  content: string; interactive?: boolean; streaming?: boolean; generation?: unknown; onDraft?: (prompt: string) => void;
+  content: string; interactive?: boolean; streaming?: boolean; generation?: unknown; onDraft?: (prompt: string, repair?: { id: string; revision: number }) => void;
   onRestoreBase?: (target: { id: string; revision: number; title: string }) => void;
   sessionId?: string;
 }) {

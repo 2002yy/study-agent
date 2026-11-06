@@ -850,6 +850,11 @@ def _chat_command(
         turn_id=request.turn_id,
         operation_id=request.operation_id,
         attachment_refs=attachment_refs,
+        interactive_repair=(
+            request.interactive_repair.model_dump()
+            if request.interactive_repair
+            else None
+        ),
         interactive_restore=(
             request.interactive_restore.model_dump()
             if request.interactive_restore

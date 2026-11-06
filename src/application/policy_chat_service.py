@@ -286,7 +286,7 @@ class ExternalDataPolicyChatService(ChatService):
         }
         return [result.to_dict() for result in hits], provenance
 
-    def start_turn(self, command: ChatCommand) -> PreparedChatTurn:
+    def _start_turn(self, command: ChatCommand) -> PreparedChatTurn:
         policy_command = (
             command
             if isinstance(command, PolicyChatCommand)
@@ -297,12 +297,20 @@ class ExternalDataPolicyChatService(ChatService):
         )
         command = cast(PolicyChatCommand, validated_command)
         parent = existing or retry_parent
-        command = replace(command, selected_skill_ids=bound_skill_ids(
-            command.selected_skill_ids, parent.route_snapshot if parent else None
-        ))
-        from src.application.review_turn_context import resolve_review_answer, review_evaluation_inputs
+        command = replace(
+            command,
+            selected_skill_ids=bound_skill_ids(
+                command.selected_skill_ids, parent.route_snapshot if parent else None
+            ),
+        )
+        from src.application.review_turn_context import (
+            resolve_review_answer,
+            review_evaluation_inputs,
+        )
 
-        review_binding = resolve_review_answer(self.repository, command, existing or retry_parent)
+        review_binding = resolve_review_answer(
+            self.repository, command, existing or retry_parent
+        )
         runtime_modes = self._runtime_modes(command.performance_mode)
         context_mode = resolve_context_mode(command.context_mode, runtime_modes.context_mode)
         saved_policy = load_frontend_settings()
@@ -369,7 +377,14 @@ class ExternalDataPolicyChatService(ChatService):
                     user_message=command.user_input,
                     assistant_message="",
                     status="pending",
-                    route_snapshot={"skills": {"ids": list(command.selected_skill_ids)}},
+                    route_snapshot={
+                        "skills": {"ids": list(command.selected_skill_ids)},
+                        **(
+                            {"interactive_repair": command.interactive_repair}
+                            if command.interactive_repair
+                            else {}
+                        ),
+                    },
                     parent_turn_id=retry_parent.id if retry_parent else None,
                     operation_id=operation_id,
                     conversation_instruction=command.conversation_instruction,
@@ -415,7 +430,8 @@ class ExternalDataPolicyChatService(ChatService):
         try:
             cancel_check("route")
             skill_instruction, skill_record = selected_skill_context(
-                command.selected_skill_ids, allowed=effective_cloud_context_policy == "allow_local_evidence"
+                command.selected_skill_ids,
+                allowed=effective_cloud_context_policy == "allow_local_evidence",
             )
             route = self.dependencies.route_request(
                 user_input=command.user_input,
@@ -429,6 +445,8 @@ class ExternalDataPolicyChatService(ChatService):
                 task_contract=task_contract,
             )
             route = {**route, "task_contract": task_contract.to_dict()}
+            if command.interactive_repair:
+                route["interactive_repair"] = command.interactive_repair
             decision = decide_external_data(
                 web_policy=effective_web_policy,
                 web_consent=effective_web_consent,
@@ -564,10 +582,16 @@ class ExternalDataPolicyChatService(ChatService):
             web_tool_error = str(rag["web_tools"].get("error") or "")
             continuation_instruction = _continuation_instruction(command)
             context_blocks: list[str] = []
-            from src.web.research.research_interaction import steering_answer_instruction
+            from src.web.research.research_interaction import (
+                steering_answer_instruction,
+            )
 
-            effective_instruction = steering_answer_instruction(web_tools.calls, command.conversation_instruction)
-            effective_instruction = "\n\n".join(part for part in (effective_instruction, skill_instruction) if part)
+            effective_instruction = steering_answer_instruction(
+                web_tools.calls, command.conversation_instruction
+            )
+            effective_instruction = "\n\n".join(
+                part for part in (effective_instruction, skill_instruction) if part
+            )
             web_context = "\n\n".join(
                 part
                 for part in (
@@ -767,7 +791,11 @@ class ExternalDataPolicyChatService(ChatService):
                 operation_id=operation_id,
                 conversation_instruction=effective_instruction,
             )
-            expected = "pending" if reserved_existing is None or reserved_existing.status == "pending" else "interrupted"
+            expected = (
+                "pending"
+                if reserved_existing is None or reserved_existing.status == "pending"
+                else "interrupted"
+            )
             streaming = self.repository.update_chat_turn(
                 turn_id,
                 assistant_message=base_reply,

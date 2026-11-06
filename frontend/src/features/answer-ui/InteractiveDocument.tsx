@@ -1,11 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, History, Maximize2, Minimize2, RotateCcw, Square, Play } from "lucide-react";
 import { interactiveFollowup, makeInteractiveDocument, stateText, type InteractiveCard } from "./interactiveRuntime";
+import { parseLayoutDiagnostics } from "./layoutDiagnostics";
+import { formatRepairFeedback, type RepairIssue } from "./repairFeedback";
 import { loadInteractiveState, saveInteractiveState } from "../../api";
 import { loadThreeSource } from "./threeSource";
 import "./interactiveDocument.css";
 
-export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }: { card: InteractiveCard; onDraft?: (prompt: string) => void; onRestoreBase?: (target: { id: string; revision: number; title: string }) => void; sessionId?: string }) {
+export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }: { card: InteractiveCard; onDraft?: (prompt: string, repair?: { id: string; revision: number }) => void; onRestoreBase?: (target: { id: string; revision: number; title: string }) => void; sessionId?: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const instance = useId();
   const [generation, setGeneration] = useState(0);
@@ -14,6 +16,9 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
   const [height, setHeight] = useState(360);
   const [status, setStatus] = useState("正在准备交互…");
   const [error, setError] = useState("");
+  const [diagnostics, setDiagnostics] = useState<RepairIssue[] | null>(null);
+  const [diagnosticStatus, setDiagnosticStatus] = useState("");
+  const diagnosticTimer = useRef<number | null>(null);
   const [state, setState] = useState<string | null>(null);
   const [savedState, setSavedState] = useState<{ state: Record<string, unknown>; revision: number } | null>(null);
   const [restoreNote, setRestoreNote] = useState("");
@@ -67,7 +72,7 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
       .catch(() => {});
     return () => { cancelled = true; };
   }, [sessionId, card.id, card.revision]);
-  useEffect(() => () => { cancelPendingSave(); cancelRestoreWait(); }, []);
+  useEffect(() => () => { cancelPendingSave(); cancelRestoreWait(); if (diagnosticTimer.current !== null) window.clearTimeout(diagnosticTimer.current); }, []);
   useEffect(() => {
     if (!running || !document) return;
     const receive = (event: MessageEvent) => {
@@ -120,6 +125,12 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
         setRestoreNote("这个版本没有实现状态恢复，只能从初始状态重新操作。");
       }
       if (data.type === "error" && typeof data.value === "string") { setError(data.value.slice(0, 500)); setStatus("部分交互未能运行"); }
+      if (data.type === "diagnostics") {
+        if (diagnosticTimer.current !== null) window.clearTimeout(diagnosticTimer.current);
+        const measured = parseLayoutDiagnostics(data.value);
+        setDiagnostics(measured);
+        setDiagnosticStatus(measured ? "已检查" : "读取排版数据失败，请重新检查。");
+      }
     };
     window.addEventListener("message", receive);
     const timer = window.setTimeout(() => setStatus(current => current === "正在准备交互…" ? "界面未就绪，可重新运行或请模型修复" : current), 8000);
@@ -136,6 +147,8 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
     setRestoreNote("");
     setState(null);
     setError("");
+    if (diagnosticTimer.current !== null) window.clearTimeout(diagnosticTimer.current);
+    setDiagnostics(null); setDiagnosticStatus("");
     setStatus("正在准备交互…");
     setRunning(true);
     setGeneration(n => n + 1);
@@ -166,8 +179,28 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
     {running ? document ? <iframe key={channel} ref={frame} title={`${card.title}，版本 ${card.revision}，交互画布`} sandbox="allow-scripts" referrerPolicy="no-referrer" allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'" srcDoc={document} style={{ height: expanded ? "min(78vh, 1000px)" : height }} /> : <p role="status">{error ? "本地 3D 能力未就绪。" : "正在加载本地 3D 能力…"}</p>
       : <p className="interactive-stopped">交互已停止。文字说明和当前状态仍然保留。</p>}
     {error ? <p className="interactive-error" role="alert">{error}</p> : null}
+    <section aria-label="界面排版检查">
+      <button type="button" disabled={!running || !document} onClick={() => {
+        setDiagnostics(null); setDiagnosticStatus("正在检查…");
+        if (diagnosticTimer.current !== null) window.clearTimeout(diagnosticTimer.current);
+        diagnosticTimer.current = window.setTimeout(() => {
+          setDiagnostics(null); setDiagnosticStatus("未收到排版测量结果，请重新检查。");
+        }, 3000);
+        frame.current?.contentWindow?.postMessage({ channel, type: "diagnose" }, "*");
+      }}>检查排版</button>
+      {diagnosticStatus ? <p role="status">{diagnosticStatus}</p> : null}
+      {diagnostics ? diagnostics.length ? <>
+        <p>发现 {diagnostics.length} 项排版问题：</p>
+        <ul>{diagnostics.map((issue, index) => <li key={index}>{issue.elementId} · {issue.checkId}：实测 {issue.measured?.toFixed(1)} {issue.unit}，阈值 {issue.threshold} {issue.unit}</li>)}</ul>
+        <button type="button" disabled={!onDraft || card.revision >= 999} onClick={() => onDraft?.(formatRepairFeedback(card, diagnostics) + "\n测量时的参数与观察：" + (state ?? "尚未提供，请保留原始参数。"), { id: card.id, revision: card.revision })}>生成修复草稿</button>
+      </> : <p>已覆盖的排版项目未发现问题；这不代表内容或交互逻辑正确。</p> : null}
+    </section>
     <div className="interactive-footer">
-      <button type="button" className="interactive-continue" disabled={!onDraft} onClick={() => onDraft?.(interactiveFollowup(card, state, error))}>{error ? "请模型修复" : "带着当前状态继续问"}<ArrowUpRight size={16} /></button>
+      <button type="button" className="interactive-continue" disabled={!onDraft} onClick={() => {
+        const prompt = interactiveFollowup(card, state, error);
+        if (error) onDraft?.(prompt, { id: card.id, revision: card.revision });
+        else onDraft?.(prompt);
+      }}>{error ? "请模型修复" : "带着当前状态继续问"}<ArrowUpRight size={16} /></button>
       <button type="button" className="interactive-restore" disabled={!onRestoreBase} onClick={() => onRestoreBase?.({ id: card.id, revision: card.revision, title: card.title })} title="从这一版的源码重新开始，而不是最近一版">以此版本为基础继续</button>
       {savedState && savedState.revision === card.revision ? (
         <button type="button" className="interactive-restore" onClick={restoreSavedState}><History size={14} /><span>恢复上次状态</span></button>
