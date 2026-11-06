@@ -20,9 +20,10 @@ def export_raw(db: Path | list[Path], out: Path, task_map: dict[str, str]) -> in
     for source in databases:
         for case in collect(source):
             digest = hashlib.sha256(case["html"].encode("utf-8")).hexdigest()
-            if digest not in seen:
+            identity = (digest, tuple(case.get("capabilities", [])))
+            if identity not in seen:
                 cases.append(case | {"source_db": str(source.resolve())})
-                seen.add(digest)
+                seen.add(identity)
     # A fresh directory is mandatory: do not overwrite an earlier evidence run.
     out.mkdir(parents=True, exist_ok=False)
     index = []
@@ -42,6 +43,7 @@ def export_raw(db: Path | list[Path], out: Path, task_map: dict[str, str]) -> in
                 else "unmapped",
                 "component_id": case["component_id"],
                 "revision": case["revision"],
+                "capabilities": case.get("capabilities", []),
                 "turn_id": case["turn_id"],
                 "source_db": case["source_db"],
             }

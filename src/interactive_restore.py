@@ -64,15 +64,14 @@ class RestoreOutcome:
     turn_id: str | None
     next_revision: int | None
     detail: str
+    capabilities: tuple[str, ...] = ()
 
     @property
     def restorable(self) -> bool:
         return self.status == STATUS_RESTORED
 
 
-def _unsuccessful(
-    request: RestoreRequest, status: str, detail: str
-) -> RestoreOutcome:
+def _unsuccessful(request: RestoreRequest, status: str, detail: str) -> RestoreOutcome:
     return RestoreOutcome(
         request=request,
         status=status,
@@ -112,7 +111,7 @@ def locate_restore_source(
             "当前会话记录里没有这个版本的完整源码",
         )
 
-    sources = {version.html for _, version in matches}
+    sources = {(version.html, version.capabilities) for _, version in matches}
     if len(sources) > 1:
         # Two different documents claim the same identity. Picking either one
         # would silently change what the learner is editing.
@@ -137,6 +136,7 @@ def locate_restore_source(
         turn_id=turn_id,
         next_revision=next_revision,
         detail="",
+        capabilities=version.capabilities,
     )
 
 
@@ -146,9 +146,7 @@ def resolve_interactive_restore(
     """Locate the source inside this thread only; nothing is trusted from input."""
 
     if repository is None or not thread_id:
-        return _unsuccessful(
-            request, STATUS_NOT_FOUND, "本轮没有可用的会话记录"
-        )
+        return _unsuccessful(request, STATUS_NOT_FOUND, "本轮没有可用的会话记录")
     if repository.get_chat_thread(thread_id) is None:
         return _unsuccessful(request, STATUS_NOT_FOUND, "会话不存在或不可访问")
     try:
@@ -179,7 +177,12 @@ def restore_context_block(outcome: RestoreOutcome) -> str:
             f"component_id: {request.id}\n"
             f"base_revision: {request.revision}\n"
             f"expected_new_revision: {outcome.next_revision}\n"
-            f"source: 会话历史 {outcome.turn_id}，由用户明确选择，不是模型推测\n"
+            + (
+                f"capabilities: {list(outcome.capabilities)}，新版本必须保留此宿主能力声明\n"
+                if outcome.capabilities
+                else ""
+            )
+            + f"source: 会话历史 {outcome.turn_id}，由用户明确选择，不是模型推测\n"
             "本轮必须基于下面的完整源码修改。输出同一 id、"
             f"revision={outcome.next_revision} 的完整新版本，不输出补丁。\n"
             "历史中的旧版本摘要只是记录；不要重写、重新命名或声称重做其它版本。\n"

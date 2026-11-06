@@ -152,18 +152,22 @@ export async function readMessages(page: Page): Promise<SandboxMessage[]> {
 export async function mountSandbox(
   page: Page,
   html: string,
-  viewport = { width: 900, height: 700 }
+  viewport = { width: 900, height: 700 },
+  capabilities: [] | ["three"] = []
 ): Promise<Frame> {
   await page.setContent("<!doctype html><html><body></body></html>");
   const wrapped = await page.evaluate(
-    async ({ source, channel }) => {
+    async ({ source, channel, capabilities }) => {
       const modulePath = "/src/features/answer-ui/interactiveRuntime.ts";
       const module = (await import(modulePath)) as {
-        makeInteractiveDocument: (html: string, name: string) => string;
+        makeInteractiveDocument: (html: string, name: string, capabilities?: ["three"], threeSource?: string) => string;
+        loadThreeSource: () => Promise<string>;
       };
-      return module.makeInteractiveDocument(source, channel);
+      if (capabilities.length && (capabilities.length !== 1 || capabilities[0] !== "three")) throw new Error("Unknown host capability");
+      const threeSource = capabilities[0] === "three" ? await module.loadThreeSource() : undefined;
+      return module.makeInteractiveDocument(source, channel, capabilities.length ? capabilities as ["three"] : undefined, threeSource);
     },
-    { source: html, channel: CHANNEL }
+    { source: html, channel: CHANNEL, capabilities }
   );
   await page.evaluate(
     ({ source, channel, size }) => {

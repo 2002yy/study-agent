@@ -61,13 +61,14 @@ def collect(db_path: Path) -> list[dict]:
             [{"role": "assistant", "content": message}]
         ):
             digest = hashlib.sha256(version.html.encode("utf-8")).hexdigest()[:16]
-            key = f"{version.id}:{version.revision}:{digest}"
+            key = f"{version.id}:{version.revision}:{digest}:{version.capabilities}"
             if key in seen:
                 continue
             seen.add(key)
             cases.append(
                 {
-                    "case_id": f"{version.id}-r{version.revision}-{digest}",
+                    "case_id": f"{version.id}-r{version.revision}-{digest}"
+                    + ("-three" if version.capabilities else ""),
                     "thread_id": row["thread_id"],
                     "turn_id": row["id"],
                     "created_at": row["created_at"],
@@ -78,6 +79,7 @@ def collect(db_path: Path) -> list[dict]:
                     "summary": version.summary,
                     "html_chars": len(version.html),
                     "html": version.html,
+                    "capabilities": list(version.capabilities),
                 }
             )
     return cases

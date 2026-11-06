@@ -95,6 +95,8 @@ def evaluate_artifacts(run_dir: Path, *, render: bool = True) -> dict:
     if len(source_cases) != len(index["cases"]):
         raise ValueError("duplicate document identity")
     for source in source_cases.values():
+        if source.get("capabilities", []) not in ([], ["three"]):
+            raise ValueError("unsupported source host capabilities")
         path = (run_dir / source["file"]).resolve()
         if (
             not path.is_relative_to(run_dir.resolve())
@@ -117,6 +119,7 @@ def evaluate_artifacts(run_dir: Path, *, render: bool = True) -> dict:
                 or item["case_id"] in seen
                 or item["sha256"] != source["sha256"]
                 or item["task_id"] != source["task_id"]
+                or item.get("capabilities", []) != source.get("capabilities", [])
                 or item["viewport"]["width"] != expected_width
             ):
                 raise ValueError("duplicate or stale browser evidence")

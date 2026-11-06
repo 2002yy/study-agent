@@ -6,8 +6,28 @@ import { watchErrors } from "./observer";
 import { replayRaw } from "./rawReplay";
 import { j01Page } from "./semanticFixtures";
 import { prepareReplayOutput } from "./rawReplayOutput";
+import { readMessages } from "./sandboxParity";
 
 const VIEWPORTS = [{ width: 1280, height: 800 }, { width: 390, height: 844 }];
+
+test("raw replay records the selected host and loads Three only on opt-in", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "host contract runs once");
+  await page.goto("/m4c-harness.html");
+  const requested: string[] = [];
+  page.on("request", request => requested.push(request.url()));
+  const errors = watchErrors(page);
+  const html = '<p id="result">loading</p><script>const available=typeof THREE!=="undefined";document.querySelector("#result").textContent=available?"local three ready":"ordinary page";studyUI.setState({three:available});</script>';
+  const size = { width: 390, height: 844 };
+  const ordinary = await replayRaw(page, html, null, size, errors);
+  expect(ordinary.capabilities).toEqual([]);
+  expect(requested.some(url => url.includes("study-three-source"))).toBe(false);
+  expect((await readMessages(page)).some(message => message.type === "state" && (message.value as { three?: boolean }).three === false)).toBe(true);
+  const three = await replayRaw(page, html, null, size, errors, ["three"]);
+  expect(three.capabilities).toEqual(["three"]);
+  expect(requested.some(url => url.includes("study-three-source"))).toBe(true);
+  expect((await readMessages(page)).some(message => message.type === "state" && (message.value as { three?: boolean }).three === true)).toBe(true);
+  expect(three.runtime_errors).toEqual([]);
+});
 
 test("resumes a partial viewport without replacing completed observations", async ({}, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "filesystem contract runs once");
@@ -69,7 +89,7 @@ for (const viewport of VIEWPORTS) {
       expect(sha256).toBe(item.sha256);
       errors.pageErrors.length = 0;
       errors.consoleErrors.length = 0;
-      const result = await replayRaw(page, raw.toString("utf-8"), item.task_id, viewport, errors);
+      const result = await replayRaw(page, raw.toString("utf-8"), item.task_id, viewport, errors, item.capabilities ?? []);
       const screenshot = `document-${number}.png`;
       await page.screenshot({ path: join(out!, screenshot), fullPage: true });
       reports.push({ ...item, sha256, ...result, screenshot });

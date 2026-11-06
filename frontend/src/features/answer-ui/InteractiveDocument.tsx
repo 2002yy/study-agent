@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, History, Maximize2, Minimize2, RotateCcw, Square, Play } from "lucide-react";
 import { interactiveFollowup, makeInteractiveDocument, stateText, type InteractiveCard } from "./interactiveRuntime";
 import { loadInteractiveState, saveInteractiveState } from "../../api";
+import { loadThreeSource } from "./threeSource";
 import "./interactiveDocument.css";
 
 export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }: { card: InteractiveCard; onDraft?: (prompt: string) => void; onRestoreBase?: (target: { id: string; revision: number; title: string }) => void; sessionId?: string }) {
@@ -24,7 +25,16 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
   const restorePendingRef = useRef(false);
   const restoreTimerRef = useRef<number | null>(null);
   const channel = `${instance}:${generation}`;
-  const document = useMemo(() => makeInteractiveDocument(card.html, channel), [card.html, channel]);
+  const needsThree = card.capabilities?.includes("three") === true;
+  const [threeSource, setThreeSource] = useState<string | null>(null);
+  useEffect(() => {
+    if (!needsThree) { setThreeSource(null); return; }
+    let cancelled = false;
+    loadThreeSource().then(source => { if (!cancelled) setThreeSource(source); })
+      .catch(() => { if (!cancelled) { setError("本地 Three.js 能力加载失败，请重新运行。"); setStatus("交互未能运行"); } });
+    return () => { cancelled = true; };
+  }, [needsThree, generation]);
+  const document = useMemo(() => needsThree && !threeSource ? null : makeInteractiveDocument(card.html, channel, needsThree ? ["three"] : undefined, threeSource ?? undefined), [card.html, channel, needsThree, threeSource]);
   const cancelPendingSave = () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = null;
@@ -59,7 +69,7 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
   }, [sessionId, card.id, card.revision]);
   useEffect(() => () => { cancelPendingSave(); cancelRestoreWait(); }, []);
   useEffect(() => {
-    if (!running) return;
+    if (!running || !document) return;
     const receive = (event: MessageEvent) => {
       if (!frame.current || event.source !== frame.current.contentWindow || event.origin !== "null") return;
       const data: unknown = event.data;
@@ -114,7 +124,7 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
     window.addEventListener("message", receive);
     const timer = window.setTimeout(() => setStatus(current => current === "正在准备交互…" ? "界面未就绪，可重新运行或请模型修复" : current), 8000);
     return () => { window.removeEventListener("message", receive); window.clearTimeout(timer); };
-  }, [channel, running, sessionId, card.id, card.revision]);
+  }, [channel, running, sessionId, card.id, card.revision, document]);
   const restart = () => {
     // A rebuilt document is a new generation: drop pending writes for the old
     // one and let its first publish count as initial state again.
@@ -153,7 +163,7 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
         <button type="button" aria-pressed={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}<span>{expanded ? "收起" : "展开"}</span></button>
       </div>
     </div>
-    {running ? <iframe key={channel} ref={frame} title={`${card.title}，版本 ${card.revision}，交互画布`} sandbox="allow-scripts" referrerPolicy="no-referrer" allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'" srcDoc={document} style={{ height: expanded ? "min(78vh, 1000px)" : height }} />
+    {running ? document ? <iframe key={channel} ref={frame} title={`${card.title}，版本 ${card.revision}，交互画布`} sandbox="allow-scripts" referrerPolicy="no-referrer" allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'" srcDoc={document} style={{ height: expanded ? "min(78vh, 1000px)" : height }} /> : <p role="status">{error ? "本地 3D 能力未就绪。" : "正在加载本地 3D 能力…"}</p>
       : <p className="interactive-stopped">交互已停止。文字说明和当前状态仍然保留。</p>}
     {error ? <p className="interactive-error" role="alert">{error}</p> : null}
     <div className="interactive-footer">
