@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+import math
 from typing import Any, Protocol
 
 from src.application.send_budget import SendBudget
@@ -293,6 +294,39 @@ def derive_caps(
     return caps
 
 
+
+def _validate_declared_limits(
+    preview: Mapping[str, Any], specs: Sequence[ArmSpec],
+    turns_by_arm: Mapping[str, tuple[ArmTurn, ...]], caps: Mapping[str, int],
+    experiment: str,
+) -> None:
+    """Reject an unauthorized plan before registering even one budget scope."""
+    limits = preview.get("limits")
+    if not isinstance(limits, Mapping):
+        raise ArmPlanError("preview_limits_invalid")
+    planned = {
+        "max_user_rounds": sum(len(turns) for turns in turns_by_arm.values()),
+        "max_api_rounds": sum(
+            len(turns_by_arm[spec.id]) for spec in specs if spec.execution == API_EXECUTION
+        ),
+        "max_model_sends": caps[f"experiment:{experiment}"],
+    }
+    authorized = {
+        "max_user_rounds": 20,
+        "max_api_rounds": 15,
+        "max_model_sends": 45,
+    }
+    for key, cap in authorized.items():
+        value = limits.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 < value <= cap:
+            raise ArmPlanError(f"preview_limit_invalid:{key}")
+        if planned[key] > value:
+            raise ArmPlanError(f"preview_plan_exceeds_limit:{key}")
+    cost = limits.get("max_cost_cny")
+    if (isinstance(cost, bool) or not isinstance(cost, (int, float))
+            or not math.isfinite(cost) or not 0 < cost <= 10):
+        raise ArmPlanError("preview_limit_invalid:max_cost_cny")
+
 def _refusal_scope(exc: SendLimitExceeded) -> str:
     cause = exc.__cause__
     scope = getattr(cause, "scope", None)
@@ -336,6 +370,7 @@ class Quality0ArmRunner:
         turns_by_arm = plan_turns(preview, tasks)
         caps = derive_caps(specs, turns_by_arm, experiment=self._experiment)
         self._require_executors(specs, executors)
+        _validate_declared_limits(preview, specs, turns_by_arm, caps, self._experiment)
         self._budget.register(caps)
 
         experiment_scope = f"experiment:{self._experiment}"
