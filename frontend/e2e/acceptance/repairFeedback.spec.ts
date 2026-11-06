@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { installApiFixture, makeLearningSession, seedWorkspaceRecovery } from "../api-fixture";
 
 for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
-  test(`host layout evidence produces only an unsent repair draft at ${viewport.width}`, async ({ page }, info) => {
+  test(`untrusted page layout hints produce only an unsent repair draft at ${viewport.width}`, async ({ page }, info) => {
     test.skip(info.project.name !== "desktop-chromium", "explicit desktop/mobile viewport matrix");
     await page.setViewportSize(viewport);
     const broken = {
@@ -44,6 +44,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 
     expect(expected.overflow).toBeGreaterThan(0);
     await region.getByRole("button", { name: "检查排版", exact: true }).click();
     const diagnostics = region.getByRole("region", { name: "界面排版检查" });
+    await expect(diagnostics).toContainText("未经独立核验");
     await expect(diagnostics).toContainText("#small · usability-font：实测 13.0 px，阈值 14 px");
     await expect(diagnostics).toContainText("#tiny · control-width：实测 20.0 px，阈值 40 px");
     await expect(diagnostics).toContainText("#tiny · control-height：实测 20.0 px，阈值 40 px");
@@ -57,7 +58,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 
 
     const good = page.getByRole("region", { name: compliant.title, exact: true });
     await good.getByRole("button", { name: "检查排版", exact: true }).click();
-    await expect(good).toContainText("已覆盖的排版项目未发现问题；这不代表内容或交互逻辑正确。");
+    await expect(good).toContainText("不能视为排版通过或任务正确");
     await expect(good.getByRole("button", { name: "生成修复草稿", exact: true })).toHaveCount(0);
     const csp = await nested.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content");
     expect(csp).toContain("connect-src 'none'");
