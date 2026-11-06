@@ -11,7 +11,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from src.web.research.official_resolver import official_plan, valid_candidate
-from src.web.tool_evidence import evidence_tool_calls
+from src.web.tool_evidence import _public_url, evidence_tool_calls
 
 LABELS = {"project": "项目", "version": "版本", "distribution_uploaded_at": "PyPI 包首次上传时间",
           "release_date": "发布日期", "changes": "该版本变更", "paper_id": "arXiv ID",
@@ -123,6 +123,31 @@ def publish_official_fields(
             answer = ABSTENTION
             status = "abstained"
 
+    # Read-backed text may be useful to inspect, but it is not an answer.
+    # Never change reply/status/assertion_refs or grant generic replay authority.
+    unverified_reads: list[dict[str, str]] = []
+    for call in evidence_tool_calls(calls):
+        if call.get("name") != "web_read":
+            continue
+        result = call.get("result")
+        if not isinstance(result, dict):
+            continue
+        url = _public_url(result.get("url") or (call.get("arguments") or {}).get("url"))
+        content = result.get("content") or result.get("readme")
+        if not url or not isinstance(content, str):
+            continue
+        excerpt = " ".join(content.split())[:240]
+        if not excerpt or any(item["url"] == url for item in unverified_reads):
+            continue
+        unverified_reads.append({
+            "kind": "read_excerpt_unverified", "url": url,
+            "title": str(result.get("title") or url)[:120],
+            "excerpt": excerpt,
+            "read_id": "",
+        })
+        if len(unverified_reads) == 2:
+            break
+
     audit = {
         "schema_version": "official-field-publication-v2",
         "status": status,
@@ -130,6 +155,7 @@ def publish_official_fields(
         "candidate_answer_sha256": hashlib.sha256(candidate.encode()).hexdigest(),
         "published_answer_sha256": hashlib.sha256(answer.encode()).hexdigest(),
         "assertion_refs": refs,
+        "unverified_read_excerpts": unverified_reads,
         "model_prose_published": bool(layered_audit and layered_audit.get("knowledge_published")),
         "formal_semantic_label": False,
     }
