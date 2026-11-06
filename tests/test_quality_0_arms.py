@@ -76,7 +76,9 @@ def _preview(*, arms=None, task_ids=("T-1",)) -> dict:
     if arms is None:
         arms = [_arm("current", 4), _arm("candidate", 4), _arm("model_direct", 1)]
         arms.append(_arm("chatgpt", 0, execution="manual"))
-    return {"task_ids": list(task_ids), "arms": arms}
+    return {"task_ids": list(task_ids), "arms": arms,
+            "limits": {"max_user_rounds": 20, "max_api_rounds": 15,
+                       "max_model_sends": 45, "max_cost_cny": 10}}
 
 
 def _tasks(*, follow_up: bool = False) -> dict:
@@ -422,3 +424,23 @@ def test_a_non_string_task_id_is_refused_without_crashing():
 
     with pytest.raises(ArmPlanError, match="preview_tasks_invalid"):
         plan_turns(preview, _tasks())
+
+
+@pytest.mark.parametrize(
+    "limit, value",
+    [("max_model_sends", 1), ("max_user_rounds", 1),
+     ("max_api_rounds", 1), ("max_cost_cny", 11),
+     ("max_model_sends", True)],
+)
+def test_declared_limits_are_checked_before_budget_registration(tmp_path, limit, value):
+    preview = _preview()
+    preview["limits"][limit] = value
+    runner, budget = _runner(tmp_path)
+    current = RecordingExecutor()
+    with pytest.raises(ArmPlanError, match="preview_limit"):
+        runner.run(preview=preview, tasks=_tasks(), executors={
+            "current": current, "candidate": RecordingExecutor(),
+            "model_direct": RecordingExecutor(),
+        })
+    assert current.calls == []
+    assert budget.cap("experiment:quality-0") is None
