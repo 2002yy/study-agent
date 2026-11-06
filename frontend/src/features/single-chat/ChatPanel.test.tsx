@@ -642,6 +642,24 @@ describe("continuing from an older generated version", () => {
     expect(container.querySelector(".restore-target")).toBeNull();
   });
 
+  it("keeps source-bound drafts out of text-only queues and steering", () => {
+    const queue = vi.fn();
+    const submit = vi.fn();
+    const { container } = renderPanel({ isSending: true, canSteer: true, canQueue: true,
+      input: "repair draft", onQueue: queue, onSubmit: submit,
+      messages: [{ role: "assistant", content }, { role: "assistant", content: "Working" }] });
+    fireEvent.click(screen.getByRole("button", { name: "以此版本为基础继续" }));
+    expect(screen.getByRole("button", { name: "追加要求" })).toBeDisabled();
+    fireEvent.change(screen.getByRole("combobox", { name: "追加方式" }), { target: { value: "queue" } });
+    expect(screen.getByRole("button", { name: "加入下一轮" })).toBeDisabled();
+    fireEvent.submit(container.querySelector("form.composer")!);
+    expect(queue).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+    expect(container.querySelector(".restore-target")).toHaveTextContent("当前回答结束后可发送");
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.getByRole("button", { name: "加入下一轮" })).toBeEnabled();
+  });
+
   it("reports a failed restore instead of pretending the source was found", () => {
     render(
       panelElement({

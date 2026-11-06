@@ -1,9 +1,11 @@
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
 from src import llm_spend_guard as spend
+from src.application.research_deadline import bounded_model_call, bounded_stream
 from src.infrastructure.sqlite.spend_ledger import SpendAdmissionRefused, SpendLedger
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.interactive_repair_budget import (
@@ -230,3 +232,42 @@ def test_repair_pre_reservation_is_not_double_charged(monkeypatch, tmp_path):
         with spend.pre_reserved_send(authorization):
             assert reserve("repair") == 0
     assert ledger.experiment_spend("approved")["calls"] == 1
+
+
+
+def test_deadline_workers_enforce_repair_call_limit(monkeypatch, tmp_path):
+    """Deadline inference must not escape the per-component capped ledger."""
+    ledger = configure(monkeypatch, tmp_path)
+    deadline = time.monotonic() + 10
+    with repair_budget_scope(policy()):
+        for index in range(2):
+            assert bounded_model_call(
+                deadline, lambda key=f"deadline-{index}": reserve(key)
+            ) == 0.6
+        with pytest.raises(SpendAdmissionRefused, match="call_limit"):
+            bounded_model_call(deadline, lambda: reserve("deadline-third"))
+    assert current_repair_budget() is None
+    assert ledger.experiment_spend("approved")["calls"] == 2
+
+
+def test_deadline_stream_preserves_budget_across_yields_and_close(monkeypatch, tmp_path):
+    """Generator next() and finally must run under the same copied Context."""
+    ledger = configure(monkeypatch, tmp_path)
+    chosen = policy()
+    seen = []
+
+    def source():
+        try:
+            for index in range(3):
+                seen.append(current_repair_budget())
+                reserve(f"stream-{index}")
+                yield str(index)
+        finally:
+            seen.append(current_repair_budget())
+
+    with repair_budget_scope(chosen):
+        with pytest.raises(SpendAdmissionRefused, match="call_limit"):
+            list(bounded_stream(time.monotonic() + 10, source()))
+    assert seen == [chosen] * 4
+    assert current_repair_budget() is None
+    assert ledger.experiment_spend("approved")["calls"] == 2

@@ -32,6 +32,33 @@ answerUiProtocol.test.ts、controlledThree.test.tsx、InteractiveDocument.test.t
 审阅修复将文档输出、参数及已有界面修改指令明确限定到可视化文档选择，纯文字直接Markdown回答。
 补充纯文字请求/协议回归，最新直接3文件16 PASS、tsc/diff-check PASS，真实模型遵循情况尚未测量。
 
+
+### 2026-11-06 远端候选继续收口
+
+#347合并main f756889c的CI42052429417已确认success。
+#348修复d37d53be已推送：Three回放失败来自未覆盖的防抖状态PUT，精确fixture并等待真实
+状态保存后定向浏览器6 PASS/18.3s、tsc/diff-check PASS；此前全套配置teardown依赖其他
+journey产物，改用既有M4C定向配置。新提交CI尚未取得完成证据，保持待合并。
+M4-E已创建#349，base为Three分支，已吸收d37d53be形成137546ea；对应CI42173118280
+单次观察pending。前述本地证据仍按各自范围记录；本轮仅合入已验证测试fixture。
+M4-G独立分支已推送0a1d42eb，41项提示/协议影响集与tsc通过；审阅要求将旧无条件输出
+study-ui指令改成媒介选择后的条件分支，修订中。无付费模型调用或质量比较。
+下一门：M4-G修订后独立PR；#348/#349在后续明确收口时按精确提交检查CI与审阅后合并。
+
+### 2026-11-05 合并本地技能并行推进后续
+
+#347 head6ee2e91d，CI42003552747全部成功，增量8b25fce2..6ee2e91d独立审阅无阻断，
+已合main f756889cd96c3ae2380086d291f832c63e9d3ce0。main CI42052429417单次观察in_progress。
+#348已改base main；head5f655073的CI42004634483浏览器3项Three React回放失败，暂不合并，隔离诊断中。
+M4-E追加b75c9c6c桌面/手机真实React双沙箱发送回归2 PASS，API为受控fixture，无模型调用。
+验证身份发送、网络失败同文重发、取消后普通发送；单文件浏览器运行跳过依赖全套产物的
+全局teardown，保留setup。会话切换仅单元证据。65a62fcb关闭活动回答期间修复草稿的文本队列/
+steering入口，取消后普通队列恢复；ChatPanel/API 62 PASS、tsc/diff-check PASS。
+前一候选5f655073..aa161e82只读审阅未发现正常发送/预算路径阻断，指出的队列边界已由上述回归修复。
+M4-E候选待远端CI/最终审阅；M4-G另工作树基于已提交aa161e82开始离线媒介选择指导切片。
+不轮询CI，不新增付费调用，不借旧提交绿灯给新提交。
+下一门：推送M4-E并开独立PR，修复#348浏览器失败，M4-G离线验证后独立推送。
+
 ### 2026-11-05 M4-E发送链路快速并行收口
 
 branch codex/interactive-repair-feedback-20261105；基线7ffae8c3已推送。

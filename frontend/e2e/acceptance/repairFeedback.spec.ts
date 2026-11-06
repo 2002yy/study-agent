@@ -67,5 +67,25 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 
     expect(fixture.unexpectedApiPaths).toEqual([]);
     expect(errors).toEqual([]);
     await page.screenshot({ path: info.outputPath(`repair-compliant-${viewport.width}.png`) });
+    const requests: Record<string, unknown>[] = [];
+    await page.route("**/chat/stream", async route => {
+      requests.push(route.request().postDataJSON());
+      await route.abort("failed");
+    });
+    const draft = await composer.inputValue();
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      await composer.fill(draft);
+      await page.getByRole("button", { name: "发送", exact: true }).click();
+      await expect.poll(() => requests.length).toBe(attempt);
+      expect(requests[attempt - 1].interactive_repair).toEqual({ id: broken.id, revision: 2 });
+      await expect(page.getByRole("button", { name: "发送", exact: true })).toBeVisible();
+    }
+    await region.getByRole("button", { name: "生成修复草稿", exact: true }).click();
+    await page.locator(".restore-target").getByRole("button", { name: "取消", exact: true }).click();
+    await composer.fill("普通后续问题");
+    await page.getByRole("button", { name: "发送", exact: true }).click();
+    await expect.poll(() => requests.length).toBe(3);
+    expect(requests[2].interactive_repair).toBeNull();
+
   });
 }

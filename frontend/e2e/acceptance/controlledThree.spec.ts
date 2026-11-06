@@ -50,6 +50,15 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 
         await addInitScript({ content: `if (window === window.top) { (${script.toString()})(${JSON.stringify(arg)}); }` });
       };
       const fixture = await installApiFixture(page, { session });
+      const savedStates: Record<string, unknown>[] = [];
+      await page.route(`**/sessions/${session.row.session_id}/interactive-state`, async route => {
+        expect(route.request().method()).toBe("PUT");
+        const snapshot = route.request().postDataJSON();
+        expect(snapshot.component_id).toBe(card.id);
+        expect(snapshot.revision).toBe(card.revision);
+        savedStates.push(snapshot.state);
+        await route.fulfill({ json: { ...snapshot, updated_at: new Date().toISOString() } });
+      });
       await seedWorkspaceRecovery(page, session.row.session_id);
       page.addInitScript = addInitScript;
       const errors: string[] = [], outbound: string[] = [];
@@ -89,6 +98,13 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 
         await expect(nested.locator("#reading")).not.toHaveText(paused!);
         await nested.getByRole("button", { name: "暂停", exact: true }).click();
       }
+      // Await the debounced host save so slower CI cannot expose an unhandled
+      // request after the visual assertions have already succeeded.
+      await expect.poll(() => savedStates.at(-1)).toMatchObject(
+        card.id === controlledCube.id
+          ? { volume: 12, rotation: 75 }
+          : { frequency: 2, playing: false }
+      );
       await region.scrollIntoViewIfNeeded();
       await page.screenshot({ path: testInfo.outputPath(`react-${card.id}-${viewport.width}.png`) });
       expect(await region.getByRole("alert").count()).toBe(0);
