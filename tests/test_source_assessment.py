@@ -56,7 +56,7 @@ def test_unread_candidates_cannot_inflate_one_unrelated_read():
     selected, _ = assess_sources(
         [
             {"title": "星（汉语文字）", "url": "https://example.org/dictionary"},
-            {"title": "千冶·刃 遗器 黄泉队 攻略", "url": "https://example.org/guide"},
+            {"title": "星铁 千冶·刃 遗器 推荐 黄泉队", "url": "https://example.org/guide"},
         ],
         canonical_query="星铁 千冶·刃 遗器 推荐 黄泉队",
     )
