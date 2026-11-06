@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 import time
 from typing import Any, Callable, Iterator, cast
 
@@ -27,7 +28,7 @@ def bounded_model_call(deadline: float | None, function: Callable[[], Any]) -> A
     remaining = remaining_seconds(deadline)
     # This worker performs inference only, with no persistence or publication.
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research-answer")
-    future = executor.submit(function)
+    future = executor.submit(copy_context().run, function)
     try:
         return future.result(timeout=remaining)
     finally:
@@ -40,13 +41,16 @@ def bounded_stream(deadline: float | None, source: Iterator[str]) -> Iterator[st
         yield from source
         return
     sentinel = object()
+    # Keep one Context for the generator lifecycle, including close().
+    # Copying anew for every next() would discard context changes across yields.
+    worker_context = copy_context()
     executor = ThreadPoolExecutor(
         max_workers=1, thread_name_prefix="research-answer-stream"
     )
     try:
         while True:
             remaining = remaining_seconds(deadline)
-            future = executor.submit(next, source, sentinel)
+            future = executor.submit(worker_context.run, next, source, sentinel)
             token = future.result(timeout=remaining)
             remaining_seconds(deadline)
             if token is sentinel:
@@ -57,5 +61,5 @@ def bounded_stream(deadline: float | None, source: Iterator[str]) -> Iterator[st
         # an executing generator from another thread, and never wait for it here.
         close = getattr(source, "close", None)
         if callable(close):
-            executor.submit(close)
+            executor.submit(worker_context.run, close)
         executor.shutdown(wait=False, cancel_futures=False)
