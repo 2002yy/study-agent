@@ -68,6 +68,30 @@ function lineageDetails(run: ResearchLookupResponse) {
   };
 }
 
+/** Separate evidence inspection, not an answer or a trust/quality badge. */
+export function ResearchReadPreview({ run }: { run: ResearchLookupResponse | null }) {
+  const excerpts = (run?.unverified_read_excerpts ?? []).filter(
+    row => row?.kind === "read_excerpt_unverified" &&
+      typeof row.url === "string" && /^https?:\/\//i.test(row.url) &&
+      typeof row.title === "string" && typeof row.excerpt === "string"
+  ).slice(0, 2);
+  if (!excerpts.length) return null;
+  return (
+    <aside aria-label="已读材料（未经核实）" className="memory-note">
+      <div>
+        <strong>已读取的材料 · 未经核实</strong>
+        <span>以下仅是来源原文片段，不是本次问题的核实结论，不授予回答发布权限。</span>
+        {excerpts.map(item => (
+          <p key={item.url}>
+            <a href={item.url} target="_blank" rel="noreferrer noopener">{item.title}</a>
+            {"："}<span>{item.excerpt}</span>
+          </p>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
 export function ChatResearchRecovery({
   run,
   progress = null,
