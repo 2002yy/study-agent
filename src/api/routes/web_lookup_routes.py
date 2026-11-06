@@ -22,6 +22,7 @@ from src.api.models.news import (
     WebLookupRunResponse,
 )
 from src.application.runtime_repository import get_web_lookup_service
+from src.web.research.read_preview import unverified_read_previews
 from src.application.web_lookup_service import WebLookupService
 
 router = APIRouter(tags=["web-lookup"])
@@ -41,7 +42,10 @@ STEP_HEARTBEAT_SECONDS = 10.0
 
 
 def _response(run) -> WebLookupRunResponse:
-    return WebLookupRunResponse(**asdict(run))
+    return WebLookupRunResponse(
+        **asdict(run),
+        unverified_read_excerpts=unverified_read_previews(run.selected_sources),
+    )
 
 
 def _not_found_or_conflict(exc: ValueError) -> HTTPException:
