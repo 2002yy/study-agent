@@ -58,6 +58,7 @@ type ResearchRunPayload = {
   research_context: Record<string, unknown>;
   query_attempts: Array<Record<string, unknown>>;
   selected_sources: Array<Record<string, unknown>>;
+  unverified_read_excerpts?: Array<{ url: string; title: string; excerpt: string; read_id: string; kind: "read_excerpt_unverified" }>;
   rejected_sources: Array<Record<string, unknown>>;
   provider_status: string;
   stop_reason: string;
