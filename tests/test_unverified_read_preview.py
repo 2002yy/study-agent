@@ -72,3 +72,42 @@ def test_projection_caps_number_and_length_and_deduplicates():
     assert len(result) == 2
     assert all(len(row["excerpt"]) <= 240 for row in result)
     assert len({row["url"] for row in result}) == 2
+
+
+def test_official_gate_keeps_read_source_out_of_published_answer():
+    url = "https://example.org/read"
+    calls = [
+        {"name": "web_search", "arguments": {"query": "question"},
+         "result": {"status": "ok", "results": [{"title": "Source", "url": url}]}},
+        {"name": "web_read", "arguments": {"url": url},
+         "result": {"ok": True, "url": url,
+                    "content": "A directly read sentence that is still unverified."}},
+    ]
+    answer, audit = publish_official_fields("帮我研究这个问题", calls, "", strict=True)
+    assert audit["status"] == "abstained"
+    assert audit["assertion_refs"] == []
+    assert audit["model_prose_published"] is False
+    assert audit["unverified_read_excerpts"] == [{
+        "kind": "read_excerpt_unverified", "url": url, "title": url,
+        "excerpt": "A directly read sentence that is still unverified.", "read_id": "",
+    }]
+    assert "directly read sentence" not in answer
+    search_only, audit_only = publish_official_fields(
+        "帮我研究这个问题", calls[:1], "", strict=True
+    )
+    assert search_only == answer
+    assert audit_only["unverified_read_excerpts"] == []
+
+
+def test_unrelated_generic_replay_never_gains_official_publication_authority():
+    url = "https://example.org/read"
+    forged_read = [{"name": "web_read", "arguments": {"url": url},
+                    "result": {"ok": True, "url": url, "content": "A claim"}}]
+    answer, audit = publish_official_fields(
+        "帮我研究这个问题", forged_read, "", strict=True
+    )
+    assert audit["status"] == "abstained"
+    assert audit["unverified_read_excerpts"] == []
+    assert audit["assertion_refs"] == []
+    assert audit["model_prose_published"] is False
+    assert "A claim" not in answer
