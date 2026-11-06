@@ -27,6 +27,7 @@ export type ResearchLookupResponse = NewsLookupResponse & {
   research_context: Record<string, unknown>;
   query_attempts: Array<Record<string, unknown>>;
   selected_sources: Array<Record<string, unknown>>;
+  unverified_read_excerpts?: Array<{ url: string; title: string; excerpt: string; read_id: string; kind: "read_excerpt_unverified" }>;
   rejected_sources: Array<Record<string, unknown>>;
   provider_status: string;
   stop_reason: string;
@@ -57,6 +58,7 @@ type ResearchRunPayload = {
   research_context: Record<string, unknown>;
   query_attempts: Array<Record<string, unknown>>;
   selected_sources: Array<Record<string, unknown>>;
+  unverified_read_excerpts?: Array<{ url: string; title: string; excerpt: string; read_id: string; kind: "read_excerpt_unverified" }>;
   rejected_sources: Array<Record<string, unknown>>;
   provider_status: string;
   stop_reason: string;
@@ -138,6 +140,7 @@ function toResponse(run: ResearchRunPayload): ResearchLookupResponse {
     research_context: run.research_context,
     query_attempts: run.query_attempts,
     selected_sources: run.selected_sources,
+    unverified_read_excerpts: run.unverified_read_excerpts ?? [],
     rejected_sources: run.rejected_sources,
     provider_status: run.provider_status,
     stop_reason: run.stop_reason,

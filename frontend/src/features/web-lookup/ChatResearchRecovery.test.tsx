@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ChatResearchRecovery } from "./ChatResearchRecovery";
+import { ChatResearchRecovery, ResearchReadPreview } from "./ChatResearchRecovery";
 import type { ResearchLookupResponse } from "./researchApi";
 
 afterEach(cleanup);
@@ -309,5 +309,30 @@ describe("ChatResearchRecovery", () => {
 
     expect(container).toHaveTextContent("联网研究已恢复");
     expect(container).toHaveTextContent("恢复结果已设为下一轮聊天资料");
+  });
+});
+
+
+describe("ResearchReadPreview is a separate, unverified source display", () => {
+  it("renders attributed read text as escaped React text, not a published answer", () => {
+    const value = run("partial");
+    value.unverified_read_excerpts = [{
+      url: "https://example.org/source",
+      title: "Read source",
+      excerpt: "<img src=x onerror=alert(1)> an unverified quote",
+      read_id: "read-1", kind: "read_excerpt_unverified",
+    }];
+    const { container } = render(<ResearchReadPreview run={value} />);
+    expect(container).toHaveTextContent("未经核实");
+    expect(container).toHaveTextContent("<img src=x onerror=alert(1)>");
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByRole("link", { name: "Read source" })).toHaveAttribute(
+      "href", "https://example.org/source"
+    );
+  });
+
+  it("never turns a missing read into a reassuring result", () => {
+    const value = run("failed");
+    expect(render(<ResearchReadPreview run={value} />).container).toBeEmptyDOMElement();
   });
 });

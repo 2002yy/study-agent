@@ -292,7 +292,10 @@ def test_api_preserves_every_canonical_stop_reason_verbatim() -> None:
         assert response.model_dump()["stop_reason"] == reason
 
     route_source = _source(API_ROUTE_PATH)
-    assert "return WebLookupRunResponse(**asdict(run))" in route_source
+    # Additional display-only fields may be projected here; the canonical run
+    # remains spread unchanged, preserving every stop reason.
+    assert "WebLookupRunResponse(" in route_source
+    assert "**asdict(run)" in route_source
 
     transport_source = _source(UI_TRANSPORT_PATH)
     assert "stop_reason: run.stop_reason" in transport_source
