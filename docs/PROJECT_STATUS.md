@@ -16,6 +16,20 @@
 > **当前采用产品能力快速交付：A线M4-C3评测执行链路与B线M4-D增量修改原型并行，范围见§0B。
 > main `95e2bbc6` / CI `41847418702` 已success，A/B已交付；授权的首次真实12题已完成，下一片M4-C4。**
 
+### 2026-11-06 M4-G媒介选择提示首片
+
+branch codex/interactive-medium-planning-20261105，base aa161e82，独立工作树
+D:/study-agent-validation/interactive-medium-planning-20261105。
+现有INTERACTIVE_CONTEXT增加按任务选择文字/静态图/交互/动画/Three的指导，尊重用户明确选择，
+定义参数范围、数学与业务不变量、初始输入/预期输出/边界案例，以及实际验证证据边界。
+复用瞬时packAnswerUiContext入口与自由HTML协议。owner=orchestration-contract；P2 Static Loop。
+命名人工影响集m4g-medium-guidance为frontend/src/features/answer-ui下interactivePrompt.test.ts、
+answerUiProtocol.test.ts、controlledThree.test.tsx、InteractiveDocument.test.tsx、AnswerCardView.test.tsx，
+共41 PASS；tsc、Ruff、diff-check PASS。首条vitest命令附带不存在的interactiveRuntime.test.ts，
+实际收集3文件15项；随后补直接消费者2文件26项，以上只记录真实收集数。
+动态模型比较、浏览器验收、本地L3未运行，没有付费调用。当前仅确认提示到发送上下文的接线及协议兼容，
+模型是否正确选择媒介仍待授权真实任务评测。下一片：为固定任务补媒介选择与不变量的真实评测证据。
+
 ### 2026-11-05 M4-E发送链路快速并行收口
 
 branch codex/interactive-repair-feedback-20261105；基线7ffae8c3已推送。
