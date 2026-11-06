@@ -49,7 +49,7 @@ import {
   clearPendingTaskIntentOverride,
   type TaskIntent,
 } from "../task/taskContract";
-import { ChatResearchRecovery } from "../web-lookup/ChatResearchRecovery";
+import { ChatResearchRecovery, ResearchReadPreview } from "../web-lookup/ChatResearchRecovery";
 import { replyHeading, replyIsProvisional, replyStatusNote } from "../web-lookup/researchReplies";
 import type { ResearchLookupResponse } from "../web-lookup/researchApi";
 import { RestoreCard } from "./RestoreCard";
@@ -664,6 +664,7 @@ export function ChatPanel(props: ChatPanelProps) {
         </div>
       ) : null}
 
+      <ResearchReadPreview run={researchRun} />
       <ChatResearchRecovery
         run={researchRun}
         progress={researchProgress}
