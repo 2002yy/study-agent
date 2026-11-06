@@ -17,6 +17,8 @@ describe("host repair evidence formatter", () => {
     expect(result).toContain('capabilities=["three"]');
     expect(result).toContain("保留旧版本");
     expect(result).toContain("不自动重试");
+    expect(result).toContain("可被生成脚本伪造");
+    expect(result).toContain("独立浏览器检查");
   });
 
   it("preserves zero but never fabricates absent, nonfinite or nested measurements", () => {
