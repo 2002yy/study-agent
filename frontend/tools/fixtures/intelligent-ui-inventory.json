@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "name": "库存交互：调节、支付、恢复与独立守恒校验",
+  "viewports": [
+    {
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "steps": [
+    {
+      "op": "expectState",
+      "path": "available",
+      "equals": 32
+    },
+    {
+      "op": "expectText",
+      "selector": "#available",
+      "equals": "32"
+    },
+    {
+      "op": "expectEquation",
+      "selector": "#total",
+      "total": "#total",
+      "locked": "#lockedView",
+      "available": "#available"
+    },
+    {
+      "op": "set",
+      "selector": "#locked",
+      "value": 12
+    },
+    {
+      "op": "expectState",
+      "path": "locked",
+      "equals": 12
+    },
+    {
+      "op": "expectText",
+      "selector": "#available",
+      "equals": "25"
+    },
+    {
+      "op": "expectEquation",
+      "selector": "#total",
+      "total": "#total",
+      "locked": "#lockedView",
+      "available": "#available"
+    },
+    {
+      "op": "click",
+      "selector": "#pay"
+    },
+    {
+      "op": "expectText",
+      "selector": "#total",
+      "equals": "32"
+    },
+    {
+      "op": "expectState",
+      "path": "locked",
+      "equals": 7
+    },
+    {
+      "op": "expectState",
+      "path": "available",
+      "equals": 25
+    },
+    {
+      "op": "expectText",
+      "selector": "#lockedView",
+      "equals": "7"
+    },
+    {
+      "op": "expectText",
+      "selector": "#available",
+      "equals": "25"
+    },
+    {
+      "op": "expectEquation",
+      "selector": "#total",
+      "total": "#total",
+      "locked": "#lockedView",
+      "available": "#available"
+    },
+    {
+      "op": "click",
+      "selector": "#reset"
+    },
+    {
+      "op": "expectState",
+      "path": "locked",
+      "equals": 5
+    },
+    {
+      "op": "expectText",
+      "selector": "#available",
+      "equals": "32"
+    },
+    {
+      "op": "expectNoOverflow"
+    },
+    {
+      "op": "set",
+      "selector": "#locked",
+      "value": 2
+    },
+    {
+      "op": "click",
+      "selector": "#pay"
+    },
+    {
+      "op": "expectText",
+      "selector": "#total",
+      "equals": "35"
+    },
+    {
+      "op": "expectText",
+      "selector": "#lockedView",
+      "equals": "0"
+    },
+    {
+      "op": "expectText",
+      "selector": "#available",
+      "equals": "35"
+    },
+    {
+      "op": "expectState",
+      "path": "available",
+      "equals": 35
+    },
+    {
+      "op": "expectEquation",
+      "selector": "#total",
+      "total": "#total",
+      "locked": "#lockedView",
+      "available": "#available"
+    }
+  ]
+}
