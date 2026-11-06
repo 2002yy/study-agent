@@ -129,7 +129,7 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
         if (diagnosticTimer.current !== null) window.clearTimeout(diagnosticTimer.current);
         const measured = parseLayoutDiagnostics(data.value);
         setDiagnostics(measured);
-        setDiagnosticStatus(measured ? "已检查" : "读取排版数据失败，请重新检查。");
+        setDiagnosticStatus(measured ? "已收到页面自报的排版线索（未经独立核验）" : "读取排版数据失败；无法判断排版是否合格。");
       }
     };
     window.addEventListener("message", receive);
@@ -180,20 +180,21 @@ export function InteractiveDocument({ card, onDraft, onRestoreBase, sessionId }:
       : <p className="interactive-stopped">交互已停止。文字说明和当前状态仍然保留。</p>}
     {error ? <p className="interactive-error" role="alert">{error}</p> : null}
     <section aria-label="界面排版检查">
+      <p>页面内测量属于自报数据，可被生成脚本影响；只能用于定位疑似问题，不构成独立验收。</p>
       <button type="button" disabled={!running || !document} onClick={() => {
-        setDiagnostics(null); setDiagnosticStatus("正在检查…");
+        setDiagnostics(null); setDiagnosticStatus("正在收集页面自报线索…");
         if (diagnosticTimer.current !== null) window.clearTimeout(diagnosticTimer.current);
         diagnosticTimer.current = window.setTimeout(() => {
-          setDiagnostics(null); setDiagnosticStatus("未收到排版测量结果，请重新检查。");
+          setDiagnostics(null); setDiagnosticStatus("未收到页面自报线索；无法判断是否合格。");
         }, 3000);
         frame.current?.contentWindow?.postMessage({ channel, type: "diagnose" }, "*");
       }}>检查排版</button>
       {diagnosticStatus ? <p role="status">{diagnosticStatus}</p> : null}
       {diagnostics ? diagnostics.length ? <>
-        <p>发现 {diagnostics.length} 项排版问题：</p>
+        <p>页面自报 {diagnostics.length} 项疑似排版问题（尚未独立确认）：</p>
         <ul>{diagnostics.map((issue, index) => <li key={index}>{issue.elementId} · {issue.checkId}：实测 {issue.measured?.toFixed(1)} {issue.unit}，阈值 {issue.threshold} {issue.unit}</li>)}</ul>
-        <button type="button" disabled={!onDraft || card.revision >= 999} onClick={() => onDraft?.(formatRepairFeedback(card, diagnostics) + "\n测量时的参数与观察：" + (state ?? "尚未提供，请保留原始参数。"), { id: card.id, revision: card.revision })}>生成修复草稿</button>
-      </> : <p>已覆盖的排版项目未发现问题；这不代表内容或交互逻辑正确。</p> : null}
+        <button type="button" disabled={!onDraft || card.revision >= 999} onClick={() => onDraft?.(formatRepairFeedback(card, diagnostics) + "\n页面自报时的参数与观察（未经独立核验）：" + (state ?? "尚未提供，请保留原始参数。"), { id: card.id, revision: card.revision })}>生成修复草稿</button>
+      </> : <p>页面未报告所覆盖项目的异常；自报结果可能被脚本伪造，不能视为排版通过或任务正确。</p> : null}
     </section>
     <div className="interactive-footer">
       <button type="button" className="interactive-continue" disabled={!onDraft} onClick={() => {
