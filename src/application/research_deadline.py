@@ -50,7 +50,8 @@ def bounded_stream(deadline: float | None, source: Iterator[str]) -> Iterator[st
     try:
         while True:
             remaining = remaining_seconds(deadline)
-            future = executor.submit(worker_context.run, next, source, sentinel)
+            # A zero-argument callable keeps Context.run's generic signature typed.
+            future = executor.submit(worker_context.run, lambda: next(source, sentinel))
             token = future.result(timeout=remaining)
             remaining_seconds(deadline)
             if token is sentinel:
