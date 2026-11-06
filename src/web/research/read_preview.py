@@ -20,10 +20,10 @@ def unverified_read_previews(selected_sources: list[dict[str, Any]]) -> list[dic
     for record in selected_sources:
         if not isinstance(record, dict):
             continue
-        item, assessment, read = (
-            record.get("item"), record.get("assessment"), record.get("read")
-        )
-        if not all(isinstance(v, dict) for v in (item, assessment, read)):
+        item = record.get("item")
+        assessment = record.get("assessment")
+        read = record.get("read")
+        if not isinstance(item, dict) or not isinstance(assessment, dict) or not isinstance(read, dict):
             continue
         if assessment.get("selected") is not True or assessment.get("worth_reading") is not True:
             continue
