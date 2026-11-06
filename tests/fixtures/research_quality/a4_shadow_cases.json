@@ -1,0 +1,98 @@
+[
+  {
+    "claim_id": "claim_vllm_release",
+    "claim_text": "vLLM 最新 release 是 v0.32.0，发布于 2026-10-18",
+    "url": "https://github.com/vllm-project/vllm/releases",
+    "read_id": "read_vllm",
+    "evidence_id": "read-1",
+    "passage": "vllm-project/vllm releases (newest first): v0.32.0 published 2026-10-18; v0.31.0 published 2026-10-05",
+    "span_text": "v0.32.0 published 2026-10-18",
+    "verdict": "supports",
+    "evidence_span": "v0.32.0 published 2026-10-18",
+    "literal_bound": false,
+    "annotation": {
+      "support_is_correct": true,
+      "note": "页面逐字给出该版本与发布日期"
+    }
+  },
+  {
+    "claim_id": "claim_profit_cause",
+    "claim_text": "研发投入上升使利润下滑",
+    "url": "https://news.example/earnings",
+    "read_id": "read_earnings",
+    "evidence_id": "read-2",
+    "passage": "公司公告显示，研发费用同比增加百分之三十，净利润同比下降百分之十二。",
+    "span_text": "研发费用同比增加百分之三十，净利润同比下降百分之十二",
+    "verdict": "supports",
+    "evidence_span": "研发费用同比增加百分之三十，净利润同比下降百分之十二",
+    "literal_bound": false,
+    "annotation": {
+      "support_is_correct": false,
+      "note": "原文只陈述两者同时发生，没有因果关系；A3 若放行即为错误放行"
+    }
+  },
+  {
+    "claim_id": "claim_direction_swap",
+    "claim_text": "B 公司收购了 A 公司",
+    "url": "https://news.example/deal",
+    "read_id": "read_deal",
+    "evidence_id": "read-3",
+    "passage": "监管文件显示，A 公司已完成对 B 公司的收购，交易金额未披露。",
+    "span_text": "A 公司已完成对 B 公司的收购",
+    "verdict": "supports",
+    "evidence_span": "A 公司已完成对 B 公司的收购",
+    "literal_bound": false,
+    "annotation": {
+      "support_is_correct": false,
+      "note": "主客体相反，必须拒绝"
+    }
+  },
+  {
+    "claim_id": "claim_denied",
+    "claim_text": "公司收入同比增长",
+    "url": "https://news.example/denied",
+    "read_id": "read_denied",
+    "evidence_id": "read-4",
+    "passage": "公司声明：有关收入同比增长的说法不属实，实际收入同比下降。",
+    "span_text": "有关收入同比增长的说法不属实",
+    "verdict": "supports",
+    "evidence_span": "有关收入同比增长的说法不属实",
+    "literal_bound": false,
+    "annotation": {
+      "support_is_correct": false,
+      "note": "原文是否定句，放行就是把否定读成肯定"
+    }
+  },
+  {
+    "claim_id": "claim_margin",
+    "claim_text": "公司利润率提升",
+    "url": "https://news.example/margin",
+    "read_id": "read_margin",
+    "evidence_id": "read-5",
+    "passage": "公司披露本季度收入同比增长百分之八，未提及利润率。",
+    "span_text": "公司披露本季度收入同比增长百分之八",
+    "verdict": "insufficient",
+    "evidence_span": "",
+    "literal_bound": false,
+    "annotation": {
+      "support_is_correct": true,
+      "note": "原文没有回答利润率，拒绝即为正确"
+    }
+  },
+  {
+    "claim_id": "claim_literal",
+    "claim_text": "Node.js 24.11.0 是 LTS 版本",
+    "url": "https://nodejs.org/en/blog/release/v24.11.0",
+    "read_id": "read_node",
+    "evidence_id": "read-6",
+    "passage": "Node.js 24.11.0 是 LTS 版本，代号 Krypton。",
+    "span_text": "Node.js 24.11.0 是 LTS 版本",
+    "verdict": "supports",
+    "evidence_span": "Node.js 24.11.0 是 LTS 版本",
+    "literal_bound": true,
+    "annotation": {
+      "support_is_correct": true,
+      "note": "原句规则本来就能通过，不计入增量"
+    }
+  }
+]
