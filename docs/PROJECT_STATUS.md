@@ -13,6 +13,19 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-06 #348至#350远端阶段验收已收口
+
+本次实时核验三项均已由远端合并：#348 merge2740b1d4，#349 head d24b6114 /
+merge908d7cf6，#350 head3bc82018 / mergeab59851b。#349 CI42187621096所有必需项成功，
+#350 CI42195216498所有必需项成功（browser按范围跳过）。
+当前main2d42b3a37f24dfa9b8fb74fb73fda34b6fede448，push CI42208405474已success。
+已读main代码确认bounded_model_call复制Context；bounded_stream共用同一worker_context执行
+next及排队close。已有离线回归验证deadline线程拒绝第三次修复调用及流式yield/close上下文。
+本地旧分支的并行修复WIP保留，未用其覆盖远端成果。main另含#354的沙箱报告证据边界修正。
+媒介规则进入提示上下文已有静态证据；模型正确选择媒介仍待授权动态评测，无新增付费调用。
+下一片：以当前main为基线核对修复后判据重测与可信测量缺口，按独立能力切片推进。
+
+
 > **当前采用产品能力快速交付：A线M4-C3评测执行链路与B线M4-D增量修改原型并行，范围见§0B。
 > main `95e2bbc6` / CI `41847418702` 已success，A/B已交付；授权的首次真实12题已完成，下一片M4-C4。**
 
