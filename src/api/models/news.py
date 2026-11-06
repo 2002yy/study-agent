@@ -122,6 +122,8 @@ class WebLookupRunResponse(BaseModel):
     research_context: dict = Field(default_factory=dict)
     query_attempts: list[dict] = Field(default_factory=list)
     selected_sources: list[dict] = Field(default_factory=list)
+    # Display-only: never used as a model answer or a publication authority.
+    unverified_read_excerpts: list[dict[str, str]] = Field(default_factory=list)
     rejected_sources: list[dict] = Field(default_factory=list)
     provider_status: str = ""
     stop_reason: str = ""
