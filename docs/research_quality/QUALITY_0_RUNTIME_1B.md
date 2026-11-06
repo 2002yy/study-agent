@@ -126,9 +126,67 @@ contaminated: True
 
 影响集：新测试 + 11 个 gateway/search/web_lookup 套件；再加 9 个断言 `query_attempts` 的研究链路套件。
 
+## 切片 3：四臂运行器的离线骨架
+
+### 问题
+
+`tools/run_quality_0_preview.py --plan` 能算出 45/20/20/5/4，但没有任何东西真的按这些数字执行。preview 最要紧的问题不是「上限是多少」，而是「跑出答案的那次运行有没有越过上限」。
+
+### 改动
+
+| 文件 | 内容 |
+| --- | --- |
+| `src/llm_spend_guard.py` | 新增公开 `charge_send()`，包装既有 `_charge_send`；暴露给不经过 `reserve_call` 的执行器 |
+| `src/application/quality_0_arms.py`（新） | `ArmSpec` / `ArmTurn` / `TurnRecord` / `ArmRunReport`；`ArmExecutor` 协议（`run_turn(turn, send) -> str`）；`arm_specs()` / `plan_turns()` / `derive_caps()`；`Quality0ArmRunner` |
+| `tests/test_quality_0_arms.py`（新） | 24 条离线契约 |
+| `docs/research_quality/QUALITY_0_RUNTIME_1B.md` | 本切片 |
+
+运行器不调用模型。`ArmExecutor` 是接缝：离线是「计一次发送、返回文本」的假执行器；真实执行器将来走聊天入口，由 `reserve_call` 计费。两种情况下**是否允许下一轮开始都由运行器决定**，所以额度耗尽时执行器不会再被调用。
+
+### 三层 scope 为什么必须嵌套
+
+一次发送同时记在三层：
+
+```
+experiment:quality-0     45   整场 preview
+arm:current              20   sends_per_round * turns_per_arm
+round:current:3           4   sends_per_round
+```
+
+只绑 round 会怎样？负控脚本把 arm 预先花光，然后用「只绑 round」的方式继续发：
+
+```
+naive_sends_with_exhausted_arm: 8
+arm_usage_after_naive_run: 4
+experiment_usage_after_naive_run: 4
+nested_send: refused exhausted round:current:1
+```
+
+8 次发送发生了，arm 与 experiment 的计数**一次都没动**——上限看起来还在，实际上完全没生效。`send_budget_scope` 的嵌套是累加的，一次 reservation 记满三层；拒绝时按「最内层优先」报出真正被违反的 scope。
+
+### 契约
+
+1. **上限来自 preview，不来自运行器**。`derive_caps()` 与 `tools.run_quality_0_preview.plan()` 交叉核验：experiment 45、arm 20/20/5、round 4/4/1、`chatgpt` 无 scope。
+2. **一次发送只计一次，三层同时记**。同一 reservation，成功或全部回滚。
+3. **额度耗尽中止整场，不是中止一轮**。`SendLimitExceeded` 之后不再调用任何执行器，后续轮次记为 `not_run`；`abort.reason` 保留 `exhausted` / `conflict` / `unavailable`，`abort.scope` 保留被拒绝的那一层。
+4. **一个臂不能借用另一个臂的额度**。arm 已满时中止，其他臂的计数保持 0。
+5. **重启不能重放已计的发送**。同一 `run_id` 重跑会因 request key 冲突而中止（`reason=conflict`），计数不增加；要新增发送必须换 key。
+6. **manual 臂只记录、不执行、不计费**。给 `chatgpt` 接执行器直接拒绝（`manual_arm_has_executor`）——这是最不该发生的错误。
+7. **api 臂「没发就答」不算完成**。`completed_turn_without_a_send` 记为失败：否则等于往实验里塞一个免费答案。
+8. **执行器异常是数据，不是预算中止**。该轮记 `failed`，后续臂照常跑，报告状态 `partial`；只有发送额度问题才 `aborted`。
+
+### 离线证据
+
+`tests/test_quality_0_arms.py`（24 条）：上限与工具 plan 一致、各臂看到相同轮次、一次发送记三层、重试按 `attempts` 计数、round 上限中止整场、已耗尽 arm 中止且不消耗其他臂、重启重放被拒、manual 臂只记录、给 manual 臂接执行器被拒、缺执行器在注册前失败、未知执行器被拒、执行器异常记失败但继续、零发送的完成被拒、非字符串答案记失败、七种非法臂配置、未知任务、非字符串 task id。
+
+负控：如上 8 次发送未被计。
+
+影响集：新测试 + `test_send_budget` / `test_send_limit_guard` / `test_quality_0_preview_guard` / `test_llm_spend_guard` = **101 passed**。
+
 ## 非范围（后续切片）
 
-- 四臂运行器本身（`chatgpt` / `current` / `candidate` / `model_direct`）；
-- `SendBudget` 三层 scope 与运行器的实际接线；
 - 次数耗尽异常从真实聊天入口穿透到运行器的链路级测试；
+- 账本、实验身份与实际调用记录的交叉核验；
+- `warnings()` 并发归属的独立修复（真实 preview 前必须完成）；
+- `--live` 仍然拒绝：没有付费授权，也没有真实执行器；
 - 任何真实模型调用或付费执行。
