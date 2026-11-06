@@ -437,7 +437,7 @@ def test_declared_limits_are_checked_before_budget_registration(tmp_path, limit,
     preview["limits"][limit] = value
     runner, budget = _runner(tmp_path)
     current = RecordingExecutor()
-    with pytest.raises(ArmPlanError, match="preview_limit"):
+    with pytest.raises(ArmPlanError, match="preview_(plan_exceeds_limit|limit_invalid)"):
         runner.run(preview=preview, tasks=_tasks(), executors={
             "current": current, "candidate": RecordingExecutor(),
             "model_direct": RecordingExecutor(),
