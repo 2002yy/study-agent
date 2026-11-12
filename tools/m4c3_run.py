@@ -66,7 +66,12 @@ def run_batch(
     task_ids: list[str] | None = None,
     repair_from: Path | None = None,
     feedback: str | None = None,
+    repair_attempt: int = 1,
 ) -> dict:
+    if type(repair_attempt) is not int or repair_attempt not in (1, 2):
+        raise ValueError("repair attempt must be 1 or 2")
+    if repair_attempt != 1 and repair_from is None:
+        raise ValueError("repair attempt requires a saved repair source")
     manifest_cases = build_manifest()["cases"]
     if task_ids is not None:
         by_id = {case["task_id"]: case for case in manifest_cases}
@@ -334,7 +339,7 @@ def run_batch(
             for original_case in manifest_cases:
                 case = dict(original_case)
                 case["invocation_key"] = (
-                    f"{prefix}{case['task_id']}:{'repair1' if repair_identity else 'first'}"
+                    f"{prefix}{case['task_id']}:{f'repair{repair_attempt}' if repair_identity else 'first'}"
                 )
                 directory = out / case["task_id"]
                 directory.mkdir()
@@ -438,6 +443,7 @@ def main():
     parser.add_argument("--tasks", nargs="+")
     parser.add_argument("--repair-from", type=Path)
     parser.add_argument("--feedback")
+    parser.add_argument("--repair-attempt", type=int, default=1)
     parser.add_argument(
         "--browser",
         action="store_true",
@@ -459,6 +465,7 @@ def main():
         task_ids=args.tasks,
         repair_from=args.repair_from,
         feedback=args.feedback,
+        repair_attempt=args.repair_attempt,
         fake_reply=None
         if args.allow_paid
         else (

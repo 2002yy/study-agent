@@ -228,7 +228,8 @@ def test_subset_reserves_only_selected_tasks_in_requested_order(tmp_path):
     assert all(case["sent"] for case in report["cases"])
 
 
-def test_repair_uses_saved_product_identity_and_same_batch_prefix(tmp_path):
+@pytest.mark.parametrize("attempt", [1, 2])
+def test_repair_uses_saved_product_identity_and_same_batch_prefix(tmp_path, attempt):
     spend.reset_spend()
     run_batch(
         tmp_path / "initial",
@@ -246,11 +247,12 @@ def test_repair_uses_saved_product_identity_and_same_batch_prefix(tmp_path):
         task_ids=["J01"],
         repair_from=tmp_path / "initial/J01",
         feedback="Fix the visible highlight mismatch.",
+        repair_attempt=attempt,
         fake_reply=ANSWER,
     )
     case = report["cases"][0]
     assert case["sent"] and case["status"] == "completed"
-    assert case["invocation_key"] == "m4c3-20261112:J01:repair1"
+    assert case["invocation_key"] == f"m4c3-20261112:J01:repair{attempt}"
     assert case["route"]["interactive_repair"]["id"] == "fixture"
     assert case["route"]["interactive_repair"]["source_sha256"]
     import sqlite3
@@ -258,3 +260,27 @@ def test_repair_uses_saved_product_identity_and_same_batch_prefix(tmp_path):
     with sqlite3.connect(tmp_path / "repair-ledger") as db:
         purpose = db.execute("SELECT purpose FROM llm_spend_reservations").fetchone()[0]
     assert purpose.startswith("interactive-repair:")
+
+
+@pytest.mark.parametrize("attempt", [0, 3, True, "2"])
+def test_invalid_repair_attempt_never_sends(tmp_path, attempt):
+    with pytest.raises(ValueError, match="repair attempt"):
+        run_batch(
+            tmp_path / "run",
+            tmp_path / "ledger",
+            PRICING,
+            repair_attempt=attempt,
+            fake_reply=ANSWER,
+        )
+    assert not (tmp_path / "run").exists()
+
+
+def test_repair_attempt_cannot_rename_a_first_generation(tmp_path):
+    with pytest.raises(ValueError, match="saved repair source"):
+        run_batch(
+            tmp_path / "run",
+            tmp_path / "ledger",
+            PRICING,
+            repair_attempt=2,
+            fake_reply=ANSWER,
+        )
