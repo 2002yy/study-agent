@@ -12,10 +12,14 @@ import {
   clearPendingTaskIntentOverride,
   consumePendingTaskIntentOverride,
 } from "../task/taskContract";
+import { clearRepairTarget, consumePendingRepairTarget, setPendingRepairTarget } from "../answer-ui/repairTarget";
 import { WorkspaceActions } from "./WorkspaceActions";
 import { ChatPanel, searchMessage } from "./ChatPanel";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  clearRepairTarget();
+});
 
 type RenderOptions = {
   input?: string;
@@ -614,6 +618,17 @@ describe("ChatPanel conversation interaction safety", () => {
     viewport.scrollTop = 10;
     fireEvent.scroll(viewport);
     expect(container.querySelector(".back-to-latest")).toHaveTextContent("正在生成 · 回到最新");
+  });
+});
+
+describe("repair identity across session navigation", () => {
+  it("forgets a transport retry when navigating away and back", () => {
+    const { rerender } = render(panelElement({ sessionId: "a" }));
+    setPendingRepairTarget({ id: "scene", revision: 1 }, "a");
+    expect(consumePendingRepairTarget("repair", "a")).not.toBeNull();
+    rerender(panelElement({ sessionId: "b" }));
+    rerender(panelElement({ sessionId: "a" }));
+    expect(consumePendingRepairTarget("repair", "a")).toBeNull();
   });
 });
 
