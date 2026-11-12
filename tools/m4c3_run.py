@@ -62,7 +62,28 @@ def run_batch(
     allow_paid: bool = False,
     authorization: dict | None = None,
     fake_reply: str | None = None,
+    batch_id: str = "v1",
+    task_ids: list[str] | None = None,
 ) -> dict:
+    manifest_cases = build_manifest()["cases"]
+    if task_ids is not None:
+        by_id = {case["task_id"]: case for case in manifest_cases}
+        if (
+            not task_ids
+            or len(set(task_ids)) != len(task_ids)
+            or set(task_ids) - set(by_id)
+        ):
+            raise ValueError("invalid selected tasks")
+        manifest_cases = [by_id[task] for task in task_ids]
+    if not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", batch_id):
+        raise ValueError("invalid batch identity")
+    prefix = PREFIX if batch_id == "v1" else f"m4c3-{batch_id}:"
+    if (
+        allow_paid
+        and batch_id != "v1"
+        and (authorization or {}).get("batch_id") != batch_id
+    ):
+        raise ValueError("authorization must bind the new batch identity")
     if allow_paid:
         validate_authorization(authorization)
         shared_ledger = Path(
@@ -127,6 +148,8 @@ def run_batch(
         "execution": "running",
         "mode": "paid" if allow_paid else "fake_http",
         "pricing": pricing,
+        "batch_id": batch_id,
+        "reservation_prefix": prefix,
         "cases": [],
     }
     original_reserve = spend.reserve_call
@@ -154,7 +177,7 @@ def run_batch(
             count, total = db.execute(
                 "SELECT COUNT(*),COALESCE(SUM(amount_micros),0) FROM llm_spend_reservations "
                 "WHERE experiment_id=? AND substr(request_key,1,?)=?",
-                (experiment, len(PREFIX), PREFIX),
+                (experiment, len(prefix), prefix),
             ).fetchone()
             return (
                 "m4c3_batch_limit"
@@ -261,7 +284,9 @@ def run_batch(
                 read_memory_bundle=lambda mode: {},
             )
             service = ChatService(repository, deps)
-            for case in build_manifest()["cases"]:
+            for original_case in manifest_cases:
+                case = dict(original_case)
+                case["invocation_key"] = f"{prefix}{case['task_id']}:first"
                 directory = out / case["task_id"]
                 directory.mkdir()
                 active.clear()
@@ -356,6 +381,8 @@ def main():
     parser.add_argument("--pricing", required=True, type=Path)
     parser.add_argument("--allow-paid", action="store_true")
     parser.add_argument("--authorization", type=Path)
+    parser.add_argument("--batch-id", default="v1")
+    parser.add_argument("--tasks", nargs="+")
     parser.add_argument(
         "--browser",
         action="store_true",
@@ -373,6 +400,8 @@ def main():
         json.loads(args.pricing.read_text(encoding="utf-8-sig")),
         allow_paid=args.allow_paid,
         authorization=authorization,
+        batch_id=args.batch_id,
+        task_ids=args.tasks,
         fake_reply=None
         if args.allow_paid
         else (
