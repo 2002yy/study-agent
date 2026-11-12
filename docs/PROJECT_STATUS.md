@@ -13,6 +13,19 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-12 双视口评分证据完整性修复（本地候选）
+
+branch `codex/repair-evidence-20261112`，base `6fe7945a`；独立工作树
+`D:/study-agent-validation/repair-evidence-20261112`。P2 / Static Loop / owner=orchestration-contract。
+生成评分原先合并两视口的语义与可用性检查，导致任一视口缺少一组检查仍可能 passed。
+现在逐视口要求两组均非空，缺失归 indeterminate；已有明确 fail 仍优先 failed。
+四个旧代码负控全部实际失败。命名人工影响集 `m4c3-score-completeness`：
+`test_m4c3_results`、`test_m4c3_prepare`、`test_m4c3_export`、`test_m4c3_run`，37 PASS；
+Ruff/格式、工具定向 mypy、diff-check 通过。仅评分工具和回归测试改变，无共享生产契约改动。
+未运行 L2/L3、远端 CI、付费模型或动态比较，未重写历史评分；engineering-only。
+下一片：对本候选做独立审阅及 exact-head CI，再使用已保存真实产物重测，新增付费调用另行授权。
+
+
 ### 2026-11-06 #348至#350远端阶段验收已收口
 
 本次实时核验三项均已由远端合并：#348 merge2740b1d4，#349 head d24b6114 /
