@@ -226,3 +226,35 @@ def test_subset_reserves_only_selected_tasks_in_requested_order(tmp_path):
     assert [case["task_id"] for case in report["cases"]] == ["A01", "M01", "P01", "J01"]
     assert report["ledger"]["reservation_count"] == 4
     assert all(case["sent"] for case in report["cases"])
+
+
+def test_repair_uses_saved_product_identity_and_same_batch_prefix(tmp_path):
+    spend.reset_spend()
+    run_batch(
+        tmp_path / "initial",
+        tmp_path / "initial-ledger",
+        PRICING,
+        task_ids=["J01"],
+        fake_reply=ANSWER,
+    )
+    spend.reset_spend()
+    report = run_batch(
+        tmp_path / "repair",
+        tmp_path / "repair-ledger",
+        PRICING,
+        batch_id="20261112",
+        task_ids=["J01"],
+        repair_from=tmp_path / "initial/J01",
+        feedback="Fix the visible highlight mismatch.",
+        fake_reply=ANSWER,
+    )
+    case = report["cases"][0]
+    assert case["sent"] and case["status"] == "completed"
+    assert case["invocation_key"] == "m4c3-20261112:J01:repair1"
+    assert case["route"]["interactive_repair"]["id"] == "fixture"
+    assert case["route"]["interactive_repair"]["source_sha256"]
+    import sqlite3
+
+    with sqlite3.connect(tmp_path / "repair-ledger") as db:
+        purpose = db.execute("SELECT purpose FROM llm_spend_reservations").fetchone()[0]
+    assert purpose.startswith("interactive-repair:")

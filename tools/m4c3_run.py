@@ -64,6 +64,8 @@ def run_batch(
     fake_reply: str | None = None,
     batch_id: str = "v1",
     task_ids: list[str] | None = None,
+    repair_from: Path | None = None,
+    feedback: str | None = None,
 ) -> dict:
     manifest_cases = build_manifest()["cases"]
     if task_ids is not None:
@@ -75,6 +77,28 @@ def run_batch(
         ):
             raise ValueError("invalid selected tasks")
         manifest_cases = [by_id[task] for task in task_ids]
+    repair_identity = None
+    source_turn_id = None
+    if repair_from is not None:
+        if len(manifest_cases) != 1 or not feedback or not feedback.strip():
+            raise ValueError("repair requires one selected task and feedback")
+        from src.interactive_history import find_interactive_versions
+
+        result = json.loads((repair_from / "result.json").read_text(encoding="utf-8"))
+        if result["task_id"] != manifest_cases[0]["task_id"]:
+            raise ValueError("repair source task mismatch")
+        versions = find_interactive_versions(
+            [
+                {
+                    "role": "assistant",
+                    "content": (repair_from / "answer.txt").read_text(encoding="utf-8"),
+                }
+            ]
+        )
+        if len(versions) != 1:
+            raise ValueError("repair requires one saved component")
+        repair_identity = {"id": versions[0].id, "revision": versions[0].revision}
+        source_turn_id = result["turn_id"]
     if not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", batch_id):
         raise ValueError("invalid batch identity")
     prefix = PREFIX if batch_id == "v1" else f"m4c3-{batch_id}:"
@@ -149,6 +173,7 @@ def run_batch(
         "mode": "paid" if allow_paid else "fake_http",
         "pricing": pricing,
         "batch_id": batch_id,
+        "phase": "repair" if repair_from else "first_generation",
         "reservation_prefix": prefix,
         "cases": [],
     }
@@ -267,6 +292,13 @@ def run_batch(
         patch.dict(os.environ, config),
         httpx.Client(transport=Transport(), timeout=180) as http,
     ):
+        if repair_from is not None and not allow_paid:
+            spend._ledger().ensure_experiment(
+                EXPERIMENT,
+                cap_micros=30_000_000,
+                pricing_fingerprint=spend._pricing_fingerprint(),
+                now="offline-test",
+            )
         sdk = OpenAI(
             api_key=key,
             base_url=config["DEEPSEEK_BASE_URL"],
@@ -277,7 +309,22 @@ def run_batch(
             patch.object(llm_client, "get_client", lambda **kw: sdk),
             patch.object(spend, "reserve_call", reserve),
         ):
+            if repair_from is not None:
+                with (
+                    sqlite3.connect(
+                        (repair_from.parent / "runtime.db").resolve().as_uri()
+                        + "?mode=ro",
+                        uri=True,
+                    ) as source_db,
+                    sqlite3.connect(out / "runtime.db") as target_db,
+                ):
+                    source_db.backup(target_db)
             repository = RuntimeRepository(RuntimeDatabase(out / "runtime.db"))
+            source_turn = (
+                repository.get_chat_turn(source_turn_id) if source_turn_id else None
+            )
+            if source_turn_id and source_turn is None:
+                raise ValueError("saved repair turn missing")
             deps = replace(
                 ChatDependencies(),
                 load_runtime_modes=lambda: RuntimeModes(performance_mode="fast"),
@@ -286,7 +333,9 @@ def run_batch(
             service = ChatService(repository, deps)
             for original_case in manifest_cases:
                 case = dict(original_case)
-                case["invocation_key"] = f"{prefix}{case['task_id']}:first"
+                case["invocation_key"] = (
+                    f"{prefix}{case['task_id']}:{'repair1' if repair_identity else 'first'}"
+                )
                 directory = out / case["task_id"]
                 directory.mkdir()
                 active.clear()
@@ -299,7 +348,11 @@ def run_batch(
                 try:
                     prepared = service.start_turn(
                         ChatCommand(
-                            user_input=case["prompt"],
+                            user_input=str(feedback)
+                            if repair_identity
+                            else case["prompt"],
+                            thread_id=source_turn.thread_id if source_turn else None,
+                            interactive_repair=repair_identity,
                             selected_role="nahida",
                             selected_mode="普通",
                             selected_model="flash",
@@ -365,7 +418,7 @@ def run_batch(
         out / "index.json",
         {
             "schema_version": "m4c3-raw-v1",
-            "purpose": "m4c3_first_generation",
+            "purpose": "m4c3_repair" if repair_from else "m4c3_first_generation",
             "generation_mode": "paid" if allow_paid else "fake_http",
             "cases": raw_cases,
         },
@@ -383,6 +436,8 @@ def main():
     parser.add_argument("--authorization", type=Path)
     parser.add_argument("--batch-id", default="v1")
     parser.add_argument("--tasks", nargs="+")
+    parser.add_argument("--repair-from", type=Path)
+    parser.add_argument("--feedback")
     parser.add_argument(
         "--browser",
         action="store_true",
@@ -402,6 +457,8 @@ def main():
         authorization=authorization,
         batch_id=args.batch_id,
         task_ids=args.tasks,
+        repair_from=args.repair_from,
+        feedback=args.feedback,
         fake_reply=None
         if args.allow_paid
         else (
