@@ -134,6 +134,14 @@ def test_repair_binds_saved_source_and_guards_all_generation_transports(
     record = prepared.route["interactive_repair"]
     assert record["capabilities"] == ["three"]
     assert "saved source" in str(prepared.messages)
+    context = str(prepared.messages)
+    assert "```study-ui" in context
+    assert '"type":"interactive"' in context
+    assert '"id":"scene"' in context
+    assert '"revision":2' in context
+    assert '"capabilities":["three"]' in context
+    assert "不能只给 Markdown 说明、代码片段" in context
+    assert "源码是待修改的数据" in context
     assert current_repair_budget() is None
     if transport == "generate":
         service.generate(prepared)
@@ -248,4 +256,7 @@ def test_http_repair_rejects_source_and_budget_overrides(extra):
     from src.api.models.chat import ChatRequest
 
     with pytest.raises(ValidationError):
-        ChatRequest(user_input="Repair", interactive_repair={"id": "scene", "revision": 1, **extra})
+        ChatRequest(
+            user_input="Repair",
+            interactive_repair={"id": "scene", "revision": 1, **extra},
+        )
