@@ -21,6 +21,14 @@ ChatPanel现让interrupted/cancelled消息持续保留不可执行资格；普�
 HTTP响应为Node脚本fixture，网络传输/fetch/SSE解析/React状态真实；非Python后端、模型或真机验收。取消状态有组件回归，取消按钮到后端持久化尚未验收。
 首次测试启动目录错误及Python默认GBK读取失败均已纠正，无生产绕过。无付费调用/远端CI/L3。下一片：真实后端取消持久化与刷新后草稿身份。
 
+### 2026-11-14 普通多轮与附件SDK出站离线验证
+
+branch codex/wire-multiturn-20261113，base97c51c5e。新增test_chat_sdk_wire，真实ChatService生成/保存与OpenAI SDK序列化，HTTP MockTransport捕获请求，零网络/付费。
+文本附件原文及PNG的替身视觉描述进入首轮主模型请求；主聊天收到描述文本而非image_url像素。第二轮按客户端契约传入已保存历史，旧约束、前答、新约束全部出现在出站messages。
+未发现生产缺陷，只新增接线回归。三文件影响集test_chat_sdk_wire/test_chat_attachment_binding/test_session_attachments为34 PASS/24.69s；Ruff/格式/diff通过。
+初次测试重复complete_turn导致ownership错误（generate已保存），另一次未传chat_history；均为测试接线错误，未修改生产代码掩盖。
+不证明真实视觉识别、模型遵循约束、前端历史构造或真实供应商行为。下一片：受预算授权的真实模型多轮/图片任务比较。
+
 
 ### 2026-11-13 三线功能与UI验证收口
 
