@@ -13,6 +13,15 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-14 HTTP/SSE最终替换与中断草稿隔离
+
+branch codex/http-final-20261113，base97c51c5e。实际缺陷：流式中断后保留完整study-ui草稿，但isSending=false使其变成可执行卡。
+ChatPanel现让interrupted/cancelled消息持续保留不可执行资格；普通已完成答案仍正常渲染。
+旧代码两条负控FAIL；ChatPanel/协议49 PASS；本地真实HTTP/SSE+React桌面3 PASS覆盖合法done、拒绝done和无done中断；tsc/diff通过。
+HTTP响应为Node脚本fixture，网络传输/fetch/SSE解析/React状态真实；非Python后端、模型或真机验收。取消状态有组件回归，取消按钮到后端持久化尚未验收。
+首次测试启动目录错误及Python默认GBK读取失败均已纠正，无生产绕过。无付费调用/远端CI/L3。下一片：真实后端取消持久化与刷新后草稿身份。
+
+
 ### 2026-11-13 三线功能与UI验证收口
 
 集成head08c50f23（交互流式修复来自b2c36fcd）：可执行交互卡等最终发布后才渲染，轻量卡不变。
