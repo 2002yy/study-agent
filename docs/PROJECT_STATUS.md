@@ -13,6 +13,17 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-13 三线功能与UI验证收口
+
+集成head08c50f23（交互流式修复来自b2c36fcd）：可执行交互卡等最终发布后才渲染，轻量卡不变。
+协议/组件32 PASS，真实React桌面与390手机2 PASS；这是构造终态展示证据，非完整HTTP流或动态模型验收。
+核心线4e777c00的6文件离线影响集86 PASS/52.83s；真实PNG上传但vision/search为替身，普通多轮约束遵循仍未实测。
+UI线57474e0f：360复杂内容3 PASS、390/1440阅读草稿来源2 PASS、双视口异常刷新恢复6 PASS；tsc通过。
+限定截图Visual PASS，无已确认布局缺陷，未修改通用UI。截图D:/study-agent-validation/mobile-ui-evidence-20261113/。
+真实设备软键盘、安全区、运行中取消、真实模型语义仍未验收。无新增付费调用，无本批远端CI或合并资格。
+各工作树保留验证日志；生产集成tracked clean。下一片：普通多轮与附件实际供应商请求观测，以及完整HTTP流最终替换验收。
+
+
 ### 2026-11-13 流式交互文档延后执行
 
 基于cf669293，branch codex/repair-browser-20261113。发现闭合study-ui在streaming阶段立即渲染，可能早于最终修复校验执行候选。现在interactive文档在流式期间保持pending，最终发布后才渲染；轻量数据卡保持原行为。
