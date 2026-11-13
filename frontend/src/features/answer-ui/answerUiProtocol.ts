@@ -125,7 +125,9 @@ export function splitAnswerContent(content: string, streaming = false): AnswerPa
     const card = end < lines.length && cards < 4 ? parseAnswerCard(raw) : null;
     if (card || end === lines.length) {
       if (i > start) parts.push({ kind: "markdown", content: lines.slice(start, i).join("\n"), key: start });
-      parts.push(card ? { kind: "card", card, key: i } : { kind: "pending", key: i });
+      // Executable documents wait for the final server-validated answer.
+      const pendingDocument = streaming && card?.type === "interactive";
+      parts.push(card && !pendingDocument ? { kind: "card", card, key: i } : { kind: "pending", key: i });
       if (card) cards++;
       start = Math.min(end + 1, lines.length);
     }

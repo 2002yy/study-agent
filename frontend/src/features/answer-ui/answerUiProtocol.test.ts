@@ -71,3 +71,12 @@ describe("answer UI wire format", () => {
     expect(payload.turn_context.length).toBeLessThan(12000);
   });
 });
+
+it("defers even closed executable documents until final publication", () => {
+  const raw = JSON.stringify({ type: "interactive", id: "repair", revision: 2, title: "修复", summary: "候选", html: "<p>candidate</p>" });
+  expect(splitAnswerContent(block(raw), true)[0].kind).toBe("pending");
+  expect(splitAnswerContent(block(raw), false)[0].kind).toBe("card");
+  const rejected = "界面未更新\n\n````text\n" + block(raw) + "\n````";
+  expect(splitAnswerContent(rejected).every(part => part.kind === "markdown")).toBe(true);
+  expect(splitAnswerContent(block(plot), true)[0].kind).toBe("card");
+});

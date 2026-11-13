@@ -13,6 +13,13 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-13 流式交互文档延后执行
+
+基于cf669293，branch codex/repair-browser-20261113。发现闭合study-ui在streaming阶段立即渲染，可能早于最终修复校验执行候选。现在interactive文档在流式期间保持pending，最终发布后才渲染；轻量数据卡保持原行为。
+协议/组件影响集32 PASS，真实React Chromium桌面/390手机2 PASS，tsc与diff-check通过。截图位于本工作树frontend/test-results/artifacts/acceptance-repairPublicati-f3bef--wait-for-final-publication-{desktop,mobile}-chromium/。手机最终截图目视PASS，两版本均可见、无水平溢出。
+浏览器使用构造终态与真实MarkdownMessage组件，证明pending/拒绝text围栏隔离/两版本共存；不是完整HTTP流端到端或真实模型修复效果。初次浏览器导入CJS默认导出处理错误，已修测试导入，无生产绕过。无付费调用/L3/远端CI。下一片：合并审阅及真实HTTP流最终发布验收。
+
+
 ### 2026-11-13 修复产物应用与完成状态静态闭环
 
 branch codex/repair-evidence-20261112；base6fe7945a；helper4fd2c26a，服务候选60bfdb5e。
