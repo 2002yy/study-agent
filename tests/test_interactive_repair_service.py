@@ -162,6 +162,10 @@ def test_repair_binds_saved_source_and_guards_all_generation_transports(
 
         asyncio.run(consume())
     assert events == ["send"]
+    saved = repo.get_chat_turn(prepared.turn.id)
+    assert "界面未更新" in saved.assistant_message
+    assert "A final answer." in saved.assistant_message
+    assert saved.route_snapshot["interactive_repair_result"]["status"] == "not_updated"
     assert (
         repo.get_chat_turn(prepared.turn.id).route_snapshot["interactive_repair"]
         == record
@@ -260,3 +264,103 @@ def test_http_repair_rejects_source_and_budget_overrides(extra):
             user_input="Repair",
             interactive_repair={"id": "scene", "revision": 1, **extra},
         )
+
+
+@pytest.mark.parametrize(
+    "change,reason",
+    [
+        ({}, ""),
+        ({"id": "other"}, "component_mismatch"),
+        ({"revision": 1}, "revision_mismatch"),
+        ({"capabilities": []}, "capability_mismatch"),
+        ({"html": ""}, "missing_document"),
+    ],
+)
+def test_repair_document_must_match_saved_contract(change, reason):
+    from src.interactive_repair import validate_repair_output
+
+    route = {
+        "generation": {"finish_reason": "stop"},
+        "interactive_repair": {"id": "scene", "capabilities": ["three"]},
+        "interactive_restore": {"expected_new_revision": 3},
+    }
+    payload = {
+        "type": "interactive",
+        "id": "scene",
+        "revision": 3,
+        "title": "Scene",
+        "summary": "Fixed",
+        "html": "<p>complete</p>",
+        "capabilities": ["three"],
+        **change,
+    }
+    answer = "```study-ui\n" + json.dumps(payload) + "\n```"
+    result = validate_repair_output(answer, route)
+    assert route["interactive_repair_result"]["reason"] == reason
+    assert answer in result
+    assert (result == answer) is (not reason)
+    if reason:
+        from src.interactive_history import find_interactive_versions
+
+        assert (
+            find_interactive_versions([{"role": "assistant", "content": result}]) == []
+        )
+
+
+def test_real_fragment_failure_is_not_a_document_and_plain_chat_is_unchanged():
+    from src.interactive_repair import validate_repair_output
+
+    # Reduced from live-ui-20261112/j01-repair2/J01/answer.txt: explanation
+    # and a JS replacement, followed by an offer to deliver a document later.
+    answer = (
+        "修复步骤数组：\n```js\nvar steps=[{code:-1}];\n```\n可另行整理完整 study-ui。"
+    )
+    assert validate_repair_output(answer, {}) == answer
+    route = {
+        "generation": {"finish_reason": "stop"},
+        "interactive_repair": {"id": "scene", "capabilities": []},
+        "interactive_restore": {"expected_new_revision": 2},
+    }
+    result = validate_repair_output(answer, route)
+    assert result.startswith("**界面未更新")
+    assert answer in result
+    assert route["interactive_repair_result"]["reason"] == "missing_document"
+
+
+@pytest.mark.parametrize("finish", ["length", "unknown", None])
+def test_repair_requires_normal_completion(finish):
+    from src.interactive_repair import validate_repair_output
+
+    route = {
+        "interactive_repair": {"id": "scene"},
+        "generation": {"finish_reason": finish},
+    }
+    result = validate_repair_output("fragment", route)
+    assert "界面未更新" in result
+    assert route["interactive_repair_result"]["reason"] == "incomplete_generation"
+
+
+def test_complete_repair_wraps_full_html_from_bound_source(setup_service):
+    from src.interactive_history import find_interactive_versions
+
+    make, events, repo = setup_service
+    service, command = make(False)
+    prepared = service.start_turn(command)
+    prepared.route["generation"] = {"finish_reason": "stop"}
+    answer = "<!doctype html><html><head><title>Page</title></head><body><p>fixed</p></body></html>"
+    saved = service.complete_turn(prepared, answer)
+    versions = find_interactive_versions(
+        [{"role": "assistant", "content": saved.assistant_message}]
+    )
+    assert len(versions) == 1
+    assert (versions[0].id, versions[0].revision, versions[0].capabilities) == (
+        "scene",
+        2,
+        ("three",),
+    )
+    assert versions[0].html == answer
+    assert (
+        saved.route_snapshot["interactive_repair_result"]["status"]
+        == "applicable_document"
+    )
+    assert events == []

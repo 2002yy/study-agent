@@ -64,7 +64,7 @@ from src.interactive_restore import (
     restore_context_block,
     restore_record,
 )
-from src.interactive_repair import resolve_repair, repair_scope
+from src.interactive_repair import resolve_repair, repair_scope, validate_repair_output
 from src.llm_spend_guard import (
     experiment_id,
     new_scope,
@@ -1944,6 +1944,9 @@ class ChatService:
             published_rag["lookup_terminal"] = self._lookup_terminal_snapshot(prepared)
         else:
             published_rag = deepcopy(prepared.rag)
+        reply = validate_repair_output(
+            reply, prepared.route, self.repository, prepared.thread.id
+        )
         evaluation = self.dependencies.pedagogy_engine.evaluate_response(
             reply,
             plan=prepared.pedagogy_plan,

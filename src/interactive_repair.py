@@ -2,6 +2,7 @@
 
 from contextlib import nullcontext
 import hashlib
+import re
 from typing import Any
 
 from src.interactive_repair_budget import (
@@ -9,6 +10,7 @@ from src.interactive_repair_budget import (
     current_repair_budget,
     repair_budget_scope,
 )
+from src.interactive_history import find_interactive_versions
 from src.interactive_restore import RestoreRequest, resolve_interactive_restore
 
 
@@ -60,3 +62,67 @@ def repair_scope(thread_id: str, record: dict[str, Any] | None):
     if current_repair_budget() == policy:
         return nullcontext()
     return repair_budget_scope(policy)
+
+
+def validate_repair_output(
+    reply: str, route: dict[str, Any], repository: Any = None, thread_id: str = ""
+) -> str:
+    """Record document applicability, never semantic or browser success."""
+    repair = route.get("interactive_repair")
+    if not repair:
+        return reply
+    if repository is not None:
+        from src.interactive_output import normalize_interactive_output
+
+        request = RestoreRequest.from_payload(repair)
+        outcome = (
+            resolve_interactive_restore(repository, thread_id, request)
+            if request
+            else None
+        )
+        if (
+            outcome
+            and outcome.html
+            and hashlib.sha256(outcome.html.encode()).hexdigest()
+            == repair.get("source_sha256")
+        ):
+            reply = normalize_interactive_output(
+                reply, outcome, (route.get("generation") or {}).get("finish_reason")
+            )
+    expected = (route.get("interactive_restore") or {}).get("expected_new_revision")
+    versions = find_interactive_versions([{"role": "assistant", "content": reply}])
+    reason = "missing_document"
+    if (route.get("generation") or {}).get("finish_reason") != "stop":
+        reason = "incomplete_generation"
+    elif len(versions) > 1:
+        reason = "ambiguous_documents"
+    elif versions:
+        version = versions[0]
+        if version.id != repair["id"]:
+            reason = "component_mismatch"
+        elif expected is None or version.revision != expected:
+            reason = "revision_mismatch"
+        elif version.capabilities != tuple(repair.get("capabilities", [])):
+            reason = "capability_mismatch"
+        else:
+            reason = ""
+    route["interactive_repair_result"] = {
+        "status": "not_updated" if reason else "applicable_document",
+        "reason": reason,
+        "component_id": repair["id"],
+        "expected_new_revision": expected,
+    }
+    if not reason:
+        return reply
+    fence = "`" * max(
+        3, 1 + max((len(m.group()) for m in re.finditer(r"`+", reply)), default=0)
+    )
+    return (
+        "**界面未更新：本次回答未提供与所选组件、目标版本及能力声明一致的完整可应用文档。**"
+        "下面保留模型原答供查看；说明或代码片段不会自动应用。\n\n"
+        + fence
+        + "text\n"
+        + reply
+        + "\n"
+        + fence
+    )
