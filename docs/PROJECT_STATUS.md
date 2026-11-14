@@ -13,6 +13,15 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 同题真实调研对比启动
+
+用户明确将本轮重点调整为真实模型使用、调研动作和产出方向与ChatGPT相近。后续优先执行同题比较及真实失败修复。
+固定问题为单用户FastAPI聊天应用、SQLite、4 workers和后台索引，比较SQLite WAL/PostgreSQL，要求官方来源、并发写入/长事务/备份/网络文件系统限制、明确建议/迁移条件/步骤。
+候选a17e8036通过真实生产/chat入口与DeepSeek Flash调用，使用TestClient传输。源码服务和搜索网关保持生产装配，实验脚本绑定原共享账本并加本轮原子调用/费用限额。脚本D:/study-agent-validation/browse-live-20261115/real_research.py。
+首次实验未绑定spend_scope，调用被拒且0预留，证据research目录保留。补实验授权上下文后research-authorized目录完成2次真实模型调用，分别research_turn_interpretation和research_candidate_relevance，新增保守预留190460微元。本轮累计12次、7195323微元，调用数余0、金额余4804677微元。费用口径为保守预留。价格2026-11-15核验官方Flash峰值输入2/输出8元每百万token，原账本继续9/27上界。
+真实失败归属P1 orchestration-contract/retrieval。查询计划解析被拒，记录只保留ValueError而缺具体校验原因和模型原文，当前无法细分模型字段错误或解析过严。随后把整段问题发送搜索，并追加泛化英文后缀再次搜索。SearXNG连接拒绝，Bing RSS返回“帮”字词典等5条无关页面，相关性模型将其拒绝，读取正文0次，最终只有无法给出已核实结论的固定文案。完整动作和输出在research-authorized/response.json，模型调用预留在call-1/2.json。
+ChatGPT浏览器访问两次ERR_ABORTED，独立curl超时。用户表示自行提问，已发送完全相同问题，等待其回答与可见搜索动作。当前比较只有Study Agent一侧。下一片为接收ChatGPT结果形成逐项差距，先补具体解析拒绝原因捕获，再在授权调用额度内复测查询规划。金额余额不代表仍有本轮调用额度。
+
 ### 2026-11-15 browse真实Edge与Python全链路调试
 
 验证代码9dc6793687f2aad6df4a07670eebbb27e05a8a38，branch codex/repair-evidence-20261112；本片只更新交接。
