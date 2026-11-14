@@ -94,6 +94,14 @@ def validate_repair_output(
     reason = "missing_document"
     if (route.get("generation") or {}).get("finish_reason") != "stop":
         reason = "incomplete_generation"
+    # Explicit repair delivers one component. Extra protocol fences can consume
+    # the browser card limit before the target; do not infer their card types.
+    # Conservatively reject even quoted protocol examples in this output mode.
+    elif (
+        len(re.findall(r"(?m)^ {0,3}(?:`{3,}|~{3,})[ \t]*study-ui[ \t]*\r?$", reply))
+        > 1
+    ):
+        reason = "ambiguous_documents"
     elif len(versions) > 1:
         reason = "ambiguous_documents"
     elif versions:

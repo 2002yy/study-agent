@@ -364,3 +364,42 @@ def test_complete_repair_wraps_full_html_from_bound_source(setup_service):
         == "applicable_document"
     )
     assert events == []
+
+
+@pytest.mark.parametrize("extra_first", [True, False])
+@pytest.mark.parametrize("marker", ["```study-ui", "``` study-ui", "~~~study-ui"])
+def test_repair_rejects_other_card_blocks_even_when_target_is_valid(
+    extra_first, marker
+):
+    from src.interactive_repair import validate_repair_output
+    from src.interactive_history import find_interactive_versions
+
+    route = {
+        "generation": {"finish_reason": "stop"},
+        "interactive_repair": {"id": "scene", "capabilities": []},
+        "interactive_restore": {"expected_new_revision": 2},
+    }
+    target = (
+        "```study-ui\n"
+        + json.dumps(
+            {
+                "type": "interactive",
+                "id": "scene",
+                "revision": 2,
+                "title": "Scene",
+                "summary": "Fixed",
+                "html": "<p>fixed</p>",
+            }
+        )
+        + "\n```"
+    )
+    plot = (
+        '```study-ui\n{"type":"plot","title":"Plot","fn":"quadratic","a":1,"b":0}\n```'
+    )
+    plot = plot.replace("```study-ui", marker).replace("\n```", "\n" + marker[:3])
+    extras = "\n".join([plot] * 4)
+    answer = extras + "\n" + target if extra_first else target + "\n" + extras
+    result = validate_repair_output(answer, route)
+    assert route["interactive_repair_result"]["status"] == "not_updated"
+    assert find_interactive_versions([{"role": "assistant", "content": result}]) == []
+    assert answer in result

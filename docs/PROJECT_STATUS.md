@@ -21,6 +21,13 @@ branch codex/cancel-persist-20261114，base46ebfebd。新增test_cancel_session_
 首次编辑因默认GBK读取失败，改显式UTF8，无生产绕过。未运行mypy（仅未注解测试与文档）、L2/L3、浏览器、远端CI或付费模型。
 证据是TestClient ASGI内存传输与临时真实SQLite，不是TCP/浏览器点击取消、真实供应商或重启后完整应用验收。下一片：将该后端状态契约与前端取消/刷新浏览器验收对应。
 
+### 2026-11-14 显式修复多协议块误判收口
+
+branch codex/card-limit-20261114，base46ebfebd。P1 orchestration-contract：四个plot排在正确目标interactive之前时，后端只计interactive判可应用，前端四卡上限却隐藏目标。
+显式修复现在保守要求唯一study-ui围栏；额外协议围栏（包含引用示例）拒绝为ambiguous_documents并保留隔离原文，不重做前端所有卡类型解析。普通聊天不变。
+旧实现前后额外卡两负控均FAIL；修复后四文件影响集103 PASS/36.43s；随后补空格/波浪围栏变体6 PASS，Ruff/格式/定向mypy/diff通过。
+不证明模型质量或浏览器运行；没有付费调用、远端CI、L2/L3。未跟踪验证日志保留。下一片：与刷新/取消终态展示修复统一审阅。
+
 
 ### 2026-11-14 HTTP/SSE最终替换与中断草稿隔离
 
