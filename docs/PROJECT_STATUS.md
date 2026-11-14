@@ -13,6 +13,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 调研环境纠正与ChatGPT样本收到
+
+用户指出Docker可能未开启。实查docker info/ps均因dockerDesktopLinuxEngine管道不存在而失败，确认上次调研未完成依赖预检。上次样本包含搜索服务未就绪影响，不能作为健康环境下Study Agent能力基线。
+已执行tools/manage-searxng.ps1 -Action Ensure -ProbeSearch启动Docker与既有固定摘要SearXNG，容器healthy，8080 JSON搜索可用。manager创建ignored infra/searxng/.env.local，复用原桌面检出的同内容settings。Docker自启策略还启动了既有retained容器，未调整该容器。
+无模型费用的直接搜索探针显示服务健康仍不足以证明结果相关。短查询SQLite WAL concurrent writers checkpoint backup site:sqlite.org返回SQLite首页等泛结果和非限定域结果。原整段中文问题返回Beshbarmak菜谱等无关结果，响应query仍完整。证据searxng-restored.json和searxng-original-query.json位于D:/study-agent-validation/browse-live-20261115。
+查询计划被拒发生在搜索前，具体ValueError细节在WebToolTrace诊断摘要中被丢弃，SQLite持久化也只剩类型，尚不能定位精确校验条件。当前无新增付费调用，本轮调用数仍12/12。
+收到用户粘贴的ChatGPT完整回答，给出继续SQLite WAL的条件建议、官方来源、事务/备份/网络存储比较和实施步骤。未收到可见工具轨迹，引用内容尚未逐条独立核实。下一片聚焦健康环境下检索偏题、查询规划拒绝原文捕获，然后完成同题动态复测。
+
 ### 2026-11-15 同题真实调研对比启动
 
 用户明确将本轮重点调整为真实模型使用、调研动作和产出方向与ChatGPT相近。后续优先执行同题比较及真实失败修复。
