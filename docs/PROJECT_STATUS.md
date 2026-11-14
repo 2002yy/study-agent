@@ -13,6 +13,16 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 browse真实Edge与Python全链路调试
+
+验证代码9dc6793687f2aad6df4a07670eebbb27e05a8a38，branch codex/repair-evidence-20261112；本片只更新交接。
+真实Edge browse访问localhost:5173，Vite代理到8000真实FastAPI/ChatService/SQLite；仅外部模型和网络网关使用real_stack_research_test_server受控替身，费用0。
+实际发送成功；停止后刷新保留部分回答与恢复入口，CLI读库状态interrupted；点击从断点继续后同一turn_17a4e780-1fb1-4795-8ea5-ede64876d050变completed，回合总数仍3，再刷新恢复入口消失。另实测零token失败→刷新→重新生成，核对父失败回合与子回合关系。
+证据目录D:/study-agent-validation/browse-live-20261115，保存独立runtime.db、completed-state.json、final-state.json。会话chat_4bacd31202c74201b0a6b5b27140e266。
+首轮python指向无uvicorn的3.14，改用已有项目.venv成功启动。browse普通停止点击两次未赶上短响应/稳定性等待，最后使用force点击真实停止按钮完成取消；这不证明普通点击时序无缺陷。bringToFront被browse策略阻止，未修改策略。刷新时扩展自身unload警告不归因于应用。
+观察待核实：续写拼接边界曾出现双空格；二分查找对话旁默认展开无关流萤示例，可能分散注意力。未修改相邻功能。1699px视口scrollWidth同宽，无横向溢出；未做截图视觉或真机验收。
+未运行新增自动测试、L3或远端CI；既有未跟踪日志保留。本地调试服务供后续检查，不能当作真实供应商环境。下一片：将本次取消/失败恢复路径固化到当前会话结构的CLI回归，并核实普通停止点击时序。
+
 ### 2026-11-15 取消、刷新与历史发送本地整合验收
 
 集成代码03146082，已包含b9d3965e取消持久化回归、c434316e多协议块拒绝、8e9c5d65停止文案修复。
