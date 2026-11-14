@@ -5,8 +5,8 @@ import { AnswerCardView } from "../features/answer-ui/AnswerCardView";
 import { ConsentImage } from "./ConsentImage";
 import { splitAnswerContent } from "../features/answer-ui/answerUiProtocol";
 
-export function MarkdownMessage({ content, interactive = false, streaming = false, generation, onDraft, onRestoreBase, sessionId }: {
-  content: string; interactive?: boolean; streaming?: boolean; generation?: unknown; onDraft?: (prompt: string, repair?: { id: string; revision: number }) => void;
+export function MarkdownMessage({ content, interactive = false, streaming = false, stopped = false, generation, onDraft, onRestoreBase, sessionId }: {
+  content: string; interactive?: boolean; streaming?: boolean; stopped?: boolean; generation?: unknown; onDraft?: (prompt: string, repair?: { id: string; revision: number }) => void;
   onRestoreBase?: (target: { id: string; revision: number; title: string }) => void;
   sessionId?: string;
 }) {
@@ -26,6 +26,7 @@ export function MarkdownMessage({ content, interactive = false, streaming = fals
       {interactive && !streaming && notice ? <p role="status">{notice}</p> : null}
       {parts.map(part => part.kind === "card"
         ? <AnswerCardView key={`${part.key}:${JSON.stringify(part.card)}`} card={part.card} onDraft={onDraft} onRestoreBase={onRestoreBase} sessionId={sessionId} />
+        : part.kind === "pending" && stopped ? <section key={part.key} aria-label="未完成的交互内容"><p>生成已停止，交互内容尚未完成，未运行。</p><details><summary>查看未完成内容</summary><pre>{content}</pre></details></section>
         : part.kind === "pending" ? <div className="answer-pending" role="status" key={part.key}>正在准备交互内容…</div>
         : part.kind === "html-source" ? <section className="answer-card" key={part.key} aria-label="尚未运行的网页源码">
           <p>这段内容是网页源码，尚未作为交互界面运行。</p>

@@ -28,6 +28,13 @@ branch codex/card-limit-20261114，base46ebfebd。P1 orchestration-contract：�
 旧实现前后额外卡两负控均FAIL；修复后四文件影响集103 PASS/36.43s；随后补空格/波浪围栏变体6 PASS，Ruff/格式/定向mypy/diff通过。
 不证明模型质量或浏览器运行；没有付费调用、远端CI、L2/L3。未跟踪验证日志保留。下一片：与刷新/取消终态展示修复统一审阅。
 
+### 2026-11-14 中断交互草稿终态展示
+
+branch codex/reload-history-20261114，base46ebfebd。修复cancelled/interrupted草稿永久显示正在准备的问题：明确停止状态，显示未完成未运行与可展开源码，继续禁止执行。
+MarkdownMessage/ChatPanel/协议63 PASS，真实React+本地HTTP SSE三场景3 PASS，tsc/diff通过。响应为Node fixture，不是Python后端或模型验收。
+浏览器旧模糊文本断言匹配到新增源码内隐藏文本，已改明确可见终态文案；无放宽行为断言。
+尚未补真实刷新GET还原或前端chat_history捕获，保持缺口；无付费/远端CI。下一片沿真实会话GET与请求捕获完成这两项。
+
 
 ### 2026-11-14 HTTP/SSE最终替换与中断草稿隔离
 

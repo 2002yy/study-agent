@@ -21,7 +21,8 @@ for (const mode of ["accepted", "rejected", "interrupted"]) {
       else stream!.end(event("done",{session_id:"sse-test",turn_id:"sse-turn",reply:mode==="accepted"?card:"界面未更新\n\n````text\n"+card+"\n````"}));
       if(mode==="accepted") await expect(page.getByRole("region",{name:"Candidate",exact:true})).toBeVisible();
       else {
-        await expect(page.getByText(mode==="rejected"?"界面未更新":"生成中断",{exact:false}).first()).toBeVisible();
+        if(mode==="interrupted") { await expect(page.getByText("生成已停止，交互内容尚未完成，未运行。",{exact:true})).toBeVisible(); await expect(page.getByText("正在准备交互内容…",{exact:true})).toHaveCount(0); await page.getByText("查看未完成内容",{exact:true}).click(); await expect(page.locator("pre").filter({hasText:"study-ui"}).first()).toBeVisible(); }
+        await expect(page.getByText(mode==="rejected"?"界面未更新":"生成已停止，交互内容尚未完成，未运行。",{exact:false}).first()).toBeVisible();
         await expect(page.getByRole("region",{name:"Candidate",exact:true})).toHaveCount(0);
       }
     } finally {stream?.destroy();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}

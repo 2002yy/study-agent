@@ -573,6 +573,7 @@ export function ChatPanel(props: ChatPanelProps) {
                         ? <AnswerProgress hasContent={!!message.content.trim()} progress={message.researchProgress ?? researchProgress} /> : null}
                       <MarkdownMessage content={message.content} interactive={message.role === "assistant"}
                         generation={message.evidence?.route?.generation}
+                        stopped={message.turnStatus === "interrupted" || message.turnStatus === "cancelled"}
                         streaming={message.role === "assistant" && (message.turnStatus === "interrupted" || message.turnStatus === "cancelled" || (isSending && !displayMessages.slice(index + 1).some(item => item.role === "assistant")))}
                         onRestoreBase={handleRestoreBase}
                         sessionId={sessionId}
