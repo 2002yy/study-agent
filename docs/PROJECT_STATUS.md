@@ -13,6 +13,16 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 取消、刷新与历史发送本地整合验收
+
+集成代码03146082，已包含b9d3965e取消持久化回归、c434316e多协议块拒绝、8e9c5d65停止文案修复。
+同一工作树httpFinal与reloadHistory桌面浏览器合跑5 PASS/14.4s，日志closure-browser.log。
+覆盖HTTP/SSE终态替换、无done中断、刷新GET恢复interrupted/cancelled、实际POST携带旧约束/前答/新约束。
+后端API/SQLite持久化沿用54项影响集和独立重开1项证据。浏览器数据由fixture提供，真实供应商理解与真机键盘仍待验证。
+整合冲突仅交接，保留双方记录。首次从frontend目录处理docs路径失败，改回仓库根完成；源码与测试结果未受影响。
+本批本地工程验收通过，当前未推送、无本批远端CI；验证日志保持未跟踪。下一执行片为独立PR整理与远端审阅收口。
+
+
 ### 2026-11-14 Python取消持久化与会话重载验证
 
 branch codex/cancel-persist-20261114，base46ebfebd。新增test_cancel_session_reload：真实FastAPI路由/ChatService/SQLite，受控异步生成器先输出完整study-ui草稿，再并发调用取消API。
