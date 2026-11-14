@@ -13,6 +13,15 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-14 Python取消持久化与会话重载验证
+
+branch codex/cancel-persist-20261114，base46ebfebd。新增test_cancel_session_reload：真实FastAPI路由/ChatService/SQLite，受控异步生成器先输出完整study-ui草稿，再并发调用取消API。
+验证cancelled SSE无done、turn status与GET会话均保留interrupted/原草稿，独立RuntimeRepository重开同SQLite仍一致，迟到完成文本不出现。
+未确认生产缺陷，无生产或schema改动。取消/stream/session服务4文件影响集54 PASS/34.11s；最后补独立重开SQLite断言后单文件1 PASS/1.51s；Ruff/格式/diff通过。
+首次编辑因默认GBK读取失败，改显式UTF8，无生产绕过。未运行mypy（仅未注解测试与文档）、L2/L3、浏览器、远端CI或付费模型。
+证据是TestClient ASGI内存传输与临时真实SQLite，不是TCP/浏览器点击取消、真实供应商或重启后完整应用验收。下一片：将该后端状态契约与前端取消/刷新浏览器验收对应。
+
+
 ### 2026-11-14 HTTP/SSE最终替换与中断草稿隔离
 
 branch codex/http-final-20261113，base97c51c5e。实际缺陷：流式中断后保留完整study-ui草稿，但isSending=false使其变成可执行卡。
