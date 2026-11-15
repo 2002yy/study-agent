@@ -55,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
                 selector=site.result_selector,
                 pattern=site.result_pattern,
                 own_hosts=site.own_hosts,
+                wait_for=site.wait_selector,
             )
         results.append({
             "site": site.key,
@@ -62,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
             "category": site.category,
             "needs_login": site.needs_login,
             "verified": site.verified,
+            "default_enabled": site.default_enabled,
             "status": meta.get("status") or error or "unknown",
             "seconds": meta.get("seconds", round(time.monotonic() - started, 2)),
             "page_results": meta.get("page_results", 0),

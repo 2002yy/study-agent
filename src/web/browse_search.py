@@ -88,6 +88,12 @@ try {
   // A heavy community page can miss domcontentloaded; use whatever rendered.
 }
 try { await page.waitForTimeout(800); } catch (error) {}
+// Client-rendered search pages (Algolia, Steam, Nowcoder) add their results
+// after the first paint; wait for a result container instead of guessing.
+const waitFor = WAIT_FOR_SELECTOR;
+if (waitFor) {
+  try { await page.waitForSelector(waitFor, {timeout: WAIT_FOR_MS}); } catch (error) {}
+}
 await snapshot();
 return await page.evaluate(() => {
   const visible = (element) => Boolean(
@@ -141,18 +147,20 @@ return await page.evaluate(() => {
 
 def _execute(
     script: str, url: str, timeout: float, *, selector: str = "",
-    origins: tuple[str, ...] = (),
+    origins: tuple[str, ...] = (), wait_for: str = "",
 ) -> tuple[dict[str, Any] | None, str]:
     executable = shutil.which("browse")
     if not executable:
         return None, "browse:cli_unavailable"
-    # Only the URL and the selector are parameterized; source text is never
+    # Only the URL and the selectors are parameterized; source text is never
     # executable code.
     body = (
         script.replace("SEARCH_URL", json.dumps(url))
         .replace("RESULT_SELECTOR", json.dumps(selector))
+        .replace("WAIT_FOR_SELECTOR", json.dumps(wait_for))
         .replace("ALLOWED_ORIGINS", json.dumps(list(origins)))
         .replace("NAV_TIMEOUT_MS", str(max(1500, int(timeout * 600))))
+        .replace("WAIT_FOR_MS", str(max(1000, min(6000, int(timeout * 1000 / 2)))))
         .replace("TIMEOUT_MS", str(max(1, int(timeout * 1000))))
     )
     try:
@@ -233,20 +241,25 @@ def search_browse_at(
     selector: str = "",
     pattern: str = "",
     own_hosts: tuple[str, ...] = (),
+    wait_for: str = "",
 ) -> tuple[list[dict[str, str]], str, dict[str, Any]]:
     """Search one site and report what actually happened on its page.
 
     ``selector`` is the site's result container. ``pattern`` is the URL shape a
     real result takes there. A page that opens but yields nothing that passes
     both is reported as ``browse:no_valid_results`` instead of ``ok``, so a
-    navigation link can never end the search early.
+    navigation link can never end the search early. ``wait_for`` is the element
+    that only exists once results rendered; it is waited for instead of sleeping
+    a fixed time.
     """
 
     started = time.monotonic()
     meta: dict[str, Any] = {
         "status": "unknown", "seconds": 0.0, "url": url, "page_results": 0,
     }
-    envelope, error = _execute(_GENERIC_SCRIPT, url, timeout, selector=selector)
+    envelope, error = _execute(
+        _GENERIC_SCRIPT, url, timeout, selector=selector, wait_for=wait_for
+    )
     meta["seconds"] = round(time.monotonic() - started, 2)
     if envelope is None:
         meta["status"] = error or "browse:execution_failed"
@@ -282,8 +295,10 @@ _NAV_SEGMENTS = {
 }
 
 #: A site may answer a search with a verification wall instead of results. That
-#: is a human-action signal, never something to work around.
-_VERIFICATION_URL_HINTS = ("/nocaptcha", "/captcha", "challenge", "verify-human")
+#: is a human-action signal, never something to work around. Only the path and
+#: the title are checked: a query that happens to contain a word like
+#: "challenge" is a normal search, not a challenge page.
+_VERIFICATION_PATH_HINTS = ("/nocaptcha", "/captcha", "/challenge", "verify-human")
 _VERIFICATION_TITLE_HINTS = (
     "human verification", "are you a robot", "just a moment",
     "verify you are human", "安全验证", "人机验证",
@@ -291,9 +306,9 @@ _VERIFICATION_TITLE_HINTS = (
 
 
 def _is_verification_page(url: str, title: Any) -> bool:
-    lowered_url = str(url or "").casefold()
+    path = urlsplit(str(url or "")).path.casefold()
     lowered_title = str(title or "").casefold()
-    return any(hint in lowered_url for hint in _VERIFICATION_URL_HINTS) or any(
+    return any(hint in path for hint in _VERIFICATION_PATH_HINTS) or any(
         hint in lowered_title for hint in _VERIFICATION_TITLE_HINTS
     )
 

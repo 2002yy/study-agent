@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from src.web import browse_search, site_pool
-from src.web.tool_gateway import GeneralWebGateway
+from src.web.tool_gateway import GeneralWebGateway, _merge_site_results
 
 
 def test_question_shape_selects_relevant_sites():
@@ -189,6 +189,52 @@ def test_one_real_result_is_reported_as_ok(monkeypatch):
     assert meta["page_results"] == 2
 
 
+def test_a_client_rendered_site_waits_for_its_result_container(monkeypatch):
+    nowcoder = next(site for site in site_pool.SITES if site.key == "nowcoder")
+    assert nowcoder.wait_selector == nowcoder.result_selector
+    assert "feed/main/detail" in nowcoder.result_selector
+
+    explicit = site_pool.SiteProfile(
+        "x", "X", "domain", "https://x.example/", "https://x.example/s?q={q}",
+        result_selector=".hit", wait_for=".hit-list",
+    )
+    assert explicit.wait_selector == ".hit-list"
+
+    monkeypatch.setattr(browse_search.shutil, "which", lambda name: "browse")
+    captured: list[str] = []
+
+    def run(command, **kwargs):
+        captured.clear()
+        from pathlib import Path
+        import json
+        captured.append(Path(command[-1]).read_text(encoding="utf-8"))
+        return __import__("types").SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps({"value": {"url": "https://x.example/s", "results": []}}),
+        )
+
+    monkeypatch.setattr(browse_search.subprocess, "run", run)
+    browse_search.search_browse_at(
+        "https://x.example/s?q=a", 5, 8, selector=".hit", wait_for=".hit-list"
+    )
+    script = captured[0]
+    assert '".hit-list"' in script
+    assert "WAIT_FOR_SELECTOR" not in script
+    assert "WAIT_FOR_MS" not in script
+
+
+def test_the_gateway_passes_the_wait_selector(monkeypatch):
+    seen: dict[str, str] = {}
+
+    def fake(url, limit, timeout, **kwargs):
+        seen.update(kwargs)
+        return [], "browse:no_results", {"status": "browse:no_results", "seconds": 1.0}
+
+    monkeypatch.setattr(browse_search, "search_browse_at", fake)
+    _gateway(monkeypatch).search_exact("RTX 5060 玩某款游戏怎么样")
+    assert seen["wait_for"] == "a.search_result_row"
+
+
 def test_the_site_selector_is_parameterized_not_executed(monkeypatch):
     captured: dict[str, str] = {}
 
@@ -285,6 +331,95 @@ def test_no_site_result_still_falls_back(monkeypatch):
     assert [row["url"] for row in result["results"]] == ["https://example.org/x"]
     assert result["providers_attempted"] == ["browse_sites", "searxng"]
     assert "browse:no_results" in result["provider_errors"]
+
+
+def test_a_normal_search_is_not_mistaken_for_a_verification_page():
+    # A word inside the query string is not a challenge.
+    assert browse_search._is_verification_page(
+        "https://www.nowcoder.com/search?query=coding+challenge", "牛客搜索"
+    ) is False
+    assert browse_search._is_verification_page(
+        "https://www.bing.com/search?q=captcha+challenge", "Bing"
+    ) is False
+    # A verification wall is detected by path or title.
+    assert browse_search._is_verification_page(
+        "https://stackoverflow.com/nocaptcha?s=abc", "Human verification - Stack Overflow"
+    ) is True
+    assert browse_search._is_verification_page(
+        "https://example.com/verify-human", ""
+    ) is True
+
+
+def test_the_route_report_separates_candidates_from_what_runs():
+    route = site_pool.describe_route("星铁虚构叙事配队推荐")
+
+    assert route["candidates"][:2] == ["miyoushe", "nga"]
+    assert "miyoushe" in route["skipped"] and "nga" in route["skipped"]
+    assert all(key not in route["skipped"] for key in route["enabled"])
+    assert set(route["enabled"]) | set(route["skipped"]) | set(route["trimmed"]) == set(
+        route["candidates"]
+    )
+
+
+def test_results_come_from_several_sites_not_just_the_first(monkeypatch):
+    def fake(url, limit, timeout, **kwargs):
+        host = "stackoverflow.com" if "stackoverflow" in url else "github.com"
+        return (
+            [{"title": f"{host} {i}", "url": f"https://{host}/q/{i}", "snippet": ""}
+             for i in range(1, 6)],
+            "",
+            {"status": "ok", "seconds": 1.0},
+        )
+
+    monkeypatch.setattr(browse_search, "search_browse_at", fake)
+    result = _gateway(monkeypatch).search_exact("FastAPI 报错 database is locked")
+
+    urls = [row["url"] for row in result["results"]]
+    assert len(urls) == 5
+    assert urls[:4] == [
+        "https://stackoverflow.com/q/1",
+        "https://github.com/q/1",
+        "https://stackoverflow.com/q/2",
+        "https://github.com/q/2",
+    ]
+    assert len({url.split("/")[2] for url in urls}) == 2
+
+
+def test_one_productive_site_still_fills_the_answer(monkeypatch):
+    def fake(url, limit, timeout, **kwargs):
+        if "github" in url:
+            return [], "browse:no_results", {"status": "browse:no_results", "seconds": 1.0}
+        return (
+            [{"title": f"so {i}", "url": f"https://stackoverflow.com/q/{i}", "snippet": ""}
+             for i in range(1, 6)],
+            "",
+            {"status": "ok", "seconds": 1.0},
+        )
+
+    monkeypatch.setattr(browse_search, "search_browse_at", fake)
+    result = _gateway(monkeypatch).search_exact("FastAPI 报错 database is locked")
+
+    assert [row["url"] for row in result["results"]] == [
+        f"https://stackoverflow.com/q/{i}" for i in range(1, 6)
+    ]
+
+
+def test_the_same_page_with_and_without_www_is_one_result():
+    def row(url):
+        return {"title": "SQLite WAL", "url": url, "snippet": ""}
+
+    merged = _merge_site_results(
+        [
+            ("google", [row("https://www.sqlite.org/wal.html"), row("https://sqlite.org/a")]),
+            ("brave", [row("https://sqlite.org/wal.html"), row("https://sqlite.org/b")]),
+        ],
+        5,
+    )
+    assert [item["url"] for item in merged] == [
+        "https://www.sqlite.org/wal.html",
+        "https://sqlite.org/b",
+        "https://sqlite.org/a",
+    ]
 
 
 def test_every_selected_site_is_visited_even_after_a_full_page(monkeypatch):

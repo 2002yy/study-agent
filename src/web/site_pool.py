@@ -40,6 +40,9 @@ class SiteProfile:
     #: CSS selector for the result containers, when the site's own markup is
     #: known to be stable enough to rely on.
     result_selector: str = ""
+    #: Element that only exists once results rendered. Waited for (bounded)
+    #: instead of sleeping a fixed time. Defaults to ``result_selector``.
+    wait_for: str = ""
     #: URL shape of a real result on this site. Everything else the page links
     #: to (navigation, footer, login, promoted cards) is dropped.
     result_pattern: str = ""
@@ -65,6 +68,12 @@ class SiteProfile:
             or self.own_hosts
             or self.adapter != "generic"
         )
+
+    @property
+    def wait_selector(self) -> str:
+        """Element to wait for before reading the page."""
+
+        return self.wait_for or self.result_selector
 
 
 #: First batch from the accepted site-pool proposal. Domain sources are listed
@@ -103,8 +112,9 @@ SITES: tuple[SiteProfile, ...] = (
                 note="2026-11-15: redirected to /nocaptcha",
                 result_pattern=r"^https://stackoverflow\.com/questions/\d+"),
     SiteProfile("hn", "Hacker News Search", "en_community", "https://hn.algolia.com/",
-                "https://hn.algolia.com/?q={q}",
-                note="2026-11-15: results are client-rendered, none extracted",
+                "https://hn.algolia.com/?query={q}&type=story",
+                result_selector="div.Story_title a", default_enabled=True,
+                note="2026-11-15: ?q= renders nothing; ?query=&type=story gives story links",
                 result_pattern=r"^https://news\.ycombinator\.com/item\?id=\d+"),
     SiteProfile("v2ex", "V2EX", "zh_community", "https://www.v2ex.com/",
                 "https://www.v2ex.com/search?q={q}", needs_login=True,
@@ -132,11 +142,12 @@ SITES: tuple[SiteProfile, ...] = (
                 result_pattern=r"^https?://arxiv\.org/(?:abs|pdf)/"),
     SiteProfile("steam", "Steam", "domain", "https://store.steampowered.com/",
                 "https://store.steampowered.com/search/?term={q}",
-                note="2026-11-15: no results extracted",
+                result_selector="a.search_result_row", default_enabled=True,
+                note="2026-11-15: results render after the first paint",
                 result_pattern=r"^https://store\.steampowered\.com/app/\d+"),
     SiteProfile("miyoushe", "米游社", "domain", "https://www.miyoushe.com/",
                 "https://www.miyoushe.com/search?keyword={q}",
-                note="2026-11-15: no results extracted",
+                note="2026-11-15: SPA shell renders no anchors without login",
                 result_pattern=r"^https://(?:www\.)?miyoushe\.com/[^/?#]+/article/\d+"),
     SiteProfile("nga", "NGA", "domain", "https://bbs.nga.cn/",
                 "https://bbs.nga.cn/search.php?key={q}",
@@ -148,8 +159,9 @@ SITES: tuple[SiteProfile, ...] = (
                 result_pattern=r"^https://www\.chiphell\.com/(?:thread-\d+|forum\.php\?mod=viewthread)"),
     SiteProfile("nowcoder", "牛客", "domain", "https://www.nowcoder.com/",
                 "https://www.nowcoder.com/search?query={q}",
-                note="2026-11-15: results load after the page settles",
-                result_pattern=r"^https://www\.nowcoder\.com/(?:discuss|question|feed|jobs)/\d+"),
+                result_selector='a[href*="/feed/main/detail/"]', default_enabled=True,
+                note="2026-11-15: results render after the search XHR",
+                result_pattern=r"^https://www\.nowcoder\.com/feed/(?:main/)?detail/[0-9a-f]{16,}"),
 )
 
 _BY_KEY = {site.key: site for site in SITES}
@@ -261,6 +273,35 @@ def describe(sites: Iterable[SiteProfile]) -> str:
     return ", ".join(site.key for site in sites)
 
 
+def describe_route(question: str) -> dict[str, list[str]]:
+    """Separate the candidate route from what this deployment will execute.
+
+    Candidates are the sites the question shape asks for. A candidate that has
+    not passed a real browser probe is listed as skipped, so "the route is
+    fixed" can never be read as "Miyoushe actually searched".
+    """
+
+    candidates = select_sites(question, include_unverified=True, limit=len(SITES))
+    chosen = select_sites(question)
+    chosen_keys = {site.key for site in chosen}
+    extra = extra_sites()
+    skipped = [
+        site.key for site in candidates
+        if site.key not in chosen_keys
+        and not (site.default_enabled or site.key in extra)
+    ]
+    trimmed = [
+        site.key for site in candidates
+        if site.key not in chosen_keys and site.key not in skipped
+    ]
+    return {
+        "candidates": [site.key for site in candidates],
+        "enabled": [site.key for site in chosen],
+        "trimmed": trimmed,
+        "skipped": skipped,
+    }
+
+
 _outcomes: ContextVar[list[dict[str, Any]] | None] = ContextVar(
     "site_pool_outcomes", default=None
 )
@@ -288,6 +329,7 @@ __all__ = [
     "SITES",
     "SiteProfile",
     "describe",
+    "describe_route",
     "extra_sites",
     "host_of",
     "select_sites",

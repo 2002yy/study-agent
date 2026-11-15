@@ -13,6 +13,25 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 多来源合并、验证页误判、路由报告可见
+
+审查 09c0e60c→d227d64d 又指出三处问题，本轮修复并补测试（无付费调用）：
+- 多来源合并（src/web/tool_gateway.py `_merge_site_results`）：此前 3 站各 5 条、上限 5，最终只剩第一站 5 条。现按路由顺序轮转取，每站首条先于任何站第二条；站内排序不变；单站有结果时仍按该站排序。同时 `_result_key` 去掉 `www.` 前缀，避免同一页被当两条占用名额。
+- 验证页误判（src/web/browse_search.py）：`_is_verification_page` 只检查 URL path 与页面标题，不再扫描完整 URL。`?query=coding+challenge` 这类正常搜索不再被当成验证页；`/nocaptcha` 与 “Human verification” 仍命中。
+- 路由报告（src/web/site_pool.py `describe_route`）：payload 新增 `site_route`，区分 candidates（问题形状应搜）/ enabled（本部署实际执行）/ trimmed（超出条数上限）/ skipped（未通过验收）。避免“路由已修复”被误读成“米游社已参与”。
+
+真实复测（同题 SQLite WAL concurrent writers，3 站）：11.98s，最终 5 条来自 Google/Bing/Brave 三个来源（needs 3.70s/2.51s/5.75s），`site_route` 正确显示 duckduckgo 被 skipped。
+
+### 2026-11-15 客户端渲染站点适配：HN / 牛客 / Steam 通过验收
+
+新增 `SiteProfile.wait_for`（默认等于 `result_selector`）与 `search_browse_at(..., wait_for=)`：等待结果容器出现（上限约 6 秒）而不是固定睡眠。实测：
+- HN：搜索地址改为 `?query={q}&type=story`（`?q=` 不渲染结果），`div.Story_title a` → 5 条有效（news.ycombinator item 链接）。
+- 牛客：`a[href*="/feed/main/detail/"]`，结果 URL `/feed/main/detail/<32hex>` → 5 条有效。
+- Steam：`a.search_result_row` → 2 条有效（`/app/<id>/`）。
+- 未通过：米游社（SPA 空壳、无 anchor）、知乎/NGA/Chiphell（仍只有页脚）、Reddit（无结果）；均保持 `default_enabled=False`，可用 `WEB_SITE_POOL_EXTRA_SITES` 显式开启。
+证据：D:/study-agent-validation/site-pool-20261115/matrix10-{hn,nc,steam,my}.json。
+测试：站点池 + browse 33 PASS；web 搜索影响集 100 PASS；Ruff 全仓通过。
+
 ### 2026-11-15 通用引擎适配器并入站点池（#359 收敛）
 
 #359（codex/browse-provider-compare-20261115）与 #357 在 browse_search.py 冲突。按审查建议只保留一套实现：把 #359 的实测结论并入站点池，不保留第二套入口。

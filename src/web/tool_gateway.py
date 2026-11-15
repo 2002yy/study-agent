@@ -107,10 +107,13 @@ def _result_key(item: dict[str, str]) -> str:
     if not url:
         return (item.get("title") or "").strip().casefold()
     parsed = urlparse(url)
-    # Hosts are case-insensitive; paths and query values can name different pages.
-    return parsed._replace(
-        scheme=parsed.scheme.lower(), netloc=parsed.netloc.lower(), fragment=""
-    ).geturl()
+    # Hosts are case-insensitive; paths and query values can name different
+    # pages. A "www." prefix is the same page, and counting it twice would
+    # spend a slot that another source should have used.
+    host = parsed.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return parsed._replace(scheme=parsed.scheme.lower(), netloc=host, fragment="").geturl()
 
 
 def _query_domain(query: str) -> str:
@@ -162,6 +165,43 @@ def _dedupe_results(items: list[dict[str, str]], limit: int) -> list[dict[str, s
         if len(result) >= limit:
             break
     return result
+
+
+def _merge_site_results(
+    grouped: list[tuple[str, list[dict[str, str]]]], limit: int
+) -> list[dict[str, str]]:
+    """Take from every site before one site fills the whole answer.
+
+    Groups arrive in route order and each keeps its own ranking. One result per
+    site is taken in turn, so the first slot of every productive site appears
+    before a second slot from any of them. A site that found nothing simply
+    contributes nothing; a query with a single productive site still returns
+    that site's ranking.
+    """
+
+    def key(row: dict[str, str]) -> str:
+        return _result_key(row)
+
+    productive = [(site, rows) for site, rows in grouped if rows]
+    seen: set[str] = set()
+    merged: list[dict[str, str]] = []
+    cursors = [0] * len(productive)
+    while len(merged) < limit:
+        progressed = False
+        for index, (_site, rows) in enumerate(productive):
+            while len(merged) < limit and cursors[index] < len(rows):
+                row = rows[cursors[index]]
+                cursors[index] += 1
+                marker = key(row)
+                if not marker or marker in seen:
+                    continue
+                seen.add(marker)
+                merged.append(row)
+                progressed = True
+                break
+        if not progressed:
+            break
+    return merged[:limit]
 
 
 SEARCH_STRATEGIES = ("fallback", "merge", "ddg_first", "browser_first", "browse_sites")
@@ -384,11 +424,11 @@ class GeneralWebGateway:
             "domain_filtered_count": filtered_count,
             "provider_errors": provider_errors,
             "providers_attempted": list(outcome["providers_attempted"]),
-            **(
-                {"site_outcomes": outcome["site_outcomes"]}
-                if "site_outcomes" in outcome
-                else {}
-            ),
+            **{
+                key: outcome[key]
+                for key in ("site_outcomes", "site_route")
+                if key in outcome
+            },
             **trace,
             "searched_at": current.isoformat(),
         }
@@ -589,6 +629,7 @@ class GeneralWebGateway:
             from src.web import site_pool
 
             payload["site_outcomes"] = site_pool.take_outcomes()
+            payload["site_route"] = site_pool.describe_route(query)
         if self.search_strategy == "ddg_first":
             payload["fallback_used"] = fallback_used
         elif self.search_strategy == "merge":
@@ -619,7 +660,7 @@ class GeneralWebGateway:
 
         deadline = time.monotonic() + max(1.5, timeout)
         outcomes = site_pool.start_outcomes()
-        collected: list[dict[str, str]] = []
+        grouped: list[tuple[str, list[dict[str, str]]]] = []
         for site in site_pool.select_sites(query):
             remaining = deadline - time.monotonic()
             if remaining < 1.5:
@@ -645,6 +686,7 @@ class GeneralWebGateway:
                     selector=site.result_selector,
                     pattern=site.result_pattern,
                     own_hosts=site.own_hosts,
+                    wait_for=site.wait_selector,
                 )
             outcomes.append({
                 "site": site.key,
@@ -653,9 +695,9 @@ class GeneralWebGateway:
                 "results": len(rows),
                 "page_results": meta.get("page_results", len(rows)),
             })
-            collected.extend(rows)
-        unique = _dedupe_results(collected, len(collected))
-        return unique[:limit], "" if unique else "browse:no_results"
+            grouped.append((site.key, rows))
+        unique = _merge_site_results(grouped, limit)
+        return unique, "" if unique else "browse:no_results"
 
     @staticmethod
     def _search_searxng(
