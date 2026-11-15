@@ -225,7 +225,14 @@ def bind_answer_claims(
         parsed: tuple[
             list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]
         ] | None = None
-        for _attempt in range(1, attempts + 1):
+        repair_used = False
+        # The attempt budget covers producer failures; a rejected quotation is a
+        # repairable formatting error, so it gets exactly one extra call with the
+        # failure fed back. Blind resampling under the same prompt is not repair.
+        max_calls = max(1, attempts)
+        calls = 0
+        while True:
+            calls += 1
             # This hook intentionally runs outside the provider-failure catch: an
             # accepted cancellation is control flow, not a failed binder attempt,
             # and must never be swallowed or retried as producer failure.
@@ -236,7 +243,10 @@ def bind_answer_claims(
                 raw = model_fn(messages)
             except Exception as exc:  # noqa: BLE001 - provider failures are results
                 last_error = f"producer_failed:{type(exc).__name__}"
+                if calls >= max_calls:
+                    break
                 continue
+            detail: dict[str, Any] = {}
             parsed, parse_error = _parse_binder_batch(
                 raw_output=raw,
                 answer=answer,
@@ -247,10 +257,18 @@ def bind_answer_claims(
                 known_evidence_ids=known_evidence_ids,
                 known_research_claim_ids=known_research_claim_ids,
                 producer=producer,
+                failure_detail=detail,
             )
             if parsed is not None:
                 break
             last_error = parse_error or "malformed_structured_output"
+            if parse_error == "unverified_source_quote" and not repair_used:
+                repair_used = True
+                messages = [*messages, _repair_message(detail)]
+                max_calls += 1
+                continue
+            if calls >= max_calls:
+                break
         if parsed is None:
             reason = last_error or "producer_unavailable"
             if len(batches) > 1:
@@ -319,6 +337,30 @@ def bind_answer_claims(
     )
 
 
+def _repair_message(detail: Mapping[str, Any]) -> dict[str, str]:
+    """Feedback for a rejected quotation: name it, and allow withdrawal.
+
+    A retry that only resamples under the same prompt is not repair. The model is
+    told which segment and which evidence failed, must copy a complete sentence
+    verbatim, and may drop the support instead of inventing a quotation.
+    """
+
+    segment = str(detail.get("segment_ref") or "?")
+    evidence_id = str(detail.get("evidence_id") or "?")
+    quote = str(detail.get("quote") or "")
+    return {
+        "role": "user",
+        "content": (
+            f"上一次输出被拒绝：段落 {segment} 的 source_quote 不在证据 "
+            f"{evidence_id} 的原文中。请从该证据原文中逐字复制一个完整句子，"
+            "不要改写、拼接或意译。如果该证据中找不到能逐字支持该段落的句子，"
+            "就删除该段落的 support_claims（保留 kind 和其他字段），"
+            "不要编造引文，也不要更换证据。只返回与之前相同结构的 JSON。"
+            + (f" 被拒绝的引用：{quote}" if quote else "")
+        ),
+    }
+
+
 def _parse_binder_batch(
     *,
     raw_output: str,
@@ -330,6 +372,7 @@ def _parse_binder_batch(
     known_evidence_ids: set[str],
     known_research_claim_ids: set[str],
     producer: str,
+    failure_detail: dict[str, Any] | None = None,
 ) -> tuple[tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]] | None, str]:
     if not raw_output or not raw_output.strip():
         return None, "empty_producer_output"
@@ -379,6 +422,7 @@ def _parse_binder_batch(
         if len(set(support_ids)) != len(support_ids):
             return None, "duplicate_evidence_support"
 
+        segment_detail: dict[str, Any] = {"segment_ref": ref}
         bindings, error = _claim_support_bindings(
             entry,
             claim_text=text,
@@ -388,8 +432,11 @@ def _parse_binder_batch(
             rows_by_link=rows_by_link,
             known_evidence_ids=known_evidence_ids,
             known_research_claim_ids=known_research_claim_ids,
+            failure_detail=segment_detail,
         )
         if error:
+            if failure_detail is not None:
+                failure_detail.update(segment_detail)
             return None, error
 
         if kind in {"instructional", "question", "uncertainty"}:
@@ -498,6 +545,7 @@ def _claim_support_bindings(
     rows_by_link: Mapping[tuple[str, str], AnswerClaimBindingRow],
     known_evidence_ids: set[str],
     known_research_claim_ids: set[str],
+    failure_detail: dict[str, Any] | None = None,
 ) -> tuple[list[tuple[str, float, str]], str]:
     """Server-verified support for one claim.
 
@@ -575,6 +623,14 @@ def _claim_support_bindings(
             continue
         confidence = _paraphrase_confidence(row, claim_text, item["quote"])
         if confidence is None:
+            if failure_detail is not None:
+                # The repair loop needs to say *which* quote failed and against
+                # which evidence; a bare reason code cannot be acted on.
+                failure_detail.update(
+                    evidence_id=item["evidence_id"],
+                    quote=str(item["quote"])[:200],
+                    claim=claim_text[:120],
+                )
             return [], "unverified_source_quote"
         bindings.append((item["evidence_id"], confidence, "indirect_support"))
         verified_quotes.append(item["quote"])

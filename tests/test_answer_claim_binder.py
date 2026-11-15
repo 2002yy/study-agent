@@ -669,3 +669,95 @@ def _link(claim_id: str, evidence_id: str) -> Any:
         support_type="direct_support",
         confidence=1.0,
     )
+
+def _grounded_row() -> AnswerClaimBindingRow:
+    return AnswerClaimBindingRow(
+        evidence_id="evidence_abc123",
+        claim_id=_RESEARCH_CLAIM_ID,
+        title="SQLite WAL",
+        url="https://www.sqlite.org/wal.html",
+        source_role="official_statement",
+        source_cluster_id="cluster_1",
+        relation="supports",
+        strength="strong",
+        locator="",
+        anchored_spans=(),
+        grounding_text=(
+            "Readers do not block writers and a writer does not block readers. "
+            "Write-ahead logging is enabled by setting journal_mode=WAL."
+        ),
+    )
+
+
+def test_a_rejected_quote_is_repaired_once_with_named_feedback() -> None:
+    answer = "WAL 模式下读写可以并发。"
+    request = AnswerClaimBindingRequest(
+        question="SQLite WAL 能并发读写吗？",
+        final_answer=answer,
+        evidence_rows=(_grounded_row(),),
+    )
+    prompts: list[str] = []
+
+    def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
+        prompts.append("".join(str(m["content"]) for m in messages))
+        quote = (
+            "WAL allows readers and writers to proceed concurrently."
+            if len(prompts) == 1
+            else "Readers do not block writers and a writer does not block readers."
+        )
+        return json.dumps({
+            "refused": False,
+            "segments": [{
+                "segment_ref": "s1",
+                "kind": "synthesis",
+                "status": "asserted",
+                "evidence_support": [],
+                "support_claims": [{
+                    "evidence_id": "evidence_abc123",
+                    "relation": "paraphrase",
+                    "source_quote": quote,
+                }],
+            }],
+        }, ensure_ascii=False)
+
+    bound = bind_answer_claims(request=request, model_fn=model_fn)
+
+    assert bound.snapshot.status == "validated"
+    assert bound.attempt_count == 2
+    # The retry must carry the reason, not just resample the same prompt.
+    assert "上一次输出被拒绝" in prompts[1]
+    assert "s1" in prompts[1] and "evidence_abc123" in prompts[1]
+    assert "WAL allows readers and writers" in prompts[1]
+
+
+def test_a_second_rejected_quote_still_rejects_the_answer() -> None:
+    answer = "WAL 模式下读写可以并发。"
+    request = AnswerClaimBindingRequest(
+        question="SQLite WAL 能并发读写吗？",
+        final_answer=answer,
+        evidence_rows=(_grounded_row(),),
+    )
+    calls = {"count": 0}
+
+    def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
+        calls["count"] += 1
+        return json.dumps({
+            "refused": False,
+            "segments": [{
+                "segment_ref": "s1",
+                "kind": "synthesis",
+                "status": "asserted",
+                "evidence_support": [],
+                "support_claims": [{
+                    "evidence_id": "evidence_abc123",
+                    "relation": "paraphrase",
+                    "source_quote": "WAL makes every writer concurrent.",
+                }],
+            }],
+        })
+
+    bound = bind_answer_claims(request=request, model_fn=model_fn)
+
+    assert bound.snapshot.status != "validated"
+    assert "unverified_source_quote" in str(bound.snapshot.reason)
+    assert calls["count"] == 2  # one repair attempt, then stop

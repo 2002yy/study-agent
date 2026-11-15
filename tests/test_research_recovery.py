@@ -32,7 +32,8 @@ def test_a_site_pool_search_gets_more_than_the_single_provider_ceiling(monkeypat
     monkeypatch.delenv("WEB_SITE_POOL_TOTAL_SECONDS", raising=False)
     monkeypatch.delenv("WEB_SEARCH_FALLBACK_RESERVE_SECONDS", raising=False)
     assert _provider_call_seconds(_Gateway("fallback")) == 8.0
-    assert _provider_call_seconds(_Gateway("browse_sites")) == 16.0
+    # The ceiling must cover the pool's whole allowance (20s + 4s reserve).
+    assert _provider_call_seconds(_Gateway("browse_sites")) == 25.0
 
     monkeypatch.setenv("WEB_SITE_POOL_TOTAL_SECONDS", "10")
     monkeypatch.setenv("WEB_SEARCH_FALLBACK_RESERVE_SECONDS", "2")

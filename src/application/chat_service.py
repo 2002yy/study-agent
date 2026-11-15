@@ -1840,6 +1840,10 @@ class ChatService:
             producer=ANSWER_CLAIM_BINDER_PRODUCER,
             reason=rejected_reason,
         )
+        if isinstance(prepared.rag, dict):
+            # The response is assembled from the turn's rag snapshot, so the
+            # reason must be written there or every rejection looks identical.
+            prepared.rag["answer_claim_snapshot"] = rejected.to_dict()
         return (
             RESEARCH_ANSWER_BLOCKED_COPY,
             rejected,
