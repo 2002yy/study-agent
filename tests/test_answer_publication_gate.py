@@ -446,6 +446,30 @@ def test_missing_evidence_brief_fails_closed_without_provider_calls(tmp_path) ->
     assert binding["error_type"] == "missing_evidence_brief"
 
 
+def test_default_simple_mode_also_fails_closed_without_evidence(
+    tmp_path, monkeypatch
+) -> None:
+    """P0-3 holds in the new default: no read evidence, no published answer."""
+
+    monkeypatch.delenv("RESEARCH_PUBLICATION_MODE", raising=False)
+    calls = {"calls": 0}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        calls["calls"] += 1
+        return ANSWER
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[]))
+
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert calls["calls"] == 1
+    assert "research_publication_mode" not in (turn.rag_snapshot or {})
+    binding = _audit(turn)["phases"]["answer_claim_binding"]
+    assert binding["outcome"] == "rejected"
+    assert binding["model_calls"] == 0
+    assert binding["error_type"] == "missing_evidence_brief"
+
+
 def test_normal_chat_has_no_validation_audit_at_all(tmp_path) -> None:
     calls = {"calls": 0}
 
