@@ -13,6 +13,29 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 研究检索定为 HTTP fallback；引用越界分类、binder 预算与分段已修，仍未发布成功
+
+按裁定，研究阶段默认走 HTTP `fallback`（`tool_gateway` 的默认值本来就是 `fallback`；浏览器站点池保留为按需，需 `WEB_SEARCH_STRATEGY=browse_sites`）。不新增网站，不放宽引用白名单、数字一致性与 binder 证据契约。
+
+同一道 SQLite WAL 题逐层复测（DeepSeek 真实价；实验 `study-agent-live-20261115`，cap 3 元）：
+
+| 运行 | 结果 | 根因与处理 |
+|---|---|---|
+| q1c–q1e | 无证据 / 答案截断 | provider 硬限 8s → `browse_sites` 按池预算封顶 16s；思考模式吃满 8192 → `RESEARCH_ANSWER_BOUNDED_POLICY=on` |
+| q3 | `citation_outside_evidence` | 引用同域未读页 `backup.html`；白名单保留，错误分类拆为 `read_host_page_not_read`（搜索覆盖缺口）/ `host_not_in_evidence`（记忆引用） |
+| q5 | `batch_1_of_7:claim_specifics_not_in_source` | 引文逐字存在但缺版本号/数字；规则改为“引文必须自身含该段每个数字”，并纳入一次带反馈的修复重试 |
+| q6 | `batch_3_of_6:malformed_structured_output` | 16 段批次在 1600 tokens 被截断（实测 6295 字符仍未写完）；批次预算改 3600，截断单列 `producer_output_truncated` |
+| q7 | `batch_1_of_5:producer_failed:SpendAdmissionRefused` | harness 0.45 元单次上限生效，非产品缺陷；据此把一次完整研究重估为约 0.62 元 |
+| q8 | `batch_3_of_6:producer_refused` | 分段切出 `2.`、表头等碎片；纯列表编号现并回其陈述，不再单独成段 |
+
+q8 冻结答案（3248 字符）离线回放：85 段 / 6 批、0 个 marker-only 段、逐行核对 0 行丢失、5 个表格行仍进入核验；发布文本仍是“原文减去被 withheld 的段”，标题与表格结构不被删除。
+
+费用：q2–q8 预留合计 1,801,604 micros；实验累计预留 2,585,274 / 3,000,000，剩余 **414,726 micros ≈ 0.415 元**。q8 只完成 4 次调用 + 3/6 批即用 0.453 元，余额不足以覆盖一次完整研究，**付费已停止**。
+
+未验证项：新分段下模型是否仍会 `refused` 只能由真实调用确认。`f8ab83f5`（分段）与 `8a8be1ee`（批次预算/截断分类）目前只有离线证据（binder 31 PASS、answer_links 6 PASS、chat_service 组合 72 PASS）。
+
+下一门：取得约 0.3 元追加预算后，用 `f8ab83f5` 跑一次同题完整验收（一次为限）；不追加则保持现状，不再重跑。
+
 ### 2026-11-15 端到端验收（P0）：链路已跑通到发布门，但被 binder 引用不合规拦住
 
 按裁定用 DeepSeek 真实价格（deepseek-flash 高峰 2/8 元每百万 tokens，空闲 1/4；核对 https://api-docs.deepseek.com/zh-cn/quick_start/pricing/ ）新建实验 `study-agent-live-20261115`（cap 3 元）。此前“一题约 2 元”是旧 9/27 上限造成的**高估约 7 倍**：本次每次完整尝试约 **0.27 元**（5–6 次调用），不是 2 元。
