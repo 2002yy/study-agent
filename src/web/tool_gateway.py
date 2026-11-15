@@ -664,6 +664,7 @@ class GeneralWebGateway:
         )
         outcomes = site_pool.start_outcomes()
         grouped: list[tuple[str, list[dict[str, str]]]] = []
+        seen_urls: set[str] = set()
         for site in site_pool.select_sites(query):
             remaining = deadline - time.monotonic()
             if remaining < 1.5:
@@ -714,12 +715,19 @@ class GeneralWebGateway:
                     own_hosts=site.own_hosts,
                     wait_for=site.wait_selector,
                 )
+            fresh = 0
+            for row in rows:
+                marker = _result_key(row)
+                if marker and marker not in seen_urls:
+                    seen_urls.add(marker)
+                    fresh += 1
             outcomes.append({
                 "site": site.key,
                 "status": meta.get("status") or (error or "ok"),
                 "seconds": meta.get("seconds", 0.0),
                 "results": len(rows),
                 "page_results": meta.get("page_results", len(rows)),
+                "new_results": fresh,
                 "via": site.search_via or (site.adapter if site.adapter != "generic" else "site"),
             })
             grouped.append((site.key, rows))

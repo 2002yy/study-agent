@@ -359,6 +359,7 @@ def test_browse_sites_merges_selected_sites_and_records_outcomes(monkeypatch):
     assert all(item["status"] == "ok" for item in result["site_outcomes"])
     # stackoverflow is discovered through the engine, github through its own page.
     assert [item["via"] for item in result["site_outcomes"]] == ["google", "site"]
+    assert [item["new_results"] for item in result["site_outcomes"]] == [1, 1]
 
 
 def test_a_login_wall_on_one_site_does_not_stop_the_others(monkeypatch):
