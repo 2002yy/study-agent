@@ -670,7 +670,30 @@ class GeneralWebGateway:
                 outcomes.append({"site": site.key, "status": "budget_exhausted",
                                  "seconds": 0.0, "results": 0, "page_results": 0})
                 continue
-            if site.adapter != "generic":
+            if site.search_via:
+                from src.web.browse_search import _valid_rows, search_browse
+
+                started = time.monotonic()
+                scoped = f"{query} site:{site_pool.host_of(site.home)}"
+                rows, error = search_browse(
+                    scoped,
+                    max(limit * 2, 8),
+                    min(site_seconds, remaining),
+                    engine=site.search_via,
+                )
+                found = len(rows)
+                rows = _valid_rows(
+                    rows,
+                    limit,
+                    source=f"{site.label} via {site.search_via}",
+                    pattern=site.result_pattern,
+                )
+                meta = {
+                    "status": "ok" if rows else (error or "browse:no_valid_results"),
+                    "seconds": round(time.monotonic() - started, 2),
+                    "page_results": found,
+                }
+            elif site.adapter != "generic":
                 from src.web.browse_search import search_browse
 
                 started = time.monotonic()
@@ -697,6 +720,7 @@ class GeneralWebGateway:
                 "seconds": meta.get("seconds", 0.0),
                 "results": len(rows),
                 "page_results": meta.get("page_results", len(rows)),
+                "via": site.search_via or (site.adapter if site.adapter != "generic" else "site"),
             })
             grouped.append((site.key, rows))
         unique = _merge_site_results(grouped, limit)

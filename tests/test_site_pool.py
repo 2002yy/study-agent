@@ -12,7 +12,7 @@ def test_question_shape_selects_relevant_sites():
     assert keys[:2] == ["stackoverflow", "github"]
 
     keys = [site.key for site in site_pool.select_sites("FastAPI 报错 database is locked")]
-    assert keys[0] == "github"
+    assert keys[:2] == ["stackoverflow", "github"]
 
     keys = [site.key for site in site_pool.select_sites(
         "OpenCode 和 Codex 哪个更适合大型项目", include_unverified=True)]
@@ -307,24 +307,49 @@ def _gateway(monkeypatch):
     return GeneralWebGateway(search_strategy="browse_sites")
 
 
-def test_browse_sites_merges_selected_sites_and_records_outcomes(monkeypatch):
-    calls: list[str] = []
+def _install_browse_fakes(monkeypatch, behavior):
+    """Fake both discovery paths: native site search and engine site: search."""
 
-    def fake(url, limit, timeout, **kwargs):
-        calls.append(url)
+    def at(url, limit, timeout, **kwargs):
         host = "github.com" if "github" in url else "stackoverflow.com"
-        return (
-            [{"title": f"{host} answer", "url": f"https://{host}/q/1", "snippet": ""}],
-            "",
-            {"status": "ok", "seconds": 1.2, "page_results": 4},
-        )
+        rows, error = behavior(host)
+        return rows, error, {
+            "status": "ok" if rows else (error or "browse:no_results"),
+            "seconds": 1.0,
+        }
 
-    monkeypatch.setattr(browse_search, "search_browse_at", fake)
+    def via(query, limit, timeout, **kwargs):
+        host = "stackoverflow.com" if "site:stackoverflow.com" in query else "github.com"
+        rows, error = behavior(host)
+        return rows, error
+
+    monkeypatch.setattr(browse_search, "search_browse_at", at)
+    monkeypatch.setattr(browse_search, "search_browse", via)
+
+
+def _rows(host: str, count: int = 5) -> list[dict[str, str]]:
+    """Rows shaped like that site's real result pages (they pass the pattern)."""
+
+    if host == "github.com":
+        return [
+            {"title": f"github {i}", "url": f"https://github.com/o/r/issues/{i}", "snippet": ""}
+            for i in range(1, count + 1)
+        ]
+    return [
+        {"title": f"so {i}", "url": f"https://stackoverflow.com/questions/{i}/q", "snippet": ""}
+        for i in range(1, count + 1)
+    ]
+
+
+def test_browse_sites_merges_selected_sites_and_records_outcomes(monkeypatch):
+    _install_browse_fakes(
+        monkeypatch, lambda host: (_rows(host, 1), "")
+    )
     result = _gateway(monkeypatch).search_exact("FastAPI 报错 database is locked")
 
     assert [row["url"] for row in result["results"]] == [
-        "https://stackoverflow.com/q/1",
-        "https://github.com/q/1",
+        "https://stackoverflow.com/questions/1/q",
+        "https://github.com/o/r/issues/1",
     ]
     assert result["providers_attempted"] == ["browse_sites"]
     assert [item["site"] for item in result["site_outcomes"]] == [
@@ -332,32 +357,29 @@ def test_browse_sites_merges_selected_sites_and_records_outcomes(monkeypatch):
         "github",
     ]
     assert all(item["status"] == "ok" for item in result["site_outcomes"])
-    assert [item["page_results"] for item in result["site_outcomes"]] == [4, 4]
+    # stackoverflow is discovered through the engine, github through its own page.
+    assert [item["via"] for item in result["site_outcomes"]] == ["google", "site"]
 
 
 def test_a_login_wall_on_one_site_does_not_stop_the_others(monkeypatch):
-    def fake(url, limit, timeout, **kwargs):
-        if "github" in url:
-            return [], "browse:login_required", {"status": "browse:login_required", "seconds": 1.0}
-        return (
-            [{"title": "SO answer", "url": "https://stackoverflow.com/q/2", "snippet": ""}],
-            "",
-            {"status": "ok", "seconds": 1.0},
-        )
+    def behavior(host):
+        if host == "github.com":
+            return [], "browse:login_required"
+        return ([{"title": "SO answer",
+                  "url": "https://stackoverflow.com/questions/2/q", "snippet": ""}], "")
 
-    monkeypatch.setattr(browse_search, "search_browse_at", fake)
+    _install_browse_fakes(monkeypatch, behavior)
     result = _gateway(monkeypatch).search_exact("FastAPI 报错 traceback")
 
-    assert [row["url"] for row in result["results"]] == ["https://stackoverflow.com/q/2"]
+    assert [row["url"] for row in result["results"]] == [
+        "https://stackoverflow.com/questions/2/q"
+    ]
     statuses = {item["site"]: item["status"] for item in result["site_outcomes"]}
     assert statuses["github"] == "browse:login_required"
 
 
 def test_no_site_result_still_falls_back(monkeypatch):
-    def empty(url, limit, timeout, **kwargs):
-        return [], "browse:no_results", {"status": "browse:no_results", "seconds": 1.0}
-
-    monkeypatch.setattr(browse_search, "search_browse_at", empty)
+    _install_browse_fakes(monkeypatch, lambda host: ([], "browse:no_results"))
     gateway = _gateway(monkeypatch)
     monkeypatch.setattr("src.web.tool_gateway.searxng_enabled", lambda: True)
     monkeypatch.setattr(
@@ -394,53 +416,81 @@ def test_the_route_report_separates_candidates_from_what_runs():
 
     assert route["candidates"][:2] == ["miyoushe", "nga"]
     assert route["enabled"][0] == "miyoushe"
-    assert "nga" in route["skipped"] and "reddit" in route["skipped"]
+    assert "nga" in route["skipped"] and "duckduckgo" in route["skipped"]
     assert all(key not in route["skipped"] for key in route["enabled"])
     assert set(route["enabled"]) | set(route["skipped"]) | set(route["trimmed"]) == set(
         route["candidates"]
     )
 
 
-def test_results_come_from_several_sites_not_just_the_first(monkeypatch):
-    def fake(url, limit, timeout, **kwargs):
-        host = "stackoverflow.com" if "stackoverflow" in url else "github.com"
-        return (
-            [{"title": f"{host} {i}", "url": f"https://{host}/q/{i}", "snippet": ""}
-             for i in range(1, 6)],
-            "",
-            {"status": "ok", "seconds": 1.0},
-        )
+def test_a_blocked_site_is_discovered_through_the_engine(monkeypatch):
+    monkeypatch.setattr(
+        browse_search, "search_browse_at",
+        lambda *args, **kwargs: ([], "browse:no_results",
+                                 {"status": "browse:no_results", "seconds": 1.0}),
+    )
+    scoped: list[str] = []
 
-    monkeypatch.setattr(browse_search, "search_browse_at", fake)
+    def via(query, limit, timeout, **kwargs):
+        scoped.append(query)
+        return ([
+            {"title": "reddit thread",
+             "url": "https://www.reddit.com/r/golang/comments/16xswxd/x/", "snippet": ""},
+            {"title": "not reddit", "url": "https://example.org/x", "snippet": ""},
+        ], "")
+
+    monkeypatch.setattr(browse_search, "search_browse", via)
+    gateway = _gateway(monkeypatch)
+    monkeypatch.setenv("WEB_SITE_POOL_LIMIT", "3")
+    result = gateway.search_exact("游戏 推荐")
+
+    assert scoped == ["游戏 推荐 site:reddit.com"]
+    assert [row["url"] for row in result["results"]] == [
+        "https://www.reddit.com/r/golang/comments/16xswxd/x/"
+    ]
+    assert result["site_outcomes"][-1]["via"] == "google"
+
+
+def test_huggingface_keeps_repositories_not_site_sections():
+    pattern = site_pool._BY_KEY["huggingface"].result_pattern
+    rows = browse_search._valid_rows(
+        [
+            {"title": "推理服务", "url": "https://huggingface.co/inference/models"},
+            {"title": "Qwen3-8B", "url": "https://huggingface.co/Qwen/Qwen3-8B"},
+        ],
+        5,
+        source="huggingface",
+        pattern=pattern,
+    )
+    assert [row["url"] for row in rows] == ["https://huggingface.co/Qwen/Qwen3-8B"]
+
+
+def test_results_come_from_several_sites_not_just_the_first(monkeypatch):
+    _install_browse_fakes(monkeypatch, lambda host: (_rows(host, 5), ""))
     result = _gateway(monkeypatch).search_exact("FastAPI 报错 database is locked")
 
     urls = [row["url"] for row in result["results"]]
     assert len(urls) == 5
     assert urls[:4] == [
-        "https://stackoverflow.com/q/1",
-        "https://github.com/q/1",
-        "https://stackoverflow.com/q/2",
-        "https://github.com/q/2",
+        "https://stackoverflow.com/questions/1/q",
+        "https://github.com/o/r/issues/1",
+        "https://stackoverflow.com/questions/2/q",
+        "https://github.com/o/r/issues/2",
     ]
     assert len({url.split("/")[2] for url in urls}) == 2
 
 
 def test_one_productive_site_still_fills_the_answer(monkeypatch):
-    def fake(url, limit, timeout, **kwargs):
-        if "github" in url:
-            return [], "browse:no_results", {"status": "browse:no_results", "seconds": 1.0}
-        return (
-            [{"title": f"so {i}", "url": f"https://stackoverflow.com/q/{i}", "snippet": ""}
-             for i in range(1, 6)],
-            "",
-            {"status": "ok", "seconds": 1.0},
-        )
+    def behavior(host):
+        if host == "github.com":
+            return [], "browse:no_results"
+        return _rows("stackoverflow.com", 5), ""
 
-    monkeypatch.setattr(browse_search, "search_browse_at", fake)
+    _install_browse_fakes(monkeypatch, behavior)
     result = _gateway(monkeypatch).search_exact("FastAPI 报错 database is locked")
 
     assert [row["url"] for row in result["results"]] == [
-        f"https://stackoverflow.com/q/{i}" for i in range(1, 6)
+        f"https://stackoverflow.com/questions/{i}/q" for i in range(1, 6)
     ]
 
 
@@ -463,20 +513,16 @@ def test_the_same_page_with_and_without_www_is_one_result():
 
 
 def test_every_selected_site_is_visited_even_after_a_full_page(monkeypatch):
-    calls: list[str] = []
+    seen: list[str] = []
 
-    def fake(url, limit, timeout, **kwargs):
-        calls.append(url)
-        return (
-            [{"title": f"{len(calls)}", "url": f"https://stackoverflow.com/q/{len(calls)}", "snippet": ""}],
-            "",
-            {"status": "ok", "seconds": 1.0},
-        )
+    def behavior(host):
+        seen.append(host)
+        return _rows(host, 1), ""
 
-    monkeypatch.setattr(browse_search, "search_browse_at", fake)
+    _install_browse_fakes(monkeypatch, behavior)
     result = _gateway(monkeypatch).search_exact("FastAPI 报错 database is locked")
 
-    assert len(calls) == 2
+    assert len(seen) == 2
     assert len(result["site_outcomes"]) == 2
 
 

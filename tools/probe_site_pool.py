@@ -37,7 +37,23 @@ def main(argv: list[str] | None = None) -> int:
     results = []
     for site in sites:
         started = time.monotonic()
-        if site.adapter != "generic":
+        if site.search_via:
+            from src.web.browse_search import _valid_rows, search_browse
+
+            scoped = f"{args.query} site:{site_pool.host_of(site.home)}"
+            rows, error = search_browse(
+                scoped, max(args.limit * 2, 8), args.timeout, engine=site.search_via
+            )
+            found = len(rows)
+            rows = _valid_rows(
+                rows, args.limit,
+                source=f"{site.label} via {site.search_via}",
+                pattern=site.result_pattern,
+            )
+            meta = {"status": "ok" if rows else (error or "browse:no_valid_results"),
+                    "seconds": round(time.monotonic() - started, 2),
+                    "page_results": found}
+        elif site.adapter != "generic":
             from src.web.browse_search import search_browse
 
             rows, error = search_browse(

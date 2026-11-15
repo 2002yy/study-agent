@@ -58,6 +58,11 @@ class SiteProfile:
     #: be opted in with ``WEB_SITE_POOL_EXTRA_SITES``, but never enters the
     #: default route on the strength of "the page opened".
     default_enabled: bool = False
+    #: Engine used for site-restricted discovery when the site's own search is
+    #: blocked (login, captcha, client render). The query becomes
+    #: ``<question> site:<host>`` and the results are still validated by
+    #: ``result_pattern``, so only that site's real pages can pass.
+    search_via: str = ""
 
     #: Alternative search templates chosen by a word in the question, e.g. a
     #: community that has one search page per game. (keywords, template) pairs,
@@ -80,6 +85,7 @@ class SiteProfile:
             or self.result_pattern
             or self.own_hosts
             or self.adapter != "generic"
+            or self.search_via
         )
 
     @property
@@ -118,11 +124,13 @@ SITES: tuple[SiteProfile, ...] = (
                 result_pattern=r"^https://github\.com/[^/?#]+/[^/?#]+/(?:issues|pull|discussions)/\d+"),
     SiteProfile("reddit", "Reddit", "en_community", "https://www.reddit.com/",
                 "https://www.reddit.com/search/?q={q}",
-                note="2026-11-15: no results (client-rendered search)",
+                note="2026-11-15: native search redirects to login; discovered through Google, thread body reads (2896 chars)",
+                search_via="google", default_enabled=True,
                 result_pattern=r"^https://(?:www\.|old\.)?reddit\.com/r/[^/?#]+/comments/"),
     SiteProfile("stackoverflow", "Stack Overflow", "en_community",
                 "https://stackoverflow.com/", "https://stackoverflow.com/search?q={q}",
-                note="2026-11-15: redirected to /nocaptcha",
+                note="2026-11-15: native search redirects to /nocaptcha; discovered through Google (5/5, 3.5s)",
+                search_via="google", default_enabled=True,
                 result_pattern=r"^https://stackoverflow\.com/questions/\d+"),
     SiteProfile("hn", "Hacker News Search", "en_community", "https://hn.algolia.com/",
                 "https://hn.algolia.com/?query={q}&type=story",
@@ -135,7 +143,8 @@ SITES: tuple[SiteProfile, ...] = (
                 result_pattern=r"^https://(?:www\.)?v2ex\.com/t/\d+"),
     SiteProfile("linuxdo", "LINUX DO", "zh_community", "https://linux.do/",
                 "https://linux.do/search?q={q}", needs_login=True,
-                note="2026-11-15: flaky (login wall or no results)",
+                note="2026-11-15: native search needs a login; discovered through Google, topic body reads (3523 chars)",
+                search_via="google", default_enabled=True,
                 result_pattern=r"^https://linux\.do/t/[^/?#]+/\d+"),
     SiteProfile("zhihu", "知乎", "zh_community", "https://www.zhihu.com/",
                 "https://www.zhihu.com/search?type=content&q={q}", needs_login=True,
@@ -153,7 +162,7 @@ SITES: tuple[SiteProfile, ...] = (
     SiteProfile("huggingface", "Hugging Face", "domain", "https://huggingface.co/",
                 "https://huggingface.co/search/full-text?q={q}", default_enabled=True,
                 note="2026-11-15: 5/5 valid results",
-                result_pattern=r"^https://huggingface\.co/(?!organizations|papers|datasets|spaces|models|login|join|pricing|courses|blog|docs|tasks|search)[^/?#]+/[^/?#]+"),
+                result_pattern=r"^https://huggingface\.co/(?!organizations|papers|datasets|spaces|models|login|join|pricing|courses|blog|docs|tasks|search|inference|enterprise|chat|support|security|terms|privacy|api)[^/?#]+/[^/?#]+"),
     SiteProfile("arxiv", "arXiv", "domain", "https://arxiv.org/",
                 "https://arxiv.org/search/?query={q}&searchtype=all", default_enabled=True,
                 note="2026-11-15: valid results for a query with hits; 0 results for an off-topic query",
@@ -186,7 +195,8 @@ SITES: tuple[SiteProfile, ...] = (
                 result_pattern=r"^https?://(?:bbs\.nga\.cn|ngabbs\.com|nga\.178\.com)/read\.php\?.*tid=\d+"),
     SiteProfile("chiphell", "Chiphell", "domain", "https://www.chiphell.com/",
                 "https://www.chiphell.com/search.php?mod=forum&srchtxt={q}",
-                note="2026-11-15: only footer links extracted",
+                note="2026-11-15: search page returns only footer; discovered through Google, thread body reads (4272 chars)",
+                search_via="google", default_enabled=True,
                 result_pattern=r"^https://www\.chiphell\.com/(?:thread-\d+|forum\.php\?mod=viewthread)"),
     SiteProfile("nowcoder", "牛客", "domain", "https://www.nowcoder.com/",
                 "https://www.nowcoder.com/search?query={q}",
@@ -355,7 +365,10 @@ def take_outcomes() -> list[dict[str, Any]]:
 
 
 def host_of(url: str) -> str:
-    return (urlsplit(url).hostname or "").casefold()
+    """Host used for ``site:`` scoping: lower-case, no leading ``www.``."""
+
+    host = (urlsplit(url).hostname or "").casefold()
+    return host[4:] if host.startswith("www.") else host
 
 
 __all__ = [

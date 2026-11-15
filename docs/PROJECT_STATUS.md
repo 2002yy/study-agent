@@ -13,6 +13,32 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 站点自带搜索被封时的替代发现：Google site: 校验后启用 4 站
+
+审查要求“有修复方式？联网查查”。逐站实测后，结论是：自带搜索不可用时，用通用引擎做 `site:` 限定发现，再用该站 URL 形状校验，正文仍在站内读取。新增 `SiteProfile.search_via`，网关与探测工具走同一路径（payload/API 记录 `via`）。
+
+已启用（均通过“可开→真实结果→正文可读→重复两次→耗时”）：
+- Stack Overflow：自带搜索重定向 `/nocaptcha`；`site:stackoverflow.com` 两次 5/5，3.5s；问题页可读。
+- Reddit：自带搜索重定向登录；`site:reddit.com` 两次 5/5（4.9s 热、20.8s 冷）；帖子正文 2896 字符。
+- LINUX DO：自带搜索需登录；`site:linux.do` 两次 5/5，3.5–5.2s；主题正文 3523 字符。
+- Chiphell：自带搜索只回页脚；`site:chiphell.com` 两次 5/5，3.5s；帖子正文 4272 字符。
+
+未通过、保持关闭（原因已更新为实测事实）：
+- NGA：`thread.php?key=` 在已登录浏览器仍返回「注册用户/威望大于0方可使用搜索」。这是账号权限门槛，不是登录状态，故不启用。
+- 知乎：登录后经典卡片 5/5，但部分查询只给 AI 摘要页（0 个 `/question/` 链接），不稳定。
+- TapTap：`/search?keyword=` 实际渲染发现首页（38 个链接全是导航/推荐），不是结果页；需专门适配器，暂不加入。
+- 小红书：`/search_result` 显示「登录后查看搜索结果」登录墙；未加入。
+- 米游社已启用（上一轮）；DuckDuckGo 仍为人机校验，Google/Bing/Brave 已覆盖其作用。
+
+真实网关复测：
+- 「FastAPI 报错 database is locked」16.77s：Stack Overflow(google) 5、GitHub 5、Google 5。
+- 「RTX 5090 值得买吗」10.27s：Chiphell(google) 5、B站 5、Reddit(google) 5。
+- 「Codex API 中转 有哪些坑」17.36s：HuggingFace 1、GitHub 4、LINUX DO(google) 5。
+顺带收紧 HuggingFace 形状（`/inference/models` 这类站内栏目页不再算结果）。
+
+默认启用 17 站：google、bing、brave、github、v2ex、juejin、huggingface、arxiv、hn、nowcoder、steam、miyoushe、bilibili、reddit、stackoverflow、linuxdo、chiphell。
+测试：站点池 + browse 38 PASS；web 搜索影响集 105 PASS；Ruff 通过；无付费调用。
+
 ### 2026-11-15 新增哔哩哔哩并验收启用；视频证据需接现有视频管线
 
 B站不在原 19 站目录里，本轮新增适配器并做真实验收（无付费调用）：
