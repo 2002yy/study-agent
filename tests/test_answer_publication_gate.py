@@ -1000,6 +1000,122 @@ def _support_id(messages: Any) -> str:
     return found[0] if found else ""
 
 
+def test_policy_path_read_backed_research_turn_still_generates_an_answer(
+    tmp_path,
+) -> None:
+    """The production preparation path must build the same plan.
+
+    The external-data-policy pipeline is the one the app actually uses. When it
+    skipped the tool-read plan, a turn that had successfully read a page still
+    published the blocked copy without ever calling the model.
+    """
+
+    seen: dict[str, Any] = {"tasks": [], "binder_prompt": ""}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        task = str(kwargs.get("task_name", ""))
+        seen["tasks"].append(task)
+        if task == "answer_claim_binding":
+            messages = _messages(args, kwargs)
+            seen["binder_prompt"] = _prompt_text(messages)
+            return _binding_payload(
+                [_segment_entry("s1", support=(_support_id(messages),))]
+            )
+        return CANDIDATE
+
+    from src.pedagogy.evaluation import SemanticEvaluation
+    from src.task_contract import (
+        TaskAwarePedagogyEngine,
+        TaskAwarePedagogyEvaluationService,
+    )
+
+    class _FailingSemanticEvaluator:
+        def evaluate(self, **kwargs: Any) -> SemanticEvaluation:
+            raise AssertionError("semantic evaluation must not run in this test")
+
+    repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    dependencies = ChatDependencies(
+        route_request=lambda **kwargs: _research_route(),
+        read_memory_bundle=lambda _mode: {},
+        retrieve_local_knowledge=lambda *_args, **_kwargs: _FakeRagResult(),
+        resolve_web_tools=lambda *args, **kwargs: WebToolTrace(
+            calls=_read_backed_calls()
+        ),
+        build_messages=lambda **kwargs: [
+            {"role": "system", "content": kwargs.get("rag_context", "")},
+            {"role": "user", "content": kwargs["user_input"]},
+        ],
+        pedagogy_engine=TaskAwarePedagogyEngine(),
+        pedagogy_evaluation=TaskAwarePedagogyEvaluationService(
+            _FailingSemanticEvaluator()
+        ),
+        build_role_prompt=lambda *_args, **_kwargs: "ROLE",
+        chat=chat_fn,
+        chat_max_tokens=lambda performance_mode: 1000,
+    )
+    service = ExternalDataPolicyChatService(repository, dependencies)
+    command = PolicyChatCommand(
+        user_input="这个版本什么时候发布的？",
+        selected_role="nahida",
+        task_intent="research",
+        web_policy="auto",
+        web_consent=True,
+    )
+    reply, turn = _run_turn(service, repository, command)
+
+    assert seen["tasks"] == ["single_chat", "answer_claim_binding"]
+    assert reply == CANDIDATE
+    assert "https://official.example/release" in seen["binder_prompt"]
+    audit = _audit(turn)
+    assert audit["phases"]["answer_generation"]["model_calls"] == 1
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "passed"
+
+
+def test_unverified_sentences_are_deleted_and_disclosed(tmp_path) -> None:
+    """The correction loop removes unsupported statements instead of shipping them."""
+
+    candidate = "请先核对官方发布说明。该版本已于上周正式发布。"
+    seen = {"binder": ""}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            seen["binder"] = _prompt_text(_messages(args, kwargs))
+            return json.dumps(
+                {
+                    "refused": False,
+                    "segments": [
+                        {"segment_ref": "s1", "kind": "instructional"},
+                        {
+                            "segment_ref": "s2",
+                            "kind": "source_fact",
+                            "status": "asserted",
+                            "research_claim_id": "inline_tool_read",
+                            "evidence_support": [],
+                            "support_claims": [],
+                        },
+                    ],
+                },
+                ensure_ascii=False,
+            )
+        return candidate
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=_read_backed_calls()),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert "请先核对官方发布说明。" in reply
+    assert "该版本已于上周正式发布。" not in reply
+    assert "1 处表述因缺少可核实依据未发布" in reply
+    assert seen["binder"]
+    audit = _audit(turn)
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "passed"
+    assert (turn.rag_snapshot or {}).get("answer_withheld_claims")
+
+
 def test_a_read_backed_research_turn_generates_and_validates_an_answer(tmp_path) -> None:
     seen: dict[str, Any] = {"tasks": [], "binder_prompt": ""}
 

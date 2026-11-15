@@ -93,6 +93,11 @@ def _requires_planned_tools(user_input: str) -> bool:
 
 DEEP_RESEARCH_PREFIX = "请深度研究："
 
+#: The retrieval window and the writing window are different budgets. The
+#: research loop must stop reading in time to answer; the answer itself must not
+#: be cut off merely because retrieval used its full window.
+ANSWER_GENERATION_RESERVE_SECONDS = 60.0
+
 
 def _requires_deep_research(user_input: str) -> bool:
     """G18 decision 4: explicit prefix or heuristic auto-escalation.
@@ -665,9 +670,19 @@ class PersistentWebToolAgent(WebToolAgent):
                                      "degraded_to_deterministic": bool(focused)}})
         if focused:
             # A newly interpreted topic cannot extend the deadline inherited from
-            # the current run. A short new topic may reduce it to Lookup.
-            budget = recovery_budget(focused)
-            answer_deadline = min(answer_deadline, started + budget.hard_seconds)
+            # the current run. A short new topic may reduce it to Lookup. The
+            # exception is a plan that asks several questions: the inherited
+            # window was sized from the wording alone and is too small for it,
+            # so widening to the standard window is what lets every planned
+            # question be searched instead of only the first.
+            planned = recovery_budget(focused, plan)
+            needed = started + planned.hard_seconds
+            answer_deadline = (
+                max(answer_deadline, needed)
+                if planned.mode == "standard"
+                else min(answer_deadline, needed)
+            )
+            budget = planned
             session.deadline = answer_deadline - budget.finalization_reserve
             session.episode = episode
             calls.extend(recover_public_research(
@@ -707,7 +722,14 @@ class PersistentWebToolAgent(WebToolAgent):
             )
         except Exception as exc:
             error = f"ResearchRun record failed: {type(exc).__name__}: {exc}"
-        return WebToolTrace(calls=tuple(calls), error=error, run_id=run.id, answer_deadline=answer_deadline)
+        return WebToolTrace(
+            calls=tuple(calls),
+            error=error,
+            run_id=run.id,
+            # Retrieval keeps its own window; the turn continues with room to
+            # write and verify the answer it just researched.
+            answer_deadline=answer_deadline + ANSWER_GENERATION_RESERVE_SECONDS,
+        )
 
     def _record_trace(
         self,

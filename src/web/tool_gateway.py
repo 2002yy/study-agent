@@ -115,9 +115,9 @@ def _result_key(item: dict[str, str]) -> str:
 
 def _query_domain(query: str) -> str:
     """Only enforce the existing simple, positive site: form."""
-    match = re.fullmatch(r"site:([A-Za-z0-9.-]+)\s+[^()]+", query)
-    if match and not re.search(r"(?:\bOR\b|-site:|\bsite:)", query[match.end(1) :]):
-        return match.group(1).lower().rstrip(".")
+    matches = list(re.finditer(r"(?<!\S)site:([A-Za-z0-9.-]+)(?=\s|$)", query))
+    if len(matches) == 1 and not re.search(r"(?:\bOR\b|-site:|[()])", query):
+        return matches[0].group(1).lower().rstrip(".")
     return ""
 
 
@@ -164,7 +164,7 @@ def _dedupe_results(items: list[dict[str, str]], limit: int) -> list[dict[str, s
     return result
 
 
-SEARCH_STRATEGIES = ("fallback", "merge", "ddg_first")
+SEARCH_STRATEGIES = ("fallback", "merge", "ddg_first", "browser_first")
 _DEFAULT_SEARCH_STRATEGY = "fallback"
 _MERGE_TRACE_KEYS = (
     "search_strategy",
@@ -496,10 +496,12 @@ class GeneralWebGateway:
         )
         plan = {
             "fallback": ("searxng", "bing_rss", "duckduckgo_html"),
+            "browser_first": ("browse", "searxng", "bing_rss", "duckduckgo_html"),
             "ddg_first": ("duckduckgo_html", "bing_rss"),
             "merge": ("bing_rss", "duckduckgo_html"),
         }[self.search_strategy]
         providers = {
+            "browse": (True, self._search_browse),
             "searxng": (searxng_enabled(), self._search_searxng),
             "bing_rss": (_env_flag("WEB_ENABLE_BING_RSS", True), self._search_bing_rss),
             "duckduckgo_html": (
@@ -532,6 +534,8 @@ class GeneralWebGateway:
             counts[name] = len(rows)
             if error:
                 errors.append(error)
+            if error == "browse:human_action_required":
+                break
             eligible = _domain_results(rows, domain)
             filtered_count += len(rows) - len(eligible)
             collected.extend(eligible)
@@ -563,6 +567,12 @@ class GeneralWebGateway:
                 ranked_urls=[item.get("url", "") for item in results],
             )
         return payload
+
+    @staticmethod
+    def _search_browse(query: str, limit: int, timeout: float):
+        from src.web.browse_search import search_browse
+
+        return search_browse(query, limit, timeout)
 
     @staticmethod
     def _search_searxng(

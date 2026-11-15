@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 
 import asyncio
 from contextlib import suppress
@@ -22,7 +23,7 @@ from src.application.answer_claim_binder import (
     AnswerClaimBindingRequest,
     AnswerClaimBindingRow,
     bind_answer_claims,
-    factual_claims_fully_bound,
+    substantive_claims_fully_bound,
 )
 from src.application.answer_consistency import (
     check_answer_consistency,
@@ -93,6 +94,11 @@ PERFORMANCE_MODES = {"fast", "standard", "deep"}
 RESEARCH_ANSWER_BLOCKED_COPY = (
     "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。"
 )
+
+#: Verification runs after the research window and has its own clock. Batching a
+#: long answer into several model requests must not be cut off by the time the
+#: retrieval phase already spent.
+_ANSWER_VERIFICATION_SECONDS = 60.0
 
 # Gate=BLOCK is known *before* generation (no eligible evidence rows, or no
 # attempt budget), and in that case the release gate replaces whatever the model
@@ -260,6 +266,33 @@ def _tool_read_validation_plan(
         "allowed_attempts": 1,
         "source": "inline_tool_loop",
     }
+
+
+def inline_research_validation_plan(
+    trace: Any,
+    route: dict[str, Any],
+    user_input: str,
+    provided: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """The publication rows a research turn's own reads actually earned.
+
+    Both preparation pipelines call this: the base ``ChatService`` and the
+    external-data-policy pipeline that production uses. It lives here once
+    because duplicating the condition is how the policy path lost its
+    read-backed answer - it published the blocked copy without ever calling
+    the model, even though the turn had read a page.
+    """
+
+    if provided is not None:
+        return provided
+    if not _research_intent(route) or not trace.used:
+        return None
+    # Known-source turns keep their deterministic field publication: that seam
+    # withholds model prose on purpose. It is the general research turn that
+    # must not lose its answer.
+    if _official_plan_for(user_input) is not None:
+        return None
+    return _tool_read_validation_plan(trace, user_input)
 
 
 def _question_excerpts(body: str, question: str, *, limit: int = 3) -> tuple[str, ...]:
@@ -981,19 +1014,9 @@ class ChatService:
             # the plan is built from those reads instead of being absent (which
             # used to end the turn without ever calling the model). A plan that
             # came with the command (a ResearchRun) always wins.
-            answer_validation = command.answer_validation
-            if (
-                answer_validation is None
-                and _research_intent(route)
-                and web_tools.used
-                and not _official_plan_for(command.user_input)
-            ):
-                # Known-source turns keep their deterministic field publication:
-                # that seam withholds model prose on purpose. It is the general
-                # research turn that must not lose its answer.
-                answer_validation = _tool_read_validation_plan(
-                    web_tools, command.user_input
-                )
+            answer_validation = inline_research_validation_plan(
+                web_tools, route, command.user_input, command.answer_validation
+            )
             from src.web.research.research_interaction import (
                 steering_answer_instruction,
             )
@@ -1684,6 +1707,13 @@ class ChatService:
         cancel_check = self._make_cancel_check(
             prepared.turn.id, prepared.turn.operation_id or ""
         )
+        verification_deadline = time.monotonic() + _ANSWER_VERIFICATION_SECONDS
+        # Structured metadata, not prose: with hidden reasoning on, a long
+        # binding prompt consumed the whole output budget and returned empty
+        # content, which rejected an otherwise verified answer.
+        from src.llm_client import research_structured_output_capabilities
+
+        _, binder_extra_body = research_structured_output_capabilities()
         bound = bind_answer_claims(
             request=AnswerClaimBindingRequest(
                 question=question,
@@ -1691,7 +1721,7 @@ class ChatService:
                 evidence_rows=rows,
             ),
             model_fn=lambda messages: bounded_model_call(
-                prepared.research_deadline,
+                verification_deadline,
                 lambda: self._chat_within_scope(prepared)(
                     list(messages),
                     model_profile=prepared.route["model_profile"],
@@ -1702,13 +1732,18 @@ class ChatService:
                         1600,  # Claim binding is structured metadata, not the user answer.
                     ),
                     task_name="answer_claim_binding",
+                    response_format="json_object",
                     request_max_retries=0,
                     extra_body=(
-                        THINKING_DISABLED_EXTRA_BODY
-                        if _answer_bounded_policy_enabled()
-                        else None
+                        binder_extra_body
+                        if binder_extra_body is not None
+                        else (
+                            THINKING_DISABLED_EXTRA_BODY
+                            if _answer_bounded_policy_enabled()
+                            else None
+                        )
                     ),
-                    **request_options(prepared.research_deadline),
+                    **request_options(verification_deadline),
                 ),
             ),
             max_attempts=allowed_attempts,
@@ -1731,7 +1766,28 @@ class ChatService:
             attempts=bound.attempt_count,
             candidate=candidate,
         )
-        if snapshot.status == "validated" and factual_claims_fully_bound(snapshot):
+        if snapshot.status == "validated" and substantive_claims_fully_bound(snapshot):
+            published = bound.published_text or candidate
+            if bound.withheld:
+                if not str(bound.published_text or "").strip():
+                    binding_phase["outcome"] = PHASE_OUTCOME_REJECTED
+                    binding_phase["error_type"] = "answer_fully_withheld"
+                    return (
+                        RESEARCH_ANSWER_BLOCKED_COPY,
+                        snapshot,
+                        {
+                            PHASE_ANSWER_GENERATION: generation_phase,
+                            PHASE_ANSWER_CLAIM_BINDING: binding_phase,
+                        },
+                        True,
+                    )
+                # Deleting unsupported statements is the correction the contract
+                # asks for; the deletion is disclosed instead of staying silent.
+                published = (
+                    f"{published}\n\n（另有 {len(bound.withheld)} 处表述因缺少可核实依据未发布。）"
+                )
+                if isinstance(prepared.rag, dict):
+                    prepared.rag["answer_withheld_claims"] = list(bound.withheld)[:20]
             if consistency_gate_enabled():
                 # §40c diagnostic consistency gate: the generated text must not
                 # contradict the evidence ledger. The binding snapshot stays
@@ -1760,7 +1816,7 @@ class ChatService:
                     )
             binding_phase["outcome"] = PHASE_OUTCOME_PASSED
             return (
-                candidate,
+                published,
                 snapshot,
                 {
                     PHASE_ANSWER_GENERATION: generation_phase,

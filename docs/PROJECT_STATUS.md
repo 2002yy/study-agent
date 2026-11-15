@@ -13,6 +13,34 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 发布契约 v4：分批校验、跨语言支持、事实/推断/建议分层（真实验收未完成：预算耗尽）
+
+branch codex/repair-evidence-20261112，base=HEAD a2d67670，未提交。用户裁定两项均为P1：解除16段对整篇答案的限制、支持跨语言语义验证，且不得直接放宽校验。
+已实现（src/application/answer_claim_binder.py、src/domain/answer_claims.py、src/application/chat_service.py）：
+- 分批校验+原子发布。16段改为单批上限；整篇按≤16单元/≤12k字符分批（总预算192单元/12批）；任一批 provider 失败、拒答、覆盖不符或格式错误→整篇不发布；无依据的单元改为“删除并从发布文本移除”，gate 追加“另有N处表述因缺少可核实依据未发布”，不是静默忽略。
+- 跨语言支持。新增 support_claims（paraphrase/entailment + 逐字 source_quote）。服务端强制：引用必须是该 evidence 正文的真实子串（≥12字符）、编号必须属于同一 research claim、contradicts 直接拒、整句直引仍走原字面校验；数字/版本必须出现在引用里（source_fact 只认来源，synthesis/recommendation 可复用问题里的数字）。
+- 分层。kind=source_fact/synthesis/premise/recommendation/instructional/question/uncertainty；premise 只能来自用户问题（CJK bigram≥50% 且不得新增数字）；发布门 substantive_claims_fully_bound 要求 factual+synthesis 均有 direct/indirect 强支持。
+- 独立预算。校验使用独立60秒窗口；检索窗口结束后仍给生成保留60秒。
+顺带修掉3个真实缺陷：语义计划被 provider 回显 {"type":"json_object"} 且漏 task_id 打回（_provider_payload 只剥离回显，authority 等仍拒）；生成与检索共用60秒导致504；binder 开着隐藏推理时返回空文本（改为结构化调用强制 thinking off + response_format=json_object）。
+测试：answer_claim_binder/crosslingual/grounded_excerpts/binding_semantics/publication_gate/semantic_recovery/research_recovery/chat_service 共206 PASS；Ruff通过；未跑 mypy/L2/L3/远端CI。
+真实同题复测 fix3→fix12：fix3/4定位计划解析缺陷；fix5 4检索3读但生成504；fix6 生成成功、binder空输出；fix7/8 binder按协议返回但被 premise 过严整篇拒；fix9 6批校验第2批 SpendLimitExceeded；fix10 被 scripted 多句拼接引用拒（unverified_source_quote）；fix11 被引用标号误判（[web-4] 的4被当成事实数字）拒；fix12 生成完成后 binder 首个调用被批次上限拒（SpendAdmissionRefused）。
+fix10 后放宽：多句引用只要每句都在正文中逐字存在即可（拼接真实句子不算伪造）；fix11 后修正：_specific_tokens 先剥离 [web-N](url)/URL/脚注标号，再把引用标号数字当事实数字的假阳性消除。离线重放 fix11 的真实 batch1 输出：16 claims / 12 links / 0 withheld，服务端校验通过。
+预算：用户将共享实验上限由30元提高到35元（ledger 已改为35_000_000，evidence 入口的 cap 断言与 guard 同步），批次上限临时提高到20元。fix12 后实验累计 33,363,484/35,000,000（剩1,636,516），最后失败是 SpendAdmissionRefused（预算）而非产品缺陷；一次完整验收约需1.9-2.0元。
+下一片：若要完成端到端验收，需再提高2元（35→37）；否则停在“离线全绿（206+96 PASS）+ 真实链路生成与分批校验到预算边界”，并把 fix11 batch1 的真实离线重放作为当前最强证据。
+
+### 2026-11-15 调研断链修复与browse检索接入（真实复测一轮）
+
+branch codex/repair-evidence-20261112，base=HEAD a2d67670，未提交，工作树含本片7个源码、3个测试改动与2个未跟踪文件（src/web/browse_search.py、tests/test_browse_search.py）。
+P1 orchestration-contract：生产实际走 ExternalDataPolicyChatService 的 prepare，而“用本轮已读正文构建 answer_validation”只在 ChatService._prepare 存在，策略路径恒为 None。结果是研究回合读到了正文也不调用模型，candidate 为空后发布固定弃权文案。改为两处共用 chat_service.inline_research_validation_plan()；新测 test_policy_path_read_backed_research_turn_still_generates_an_answer，旧代码负控0次模型调用，修复后 single_chat+answer_claim_binding 均执行。
+P2 retrieval：语义计划的3个RQ只被搜索了第1个。recovery_budget 只按问题措辞判 lookup/standard，多facets计划仍拿 lookup（30s、2查询），执行窗口实际15s。现计划含≥2个不同 rq_id 时升为 standard，persistent_web_agent 只在 standard 时把 answer_deadline 放宽，不再被措辞压回。负控：加计划前该测只跑1个查询。
+检索接入：新增 src/web/browse_search.py（browse execute--json，Google，结果只留公网URL，challenge 立即停止回退）与 WEB_SEARCH_STRATEGY=browser_first；修正 _query_domain 只认唯一正向 site:。3项单测通过，直接探针取回 sqlite.org 官方页。
+真实同题复测（research-fix2，付费）：standard 窗口，4次 browse 搜索分别覆盖 sqlite 并发/备份/网络文件系统、PostgreSQL、SQLite-vs-PostgreSQL；3条正文读取合格（sqlite.org/wal.html、SQLite论坛、dev.to），1条被语义判为无关（github changelog）；answer_generation 实际执行1次，产出4887字结构化中文答案（含[1][2][4]引用），随后 answer_claim_binding 以 answer_not_segmentable 拒绝，未发布。
+剩余阻断（未改动，需产品决策）：a) 答案切分133段 > _MAX_SEGMENTS=16，整篇拒；test_too_many_short_segments 已记录该失败关闭策略曾挡住20篇归档中的13篇；b) claim_grounded_in_text 要求与英文正文逐句字面同一，中文转述不可能命中，即使放开段数仍会拒。因此“中文综合＋英文官方来源”在现契约下无法发布。
+费用：本轮实验累计预留9,545,538微元（12元授权内），单次修复后真实run约1.15元；账本总预留23,176,865/30,000,000。
+证据：D:/study-agent-validation/browse-live-20261115/{research-fix1,research-fix2,research-browser}，含 dependency-preflight.json、call-*.json、single_chat-chat-answer.json。验证入口已补 manage-searxng -Action Ensure 预检，不再静默降级。
+验证：Ruff通过；answer_publication_gate/research_recovery/browse_search/semantic_recovery/recovery_source_boundaries/external_data_policy/chat_search_gating 142 PASS；lookup_terminal/rescue/tier/official_quality/web_tool_agent 102 PASS；answer_claim_binder/grounded_excerpts/chat_service 75 PASS。未跑mypy/L2/L3/远端CI。
+下一片：由用户选择发布契约方向（放宽段数预算 but 仍字面、或为转述引入 qualified claim-level evidence gate），再决定是否用剩余约2.4元额度复测。
+
 ### 2026-11-15 调研环境纠正与ChatGPT样本收到
 
 用户指出Docker可能未开启。实查docker info/ps均因dockerDesktopLinuxEngine管道不存在而失败，确认上次调研未完成依赖预检。上次样本包含搜索服务未就绪影响，不能作为健康环境下Study Agent能力基线。

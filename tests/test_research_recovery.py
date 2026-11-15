@@ -311,6 +311,36 @@ def test_mode_follows_complexity_not_research_word(query, mode):
     assert model_targets(query)[0] == ("opus", "5.5")
 
 
+def test_plan_with_several_questions_gets_the_standard_window():
+    plan = [
+        {"rq_id": "rq-sqlite", "query": "SQLite WAL concurrent writes"},
+        {"rq_id": "rq-postgres", "query": "PostgreSQL concurrent writes"},
+    ]
+    # The wording alone is a lookup; the plan proves two unanswered questions.
+    assert recovery_budget("继续用 WAL 还是迁移").mode == "lookup"
+    assert recovery_budget("继续用 WAL 还是迁移", plan).mode == "standard"
+    assert recovery_budget("继续用 WAL 还是迁移", plan[:1]).mode == "lookup"
+
+
+def test_multi_facet_plan_searches_every_planned_question():
+    gateway = Gateway(
+        [[item("wal", title="SQLite WAL")], [item("pg", title="PostgreSQL MVCC")]],
+        {
+            "wal": "SQLite WAL allows one writer at a time.",
+            "pg": "PostgreSQL uses MVCC for concurrent writers.",
+        },
+    )
+    plan = [
+        {"rq_id": "rq-sqlite", "query": "SQLite WAL concurrent writes"},
+        {"rq_id": "rq-postgres", "query": "PostgreSQL concurrent writes"},
+    ]
+    calls = recover_public_research(
+        gateway, "继续用 SQLite 还是迁移到 PostgreSQL", query_plan=plan
+    )
+    assert "PostgreSQL concurrent writes" in gateway.queries
+    assert recovery_summary(calls)["limits"]["queries"] == STANDARD_BUDGET.max_queries
+
+
 def test_success_does_not_use_reserved_reads_or_all_query_budget():
     gateway = Gateway([[item("release")]], {"release": "Claude Opus 5.5 details."})
     calls = recover_public_research(gateway, "opus5.5")

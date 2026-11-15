@@ -18,6 +18,8 @@ ANSWER_CLAIM_SCHEMA_VERSION = "answer-claim-snapshot-v1"
 
 AnswerClaimKind = Literal[
     "factual",
+    "synthesis",
+    "premise",
     "instructional",
     "question",
     "recommendation",
@@ -34,6 +36,8 @@ AnswerClaimSnapshotStatus = Literal[
 
 _ALLOWED_KINDS: set[str] = {
     "factual",
+    "synthesis",
+    "premise",
     "instructional",
     "question",
     "recommendation",

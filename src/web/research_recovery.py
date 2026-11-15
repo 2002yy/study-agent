@@ -72,14 +72,38 @@ def model_targets(query: str) -> list[tuple[str, str]]:
     )
 
 
-def recovery_budget(query: str) -> RecoveryBudget:
+def recovery_budget(
+    query: str, query_plan: list[dict[str, str]] | None = None
+) -> RecoveryBudget:
     if len(model_targets(query)) > 1 or re.search(
         r"比较|对比|区别|优缺点|多来源|综合|调查|compare|versus|\bvs\b",
         query,
         re.IGNORECASE,
     ):
         return STANDARD_BUDGET
+    # A question can be multi-facet without naming two versions or saying
+    # "compare" ("keep WAL or migrate, and tell me the triggers and steps").
+    # The interpreter's own plan is the honest signal: two or more distinct
+    # research questions need the standard window, otherwise the second facet
+    # is never searched at all.
+    if planned_questions(query_plan) >= 2:
+        return STANDARD_BUDGET
     return LOOKUP_BUDGET
+
+
+def planned_questions(query_plan: list[dict[str, str]] | None) -> int:
+    """How many distinct research questions a plan actually asks for."""
+
+    if not query_plan:
+        return 0
+    rows = [row for row in query_plan if isinstance(row, dict)]
+    ids = {str(row.get("rq_id") or "").strip() for row in rows}
+    ids.discard("")
+    if ids:
+        return len(ids)
+    queries = {str(row.get("query") or "").strip() for row in rows}
+    queries.discard("")
+    return len(queries)
 
 
 def target_identity_pattern(target: tuple[str, str]) -> re.Pattern[str]:
@@ -202,7 +226,7 @@ def _recover_public_research(
     semantic_session: ResearchSemanticSession | None = None,
     query_plan: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
-    budget = budget or recovery_budget(query)
+    budget = budget or recovery_budget(query, query_plan)
     started = monotonic() if started_at is None else started_at
     deadline = min(started + budget.hard_seconds, answer_deadline or float("inf")) - budget.finalization_reserve
     if semantic_session is not None:
