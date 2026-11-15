@@ -14,6 +14,8 @@ import threading
 from dataclasses import replace
 from typing import Any, AsyncIterator
 
+import pytest
+
 from src.api.models.chat import ChatRequest
 from src.api.routes.chat_routes import chat_stream_endpoint
 from src.application.chat_service import (
@@ -28,6 +30,11 @@ from src.router import route_request
 
 EVIDENCE_ID = "evidence_stream_1"
 RESEARCH_CLAIM_ID = "research_claim_stream_1"
+
+
+@pytest.fixture(autouse=True)
+def _legacy_strict_publication_contract(monkeypatch):
+    monkeypatch.setenv("RESEARCH_PUBLICATION_MODE", "strict")
 
 
 class ConnectedRequest:

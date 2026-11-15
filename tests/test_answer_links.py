@@ -60,3 +60,17 @@ def test_a_host_nobody_read_is_reported_separately():
         "url": "https://example.org/post",
         "kind": "host_not_in_evidence",
     }]
+
+
+def test_a_different_document_query_is_not_a_read_page():
+    assert outside_evidence_links(
+        "见 [问题二](https://forum.example/thread?id=2)",
+        ["https://forum.example/thread?id=1"],
+    ) == ["https://forum.example/thread?id=2"]
+
+
+def test_a_different_port_is_not_the_same_read_page():
+    assert outside_evidence_links(
+        "见 https://forum.example:8443/thread",
+        ["https://forum.example/thread"],
+    ) == ["https://forum.example:8443/thread"]

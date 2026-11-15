@@ -13,6 +13,16 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-16 研究答案默认简洁发布（独立静态候选）
+
+用户裁定采用「检索→读取→生成→轻量引用检查→发布」，不再默认运行逐段 binder。在当时远端 #357 的 `8a8be1e` 上创建独立分支 `codex/simple-research-flow-20261116`，未覆盖原工作树改动。
+
+- `RESEARCH_PUBLICATION_MODE=simple` 为默认：有已读证据、生成有效且引用 URL 均属当轮已读网页时，原样发布 Markdown，不分段、不调用 binder；`strict` 显式保留旧的严格校验。
+- 简洁模式记录来源白名单和已读引用，但**不把未逐条验证的引用标为 verified**；无资料与未读链接仍被拦截。URL 匹配区分内容查询参数，忽略 `utm_` 追踪参数。
+- 离线直接调用验证：Markdown/表格无损发布、未读 URL 拦截、旧严格模式通过；Python 编译及 `git diff --check` 通过。当前运行环境没有 pytest / Ruff，完整影响集、L3、CI 与真实模型对照均 **未执行**；未发生付费调用。
+
+下一门：在具有 pytest/Ruff 的环境执行影响集和完整测试，并核对 #357 期间的并发提交；真实端到端验收仍需独立预算授权，不能把静态验证写成产品通过。
+
 ### 2026-11-15 端到端验收（P0）：链路已跑通到发布门，但被 binder 引用不合规拦住
 
 按裁定用 DeepSeek 真实价格（deepseek-flash 高峰 2/8 元每百万 tokens，空闲 1/4；核对 https://api-docs.deepseek.com/zh-cn/quick_start/pricing/ ）新建实验 `study-agent-live-20261115`（cap 3 元）。此前“一题约 2 元”是旧 9/27 上限造成的**高估约 7 倍**：本次每次完整尝试约 **0.27 元**（5–6 次调用），不是 2 元。

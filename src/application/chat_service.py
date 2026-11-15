@@ -169,6 +169,18 @@ def _answer_bounded_policy_enabled() -> bool:
     return raw in {"1", "true", "on", "yes"}
 
 
+def _strict_research_publication_enabled() -> bool:
+    """Keep the costly, claim-by-claim binder opt-in for audited workflows.
+
+    Ordinary research publishes the generated answer after deterministic source
+    checks. A read URL is provenance, *not* proof of every assertion in it.
+    """
+
+    import os
+
+    return (os.getenv("RESEARCH_PUBLICATION_MODE") or "simple").strip().lower() == "strict"
+
+
 def _configured_llm_provider() -> str:
     import os
 
@@ -1296,7 +1308,9 @@ class ChatService:
             "role": "system",
             "content": (
                 "引用范围：本次只读取了下列页面，回答中的每个链接都必须来自这份列表，"
-                "不得添加列表之外的 URL，也不得凭记忆引用未见过的页面。\n"
+                "不得添加列表之外的 URL，也不得凭记忆引用未见过的页面。"
+                "主要外部事实请用[来源](完整URL)标明依据；可正常转述，不必逐字引用。"
+                "仅有推断而无直接依据时请明确写成推断，资料不足时如实说明。\n"
                 + "\n".join(urls)
             ),
         }
@@ -1554,7 +1568,7 @@ class ChatService:
                 yield from bounded_stream(
                     prepared.research_deadline,
                     self._stream_source(prepared)(
-                        prepared.messages,
+                        self._messages_with_citation_scope(prepared),
                         model_profile=prepared.route["model_profile"],
                         max_tokens=max_tokens,
                         task_name="single_chat",
@@ -1602,7 +1616,7 @@ class ChatService:
         try:
             async with asyncio.timeout(remaining_seconds(prepared.research_deadline)):
                 async for token in self._async_stream_source(prepared)(
-                    prepared.messages,
+                    self._messages_with_citation_scope(prepared),
                     model_profile=prepared.route["model_profile"],
                     max_tokens=max_tokens,
                     task_name="single_chat",
@@ -1737,10 +1751,9 @@ class ChatService:
                 self._blocked_audit_phases(generation_phase, "candidate_unavailable"),
                 True,
             )
-        # An answer may cite only pages this turn actually read. Otherwise the
-        # binder is asked to verify a citation nobody could have read, and the
-        # whole answer is lost to a link the model produced from memory.
-        from src.domain.answer_links import classify_outside_links
+        # A citation must refer to a page read in this turn, regardless of
+        # whether the optional semantic binder is enabled.
+        from src.domain.answer_links import classify_outside_links, normalize_link
 
         outside = classify_outside_links(answer, (row.url for row in rows if row.url))
         if outside:
@@ -1763,6 +1776,38 @@ class ChatService:
                 blocked,
                 self._blocked_audit_phases(generation_phase, "citation_outside_evidence"),
                 True,
+            )
+        if not _strict_research_publication_enabled():
+            # Do not split or rewrite Markdown: headings, list numbering and
+            # table structure are part of the user's answer, not claims for a
+            # second model to classify. Preserve source provenance without
+            # falsely marking individual claims as verified.
+            from src.domain.answer_links import links_in_answer
+
+            cited_pages = {normalize_link(url) for url in links_in_answer(answer)}
+            if isinstance(prepared.rag, dict):
+                prepared.rag["research_publication_mode"] = "simple"
+                prepared.rag["answer_citation_scope"] = {
+                    "allowed": sorted({row.url for row in rows if row.url}),
+                    "outside": [],
+                    "check": "read_page_url_only",
+                }
+                prepared.rag["research_evidence_refs"] = [
+                    {
+                        "evidence_id": row.evidence_id,
+                        "claim_id": row.claim_id,
+                        "title": row.title,
+                        "url": row.url,
+                        "source_cluster_id": row.source_cluster_id,
+                    }
+                    for row in rows
+                    if normalize_link(row.url) in cited_pages
+                ]
+            return (
+                candidate,
+                None,  # No claim-level validation was performed.
+                {PHASE_ANSWER_GENERATION: generation_phase},
+                False,
             )
         cancel_check = self._make_cancel_check(
             prepared.turn.id, prepared.turn.operation_id or ""

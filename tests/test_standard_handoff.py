@@ -15,6 +15,11 @@ from tests.test_chat_service import _service
 from tests.test_lookup_terminal import QUERY, deterministic_trace
 
 
+@pytest.fixture(autouse=True)
+def _legacy_strict_publication_contract(monkeypatch):
+    monkeypatch.setenv("RESEARCH_PUBLICATION_MODE", "strict")
+
+
 @pytest.fixture
 def saved_parent(tmp_path):
     service, repository = _service(tmp_path)
