@@ -382,6 +382,11 @@ def _parse_binder_batch(
     try:
         payload = json.loads(_strip_json_fence(raw_output))
     except (TypeError, ValueError):
+        # A batch cut off by the output budget is a budget problem, not a
+        # formatting one; the caller must be able to tell them apart.
+        stripped = _strip_json_fence(raw_output).rstrip()
+        if stripped.startswith("{") and not stripped.endswith(("}", "]")):
+            return None, "producer_output_truncated"
         return None, "malformed_structured_output"
     if not isinstance(payload, Mapping):
         return None, "malformed_structured_output"
@@ -989,6 +994,9 @@ def _binding_messages(
         "server-owned page evidence. The answer may be in Chinese while the "
         "pages are in English; a faithful translation is acceptable support, "
         "but only with the exact source sentence that carries it.\n"
+        "The quoted sentence must itself contain every number, version and unit "
+        "the segment states; a related sentence without those figures is rejected. "
+        "If no sentence carries them, drop that segment's support.\n"
         "Rules:\n"
         "1. Never modify or add to the answer; classify every server segment.\n"
         "2. Return EXACTLY one entry per segment_ref; missing, duplicate or "

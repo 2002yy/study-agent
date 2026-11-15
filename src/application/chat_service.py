@@ -1791,8 +1791,9 @@ class ChatService:
                         ),
                         # 16 segments with verbatim quotes overflow 1600 tokens:
                         # a truncated batch is malformed JSON, which rejects the
-                        # whole answer. This is structured metadata, not prose.
-                        2600,  # Claim binding is structured metadata, not the user answer.
+                        # whole answer. Measured batch output was 6295 chars and
+                        # still incomplete, so leave real margin.
+                        3600,  # Claim binding is structured metadata, not the user answer.
                     ),
                     task_name="answer_claim_binding",
                     response_format="json_object",
