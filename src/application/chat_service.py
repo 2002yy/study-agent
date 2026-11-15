@@ -1740,16 +1740,17 @@ class ChatService:
         # An answer may cite only pages this turn actually read. Otherwise the
         # binder is asked to verify a citation nobody could have read, and the
         # whole answer is lost to a link the model produced from memory.
-        from src.domain.answer_links import outside_evidence_links
+        from src.domain.answer_links import classify_outside_links
 
-        outside = outside_evidence_links(
-            answer, (row.url for row in rows if row.url)
-        )
+        outside = classify_outside_links(answer, (row.url for row in rows if row.url))
         if outside:
             blocked = rejected_answer_claim_snapshot(
                 answer=RESEARCH_ANSWER_BLOCKED_COPY,
                 producer=ANSWER_CLAIM_BINDER_PRODUCER,
-                reason="citation_outside_evidence:" + ",".join(outside[:3])[:160],
+                reason=(
+                    f"citation_outside_evidence:{outside[0]['kind']}:"
+                    + ",".join(item["url"] for item in outside[:3])[:150]
+                ),
             )
             if isinstance(prepared.rag, dict):
                 prepared.rag["answer_claim_snapshot"] = blocked.to_dict()

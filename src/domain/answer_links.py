@@ -56,7 +56,31 @@ def outside_evidence_links(
     return outside
 
 
+def classify_outside_links(
+    answer: str, evidence_urls: Iterable[str]
+) -> list[dict[str, str]]:
+    """Why a cited page is unacceptable, not just that it is.
+
+    "The page exists but this turn never read it" (a search-coverage gap) is a
+    different failure from "the model named a host nobody looked at" (a memory
+    citation). They warrant different follow-up work, so they are reported apart.
+    """
+
+    evidence = [str(url) for url in evidence_urls if str(url or "").strip()]
+    evidence_hosts = {normalize_link(url).split("/")[0] for url in evidence}
+    classified: list[dict[str, str]] = []
+    for link in outside_evidence_links(answer, evidence):
+        host = normalize_link(link).split("/")[0]
+        classified.append({
+            "url": link,
+            "kind": "read_host_page_not_read" if host in evidence_hosts
+            else "host_not_in_evidence",
+        })
+    return classified
+
+
 __all__ = [
+    "classify_outside_links",
     "links_in_answer",
     "normalize_link",
     "outside_evidence_links",

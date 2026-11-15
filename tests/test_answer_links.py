@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.domain.answer_links import outside_evidence_links
+from src.domain.answer_links import classify_outside_links, outside_evidence_links
 
 
 def test_a_link_to_an_unread_page_is_outside_the_evidence():
@@ -36,3 +36,27 @@ def test_a_mix_of_read_and_unread_links_reports_only_the_unread():
 
 def test_no_links_means_nothing_to_reject():
     assert outside_evidence_links("WAL 允许读写并发，但只有一个写者。", []) == []
+
+
+def test_an_unread_page_on_a_read_host_is_a_coverage_gap():
+    """backup.html may well exist; this turn simply never read it."""
+
+    classified = classify_outside_links(
+        "见 [备份](https://www.sqlite.org/backup.html)",
+        ["https://www.sqlite.org/wal.html"],
+    )
+    assert classified == [{
+        "url": "https://www.sqlite.org/backup.html",
+        "kind": "read_host_page_not_read",
+    }]
+
+
+def test_a_host_nobody_read_is_reported_separately():
+    classified = classify_outside_links(
+        "见 [博客](https://example.org/post)",
+        ["https://www.sqlite.org/wal.html"],
+    )
+    assert classified == [{
+        "url": "https://example.org/post",
+        "kind": "host_not_in_evidence",
+    }]

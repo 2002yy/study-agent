@@ -262,7 +262,10 @@ def bind_answer_claims(
             if parsed is not None:
                 break
             last_error = parse_error or "malformed_structured_output"
-            if parse_error == "unverified_source_quote" and not repair_used:
+            if parse_error in {
+                "unverified_source_quote",
+                "claim_specifics_not_in_source",
+            } and not repair_used:
                 repair_used = True
                 messages = [*messages, _repair_message(detail)]
                 max_calls += 1
@@ -351,10 +354,10 @@ def _repair_message(detail: Mapping[str, Any]) -> dict[str, str]:
     return {
         "role": "user",
         "content": (
-            f"上一次输出被拒绝：段落 {segment} 的 source_quote 不在证据 "
-            f"{evidence_id} 的原文中。请从该证据原文中逐字复制一个完整句子，"
-            "不要改写、拼接或意译。如果该证据中找不到能逐字支持该段落的句子，"
-            "就删除该段落的 support_claims（保留 kind 和其他字段），"
+            f"上一次输出被拒绝：段落 {segment} 的引文与证据 {evidence_id} 不符"
+            "（不在原文中，或缺少该段落里的数字/版本）。请从该证据原文中逐字复制一个"
+            "同时包含这些数字的完整句子，不要改写、拼接或意译。如果该证据中找不到"
+            "这样的句子，就删除该段落的 support_claims（保留 kind 和其他字段），"
             "不要编造引文，也不要更换证据。只返回与之前相同结构的 JSON。"
             + (f" 被拒绝的引用：{quote}" if quote else "")
         ),
@@ -637,6 +640,12 @@ def _claim_support_bindings(
     if parsed and not _specific_tokens_within(
         claim_text, verified_quotes, question if allow_question_numbers else ""
     ):
+        if failure_detail is not None:
+            failure_detail.update(
+                evidence_id=parsed[0]["evidence_id"] if parsed else "",
+                quote=str(parsed[0]["quote"])[:200] if parsed else "",
+                claim=claim_text[:120],
+            )
         return [], "claim_specifics_not_in_source"
     return bindings, ""
 
