@@ -121,7 +121,6 @@ def test_navigation_and_login_links_are_not_results():
 
 
 def test_a_search_engine_never_returns_its_own_navigation():
-    google = next(site for site in site_pool.SITES if site.key == "google")
     rows = browse_search._valid_rows(
         [
             {"title": "Google 图片", "url": "https://www.google.com/imghp"},
@@ -129,7 +128,7 @@ def test_a_search_engine_never_returns_its_own_navigation():
         ],
         5,
         source="google",
-        own_hosts=google.own_hosts,
+        own_hosts=("www.google.com",),
     )
     assert [row["url"] for row in rows] == ["https://sqlite.org/wal.html"]
 

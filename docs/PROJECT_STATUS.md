@@ -13,6 +13,17 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 通用引擎适配器并入站点池（#359 收敛）
+
+#359（codex/browse-provider-compare-20261115）与 #357 在 browse_search.py 冲突。按审查建议只保留一套实现：把 #359 的实测结论并入站点池，不保留第二套入口。
+
+- `search_browse(query, limit, timeout, engine=...)`：单引擎适配器，`_ENGINES` 保存 endpoint/结果选择器/标签（Google `a:has(h3)`、DuckDuckGo HTML `a.result__a`、Bing `li.b_algo h2 a`、Brave `.result-content > a:has(.search-snippet-title)`）；`WEB_BROWSE_SEARCH_ENGINE` 仅影响未显式指定引擎的调用，未知引擎 `browse:invalid_engine`。
+- 跳转校验：脚本内校验最终 origin 与 path，离开引擎结果页即视为不可信；Bing `/ck/a?u=a1…` 在引用前解包并重新做公网校验（`_result_url`）。
+- 站点池四个通用站改走 `adapter`，`browse_sites` 按问题选择；`result_selector`/`own_hosts` 从这四条目录项移除，避免两处真相。
+- #359 的实测记录保留为 `docs/research_quality/BROWSE_ENGINE_PROBE_20261115.md`（含 Brave 标题类名、Bing 跳 cn、DDG 人机校验），并追加“合并到站点池”的落地说明；`tools/probe_browse_engines.py` 一并保留。
+- 复测（同一问题，真实浏览器）：Google 5、Bing 5、Brave 5 条有效结果；DuckDuckGo 25 秒下 `browse:human_action_required`（图片人机校验），保持默认关闭。证据 D:/study-agent-validation/site-pool-20261115/matrix8-engines.json。
+- 环境事故：relay 的临时目录被清理后所有 execute 返回 `ENOENT lstat opencode-browser-files-*`；`browse relay restart` 恢复（不是代码缺陷）。
+
 ### 2026-11-15 站点池正确性修复：领域优先路由、结果有效性、回退预算
 
 PR #357 审查（09c0e60c）指出三个 P1：领域站点被泛化意图词压过、整页链接被当成搜索结果、站点池吃光回退预算。本轮只修这三项，并补回归测试；不新增站点、不调用付费模型。

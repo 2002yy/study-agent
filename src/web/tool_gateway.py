@@ -626,11 +626,13 @@ class GeneralWebGateway:
                 outcomes.append({"site": site.key, "status": "budget_exhausted",
                                  "seconds": 0.0, "results": 0, "page_results": 0})
                 continue
-            if site.adapter == "google":
+            if site.adapter != "generic":
                 from src.web.browse_search import search_browse
 
                 started = time.monotonic()
-                rows, error = search_browse(query, limit, min(10.0, remaining))
+                rows, error = search_browse(
+                    query, limit, min(10.0, remaining), engine=site.adapter
+                )
                 meta = {"status": "ok" if rows else (error or "browse:no_results"),
                         "seconds": round(time.monotonic() - started, 2),
                         "page_results": len(rows)}

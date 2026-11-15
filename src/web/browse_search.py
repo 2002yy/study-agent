@@ -1,43 +1,85 @@
 """Browser-backed search through the locally paired browse extension.
 
-Two entry points share one execution path:
+Three entry points share one execution path:
 
-* :func:`search_browse` - Google, the default discovery engine;
-* :func:`search_browse_at` - any site that has a search URL (the site pool).
+* :func:`search_browse` - one general search engine (Google by default);
+* :func:`search_browse_at` - any site that has a search URL (the site pool);
+* the site pool in :mod:`src.web.site_pool` picks which of the two to use.
 
-Both treat the page as untrusted data. Only a public URL is kept, and a captcha
-or login wall stops that request instead of being worked around.
+All treat the page as untrusted data. Only a public URL is kept, and a captcha,
+verification wall or login wall stops that request instead of being worked
+around.
 """
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 from pathlib import Path
+import os
 import re
 import shutil
 import subprocess
 import tempfile
 import time
 from typing import Any
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 from src.web.tool_evidence import _public_url
 
-_GOOGLE_SCRIPT = """
+#: An engine choice, not an engine cascade: the gateway owns fallback. Each
+#: entry is (search endpoint, result selector, label). The selectors were
+#: measured on the real pages - Brave's title is not an ``h3``, and Bing wraps
+#: some outbound links in a redirect.
+_ENGINES: dict[str, tuple[str, str, str]] = {
+    "google": ("https://www.google.com/search", "a:has(h3)", "Google"),
+    "duckduckgo": ("https://html.duckduckgo.com/html/", "a.result__a", "DuckDuckGo"),
+    "bing": ("https://www.bing.com/search", "li.b_algo h2 a", "Bing"),
+    "brave": (
+        "https://search.brave.com/search",
+        ".result-content > a:has(.search-snippet-title)",
+        "Brave",
+    ),
+}
+
+_ENGINE_SCRIPT = """
 await page.goto(SEARCH_URL, {waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS});
 await snapshot();
-if (!page.url().startsWith('https://www.google.com/search?')) {
+const expected = new URL(SEARCH_URL);
+const actual = new URL(page.url());
+if (!ALLOWED_ORIGINS.includes(actual.origin) || actual.pathname !== expected.pathname) {
+  // A redirect away from the engine's own result page is never trusted.
   return {blocked: true, results: []};
 }
 return await page.evaluate(() => ({
-  blocked: Boolean(document.querySelector('form[action*="sorry"], #captcha-form')),
-  results: Array.from(document.querySelectorAll('a:has(h3)')).slice(0, 24).map(a => ({
-    title: a.querySelector('h3').innerText,
+  blocked: Boolean(document.querySelector(
+    'form[action*="sorry"], #captcha-form, form[action*="anomaly"], input[name="captcha"]'
+  )),
+  results: Array.from(document.querySelectorAll(RESULT_SELECTOR)).slice(0, 24).map(a => ({
+    title: (a.querySelector('.search-snippet-title, h3, h2')?.innerText || a.innerText || '').trim(),
     url: a.href,
     snippet: ''
   }))
 }));
 """
+
+
+def _result_url(value: object, engine: str) -> str:
+    """Resolve an engine's own redirect wrapper before validating the URL."""
+
+    if engine != "bing" or not isinstance(value, str):
+        return _public_url(value)
+    parsed = urlsplit(value)
+    if parsed.hostname in {"www.bing.com", "cn.bing.com", "bing.com"} and parsed.path == "/ck/a":
+        encoded = parse_qs(parsed.query).get("u", [""])[0]
+        if not encoded.startswith("a1"):
+            return ""
+        try:
+            value = base64.urlsafe_b64decode(encoded[2:] + "===").decode("utf-8")
+        except (ValueError, binascii.Error):
+            return ""
+    return _public_url(value)
 
 _GENERIC_SCRIPT = """
 try {
@@ -98,7 +140,8 @@ return await page.evaluate(() => {
 
 
 def _execute(
-    script: str, url: str, timeout: float, *, selector: str = ""
+    script: str, url: str, timeout: float, *, selector: str = "",
+    origins: tuple[str, ...] = (),
 ) -> tuple[dict[str, Any] | None, str]:
     executable = shutil.which("browse")
     if not executable:
@@ -108,6 +151,7 @@ def _execute(
     body = (
         script.replace("SEARCH_URL", json.dumps(url))
         .replace("RESULT_SELECTOR", json.dumps(selector))
+        .replace("ALLOWED_ORIGINS", json.dumps(list(origins)))
         .replace("NAV_TIMEOUT_MS", str(max(1500, int(timeout * 600))))
         .replace("TIMEOUT_MS", str(max(1, int(timeout * 1000))))
     )
@@ -134,9 +178,29 @@ def _execute(
         return None, "browse:invalid_response"
 
 
-def search_browse(query: str, limit: int, timeout: float) -> tuple[list[dict[str, str]], str]:
-    url = "https://www.google.com/search?" + urlencode({"q": query})
-    envelope, error = _execute(_GOOGLE_SCRIPT, url, timeout)
+def search_browse(
+    query: str, limit: int, timeout: float, *, engine: str | None = None
+) -> tuple[list[dict[str, str]], str]:
+    """Search one general engine; the caller still owns fallback."""
+
+    chosen = (
+        engine if engine is not None
+        else os.getenv("WEB_BROWSE_SEARCH_ENGINE", "google")
+    ).strip().casefold()
+    if chosen not in _ENGINES:
+        return [], "browse:invalid_engine"
+    endpoint, selector, label = _ENGINES[chosen]
+    parsed = urlsplit(endpoint)
+    if chosen == "bing":
+        origins = ("https://www.bing.com", "https://cn.bing.com")
+    elif chosen == "duckduckgo":
+        origins = ("https://html.duckduckgo.com", "https://duckduckgo.com")
+    else:
+        origins = (f"{parsed.scheme}://{parsed.netloc}",)
+    url = endpoint + "?" + urlencode({"q": query})
+    envelope, error = _execute(
+        _ENGINE_SCRIPT, url, timeout, selector=selector, origins=origins
+    )
     if envelope is None:
         return [], error
     challenge = (envelope.get("aftermath") or {}).get("challenge")
@@ -145,7 +209,18 @@ def search_browse(query: str, limit: int, timeout: float) -> tuple[list[dict[str
     value = envelope["value"]
     if value.get("blocked"):
         return [], "browse:human_action_required"
-    rows = _public_rows(value.get("results"), limit, source="Google via browse")
+    rows: list[dict[str, str]] = []
+    for item in value.get("results", []):
+        if not isinstance(item, dict):
+            continue
+        public = _result_url(item.get("url"), chosen)
+        title = item.get("title")
+        if public and isinstance(title, str) and title.strip():
+            rows.append({"title": title[:500], "url": public,
+                         "snippet": "", "source": f"{label} via browse",
+                         "published_at": ""})
+        if len(rows) >= limit:
+            break
     return rows[:limit], "" if rows else "browse:no_results"
 
 

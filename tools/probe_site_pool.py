@@ -37,10 +37,12 @@ def main(argv: list[str] | None = None) -> int:
     results = []
     for site in sites:
         started = time.monotonic()
-        if site.adapter == "google":
+        if site.adapter != "generic":
             from src.web.browse_search import search_browse
 
-            rows, error = search_browse(args.query, args.limit, args.timeout)
+            rows, error = search_browse(
+                args.query, args.limit, args.timeout, engine=site.adapter
+            )
             meta = {"status": "ok" if rows else (error or "browse:no_results"),
                     "seconds": round(time.monotonic() - started, 2),
                     "page_results": len(rows)}
