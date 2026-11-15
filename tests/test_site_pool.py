@@ -59,12 +59,13 @@ def test_short_ascii_words_match_as_words_not_fragments():
 
 def test_only_sites_with_real_browser_evidence_are_routed(monkeypatch):
     keys = [site.key for site in site_pool.select_sites("星铁虚构叙事配队推荐")]
-    assert "miyoushe" not in keys and "nga" not in keys
+    assert keys[0] == "miyoushe"          # verified after login + page adapters
+    assert "nga" not in keys              # still failing: only footer links
     assert all(site_pool._BY_KEY[key].default_enabled for key in keys)
 
-    monkeypatch.setenv("WEB_SITE_POOL_EXTRA_SITES", "miyoushe")
+    monkeypatch.setenv("WEB_SITE_POOL_EXTRA_SITES", "nga")
     keys = [site.key for site in site_pool.select_sites("星铁虚构叙事配队推荐")]
-    assert keys[0] == "miyoushe"
+    assert keys[:2] == ["miyoushe", "nga"]
 
 
 def test_every_default_site_can_recognise_its_results():
@@ -78,6 +79,19 @@ def test_selection_is_bounded_and_deduplicated(monkeypatch):
     keys = [site.key for site in site_pool.select_sites("报错 error exception")]
     assert len(keys) == 2
     assert len(set(keys)) == 2
+
+
+def test_a_game_question_uses_the_matching_miyoushe_search_page():
+    miyoushe = site_pool._BY_KEY["miyoushe"]
+    assert miyoushe.search_url("流萤 配队").startswith(
+        "https://www.miyoushe.com/sr/search?keyword="
+    )
+    assert miyoushe.search_url("原神 纳西妲 配队").startswith(
+        "https://www.miyoushe.com/ys/search?keyword="
+    )
+    assert miyoushe.search_url("绝区零 配队").startswith(
+        "https://www.miyoushe.com/zzz/search?keyword="
+    )
 
 
 def test_a_site_without_a_result_rule_is_not_routed(monkeypatch):
@@ -354,7 +368,8 @@ def test_the_route_report_separates_candidates_from_what_runs():
     route = site_pool.describe_route("星铁虚构叙事配队推荐")
 
     assert route["candidates"][:2] == ["miyoushe", "nga"]
-    assert "miyoushe" in route["skipped"] and "nga" in route["skipped"]
+    assert route["enabled"][0] == "miyoushe"
+    assert "nga" in route["skipped"] and "reddit" in route["skipped"]
     assert all(key not in route["skipped"] for key in route["enabled"])
     assert set(route["enabled"]) | set(route["skipped"]) | set(route["trimmed"]) == set(
         route["candidates"]

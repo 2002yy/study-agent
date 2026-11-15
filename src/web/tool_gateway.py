@@ -659,6 +659,9 @@ class GeneralWebGateway:
         from src.web.browse_search import search_browse_at
 
         deadline = time.monotonic() + max(1.5, timeout)
+        site_seconds = _env_float(
+            "WEB_SITE_POOL_SITE_SECONDS", 12.0, minimum=5.0, maximum=18.0
+        )
         outcomes = site_pool.start_outcomes()
         grouped: list[tuple[str, list[dict[str, str]]]] = []
         for site in site_pool.select_sites(query):
@@ -672,7 +675,7 @@ class GeneralWebGateway:
 
                 started = time.monotonic()
                 rows, error = search_browse(
-                    query, limit, min(10.0, remaining), engine=site.adapter
+                    query, limit, min(site_seconds, remaining), engine=site.adapter
                 )
                 meta = {"status": "ok" if rows else (error or "browse:no_results"),
                         "seconds": round(time.monotonic() - started, 2),
@@ -681,7 +684,7 @@ class GeneralWebGateway:
                 rows, error, meta = search_browse_at(
                     site.search_url(query),
                     limit,
-                    min(10.0, remaining),
+                    min(site_seconds, remaining),
                     source=f"{site.label} via browse",
                     selector=site.result_selector,
                     pattern=site.result_pattern,

@@ -13,6 +13,29 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 米游社登录后验收通过并启用；知乎实测不稳定，保持关闭
+
+用户在 browse 已连接的浏览器中登录米游社与知乎后，按“页面可开 → 真实结果 → 正文可读 → 稳定 → 耗时”验收：
+
+米游社（已启用 `default_enabled=True`）
+- 原搜索地址 `https://www.miyoushe.com/search?keyword=` 返回 404（页面文字 "Not Found"，0 anchor）。真实结构是每个游戏一个搜索页：`/<game>/search?keyword=`（`sr` 星穹铁道、`ys` 原神、`zzz` 绝区零、`bh3` 崩坏3、`wd` 未定）。
+- 新增 `SiteProfile.search_variants`：按问题里的游戏词选择模板，默认 `sr`。
+- 结果容器 `a.mhy-article-card__link`，URL 形状 `/<game>/article/<id>`。
+- 实测：两次探测均 `ok`，page=7、valid=5，10.1s / 9.4s；网关内 4.19s、5 条。正文可读：`/sr/article/74890594` 文本 1452 字符，含正文与评论。
+- 证据：D:/study-agent-validation/miyoushe-after-login{2,3}.json。
+
+知乎（登录后可用但不稳定，保持 `default_enabled=False`）
+- 登录后经典回答卡片可提取：query "流萤 配队" → page=10、valid=5，5.5s/4.8s；正文可读（1361 字符）。
+- 但 query "校招 Java 后端 面试经验" 时，知乎返回 AI 摘要页，70 个 anchor 中 **0 个** `/question/` 链接（`type=content` 与 `?q=` 均如此），提取为 `no_results`。
+- 结论：不满足“重复测试稳定”，继续留在候选目录，可 `WEB_SITE_POOL_EXTRA_SITES=zhihu` 显式启用。
+- 证据：D:/study-agent-validation/zhihu-after-login.json。
+
+其他
+- 新增 `WEB_SITE_POOL_SITE_SECONDS`（默认 12s）：中文社区冷启动可达 10s，原先固定 10s 会把慢站截断；池总预算 20s 不变。
+- 网关真实复测（"星铁 流萤 配队 推荐"）：19.0s，miyoushe 4.19s/5 条 + google 5.45s/5 条；`site_route` 显示 nga/reddit/linuxdo/duckduckgo skipped。
+- NGA、Chiphell、Reddit 仍为失败项（只有页脚 / 无结果），继续保持关闭；NGA 需登录后再测，Reddit 需客户端渲染适配。
+测试：站点池 + browse 34 PASS；web 搜索影响集 101 PASS；Ruff 通过；无付费调用。
+
 ### 2026-11-15 多来源合并、验证页误判、路由报告可见
 
 审查 09c0e60c→d227d64d 又指出三处问题，本轮修复并补测试（无付费调用）：

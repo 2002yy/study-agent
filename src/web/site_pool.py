@@ -55,7 +55,16 @@ class SiteProfile:
     #: default route on the strength of "the page opened".
     default_enabled: bool = False
 
+    #: Alternative search templates chosen by a word in the question, e.g. a
+    #: community that has one search page per game. (keywords, template) pairs,
+    #: first match wins; ``search`` is the fallback.
+    search_variants: tuple[tuple[tuple[str, ...], str], ...] = ()
+
     def search_url(self, query: str) -> str:
+        text = str(query or "").casefold()
+        for keywords, template in self.search_variants:
+            if any(word.casefold() in text for word in keywords):
+                return template.replace("{q}", quote_plus(query))
         return self.search.replace("{q}", quote_plus(query))
 
     @property
@@ -126,7 +135,12 @@ SITES: tuple[SiteProfile, ...] = (
                 result_pattern=r"^https://linux\.do/t/[^/?#]+/\d+"),
     SiteProfile("zhihu", "知乎", "zh_community", "https://www.zhihu.com/",
                 "https://www.zhihu.com/search?type=content&q={q}", needs_login=True,
-                note="2026-11-15: only footer links extracted",
+                result_selector='.SearchResult-Card a[href*="/question/"]',
+                note=(
+                    "2026-11-15: logged-in session; classic answer cards extract 5/5, "
+                    "but some queries render an AI-only page with no question links, "
+                    "so it stays opt-in until that is stable"
+                ),
                 result_pattern=r"^https://(?:www\.)?zhihu\.com/question/\d+|^https://zhuanlan\.zhihu\.com/p/\d+"),
     SiteProfile("juejin", "稀土掘金", "zh_community", "https://juejin.cn/",
                 "https://juejin.cn/search?query={q}", default_enabled=True,
@@ -146,9 +160,16 @@ SITES: tuple[SiteProfile, ...] = (
                 note="2026-11-15: results render after the first paint",
                 result_pattern=r"^https://store\.steampowered\.com/app/\d+"),
     SiteProfile("miyoushe", "米游社", "domain", "https://www.miyoushe.com/",
-                "https://www.miyoushe.com/search?keyword={q}",
-                note="2026-11-15: SPA shell renders no anchors without login",
-                result_pattern=r"^https://(?:www\.)?miyoushe\.com/[^/?#]+/article/\d+"),
+                "https://www.miyoushe.com/sr/search?keyword={q}",
+                search_variants=(
+                    (("原神",), "https://www.miyoushe.com/ys/search?keyword={q}"),
+                    (("绝区零",), "https://www.miyoushe.com/zzz/search?keyword={q}"),
+                    (("崩坏3", "崩坏三"), "https://www.miyoushe.com/bh3/search?keyword={q}"),
+                    (("未定事件簿",), "https://www.miyoushe.com/wd/search?keyword={q}"),
+                ),
+                result_selector="a.mhy-article-card__link", default_enabled=True,
+                note="2026-11-15: /search is 404; each game has its own /<game>/search page (5/5 valid, ~10s)",
+                result_pattern=r"^https://www\.miyoushe\.com/(?:sr|ys|zzz|bh3|wd)/article/\d+"),
     SiteProfile("nga", "NGA", "domain", "https://bbs.nga.cn/",
                 "https://bbs.nga.cn/search.php?key={q}",
                 note="2026-11-15: only registration/footer links extracted",
