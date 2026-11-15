@@ -1789,7 +1789,10 @@ class ChatService:
                         self.dependencies.chat_max_tokens(
                             prepared.runtime_modes.performance_mode
                         ),
-                        1600,  # Claim binding is structured metadata, not the user answer.
+                        # 16 segments with verbatim quotes overflow 1600 tokens:
+                        # a truncated batch is malformed JSON, which rejects the
+                        # whole answer. This is structured metadata, not prose.
+                        2600,  # Claim binding is structured metadata, not the user answer.
                     ),
                     task_name="answer_claim_binding",
                     response_format="json_object",
