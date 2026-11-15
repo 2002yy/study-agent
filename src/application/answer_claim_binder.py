@@ -95,6 +95,8 @@ _SENTENCE_BOUNDARY = re.compile(
     re.IGNORECASE,
 )
 _RULE_LINE = re.compile(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$")
+#: A list number or bullet by itself carries no claim.
+_LIST_MARKER_ONLY = re.compile(r"^(?:\d+[.)]|[-*+])$")
 #: A unit must carry content; bare markdown markers are formatting, not claims.
 _CONTENT = re.compile(r"[0-9A-Za-z\u4e00-\u9fff]")
 
@@ -887,10 +889,24 @@ def _segment_answer_units(answer: str) -> list[str]:
                 continue
             body = f"{pending_heading} {line}".strip() if pending_heading else line
             pending_heading = ""
+            pending_marker = ""
             for part in _SENTENCE_BOUNDARY.split(body):
                 part = part.strip()
-                if part and _CONTENT.search(part):
+                if not part:
+                    continue
+                if _LIST_MARKER_ONLY.match(part):
+                    # "2." is a list marker, not a statement. Sending it to the
+                    # binder produced a whole-batch refusal (q8), and withholding
+                    # it would delete the numbering from the published answer.
+                    pending_marker = f"{pending_marker} {part}".strip()
+                    continue
+                if pending_marker:
+                    part = f"{pending_marker} {part}"
+                    pending_marker = ""
+                if _CONTENT.search(part):
                     units.append(part)
+            if pending_marker and _CONTENT.search(pending_marker):
+                units.append(pending_marker)
     if pending_heading and _CONTENT.search(pending_heading):
         units.append(pending_heading)
     return units

@@ -761,3 +761,39 @@ def test_a_second_rejected_quote_still_rejects_the_answer() -> None:
     assert bound.snapshot.status != "validated"
     assert "unverified_source_quote" in str(bound.snapshot.reason)
     assert calls["count"] == 2  # one repair attempt, then stop
+
+_Q8_EXCERPT = """## 迁移触发条件（命中任意一条再迁）
+
+| 触发条件 | 为什么是它 |
+|---|---|
+| 数据库文件必须放到网络文件系统 / 多机共享 | SQLite 文件锁在网络 FS 上不可靠，这是硬伤 |
+| 后台索引任务无法拆成短事务，且必须与在线写入并发 | 长写事务 + 多个写者 = 持续 SQLITE_BUSY |
+
+2. **真正的风险在后台索引任务**
+3. **单用户 + 本地磁盘 + 短事务 = SQLite WAL 的性能余量非常大**
+"""
+
+
+def test_a_list_number_is_not_its_own_segment() -> None:
+    """A bare "2." made the binder refuse a whole batch (q8)."""
+
+    segments, _stats = segment_answer_with_stats(_Q8_EXCERPT)
+
+    assert segments
+    assert not [s for s in segments if re.fullmatch(r"\d+[.)]|[-*+]", s.strip())]
+    numbered = [s for s in segments if "真正的风险在后台索引任务" in s]
+    assert numbered and numbered[0].startswith("2.")
+
+
+def test_markdown_structure_and_table_content_survive_segmentation() -> None:
+    """Structure is kept in the answer; table rows are still verified."""
+
+    segments, _stats = segment_answer_with_stats(_Q8_EXCERPT)
+    joined = "\n".join(segments)
+
+    # Headings and table rows that carry a claim remain in the text.
+    assert "迁移触发条件" in joined
+    assert "网络文件系统" in joined and "SQLITE_BUSY" in joined
+    # The separator row carries no claim; it stays in the published answer
+    # because withholding only removes segments, never structural lines.
+    assert "|---|---|" not in joined
