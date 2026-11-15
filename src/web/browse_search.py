@@ -199,6 +199,7 @@ def search_browse(
         return [], "browse:invalid_engine"
     endpoint, selector, label = _ENGINES[chosen]
     parsed = urlsplit(endpoint)
+    origins: tuple[str, ...]
     if chosen == "bing":
         origins = ("https://www.bing.com", "https://cn.bing.com")
     elif chosen == "duckduckgo":
