@@ -164,7 +164,7 @@ def _dedupe_results(items: list[dict[str, str]], limit: int) -> list[dict[str, s
     return result
 
 
-SEARCH_STRATEGIES = ("fallback", "merge", "ddg_first", "browser_first")
+SEARCH_STRATEGIES = ("fallback", "merge", "ddg_first", "browser_first", "browse_sites")
 _DEFAULT_SEARCH_STRATEGY = "fallback"
 _MERGE_TRACE_KEYS = (
     "search_strategy",
@@ -384,6 +384,11 @@ class GeneralWebGateway:
             "domain_filtered_count": filtered_count,
             "provider_errors": provider_errors,
             "providers_attempted": list(outcome["providers_attempted"]),
+            **(
+                {"site_outcomes": outcome["site_outcomes"]}
+                if "site_outcomes" in outcome
+                else {}
+            ),
             **trace,
             "searched_at": current.isoformat(),
         }
@@ -491,17 +496,26 @@ class GeneralWebGateway:
         provider_timeout = _env_float(
             "WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS", 6.0, minimum=1.0, maximum=8.0
         )
-        deadline = time.monotonic() + _env_float(
-            "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", 8.0, minimum=3.0, maximum=10.0
-        )
+        if self.search_strategy == "browse_sites":
+            # One provider searches several sites sequentially; the ordinary
+            # 8s single-provider budget would cut it off after the first one.
+            deadline = time.monotonic() + _env_float(
+                "WEB_SITE_POOL_TOTAL_SECONDS", 24.0, minimum=8.0, maximum=40.0
+            )
+        else:
+            deadline = time.monotonic() + _env_float(
+                "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", 8.0, minimum=3.0, maximum=10.0
+            )
         plan = {
             "fallback": ("searxng", "bing_rss", "duckduckgo_html"),
             "browser_first": ("browse", "searxng", "bing_rss", "duckduckgo_html"),
+            "browse_sites": ("browse_sites", "searxng", "bing_rss", "duckduckgo_html"),
             "ddg_first": ("duckduckgo_html", "bing_rss"),
             "merge": ("bing_rss", "duckduckgo_html"),
         }[self.search_strategy]
         providers = {
             "browse": (True, self._search_browse),
+            "browse_sites": (True, self._search_browse_sites),
             "searxng": (searxng_enabled(), self._search_searxng),
             "bing_rss": (_env_flag("WEB_ENABLE_BING_RSS", True), self._search_bing_rss),
             "duckduckgo_html": (
@@ -524,7 +538,14 @@ class GeneralWebGateway:
                     errors.append(f"{name}:provider_disabled")
                 skipped.append({"provider": name, "reason": "provider_disabled"})
                 continue
-            timeout = _provider_timeout(deadline, provider_timeout, name, errors)
+            if name == "browse_sites":
+                timeout = max(0.0, deadline - time.monotonic())
+                if timeout <= 0:
+                    errors.append("browse_sites:search_budget_exhausted")
+                    skipped.append({"provider": name, "reason": "search_budget_exhausted"})
+                    continue
+            else:
+                timeout = _provider_timeout(deadline, provider_timeout, name, errors)
             if not timeout:
                 skipped.append({"provider": name, "reason": "search_budget_exhausted"})
                 continue
@@ -557,6 +578,10 @@ class GeneralWebGateway:
         }
         if self.search_strategy != "fallback":
             payload.update(search_strategy=self.search_strategy, provider_counts=counts)
+        if self.search_strategy == "browse_sites":
+            from src.web import site_pool
+
+            payload["site_outcomes"] = site_pool.take_outcomes()
         if self.search_strategy == "ddg_first":
             payload["fallback_used"] = fallback_used
         elif self.search_strategy == "merge":
@@ -573,6 +598,47 @@ class GeneralWebGateway:
         from src.web.browse_search import search_browse
 
         return search_browse(query, limit, timeout)
+
+    def _search_browse_sites(self, query: str, limit: int, timeout: float):
+        """Search the selected sites in order, one browser page each."""
+
+        from src.web import site_pool
+        from src.web.browse_search import search_browse_at
+
+        deadline = time.monotonic() + max(1.5, timeout)
+        outcomes = site_pool.start_outcomes()
+        collected: list[dict[str, str]] = []
+        for site in site_pool.select_sites(query):
+            remaining = deadline - time.monotonic()
+            if remaining < 1.5:
+                outcomes.append({"site": site.key, "status": "budget_exhausted",
+                                 "seconds": 0.0, "results": 0})
+                continue
+            if site.adapter == "google":
+                from src.web.browse_search import search_browse
+
+                started = time.monotonic()
+                rows, error = search_browse(query, limit, min(10.0, remaining))
+                meta = {"status": "ok" if rows else (error or "browse:no_results"),
+                        "seconds": round(time.monotonic() - started, 2)}
+            else:
+                rows, error, meta = search_browse_at(
+                    site.search_url(query),
+                    limit,
+                    min(10.0, remaining),
+                    source=f"{site.label} via browse",
+                )
+            outcomes.append({
+                "site": site.key,
+                "status": meta.get("status") or (error or "ok"),
+                "seconds": meta.get("seconds", 0.0),
+                "results": len(rows),
+            })
+            collected.extend(rows)
+            if len(collected) >= limit:
+                break
+        unique = _dedupe_results(collected, len(collected))
+        return unique[:limit], "" if unique else "browse:no_results"
 
     @staticmethod
     def _search_searxng(

@@ -13,6 +13,20 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 站点池接入（12站首批）与真实浏览器矩阵
+
+用户要求把“多搜索引擎＋专业社区＋中文社区”站点池接入。已实现（未推送前先记录）：
+- src/web/site_pool.py：站点目录（19条，含12个首批核心站）与按问题形状路由（报错→StackOverflow/GitHub；选型/体验→Reddit/HN/V2EX/LINUX DO；开源/部署→GitHub；论文→arXiv；模型/API→HuggingFace；硬件→Chiphell；游戏→米游社/NGA/Steam；就业→牛客），限制条数与去重。
+- src/web/tool_gateway.py：新增 browse_sites 策略，按站点顺序逐个用真实浏览器搜索，独立24秒池预算，记录每站 status/耗时/结果数（payload.site_outcomes）；无结果时按既有链回退 SearXNG/Bing RSS/DDG。默认仍为 fallback，需 WEB_SEARCH_STRATEGY=browse_sites 才启用。
+- src/web/browse_search.py：新增 search_browse_at（任意站点搜索页），统一安全边界：只留公网URL、challenge 停止、登录墙识别（仅当无结果且出现可见登录控件）、慢站导航超时后仍取已渲染DOM；Google 走原专用适配器。
+- tools/probe_site_pool.py：同一问题对站点池做真实浏览器探测（无模型费用），输出 status/耗时/结果数/样例URL的JSON矩阵。
+
+真实矩阵（query=SQLite WAL concurrent writers，18秒超时，D:/study-agent-validation/site-pool-20261115/matrix-final.json 与 matrix5.json）：
+- 12个核心站中 11 个能返回结果；reddit 为 browse:no_results（SPA/登录墙，需专门适配）；linuxdo 时好时坏（一次 ok、一次 login_required）。
+- 质量分层：Google/Brave/GitHub/掘金/arXiv 返回的是结果页；DuckDuckGo/Bing/V2EX/知乎/HuggingFace/Steam/NGA/Chiphell/牛客 仍混入大量导航与页脚链接——通用抽取器不足，需要按站 result_selector 或多阶段容器选择。
+- 结论：站点池已接入但不是“已验收可用”；在补 selector 前不应把 browse_sites 设为默认。
+测试：tests/test_site_pool.py + test_browse_search.py 10 PASS；Ruff通过；无付费模型调用。
+
 ### 2026-11-15 发布契约 v4：分批校验、跨语言支持、事实/推断/建议分层（真实验收未完成：预算耗尽）
 
 branch codex/repair-evidence-20261112，base=HEAD a2d67670，未提交。用户裁定两项均为P1：解除16段对整篇答案的限制、支持跨语言语义验证，且不得直接放宽校验。
