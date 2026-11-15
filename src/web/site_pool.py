@@ -11,7 +11,11 @@ Two rules keep the routing honest:
 * a domain keyword (a game, a job board, a paper index) outranks a generic
   intent word, so "star rail team recommendation" does not go to Reddit first;
 * only a site whose results can actually be recognised is routable. A site that
-  merely opens is a candidate, not a source.
+  merely opens is a candidate, not a source, and one that failed a real probe
+  stays out of the default route until it is fixed.
+
+The default route is small on purpose: about a dozen sources that passed a real
+browser check, with the rest opt-in through ``WEB_SITE_POOL_EXTRA_SITES``.
 
 Safety rules live in :mod:`src.web.browse_search`; a challenge on one site stops
 that site only and never tries to get around it.
@@ -159,6 +163,12 @@ SITES: tuple[SiteProfile, ...] = (
                 result_selector="a.search_result_row", default_enabled=True,
                 note="2026-11-15: results render after the first paint",
                 result_pattern=r"^https://store\.steampowered\.com/app/\d+"),
+    SiteProfile("bilibili", "哔哩哔哩", "domain", "https://www.bilibili.com/",
+                "https://search.bilibili.com/all?keyword={q}",
+                result_selector=".bili-video-card__info--right a",
+                result_pattern=r"^https://www\.bilibili\.com/video/BV[0-9A-Za-z]+",
+                default_enabled=True,
+                note="2026-11-15: public search, 5/5 valid twice (~4.5s); video pages need the video pipeline"),
     SiteProfile("miyoushe", "米游社", "domain", "https://www.miyoushe.com/",
                 "https://www.miyoushe.com/sr/search?keyword={q}",
                 search_variants=(
@@ -191,17 +201,19 @@ _BY_KEY = {site.key: site for site in SITES}
 #: specific community is not outranked by a generic word such as "recommended".
 _DOMAIN_ROUTES: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("原神", "星铁", "崩坏", "米游社", "miyoushe", "配队", "抽卡"),
-     ("miyoushe", "nga", "reddit")),
+     ("miyoushe", "nga", "bilibili", "reddit")),
     (("游戏", "steam", "单机", "开黑"),
-     ("steam", "reddit", "chiphell")),
+     ("steam", "bilibili", "reddit")),
     (("显卡", "cpu", "内存", "装机", "硬件", "rtx", "笔记本", "chiphell"),
-     ("chiphell", "reddit", "v2ex")),
+     ("chiphell", "bilibili", "reddit")),
     (("校招", "面试", "找工作", "招聘", "简历", "就业", "牛客"),
      ("nowcoder", "v2ex", "zhihu")),
     (("论文", "arxiv", "paper", "引用", "文献"),
      ("arxiv", "google")),
     (("模型", "微调", "数据集", "权重", "huggingface"),
      ("huggingface", "github", "reddit")),
+    (("教程", "教学", "演示", "实操", "视频", "上手", "安装"),
+     ("bilibili", "google")),
     (("报错", "异常", "traceback", "exception", "崩溃", "不工作", "error", "failed"),
      ("stackoverflow", "github", "google")),
     (("开源", "源码", "issue", "pull request", "部署", "自建", "release", "github"),

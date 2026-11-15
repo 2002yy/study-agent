@@ -13,6 +13,22 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 新增哔哩哔哩并验收启用；视频证据需接现有视频管线
+
+B站不在原 19 站目录里，本轮新增适配器并做真实验收（无付费调用）：
+- 搜索页 `https://search.bilibili.com/all?keyword=` 公开可用，无需登录。
+- 结果容器 `.bili-video-card__info--right a`，URL 形状 `https://www.bilibili.com/video/BV…`（排除站内导航误收）。
+- 实测两次均 `ok`：page=40、valid=5，4.8s / 4.1s；视频页文本 1821 字符（标题、发布时间、简介、字幕开关可见）。
+- 已 `default_enabled=True`。
+- 路由：游戏攻略 `米游社→NGA→B站→Reddit`；游戏评价 `Steam→B站→Reddit`；硬件 `Chiphell→B站→Reddit`；新增教程类 `教程/教学/演示/实操/视频/上手/安装 → B站→Google`。
+- 真实网关复测：
+  - 「星铁 流萤 配队 推荐」16.06s，miyoushe 3.56s/5、bilibili 4.02s/5、google 8.48s/5，最终结果按站轮转（2/2/1）。
+  - 「RTX 5060 笔记本 实测」9.7s，bilibili 3.92s/5、google 3.42s/5、bing 2.36s/5。
+- 限制：搜索到视频 ≠ 理解视频。正文/字幕/关键帧证据要接现有视频理解管线；当前只把视频页面当作可引用来源（标题+简介）。
+
+站点总数 20，默认启用 13：google、bing、brave、github、v2ex、juejin、huggingface、arxiv、hn、nowcoder、steam、miyoushe、bilibili。
+测试：站点池 + browse 36 PASS；Ruff 通过。
+
 ### 2026-11-15 米游社登录后验收通过并启用；知乎实测不稳定，保持关闭
 
 用户在 browse 已连接的浏览器中登录米游社与知乎后，按“页面可开 → 真实结果 → 正文可读 → 稳定 → 耗时”验收：

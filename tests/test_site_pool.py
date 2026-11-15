@@ -34,7 +34,7 @@ def test_a_domain_word_outranks_a_generic_intent_word():
     # "推荐" is a generic intent word; the game community is still the source.
     keys = [site.key for site in site_pool.select_sites(
         "星铁虚构叙事配队推荐", include_unverified=True)]
-    assert keys[0] in {"miyoushe", "nga"}
+    assert keys[:3] == ["miyoushe", "nga", "bilibili"]
 
     keys = [site.key for site in site_pool.select_sites(
         "校招岗位推荐", include_unverified=True)]
@@ -43,6 +43,31 @@ def test_a_domain_word_outranks_a_generic_intent_word():
     keys = [site.key for site in site_pool.select_sites(
         "RTX 5060 玩某款游戏怎么样", include_unverified=True)]
     assert keys[0] == "steam"
+
+
+def test_a_tutorial_question_goes_to_video_first():
+    keys = [site.key for site in site_pool.select_sites(
+        "Windows 上部署 OpenCode 教程", include_unverified=True)]
+    assert keys[0] == "bilibili"
+
+    # A deployment question without a tutorial word still goes to GitHub.
+    keys = [site.key for site in site_pool.select_sites(
+        "这个开源软件适不适合部署", include_unverified=True)]
+    assert keys[0] == "github"
+
+
+def test_bilibili_keeps_only_video_links():
+    pattern = site_pool._BY_KEY["bilibili"].result_pattern
+    rows = browse_search._valid_rows(
+        [
+            {"title": "【崩铁】流萤配队攻略", "url": "https://www.bilibili.com/video/BV1Tvsn6TEfP/"},
+            {"title": "专栏文章", "url": "https://www.bilibili.com/read/cv123456"},
+        ],
+        5,
+        source="bilibili",
+        pattern=pattern,
+    )
+    assert [row["url"] for row in rows] == ["https://www.bilibili.com/video/BV1Tvsn6TEfP/"]
 
 
 def test_short_ascii_words_match_as_words_not_fragments():
@@ -238,15 +263,15 @@ def test_a_client_rendered_site_waits_for_its_result_container(monkeypatch):
 
 
 def test_the_gateway_passes_the_wait_selector(monkeypatch):
-    seen: dict[str, str] = {}
+    seen: list[dict[str, str]] = []
 
     def fake(url, limit, timeout, **kwargs):
-        seen.update(kwargs)
+        seen.append(kwargs)
         return [], "browse:no_results", {"status": "browse:no_results", "seconds": 1.0}
 
     monkeypatch.setattr(browse_search, "search_browse_at", fake)
     _gateway(monkeypatch).search_exact("RTX 5060 玩某款游戏怎么样")
-    assert seen["wait_for"] == "a.search_result_row"
+    assert "a.search_result_row" in [item.get("wait_for") for item in seen]
 
 
 def test_the_site_selector_is_parameterized_not_executed(monkeypatch):
