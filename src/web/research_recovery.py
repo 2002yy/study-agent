@@ -197,6 +197,34 @@ def ascii_topics(query: str, limit: int = 6) -> str:
     return " ".join(tokens)
 
 
+#: Names that identify a product rather than the topic being asked about.
+_TECH_NAMES = {name.casefold() for name in _DOC_DOMAINS} | {"postgres"}
+_GENERIC_TOPICS = {
+    "worker", "workers", "app", "application", "database", "index",
+    "indexing", "service", "server", "backend",
+}
+
+
+def documentation_query(domain: str, query: str) -> str:
+    """A focused ``site:`` query: the product name plus the question's topic.
+
+    ``site:sqlite.org FastAPI SQLite worker WAL PostgreSQL`` returns nothing;
+    ``site:sqlite.org SQLite WAL`` returns the WAL page. Everything that names
+    *other* products or the deployment shape is noise for a scoped query.
+    """
+
+    label = next(
+        (name for name, mapped in _DOC_DOMAINS.items() if mapped == domain), ""
+    )
+    topics = [
+        token for token in ascii_topics(query, limit=12).split()
+        if token.casefold() not in _TECH_NAMES
+        and token.casefold() not in _GENERIC_TOPICS
+    ]
+    parts = [label.capitalize() if label else "", *topics[:2]]
+    return f"site:{domain} {' '.join(part for part in parts if part)}".strip()
+
+
 def _rewrite(query: str) -> tuple[str, tuple[str, ...]]:
     spaced = re.sub(r"(?<=[A-Za-z])(?=\d)", " ", query)
     if model_targets(spaced):
@@ -319,21 +347,21 @@ def _recover_public_research(
     provider_failures = 0
     search_topic = normalize_web_query(query).canonical_query
     rewritten, domains = _rewrite(search_topic)
-    if not domains:
-        domains = documentation_domains(query, rewritten)
+    doc_domains = () if domains else documentation_domains(query, rewritten)
     markers = [target_identity_pattern(target) for target in model_targets(rewritten)]
     # A bare short Chinese topic must appear whole in the body. Matching only
     # one character (e.g. a surname dictionary entry) is not topic evidence.
     literal_topic = search_topic.strip() if re.fullmatch(r"[\u3400-\u9fff]{2,4}", search_topic.strip()) else ""
-    authority = " OR ".join(f"site:{domain}" for domain in domains)
-    # A mixed-language question scoped to an English documentation site needs
-    # the product names, not the Chinese sentence around them.
-    scoped = ascii_topics(query) or rewritten
-    authority_query = (
-        f"({authority}) {scoped}"
-        if domains
-        else f"{rewritten} official documentation"
-    )
+    if domains:
+        # An official release plan already knows its exact homes; keep the
+        # existing OR scope over them.
+        authority_query = f"({' OR '.join(f'site:{d}' for d in domains)}) {rewritten}"
+    elif doc_domains:
+        # A documentation question needs the product name and one topic, not
+        # the whole sentence (which may be Chinese).
+        authority_query = documentation_query(doc_domains[0], query)
+    else:
+        authority_query = f"{rewritten} official documentation"
     # Initial/alternate reads cannot consume the final authority recovery slots.
     phases = (
         [
@@ -365,7 +393,9 @@ def _recover_public_research(
         planned = query_plan[: min(3, budget.max_queries - 1)]
         official_query = next(
             (row["query"] for row in query_plan if re.match(r"^site:[A-Za-z0-9.-]+\s", row["query"])),
-            f"site:{domains[0]} {scoped}" if domains else authority_query,
+            f"site:{domains[0]} {rewritten}" if domains
+            else documentation_query(doc_domains[0], query) if doc_domains
+            else authority_query,
         )
         # The live RSS fallback returned generic homepages when release/date/
         # schedule padding was appended, but found the exact official release

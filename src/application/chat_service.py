@@ -1275,6 +1275,38 @@ class ChatService:
         with repair_scope(prepared.thread.id, prepared.route.get("interactive_repair")):
             return self._generate(prepared)
 
+    def _messages_with_citation_scope(self, prepared: PreparedChatTurn) -> Any:
+        """Tell the writer which sources it is allowed to cite.
+
+        The answer may only cite pages this turn actually read; the post-check
+        enforces it. Saying so up front is what lets the model comply instead of
+        losing the whole answer to one remembered link.
+        """
+
+        messages = prepared.messages
+        rows = (prepared.answer_validation or {}).get("evidence_rows") or ()
+        urls = sorted({
+            str(row.get("url")).strip()
+            for row in rows
+            if isinstance(row, dict) and str(row.get("url") or "").strip()
+        })
+        if not urls or not answer_validation_active(prepared):
+            return messages
+        block = {
+            "role": "system",
+            "content": (
+                "引用范围：本次只读取了下列页面，回答中的每个链接都必须来自这份列表，"
+                "不得添加列表之外的 URL，也不得凭记忆引用未见过的页面。\n"
+                + "\n".join(urls)
+            ),
+        }
+        if isinstance(messages, (list, tuple)) and messages:
+            first = messages[0]
+            if isinstance(first, dict) and first.get("role") == "system":
+                return [first, block, *messages[1:]]
+            return [block, *messages]
+        return messages
+
     def _generate(self, prepared: PreparedChatTurn) -> str:
         cancel_check = self._make_cancel_check(
             prepared.turn.id, prepared.turn.operation_id or ""
@@ -1308,10 +1340,11 @@ class ChatService:
                 operation_id=prepared.turn.operation_id or "",
             )
         try:
+            messages = self._messages_with_citation_scope(prepared)
             suffix = bounded_model_call(
                 prepared.research_deadline,
                 lambda: self._chat_within_scope(prepared)(
-                    prepared.messages,
+                    messages,
                     model_profile=prepared.route["model_profile"],
                     max_tokens=max_tokens,
                     task_name="single_chat",
