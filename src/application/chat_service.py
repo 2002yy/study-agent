@@ -1704,6 +1704,32 @@ class ChatService:
                 self._blocked_audit_phases(generation_phase, "candidate_unavailable"),
                 True,
             )
+        # An answer may cite only pages this turn actually read. Otherwise the
+        # binder is asked to verify a citation nobody could have read, and the
+        # whole answer is lost to a link the model produced from memory.
+        from src.domain.answer_links import outside_evidence_links
+
+        outside = outside_evidence_links(
+            answer, (row.url for row in rows if row.url)
+        )
+        if outside:
+            blocked = rejected_answer_claim_snapshot(
+                answer=RESEARCH_ANSWER_BLOCKED_COPY,
+                producer=ANSWER_CLAIM_BINDER_PRODUCER,
+                reason="citation_outside_evidence:" + ",".join(outside[:3])[:160],
+            )
+            if isinstance(prepared.rag, dict):
+                prepared.rag["answer_claim_snapshot"] = blocked.to_dict()
+                prepared.rag["answer_citation_scope"] = {
+                    "allowed": sorted({row.url for row in rows if row.url}),
+                    "outside": outside[:10],
+                }
+            return (
+                RESEARCH_ANSWER_BLOCKED_COPY,
+                blocked,
+                self._blocked_audit_phases(generation_phase, "citation_outside_evidence"),
+                True,
+            )
         cancel_check = self._make_cancel_check(
             prepared.turn.id, prepared.turn.operation_id or ""
         )

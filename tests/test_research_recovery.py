@@ -471,3 +471,24 @@ def test_opus_real_trajectory_is_replayed_through_agent_and_durable_runs(
             ]
         )
     assert all(query != "快去" and "快手" not in query for query in gateway.queries)
+
+def test_a_mixed_language_question_gets_a_scoped_documentation_query():
+    from src.web.research_recovery import ascii_topics, documentation_domains
+
+    question = (
+        "我有一个单用户聊天应用，FastAPI 后端，SQLite，4 个 worker，"
+        "同时跑后台索引，应该继续用 SQLite WAL 还是迁移 PostgreSQL？"
+    )
+    assert documentation_domains(question) == ("sqlite.org", "postgresql.org")
+    topics = ascii_topics(question)
+    # The Chinese sentence must not be sent to an English documentation scope.
+    assert topics == "FastAPI SQLite worker WAL PostgreSQL"
+    assert not any("\u4e00" <= char <= "\u9fff" for char in topics)
+
+
+def test_documentation_domains_ignore_unrelated_words():
+    from src.web.research_recovery import documentation_domains
+
+    assert documentation_domains("今天天气怎么样") == ()
+    assert documentation_domains("sqlite3 命令行") == ()
+    assert documentation_domains("SQLite 的 WAL 文档") == ("sqlite.org",)

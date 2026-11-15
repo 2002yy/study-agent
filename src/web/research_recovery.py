@@ -146,6 +146,57 @@ def target_identity_pattern(target: tuple[str, str]) -> re.Pattern[str]:
     )
 
 
+#: Official documentation homes for technologies a research question names.
+#: This is a discovery hint (one scoped query), not an answer: a page still has
+#: to be read and judged before it can support anything.
+_DOC_DOMAINS: dict[str, str] = {
+    "sqlite": "sqlite.org",
+    "postgresql": "postgresql.org",
+    "postgres": "postgresql.org",
+    "fastapi": "fastapi.tiangolo.com",
+    "python": "docs.python.org",
+    "docker": "docs.docker.com",
+    "redis": "redis.io",
+    "nginx": "nginx.org",
+    "kubernetes": "kubernetes.io",
+}
+
+_STOPWORDS = {
+    "the", "and", "or", "for", "with", "from", "this", "that", "should", "what",
+    "how", "why", "when", "which", "are", "is", "to", "of", "in", "on", "vs",
+    "a", "an", "do", "does", "can", "my", "we", "i",
+}
+
+
+def documentation_domains(query: str, rewritten: str = "") -> tuple[str, ...]:
+    """Domains worth one scoped query for the technologies this question names."""
+
+    text = f"{query} {rewritten}".casefold()
+    found: list[str] = []
+    for name, domain in _DOC_DOMAINS.items():
+        if re.search(rf"(?<![a-z0-9]){re.escape(name)}(?![a-z0-9])", text):
+            if domain not in found:
+                found.append(domain)
+    return tuple(found[:2])
+
+
+def ascii_topics(query: str, limit: int = 6) -> str:
+    """English/ASCII tokens of a mixed-language question, for a scoped query.
+
+    A Chinese question sent to ``site:sqlite.org`` finds dictionary pages; the
+    product names (SQLite, WAL, FastAPI) are what the engine can match.
+    """
+
+    tokens: list[str] = []
+    for token in re.findall(r"[A-Za-z][A-Za-z0-9.+#-]{1,}", str(query or "")):
+        if token.casefold() in _STOPWORDS or token in tokens:
+            continue
+        tokens.append(token)
+        if len(tokens) >= limit:
+            break
+    return " ".join(tokens)
+
+
 def _rewrite(query: str) -> tuple[str, tuple[str, ...]]:
     spaced = re.sub(r"(?<=[A-Za-z])(?=\d)", " ", query)
     if model_targets(spaced):
@@ -268,13 +319,18 @@ def _recover_public_research(
     provider_failures = 0
     search_topic = normalize_web_query(query).canonical_query
     rewritten, domains = _rewrite(search_topic)
+    if not domains:
+        domains = documentation_domains(query, rewritten)
     markers = [target_identity_pattern(target) for target in model_targets(rewritten)]
     # A bare short Chinese topic must appear whole in the body. Matching only
     # one character (e.g. a surname dictionary entry) is not topic evidence.
     literal_topic = search_topic.strip() if re.fullmatch(r"[\u3400-\u9fff]{2,4}", search_topic.strip()) else ""
     authority = " OR ".join(f"site:{domain}" for domain in domains)
+    # A mixed-language question scoped to an English documentation site needs
+    # the product names, not the Chinese sentence around them.
+    scoped = ascii_topics(query) or rewritten
     authority_query = (
-        f"({authority}) {rewritten}"
+        f"({authority}) {scoped}"
         if domains
         else f"{rewritten} official documentation"
     )
@@ -309,7 +365,7 @@ def _recover_public_research(
         planned = query_plan[: min(3, budget.max_queries - 1)]
         official_query = next(
             (row["query"] for row in query_plan if re.match(r"^site:[A-Za-z0-9.-]+\s", row["query"])),
-            f"site:{domains[0]} {rewritten}" if domains else authority_query,
+            f"site:{domains[0]} {scoped}" if domains else authority_query,
         )
         # The live RSS fallback returned generic homepages when release/date/
         # schedule padding was appended, but found the exact official release
