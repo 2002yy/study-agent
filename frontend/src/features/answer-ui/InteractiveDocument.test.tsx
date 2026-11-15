@@ -209,9 +209,16 @@ describe("generated interactive documents", () => {
     expect(doc).not.toContain("allow-same-origin");
   });
 
-  it("ignores foreign/oversized bridge messages and preserves state across appended streamed prose", () => {
+  it("defers the interactive document while streaming and preserves state across appended prose", () => {
     const onDraft = vi.fn();
-    const view = render(<MarkdownMessage interactive streaming content={block(card)} onDraft={onDraft} />);
+    const streamed = block(card);
+    const view = render(<MarkdownMessage interactive streaming content={streamed} onDraft={onDraft} />);
+    // Executable documents wait for the final server-validated answer.
+    expect(view.container.querySelector("iframe")).toBeNull();
+    view.rerender(<MarkdownMessage interactive streaming content={streamed + "\n\n接下来试试改变锁定数量。"} onDraft={onDraft} />);
+    expect(view.container.querySelector("iframe")).toBeNull();
+
+    view.rerender(<MarkdownMessage interactive content={streamed + "\n\n接下来试试改变锁定数量。"} onDraft={onDraft} />);
     const frame = view.container.querySelector("iframe")!;
     expect(frame).toHaveAttribute("sandbox", "allow-scripts");
     const channel = /const channel = "([^"]+)"/.exec(frame.srcdoc)![1];
@@ -220,8 +227,6 @@ describe("generated interactive documents", () => {
     send(frame.contentWindow, "https://example.com", { stolen: true });
     send(frame.contentWindow, "null", { stock: 42 });
     send(frame.contentWindow, "null", { oversized: "x".repeat(4001) });
-    view.rerender(<MarkdownMessage interactive streaming content={block(card) + "\n\n接下来试试改变锁定数量。"} onDraft={onDraft} />);
-    expect(view.container.querySelector("iframe")).toBe(frame);
     fireEvent.click(screen.getByRole("button", { name: "带着当前状态继续问" }));
     expect(onDraft).toHaveBeenLastCalledWith(expect.stringContaining('"stock":42'));
     expect(onDraft.mock.calls.slice(-1)[0][0]).not.toContain("stolen");
