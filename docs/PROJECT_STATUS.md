@@ -13,6 +13,19 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 端到端验收（P0）：链路已跑通到发布门，但被 binder 引用不合规拦住
+
+按裁定用 DeepSeek 真实价格（deepseek-flash 高峰 2/8 元每百万 tokens，空闲 1/4；核对 https://api-docs.deepseek.com/zh-cn/quick_start/pricing/ ）新建实验 `study-agent-live-20261115`（cap 3 元）。此前“一题约 2 元”是旧 9/27 上限造成的**高估约 7 倍**：本次每次完整尝试约 **0.27 元**（5–6 次调用），不是 2 元。
+
+真实链路（research-e2e-q1c/q1d/q1e）：
+- 检索、正文读取、生成、逐段绑定全部执行；`evidence_refs=10`。
+- 首次失败：`research_recovery.invoke` 把每个 provider 调用硬限 8 秒，而站点池单次需 10–24 秒 → 每次 `provider_call_timeout`，检索结果 0。**已修**：`_provider_call_seconds(gateway)` 对 `browse_sites` 用「池预算+回退预留+1」并封顶 16 秒，其它策略仍 8 秒（tests/test_research_recovery.py 锁定）。
+- 第二次失败：答案生成 `finish_reason=length`、正文仅 1299 字符——思考模式吃掉 8192 输出预算。用产品已文档化的 `RESEARCH_ANSWER_BOUNDED_POLICY=on` 后生成完整（3912 字符，finish_reason=stop）。
+- 当前阻断：binder 第一批 16 段里 **7 条 source_quote 不是证据原文**（例如把 WAL 页改写成 "WAL allows readers and writers to proceed concurrently…"），服务端按契约拒绝整篇；`allowed_attempts=1`，没有重试。抽查 7/7 全部为改写而非逐字引用。
+- 观测缺口：响应里只写 `turn_not_completed`，不写 `batch_N_of_M:<reason>`，排障必须回读 harness 抓取的请求/响应。
+
+结论：**P0 未达成**（没有发布出带已验证引用的答案）；证据是“门在正确工作，模型不合规”，不是“产品放行错误”。剩余预算约 2.22 元（实验内 2,216,330 micros）。
+
 ### 2026-11-15 站点池成本基线：12 题中位 10.85s、P95 17.11s
 
 按要求在扩展站点前先量化成本。`tools/bench_site_pool.py`（仅浏览器、无模型调用）跑固定 12 题（技术/社区/游戏/教程各 3 题），记录耗时、路由、每站新增结果数与最终不同主机数。

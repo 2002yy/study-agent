@@ -12,12 +12,31 @@ from src.tools.persistent_web_agent import PersistentWebToolAgent
 from src.tools.web_agent import WebToolTrace
 from src.web.research_recovery import (
     STANDARD_BUDGET,
+    _provider_call_seconds,
     model_targets,
     recover_public_research,
     recovery_budget,
     recovery_summary,
 )
 from src.web.tool_evidence import evidence_tool_calls
+
+
+class _Gateway:
+    def __init__(self, strategy: str) -> None:
+        self.search_strategy = strategy
+
+
+def test_a_site_pool_search_gets_more_than_the_single_provider_ceiling(monkeypatch):
+    # One provider call is normally capped at 8s; a pool search visits several
+    # sites and would always time out under that ceiling.
+    monkeypatch.delenv("WEB_SITE_POOL_TOTAL_SECONDS", raising=False)
+    monkeypatch.delenv("WEB_SEARCH_FALLBACK_RESERVE_SECONDS", raising=False)
+    assert _provider_call_seconds(_Gateway("fallback")) == 8.0
+    assert _provider_call_seconds(_Gateway("browse_sites")) == 16.0
+
+    monkeypatch.setenv("WEB_SITE_POOL_TOTAL_SECONDS", "10")
+    monkeypatch.setenv("WEB_SEARCH_FALLBACK_RESERVE_SECONDS", "2")
+    assert _provider_call_seconds(_Gateway("browse_sites")) == 13.0
 
 
 def item(path, *, title="Claude Opus 5.5 reference"):

@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
+import os
 import re
 import time
 from typing import Any, Callable
@@ -89,6 +90,26 @@ def recovery_budget(
     if planned_questions(query_plan) >= 2:
         return STANDARD_BUDGET
     return LOOKUP_BUDGET
+
+
+def _provider_call_seconds(gateway: Any) -> float:
+    """Per-call ceiling for one provider invocation.
+
+    The site pool visits several sites inside one call, so the 8s single-provider
+    ceiling aborted every pool search with ``provider_call_timeout`` and the turn
+    fell back to "no evidence". The pool's own budget plus its fallback reserve is
+    the honest ceiling; every other strategy keeps 8s.
+    """
+
+    seconds = 8.0
+    if getattr(gateway, "search_strategy", "") != "browse_sites":
+        return seconds
+    try:
+        pool = float(os.getenv("WEB_SITE_POOL_TOTAL_SECONDS", "20"))
+        reserve = float(os.getenv("WEB_SEARCH_FALLBACK_RESERVE_SECONDS", "4"))
+    except ValueError:
+        pool, reserve = 20.0, 4.0
+    return max(seconds, min(16.0, pool + reserve + 1.0))
 
 
 def planned_questions(query_plan: list[dict[str, str]] | None) -> int:
@@ -310,7 +331,7 @@ def _recover_public_research(
 
     def invoke(fn: Callable[[], Any]) -> Any:
         active()
-        call_deadline = min(deadline, monotonic() + 8)
+        call_deadline = min(deadline, monotonic() + _provider_call_seconds(gateway))
         # Only the caller owns trace/persistence. A late network worker cannot
         # publish, and a new request never waits behind an old blocked worker.
         pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research-recovery")
