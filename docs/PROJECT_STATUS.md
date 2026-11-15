@@ -361,6 +361,16 @@ branch `codex/repair-evidence-20261112`，base `6fe7945a`；独立工作树
 Ruff/格式、工具定向 mypy、diff-check 通过。仅评分工具和回归测试改变，无共享生产契约改动。
 未运行 L2/L3、远端 CI、付费模型或动态比较，未重写历史评分；engineering-only。
 下一片：对本候选做独立审阅及 exact-head CI，再使用已保存真实产物重测，新增付费调用另行授权。
+### 2026-11-12 修复重试身份恢复契约补齐（本地）
+
+branch `codex/repair-recovery-20261112`，base `6fe7945a`，独立工作树
+`D:/study-agent-validation/repair-recovery-20261112`。owner=UI；Static Loop。
+未发现需要修改生产逻辑的缺陷；补充取消、普通消息、跨会话、新版本覆盖及同文网络重试身份契约，
+并在真实 ChatPanel rerender 中验证切换会话再返回会清除旧重试身份。
+影响集 repairTarget / api / ChatPanel.ts与tsx / ChatPanelBoundary 共73 PASS；tsc -b、Ruff、diff-check PASS。
+初次测试依赖目录缺esbuild，改用已有完整依赖后通过；一次误对TS运行Ruff已改为仓库配置扫描，通过。
+无付费调用、动态比较、浏览器或L3；只补静态回归保护，不宣称产品质量改善。
+交付提交包含本段与两测试文件；原工作树WIP不变。下一片：独立审阅该测试增量，按精确head远端门交付。
 
 
 ### 2026-11-06 #348至#350远端阶段验收已收口
