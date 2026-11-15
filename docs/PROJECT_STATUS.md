@@ -23,6 +23,8 @@
 - #359 的实测记录保留为 `docs/research_quality/BROWSE_ENGINE_PROBE_20261115.md`（含 Brave 标题类名、Bing 跳 cn、DDG 人机校验），并追加“合并到站点池”的落地说明；`tools/probe_browse_engines.py` 一并保留。
 - 复测（同一问题，真实浏览器）：Google 5、Bing 5、Brave 5 条有效结果；DuckDuckGo 25 秒下 `browse:human_action_required`（图片人机校验），保持默认关闭。证据 D:/study-agent-validation/site-pool-20261115/matrix8-engines.json。
 - 环境事故：relay 的临时目录被清理后所有 execute 返回 `ENOENT lstat opencode-browser-files-*`；`browse relay restart` 恢复（不是代码缺陷）。
+- #359 已关闭，说明与合入点写在 #357/`9bea391d`；#357 保持单一交付分支（26 commits，MERGEABLE）。
+- L2 门：`p2-a-retrieval-stack` 465 passed / 4 skipped（292.44s），Ruff 通过。
 
 ### 2026-11-15 站点池正确性修复：领域优先路由、结果有效性、回退预算
 
