@@ -497,12 +497,19 @@ class GeneralWebGateway:
             "WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS", 6.0, minimum=1.0, maximum=8.0
         )
         if self.search_strategy == "browse_sites":
-            # One provider searches several sites sequentially; the ordinary
-            # 8s single-provider budget would cut it off after the first one.
-            deadline = time.monotonic() + _env_float(
-                "WEB_SITE_POOL_TOTAL_SECONDS", 24.0, minimum=8.0, maximum=40.0
+            # One provider searches several sites sequentially, so it needs its
+            # own budget. The reserve is what keeps SearXNG/Bing RSS/DuckDuckGo
+            # reachable after the whole pool failed; a slow pool must not be
+            # able to consume the budget that the documented fallback needs.
+            started = time.monotonic()
+            pool_deadline = started + _env_float(
+                "WEB_SITE_POOL_TOTAL_SECONDS", 20.0, minimum=6.0, maximum=36.0
+            )
+            deadline = pool_deadline + _env_float(
+                "WEB_SEARCH_FALLBACK_RESERVE_SECONDS", 4.0, minimum=2.0, maximum=8.0
             )
         else:
+            pool_deadline = 0.0
             deadline = time.monotonic() + _env_float(
                 "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", 8.0, minimum=3.0, maximum=10.0
             )
@@ -539,8 +546,8 @@ class GeneralWebGateway:
                 skipped.append({"provider": name, "reason": "provider_disabled"})
                 continue
             if name == "browse_sites":
-                timeout = max(0.0, deadline - time.monotonic())
-                if timeout <= 0:
+                timeout = max(0.0, pool_deadline - time.monotonic())
+                if timeout <= 1.0:
                     errors.append("browse_sites:search_budget_exhausted")
                     skipped.append({"provider": name, "reason": "search_budget_exhausted"})
                     continue
@@ -600,7 +607,12 @@ class GeneralWebGateway:
         return search_browse(query, limit, timeout)
 
     def _search_browse_sites(self, query: str, limit: int, timeout: float):
-        """Search the selected sites in order, one browser page each."""
+        """Search the selected sites in order, one browser page each.
+
+        Every selected site is visited: the pool exists to compare sources, so a
+        first site returning ``limit`` rows must not hide the others. The final
+        list is still truncated to ``limit``.
+        """
 
         from src.web import site_pool
         from src.web.browse_search import search_browse_at
@@ -612,7 +624,7 @@ class GeneralWebGateway:
             remaining = deadline - time.monotonic()
             if remaining < 1.5:
                 outcomes.append({"site": site.key, "status": "budget_exhausted",
-                                 "seconds": 0.0, "results": 0})
+                                 "seconds": 0.0, "results": 0, "page_results": 0})
                 continue
             if site.adapter == "google":
                 from src.web.browse_search import search_browse
@@ -620,23 +632,26 @@ class GeneralWebGateway:
                 started = time.monotonic()
                 rows, error = search_browse(query, limit, min(10.0, remaining))
                 meta = {"status": "ok" if rows else (error or "browse:no_results"),
-                        "seconds": round(time.monotonic() - started, 2)}
+                        "seconds": round(time.monotonic() - started, 2),
+                        "page_results": len(rows)}
             else:
                 rows, error, meta = search_browse_at(
                     site.search_url(query),
                     limit,
                     min(10.0, remaining),
                     source=f"{site.label} via browse",
+                    selector=site.result_selector,
+                    pattern=site.result_pattern,
+                    own_hosts=site.own_hosts,
                 )
             outcomes.append({
                 "site": site.key,
                 "status": meta.get("status") or (error or "ok"),
                 "seconds": meta.get("seconds", 0.0),
                 "results": len(rows),
+                "page_results": meta.get("page_results", len(rows)),
             })
             collected.extend(rows)
-            if len(collected) >= limit:
-                break
         unique = _dedupe_results(collected, len(collected))
         return unique[:limit], "" if unique else "browse:no_results"
 

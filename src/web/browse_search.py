@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
 import time
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from src.web.tool_evidence import _public_url
 
@@ -58,16 +59,23 @@ return await page.evaluate(() => {
   const searchHost = location.hostname;
   const searchPath = location.pathname;
   const navPath = /^[/](?:login|search|feed|portal[.]php|mobile|project-square|users?|settings|preferences)(?:[/]|$)/i;
-  for (const anchor of Array.from(document.querySelectorAll(
-    'main a[href], [role="main"] a[href], article a[href], li a[href], a[href]'
-  ))) {
-    const heading = anchor.querySelector('h3');
+  // A site-specific selector is authoritative: a header, footer or sidebar
+  // link can match a generic rule but never a result container.
+  const scopes = RESULT_SELECTOR
+    ? Array.from(document.querySelectorAll(RESULT_SELECTOR))
+    : Array.from(document.querySelectorAll(
+        'main a[href], [role="main"] a[href], article a[href], li a[href], a[href]'
+      ));
+  for (const scope of scopes) {
+    const anchor = scope.tagName === 'A' ? scope : scope.querySelector('a[href]');
+    if (!anchor) continue;
+    const heading = anchor.querySelector('h3, h2, [role="heading"]') || scope.querySelector('h3, h2');
     const title = ((heading ? heading.innerText : '') || anchor.innerText || '').trim();
     const url = anchor.href;
     if (!url.startsWith('http') || title.length < 12 || seen.has(url)) continue;
     let parsed;
     try { parsed = new URL(url); } catch (error) { continue; }
-    if (parsed.hostname === searchHost) {
+    if (!RESULT_SELECTOR && parsed.hostname === searchHost) {
       // Navigation on the search site itself is not a result.
       if (parsed.pathname === '/' || parsed.pathname === searchPath) continue;
       if (navPath.test(parsed.pathname)) continue;
@@ -84,18 +92,22 @@ return await page.evaluate(() => {
     || Array.from(document.querySelectorAll('form[action*="login"]')).some(visible)
     || /\\/login(\\b|\\/|\\?)/.test(location.pathname)
   );
-  return {blocked: challenge, login, url: location.href, results};
+  return {blocked: challenge, login, url: location.href, title: document.title, results};
 });
 """
 
 
-def _execute(script: str, url: str, timeout: float) -> tuple[dict[str, Any] | None, str]:
+def _execute(
+    script: str, url: str, timeout: float, *, selector: str = ""
+) -> tuple[dict[str, Any] | None, str]:
     executable = shutil.which("browse")
     if not executable:
         return None, "browse:cli_unavailable"
-    # Only the URL is parameterized. Source text is never executable code.
+    # Only the URL and the selector are parameterized; source text is never
+    # executable code.
     body = (
         script.replace("SEARCH_URL", json.dumps(url))
+        .replace("RESULT_SELECTOR", json.dumps(selector))
         .replace("NAV_TIMEOUT_MS", str(max(1500, int(timeout * 600))))
         .replace("TIMEOUT_MS", str(max(1, int(timeout * 1000))))
     )
@@ -138,13 +150,28 @@ def search_browse(query: str, limit: int, timeout: float) -> tuple[list[dict[str
 
 
 def search_browse_at(
-    url: str, limit: int, timeout: float, *, source: str = "site via browse"
+    url: str,
+    limit: int,
+    timeout: float,
+    *,
+    source: str = "site via browse",
+    selector: str = "",
+    pattern: str = "",
+    own_hosts: tuple[str, ...] = (),
 ) -> tuple[list[dict[str, str]], str, dict[str, Any]]:
-    """Search one site and report what actually happened on its page."""
+    """Search one site and report what actually happened on its page.
+
+    ``selector`` is the site's result container. ``pattern`` is the URL shape a
+    real result takes there. A page that opens but yields nothing that passes
+    both is reported as ``browse:no_valid_results`` instead of ``ok``, so a
+    navigation link can never end the search early.
+    """
 
     started = time.monotonic()
-    meta: dict[str, Any] = {"status": "unknown", "seconds": 0.0, "url": url}
-    envelope, error = _execute(_GENERIC_SCRIPT, url, timeout)
+    meta: dict[str, Any] = {
+        "status": "unknown", "seconds": 0.0, "url": url, "page_results": 0,
+    }
+    envelope, error = _execute(_GENERIC_SCRIPT, url, timeout, selector=selector)
     meta["seconds"] = round(time.monotonic() - started, 2)
     if envelope is None:
         meta["status"] = error or "browse:execution_failed"
@@ -155,15 +182,83 @@ def search_browse_at(
     if challenge and challenge.get("recommendation") in {"handoff", "stop"}:
         meta["status"] = "browse:human_action_required"
         return [], "browse:human_action_required", meta
-    if value.get("blocked"):
+    if value.get("blocked") or _is_verification_page(meta["final_url"], value.get("title")):
         meta["status"] = "browse:human_action_required"
         return [], "browse:human_action_required", meta
     if value.get("login"):
         meta["status"] = "browse:login_required"
         return [], "browse:login_required", meta
-    rows = _public_rows(value.get("results"), limit, source=source)
-    meta["status"] = "ok" if rows else "browse:no_results"
-    return rows[:limit], "" if rows else "browse:no_results", meta
+    raw = value.get("results")
+    meta["page_results"] = len(raw) if isinstance(raw, list) else 0
+    meta["sample"] = [row["url"] for row in _public_rows(raw, 8, source=source)]
+    rows = _valid_rows(
+        raw, limit, source=source, pattern=pattern, own_hosts=own_hosts
+    )
+    if rows:
+        meta["status"] = "ok"
+        return rows[:limit], "", meta
+    meta["status"] = "browse:no_valid_results" if meta["page_results"] else "browse:no_results"
+    return [], meta["status"], meta
+
+
+_NAV_SEGMENTS = {
+    "login", "logout", "signup", "register", "search", "about", "help",
+    "settings", "preferences", "notifications", "explore", "trending",
+}
+
+#: A site may answer a search with a verification wall instead of results. That
+#: is a human-action signal, never something to work around.
+_VERIFICATION_URL_HINTS = ("/nocaptcha", "/captcha", "challenge", "verify-human")
+_VERIFICATION_TITLE_HINTS = (
+    "human verification", "are you a robot", "just a moment",
+    "verify you are human", "安全验证", "人机验证",
+)
+
+
+def _is_verification_page(url: str, title: Any) -> bool:
+    lowered_url = str(url or "").casefold()
+    lowered_title = str(title or "").casefold()
+    return any(hint in lowered_url for hint in _VERIFICATION_URL_HINTS) or any(
+        hint in lowered_title for hint in _VERIFICATION_TITLE_HINTS
+    )
+
+
+def _valid_rows(
+    items: Any,
+    limit: int,
+    *,
+    source: str,
+    pattern: str = "",
+    own_hosts: tuple[str, ...] = (),
+) -> list[dict[str, str]]:
+    """Keep only rows that look like a result on this site."""
+
+    rows: list[dict[str, str]] = []
+    if not isinstance(items, list):
+        return rows
+    compiled = re.compile(pattern, re.IGNORECASE) if pattern else None
+    hosts = {host.casefold() for host in own_hosts if host}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        public = _public_url(item.get("url"))
+        title = item.get("title")
+        if not public or not isinstance(title, str) or not title.strip():
+            continue
+        parsed = urlsplit(public)
+        host = (parsed.hostname or "").casefold()
+        if compiled is not None:
+            if not compiled.search(public):
+                continue
+        elif host in hosts:
+            continue
+        elif host and parsed.path.strip("/") in _NAV_SEGMENTS:
+            continue
+        rows.append({"title": title[:500], "url": public,
+                     "snippet": "", "source": source, "published_at": ""})
+        if len(rows) >= limit:
+            break
+    return rows
 
 
 def _public_rows(

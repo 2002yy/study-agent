@@ -42,26 +42,34 @@ def main(argv: list[str] | None = None) -> int:
 
             rows, error = search_browse(args.query, args.limit, args.timeout)
             meta = {"status": "ok" if rows else (error or "browse:no_results"),
-                    "seconds": round(time.monotonic() - started, 2)}
+                    "seconds": round(time.monotonic() - started, 2),
+                    "page_results": len(rows)}
         else:
             rows, error, meta = search_browse_at(
                 site.search_url(args.query),
                 args.limit,
                 args.timeout,
                 source=f"{site.label} via browse",
+                selector=site.result_selector,
+                pattern=site.result_pattern,
+                own_hosts=site.own_hosts,
             )
         results.append({
             "site": site.key,
             "label": site.label,
             "category": site.category,
             "needs_login": site.needs_login,
+            "verified": site.verified,
             "status": meta.get("status") or error or "unknown",
             "seconds": meta.get("seconds", round(time.monotonic() - started, 2)),
+            "page_results": meta.get("page_results", 0),
             "results": len(rows),
-            "sample": [row["url"] for row in rows[:3]],
+            "sample": (meta.get("sample") or [])[:8],
+            "accepted": [row["url"] for row in rows[:8]],
         })
         print(f"{site.key:14} {results[-1]['status']:32} "
-              f"{results[-1]['seconds']:5.1f}s {results[-1]['results']} rows", flush=True)
+              f"{results[-1]['seconds']:5.1f}s page={results[-1]['page_results']:2} "
+              f"valid={results[-1]['results']}", flush=True)
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

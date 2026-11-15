@@ -13,6 +13,29 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-15 站点池正确性修复：领域优先路由、结果有效性、回退预算
+
+PR #357 审查（09c0e60c）指出三个 P1：领域站点被泛化意图词压过、整页链接被当成搜索结果、站点池吃光回退预算。本轮只修这三项，并补回归测试；不新增站点、不调用付费模型。
+
+路由（src/web/site_pool.py）
+- 路由分两层：`_DOMAIN_ROUTES`（游戏/硬件/就业/论文/模型/报错/开源部署）先于 `_INTENT_ROUTES`（选型/对比/推荐、API/Agent）。`星铁…配队推荐` 现在先到米游社/NGA，`校招岗位推荐` 先到牛客，`RTX 5060 玩某款游戏` 先到 Steam。
+- ASCII 关键词按词匹配：`api` 不再命中 `FastAPI`（此前 FastAPI 部署题被路由到 HuggingFace）。
+- 新增 `default_enabled`：只有真实浏览器探测确认能返回有效结果的站点才进默认路由；其余保留在目录，用 `WEB_SITE_POOL_EXTRA_SITES=reddit,linuxdo` 按需启用。默认启用：google/bing/brave/github/v2ex/juejin/huggingface/arxiv。
+
+结果有效性（src/web/browse_search.py）
+- 每个站点有 `result_pattern`（真实结果 URL 形状）或 `result_selector`（结果容器 CSS）；只有通过校验的链接才算结果。三态状态：`ok` / `browse:no_valid_results`（页面打开但只有导航页脚）/ `browse:no_results`（页面没渲染出链接）。
+- 验证码/人机验证重定向（如 Stack Overflow `/nocaptcha`、Reddit、LINUX DO）识别为 `browse:human_action_required`，不绕过、不重试。
+- 站点池逐站访问，不再因第一个站点凑满 limit 就停止（来源多样性）。
+
+回退预算（src/web/tool_gateway.py）
+- 池预算与回退预留分离：`WEB_SITE_POOL_TOTAL_SECONDS=20` + `WEB_SEARCH_FALLBACK_RESERVE_SECONDS=4`；池用尽 20 秒后，SearXNG/Bing RSS/DDG 仍有 4 秒。此前共用 deadline，池超时后回退实际来不及执行。
+
+真实矩阵（query=SQLite WAL concurrent writers，18秒，D:/study-agent-validation/site-pool-20261115/matrix7.json）：
+- valid：google 5、bing 5、brave 5、github 5、v2ex 5、juejin 5、huggingface 5；arxiv 对该题 0 命中（换有命中的题验证 pattern 后 4 条 abs 链接通过）。
+- 无效：duckduckgo/hn/zhihu/nga/chiphell/nowcoder 只抽到导航页脚（no_valid_results）；steam/miyoushe 无结果；reddit/stackoverflow/linuxdo 为人机验证。
+- 网关级复测（真实问句，browse_sites，3站）：19.28s，google 5.3s/5条、bing 3.47s/5条、brave 本次 execution_failed；回退预留未被占用。
+测试：tests/test_site_pool.py + test_browse_search.py 22 PASS；影响集（web_search_strategy/flow/ddg_first、recovery_source_boundaries、research_gateway_trace、web_query_normalizer）共 89 PASS；Ruff 通过；无付费模型调用。
+
 ### 2026-11-15 站点池接入（12站首批）与真实浏览器矩阵
 
 用户要求把“多搜索引擎＋专业社区＋中文社区”站点池接入。已实现（未推送前先记录）：
