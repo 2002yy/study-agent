@@ -19,9 +19,35 @@
 
 - `RESEARCH_PUBLICATION_MODE=simple` 为默认：有已读证据、生成有效且引用 URL 均属当轮已读网页时，原样发布 Markdown，不分段、不调用 binder；`strict` 显式保留旧的严格校验。
 - 简洁模式记录来源白名单和已读引用，但**不把未逐条验证的引用标为 verified**；无资料与未读链接仍被拦截。URL 匹配区分内容查询参数，忽略 `utm_` 追踪参数。
-- 离线直接调用验证：Markdown/表格无损发布、未读 URL 拦截、旧严格模式通过；Python 编译及 `git diff --check` 通过。当前运行环境没有 pytest / Ruff，完整影响集、L3、CI 与真实模型对照均 **未执行**；未发生付费调用。
+- 离线直接调用验证最初只做了 Markdown/表格无损发布、未读 URL 拦截、旧严格模式通过；随后在评审环境补跑影响集 **201 PASS**（publication gate、answer_links、streaming、chat_service、binder、standard_handoff、pr143 三套、browse_search、site_pool），Ruff clean，mypy 118（基线 128，无新增）。
+- 补测覆盖缺口：默认简洁模式下的**流式发布**原先没有测试（旧流式测试全部显式固定 strict）。新增两条：流式 Markdown 不调用 binder 即发布；流式答案引用未读页时最终回复被替换为阻断文案。
+- 合并 #357 当前 head（`9a17ce4d`）后仅 `docs/PROJECT_STATUS.md` 冲突，按“新条目在前、旧条目保留”解决；`src/` 无冲突。
+- 完整 pytest 与真实模型对照 **仍未执行**；CI 首轮在 `8a8be1ee` 上暴露两处与本 PR 无关的失败：`test_learner_state_shadow_acceptance[stall]` 本地重跑通过（时序抖动），以及 mypy 新增 `browse_search.py` origin 元组类型错误（已在 #357 修复）。
 
-下一门：在具有 pytest/Ruff 的环境执行影响集和完整测试，并核对 #357 期间的并发提交；真实端到端验收仍需独立预算授权，不能把静态验证写成产品通过。
+下一门：等 `codex/simple-research-flow-20261116` 的 CI 全绿后再谈合并；真实端到端验收仍需独立预算授权，不能把静态验证写成产品通过。
+
+### 2026-11-15 研究检索定为 HTTP fallback；引用越界分类、binder 预算与分段已修，仍未发布成功
+
+按裁定，研究阶段默认走 HTTP `fallback`（`tool_gateway` 的默认值本来就是 `fallback`；浏览器站点池保留为按需，需 `WEB_SEARCH_STRATEGY=browse_sites`）。不新增网站，不放宽引用白名单、数字一致性与 binder 证据契约。
+
+同一道 SQLite WAL 题逐层复测（DeepSeek 真实价；实验 `study-agent-live-20261115`，cap 3 元）：
+
+| 运行 | 结果 | 根因与处理 |
+|---|---|---|
+| q1c–q1e | 无证据 / 答案截断 | provider 硬限 8s → `browse_sites` 按池预算封顶 16s；思考模式吃满 8192 → `RESEARCH_ANSWER_BOUNDED_POLICY=on` |
+| q3 | `citation_outside_evidence` | 引用同域未读页 `backup.html`；白名单保留，错误分类拆为 `read_host_page_not_read`（搜索覆盖缺口）/ `host_not_in_evidence`（记忆引用） |
+| q5 | `batch_1_of_7:claim_specifics_not_in_source` | 引文逐字存在但缺版本号/数字；规则改为“引文必须自身含该段每个数字”，并纳入一次带反馈的修复重试 |
+| q6 | `batch_3_of_6:malformed_structured_output` | 16 段批次在 1600 tokens 被截断（实测 6295 字符仍未写完）；批次预算改 3600，截断单列 `producer_output_truncated` |
+| q7 | `batch_1_of_5:producer_failed:SpendAdmissionRefused` | harness 0.45 元单次上限生效，非产品缺陷；据此把一次完整研究重估为约 0.62 元 |
+| q8 | `batch_3_of_6:producer_refused` | 分段切出 `2.`、表头等碎片；纯列表编号现并回其陈述，不再单独成段 |
+
+q8 冻结答案（3248 字符）离线回放：85 段 / 6 批、0 个 marker-only 段、逐行核对 0 行丢失、5 个表格行仍进入核验；发布文本仍是“原文减去被 withheld 的段”，标题与表格结构不被删除。
+
+费用：q2–q8 预留合计 1,801,604 micros；实验累计预留 2,585,274 / 3,000,000，剩余 **414,726 micros ≈ 0.415 元**。q8 只完成 4 次调用 + 3/6 批即用 0.453 元，余额不足以覆盖一次完整研究，**付费已停止**。
+
+未验证项：新分段下模型是否仍会 `refused` 只能由真实调用确认。`f8ab83f5`（分段）与 `8a8be1ee`（批次预算/截断分类）目前只有离线证据（binder 31 PASS、answer_links 6 PASS、chat_service 组合 72 PASS）。
+
+下一门：取得约 0.3 元追加预算后，用 `f8ab83f5` 跑一次同题完整验收（一次为限）；不追加则保持现状，不再重跑。
 
 ### 2026-11-15 端到端验收（P0）：链路已跑通到发布门，但被 binder 引用不合规拦住
 
