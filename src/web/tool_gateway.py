@@ -50,6 +50,29 @@ def _env_float(
     return max(minimum, min(value, maximum))
 
 
+def _search_failure_kind(error: str) -> str:
+    """Bounded diagnostic code; never put provider exception URLs in outcomes."""
+
+    value = error.casefold()
+    if "no_results" in value or "empty_response" in value:
+        return "no_results"
+    if "timeout" in value or "timed out" in value:
+        return "timeout"
+    if "refused" in value or "connection" in value:
+        return "connection_failed"
+    if "invalid_json" in value:
+        return "invalid_json"
+    if "content-type" in value:
+        return "unexpected_content_type"
+    if "unresponsive_engines" in value:
+        return "unresponsive_engines"
+    if "http_status" in value:
+        return "http_status"
+    if "search_budget_exhausted" in value:
+        return "search_budget_exhausted"
+    return "provider_error"
+
+
 _DUCKDUCKGO_CHALLENGE_MARKERS = (
     'class="anomaly-modal',
     'id="challenge-form"',
@@ -394,6 +417,7 @@ class GeneralWebGateway:
         filtered_count = outcome.get("domain_filtered_count", 0)
         provider_errors = list(outcome["provider_errors"])
         providers_enabled = bool(outcome["providers_attempted"])
+        outcomes = list(outcome.get("provider_outcomes") or [])
         if results:
             status = "ok"
             reason = "results_found"
@@ -424,6 +448,7 @@ class GeneralWebGateway:
             "domain_filtered_count": filtered_count,
             "provider_errors": provider_errors,
             "providers_attempted": list(outcome["providers_attempted"]),
+            "provider_outcomes": outcomes,
             **{
                 key: outcome[key]
                 for key in ("site_outcomes", "site_route")
@@ -459,13 +484,18 @@ class GeneralWebGateway:
 
         attempted: list[str] = []
         provider_errors: list[str] = []
+        provider_outcomes: list[dict[str, Any]] = []
         results: list[dict[str, str]] = []
         saw_available_provider = False
         variant_traces: list[dict[str, Any]] = []
         adopted_query: str | None = None
-        for variant in normalization.query_variants:
+        for variant_index, variant in enumerate(normalization.query_variants):
             attempted.append(variant)
             exact = self.search_exact(variant, max_results=limit, now=current)
+            provider_outcomes.extend(
+                {**row, "query_index": variant_index}
+                for row in exact.get("provider_outcomes", [])
+            )
             trace = self._merge_trace(exact)
             if trace:
                 variant_traces.append({"query": variant, **trace})
@@ -505,6 +535,7 @@ class GeneralWebGateway:
             "attempted_queries": attempted,
             "results": results,
             "provider_errors": provider_errors,
+            "provider_outcomes": provider_outcomes,
             "searched_at": current.isoformat(),
         }
         if variant_traces:
@@ -574,6 +605,7 @@ class GeneralWebGateway:
         errors: list[str] = []
         attempted: list[str] = []
         skipped: list[dict[str, str]] = []
+        provider_outcomes: list[dict[str, Any]] = []
         counts: dict[str, int] = {}
         collected: list[dict[str, str]] = []
         filtered_count = 0
@@ -584,22 +616,41 @@ class GeneralWebGateway:
                 if self.search_strategy != "fallback":
                     errors.append(f"{name}:provider_disabled")
                 skipped.append({"provider": name, "reason": "provider_disabled"})
+                provider_outcomes.append({
+                    "provider": name, "status": "skipped",
+                    "reason": "provider_disabled", "result_count": 0,
+                })
                 continue
             if name == "browse_sites":
                 timeout = max(0.0, pool_deadline - time.monotonic())
                 if timeout <= 1.0:
                     errors.append("browse_sites:search_budget_exhausted")
                     skipped.append({"provider": name, "reason": "search_budget_exhausted"})
+                    provider_outcomes.append({
+                        "provider": name, "status": "skipped",
+                        "reason": "search_budget_exhausted", "result_count": 0,
+                    })
                     continue
             else:
                 timeout = _provider_timeout(deadline, provider_timeout, name, errors)
             if not timeout:
                 skipped.append({"provider": name, "reason": "search_budget_exhausted"})
+                provider_outcomes.append({
+                    "provider": name, "status": "skipped",
+                    "reason": "search_budget_exhausted", "result_count": 0,
+                })
                 continue
             attempted.append(name)
             fallback_used = fallback_used or index > 0
             rows, error = fetch(query, limit, timeout)
             counts[name] = len(rows)
+            kind = _search_failure_kind(error) if error else "no_results"
+            provider_outcomes.append({
+                "provider": name,
+                "status": "ok" if rows else "empty" if kind == "no_results" else "failed",
+                "reason": "results_found" if rows else kind,
+                "result_count": len(rows),
+            })
             if error:
                 errors.append(error)
             if error == "browse:human_action_required":
@@ -621,6 +672,7 @@ class GeneralWebGateway:
             "results": results,
             "provider_errors": errors,
             "providers_attempted": attempted,
+            "provider_outcomes": provider_outcomes,
             "domain_filtered_count": filtered_count,
         }
         if self.search_strategy != "fallback":

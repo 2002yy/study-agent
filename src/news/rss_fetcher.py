@@ -609,17 +609,22 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
     feed_warnings: list[dict] = []
     per_feed_limit = max(max_items * 2, 8)
 
+    def searxng_with_diagnostic() -> tuple[list[dict], str]:
+        # This task runs in a worker thread: capture its error in that same
+        # thread instead of reading another run's last error on the caller.
+        rows = search_searxng(
+            query_text, max_results=per_feed_limit,
+            categories=plan.searxng_categories,
+        )
+        return rows, get_last_searxng_error()
+
     # Search providers are independent I/O operations. Run them concurrently,
     # then consume outcomes in configured order so result ordering stays stable.
     provider_specs = [("SearXNG", "", False), *feed_urls]
     tasks = [
         BoundedTask(
             name="SearXNG",
-            call=lambda: search_searxng(
-                query_text,
-                max_results=per_feed_limit,
-                categories=plan.searxng_categories,
-            ),
+            call=searxng_with_diagnostic,
         ),
         *[
             BoundedTask(
@@ -646,6 +651,9 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
     ):
         if outcome.value is not None:
             provider_items = outcome.value
+            searxng_error = ""
+            if source_name == "SearXNG":
+                provider_items, searxng_error = provider_items
             items.extend(provider_items)
             if source_name != "SearXNG":
                 feed_metadata = _LAST_FEED_METADATA.get(source_url, {})
@@ -658,7 +666,6 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
                     modified=feed_metadata.get("modified", ""),
                 )
             else:
-                searxng_error = get_last_searxng_error()
                 if not provider_items and searxng_error:
                     feed_warnings.append(
                         {

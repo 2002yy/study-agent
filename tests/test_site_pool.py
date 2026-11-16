@@ -393,6 +393,7 @@ def test_no_site_result_still_falls_back(monkeypatch):
     assert [row["url"] for row in result["results"]] == ["https://example.org/x"]
     assert result["providers_attempted"] == ["browse_sites", "searxng"]
     assert "browse:no_results" in result["provider_errors"]
+    assert result["provider_outcomes"][0]["status"] == "empty"
 
 
 def test_a_normal_search_is_not_mistaken_for_a_verification_page():

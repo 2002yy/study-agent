@@ -1,14 +1,10 @@
-"""Optional SearXNG search provider.
-
-SearXNG is intentionally opt-in.  Public instances often disable JSON output,
-so failures must be silent and the caller should fall back to existing RSS
-providers.
-"""
+"""Optional SearXNG provider: fail softly, preserving observable error reasons."""
 
 from __future__ import annotations
 
 import json
 import os
+import threading
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 
@@ -17,11 +13,16 @@ from src.news.url_normalizer import is_probable_article_page_url
 from src.web.security import validate_service_endpoint
 
 
-_LAST_SEARXNG_ERROR = ""
+_LAST_SEARXNG = threading.local()
 
 
 def get_last_searxng_error() -> str:
-    return _LAST_SEARXNG_ERROR
+    """The current thread's last request error, not another research run's."""
+    return str(getattr(_LAST_SEARXNG, "error", ""))
+
+
+def _set_last_error(reason: str) -> None:
+    _LAST_SEARXNG.error = reason
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -87,6 +88,9 @@ def _parse_searxng_results(payload: bytes, max_results: int) -> list[SearchSourc
     try:
         data = json.loads(payload.decode("utf-8", errors="ignore"))
     except Exception:
+        return []
+
+    if not isinstance(data, dict):
         return []
 
     raw_results = data.get("results", [])
@@ -156,9 +160,8 @@ def search_searxng(
     base_url: str | None = None,
     categories: str | None = None,
 ) -> list[dict]:
-    """Return normalized news items from SearXNG or [] on any failure."""
-    global _LAST_SEARXNG_ERROR
-    _LAST_SEARXNG_ERROR = ""
+    """Return compatible items; use ``get_last_searxng_error`` to distinguish failure."""
+    _set_last_error("")
 
     if not searxng_enabled():
         return []
@@ -171,6 +174,7 @@ def search_searxng(
         categories=categories or os.getenv("NEWS_SEARXNG_CATEGORIES", "news"),
     )
     if not search_url:
+        _set_last_error("invalid_or_missing_endpoint")
         return []
 
     req = Request(
@@ -192,16 +196,23 @@ def search_searxng(
         with urlopen(req, timeout=timeout) as response:
             content_type = response.headers.get("Content-Type", "")
             if "json" not in content_type.lower():
-                _LAST_SEARXNG_ERROR = (
-                    f"Unexpected Content-Type: {content_type!r}"
-                )
+                _set_last_error(f"Unexpected Content-Type: {content_type!r}")
                 return []
             payload = response.read(500_000)
     except Exception as exc:
-        _LAST_SEARXNG_ERROR = f"{type(exc).__name__}: {exc}"
+        _set_last_error(f"{type(exc).__name__}: {exc}")
         return []
 
     results = _parse_searxng_results(payload, max_results)
     if not results:
-        _LAST_SEARXNG_ERROR = _unresponsive_engine_error(payload)
+        try:
+            data = json.loads(payload.decode("utf-8", errors="ignore"))
+            malformed = (
+                not isinstance(data, dict)
+                or not isinstance(data.get("results"), list)
+            )
+        except (ValueError, TypeError):
+            malformed = True
+        reason = "invalid_json_results" if malformed else _unresponsive_engine_error(payload)
+        _set_last_error(reason)
     return [item.to_news_item() for item in results]
