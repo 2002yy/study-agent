@@ -13,6 +13,19 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-16 最终生成提示词证据去重：同一批已读正文不再注入两次
+
+定量依据（q8 冻结的真实请求）：最终生成只有 3 条消息，system 21,960 字符；其中
+`[Private library evidence …]`（6,885）与 `[Evidence allowed for user disclosure]`（6,833）
+正文逐字节相同——`disclosure_level>=5` 时 `selected == 全部 unit`，私密块与披露块内容完全重合。
+
+- 修复：`EvidenceDisclosurePolicy.select` 先算 selected，再把已披露的 unit 从私密块剔除；约束型 unit 仍只留在私密块。
+- 实测：system 21,960 → 15,075（-31.4%），生成输入 22,381 → 15,496；5 个 unit 正文仍在、披露块与原来一致。
+- 测试：新增 4 条（全量披露只出现一次、部分披露互补、withheld 仍全量私密、约束不进披露）；影响集 82 PASS；Ruff clean。
+- 非范围：不改检索、不改 binder/发布模式、不删任何证据、不新增站点；默认 simple 与 strict 都不受影响。
+
+下一门：等 CI 绿后合并；若要与 #360 的发布模式一起验收，再跑一次真实研究（约 0.29 元，需单独授权）。
+
 ### 2026-11-06 #348至#350远端阶段验收已收口
 
 本次实时核验三项均已由远端合并：#348 merge2740b1d4，#349 head d24b6114 /

@@ -138,14 +138,14 @@ class EvidenceDisclosurePolicy:
             )
         if not units:
             return DisclosedEvidence()
-        private_context = _format_units(
-            units,
-            "[Private library evidence: use for planning accuracy; do not reveal unless selected below]",
+        private_heading = (
+            "[Private library evidence: use for planning accuracy; "
+            "do not reveal unless selected below]"
         )
         selectable = [unit for unit in units if unit.disclosure_role != "constraint"]
         if not selectable:
             return DisclosedEvidence(
-                private_context=private_context,
+                private_context=_format_units(units, private_heading),
                 policy="private_constraints_only",
             )
         if plan.disclosure_level >= 5:
@@ -169,9 +169,15 @@ class EvidenceDisclosurePolicy:
         else:
             selected = []
             policy = "withheld_derivable_answer"
+        # A disclosed unit must not be repeated in the private block. At full
+        # disclosure the two blocks were byte-identical, so a real research
+        # turn carried the whole evidence body twice (measured: 6,793 of
+        # 21,960 system characters were the second copy).
+        disclosed_ids = {id(unit) for unit in selected}
+        private_units = [unit for unit in units if id(unit) not in disclosed_ids]
         return DisclosedEvidence(
             context=_format_units(selected, "[Evidence allowed for user disclosure]"),
-            private_context=private_context,
+            private_context=_format_units(private_units, private_heading),
             policy=policy,
             units=tuple(unit.to_dict() for unit in selected),
         )
