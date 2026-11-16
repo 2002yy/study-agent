@@ -361,6 +361,70 @@ def test_multi_facet_plan_searches_every_planned_question():
     assert recovery_summary(calls)["limits"]["queries"] == STANDARD_BUDGET.max_queries
 
 
+def test_multi_facet_reads_each_new_question_before_spending_budget_on_extra_pages():
+    """A second WAL article must not exhaust the source budget before backup.
+
+    This is a deterministic q9-shaped fixture, not a replay of the paid run.
+    The old first-phase cap (2) + inherited candidate backlog could consume
+    24k chars on WAL/PRAGMA/MVCC before reaching the backup query.
+    """
+
+    class RelevanceAdvice:
+        def __init__(self):
+            self.stages = {"research_candidate_relevance"}
+            self.events = []
+            self.episode = None
+            self.body_questions = set()
+
+        def relevance(self, _stage, items):
+            return {row["id"]: ["rq-wal", "rq-pg", "rq-backup"] for row in items}
+
+    def doc(path, title):
+        return {"title": title, "url": f"https://sqlite.org/{path}", "snippet": title}
+
+    gateway = Gateway(
+        [
+            [doc("wal.html", "SQLite WAL concurrent writes"),
+             doc("wal-index.html", "SQLite WAL index")],
+            [doc("pragma.html", "SQLite WAL PRAGMA reference")],
+            [{"title": "PostgreSQL MVCC concurrent writers",
+              "url": "https://postgresql.org/docs/current/mvcc.html",
+              "snippet": "PostgreSQL MVCC concurrent writers"}],
+            [doc("backup.html", "SQLite online backup API")],
+        ],
+        {
+            "wal.html": "WAL " * 1500,
+            "wal-index.html": "WAL index " * 750,
+            "pragma.html": "PRAGMA " * 1000,
+            "mvcc.html": "MVCC " * 1000,
+            "backup.html": "SQLite backup " * 500,
+        },
+    )
+    plan = [
+        {"rq_id": "rq-wal", "query": "SQLite WAL concurrent writes"},
+        {"rq_id": "rq-pg", "query": "PostgreSQL MVCC concurrent writers"},
+        {"rq_id": "rq-backup", "query": "SQLite online backup API"},
+    ]
+    calls = recover_public_research(
+        gateway,
+        "比较 SQLite WAL 与 PostgreSQL，并核实并发写入及备份",
+        query_plan=plan,
+        semantic_session=RelevanceAdvice(),
+    )
+    read_urls = [url for url, _, _ in gateway.reads]
+    assert "https://sqlite.org/wal.html" in read_urls
+    assert "https://postgresql.org/docs/current/mvcc.html" in read_urls
+    assert "https://sqlite.org/backup.html" in read_urls
+    backup_index = read_urls.index("https://sqlite.org/backup.html")
+    # An extra WAL page is still useful if space remains, but it must not
+    # steal the 6k source-text allowance from the new backup question.
+    if "https://sqlite.org/wal-index.html" in read_urls:
+        assert backup_index < read_urls.index("https://sqlite.org/wal-index.html")
+    assert gateway.reads[backup_index][1] == STANDARD_BUDGET.max_source_chars
+    assert len(gateway.queries) == 4
+    assert recovery_summary(calls)["limits"]["reads"] == 5
+
+
 def test_success_does_not_use_reserved_reads_or_all_query_budget():
     gateway = Gateway([[item("release")]], {"release": "Claude Opus 5.5 details."})
     calls = recover_public_research(gateway, "opus5.5")
