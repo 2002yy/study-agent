@@ -18,6 +18,8 @@ ANSWER_CLAIM_SCHEMA_VERSION = "answer-claim-snapshot-v1"
 
 AnswerClaimKind = Literal[
     "factual",
+    "synthesis",
+    "premise",
     "instructional",
     "question",
     "recommendation",
@@ -34,6 +36,8 @@ AnswerClaimSnapshotStatus = Literal[
 
 _ALLOWED_KINDS: set[str] = {
     "factual",
+    "synthesis",
+    "premise",
     "instructional",
     "question",
     "recommendation",
@@ -208,7 +212,13 @@ def normalize_answer_claim_snapshot_for_turn(
     """Normalize persisted/supplied claim truth against the current Turn state."""
 
     if turn_status != "completed":
-        return unavailable_answer_claim_snapshot(reason="turn_not_completed")
+        # Keep a specific rejection reason when the caller recorded one; a
+        # blocked research turn must stay diagnosable instead of collapsing to
+        # the generic "turn_not_completed".
+        recorded = _clean_text(_object(raw_snapshot).get("reason"))
+        return unavailable_answer_claim_snapshot(
+            reason=recorded or "turn_not_completed"
+        )
 
     raw = _object(raw_snapshot)
     if raw.get("schema_version") != ANSWER_CLAIM_SCHEMA_VERSION:

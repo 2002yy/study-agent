@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 
 import asyncio
 from contextlib import suppress
@@ -22,7 +23,7 @@ from src.application.answer_claim_binder import (
     AnswerClaimBindingRequest,
     AnswerClaimBindingRow,
     bind_answer_claims,
-    factual_claims_fully_bound,
+    substantive_claims_fully_bound,
 )
 from src.application.answer_consistency import (
     check_answer_consistency,
@@ -64,7 +65,7 @@ from src.interactive_restore import (
     restore_context_block,
     restore_record,
 )
-from src.interactive_repair import resolve_repair, repair_scope
+from src.interactive_repair import resolve_repair, repair_scope, validate_repair_output
 from src.llm_spend_guard import (
     experiment_id,
     new_scope,
@@ -93,6 +94,11 @@ PERFORMANCE_MODES = {"fast", "standard", "deep"}
 RESEARCH_ANSWER_BLOCKED_COPY = (
     "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。"
 )
+
+#: Verification runs after the research window and has its own clock. Batching a
+#: long answer into several model requests must not be cut off by the time the
+#: retrieval phase already spent.
+_ANSWER_VERIFICATION_SECONDS = 60.0
 
 # Gate=BLOCK is known *before* generation (no eligible evidence rows, or no
 # attempt budget), and in that case the release gate replaces whatever the model
@@ -161,6 +167,18 @@ def _answer_bounded_policy_enabled() -> bool:
 
     raw = (os.getenv("RESEARCH_ANSWER_BOUNDED_POLICY") or "").strip().lower()
     return raw in {"1", "true", "on", "yes"}
+
+
+def _strict_research_publication_enabled() -> bool:
+    """Keep the costly, claim-by-claim binder opt-in for audited workflows.
+
+    Ordinary research publishes the generated answer after deterministic source
+    checks. A read URL is provenance, *not* proof of every assertion in it.
+    """
+
+    import os
+
+    return (os.getenv("RESEARCH_PUBLICATION_MODE") or "simple").strip().lower() == "strict"
 
 
 def _configured_llm_provider() -> str:
@@ -260,6 +278,33 @@ def _tool_read_validation_plan(
         "allowed_attempts": 1,
         "source": "inline_tool_loop",
     }
+
+
+def inline_research_validation_plan(
+    trace: Any,
+    route: dict[str, Any],
+    user_input: str,
+    provided: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """The publication rows a research turn's own reads actually earned.
+
+    Both preparation pipelines call this: the base ``ChatService`` and the
+    external-data-policy pipeline that production uses. It lives here once
+    because duplicating the condition is how the policy path lost its
+    read-backed answer - it published the blocked copy without ever calling
+    the model, even though the turn had read a page.
+    """
+
+    if provided is not None:
+        return provided
+    if not _research_intent(route) or not trace.used:
+        return None
+    # Known-source turns keep their deterministic field publication: that seam
+    # withholds model prose on purpose. It is the general research turn that
+    # must not lose its answer.
+    if _official_plan_for(user_input) is not None:
+        return None
+    return _tool_read_validation_plan(trace, user_input)
 
 
 def _question_excerpts(body: str, question: str, *, limit: int = 3) -> tuple[str, ...]:
@@ -981,19 +1026,9 @@ class ChatService:
             # the plan is built from those reads instead of being absent (which
             # used to end the turn without ever calling the model). A plan that
             # came with the command (a ResearchRun) always wins.
-            answer_validation = command.answer_validation
-            if (
-                answer_validation is None
-                and _research_intent(route)
-                and web_tools.used
-                and not _official_plan_for(command.user_input)
-            ):
-                # Known-source turns keep their deterministic field publication:
-                # that seam withholds model prose on purpose. It is the general
-                # research turn that must not lose its answer.
-                answer_validation = _tool_read_validation_plan(
-                    web_tools, command.user_input
-                )
+            answer_validation = inline_research_validation_plan(
+                web_tools, route, command.user_input, command.answer_validation
+            )
             from src.web.research.research_interaction import (
                 steering_answer_instruction,
             )
@@ -1252,6 +1287,40 @@ class ChatService:
         with repair_scope(prepared.thread.id, prepared.route.get("interactive_repair")):
             return self._generate(prepared)
 
+    def _messages_with_citation_scope(self, prepared: PreparedChatTurn) -> Any:
+        """Tell the writer which sources it is allowed to cite.
+
+        The answer may only cite pages this turn actually read; the post-check
+        enforces it. Saying so up front is what lets the model comply instead of
+        losing the whole answer to one remembered link.
+        """
+
+        messages = prepared.messages
+        rows = (prepared.answer_validation or {}).get("evidence_rows") or ()
+        urls = sorted({
+            str(row.get("url")).strip()
+            for row in rows
+            if isinstance(row, dict) and str(row.get("url") or "").strip()
+        })
+        if not urls or not answer_validation_active(prepared):
+            return messages
+        block = {
+            "role": "system",
+            "content": (
+                "引用范围：本次只读取了下列页面，回答中的每个链接都必须来自这份列表，"
+                "不得添加列表之外的 URL，也不得凭记忆引用未见过的页面。"
+                "主要外部事实请用[来源](完整URL)标明依据；可正常转述，不必逐字引用。"
+                "仅有推断而无直接依据时请明确写成推断，资料不足时如实说明。\n"
+                + "\n".join(urls)
+            ),
+        }
+        if isinstance(messages, (list, tuple)) and messages:
+            first = messages[0]
+            if isinstance(first, dict) and first.get("role") == "system":
+                return [first, block, *messages[1:]]
+            return [block, *messages]
+        return messages
+
     def _generate(self, prepared: PreparedChatTurn) -> str:
         cancel_check = self._make_cancel_check(
             prepared.turn.id, prepared.turn.operation_id or ""
@@ -1285,10 +1354,11 @@ class ChatService:
                 operation_id=prepared.turn.operation_id or "",
             )
         try:
+            messages = self._messages_with_citation_scope(prepared)
             suffix = bounded_model_call(
                 prepared.research_deadline,
                 lambda: self._chat_within_scope(prepared)(
-                    prepared.messages,
+                    messages,
                     model_profile=prepared.route["model_profile"],
                     max_tokens=max_tokens,
                     task_name="single_chat",
@@ -1498,7 +1568,7 @@ class ChatService:
                 yield from bounded_stream(
                     prepared.research_deadline,
                     self._stream_source(prepared)(
-                        prepared.messages,
+                        self._messages_with_citation_scope(prepared),
                         model_profile=prepared.route["model_profile"],
                         max_tokens=max_tokens,
                         task_name="single_chat",
@@ -1546,7 +1616,7 @@ class ChatService:
         try:
             async with asyncio.timeout(remaining_seconds(prepared.research_deadline)):
                 async for token in self._async_stream_source(prepared)(
-                    prepared.messages,
+                    self._messages_with_citation_scope(prepared),
                     model_profile=prepared.route["model_profile"],
                     max_tokens=max_tokens,
                     task_name="single_chat",
@@ -1681,9 +1751,74 @@ class ChatService:
                 self._blocked_audit_phases(generation_phase, "candidate_unavailable"),
                 True,
             )
+        # A citation must refer to a page read in this turn, regardless of
+        # whether the optional semantic binder is enabled.
+        from src.domain.answer_links import classify_outside_links, normalize_link
+
+        outside = classify_outside_links(answer, (row.url for row in rows if row.url))
+        if outside:
+            blocked = rejected_answer_claim_snapshot(
+                answer=RESEARCH_ANSWER_BLOCKED_COPY,
+                producer=ANSWER_CLAIM_BINDER_PRODUCER,
+                reason=(
+                    f"citation_outside_evidence:{outside[0]['kind']}:"
+                    + ",".join(item["url"] for item in outside[:3])[:150]
+                ),
+            )
+            if isinstance(prepared.rag, dict):
+                prepared.rag["answer_claim_snapshot"] = blocked.to_dict()
+                prepared.rag["answer_citation_scope"] = {
+                    "allowed": sorted({row.url for row in rows if row.url}),
+                    "outside": outside[:10],
+                }
+            return (
+                RESEARCH_ANSWER_BLOCKED_COPY,
+                blocked,
+                self._blocked_audit_phases(generation_phase, "citation_outside_evidence"),
+                True,
+            )
+        if not _strict_research_publication_enabled():
+            # Do not split or rewrite Markdown: headings, list numbering and
+            # table structure are part of the user's answer, not claims for a
+            # second model to classify. Preserve source provenance without
+            # falsely marking individual claims as verified.
+            from src.domain.answer_links import links_in_answer
+
+            cited_pages = {normalize_link(url) for url in links_in_answer(answer)}
+            if isinstance(prepared.rag, dict):
+                prepared.rag["research_publication_mode"] = "simple"
+                prepared.rag["answer_citation_scope"] = {
+                    "allowed": sorted({row.url for row in rows if row.url}),
+                    "outside": [],
+                    "check": "read_page_url_only",
+                }
+                prepared.rag["research_evidence_refs"] = [
+                    {
+                        "evidence_id": row.evidence_id,
+                        "claim_id": row.claim_id,
+                        "title": row.title,
+                        "url": row.url,
+                        "source_cluster_id": row.source_cluster_id,
+                    }
+                    for row in rows
+                    if normalize_link(row.url) in cited_pages
+                ]
+            return (
+                candidate,
+                None,  # No claim-level validation was performed.
+                {PHASE_ANSWER_GENERATION: generation_phase},
+                False,
+            )
         cancel_check = self._make_cancel_check(
             prepared.turn.id, prepared.turn.operation_id or ""
         )
+        verification_deadline = time.monotonic() + _ANSWER_VERIFICATION_SECONDS
+        # Structured metadata, not prose: with hidden reasoning on, a long
+        # binding prompt consumed the whole output budget and returned empty
+        # content, which rejected an otherwise verified answer.
+        from src.llm_client import research_structured_output_capabilities
+
+        _, binder_extra_body = research_structured_output_capabilities()
         bound = bind_answer_claims(
             request=AnswerClaimBindingRequest(
                 question=question,
@@ -1691,7 +1826,7 @@ class ChatService:
                 evidence_rows=rows,
             ),
             model_fn=lambda messages: bounded_model_call(
-                prepared.research_deadline,
+                verification_deadline,
                 lambda: self._chat_within_scope(prepared)(
                     list(messages),
                     model_profile=prepared.route["model_profile"],
@@ -1699,16 +1834,25 @@ class ChatService:
                         self.dependencies.chat_max_tokens(
                             prepared.runtime_modes.performance_mode
                         ),
-                        1600,  # Claim binding is structured metadata, not the user answer.
+                        # 16 segments with verbatim quotes overflow 1600 tokens:
+                        # a truncated batch is malformed JSON, which rejects the
+                        # whole answer. Measured batch output was 6295 chars and
+                        # still incomplete, so leave real margin.
+                        3600,  # Claim binding is structured metadata, not the user answer.
                     ),
                     task_name="answer_claim_binding",
+                    response_format="json_object",
                     request_max_retries=0,
                     extra_body=(
-                        THINKING_DISABLED_EXTRA_BODY
-                        if _answer_bounded_policy_enabled()
-                        else None
+                        binder_extra_body
+                        if binder_extra_body is not None
+                        else (
+                            THINKING_DISABLED_EXTRA_BODY
+                            if _answer_bounded_policy_enabled()
+                            else None
+                        )
                     ),
-                    **request_options(prepared.research_deadline),
+                    **request_options(verification_deadline),
                 ),
             ),
             max_attempts=allowed_attempts,
@@ -1731,7 +1875,28 @@ class ChatService:
             attempts=bound.attempt_count,
             candidate=candidate,
         )
-        if snapshot.status == "validated" and factual_claims_fully_bound(snapshot):
+        if snapshot.status == "validated" and substantive_claims_fully_bound(snapshot):
+            published = bound.published_text or candidate
+            if bound.withheld:
+                if not str(bound.published_text or "").strip():
+                    binding_phase["outcome"] = PHASE_OUTCOME_REJECTED
+                    binding_phase["error_type"] = "answer_fully_withheld"
+                    return (
+                        RESEARCH_ANSWER_BLOCKED_COPY,
+                        snapshot,
+                        {
+                            PHASE_ANSWER_GENERATION: generation_phase,
+                            PHASE_ANSWER_CLAIM_BINDING: binding_phase,
+                        },
+                        True,
+                    )
+                # Deleting unsupported statements is the correction the contract
+                # asks for; the deletion is disclosed instead of staying silent.
+                published = (
+                    f"{published}\n\n（另有 {len(bound.withheld)} 处表述因缺少可核实依据未发布。）"
+                )
+                if isinstance(prepared.rag, dict):
+                    prepared.rag["answer_withheld_claims"] = list(bound.withheld)[:20]
             if consistency_gate_enabled():
                 # §40c diagnostic consistency gate: the generated text must not
                 # contradict the evidence ledger. The binding snapshot stays
@@ -1760,7 +1925,7 @@ class ChatService:
                     )
             binding_phase["outcome"] = PHASE_OUTCOME_PASSED
             return (
-                candidate,
+                published,
                 snapshot,
                 {
                     PHASE_ANSWER_GENERATION: generation_phase,
@@ -1784,6 +1949,10 @@ class ChatService:
             producer=ANSWER_CLAIM_BINDER_PRODUCER,
             reason=rejected_reason,
         )
+        if isinstance(prepared.rag, dict):
+            # The response is assembled from the turn's rag snapshot, so the
+            # reason must be written there or every rejection looks identical.
+            prepared.rag["answer_claim_snapshot"] = rejected.to_dict()
         return (
             RESEARCH_ANSWER_BLOCKED_COPY,
             rejected,
@@ -1944,6 +2113,9 @@ class ChatService:
             published_rag["lookup_terminal"] = self._lookup_terminal_snapshot(prepared)
         else:
             published_rag = deepcopy(prepared.rag)
+        reply = validate_repair_output(
+            reply, prepared.route, self.repository, prepared.thread.id
+        )
         evaluation = self.dependencies.pedagogy_engine.evaluate_response(
             reply,
             plan=prepared.pedagogy_plan,

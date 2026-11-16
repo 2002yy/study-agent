@@ -83,3 +83,12 @@ describe("MarkdownMessage", () => {
     expect(container.textContent?.trim()).toBe("");
   });
 });
+
+it.each([false, true])("stopped interactive draft stays inert and exposes source (closed=%s)", (closed) => {
+  const source = '```study-ui\n' + JSON.stringify({type:"interactive",id:"draft",revision:1,title:"Draft",summary:"test",html:"<p>do not execute</p>"}) + (closed ? '\n```' : '');
+  const view = render(<MarkdownMessage content={source} interactive streaming stopped />);
+  expect(screen.queryByText("正在准备交互内容…")).toBeNull();
+  expect(screen.getByText("生成已停止，交互内容尚未完成，未运行。")).toBeVisible();
+  expect(view.container.querySelector("iframe")).toBeNull();
+  expect(view.container.querySelector("pre")?.textContent).toBe(source);
+});

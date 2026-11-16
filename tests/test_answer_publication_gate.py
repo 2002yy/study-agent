@@ -12,6 +12,8 @@ import json
 import re
 from typing import Any, Callable, Sequence
 
+import pytest
+
 from src.application.chat_service import (
     RESEARCH_ANSWER_BLOCKED_COPY,
     ChatCommand,
@@ -37,6 +39,13 @@ RESEARCH_CLAIM_ID = "research_claim_1"
 CANDIDATE = "该版本已正式发布，并修复了已知问题。"
 CLAIM_TEXT = "该版本已正式发布。"
 ANSWER = "candidate text to publish"
+
+
+@pytest.fixture(autouse=True)
+def _legacy_strict_publication_contract(monkeypatch):
+    """Keep the former binder contract exercised explicitly, not as default."""
+
+    monkeypatch.setenv("RESEARCH_PUBLICATION_MODE", "strict")
 
 
 class _FakeRagResult:
@@ -219,6 +228,71 @@ def _run_turn(
     return reply, _turn(repository, prepared.turn.id)
 
 
+def test_default_simple_research_publishes_markdown_without_binder(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.delenv("RESEARCH_PUBLICATION_MODE", raising=False)
+    answer = (
+        "## 2. 并发风险\n\n"
+        "4 个 worker 可能竞争写锁。"
+        "[本轮资料](https://official.example/release)\n\n"
+        "## 3. 迁移条件\n\n"
+        "| 触发条件 | 理由 |\n| --- | --- |\n"
+        "| 需要多机共享 | 文件系统约束 |"
+    )
+    tasks: list[str] = []
+    sent_messages: list[dict[str, str]] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        tasks.append(kwargs.get("task_name", ""))
+        sent_messages.extend(args[0])
+        if kwargs.get("task_name") == "answer_claim_binding":
+            raise AssertionError("simple mode must never invoke the binder")
+        return answer
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == answer
+    assert turn.status == "completed"
+    assert tasks == ["single_chat"]
+    assert any(
+        item.get("role") == "system"
+        and "https://official.example/release" in item.get("content", "")
+        and "不必逐字引用" in item.get("content", "")
+        for item in sent_messages
+    )
+    assert "2. 并发风险" in reply and "| --- | --- |" in reply
+    assert "answer_claim_binding" not in _audit(turn)["phases"]
+    assert (turn.rag_snapshot or {})["research_publication_mode"] == "simple"
+    assert turn.answer_claim_snapshot["status"] == "unavailable"
+    refs = (turn.rag_snapshot or {})["research_evidence_refs"]
+    assert [ref["url"] for ref in refs] == ["https://official.example/release"]
+    evidence_refs = turn.evidence_snapshot["refs"]
+    assert evidence_refs[0]["selection_reason"] == "research_read_cited_unverified"
+
+
+def test_simple_research_still_blocks_unread_citation(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("RESEARCH_PUBLICATION_MODE", "simple")
+    tasks: list[str] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        tasks.append(kwargs.get("task_name", ""))
+        return "请看[备份](https://official.example/backup)中的说明。"
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert tasks == ["single_chat"]
+    scope = (turn.rag_snapshot or {})["answer_citation_scope"]
+    assert scope["outside"] == [{
+        "url": "https://official.example/backup",
+        "kind": "read_host_page_not_read",
+    }]
+    assert turn.answer_claim_snapshot["status"] == "rejected"
+
+
 def test_passed_binding_publishes_candidate_with_full_audit(tmp_path) -> None:
     """Answer generation and a passed binding are both authoritative-audited."""
     calls = [_binding_payload([_segment_entry("s1", support=(EVIDENCE_ID,))])]
@@ -367,6 +441,30 @@ def test_missing_evidence_brief_fails_closed_without_provider_calls(tmp_path) ->
     assert calls["calls"] == 1
     audit = _audit(turn)
     binding = audit["phases"]["answer_claim_binding"]
+    assert binding["outcome"] == "rejected"
+    assert binding["model_calls"] == 0
+    assert binding["error_type"] == "missing_evidence_brief"
+
+
+def test_default_simple_mode_also_fails_closed_without_evidence(
+    tmp_path, monkeypatch
+) -> None:
+    """P0-3 holds in the new default: no read evidence, no published answer."""
+
+    monkeypatch.delenv("RESEARCH_PUBLICATION_MODE", raising=False)
+    calls = {"calls": 0}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        calls["calls"] += 1
+        return ANSWER
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[]))
+
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert calls["calls"] == 1
+    assert "research_publication_mode" not in (turn.rag_snapshot or {})
+    binding = _audit(turn)["phases"]["answer_claim_binding"]
     assert binding["outcome"] == "rejected"
     assert binding["model_calls"] == 0
     assert binding["error_type"] == "missing_evidence_brief"
@@ -998,6 +1096,122 @@ def _support_id(messages: Any) -> str:
 
     found = re.findall(r"\[([^\]]+)\] \| claim=", _prompt_text(messages))
     return found[0] if found else ""
+
+
+def test_policy_path_read_backed_research_turn_still_generates_an_answer(
+    tmp_path,
+) -> None:
+    """The production preparation path must build the same plan.
+
+    The external-data-policy pipeline is the one the app actually uses. When it
+    skipped the tool-read plan, a turn that had successfully read a page still
+    published the blocked copy without ever calling the model.
+    """
+
+    seen: dict[str, Any] = {"tasks": [], "binder_prompt": ""}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        task = str(kwargs.get("task_name", ""))
+        seen["tasks"].append(task)
+        if task == "answer_claim_binding":
+            messages = _messages(args, kwargs)
+            seen["binder_prompt"] = _prompt_text(messages)
+            return _binding_payload(
+                [_segment_entry("s1", support=(_support_id(messages),))]
+            )
+        return CANDIDATE
+
+    from src.pedagogy.evaluation import SemanticEvaluation
+    from src.task_contract import (
+        TaskAwarePedagogyEngine,
+        TaskAwarePedagogyEvaluationService,
+    )
+
+    class _FailingSemanticEvaluator:
+        def evaluate(self, **kwargs: Any) -> SemanticEvaluation:
+            raise AssertionError("semantic evaluation must not run in this test")
+
+    repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    dependencies = ChatDependencies(
+        route_request=lambda **kwargs: _research_route(),
+        read_memory_bundle=lambda _mode: {},
+        retrieve_local_knowledge=lambda *_args, **_kwargs: _FakeRagResult(),
+        resolve_web_tools=lambda *args, **kwargs: WebToolTrace(
+            calls=_read_backed_calls()
+        ),
+        build_messages=lambda **kwargs: [
+            {"role": "system", "content": kwargs.get("rag_context", "")},
+            {"role": "user", "content": kwargs["user_input"]},
+        ],
+        pedagogy_engine=TaskAwarePedagogyEngine(),
+        pedagogy_evaluation=TaskAwarePedagogyEvaluationService(
+            _FailingSemanticEvaluator()
+        ),
+        build_role_prompt=lambda *_args, **_kwargs: "ROLE",
+        chat=chat_fn,
+        chat_max_tokens=lambda performance_mode: 1000,
+    )
+    service = ExternalDataPolicyChatService(repository, dependencies)
+    command = PolicyChatCommand(
+        user_input="这个版本什么时候发布的？",
+        selected_role="nahida",
+        task_intent="research",
+        web_policy="auto",
+        web_consent=True,
+    )
+    reply, turn = _run_turn(service, repository, command)
+
+    assert seen["tasks"] == ["single_chat", "answer_claim_binding"]
+    assert reply == CANDIDATE
+    assert "https://official.example/release" in seen["binder_prompt"]
+    audit = _audit(turn)
+    assert audit["phases"]["answer_generation"]["model_calls"] == 1
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "passed"
+
+
+def test_unverified_sentences_are_deleted_and_disclosed(tmp_path) -> None:
+    """The correction loop removes unsupported statements instead of shipping them."""
+
+    candidate = "请先核对官方发布说明。该版本已于上周正式发布。"
+    seen = {"binder": ""}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            seen["binder"] = _prompt_text(_messages(args, kwargs))
+            return json.dumps(
+                {
+                    "refused": False,
+                    "segments": [
+                        {"segment_ref": "s1", "kind": "instructional"},
+                        {
+                            "segment_ref": "s2",
+                            "kind": "source_fact",
+                            "status": "asserted",
+                            "research_claim_id": "inline_tool_read",
+                            "evidence_support": [],
+                            "support_claims": [],
+                        },
+                    ],
+                },
+                ensure_ascii=False,
+            )
+        return candidate
+
+    service, repository = _service(
+        tmp_path,
+        chat_fn,
+        web_tools=WebToolTrace(calls=_read_backed_calls()),
+        route=_research_route(),
+    )
+    reply, turn = _run_turn(service, repository, _research_command())
+
+    assert "请先核对官方发布说明。" in reply
+    assert "该版本已于上周正式发布。" not in reply
+    assert "1 处表述因缺少可核实依据未发布" in reply
+    assert seen["binder"]
+    audit = _audit(turn)
+    assert audit["phases"]["answer_claim_binding"]["outcome"] == "passed"
+    assert (turn.rag_snapshot or {}).get("answer_withheld_claims")
 
 
 def test_a_read_backed_research_turn_generates_and_validates_an_answer(tmp_path) -> None:

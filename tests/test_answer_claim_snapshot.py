@@ -217,3 +217,24 @@ def test_trusted_upstream_claim_id_is_preserved_only_in_trusted_mode():
 
     assert snapshot.claims[0].id == "provider_claim_42"
     assert snapshot.status == "supplied"
+
+def test_a_blocked_turn_keeps_its_recorded_rejection_reason():
+    """A blocked research turn must stay diagnosable.
+
+    Collapsing every rejection to "turn_not_completed" hides whether the answer
+    was rejected for a missing quote, a fabricated one, or a provider failure.
+    """
+
+    normalized = normalize_answer_claim_snapshot_for_turn(
+        raw_snapshot={
+            "schema_version": "answer-claim-snapshot-v1",
+            "status": "unavailable",
+            "reason": "batch_1_of_6:unverified_source_quote",
+            "producer": "answer_claim_binding",
+        },
+        assistant_message=ANSWER,
+        turn_status="failed",
+    )
+
+    assert normalized.status == "unavailable"
+    assert normalized.reason == "batch_1_of_6:unverified_source_quote"

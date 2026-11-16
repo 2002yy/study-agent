@@ -111,6 +111,24 @@ class ResearchEpisode:
         )
 
 
+def _provider_payload(raw: Any, *, task_id: str) -> Any:
+    """Strip provider response-format echoes before the strict parser runs.
+
+    Some providers copy the ``response_format`` hint (``{"type":
+    "json_object"}``) into the JSON body and omit the server-owned ``task_id``.
+    Neither is model content: the server binds the episode id itself, and every
+    meaningful field is still required and validated by the strict parser. Any
+    other extra key (for example a model-claimed ``authority``) stays rejected.
+    """
+
+    if not isinstance(raw, dict):
+        return raw
+    value = dict(raw)
+    value.pop("type", None)
+    value.setdefault("task_id", task_id)
+    return value
+
+
 @dataclass(frozen=True)
 class ResearchDecision:
     task_id: str
@@ -319,9 +337,13 @@ class ResearchSemanticSession:
         raw = self.request("research_turn_interpretation",
             _TURN_INSTRUCTION + "Exact fields, no extras: " + json.dumps(schema, ensure_ascii=False), context)
         try:
-            self.decision = ResearchDecision.parse(raw, task_id=episode.task_id)
-        except ValueError:
+            self.decision = ResearchDecision.parse(
+                _provider_payload(raw, task_id=episode.task_id),
+                task_id=episode.task_id,
+            )
+        except ValueError as exc:
             self.events[-1]["validation"] = "rejected"
+            self.events[-1]["validation_reason"] = str(exc)
             raise
         return self.decision
 

@@ -7,6 +7,8 @@ import json
 from dataclasses import replace
 from typing import Any, Callable
 
+import pytest
+
 from src.application.answer_claim_binder import _segment_answer
 from src.application.chat_service import ChatCommand, ChatDependencies, ChatService
 from src.infrastructure.sqlite.database import RuntimeDatabase
@@ -14,6 +16,11 @@ from src.mode_manager import RuntimeModes
 from src.pedagogy.evaluation import PedagogyEvaluationService
 from src.repositories.runtime_repository import RuntimeRepository
 from src.tools.web_agent import WebToolTrace
+
+
+@pytest.fixture(autouse=True)
+def _legacy_strict_publication_contract(monkeypatch):
+    monkeypatch.setenv("RESEARCH_PUBLICATION_MODE", "strict")
 
 
 class _FakeRagResult:

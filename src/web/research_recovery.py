@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
+import os
 import re
 import time
 from typing import Any, Callable
@@ -72,14 +73,59 @@ def model_targets(query: str) -> list[tuple[str, str]]:
     )
 
 
-def recovery_budget(query: str) -> RecoveryBudget:
+def recovery_budget(
+    query: str, query_plan: list[dict[str, str]] | None = None
+) -> RecoveryBudget:
     if len(model_targets(query)) > 1 or re.search(
         r"比较|对比|区别|优缺点|多来源|综合|调查|compare|versus|\bvs\b",
         query,
         re.IGNORECASE,
     ):
         return STANDARD_BUDGET
+    # A question can be multi-facet without naming two versions or saying
+    # "compare" ("keep WAL or migrate, and tell me the triggers and steps").
+    # The interpreter's own plan is the honest signal: two or more distinct
+    # research questions need the standard window, otherwise the second facet
+    # is never searched at all.
+    if planned_questions(query_plan) >= 2:
+        return STANDARD_BUDGET
     return LOOKUP_BUDGET
+
+
+def _provider_call_seconds(gateway: Any) -> float:
+    """Per-call ceiling for one provider invocation.
+
+    The site pool visits several sites inside one call, so the 8s single-provider
+    ceiling aborted every pool search with ``provider_call_timeout`` and the turn
+    fell back to "no evidence". The ceiling must cover what the pool is allowed to
+    spend (its budget plus the fallback reserve), otherwise the outer timer cuts a
+    legal search short. Every other strategy keeps 8s.
+    """
+
+    seconds = 8.0
+    if getattr(gateway, "search_strategy", "") != "browse_sites":
+        return seconds
+    try:
+        pool = float(os.getenv("WEB_SITE_POOL_TOTAL_SECONDS", "20"))
+        reserve = float(os.getenv("WEB_SEARCH_FALLBACK_RESERVE_SECONDS", "4"))
+    except ValueError:
+        pool, reserve = 20.0, 4.0
+    return max(seconds, min(30.0, pool + reserve + 1.0))
+
+
+def planned_questions(query_plan: list[dict[str, str]] | None) -> int:
+    """How many distinct research questions a plan actually asks for."""
+
+    if not query_plan:
+        return 0
+    rows = [row for row in query_plan if isinstance(row, dict)]
+    ids = {str(row.get("rq_id") or "").strip() for row in rows}
+    ids.discard("")
+    if ids:
+        return len(ids)
+    queries = {str(row.get("query") or "").strip() for row in rows}
+    queries.discard("")
+    return len(queries)
 
 
 def target_identity_pattern(target: tuple[str, str]) -> re.Pattern[str]:
@@ -98,6 +144,85 @@ def target_identity_pattern(target: tuple[str, str]) -> re.Pattern[str]:
         rf"(?<![A-Za-z0-9]){re.escape(name.rstrip('_-'))}[\s._-]*{digits}(?![\d.])",
         re.IGNORECASE,
     )
+
+
+#: Official documentation homes for technologies a research question names.
+#: This is a discovery hint (one scoped query), not an answer: a page still has
+#: to be read and judged before it can support anything.
+_DOC_DOMAINS: dict[str, str] = {
+    "sqlite": "sqlite.org",
+    "postgresql": "postgresql.org",
+    "postgres": "postgresql.org",
+    "fastapi": "fastapi.tiangolo.com",
+    "python": "docs.python.org",
+    "docker": "docs.docker.com",
+    "redis": "redis.io",
+    "nginx": "nginx.org",
+    "kubernetes": "kubernetes.io",
+}
+
+_STOPWORDS = {
+    "the", "and", "or", "for", "with", "from", "this", "that", "should", "what",
+    "how", "why", "when", "which", "are", "is", "to", "of", "in", "on", "vs",
+    "a", "an", "do", "does", "can", "my", "we", "i",
+}
+
+
+def documentation_domains(query: str, rewritten: str = "") -> tuple[str, ...]:
+    """Domains worth one scoped query for the technologies this question names."""
+
+    text = f"{query} {rewritten}".casefold()
+    found: list[str] = []
+    for name, domain in _DOC_DOMAINS.items():
+        if re.search(rf"(?<![a-z0-9]){re.escape(name)}(?![a-z0-9])", text):
+            if domain not in found:
+                found.append(domain)
+    return tuple(found[:2])
+
+
+def ascii_topics(query: str, limit: int = 6) -> str:
+    """English/ASCII tokens of a mixed-language question, for a scoped query.
+
+    A Chinese question sent to ``site:sqlite.org`` finds dictionary pages; the
+    product names (SQLite, WAL, FastAPI) are what the engine can match.
+    """
+
+    tokens: list[str] = []
+    for token in re.findall(r"[A-Za-z][A-Za-z0-9.+#-]{1,}", str(query or "")):
+        if token.casefold() in _STOPWORDS or token in tokens:
+            continue
+        tokens.append(token)
+        if len(tokens) >= limit:
+            break
+    return " ".join(tokens)
+
+
+#: Names that identify a product rather than the topic being asked about.
+_TECH_NAMES = {name.casefold() for name in _DOC_DOMAINS} | {"postgres"}
+_GENERIC_TOPICS = {
+    "worker", "workers", "app", "application", "database", "index",
+    "indexing", "service", "server", "backend",
+}
+
+
+def documentation_query(domain: str, query: str) -> str:
+    """A focused ``site:`` query: the product name plus the question's topic.
+
+    ``site:sqlite.org FastAPI SQLite worker WAL PostgreSQL`` returns nothing;
+    ``site:sqlite.org SQLite WAL`` returns the WAL page. Everything that names
+    *other* products or the deployment shape is noise for a scoped query.
+    """
+
+    label = next(
+        (name for name, mapped in _DOC_DOMAINS.items() if mapped == domain), ""
+    )
+    topics = [
+        token for token in ascii_topics(query, limit=12).split()
+        if token.casefold() not in _TECH_NAMES
+        and token.casefold() not in _GENERIC_TOPICS
+    ]
+    parts = [label.capitalize() if label else "", *topics[:2]]
+    return f"site:{domain} {' '.join(part for part in parts if part)}".strip()
 
 
 def _rewrite(query: str) -> tuple[str, tuple[str, ...]]:
@@ -202,7 +327,7 @@ def _recover_public_research(
     semantic_session: ResearchSemanticSession | None = None,
     query_plan: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
-    budget = budget or recovery_budget(query)
+    budget = budget or recovery_budget(query, query_plan)
     started = monotonic() if started_at is None else started_at
     deadline = min(started + budget.hard_seconds, answer_deadline or float("inf")) - budget.finalization_reserve
     if semantic_session is not None:
@@ -222,16 +347,21 @@ def _recover_public_research(
     provider_failures = 0
     search_topic = normalize_web_query(query).canonical_query
     rewritten, domains = _rewrite(search_topic)
+    doc_domains = () if domains else documentation_domains(query, rewritten)
     markers = [target_identity_pattern(target) for target in model_targets(rewritten)]
     # A bare short Chinese topic must appear whole in the body. Matching only
     # one character (e.g. a surname dictionary entry) is not topic evidence.
     literal_topic = search_topic.strip() if re.fullmatch(r"[\u3400-\u9fff]{2,4}", search_topic.strip()) else ""
-    authority = " OR ".join(f"site:{domain}" for domain in domains)
-    authority_query = (
-        f"({authority}) {rewritten}"
-        if domains
-        else f"{rewritten} official documentation"
-    )
+    if domains:
+        # An official release plan already knows its exact homes; keep the
+        # existing OR scope over them.
+        authority_query = f"({' OR '.join(f'site:{d}' for d in domains)}) {rewritten}"
+    elif doc_domains:
+        # A documentation question needs the product name and one topic, not
+        # the whole sentence (which may be Chinese).
+        authority_query = documentation_query(doc_domains[0], query)
+    else:
+        authority_query = f"{rewritten} official documentation"
     # Initial/alternate reads cannot consume the final authority recovery slots.
     phases = (
         [
@@ -263,7 +393,9 @@ def _recover_public_research(
         planned = query_plan[: min(3, budget.max_queries - 1)]
         official_query = next(
             (row["query"] for row in query_plan if re.match(r"^site:[A-Za-z0-9.-]+\s", row["query"])),
-            f"site:{domains[0]} {rewritten}" if domains else authority_query,
+            f"site:{domains[0]} {rewritten}" if domains
+            else documentation_query(doc_domains[0], query) if doc_domains
+            else authority_query,
         )
         # The live RSS fallback returned generic homepages when release/date/
         # schedule padding was appended, but found the exact official release
@@ -286,7 +418,7 @@ def _recover_public_research(
 
     def invoke(fn: Callable[[], Any]) -> Any:
         active()
-        call_deadline = min(deadline, monotonic() + 8)
+        call_deadline = min(deadline, monotonic() + _provider_call_seconds(gateway))
         # Only the caller owns trace/persistence. A late network worker cannot
         # publish, and a new request never waits behind an old blocked worker.
         pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research-recovery")

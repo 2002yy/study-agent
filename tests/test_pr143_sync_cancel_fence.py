@@ -21,6 +21,11 @@ EVIDENCE_ID = "evidence_sync_cancel"
 CLAIM_ID = "claim_sync_cancel"
 
 
+@pytest.fixture(autouse=True)
+def _legacy_strict_publication_contract(monkeypatch):
+    monkeypatch.setenv("RESEARCH_PUBLICATION_MODE", "strict")
+
+
 class _FakeRagResult:
     context = ""
 

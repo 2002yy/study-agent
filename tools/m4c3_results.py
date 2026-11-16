@@ -149,7 +149,12 @@ def evaluate_artifacts(run_dir: Path, *, render: bool = True) -> dict:
                 if any(check["status"] == "fail" for check in checks)
                 else (
                     "indeterminate"
-                    if not checks or any(check["status"] != "pass" for check in checks)
+                    if any(
+                        not item[group]
+                        for item in evidence
+                        for group in ("checks", "usability")
+                    )
+                    or any(check["status"] != "pass" for check in checks)
                     else "passed"
                 )
             )

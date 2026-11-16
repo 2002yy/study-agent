@@ -57,15 +57,16 @@ def _sentence(index: int) -> str:
     return f"结论{index}：这是一条足够长的中文句子，用来占用分段预算。"
 
 
-def test_segment_stats_report_overflow_instead_of_zero() -> None:
+def test_segment_stats_report_batching_instead_of_zero() -> None:
     answer = "".join(_sentence(index) for index in range(20))
     segments, stats = segment_answer_with_stats(answer)
-    assert segments == ()
+    assert len(segments) == 20
     assert stats["raw_nonempty_segment_count"] == 20
     assert stats["segment_limit"] == 16
-    assert stats["segment_overflow"] is True
-    assert stats["overflow_reason"] == "segment_count"
-    assert stats["accepted"] is False
+    assert stats["segment_overflow"] is False
+    assert stats["overflow_reason"] == ""
+    assert stats["accepted"] is True
+    assert stats["batch_count"] == 2
 
 
 def test_segment_stats_report_accepted_segments() -> None:

@@ -26,6 +26,378 @@
 
 下一门：等 CI 绿后合并；若要与 #360 的发布模式一起验收，再跑一次真实研究（约 0.29 元，需单独授权）。
 
+### 2026-11-16 研究答案默认简洁发布（独立静态候选）
+
+用户裁定采用「检索→读取→生成→轻量引用检查→发布」，不再默认运行逐段 binder。在当时远端 #357 的 `8a8be1e` 上创建独立分支 `codex/simple-research-flow-20261116`，未覆盖原工作树改动。
+
+- `RESEARCH_PUBLICATION_MODE=simple` 为默认：有已读证据、生成有效且引用 URL 均属当轮已读网页时，原样发布 Markdown，不分段、不调用 binder；`strict` 显式保留旧的严格校验。
+- 简洁模式记录来源白名单和已读引用，但**不把未逐条验证的引用标为 verified**；无资料与未读链接仍被拦截。URL 匹配区分内容查询参数，忽略 `utm_` 追踪参数。
+- 离线直接调用验证最初只做了 Markdown/表格无损发布、未读 URL 拦截、旧严格模式通过；随后在评审环境补跑影响集 **201 PASS**（publication gate、answer_links、streaming、chat_service、binder、standard_handoff、pr143 三套、browse_search、site_pool），Ruff clean，mypy 118（基线 128，无新增）。
+- 补测覆盖缺口：默认简洁模式下的**流式发布**原先没有测试（旧流式测试全部显式固定 strict）。新增两条：流式 Markdown 不调用 binder 即发布；流式答案引用未读页时最终回复被替换为阻断文案。
+- 合并 #357 当前 head（`9a17ce4d`）后仅 `docs/PROJECT_STATUS.md` 冲突，按“新条目在前、旧条目保留”解决；`src/` 无冲突。
+- 完整 pytest 与真实模型对照 **仍未执行**；CI 首轮在 `8a8be1ee` 上暴露两处与本 PR 无关的失败：`test_learner_state_shadow_acceptance[stall]` 本地重跑通过（时序抖动），以及 mypy 新增 `browse_search.py` origin 元组类型错误（已在 #357 修复）。
+
+下一门：等 `codex/simple-research-flow-20261116` 的 CI 全绿后再谈合并；真实端到端验收仍需独立预算授权，不能把静态验证写成产品通过。
+
+### 2026-11-15 研究检索定为 HTTP fallback；引用越界分类、binder 预算与分段已修，仍未发布成功
+
+按裁定，研究阶段默认走 HTTP `fallback`（`tool_gateway` 的默认值本来就是 `fallback`；浏览器站点池保留为按需，需 `WEB_SEARCH_STRATEGY=browse_sites`）。不新增网站，不放宽引用白名单、数字一致性与 binder 证据契约。
+
+同一道 SQLite WAL 题逐层复测（DeepSeek 真实价；实验 `study-agent-live-20261115`，cap 3 元）：
+
+| 运行 | 结果 | 根因与处理 |
+|---|---|---|
+| q1c–q1e | 无证据 / 答案截断 | provider 硬限 8s → `browse_sites` 按池预算封顶 16s；思考模式吃满 8192 → `RESEARCH_ANSWER_BOUNDED_POLICY=on` |
+| q3 | `citation_outside_evidence` | 引用同域未读页 `backup.html`；白名单保留，错误分类拆为 `read_host_page_not_read`（搜索覆盖缺口）/ `host_not_in_evidence`（记忆引用） |
+| q5 | `batch_1_of_7:claim_specifics_not_in_source` | 引文逐字存在但缺版本号/数字；规则改为“引文必须自身含该段每个数字”，并纳入一次带反馈的修复重试 |
+| q6 | `batch_3_of_6:malformed_structured_output` | 16 段批次在 1600 tokens 被截断（实测 6295 字符仍未写完）；批次预算改 3600，截断单列 `producer_output_truncated` |
+| q7 | `batch_1_of_5:producer_failed:SpendAdmissionRefused` | harness 0.45 元单次上限生效，非产品缺陷；据此把一次完整研究重估为约 0.62 元 |
+| q8 | `batch_3_of_6:producer_refused` | 分段切出 `2.`、表头等碎片；纯列表编号现并回其陈述，不再单独成段 |
+
+q8 冻结答案（3248 字符）离线回放：85 段 / 6 批、0 个 marker-only 段、逐行核对 0 行丢失、5 个表格行仍进入核验；发布文本仍是“原文减去被 withheld 的段”，标题与表格结构不被删除。
+
+费用：q2–q8 预留合计 1,801,604 micros；实验累计预留 2,585,274 / 3,000,000，剩余 **414,726 micros ≈ 0.415 元**。q8 只完成 4 次调用 + 3/6 批即用 0.453 元，余额不足以覆盖一次完整研究，**付费已停止**。
+
+未验证项：新分段下模型是否仍会 `refused` 只能由真实调用确认。`f8ab83f5`（分段）与 `8a8be1ee`（批次预算/截断分类）目前只有离线证据（binder 31 PASS、answer_links 6 PASS、chat_service 组合 72 PASS）。
+
+下一门：取得约 0.3 元追加预算后，用 `f8ab83f5` 跑一次同题完整验收（一次为限）；不追加则保持现状，不再重跑。
+
+### 2026-11-15 端到端验收（P0）：链路已跑通到发布门，但被 binder 引用不合规拦住
+
+按裁定用 DeepSeek 真实价格（deepseek-flash 高峰 2/8 元每百万 tokens，空闲 1/4；核对 https://api-docs.deepseek.com/zh-cn/quick_start/pricing/ ）新建实验 `study-agent-live-20261115`（cap 3 元）。此前“一题约 2 元”是旧 9/27 上限造成的**高估约 7 倍**：本次每次完整尝试约 **0.27 元**（5–6 次调用），不是 2 元。
+
+真实链路（research-e2e-q1c/q1d/q1e）：
+- 检索、正文读取、生成、逐段绑定全部执行；`evidence_refs=10`。
+- 首次失败：`research_recovery.invoke` 把每个 provider 调用硬限 8 秒，而站点池单次需 10–24 秒 → 每次 `provider_call_timeout`，检索结果 0。**已修**：`_provider_call_seconds(gateway)` 对 `browse_sites` 用「池预算+回退预留+1」并封顶 16 秒，其它策略仍 8 秒（tests/test_research_recovery.py 锁定）。
+- 第二次失败：答案生成 `finish_reason=length`、正文仅 1299 字符——思考模式吃掉 8192 输出预算。用产品已文档化的 `RESEARCH_ANSWER_BOUNDED_POLICY=on` 后生成完整（3912 字符，finish_reason=stop）。
+- 当前阻断：binder 第一批 16 段里 **7 条 source_quote 不是证据原文**（例如把 WAL 页改写成 "WAL allows readers and writers to proceed concurrently…"），服务端按契约拒绝整篇；`allowed_attempts=1`，没有重试。抽查 7/7 全部为改写而非逐字引用。
+- 观测缺口：响应里只写 `turn_not_completed`，不写 `batch_N_of_M:<reason>`，排障必须回读 harness 抓取的请求/响应。
+
+结论：**P0 未达成**（没有发布出带已验证引用的答案）；证据是“门在正确工作，模型不合规”，不是“产品放行错误”。剩余预算约 2.22 元（实验内 2,216,330 micros）。
+
+### 2026-11-15 站点池成本基线：12 题中位 10.85s、P95 17.11s
+
+按要求在扩展站点前先量化成本。`tools/bench_site_pool.py`（仅浏览器、无模型调用）跑固定 12 题（技术/社区/游戏/教程各 3 题），记录耗时、路由、每站新增结果数与最终不同主机数。
+
+结果（D:/study-agent-validation/bench-site-pool-20261115.json）：
+- 中位 **10.85s**、P95 **17.11s**、均值 **12.80s**；每题固定 3 站。
+- 每题新增有效结果 9–15 条，最终来源主机 2–4 个；最慢两题是「本地大模型 量化 显存」18.58s 与「Codex API 中转」17.11s（都是 2 个主机），说明慢在站点页面而非结果数量。
+- `site_outcomes` 新增 `new_results`：某站去掉重复后实际贡献的条数，作为“这站值不值得花这几秒”的判据。
+
+### 2026-11-15 站点自带搜索被封时的替代发现：Google site: 校验后启用 4 站
+
+审查要求“有修复方式？联网查查”。逐站实测后，结论是：自带搜索不可用时，用通用引擎做 `site:` 限定发现，再用该站 URL 形状校验，正文仍在站内读取。新增 `SiteProfile.search_via`，网关与探测工具走同一路径（payload/API 记录 `via`）。
+
+已启用（均通过“可开→真实结果→正文可读→重复两次→耗时”）：
+- Stack Overflow：自带搜索重定向 `/nocaptcha`；`site:stackoverflow.com` 两次 5/5，3.5s；问题页可读。
+- Reddit：自带搜索重定向登录；`site:reddit.com` 两次 5/5（4.9s 热、20.8s 冷）；帖子正文 2896 字符。
+- LINUX DO：自带搜索需登录；`site:linux.do` 两次 5/5，3.5–5.2s；主题正文 3523 字符。
+- Chiphell：自带搜索只回页脚；`site:chiphell.com` 两次 5/5，3.5s；帖子正文 4272 字符。
+
+未通过、保持关闭（原因已更新为实测事实）：
+- NGA：`thread.php?key=` 在已登录浏览器仍返回「注册用户/威望大于0方可使用搜索」。这是账号权限门槛，不是登录状态，故不启用。
+- 知乎：登录后经典卡片 5/5，但部分查询只给 AI 摘要页（0 个 `/question/` 链接），不稳定。
+- TapTap：`/search?keyword=` 实际渲染发现首页（38 个链接全是导航/推荐），不是结果页；需专门适配器，暂不加入。
+- 小红书：`/search_result` 显示「登录后查看搜索结果」登录墙；未加入。
+- 米游社已启用（上一轮）；DuckDuckGo 仍为人机校验，Google/Bing/Brave 已覆盖其作用。
+
+真实网关复测：
+- 「FastAPI 报错 database is locked」16.77s：Stack Overflow(google) 5、GitHub 5、Google 5。
+- 「RTX 5090 值得买吗」10.27s：Chiphell(google) 5、B站 5、Reddit(google) 5。
+- 「Codex API 中转 有哪些坑」17.36s：HuggingFace 1、GitHub 4、LINUX DO(google) 5。
+顺带收紧 HuggingFace 形状（`/inference/models` 这类站内栏目页不再算结果）。
+
+默认启用 17 站：google、bing、brave、github、v2ex、juejin、huggingface、arxiv、hn、nowcoder、steam、miyoushe、bilibili、reddit、stackoverflow、linuxdo、chiphell。
+测试：站点池 + browse 38 PASS；web 搜索影响集 105 PASS；Ruff 通过；无付费调用。
+
+### 2026-11-15 新增哔哩哔哩并验收启用；视频证据需接现有视频管线
+
+B站不在原 19 站目录里，本轮新增适配器并做真实验收（无付费调用）：
+- 搜索页 `https://search.bilibili.com/all?keyword=` 公开可用，无需登录。
+- 结果容器 `.bili-video-card__info--right a`，URL 形状 `https://www.bilibili.com/video/BV…`（排除站内导航误收）。
+- 实测两次均 `ok`：page=40、valid=5，4.8s / 4.1s；视频页文本 1821 字符（标题、发布时间、简介、字幕开关可见）。
+- 已 `default_enabled=True`。
+- 路由：游戏攻略 `米游社→NGA→B站→Reddit`；游戏评价 `Steam→B站→Reddit`；硬件 `Chiphell→B站→Reddit`；新增教程类 `教程/教学/演示/实操/视频/上手/安装 → B站→Google`。
+- 真实网关复测：
+  - 「星铁 流萤 配队 推荐」16.06s，miyoushe 3.56s/5、bilibili 4.02s/5、google 8.48s/5，最终结果按站轮转（2/2/1）。
+  - 「RTX 5060 笔记本 实测」9.7s，bilibili 3.92s/5、google 3.42s/5、bing 2.36s/5。
+- 限制：搜索到视频 ≠ 理解视频。正文/字幕/关键帧证据要接现有视频理解管线；当前只把视频页面当作可引用来源（标题+简介）。
+
+站点总数 20，默认启用 13：google、bing、brave、github、v2ex、juejin、huggingface、arxiv、hn、nowcoder、steam、miyoushe、bilibili。
+测试：站点池 + browse 36 PASS；Ruff 通过。
+
+### 2026-11-15 米游社登录后验收通过并启用；知乎实测不稳定，保持关闭
+
+用户在 browse 已连接的浏览器中登录米游社与知乎后，按“页面可开 → 真实结果 → 正文可读 → 稳定 → 耗时”验收：
+
+米游社（已启用 `default_enabled=True`）
+- 原搜索地址 `https://www.miyoushe.com/search?keyword=` 返回 404（页面文字 "Not Found"，0 anchor）。真实结构是每个游戏一个搜索页：`/<game>/search?keyword=`（`sr` 星穹铁道、`ys` 原神、`zzz` 绝区零、`bh3` 崩坏3、`wd` 未定）。
+- 新增 `SiteProfile.search_variants`：按问题里的游戏词选择模板，默认 `sr`。
+- 结果容器 `a.mhy-article-card__link`，URL 形状 `/<game>/article/<id>`。
+- 实测：两次探测均 `ok`，page=7、valid=5，10.1s / 9.4s；网关内 4.19s、5 条。正文可读：`/sr/article/74890594` 文本 1452 字符，含正文与评论。
+- 证据：D:/study-agent-validation/miyoushe-after-login{2,3}.json。
+
+知乎（登录后可用但不稳定，保持 `default_enabled=False`）
+- 登录后经典回答卡片可提取：query "流萤 配队" → page=10、valid=5，5.5s/4.8s；正文可读（1361 字符）。
+- 但 query "校招 Java 后端 面试经验" 时，知乎返回 AI 摘要页，70 个 anchor 中 **0 个** `/question/` 链接（`type=content` 与 `?q=` 均如此），提取为 `no_results`。
+- 结论：不满足“重复测试稳定”，继续留在候选目录，可 `WEB_SITE_POOL_EXTRA_SITES=zhihu` 显式启用。
+- 证据：D:/study-agent-validation/zhihu-after-login.json。
+
+其他
+- 新增 `WEB_SITE_POOL_SITE_SECONDS`（默认 12s）：中文社区冷启动可达 10s，原先固定 10s 会把慢站截断；池总预算 20s 不变。
+- 网关真实复测（"星铁 流萤 配队 推荐"）：19.0s，miyoushe 4.19s/5 条 + google 5.45s/5 条；`site_route` 显示 nga/reddit/linuxdo/duckduckgo skipped。
+- NGA、Chiphell、Reddit 仍为失败项（只有页脚 / 无结果），继续保持关闭；NGA 需登录后再测，Reddit 需客户端渲染适配。
+测试：站点池 + browse 34 PASS；web 搜索影响集 101 PASS；Ruff 通过；无付费调用。
+
+### 2026-11-15 多来源合并、验证页误判、路由报告可见
+
+审查 09c0e60c→d227d64d 又指出三处问题，本轮修复并补测试（无付费调用）：
+- 多来源合并（src/web/tool_gateway.py `_merge_site_results`）：此前 3 站各 5 条、上限 5，最终只剩第一站 5 条。现按路由顺序轮转取，每站首条先于任何站第二条；站内排序不变；单站有结果时仍按该站排序。同时 `_result_key` 去掉 `www.` 前缀，避免同一页被当两条占用名额。
+- 验证页误判（src/web/browse_search.py）：`_is_verification_page` 只检查 URL path 与页面标题，不再扫描完整 URL。`?query=coding+challenge` 这类正常搜索不再被当成验证页；`/nocaptcha` 与 “Human verification” 仍命中。
+- 路由报告（src/web/site_pool.py `describe_route`）：payload 新增 `site_route`，区分 candidates（问题形状应搜）/ enabled（本部署实际执行）/ trimmed（超出条数上限）/ skipped（未通过验收）。避免“路由已修复”被误读成“米游社已参与”。
+
+真实复测（同题 SQLite WAL concurrent writers，3 站）：11.98s，最终 5 条来自 Google/Bing/Brave 三个来源（needs 3.70s/2.51s/5.75s），`site_route` 正确显示 duckduckgo 被 skipped。
+
+### 2026-11-15 客户端渲染站点适配：HN / 牛客 / Steam 通过验收
+
+新增 `SiteProfile.wait_for`（默认等于 `result_selector`）与 `search_browse_at(..., wait_for=)`：等待结果容器出现（上限约 6 秒）而不是固定睡眠。实测：
+- HN：搜索地址改为 `?query={q}&type=story`（`?q=` 不渲染结果），`div.Story_title a` → 5 条有效（news.ycombinator item 链接）。
+- 牛客：`a[href*="/feed/main/detail/"]`，结果 URL `/feed/main/detail/<32hex>` → 5 条有效。
+- Steam：`a.search_result_row` → 2 条有效（`/app/<id>/`）。
+- 未通过：米游社（SPA 空壳、无 anchor）、知乎/NGA/Chiphell（仍只有页脚）、Reddit（无结果）；均保持 `default_enabled=False`，可用 `WEB_SITE_POOL_EXTRA_SITES` 显式开启。
+证据：D:/study-agent-validation/site-pool-20261115/matrix10-{hn,nc,steam,my}.json。
+测试：站点池 + browse 33 PASS；web 搜索影响集 100 PASS；Ruff 全仓通过。
+
+### 2026-11-15 通用引擎适配器并入站点池（#359 收敛）
+
+#359（codex/browse-provider-compare-20261115）与 #357 在 browse_search.py 冲突。按审查建议只保留一套实现：把 #359 的实测结论并入站点池，不保留第二套入口。
+
+- `search_browse(query, limit, timeout, engine=...)`：单引擎适配器，`_ENGINES` 保存 endpoint/结果选择器/标签（Google `a:has(h3)`、DuckDuckGo HTML `a.result__a`、Bing `li.b_algo h2 a`、Brave `.result-content > a:has(.search-snippet-title)`）；`WEB_BROWSE_SEARCH_ENGINE` 仅影响未显式指定引擎的调用，未知引擎 `browse:invalid_engine`。
+- 跳转校验：脚本内校验最终 origin 与 path，离开引擎结果页即视为不可信；Bing `/ck/a?u=a1…` 在引用前解包并重新做公网校验（`_result_url`）。
+- 站点池四个通用站改走 `adapter`，`browse_sites` 按问题选择；`result_selector`/`own_hosts` 从这四条目录项移除，避免两处真相。
+- #359 的实测记录保留为 `docs/research_quality/BROWSE_ENGINE_PROBE_20261115.md`（含 Brave 标题类名、Bing 跳 cn、DDG 人机校验），并追加“合并到站点池”的落地说明；`tools/probe_browse_engines.py` 一并保留。
+- 复测（同一问题，真实浏览器）：Google 5、Bing 5、Brave 5 条有效结果；DuckDuckGo 25 秒下 `browse:human_action_required`（图片人机校验），保持默认关闭。证据 D:/study-agent-validation/site-pool-20261115/matrix8-engines.json。
+- 环境事故：relay 的临时目录被清理后所有 execute 返回 `ENOENT lstat opencode-browser-files-*`；`browse relay restart` 恢复（不是代码缺陷）。
+- #359 已关闭，说明与合入点写在 #357/`9bea391d`；#357 保持单一交付分支（26 commits，MERGEABLE）。
+- L2 门：`p2-a-retrieval-stack` 465 passed / 4 skipped（292.44s），Ruff 通过。
+
+### 2026-11-15 站点池正确性修复：领域优先路由、结果有效性、回退预算
+
+PR #357 审查（09c0e60c）指出三个 P1：领域站点被泛化意图词压过、整页链接被当成搜索结果、站点池吃光回退预算。本轮只修这三项，并补回归测试；不新增站点、不调用付费模型。
+
+路由（src/web/site_pool.py）
+- 路由分两层：`_DOMAIN_ROUTES`（游戏/硬件/就业/论文/模型/报错/开源部署）先于 `_INTENT_ROUTES`（选型/对比/推荐、API/Agent）。`星铁…配队推荐` 现在先到米游社/NGA，`校招岗位推荐` 先到牛客，`RTX 5060 玩某款游戏` 先到 Steam。
+- ASCII 关键词按词匹配：`api` 不再命中 `FastAPI`（此前 FastAPI 部署题被路由到 HuggingFace）。
+- 新增 `default_enabled`：只有真实浏览器探测确认能返回有效结果的站点才进默认路由；其余保留在目录，用 `WEB_SITE_POOL_EXTRA_SITES=reddit,linuxdo` 按需启用。默认启用：google/bing/brave/github/v2ex/juejin/huggingface/arxiv。
+
+结果有效性（src/web/browse_search.py）
+- 每个站点有 `result_pattern`（真实结果 URL 形状）或 `result_selector`（结果容器 CSS）；只有通过校验的链接才算结果。三态状态：`ok` / `browse:no_valid_results`（页面打开但只有导航页脚）/ `browse:no_results`（页面没渲染出链接）。
+- 验证码/人机验证重定向（如 Stack Overflow `/nocaptcha`、Reddit、LINUX DO）识别为 `browse:human_action_required`，不绕过、不重试。
+- 站点池逐站访问，不再因第一个站点凑满 limit 就停止（来源多样性）。
+
+回退预算（src/web/tool_gateway.py）
+- 池预算与回退预留分离：`WEB_SITE_POOL_TOTAL_SECONDS=20` + `WEB_SEARCH_FALLBACK_RESERVE_SECONDS=4`；池用尽 20 秒后，SearXNG/Bing RSS/DDG 仍有 4 秒。此前共用 deadline，池超时后回退实际来不及执行。
+
+真实矩阵（query=SQLite WAL concurrent writers，18秒，D:/study-agent-validation/site-pool-20261115/matrix7.json）：
+- valid：google 5、bing 5、brave 5、github 5、v2ex 5、juejin 5、huggingface 5；arxiv 对该题 0 命中（换有命中的题验证 pattern 后 4 条 abs 链接通过）。
+- 无效：duckduckgo/hn/zhihu/nga/chiphell/nowcoder 只抽到导航页脚（no_valid_results）；steam/miyoushe 无结果；reddit/stackoverflow/linuxdo 为人机验证。
+- 网关级复测（真实问句，browse_sites，3站）：19.28s，google 5.3s/5条、bing 3.47s/5条、brave 本次 execution_failed；回退预留未被占用。
+测试：tests/test_site_pool.py + test_browse_search.py 22 PASS；影响集（web_search_strategy/flow/ddg_first、recovery_source_boundaries、research_gateway_trace、web_query_normalizer）共 89 PASS；Ruff 通过；无付费模型调用。
+
+### 2026-11-15 站点池接入（12站首批）与真实浏览器矩阵
+
+用户要求把“多搜索引擎＋专业社区＋中文社区”站点池接入。已实现（未推送前先记录）：
+- src/web/site_pool.py：站点目录（19条，含12个首批核心站）与按问题形状路由（报错→StackOverflow/GitHub；选型/体验→Reddit/HN/V2EX/LINUX DO；开源/部署→GitHub；论文→arXiv；模型/API→HuggingFace；硬件→Chiphell；游戏→米游社/NGA/Steam；就业→牛客），限制条数与去重。
+- src/web/tool_gateway.py：新增 browse_sites 策略，按站点顺序逐个用真实浏览器搜索，独立24秒池预算，记录每站 status/耗时/结果数（payload.site_outcomes）；无结果时按既有链回退 SearXNG/Bing RSS/DDG。默认仍为 fallback，需 WEB_SEARCH_STRATEGY=browse_sites 才启用。
+- src/web/browse_search.py：新增 search_browse_at（任意站点搜索页），统一安全边界：只留公网URL、challenge 停止、登录墙识别（仅当无结果且出现可见登录控件）、慢站导航超时后仍取已渲染DOM；Google 走原专用适配器。
+- tools/probe_site_pool.py：同一问题对站点池做真实浏览器探测（无模型费用），输出 status/耗时/结果数/样例URL的JSON矩阵。
+
+真实矩阵（query=SQLite WAL concurrent writers，18秒超时，D:/study-agent-validation/site-pool-20261115/matrix-final.json 与 matrix5.json）：
+- 12个核心站中 11 个能返回结果；reddit 为 browse:no_results（SPA/登录墙，需专门适配）；linuxdo 时好时坏（一次 ok、一次 login_required）。
+- 质量分层：Google/Brave/GitHub/掘金/arXiv 返回的是结果页；DuckDuckGo/Bing/V2EX/知乎/HuggingFace/Steam/NGA/Chiphell/牛客 仍混入大量导航与页脚链接——通用抽取器不足，需要按站 result_selector 或多阶段容器选择。
+- 结论：站点池已接入但不是“已验收可用”；在补 selector 前不应把 browse_sites 设为默认。
+测试：tests/test_site_pool.py + test_browse_search.py 10 PASS；Ruff通过；无付费模型调用。
+
+### 2026-11-15 发布契约 v4：分批校验、跨语言支持、事实/推断/建议分层（真实验收未完成：预算耗尽）
+
+branch codex/repair-evidence-20261112，base=HEAD a2d67670，未提交。用户裁定两项均为P1：解除16段对整篇答案的限制、支持跨语言语义验证，且不得直接放宽校验。
+已实现（src/application/answer_claim_binder.py、src/domain/answer_claims.py、src/application/chat_service.py）：
+- 分批校验+原子发布。16段改为单批上限；整篇按≤16单元/≤12k字符分批（总预算192单元/12批）；任一批 provider 失败、拒答、覆盖不符或格式错误→整篇不发布；无依据的单元改为“删除并从发布文本移除”，gate 追加“另有N处表述因缺少可核实依据未发布”，不是静默忽略。
+- 跨语言支持。新增 support_claims（paraphrase/entailment + 逐字 source_quote）。服务端强制：引用必须是该 evidence 正文的真实子串（≥12字符）、编号必须属于同一 research claim、contradicts 直接拒、整句直引仍走原字面校验；数字/版本必须出现在引用里（source_fact 只认来源，synthesis/recommendation 可复用问题里的数字）。
+- 分层。kind=source_fact/synthesis/premise/recommendation/instructional/question/uncertainty；premise 只能来自用户问题（CJK bigram≥50% 且不得新增数字）；发布门 substantive_claims_fully_bound 要求 factual+synthesis 均有 direct/indirect 强支持。
+- 独立预算。校验使用独立60秒窗口；检索窗口结束后仍给生成保留60秒。
+顺带修掉3个真实缺陷：语义计划被 provider 回显 {"type":"json_object"} 且漏 task_id 打回（_provider_payload 只剥离回显，authority 等仍拒）；生成与检索共用60秒导致504；binder 开着隐藏推理时返回空文本（改为结构化调用强制 thinking off + response_format=json_object）。
+测试：answer_claim_binder/crosslingual/grounded_excerpts/binding_semantics/publication_gate/semantic_recovery/research_recovery/chat_service 共206 PASS；Ruff通过；未跑 mypy/L2/L3/远端CI。
+真实同题复测 fix3→fix12：fix3/4定位计划解析缺陷；fix5 4检索3读但生成504；fix6 生成成功、binder空输出；fix7/8 binder按协议返回但被 premise 过严整篇拒；fix9 6批校验第2批 SpendLimitExceeded；fix10 被 scripted 多句拼接引用拒（unverified_source_quote）；fix11 被引用标号误判（[web-4] 的4被当成事实数字）拒；fix12 生成完成后 binder 首个调用被批次上限拒（SpendAdmissionRefused）。
+fix10 后放宽：多句引用只要每句都在正文中逐字存在即可（拼接真实句子不算伪造）；fix11 后修正：_specific_tokens 先剥离 [web-N](url)/URL/脚注标号，再把引用标号数字当事实数字的假阳性消除。离线重放 fix11 的真实 batch1 输出：16 claims / 12 links / 0 withheld，服务端校验通过。
+预算：用户将共享实验上限由30元提高到35元（ledger 已改为35_000_000，evidence 入口的 cap 断言与 guard 同步），批次上限临时提高到20元。fix12 后实验累计 33,363,484/35,000,000（剩1,636,516），最后失败是 SpendAdmissionRefused（预算）而非产品缺陷；一次完整验收约需1.9-2.0元。
+下一片：若要完成端到端验收，需再提高2元（35→37）；否则停在“离线全绿（206+96 PASS）+ 真实链路生成与分批校验到预算边界”，并把 fix11 batch1 的真实离线重放作为当前最强证据。
+
+### 2026-11-15 调研断链修复与browse检索接入（真实复测一轮）
+
+branch codex/repair-evidence-20261112，base=HEAD a2d67670，未提交，工作树含本片7个源码、3个测试改动与2个未跟踪文件（src/web/browse_search.py、tests/test_browse_search.py）。
+P1 orchestration-contract：生产实际走 ExternalDataPolicyChatService 的 prepare，而“用本轮已读正文构建 answer_validation”只在 ChatService._prepare 存在，策略路径恒为 None。结果是研究回合读到了正文也不调用模型，candidate 为空后发布固定弃权文案。改为两处共用 chat_service.inline_research_validation_plan()；新测 test_policy_path_read_backed_research_turn_still_generates_an_answer，旧代码负控0次模型调用，修复后 single_chat+answer_claim_binding 均执行。
+P2 retrieval：语义计划的3个RQ只被搜索了第1个。recovery_budget 只按问题措辞判 lookup/standard，多facets计划仍拿 lookup（30s、2查询），执行窗口实际15s。现计划含≥2个不同 rq_id 时升为 standard，persistent_web_agent 只在 standard 时把 answer_deadline 放宽，不再被措辞压回。负控：加计划前该测只跑1个查询。
+检索接入：新增 src/web/browse_search.py（browse execute--json，Google，结果只留公网URL，challenge 立即停止回退）与 WEB_SEARCH_STRATEGY=browser_first；修正 _query_domain 只认唯一正向 site:。3项单测通过，直接探针取回 sqlite.org 官方页。
+真实同题复测（research-fix2，付费）：standard 窗口，4次 browse 搜索分别覆盖 sqlite 并发/备份/网络文件系统、PostgreSQL、SQLite-vs-PostgreSQL；3条正文读取合格（sqlite.org/wal.html、SQLite论坛、dev.to），1条被语义判为无关（github changelog）；answer_generation 实际执行1次，产出4887字结构化中文答案（含[1][2][4]引用），随后 answer_claim_binding 以 answer_not_segmentable 拒绝，未发布。
+剩余阻断（未改动，需产品决策）：a) 答案切分133段 > _MAX_SEGMENTS=16，整篇拒；test_too_many_short_segments 已记录该失败关闭策略曾挡住20篇归档中的13篇；b) claim_grounded_in_text 要求与英文正文逐句字面同一，中文转述不可能命中，即使放开段数仍会拒。因此“中文综合＋英文官方来源”在现契约下无法发布。
+费用：本轮实验累计预留9,545,538微元（12元授权内），单次修复后真实run约1.15元；账本总预留23,176,865/30,000,000。
+证据：D:/study-agent-validation/browse-live-20261115/{research-fix1,research-fix2,research-browser}，含 dependency-preflight.json、call-*.json、single_chat-chat-answer.json。验证入口已补 manage-searxng -Action Ensure 预检，不再静默降级。
+验证：Ruff通过；answer_publication_gate/research_recovery/browse_search/semantic_recovery/recovery_source_boundaries/external_data_policy/chat_search_gating 142 PASS；lookup_terminal/rescue/tier/official_quality/web_tool_agent 102 PASS；answer_claim_binder/grounded_excerpts/chat_service 75 PASS。未跑mypy/L2/L3/远端CI。
+下一片：由用户选择发布契约方向（放宽段数预算 but 仍字面、或为转述引入 qualified claim-level evidence gate），再决定是否用剩余约2.4元额度复测。
+
+### 2026-11-15 调研环境纠正与ChatGPT样本收到
+
+用户指出Docker可能未开启。实查docker info/ps均因dockerDesktopLinuxEngine管道不存在而失败，确认上次调研未完成依赖预检。上次样本包含搜索服务未就绪影响，不能作为健康环境下Study Agent能力基线。
+已执行tools/manage-searxng.ps1 -Action Ensure -ProbeSearch启动Docker与既有固定摘要SearXNG，容器healthy，8080 JSON搜索可用。manager创建ignored infra/searxng/.env.local，复用原桌面检出的同内容settings。Docker自启策略还启动了既有retained容器，未调整该容器。
+无模型费用的直接搜索探针显示服务健康仍不足以证明结果相关。短查询SQLite WAL concurrent writers checkpoint backup site:sqlite.org返回SQLite首页等泛结果和非限定域结果。原整段中文问题返回Beshbarmak菜谱等无关结果，响应query仍完整。证据searxng-restored.json和searxng-original-query.json位于D:/study-agent-validation/browse-live-20261115。
+查询计划被拒发生在搜索前，具体ValueError细节在WebToolTrace诊断摘要中被丢弃，SQLite持久化也只剩类型，尚不能定位精确校验条件。当前无新增付费调用，本轮调用数仍12/12。
+收到用户粘贴的ChatGPT完整回答，给出继续SQLite WAL的条件建议、官方来源、事务/备份/网络存储比较和实施步骤。未收到可见工具轨迹，引用内容尚未逐条独立核实。下一片聚焦健康环境下检索偏题、查询规划拒绝原文捕获，然后完成同题动态复测。
+
+### 2026-11-15 同题真实调研对比启动
+
+用户明确将本轮重点调整为真实模型使用、调研动作和产出方向与ChatGPT相近。后续优先执行同题比较及真实失败修复。
+固定问题为单用户FastAPI聊天应用、SQLite、4 workers和后台索引，比较SQLite WAL/PostgreSQL，要求官方来源、并发写入/长事务/备份/网络文件系统限制、明确建议/迁移条件/步骤。
+候选a17e8036通过真实生产/chat入口与DeepSeek Flash调用，使用TestClient传输。源码服务和搜索网关保持生产装配，实验脚本绑定原共享账本并加本轮原子调用/费用限额。脚本D:/study-agent-validation/browse-live-20261115/real_research.py。
+首次实验未绑定spend_scope，调用被拒且0预留，证据research目录保留。补实验授权上下文后research-authorized目录完成2次真实模型调用，分别research_turn_interpretation和research_candidate_relevance，新增保守预留190460微元。本轮累计12次、7195323微元，调用数余0、金额余4804677微元。费用口径为保守预留。价格2026-11-15核验官方Flash峰值输入2/输出8元每百万token，原账本继续9/27上界。
+真实失败归属P1 orchestration-contract/retrieval。查询计划解析被拒，记录只保留ValueError而缺具体校验原因和模型原文，当前无法细分模型字段错误或解析过严。随后把整段问题发送搜索，并追加泛化英文后缀再次搜索。SearXNG连接拒绝，Bing RSS返回“帮”字词典等5条无关页面，相关性模型将其拒绝，读取正文0次，最终只有无法给出已核实结论的固定文案。完整动作和输出在research-authorized/response.json，模型调用预留在call-1/2.json。
+ChatGPT浏览器访问两次ERR_ABORTED，独立curl超时。用户表示自行提问，已发送完全相同问题，等待其回答与可见搜索动作。当前比较只有Study Agent一侧。下一片为接收ChatGPT结果形成逐项差距，先补具体解析拒绝原因捕获，再在授权调用额度内复测查询规划。金额余额不代表仍有本轮调用额度。
+
+### 2026-11-15 browse真实Edge与Python全链路调试
+
+验证代码9dc6793687f2aad6df4a07670eebbb27e05a8a38，branch codex/repair-evidence-20261112；本片只更新交接。
+真实Edge browse访问localhost:5173，Vite代理到8000真实FastAPI/ChatService/SQLite；仅外部模型和网络网关使用real_stack_research_test_server受控替身，费用0。
+实际发送成功；停止后刷新保留部分回答与恢复入口，CLI读库状态interrupted；点击从断点继续后同一turn_17a4e780-1fb1-4795-8ea5-ede64876d050变completed，回合总数仍3，再刷新恢复入口消失。另实测零token失败→刷新→重新生成，核对父失败回合与子回合关系。
+证据目录D:/study-agent-validation/browse-live-20261115，保存独立runtime.db、completed-state.json、final-state.json。会话chat_4bacd31202c74201b0a6b5b27140e266。
+首轮python指向无uvicorn的3.14，改用已有项目.venv成功启动。browse普通停止点击两次未赶上短响应/稳定性等待，最后使用force点击真实停止按钮完成取消；这不证明普通点击时序无缺陷。bringToFront被browse策略阻止，未修改策略。刷新时扩展自身unload警告不归因于应用。
+观察待核实：续写拼接边界曾出现双空格；二分查找对话旁默认展开无关流萤示例，可能分散注意力。未修改相邻功能。1699px视口scrollWidth同宽，无横向溢出；未做截图视觉或真机验收。
+未运行新增自动测试、L3或远端CI；既有未跟踪日志保留。本地调试服务供后续检查，不能当作真实供应商环境。下一片：将本次取消/失败恢复路径固化到当前会话结构的CLI回归，并核实普通停止点击时序。
+
+### 2026-11-15 取消、刷新与历史发送本地整合验收
+
+集成代码03146082，已包含b9d3965e取消持久化回归、c434316e多协议块拒绝、8e9c5d65停止文案修复。
+同一工作树httpFinal与reloadHistory桌面浏览器合跑5 PASS/14.4s，日志closure-browser.log。
+覆盖HTTP/SSE终态替换、无done中断、刷新GET恢复interrupted/cancelled、实际POST携带旧约束/前答/新约束。
+后端API/SQLite持久化沿用54项影响集和独立重开1项证据。浏览器数据由fixture提供，真实供应商理解与真机键盘仍待验证。
+整合冲突仅交接，保留双方记录。首次从frontend目录处理docs路径失败，改回仓库根完成；源码与测试结果未受影响。
+本批本地工程验收通过，当前未推送、无本批远端CI；验证日志保持未跟踪。下一执行片为独立PR整理与远端审阅收口。
+
+
+### 2026-11-14 Python取消持久化与会话重载验证
+
+branch codex/cancel-persist-20261114，base46ebfebd。新增test_cancel_session_reload：真实FastAPI路由/ChatService/SQLite，受控异步生成器先输出完整study-ui草稿，再并发调用取消API。
+验证cancelled SSE无done、turn status与GET会话均保留interrupted/原草稿，独立RuntimeRepository重开同SQLite仍一致，迟到完成文本不出现。
+未确认生产缺陷，无生产或schema改动。取消/stream/session服务4文件影响集54 PASS/34.11s；最后补独立重开SQLite断言后单文件1 PASS/1.51s；Ruff/格式/diff通过。
+首次编辑因默认GBK读取失败，改显式UTF8，无生产绕过。未运行mypy（仅未注解测试与文档）、L2/L3、浏览器、远端CI或付费模型。
+证据是TestClient ASGI内存传输与临时真实SQLite，不是TCP/浏览器点击取消、真实供应商或重启后完整应用验收。下一片：将该后端状态契约与前端取消/刷新浏览器验收对应。
+
+### 2026-11-14 显式修复多协议块误判收口
+
+branch codex/card-limit-20261114，base46ebfebd。P1 orchestration-contract：四个plot排在正确目标interactive之前时，后端只计interactive判可应用，前端四卡上限却隐藏目标。
+显式修复现在保守要求唯一study-ui围栏；额外协议围栏（包含引用示例）拒绝为ambiguous_documents并保留隔离原文，不重做前端所有卡类型解析。普通聊天不变。
+旧实现前后额外卡两负控均FAIL；修复后四文件影响集103 PASS/36.43s；随后补空格/波浪围栏变体6 PASS，Ruff/格式/定向mypy/diff通过。
+不证明模型质量或浏览器运行；没有付费调用、远端CI、L2/L3。未跟踪验证日志保留。下一片：与刷新/取消终态展示修复统一审阅。
+
+### 2026-11-14 前端刷新GET与历史请求验证
+
+新增reloadHistory浏览器回归，真实React启动后读取session GET，再page.reload确认GET次数增加。
+interrupted/cancelled两种保存状态均恢复停止文案，交互草稿无可执行卡且无永久准备状态。
+从真实发送按钮捕获POST /chat/stream，chat_history包含旧用户约束和助手回答，user_input包含新约束。
+桌面Chromium 2 PASS/5.7s，tsc/diff通过。会话GET及模型响应由既有API fixture提供。
+本片没有生产修改或付费调用。后端持久化由独立Python API验证线负责。
+
+
+### 2026-11-14 中断交互草稿终态展示
+
+branch codex/reload-history-20261114，base46ebfebd。修复cancelled/interrupted草稿永久显示正在准备的问题：明确停止状态，显示未完成未运行与可展开源码，继续禁止执行。
+MarkdownMessage/ChatPanel/协议63 PASS，真实React+本地HTTP SSE三场景3 PASS，tsc/diff通过。响应为Node fixture，不是Python后端或模型验收。
+浏览器旧模糊文本断言匹配到新增源码内隐藏文本，已改明确可见终态文案；无放宽行为断言。
+后续reloadHistory已补刷新GET与前端chat_history捕获，两项桌面浏览器通过，详见上方记录。
+
+
+### 2026-11-14 HTTP/SSE最终替换与中断草稿隔离
+
+branch codex/http-final-20261113，base97c51c5e。实际缺陷：流式中断后保留完整study-ui草稿，但isSending=false使其变成可执行卡。
+ChatPanel现让interrupted/cancelled消息持续保留不可执行资格；普通已完成答案仍正常渲染。
+旧代码两条负控FAIL；ChatPanel/协议49 PASS；本地真实HTTP/SSE+React桌面3 PASS覆盖合法done、拒绝done和无done中断；tsc/diff通过。
+HTTP响应为Node脚本fixture，网络传输/fetch/SSE解析/React状态真实；非Python后端、模型或真机验收。取消状态有组件回归，取消按钮到后端持久化尚未验收。
+首次测试启动目录错误及Python默认GBK读取失败均已纠正，无生产绕过。无付费调用/远端CI/L3。下一片：真实后端取消持久化与刷新后草稿身份。
+
+### 2026-11-14 普通多轮与附件SDK出站离线验证
+
+branch codex/wire-multiturn-20261113，base97c51c5e。新增test_chat_sdk_wire，真实ChatService生成/保存与OpenAI SDK序列化，HTTP MockTransport捕获请求，零网络/付费。
+文本附件原文及PNG的替身视觉描述进入首轮主模型请求；主聊天收到描述文本而非image_url像素。第二轮按客户端契约传入已保存历史，旧约束、前答、新约束全部出现在出站messages。
+未发现生产缺陷，只新增接线回归。三文件影响集test_chat_sdk_wire/test_chat_attachment_binding/test_session_attachments为34 PASS/24.69s；Ruff/格式/diff通过。
+初次测试重复complete_turn导致ownership错误（generate已保存），另一次未传chat_history；均为测试接线错误，未修改生产代码掩盖。
+不证明真实视觉识别、模型遵循约束、前端历史构造或真实供应商行为。下一片：受预算授权的真实模型多轮/图片任务比较。
+
+
+### 2026-11-13 三线功能与UI验证收口
+
+集成head08c50f23（交互流式修复来自b2c36fcd）：可执行交互卡等最终发布后才渲染，轻量卡不变。
+协议/组件32 PASS，真实React桌面与390手机2 PASS；这是构造终态展示证据，非完整HTTP流或动态模型验收。
+核心线4e777c00的6文件离线影响集86 PASS/52.83s；真实PNG上传但vision/search为替身，普通多轮约束遵循仍未实测。
+UI线57474e0f：360复杂内容3 PASS、390/1440阅读草稿来源2 PASS、双视口异常刷新恢复6 PASS；tsc通过。
+限定截图Visual PASS，无已确认布局缺陷，未修改通用UI。截图D:/study-agent-validation/mobile-ui-evidence-20261113/。
+真实设备软键盘、安全区、运行中取消、真实模型语义仍未验收。无新增付费调用，无本批远端CI或合并资格。
+各工作树保留验证日志；生产集成tracked clean。下一片：普通多轮与附件实际供应商请求观测，以及完整HTTP流最终替换验收。
+
+
+### 2026-11-13 流式交互文档延后执行
+
+基于cf669293，branch codex/repair-browser-20261113。发现闭合study-ui在streaming阶段立即渲染，可能早于最终修复校验执行候选。现在interactive文档在流式期间保持pending，最终发布后才渲染；轻量数据卡保持原行为。
+协议/组件影响集32 PASS，真实React Chromium桌面/390手机2 PASS，tsc与diff-check通过。截图位于本工作树frontend/test-results/artifacts/acceptance-repairPublicati-f3bef--wait-for-final-publication-{desktop,mobile}-chromium/。手机最终截图目视PASS，两版本均可见、无水平溢出。
+浏览器使用构造终态与真实MarkdownMessage组件，证明pending/拒绝text围栏隔离/两版本共存；不是完整HTTP流端到端或真实模型修复效果。初次浏览器导入CJS默认导出处理错误，已修测试导入，无生产绕过。无付费调用/L3/远端CI。下一片：合并审阅及真实HTTP流最终发布验收。
+
+
+### 2026-11-13 修复产物应用与完成状态静态闭环
+
+branch codex/repair-evidence-20261112；base6fe7945a；helper4fd2c26a，服务候选60bfdb5e。
+仅显式修复、来源hash一致且正常stop时将唯一完整HTML封装为同id/下一revision/保存能力声明的study-ui；仍经原协议与沙箱。
+最终保存处校验唯一文档、id/revision/能力与stop；不合格回答标not_updated并提示界面未更新，原答作为text保留且不能渲染不合格卡。
+适用文档仅表示协议可应用，不代表语义或浏览器正确。J01代码片段仍不会自动修好；真实A02仅在显式修复上下文离线封装成功，不改首次生成规则。
+命名interactive_repair L1 261 PASS/136.99s；最终直接25 PASS（含完整HTML真实服务保存接线）；helper21 PASS。
+mypy118/128 NEW0，Ruff/diff-check通过。L1后只补测试与收回无关格式变动，未重复全集。
+无新增动态模型调用、无本轮浏览器/L2/L3/远端CI；未push旧#357以免混合范围。未跟踪验证日志保留，不含产品改动。
+下一片：独立整理本片PR范围并验收前端最终展示/失效卡隔离；真实修复质量仍待可用预算及局部门允许的样本。
+
+
+### 2026-11-13 真实交互任务与修复复测：产物交付仍阻断
+
+本轮 8 次首次生成 + J01 两次真实修复，共 10 次，完整结果见
+[LIVE_UI_RESULTS_20261113.md](LIVE_UI_RESULTS_20261113.md)。统一原共享账本与本轮12元预算，
+保守预留7.004863元，余4.995137元/2次；真实usage按当前高峰价估算0.22428472元（非账单）。
+J01同源局部两次修复已用完，没有第三次许可。没有自动继续付费。
+七题有文档并完成双视口沙箱重放，语义判据不足仍unknown；A02裸HTML协议失败。
+J01两次修复均只有说明/JS片段，没有可应用study-ui产物。候选59c8f12d的新契约已证实进入
+实际请求，命名L1 255 PASS不等于真实修复成功；本样本未改善，不授予产品GO。
+分支codex/repair-evidence-20261112，base6fe7945a；runner264c6fa3/659f6d90/0904c67b，
+候选59c8f12d；未推送、未借旧CI或其他PR资格。原始证据D:/study-agent-validation/live-ui-20261112/。
+下一片：可应用修复产物的输出机制与完成状态，优先离线复现当前真实失败样本；新动态动作仍受既有限额与局部门约束。
+
+
+### 2026-11-12 双视口评分证据完整性修复（本地候选）
+
+branch `codex/repair-evidence-20261112`，base `6fe7945a`；独立工作树
+`D:/study-agent-validation/repair-evidence-20261112`。P2 / Static Loop / owner=orchestration-contract。
+生成评分原先合并两视口的语义与可用性检查，导致任一视口缺少一组检查仍可能 passed。
+现在逐视口要求两组均非空，缺失归 indeterminate；已有明确 fail 仍优先 failed。
+四个旧代码负控全部实际失败。命名人工影响集 `m4c3-score-completeness`：
+`test_m4c3_results`、`test_m4c3_prepare`、`test_m4c3_export`、`test_m4c3_run`，37 PASS；
+Ruff/格式、工具定向 mypy、diff-check 通过。仅评分工具和回归测试改变，无共享生产契约改动。
+未运行 L2/L3、远端 CI、付费模型或动态比较，未重写历史评分；engineering-only。
+下一片：对本候选做独立审阅及 exact-head CI，再使用已保存真实产物重测，新增付费调用另行授权。
+### 2026-11-12 修复重试身份恢复契约补齐（本地）
+
+branch `codex/repair-recovery-20261112`，base `6fe7945a`，独立工作树
+`D:/study-agent-validation/repair-recovery-20261112`。owner=UI；Static Loop。
+未发现需要修改生产逻辑的缺陷；补充取消、普通消息、跨会话、新版本覆盖及同文网络重试身份契约，
+并在真实 ChatPanel rerender 中验证切换会话再返回会清除旧重试身份。
+影响集 repairTarget / api / ChatPanel.ts与tsx / ChatPanelBoundary 共73 PASS；tsc -b、Ruff、diff-check PASS。
+初次测试依赖目录缺esbuild，改用已有完整依赖后通过；一次误对TS运行Ruff已改为仓库配置扫描，通过。
+无付费调用、动态比较、浏览器或L3；只补静态回归保护，不宣称产品质量改善。
+交付提交包含本段与两测试文件；原工作树WIP不变。下一片：独立审阅该测试增量，按精确head远端门交付。
+
 ### 2026-11-06 #348至#350远端阶段验收已收口
 
 本次实时核验三项均已由远端合并：#348 merge2740b1d4，#349 head d24b6114 /

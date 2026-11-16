@@ -14,6 +14,8 @@ import threading
 from dataclasses import replace
 from typing import Any, AsyncIterator
 
+import pytest
+
 from src.api.models.chat import ChatRequest
 from src.api.routes.chat_routes import chat_stream_endpoint
 from src.application.chat_service import (
@@ -28,6 +30,11 @@ from src.router import route_request
 
 EVIDENCE_ID = "evidence_stream_1"
 RESEARCH_CLAIM_ID = "research_claim_stream_1"
+
+
+@pytest.fixture(autouse=True)
+def _legacy_strict_publication_contract(monkeypatch):
+    monkeypatch.setenv("RESEARCH_PUBLICATION_MODE", "strict")
 
 
 class ConnectedRequest:
@@ -495,3 +502,63 @@ def test_continuation_cancel_before_generation_skips_binder(
 async def _async_iter(values: tuple[str, ...]) -> AsyncIterator[str]:
     for value in values:
         yield value
+
+def test_simple_mode_streams_markdown_without_calling_the_binder(
+    runtime_test_context, monkeypatch
+) -> None:
+    """The default mode must publish what streamed, not re-verify it.
+
+    The binder is wired to refuse, so any binder call would replace the answer:
+    the candidate surviving the final event proves no binder ran.
+    """
+
+    monkeypatch.delenv("RESEARCH_PUBLICATION_MODE", raising=False)
+    candidate = "## 结论\n\n4 个 worker 竞争写锁，保持短事务。"
+    service = _service(
+        runtime_test_context,
+        tokens=("## 结论\n\n", "4 个 worker 竞争写锁，保持短事务。"),
+        binding_json="",
+        refuse_binding=True,
+    )
+    body = asyncio.run(
+        _consume(
+            service,
+            runtime_test_context.web_lookup_service,
+            runtime_test_context.session_service,
+            "stream-simple-session",
+        )
+    )
+    final = json.loads(
+        [line for line in body.split("event: done", 1)[-1].splitlines()
+         if line.startswith("data: ")][-1][6:]
+    )
+    assert final["reply"] == candidate
+    assert final["reply"].startswith("## 结论")
+
+
+def test_simple_mode_stream_still_rejects_an_unread_citation(
+    runtime_test_context, monkeypatch
+) -> None:
+    """Streaming is not an exemption: the gate runs on the complete answer."""
+
+    monkeypatch.delenv("RESEARCH_PUBLICATION_MODE", raising=False)
+    service = _service(
+        runtime_test_context,
+        tokens=("见[备份](https://official.example/backup)。",),
+        binding_json="",
+        refuse_binding=True,
+    )
+    body = asyncio.run(
+        _consume(
+            service,
+            runtime_test_context.web_lookup_service,
+            runtime_test_context.session_service,
+            "stream-simple-unread-session",
+        )
+    )
+    final = json.loads(
+        [line for line in body.split("event: done", 1)[-1].splitlines()
+         if line.startswith("data: ")][-1][6:]
+    )
+    assert final["reply"] == RESEARCH_ANSWER_BLOCKED_COPY
+    assert "/backup" not in final["reply"]

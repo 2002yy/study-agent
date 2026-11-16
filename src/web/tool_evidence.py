@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from copy import deepcopy
 import ipaddress
 from typing import Any
@@ -214,6 +216,15 @@ def diagnostic_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 else 0,
             }
         )
+        # Semantic fallback details are local validation codes, not source text.
+        # Preserve those codes so persisted traces explain rejected plans.
+        detail = result.get("detail")
+        if (
+            call.get("name") == "research_semantic_fallback"
+            and isinstance(detail, str)
+            and re.fullmatch(r"[a-z_]{1,80}", detail)
+        ):
+            diagnostics[-1]["detail"] = detail
     return diagnostics
 
 

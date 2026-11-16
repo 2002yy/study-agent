@@ -324,6 +324,7 @@ def _add_claim_binding_refs(
     demoting a validated snapshot to rejected because the id space of the
     research-run extraction differs from web source ids.
     """
+    simple_read_only = rag.get("research_publication_mode") == "simple"
     for raw in rag.get("research_evidence_refs") or ():
         if not isinstance(raw, dict):
             continue
@@ -342,9 +343,12 @@ def _add_claim_binding_refs(
                 url=url,
                 domain=_domain(url),
                 published_at=_published_at(raw),
-                lifecycle_status="selected",
+                lifecycle_status="read" if simple_read_only else "selected",
                 provider_status="structured_evidence",
-                selection_reason="answer_claim_binding:validated",
+                selection_reason=(
+                    "research_read_cited_unverified"
+                    if simple_read_only else "answer_claim_binding:validated"
+                ),
             )
         )
 

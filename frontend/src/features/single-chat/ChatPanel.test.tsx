@@ -12,10 +12,14 @@ import {
   clearPendingTaskIntentOverride,
   consumePendingTaskIntentOverride,
 } from "../task/taskContract";
+import { clearRepairTarget, consumePendingRepairTarget, setPendingRepairTarget } from "../answer-ui/repairTarget";
 import { WorkspaceActions } from "./WorkspaceActions";
 import { ChatPanel, searchMessage } from "./ChatPanel";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  clearRepairTarget();
+});
 
 type RenderOptions = {
   input?: string;
@@ -617,6 +621,17 @@ describe("ChatPanel conversation interaction safety", () => {
   });
 });
 
+describe("repair identity across session navigation", () => {
+  it("forgets a transport retry when navigating away and back", () => {
+    const { rerender } = render(panelElement({ sessionId: "a" }));
+    setPendingRepairTarget({ id: "scene", revision: 1 }, "a");
+    expect(consumePendingRepairTarget("repair", "a")).not.toBeNull();
+    rerender(panelElement({ sessionId: "b" }));
+    rerender(panelElement({ sessionId: "a" }));
+    expect(consumePendingRepairTarget("repair", "a")).toBeNull();
+  });
+});
+
 describe("continuing from an older generated version", () => {
   const card = {
     type: "interactive",
@@ -681,5 +696,15 @@ describe("continuing from an older generated version", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent("未能从所选版本恢复");
+  });
+});
+
+
+describe("unpublished interactive drafts", () => {
+  it.each(["interrupted", "cancelled"])("does not execute a %s draft after sending stops", status => {
+    const content = "```study-ui\n" + JSON.stringify({type:"interactive", id:"draft", revision:1, title:"Unpublished", summary:"draft", html:"<p>candidate</p>"}) + "\n```";
+    const {container} = render(panelElement({messages:[{role:"assistant", content, turnStatus:status}]}));
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(screen.queryByRole("region", {name:"Unpublished", exact:true})).not.toBeInTheDocument();
   });
 });

@@ -156,3 +156,131 @@ def test_paid_mode_cannot_reset_shared_history_with_another_ledger(tmp_path):
         )
     assert not (tmp_path / "run").exists()
     assert not (tmp_path / "other.db").exists()
+
+
+@pytest.mark.parametrize("batch_id", ["", "x:y", "x" * 65])
+def test_invalid_batch_identity_never_creates_artifacts(tmp_path, batch_id):
+    with pytest.raises(ValueError, match="batch identity"):
+        run_batch(
+            tmp_path / "run",
+            tmp_path / "ledger",
+            PRICING,
+            batch_id=batch_id,
+            fake_reply=ANSWER,
+        )
+    assert not (tmp_path / "run").exists()
+
+
+def test_new_paid_batch_requires_matching_authorization(tmp_path):
+    with pytest.raises(ValueError, match="bind"):
+        run_batch(
+            tmp_path / "run",
+            tmp_path / "ledger",
+            PRICING,
+            batch_id="20261112",
+            allow_paid=True,
+        )
+    assert not (tmp_path / "run").exists()
+
+
+def test_new_batch_keeps_single_shared_ledger_and_bounded_prefix(tmp_path):
+    spend.reset_spend()
+    report = run_batch(
+        tmp_path / "run",
+        tmp_path / "ledger",
+        PRICING,
+        batch_id="20261112",
+        fake_reply=ANSWER,
+    )
+    assert report["reservation_prefix"] == "m4c3-20261112:"
+    assert report["ledger"]["reservation_count"] == 12
+    assert all(
+        case["invocation_key"].startswith(report["reservation_prefix"])
+        for case in report["cases"]
+    )
+    assert all(case["sent"] for case in report["cases"])
+
+
+@pytest.mark.parametrize("tasks", [[], ["J01", "J01"], ["unknown"]])
+def test_invalid_task_selection_rejected(tmp_path, tasks):
+    with pytest.raises(ValueError, match="selected tasks"):
+        run_batch(
+            tmp_path / "run",
+            tmp_path / "ledger",
+            PRICING,
+            task_ids=tasks,
+            fake_reply=ANSWER,
+        )
+
+
+def test_subset_reserves_only_selected_tasks_in_requested_order(tmp_path):
+    spend.reset_spend()
+    report = run_batch(
+        tmp_path / "run",
+        tmp_path / "ledger",
+        PRICING,
+        batch_id="20261112",
+        task_ids=["A01", "M01", "P01", "J01"],
+        fake_reply=ANSWER,
+    )
+    assert [case["task_id"] for case in report["cases"]] == ["A01", "M01", "P01", "J01"]
+    assert report["ledger"]["reservation_count"] == 4
+    assert all(case["sent"] for case in report["cases"])
+
+
+@pytest.mark.parametrize("attempt", [1, 2])
+def test_repair_uses_saved_product_identity_and_same_batch_prefix(tmp_path, attempt):
+    spend.reset_spend()
+    run_batch(
+        tmp_path / "initial",
+        tmp_path / "initial-ledger",
+        PRICING,
+        task_ids=["J01"],
+        fake_reply=ANSWER,
+    )
+    spend.reset_spend()
+    report = run_batch(
+        tmp_path / "repair",
+        tmp_path / "repair-ledger",
+        PRICING,
+        batch_id="20261112",
+        task_ids=["J01"],
+        repair_from=tmp_path / "initial/J01",
+        feedback="Fix the visible highlight mismatch.",
+        repair_attempt=attempt,
+        fake_reply=ANSWER,
+    )
+    case = report["cases"][0]
+    assert case["sent"] and case["status"] == "completed"
+    assert case["invocation_key"] == f"m4c3-20261112:J01:repair{attempt}"
+    assert case["route"]["interactive_repair"]["id"] == "fixture"
+    assert case["route"]["interactive_repair"]["source_sha256"]
+    import sqlite3
+
+    with sqlite3.connect(tmp_path / "repair-ledger") as db:
+        purpose = db.execute("SELECT purpose FROM llm_spend_reservations").fetchone()[0]
+    assert purpose.startswith("interactive-repair:")
+
+
+@pytest.mark.parametrize("attempt", [0, 3, True, "2"])
+def test_invalid_repair_attempt_never_sends(tmp_path, attempt):
+    with pytest.raises(ValueError, match="repair attempt"):
+        run_batch(
+            tmp_path / "run",
+            tmp_path / "ledger",
+            PRICING,
+            repair_attempt=attempt,
+            fake_reply=ANSWER,
+        )
+    assert not (tmp_path / "run").exists()
+
+
+def test_repair_attempt_cannot_rename_a_first_generation(tmp_path):
+    with pytest.raises(ValueError, match="saved repair source"):
+        run_batch(
+            tmp_path / "run",
+            tmp_path / "ledger",
+            PRICING,
+            repair_attempt=2,
+            fake_reply=ANSWER,
+        )
