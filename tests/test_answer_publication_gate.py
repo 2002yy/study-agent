@@ -12,6 +12,8 @@ import json
 import re
 from typing import Any, Callable, Sequence
 
+import pytest
+
 from src.application.chat_service import (
     RESEARCH_ANSWER_BLOCKED_COPY,
     ChatCommand,
@@ -37,6 +39,13 @@ RESEARCH_CLAIM_ID = "research_claim_1"
 CANDIDATE = "该版本已正式发布，并修复了已知问题。"
 CLAIM_TEXT = "该版本已正式发布。"
 ANSWER = "candidate text to publish"
+
+
+@pytest.fixture(autouse=True)
+def _legacy_strict_publication_contract(monkeypatch):
+    """Keep the former binder contract exercised explicitly, not as default."""
+
+    monkeypatch.setenv("RESEARCH_PUBLICATION_MODE", "strict")
 
 
 class _FakeRagResult:
@@ -219,6 +228,71 @@ def _run_turn(
     return reply, _turn(repository, prepared.turn.id)
 
 
+def test_default_simple_research_publishes_markdown_without_binder(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.delenv("RESEARCH_PUBLICATION_MODE", raising=False)
+    answer = (
+        "## 2. 并发风险\n\n"
+        "4 个 worker 可能竞争写锁。"
+        "[本轮资料](https://official.example/release)\n\n"
+        "## 3. 迁移条件\n\n"
+        "| 触发条件 | 理由 |\n| --- | --- |\n"
+        "| 需要多机共享 | 文件系统约束 |"
+    )
+    tasks: list[str] = []
+    sent_messages: list[dict[str, str]] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        tasks.append(kwargs.get("task_name", ""))
+        sent_messages.extend(args[0])
+        if kwargs.get("task_name") == "answer_claim_binding":
+            raise AssertionError("simple mode must never invoke the binder")
+        return answer
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == answer
+    assert turn.status == "completed"
+    assert tasks == ["single_chat"]
+    assert any(
+        item.get("role") == "system"
+        and "https://official.example/release" in item.get("content", "")
+        and "不必逐字引用" in item.get("content", "")
+        for item in sent_messages
+    )
+    assert "2. 并发风险" in reply and "| --- | --- |" in reply
+    assert "answer_claim_binding" not in _audit(turn)["phases"]
+    assert (turn.rag_snapshot or {})["research_publication_mode"] == "simple"
+    assert turn.answer_claim_snapshot["status"] == "unavailable"
+    refs = (turn.rag_snapshot or {})["research_evidence_refs"]
+    assert [ref["url"] for ref in refs] == ["https://official.example/release"]
+    evidence_refs = turn.evidence_snapshot["refs"]
+    assert evidence_refs[0]["selection_reason"] == "research_read_cited_unverified"
+
+
+def test_simple_research_still_blocks_unread_citation(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("RESEARCH_PUBLICATION_MODE", "simple")
+    tasks: list[str] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        tasks.append(kwargs.get("task_name", ""))
+        return "请看[备份](https://official.example/backup)中的说明。"
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert tasks == ["single_chat"]
+    scope = (turn.rag_snapshot or {})["answer_citation_scope"]
+    assert scope["outside"] == [{
+        "url": "https://official.example/backup",
+        "kind": "read_host_page_not_read",
+    }]
+    assert turn.answer_claim_snapshot["status"] == "rejected"
+
+
 def test_passed_binding_publishes_candidate_with_full_audit(tmp_path) -> None:
     """Answer generation and a passed binding are both authoritative-audited."""
     calls = [_binding_payload([_segment_entry("s1", support=(EVIDENCE_ID,))])]
@@ -367,6 +441,30 @@ def test_missing_evidence_brief_fails_closed_without_provider_calls(tmp_path) ->
     assert calls["calls"] == 1
     audit = _audit(turn)
     binding = audit["phases"]["answer_claim_binding"]
+    assert binding["outcome"] == "rejected"
+    assert binding["model_calls"] == 0
+    assert binding["error_type"] == "missing_evidence_brief"
+
+
+def test_default_simple_mode_also_fails_closed_without_evidence(
+    tmp_path, monkeypatch
+) -> None:
+    """P0-3 holds in the new default: no read evidence, no published answer."""
+
+    monkeypatch.delenv("RESEARCH_PUBLICATION_MODE", raising=False)
+    calls = {"calls": 0}
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        calls["calls"] += 1
+        return ANSWER
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[]))
+
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert calls["calls"] == 1
+    assert "research_publication_mode" not in (turn.rag_snapshot or {})
+    binding = _audit(turn)["phases"]["answer_claim_binding"]
     assert binding["outcome"] == "rejected"
     assert binding["model_calls"] == 0
     assert binding["error_type"] == "missing_evidence_brief"

@@ -13,6 +13,19 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-16 研究答案默认简洁发布（独立静态候选）
+
+用户裁定采用「检索→读取→生成→轻量引用检查→发布」，不再默认运行逐段 binder。在当时远端 #357 的 `8a8be1e` 上创建独立分支 `codex/simple-research-flow-20261116`，未覆盖原工作树改动。
+
+- `RESEARCH_PUBLICATION_MODE=simple` 为默认：有已读证据、生成有效且引用 URL 均属当轮已读网页时，原样发布 Markdown，不分段、不调用 binder；`strict` 显式保留旧的严格校验。
+- 简洁模式记录来源白名单和已读引用，但**不把未逐条验证的引用标为 verified**；无资料与未读链接仍被拦截。URL 匹配区分内容查询参数，忽略 `utm_` 追踪参数。
+- 离线直接调用验证最初只做了 Markdown/表格无损发布、未读 URL 拦截、旧严格模式通过；随后在评审环境补跑影响集 **201 PASS**（publication gate、answer_links、streaming、chat_service、binder、standard_handoff、pr143 三套、browse_search、site_pool），Ruff clean，mypy 118（基线 128，无新增）。
+- 补测覆盖缺口：默认简洁模式下的**流式发布**原先没有测试（旧流式测试全部显式固定 strict）。新增两条：流式 Markdown 不调用 binder 即发布；流式答案引用未读页时最终回复被替换为阻断文案。
+- 合并 #357 当前 head（`9a17ce4d`）后仅 `docs/PROJECT_STATUS.md` 冲突，按“新条目在前、旧条目保留”解决；`src/` 无冲突。
+- 完整 pytest 与真实模型对照 **仍未执行**；CI 首轮在 `8a8be1ee` 上暴露两处与本 PR 无关的失败：`test_learner_state_shadow_acceptance[stall]` 本地重跑通过（时序抖动），以及 mypy 新增 `browse_search.py` origin 元组类型错误（已在 #357 修复）。
+
+下一门：等 `codex/simple-research-flow-20261116` 的 CI 全绿后再谈合并；真实端到端验收仍需独立预算授权，不能把静态验证写成产品通过。
+
 ### 2026-11-15 研究检索定为 HTTP fallback；引用越界分类、binder 预算与分段已修，仍未发布成功
 
 按裁定，研究阶段默认走 HTTP `fallback`（`tool_gateway` 的默认值本来就是 `fallback`；浏览器站点池保留为按需，需 `WEB_SEARCH_STRATEGY=browse_sites`）。不新增网站，不放宽引用白名单、数字一致性与 binder 证据契约。

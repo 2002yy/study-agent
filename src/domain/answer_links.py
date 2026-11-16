@@ -10,25 +10,42 @@ from __future__ import annotations
 
 import re
 from typing import Iterable
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 _URL = re.compile(r"https?://[^\s<>()\[\]\"'，。；）】]+", re.IGNORECASE)
 
 
 def normalize_link(url: str) -> str:
-    """Scheme-insensitive, ``www.``-insensitive identity of a page."""
+    """Page identity, retaining content-selecting query parameters.
+
+    Tracking parameters do not change which page was read, but ``?id=1`` and
+    ``?id=2`` can be entirely different documents and must not be conflated.
+    """
 
     raw = str(url or "").strip().rstrip(".,;:!?")
     if not raw:
         return ""
-    parsed = urlsplit(raw)
-    host = (parsed.hostname or "").casefold()
+    try:
+        parsed = urlsplit(raw)
+        host = (parsed.hostname or "").casefold()
+        port = parsed.port
+    except ValueError:
+        return ""
     if host.startswith("www."):
         host = host[4:]
     if not host:
         return ""
+    if port is not None and (parsed.scheme.lower(), port) not in {
+        ("https", 443), ("http", 80)
+    }:
+        host = f"{host}:{port}"
     path = parsed.path.rstrip("/") or "/"
-    return f"{host}{path}"
+    query = urlencode(sorted(
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if not key.casefold().startswith("utm_")
+    ))
+    return f"{host}{path}" + (f"?{query}" if query else "")
 
 
 def links_in_answer(answer: str) -> list[str]:
@@ -49,7 +66,7 @@ def outside_evidence_links(
     seen: set[str] = set()
     for link in links_in_answer(answer):
         normalized = normalize_link(link)
-        if not normalized or normalized in allowed or normalized in seen:
+        if normalized in allowed or normalized in seen:
             continue
         seen.add(normalized)
         outside.append(link)

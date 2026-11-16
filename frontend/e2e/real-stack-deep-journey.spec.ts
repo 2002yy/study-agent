@@ -92,7 +92,11 @@ test("deep research shows live progress, the answer, and its read sources", asyn
     page.getByText("恢复结果已设为下一轮聊天资料。"),
   ).toBeVisible({ timeout: 30_000 });
   await send(page, "基于上面的资料，OMEGA 协议的延迟结论是什么？");
-  const answer = answerMessage(page, "DEEP-ANSWER-OK");
+  // The follow-up answer may repeat the marker; the research answer is the one
+  // that also carries its read-source excerpt.
+  const answer = answerMessage(page, "DEEP-ANSWER-OK").filter({
+    has: page.getByLabel("已读资料摘录"),
+  });
   await expect(answer).toHaveCount(1);
   await expect(answer).toBeVisible({ timeout: 40_000 });
 
@@ -109,8 +113,11 @@ test("deep research shows live progress, the answer, and its read sources", asyn
 
   // The answer and the sources are durable: a refresh shows the same turn.
   await page.reload();
-  await expect(answerMessage(page, "DEEP-ANSWER-OK")).toHaveCount(1);
-  await expect(answerMessage(page, "DEEP-ANSWER-OK")).toBeVisible({
+  const restored = answerMessage(page, "DEEP-ANSWER-OK").filter({
+    has: page.getByLabel("已读资料摘录"),
+  });
+  await expect(restored).toHaveCount(1);
+  await expect(restored).toBeVisible({
     timeout: 20_000,
   });
   await expect(page.getByText("研究已停止")).toHaveCount(0);
