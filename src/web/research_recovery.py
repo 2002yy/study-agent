@@ -328,6 +328,7 @@ def _recover_public_research(
     query_plan: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     budget = budget or recovery_budget(query, query_plan)
+    multi_facet = planned_questions(query_plan) >= 2
     started = monotonic() if started_at is None else started_at
     deadline = min(started + budget.hard_seconds, answer_deadline or float("inf")) - budget.finalization_reserve
     if semantic_session is not None:
@@ -405,7 +406,9 @@ def _recover_public_research(
         if scope and model_targets(query):
             entities = " ".join(f"{name} {version}" for name, version in model_targets(query))
             official_query = _rewrite(f"{scope.group(1)} {entities}")[0]
-        phases = [("semantic_query", planned[0]["query"], 2),
+        # A multi-question plan should not spend two reads on its first facet
+        # before other facets get their own search/read opportunity.
+        phases = [("semantic_query", planned[0]["query"], 1 if multi_facet else 2),
                   ("authoritative_domain", official_query, 1)] + [
                       ("semantic_query", row["query"], 1) for row in planned[1:]
                       if row["query"] != official_query]
@@ -570,7 +573,16 @@ def _recover_public_research(
             )
             for item in candidates:
                 disposition(str(item.get("url") or item.get("link") or ""), "discovered")
-            selected, rejected = assess_sources(candidates, canonical_query=rewritten)
+            # Rank this phase's results against the question it searched for.
+            # The full multi-facet user question dilutes short, exact hits such
+            # as an official backup page with unrelated deployment terms.
+            selected, rejected = assess_sources(
+                candidates,
+                canonical_query=search_query if multi_facet else rewritten,
+            )
+            current_urls = {
+                str(row["assessment"].get("url") or "") for row in selected
+            }
             for row in selected:
                 disposition(str(row["assessment"].get("url") or ""), "eligible")
             for candidate in rejected:
@@ -586,6 +598,15 @@ def _recover_public_research(
                 unique = {str(row["assessment"].get("url", "")): row for row in combined}
                 selected = list(unique.values())
             selected = scheduler.order(selected, domains)
+            if multi_facet and phase_index > 0:
+                # Keep previously discovered pages as a fallback, but give a
+                # later facet's fresh candidates the first chance to be read.
+                # Otherwise the pending WAL backlog can consume the one read
+                # reserved for an unrelated backup or PostgreSQL query.
+                selected.sort(
+                    key=lambda row: str(row["assessment"].get("url") or "")
+                    not in current_urls
+                )
             if markers:
                 # Exact named versions outrank adjacent versions even when the
                 # advisory relevance judge considers the whole family related.
