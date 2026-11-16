@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -22,8 +23,13 @@ _FETCH_URL = "https://api.deepseek.com/v1/tools/fetch"
 _MAX_RESPONSE_BYTES = 1_500_000
 _SECRET_QUERY_PARAMS = frozenset({
     "access_token", "api_key", "auth", "authorization", "key", "jwt",
-    "sig", "signature", "token", "x-amz-signature", "x-goog-signature",
+    "sig", "signature", "token", "code", "password", "passwd",
+    "session", "sessionid", "session_id", "client_secret", "credential",
+    "access_key", "x-amz-signature", "x-goog-signature",
 })
+_SECRET_QUERY_MARKERS = (
+    "token", "secret", "signature", "credential", "session", "password", "passwd",
+)
 _used_requests = {"search": 0, "fetch": 0}
 _request_lock = threading.Lock()
 
@@ -142,13 +148,24 @@ def fetch_deepseek(
 ) -> tuple[dict[str, str] | None, str]:
     """Fetch a public page as Markdown, preserving the requested source URL."""
 
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None, "deepseek_fetch:unsafe_url"
+    # A failed ordinary read may include a signed or authenticated URL. Never
+    # forward those credentials to a separate vendor, including URL fragments.
+    parameters = parse_qsl(parsed.query, keep_blank_values=True)
+    parameters.extend(parse_qsl(parsed.fragment, keep_blank_values=True))
+    has_secret = any(
+        name.casefold() in _SECRET_QUERY_PARAMS
+        or any(marker in re.sub(r"[^a-z0-9]", "", name.casefold())
+               for marker in _SECRET_QUERY_MARKERS)
+        for name, _value in parameters
+    )
     if (
         not is_public_http_url(url)
         or len(url) > 8192
-        or any(
-            name.lower() in _SECRET_QUERY_PARAMS
-            for name, _value in parse_qsl(urlparse(url).query)
-        )
+        or has_secret
     ):
         return None, "deepseek_fetch:unsafe_url"
     data, error = _request_json("fetch", {"url": url}, timeout)

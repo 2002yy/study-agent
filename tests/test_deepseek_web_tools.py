@@ -177,6 +177,18 @@ def test_fetch_refuses_private_urls_before_network(monkeypatch):
     )
     assert error == "deepseek_fetch:unsafe_url"
     assert deepseek_web_tools._used_requests["fetch"] == 0
+    for secret_url in (
+        "https://example.org/document?session_id=sensitive",
+        "https://example.org/document?code=oauth-code",
+        "https://example.org/document?X-Amz-Credential=sensitive",
+        "https://example.org/document#access_token=fragment-secret",
+        "https://[invalid/document",
+    ):
+        _, error = deepseek_web_tools.fetch_deepseek(
+            secret_url, max_chars=1000, timeout=2,
+        )
+        assert error == "deepseek_fetch:unsafe_url"
+        assert deepseek_web_tools._used_requests["fetch"] == 0
 
 
 def test_fetch_return_is_bounded_and_source_url_not_rewritten(monkeypatch):
