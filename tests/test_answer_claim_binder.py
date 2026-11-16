@@ -11,10 +11,12 @@ only ``uncertainty``-classified wording is exempt from evidence.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Mapping, Sequence
 
 from src.application.answer_claim_binder import (
     ANSWER_CLAIM_BINDER_PRODUCER,
+    _MAX_TOTAL_SEGMENTS,
     AnswerClaimBindingRequest,
     AnswerClaimBindingRow,
     bind_answer_claims,
@@ -199,8 +201,8 @@ def test_unknown_segment_ref_rejects_the_whole_binding() -> None:
     assert snapshot.reason == "segment_coverage_mismatch"
 
 
-def test_factual_segment_without_support_is_rejected() -> None:
-    """P0: an asserted factual claim with zero eligible evidence is blocked."""
+def test_factual_segment_without_support_is_withheld_not_published() -> None:
+    """P0: an asserted factual claim with zero eligible evidence never ships."""
     request = _request(rows=(_row(),))
 
     def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
@@ -211,9 +213,13 @@ def test_factual_segment_without_support_is_rejected() -> None:
             ]
         )
 
-    snapshot = _snapshot_of(bind_answer_claims(request=request, model_fn=model_fn))
-    assert snapshot.status == "rejected"
-    assert snapshot.reason == "unbound_factual_segment"
+    bound = bind_answer_claims(request=request, model_fn=model_fn)
+    assert bound.snapshot.status == "validated"
+    assert bound.withheld[0]["reason"] == "unbound_factual_segment"
+    withheld_text = bound.withheld[0]["segment"]
+    assert withheld_text not in bound.published_text
+    assert all(claim.text != withheld_text for claim in bound.snapshot.claims)
+    assert bound.published_text
 
 
 def test_qualified_factual_still_requires_support() -> None:
@@ -228,9 +234,10 @@ def test_qualified_factual_still_requires_support() -> None:
             ]
         )
 
-    rejected = _snapshot_of(bind_answer_claims(request=request, model_fn=without_support))
-    assert rejected.status == "rejected"
-    assert rejected.reason == "unbound_factual_segment"
+    bound = bind_answer_claims(request=request, model_fn=without_support)
+    assert bound.snapshot.status == "validated"
+    assert bound.withheld[0]["reason"] == "unbound_factual_segment"
+    assert bound.withheld[0]["segment"] not in bound.published_text
 
     def with_support(messages: Sequence[Mapping[str, Any]]) -> str:
         return _payload(
@@ -246,7 +253,7 @@ def test_qualified_factual_still_requires_support() -> None:
     assert kinds == {"asserted", "qualified"}
 
 
-def test_uncertainty_segment_needs_no_evidence() -> None:
+def test_uncertainty_segment_is_recorded_but_needs_no_evidence() -> None:
     answer = "该版本已正式发布。以上说法未能独立核实。"
 
     def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
@@ -262,18 +269,22 @@ def test_uncertainty_segment_needs_no_evidence() -> None:
     )
     snapshot = bound.snapshot
     assert snapshot.status == "validated"
-    assert len(snapshot.claims) == 1
-    assert snapshot.claims[0].kind == "factual"
+    kinds = {claim.kind for claim in snapshot.claims}
+    assert kinds == {"factual", "uncertainty"}
+    # An uncertainty statement asserts nothing about the world, so it needs no
+    # link; recording it keeps the published kinds auditable.
+    factual = next(claim for claim in snapshot.claims if claim.kind == "factual")
+    assert {link.claim_id for link in snapshot.claim_links} == {factual.id}
 
 
-def test_non_factual_segment_with_support_is_rejected() -> None:
-    answer = "该版本已正式发布。建议查阅官方文档。"
+def test_instructional_segment_with_support_is_rejected() -> None:
+    answer = "该版本已正式发布。请打开设置页面。"
 
     def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
         return _payload(
             [
                 _segment("s1", "factual", status="asserted", support=("evidence_abc123",)),
-                _segment("s2", "recommendation", support=("evidence_abc123",)),
+                _segment("s2", "instructional", support=("evidence_abc123",)),
             ]
         )
 
@@ -451,45 +462,65 @@ def test_overlong_or_too_many_segments_fail_closed_without_provider_call() -> No
     assert calls["count"] == 0
 
 
-def test_too_many_short_segments_fail_closed_without_provider_call() -> None:
-    # The char limit is not the only ceiling: 17 ordinary sentences are rejected
-    # even though every one of them is short. This is the shape that blocked 13
-    # of the 20 archived answers.
+def test_seventeen_short_sentences_are_verified_in_two_batches() -> None:
+    # The per-request limit is 16; it is no longer a limit on the answer. This
+    # is the shape (17 ordinary sentences) that used to reject the whole reply.
+    answer = "该版本已正式发布。" * 17
+    calls = {"count": 0}
+    batches: list[int] = []
+
+    def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
+        calls["count"] += 1
+        entries = re.findall(r"\[(s\d+)\] ", str(messages[1]["content"]))
+        batches.append(len(entries))
+        return _payload(
+            [
+                _segment(ref, "factual", status="asserted", support=("evidence_abc123",))
+                for ref in entries
+            ]
+        )
+
+    bound = bind_answer_claims(
+        request=_request(answer=answer, rows=(_row(),)), model_fn=model_fn
+    )
+
+    assert bound.snapshot.status == "validated"
+    assert calls["count"] == 2
+    assert batches == [16, 1]
+    assert bound.segment_stats["batch_count"] == 2
+
+
+def test_a_failing_second_batch_publishes_nothing() -> None:
+    """Verified head content may not be published next to an unverified tail."""
+
     answer = "该版本已正式发布。" * 17
     calls = {"count": 0}
 
     def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
         calls["count"] += 1
-        return _payload([])
+        entries = re.findall(r"\[(s\d+)\] ", str(messages[1]["content"]))
+        if calls["count"] == 2:
+            return json.dumps({"refused": True, "segments": []})
+        return _payload(
+            [
+                _segment(ref, "factual", status="asserted", support=("evidence_abc123",))
+                for ref in entries
+            ]
+        )
 
     bound = bind_answer_claims(
         request=_request(answer=answer, rows=(_row(),)), model_fn=model_fn
     )
 
     assert bound.snapshot.status == "rejected"
-    assert bound.snapshot.reason == "answer_not_segmentable"
-    assert bound.segment_stats["overflow_reason"] == "segment_count"
-    assert bound.segment_stats["raw_nonempty_segment_count"] == 17
-    assert calls["count"] == 0
+    assert bound.snapshot.reason.startswith("batch_2_of_2:")
+    assert bound.snapshot.claims == ()
+    assert bound.snapshot.claim_links == ()
 
 
-def test_the_segment_count_limit_is_exclusive_at_sixteen() -> None:
-    sixteen, accepted_stats = segment_answer_with_stats("该版本已正式发布。" * 16)
-    seventeen, rejected_stats = segment_answer_with_stats("该版本已正式发布。" * 17)
-
-    assert len(sixteen) == 16
-    assert accepted_stats["accepted"] is True
-    assert accepted_stats["overflow_reason"] == ""
-    assert seventeen == ()
-    assert rejected_stats["accepted"] is False
-    assert rejected_stats["overflow_reason"] == "segment_count"
-
-
-def test_a_truncated_segment_prompt_is_refused_instead_of_partially_bound() -> None:
-    # Sixteen segments are within the count limit, but their rendered prompt
-    # exceeds the context budget. Truncating it would ask the producer to
-    # classify segments it never saw, so the binding must fail closed.
-    answer = "。".join("该版本" + "甲" * 990 + "已发布" for _ in range(16)) + "。"
+def test_the_total_verification_budget_still_fails_closed_without_a_model_call() -> None:
+    segments_budget = _MAX_TOTAL_SEGMENTS
+    answer = "该版本已正式发布。" * (segments_budget + 1)
     calls = {"count": 0}
 
     def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
@@ -499,11 +530,69 @@ def test_a_truncated_segment_prompt_is_refused_instead_of_partially_bound() -> N
     bound = bind_answer_claims(
         request=_request(answer=answer, rows=(_row(),)), model_fn=model_fn
     )
-
     assert bound.snapshot.status == "rejected"
-    assert bound.snapshot.reason == "answer_context_truncated"
-    assert bound.segment_stats["context_truncated"] is True
+    assert bound.snapshot.reason == "answer_verification_budget_exceeded"
+    assert bound.segment_stats["overflow_reason"] == "segment_count"
     assert calls["count"] == 0
+
+
+def test_the_batch_limit_is_sixteen_but_the_answer_limit_is_the_batch_budget() -> None:
+    sixteen, accepted_stats = segment_answer_with_stats("该版本已正式发布。" * 16)
+    seventeen, batched_stats = segment_answer_with_stats("该版本已正式发布。" * 17)
+
+    assert len(sixteen) == 16
+    assert accepted_stats["accepted"] is True
+    assert accepted_stats["overflow_reason"] == ""
+    assert len(seventeen) == 17
+    assert batched_stats["accepted"] is True
+    assert batched_stats["batch_count"] == 2
+
+
+def test_an_overlong_single_unit_is_still_refused_before_any_model_call() -> None:
+    # A unit longer than the per-segment limit cannot be verified as one claim,
+    # and the server never truncates a segment for the producer to guess at.
+    answer = "该版本" + "甲" * 2000 + "已发布。"
+    calls = {"count": 0}
+
+    def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
+        calls["count"] += 1
+        return _payload([])
+
+    bound = bind_answer_claims(
+        request=_request(answer=answer, rows=(_row(),)), model_fn=model_fn
+    )
+    assert bound.snapshot.status == "rejected"
+    assert bound.snapshot.reason == "answer_not_segmentable"
+    assert bound.segment_stats["overflow_reason"] == "segment_chars"
+    assert calls["count"] == 0
+
+
+def test_a_segment_block_is_split_instead_of_truncated() -> None:
+    # Sixteen segments can exceed one request's rendered budget. The old code
+    # refused the answer; batching keeps every segment visible to some request.
+    answer = "。".join("版本" + "甲" * 990 + "已发布" for _ in range(16)) + "。"
+    calls = {"count": 0}
+    sizes: list[int] = []
+
+    def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
+        calls["count"] += 1
+        entries = re.findall(r"\[(s\d+)\] ", str(messages[1]["content"]))
+        sizes.append(len(entries))
+        return _payload(
+            [
+                _segment(ref, "factual", status="asserted", support=("evidence_abc123",))
+                for ref in entries
+            ]
+        )
+
+    bound = bind_answer_claims(
+        request=_request(answer=answer, rows=(_row(),)), model_fn=model_fn
+    )
+
+    assert bound.snapshot.status == "validated"
+    assert calls["count"] > 1
+    assert sum(sizes) == 16
+    assert all(size <= 16 for size in sizes)
 
 
 def test_chinese_and_english_sentence_splitting_is_deterministic() -> None:
@@ -580,3 +669,131 @@ def _link(claim_id: str, evidence_id: str) -> Any:
         support_type="direct_support",
         confidence=1.0,
     )
+
+def _grounded_row() -> AnswerClaimBindingRow:
+    return AnswerClaimBindingRow(
+        evidence_id="evidence_abc123",
+        claim_id=_RESEARCH_CLAIM_ID,
+        title="SQLite WAL",
+        url="https://www.sqlite.org/wal.html",
+        source_role="official_statement",
+        source_cluster_id="cluster_1",
+        relation="supports",
+        strength="strong",
+        locator="",
+        anchored_spans=(),
+        grounding_text=(
+            "Readers do not block writers and a writer does not block readers. "
+            "Write-ahead logging is enabled by setting journal_mode=WAL."
+        ),
+    )
+
+
+def test_a_rejected_quote_is_repaired_once_with_named_feedback() -> None:
+    answer = "WAL 模式下读写可以并发。"
+    request = AnswerClaimBindingRequest(
+        question="SQLite WAL 能并发读写吗？",
+        final_answer=answer,
+        evidence_rows=(_grounded_row(),),
+    )
+    prompts: list[str] = []
+
+    def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
+        prompts.append("".join(str(m["content"]) for m in messages))
+        quote = (
+            "WAL allows readers and writers to proceed concurrently."
+            if len(prompts) == 1
+            else "Readers do not block writers and a writer does not block readers."
+        )
+        return json.dumps({
+            "refused": False,
+            "segments": [{
+                "segment_ref": "s1",
+                "kind": "synthesis",
+                "status": "asserted",
+                "evidence_support": [],
+                "support_claims": [{
+                    "evidence_id": "evidence_abc123",
+                    "relation": "paraphrase",
+                    "source_quote": quote,
+                }],
+            }],
+        }, ensure_ascii=False)
+
+    bound = bind_answer_claims(request=request, model_fn=model_fn)
+
+    assert bound.snapshot.status == "validated"
+    assert bound.attempt_count == 2
+    # The retry must carry the reason, not just resample the same prompt.
+    assert "上一次输出被拒绝" in prompts[1]
+    assert "s1" in prompts[1] and "evidence_abc123" in prompts[1]
+    assert "WAL allows readers and writers" in prompts[1]
+
+
+def test_a_second_rejected_quote_still_rejects_the_answer() -> None:
+    answer = "WAL 模式下读写可以并发。"
+    request = AnswerClaimBindingRequest(
+        question="SQLite WAL 能并发读写吗？",
+        final_answer=answer,
+        evidence_rows=(_grounded_row(),),
+    )
+    calls = {"count": 0}
+
+    def model_fn(messages: Sequence[Mapping[str, Any]]) -> str:
+        calls["count"] += 1
+        return json.dumps({
+            "refused": False,
+            "segments": [{
+                "segment_ref": "s1",
+                "kind": "synthesis",
+                "status": "asserted",
+                "evidence_support": [],
+                "support_claims": [{
+                    "evidence_id": "evidence_abc123",
+                    "relation": "paraphrase",
+                    "source_quote": "WAL makes every writer concurrent.",
+                }],
+            }],
+        })
+
+    bound = bind_answer_claims(request=request, model_fn=model_fn)
+
+    assert bound.snapshot.status != "validated"
+    assert "unverified_source_quote" in str(bound.snapshot.reason)
+    assert calls["count"] == 2  # one repair attempt, then stop
+
+_Q8_EXCERPT = """## 迁移触发条件（命中任意一条再迁）
+
+| 触发条件 | 为什么是它 |
+|---|---|
+| 数据库文件必须放到网络文件系统 / 多机共享 | SQLite 文件锁在网络 FS 上不可靠，这是硬伤 |
+| 后台索引任务无法拆成短事务，且必须与在线写入并发 | 长写事务 + 多个写者 = 持续 SQLITE_BUSY |
+
+2. **真正的风险在后台索引任务**
+3. **单用户 + 本地磁盘 + 短事务 = SQLite WAL 的性能余量非常大**
+"""
+
+
+def test_a_list_number_is_not_its_own_segment() -> None:
+    """A bare "2." made the binder refuse a whole batch (q8)."""
+
+    segments, _stats = segment_answer_with_stats(_Q8_EXCERPT)
+
+    assert segments
+    assert not [s for s in segments if re.fullmatch(r"\d+[.)]|[-*+]", s.strip())]
+    numbered = [s for s in segments if "真正的风险在后台索引任务" in s]
+    assert numbered and numbered[0].startswith("2.")
+
+
+def test_markdown_structure_and_table_content_survive_segmentation() -> None:
+    """Structure is kept in the answer; table rows are still verified."""
+
+    segments, _stats = segment_answer_with_stats(_Q8_EXCERPT)
+    joined = "\n".join(segments)
+
+    # Headings and table rows that carry a claim remain in the text.
+    assert "迁移触发条件" in joined
+    assert "网络文件系统" in joined and "SQLITE_BUSY" in joined
+    # The separator row carries no claim; it stays in the published answer
+    # because withholding only removes segments, never structural lines.
+    assert "|---|---|" not in joined

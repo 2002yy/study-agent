@@ -37,6 +37,52 @@ def episode():
     return ResearchEpisode("task-1", "thread-1", ORIGINAL, RQS, source_run_id="run-1")
 
 
+def test_provider_format_echo_is_tolerated_but_semantic_extras_are_not():
+    from src.web.semantic_recovery import _provider_payload
+
+    echoed = {**decision(), "type": "json_object"}
+    echoed.pop("task_id")
+    parsed = ResearchDecision.parse(
+        _provider_payload(echoed, task_id="task-1"), task_id="task-1"
+    )
+    assert parsed.task_id == "task-1"
+    assert parsed.intent == "NEW_RESEARCH"
+
+    assert set(_provider_payload(echoed, task_id="task-1")) == set(
+        ResearchDecision.__dataclass_fields__
+    )
+    with pytest.raises(ValueError, match="decision_fields"):
+        ResearchDecision.parse(
+            _provider_payload({**echoed, "authority": "qualified"}, task_id="task-1"),
+            task_id="task-1",
+        )
+
+
+def test_plan_rejection_reason_survives_trace_projection():
+    from src.tools.web_agent import WebToolTrace
+
+    session = ResearchSemanticSession(
+        lambda **kwargs: "{}", deadline=time.monotonic() + 20,
+        should_cancel=lambda: False,
+    )
+    with pytest.raises(ValueError, match="decision_fields"):
+        session.interpret(episode(), ORIGINAL)
+    assert session.events[-1]["validation_reason"] == "decision_fields"
+    trace = WebToolTrace(calls=({"name": "research_semantic_fallback", "result": {
+        "reason": "ValueError", "detail": "decision_fields",
+    }},))
+    assert trace.to_dict()["diagnostic_calls"][0]["detail"] == "decision_fields"
+
+
+def test_plan_diagnostics_do_not_persist_arbitrary_exception_text():
+    from src.web.tool_evidence import diagnostic_tool_calls
+
+    result = diagnostic_tool_calls([{"name": "research_semantic_fallback", "result": {
+        "reason": "ValueError", "detail": "sensitive user content or token=123",
+    }}])
+    assert "detail" not in result[0]
+
+
 def decision(task_id="task-1", intent="NEW_RESEARCH", rqs=None):
     return {"task_id": task_id, "intent": intent, "subject": "Claude Opus 5.5",
             "constraints_delta": {}, "unresolved_questions": rqs or RQS,
@@ -105,6 +151,18 @@ def agent(tmp_path, completion=None, gateway=None):
     completion = completion or Completion()
     return PersistentWebToolAgent(gateway=gateway, research_service=service,
                                   semantic_completion=completion), service, gateway, completion
+
+
+def test_retrieval_window_leaves_time_to_write_the_answer(tmp_path):
+    runtime, _, _, _ = agent(tmp_path)
+    before = time.monotonic()
+    trace = runtime.resolve(
+        ORIGINAL, owner_thread_id="thread-1", history_allowed=True
+    )
+    assert trace.answer_deadline is not None
+    # The comparison question gets the standard 60s retrieval window, and the
+    # turn must still have a full writing window after it.
+    assert trace.answer_deadline - before >= 60 + 55
 
 
 def test_real_failure_four_turn_golden_and_restart(tmp_path):

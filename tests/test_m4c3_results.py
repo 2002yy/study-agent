@@ -155,3 +155,31 @@ def test_unknown_source_host_is_rejected_even_before_browser_provenance(tmp_path
     path.write_text(json.dumps(data))
     with pytest.raises(ValueError, match="unsupported source host"):
         evaluate_artifacts(tmp_path, render=False)
+
+
+@pytest.mark.parametrize("missing_group", ["checks", "usability"])
+@pytest.mark.parametrize("width", [1280, 390])
+def test_each_viewport_requires_both_evidence_groups(tmp_path, missing_group, width):
+    corpus(tmp_path)
+    for viewport in (1280, 390):
+        path = tmp_path / f"sandbox-{viewport}/report.json"
+        report = json.loads(path.read_text())
+        item = report["cases"][0]
+        item["checks"] = [{"status": "pass"}]
+        item["usability"] = [{"status": "pass"}]
+        if viewport == width:
+            item[missing_group] = []
+        path.write_text(json.dumps(report))
+    result = evaluate_artifacts(tmp_path, render=False)
+    assert result["cases"][0]["status"] == "indeterminate"
+    assert result["first_generation_success_rate"] is None
+
+
+def test_known_failure_still_wins_over_missing_evidence(tmp_path):
+    corpus(tmp_path)
+    path = tmp_path / "sandbox-390/report.json"
+    report = json.loads(path.read_text())
+    report["cases"][0]["checks"] = []
+    report["cases"][0]["usability"] = [{"status": "fail"}]
+    path.write_text(json.dumps(report))
+    assert evaluate_artifacts(tmp_path, render=False)["cases"][0]["status"] == "failed"

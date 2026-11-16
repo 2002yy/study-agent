@@ -25,6 +25,7 @@ from src.application.chat_service import (
     _preferred_partial_reply,
     _previous_assistant_role,
     _research_resume_requested,
+    inline_research_validation_plan,
     attachment_context_block,
     _route_generation_calls,
     _session_settings,
@@ -862,7 +863,9 @@ class ExternalDataPolicyChatService(ChatService):
             pedagogy_plan=pedagogy_plan,
             learning_state=next_learning_state,
             learning_state_before=learning_state,
-            answer_validation=command.answer_validation,
+            answer_validation=inline_research_validation_plan(
+                web_tools, route, command.user_input, command.answer_validation
+            ),
             disclosure_policy=disclosed.policy,
             learner_evaluation=learner_evaluation,
         )

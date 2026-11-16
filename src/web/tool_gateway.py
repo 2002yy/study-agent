@@ -107,17 +107,20 @@ def _result_key(item: dict[str, str]) -> str:
     if not url:
         return (item.get("title") or "").strip().casefold()
     parsed = urlparse(url)
-    # Hosts are case-insensitive; paths and query values can name different pages.
-    return parsed._replace(
-        scheme=parsed.scheme.lower(), netloc=parsed.netloc.lower(), fragment=""
-    ).geturl()
+    # Hosts are case-insensitive; paths and query values can name different
+    # pages. A "www." prefix is the same page, and counting it twice would
+    # spend a slot that another source should have used.
+    host = parsed.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return parsed._replace(scheme=parsed.scheme.lower(), netloc=host, fragment="").geturl()
 
 
 def _query_domain(query: str) -> str:
     """Only enforce the existing simple, positive site: form."""
-    match = re.fullmatch(r"site:([A-Za-z0-9.-]+)\s+[^()]+", query)
-    if match and not re.search(r"(?:\bOR\b|-site:|\bsite:)", query[match.end(1) :]):
-        return match.group(1).lower().rstrip(".")
+    matches = list(re.finditer(r"(?<!\S)site:([A-Za-z0-9.-]+)(?=\s|$)", query))
+    if len(matches) == 1 and not re.search(r"(?:\bOR\b|-site:|[()])", query):
+        return matches[0].group(1).lower().rstrip(".")
     return ""
 
 
@@ -164,7 +167,44 @@ def _dedupe_results(items: list[dict[str, str]], limit: int) -> list[dict[str, s
     return result
 
 
-SEARCH_STRATEGIES = ("fallback", "merge", "ddg_first")
+def _merge_site_results(
+    grouped: list[tuple[str, list[dict[str, str]]]], limit: int
+) -> list[dict[str, str]]:
+    """Take from every site before one site fills the whole answer.
+
+    Groups arrive in route order and each keeps its own ranking. One result per
+    site is taken in turn, so the first slot of every productive site appears
+    before a second slot from any of them. A site that found nothing simply
+    contributes nothing; a query with a single productive site still returns
+    that site's ranking.
+    """
+
+    def key(row: dict[str, str]) -> str:
+        return _result_key(row)
+
+    productive = [(site, rows) for site, rows in grouped if rows]
+    seen: set[str] = set()
+    merged: list[dict[str, str]] = []
+    cursors = [0] * len(productive)
+    while len(merged) < limit:
+        progressed = False
+        for index, (_site, rows) in enumerate(productive):
+            while len(merged) < limit and cursors[index] < len(rows):
+                row = rows[cursors[index]]
+                cursors[index] += 1
+                marker = key(row)
+                if not marker or marker in seen:
+                    continue
+                seen.add(marker)
+                merged.append(row)
+                progressed = True
+                break
+        if not progressed:
+            break
+    return merged[:limit]
+
+
+SEARCH_STRATEGIES = ("fallback", "merge", "ddg_first", "browser_first", "browse_sites")
 _DEFAULT_SEARCH_STRATEGY = "fallback"
 _MERGE_TRACE_KEYS = (
     "search_strategy",
@@ -384,6 +424,11 @@ class GeneralWebGateway:
             "domain_filtered_count": filtered_count,
             "provider_errors": provider_errors,
             "providers_attempted": list(outcome["providers_attempted"]),
+            **{
+                key: outcome[key]
+                for key in ("site_outcomes", "site_route")
+                if key in outcome
+            },
             **trace,
             "searched_at": current.isoformat(),
         }
@@ -491,15 +536,33 @@ class GeneralWebGateway:
         provider_timeout = _env_float(
             "WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS", 6.0, minimum=1.0, maximum=8.0
         )
-        deadline = time.monotonic() + _env_float(
-            "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", 8.0, minimum=3.0, maximum=10.0
-        )
+        if self.search_strategy == "browse_sites":
+            # One provider searches several sites sequentially, so it needs its
+            # own budget. The reserve is what keeps SearXNG/Bing RSS/DuckDuckGo
+            # reachable after the whole pool failed; a slow pool must not be
+            # able to consume the budget that the documented fallback needs.
+            started = time.monotonic()
+            pool_deadline = started + _env_float(
+                "WEB_SITE_POOL_TOTAL_SECONDS", 20.0, minimum=6.0, maximum=36.0
+            )
+            deadline = pool_deadline + _env_float(
+                "WEB_SEARCH_FALLBACK_RESERVE_SECONDS", 4.0, minimum=2.0, maximum=8.0
+            )
+        else:
+            pool_deadline = 0.0
+            deadline = time.monotonic() + _env_float(
+                "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", 8.0, minimum=3.0, maximum=10.0
+            )
         plan = {
             "fallback": ("searxng", "bing_rss", "duckduckgo_html"),
+            "browser_first": ("browse", "searxng", "bing_rss", "duckduckgo_html"),
+            "browse_sites": ("browse_sites", "searxng", "bing_rss", "duckduckgo_html"),
             "ddg_first": ("duckduckgo_html", "bing_rss"),
             "merge": ("bing_rss", "duckduckgo_html"),
         }[self.search_strategy]
         providers = {
+            "browse": (True, self._search_browse),
+            "browse_sites": (True, self._search_browse_sites),
             "searxng": (searxng_enabled(), self._search_searxng),
             "bing_rss": (_env_flag("WEB_ENABLE_BING_RSS", True), self._search_bing_rss),
             "duckduckgo_html": (
@@ -522,7 +585,14 @@ class GeneralWebGateway:
                     errors.append(f"{name}:provider_disabled")
                 skipped.append({"provider": name, "reason": "provider_disabled"})
                 continue
-            timeout = _provider_timeout(deadline, provider_timeout, name, errors)
+            if name == "browse_sites":
+                timeout = max(0.0, pool_deadline - time.monotonic())
+                if timeout <= 1.0:
+                    errors.append("browse_sites:search_budget_exhausted")
+                    skipped.append({"provider": name, "reason": "search_budget_exhausted"})
+                    continue
+            else:
+                timeout = _provider_timeout(deadline, provider_timeout, name, errors)
             if not timeout:
                 skipped.append({"provider": name, "reason": "search_budget_exhausted"})
                 continue
@@ -532,6 +602,8 @@ class GeneralWebGateway:
             counts[name] = len(rows)
             if error:
                 errors.append(error)
+            if error == "browse:human_action_required":
+                break
             eligible = _domain_results(rows, domain)
             filtered_count += len(rows) - len(eligible)
             collected.extend(eligible)
@@ -553,6 +625,11 @@ class GeneralWebGateway:
         }
         if self.search_strategy != "fallback":
             payload.update(search_strategy=self.search_strategy, provider_counts=counts)
+        if self.search_strategy == "browse_sites":
+            from src.web import site_pool
+
+            payload["site_outcomes"] = site_pool.take_outcomes()
+            payload["site_route"] = site_pool.describe_route(query)
         if self.search_strategy == "ddg_first":
             payload["fallback_used"] = fallback_used
         elif self.search_strategy == "merge":
@@ -563,6 +640,99 @@ class GeneralWebGateway:
                 ranked_urls=[item.get("url", "") for item in results],
             )
         return payload
+
+    @staticmethod
+    def _search_browse(query: str, limit: int, timeout: float):
+        from src.web.browse_search import search_browse
+
+        return search_browse(query, limit, timeout)
+
+    def _search_browse_sites(self, query: str, limit: int, timeout: float):
+        """Search the selected sites in order, one browser page each.
+
+        Every selected site is visited: the pool exists to compare sources, so a
+        first site returning ``limit`` rows must not hide the others. The final
+        list is still truncated to ``limit``.
+        """
+
+        from src.web import site_pool
+        from src.web.browse_search import search_browse_at
+
+        deadline = time.monotonic() + max(1.5, timeout)
+        site_seconds = _env_float(
+            "WEB_SITE_POOL_SITE_SECONDS", 12.0, minimum=5.0, maximum=18.0
+        )
+        outcomes = site_pool.start_outcomes()
+        grouped: list[tuple[str, list[dict[str, str]]]] = []
+        seen_urls: set[str] = set()
+        for site in site_pool.select_sites(query):
+            remaining = deadline - time.monotonic()
+            if remaining < 1.5:
+                outcomes.append({"site": site.key, "status": "budget_exhausted",
+                                 "seconds": 0.0, "results": 0, "page_results": 0})
+                continue
+            if site.search_via:
+                from src.web.browse_search import _valid_rows, search_browse
+
+                started = time.monotonic()
+                scoped = f"{query} site:{site_pool.host_of(site.home)}"
+                rows, error = search_browse(
+                    scoped,
+                    max(limit * 2, 8),
+                    min(site_seconds, remaining),
+                    engine=site.search_via,
+                )
+                found = len(rows)
+                rows = _valid_rows(
+                    rows,
+                    limit,
+                    source=f"{site.label} via {site.search_via}",
+                    pattern=site.result_pattern,
+                )
+                meta = {
+                    "status": "ok" if rows else (error or "browse:no_valid_results"),
+                    "seconds": round(time.monotonic() - started, 2),
+                    "page_results": found,
+                }
+            elif site.adapter != "generic":
+                from src.web.browse_search import search_browse
+
+                started = time.monotonic()
+                rows, error = search_browse(
+                    query, limit, min(site_seconds, remaining), engine=site.adapter
+                )
+                meta = {"status": "ok" if rows else (error or "browse:no_results"),
+                        "seconds": round(time.monotonic() - started, 2),
+                        "page_results": len(rows)}
+            else:
+                rows, error, meta = search_browse_at(
+                    site.search_url(query),
+                    limit,
+                    min(site_seconds, remaining),
+                    source=f"{site.label} via browse",
+                    selector=site.result_selector,
+                    pattern=site.result_pattern,
+                    own_hosts=site.own_hosts,
+                    wait_for=site.wait_selector,
+                )
+            fresh = 0
+            for row in rows:
+                marker = _result_key(row)
+                if marker and marker not in seen_urls:
+                    seen_urls.add(marker)
+                    fresh += 1
+            outcomes.append({
+                "site": site.key,
+                "status": meta.get("status") or (error or "ok"),
+                "seconds": meta.get("seconds", 0.0),
+                "results": len(rows),
+                "page_results": meta.get("page_results", len(rows)),
+                "new_results": fresh,
+                "via": site.search_via or (site.adapter if site.adapter != "generic" else "site"),
+            })
+            grouped.append((site.key, rows))
+        unique = _merge_site_results(grouped, limit)
+        return unique, "" if unique else "browse:no_results"
 
     @staticmethod
     def _search_searxng(

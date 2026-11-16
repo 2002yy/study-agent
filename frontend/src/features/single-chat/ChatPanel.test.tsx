@@ -698,3 +698,13 @@ describe("continuing from an older generated version", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("未能从所选版本恢复");
   });
 });
+
+
+describe("unpublished interactive drafts", () => {
+  it.each(["interrupted", "cancelled"])("does not execute a %s draft after sending stops", status => {
+    const content = "```study-ui\n" + JSON.stringify({type:"interactive", id:"draft", revision:1, title:"Unpublished", summary:"draft", html:"<p>candidate</p>"}) + "\n```";
+    const {container} = render(panelElement({messages:[{role:"assistant", content, turnStatus:status}]}));
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(screen.queryByRole("region", {name:"Unpublished", exact:true})).not.toBeInTheDocument();
+  });
+});

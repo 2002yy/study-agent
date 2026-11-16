@@ -12,12 +12,32 @@ from src.tools.persistent_web_agent import PersistentWebToolAgent
 from src.tools.web_agent import WebToolTrace
 from src.web.research_recovery import (
     STANDARD_BUDGET,
+    _provider_call_seconds,
     model_targets,
     recover_public_research,
     recovery_budget,
     recovery_summary,
 )
 from src.web.tool_evidence import evidence_tool_calls
+
+
+class _Gateway:
+    def __init__(self, strategy: str) -> None:
+        self.search_strategy = strategy
+
+
+def test_a_site_pool_search_gets_more_than_the_single_provider_ceiling(monkeypatch):
+    # One provider call is normally capped at 8s; a pool search visits several
+    # sites and would always time out under that ceiling.
+    monkeypatch.delenv("WEB_SITE_POOL_TOTAL_SECONDS", raising=False)
+    monkeypatch.delenv("WEB_SEARCH_FALLBACK_RESERVE_SECONDS", raising=False)
+    assert _provider_call_seconds(_Gateway("fallback")) == 8.0
+    # The ceiling must cover the pool's whole allowance (20s + 4s reserve).
+    assert _provider_call_seconds(_Gateway("browse_sites")) == 25.0
+
+    monkeypatch.setenv("WEB_SITE_POOL_TOTAL_SECONDS", "10")
+    monkeypatch.setenv("WEB_SEARCH_FALLBACK_RESERVE_SECONDS", "2")
+    assert _provider_call_seconds(_Gateway("browse_sites")) == 13.0
 
 
 def item(path, *, title="Claude Opus 5.5 reference"):
@@ -311,6 +331,36 @@ def test_mode_follows_complexity_not_research_word(query, mode):
     assert model_targets(query)[0] == ("opus", "5.5")
 
 
+def test_plan_with_several_questions_gets_the_standard_window():
+    plan = [
+        {"rq_id": "rq-sqlite", "query": "SQLite WAL concurrent writes"},
+        {"rq_id": "rq-postgres", "query": "PostgreSQL concurrent writes"},
+    ]
+    # The wording alone is a lookup; the plan proves two unanswered questions.
+    assert recovery_budget("继续用 WAL 还是迁移").mode == "lookup"
+    assert recovery_budget("继续用 WAL 还是迁移", plan).mode == "standard"
+    assert recovery_budget("继续用 WAL 还是迁移", plan[:1]).mode == "lookup"
+
+
+def test_multi_facet_plan_searches_every_planned_question():
+    gateway = Gateway(
+        [[item("wal", title="SQLite WAL")], [item("pg", title="PostgreSQL MVCC")]],
+        {
+            "wal": "SQLite WAL allows one writer at a time.",
+            "pg": "PostgreSQL uses MVCC for concurrent writers.",
+        },
+    )
+    plan = [
+        {"rq_id": "rq-sqlite", "query": "SQLite WAL concurrent writes"},
+        {"rq_id": "rq-postgres", "query": "PostgreSQL concurrent writes"},
+    ]
+    calls = recover_public_research(
+        gateway, "继续用 SQLite 还是迁移到 PostgreSQL", query_plan=plan
+    )
+    assert "PostgreSQL concurrent writes" in gateway.queries
+    assert recovery_summary(calls)["limits"]["queries"] == STANDARD_BUDGET.max_queries
+
+
 def test_success_does_not_use_reserved_reads_or_all_query_budget():
     gateway = Gateway([[item("release")]], {"release": "Claude Opus 5.5 details."})
     calls = recover_public_research(gateway, "opus5.5")
@@ -421,3 +471,24 @@ def test_opus_real_trajectory_is_replayed_through_agent_and_durable_runs(
             ]
         )
     assert all(query != "快去" and "快手" not in query for query in gateway.queries)
+
+def test_a_mixed_language_question_gets_a_scoped_documentation_query():
+    from src.web.research_recovery import ascii_topics, documentation_domains
+
+    question = (
+        "我有一个单用户聊天应用，FastAPI 后端，SQLite，4 个 worker，"
+        "同时跑后台索引，应该继续用 SQLite WAL 还是迁移 PostgreSQL？"
+    )
+    assert documentation_domains(question) == ("sqlite.org", "postgresql.org")
+    topics = ascii_topics(question)
+    # The Chinese sentence must not be sent to an English documentation scope.
+    assert topics == "FastAPI SQLite worker WAL PostgreSQL"
+    assert not any("\u4e00" <= char <= "\u9fff" for char in topics)
+
+
+def test_documentation_domains_ignore_unrelated_words():
+    from src.web.research_recovery import documentation_domains
+
+    assert documentation_domains("今天天气怎么样") == ()
+    assert documentation_domains("sqlite3 命令行") == ()
+    assert documentation_domains("SQLite 的 WAL 文档") == ("sqlite.org",)
