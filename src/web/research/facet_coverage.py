@@ -548,7 +548,17 @@ def _gap_query(
         "v2ex.com", "linux.do", "juejin.cn", "miyoushe.com", "nowcoder.com", "chiphell.com"
     }:
         if facet is not None and _CJK.search(facet.question):
-            candidates.append(facet.question)
+            native_phrase = facet.question
+            if host == "miyoushe.com":
+                # The site chooses a separate search page per game. A narrow
+                # facet can omit that game even when the user specified it.
+                miyoushe = next((site for site in SITES if site.key == "miyoushe"), None)
+                if miyoushe is not None:
+                    for keywords, _template in miyoushe.search_variants:
+                        if (any(word in question for word in keywords)
+                                and not any(word in native_phrase for word in keywords)):
+                            native_phrase = f"{keywords[0]} {native_phrase}"
+            candidates.append(native_phrase)
         candidates.append(" ".join(str(question or "").split()))
     if facet is not None:
         candidates.extend([_ascii_query(facet.query), _ascii_query(facet.question)])

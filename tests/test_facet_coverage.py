@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from src.web.research.facet_coverage import (
+    _gap_query,
     assess_coverage,
     community_hosts_for,
     next_gap_step,
     plan_facets,
 )
+from src.web.site_pool import SITES
 
 QUESTION = "SQLite WAL 在四个 worker、后台索引和长事务下有什么限制？并发写入、网络文件系统、备份恢复"
 PLAN = [
@@ -129,6 +131,24 @@ def test_domain_communities_are_prioritized_without_routing_to_video_only_pages(
     assert community_hosts_for("校招牛客面经真实体验")[0] == "nowcoder.com"
     assert community_hosts_for("RTX 显卡装机真实体验")[0] == "chiphell.com"
     assert community_hosts_for("Notion vs Obsidian long term notes recommendation")[0] == "reddit.com"
+
+
+def test_miyoushe_gap_keeps_the_game_when_the_chinese_facet_omits_it():
+    facet = plan_facets(
+        [{"rq_id": "rq-teams", "query": "best beginner teams"}],
+        "新手如何配队？", questions={"rq-teams": "新手如何配队？"}
+    )[0]
+    site = next(site for site in SITES if site.key == "miyoushe")
+    for game, path in (
+        ("原神", "/ys/search"),
+        ("绝区零", "/zzz/search"),
+        ("崩坏三", "/bh3/search"),
+        ("未定事件簿", "/wd/search"),
+    ):
+        query = _gap_query(facet, f"{game} 新手如何配队？", "miyoushe.com")
+        assert game in query or (game == "崩坏三" and "崩坏3" in query)
+        assert "新手如何配队" in query
+        assert path in site.search_url(query)
 
 
 def test_an_official_gap_never_scopes_a_chinese_only_phrase():
