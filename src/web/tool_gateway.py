@@ -82,13 +82,12 @@ def _dual_channel_enabled() -> bool:
 
 
 def _browser_search(
-    query: str, limit: int, timeout: float
+    query: str, limit: int, timeout: float, engine: str
 ) -> tuple[list[dict[str, str]], str]:
     """Run one browser engine search; imported lazily so the fast path stays cheap."""
 
     from src.web.browse_search import search_browse
 
-    engine = (os.getenv("WEB_DUAL_CHANNEL_ENGINE") or "bing").strip().lower()
     return search_browse(query, limit, timeout, engine=engine)
 
 
@@ -97,6 +96,8 @@ class _BrowserLane:
     executor: ThreadPoolExecutor
     future: Future[tuple[list[dict[str, str]], str]]
     started: float
+    deadline: float
+    engine: str
 
 
 _DUCKDUCKGO_CHALLENGE_MARKERS = (    'class="anomaly-modal',
@@ -497,13 +498,21 @@ class GeneralWebGateway:
             # A domain-constrained query is the existing domain-first job; a
             # general engine page would ignore the constraint.
             return None
-        timeout = _env_float(
-            "WEB_DUAL_CHANNEL_BROWSER_SECONDS", 6.0, minimum=2.0, maximum=12.0
+        total = _env_float(
+            "WEB_DUAL_CHANNEL_TOTAL_SECONDS", 8.0, minimum=1.0, maximum=20.0
         )
-        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="browser-lane")
+        engine = (os.getenv("WEB_DUAL_CHANNEL_ENGINE") or "bing").strip().lower()
         started = time.monotonic()
-        future = executor.submit(_browser_search, query, limit, timeout)
-        return _BrowserLane(executor=executor, future=future, started=started)
+        deadline = started + total
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="browser-lane")
+        future = executor.submit(_browser_search, query, limit, total, engine)
+        return _BrowserLane(
+            executor=executor,
+            future=future,
+            started=started,
+            deadline=deadline,
+            engine=engine,
+        )
 
     def _merge_browser_lane(
         self, outcome: dict[str, Any], lane: _BrowserLane, limit: int
@@ -516,12 +525,12 @@ class GeneralWebGateway:
         ``web_read`` before it can support an answer.
         """
 
-        merge_seconds = _env_float(
-            "WEB_DUAL_CHANNEL_MERGE_SECONDS", 7.0, minimum=1.0, maximum=15.0
-        )
+        merge_seconds = max(0.0, lane.deadline - time.monotonic())
         rows: list[dict[str, str]] = []
         error = ""
         try:
+            if merge_seconds <= 0:
+                raise FutureTimeout()
             rows, error = lane.future.result(timeout=merge_seconds)
         except FutureTimeout:
             error = "browser_timeout"
@@ -530,12 +539,13 @@ class GeneralWebGateway:
         finally:
             lane.executor.shutdown(wait=False)
         elapsed_ms = int((time.monotonic() - lane.started) * 1000)
+        source_label = f"browser_{lane.engine}"
         clean = [
             {
                 "title": str(row.get("title") or ""),
                 "url": str(row.get("url") or ""),
                 "snippet": str(row.get("snippet") or ""),
-                "source": "browser_bing",
+                "source": source_label,
             }
             for row in rows
             if isinstance(row, dict) and str(row.get("url") or "").strip()
@@ -578,8 +588,10 @@ class GeneralWebGateway:
             ]
         outcome["dual_channel"] = {
             "route": DUAL,
+            "engine": lane.engine,
             "browser_rows": len(clean),
             "elapsed_ms": elapsed_ms,
+            "deadline_ms": int((lane.deadline - lane.started) * 1000),
         }
         return outcome
 

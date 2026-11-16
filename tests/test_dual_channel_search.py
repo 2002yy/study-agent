@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from src.web import tool_gateway
@@ -42,7 +43,7 @@ def test_browser_rows_lead_and_duplicate_urls_are_dropped(monkeypatch) -> None:
     monkeypatch.setattr(
         tool_gateway,
         "_browser_search",
-        lambda query, limit, timeout: (
+        lambda query, limit, timeout, engine: (
             [_row("试用期规定", "https://example.gov/a"),
              _row("劳动合同法", "https://example.com/b")],
             "",
@@ -81,7 +82,7 @@ def test_a_failed_browser_lane_is_diagnostic_not_fatal(monkeypatch) -> None:
     monkeypatch.setattr(
         tool_gateway,
         "_browser_search",
-        lambda query, limit, timeout: ([], "browse:browser_timeout"),
+        lambda query, limit, timeout, engine: ([], "browse:browser_timeout"),
     )
     gateway = GeneralWebGateway(search_strategy="fallback")
     monkeypatch.setattr(
@@ -110,7 +111,7 @@ def test_browser_lane_rescues_an_empty_fast_channel(monkeypatch) -> None:
     monkeypatch.setattr(
         tool_gateway,
         "_browser_search",
-        lambda query, limit, timeout: (
+        lambda query, limit, timeout, engine: (
             [_row("试用期最长", "https://example.gov/a")], ""
         ),
     )
@@ -127,10 +128,66 @@ def test_browser_lane_rescues_an_empty_fast_channel(monkeypatch) -> None:
     assert [row["url"] for row in outcome["results"]] == ["https://example.gov/a"]
 
 
+def test_both_waits_share_one_deadline(monkeypatch) -> None:
+    """The merge must not add a second, independent wait after the fast search."""
+
+    monkeypatch.setenv("WEB_SEARCH_DUAL_CHANNEL", "on")
+    monkeypatch.setenv("WEB_DUAL_CHANNEL_TOTAL_SECONDS", "1.0")
+
+    def slow(query: str, limit: int, timeout: float, engine: str):
+        time.sleep(1.6)
+        return [_row("慢结果", "https://example.com/slow")], ""
+
+    monkeypatch.setattr(tool_gateway, "_browser_search", slow)
+    gateway = GeneralWebGateway(search_strategy="fallback")
+    monkeypatch.setattr(
+        GeneralWebGateway,
+        "_search_single",
+        lambda self, query, limit: _outcome([_row("快", "https://example.com/fast")]),
+    )
+
+    started = time.monotonic()
+    outcome = gateway.search_exact("劳动合同 试用期 最长 规定", max_results=5)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 1.5
+    assert [row["url"] for row in outcome["results"]] == ["https://example.com/fast"]
+    browser = [
+        row for row in outcome["provider_outcomes"]
+        if row["provider"] == "browser_bing"
+    ]
+    assert browser and browser[0]["status"] == "failed"
+    assert browser[0]["reason"] == "timeout"
+
+
+def test_source_label_follows_the_configured_engine(monkeypatch) -> None:
+    monkeypatch.setenv("WEB_SEARCH_DUAL_CHANNEL", "on")
+    monkeypatch.setenv("WEB_DUAL_CHANNEL_ENGINE", "brave")
+    seen: list[str] = []
+
+    def engine_label(query: str, limit: int, timeout: float, engine: str):
+        seen.append(engine)
+        return [_row("示例", "https://example.org/x")], ""
+
+    monkeypatch.setattr(tool_gateway, "_browser_search", engine_label)
+    gateway = GeneralWebGateway(search_strategy="fallback")
+    monkeypatch.setattr(
+        GeneralWebGateway,
+        "_search_single",
+        lambda self, query, limit: _outcome([]),
+    )
+
+    outcome = gateway.search_exact("劳动合同 试用期 最长 规定", max_results=5)
+
+    assert seen == ["brave"]
+    assert outcome["results"][0]["source"] == "browser_brave"
+    assert outcome["dual_channel"]["engine"] == "brave"
+
+
 def test_the_lane_does_not_start_when_disabled_or_irrelevant(monkeypatch) -> None:
     calls: list[str] = []
 
-    def fail(query: str, limit: int, timeout: float):
+    def fail(query: str, limit: int, timeout: float, engine: str):
         calls.append(query)
         raise AssertionError("browser lane must not start")
 
