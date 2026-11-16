@@ -24,6 +24,12 @@ from src.web.research.official_doc_index import (
     has_facet_document,
     parse_official_index_links,
 )
+from src.web.research.facet_coverage import (
+    assess_coverage,
+    community_hosts_for,
+    next_gap_step,
+    plan_facets,
+)
 from src.web.query_normalizer import normalize_web_query
 
 
@@ -49,6 +55,22 @@ class RecoveryBudget:
     @property
     def max_reads(self) -> int:
         return self.base_reads + self.recovery_reads
+
+
+@dataclass(frozen=True)
+class _Phase:
+    """One bounded search step.
+
+    ``facet_id`` links a planned question's step to the coverage check, so a
+    step whose question was already answered by earlier reads can be pointed at
+    a question that is still missing instead of repeating itself.
+    """
+
+    kind: str
+    query: str
+    cap: int
+    facet_id: str = ""
+    gap_reason: str = ""
 
 
 LOOKUP_BUDGET = RecoveryBudget("lookup", 30, 10, 2, 1, 2, 6000, 16000)
@@ -97,6 +119,19 @@ def recovery_budget(
     if planned_questions(query_plan) >= 2:
         return STANDARD_BUDGET
     return LOOKUP_BUDGET
+
+
+def _coverage_stop_enabled() -> bool:
+    """Early completion is opt-in until a real run measures it.
+
+    Retargeting a search slot and reporting coverage are always on: they cannot
+    make a run read less. Stopping early can, so it needs its own measurement
+    before it becomes the default.
+    """
+
+    return (os.getenv("WEB_RESEARCH_COVERAGE_STOP", "") or "").strip().casefold() in {
+        "1", "true", "yes", "on",
+    }
 
 
 def _provider_call_seconds(gateway: Any) -> float:
@@ -374,22 +409,26 @@ def _recover_public_research(
     # Initial/alternate reads cannot consume the final authority recovery slots.
     phases = (
         [
-            ("initial", search_topic, 2),
+            _Phase("initial", search_topic, 2),
             (
-                "authoritative_domain",
-                f"{authority_query} release models documentation",
-                1,
+                _Phase(
+                    "authoritative_domain",
+                    f"{authority_query} release models documentation",
+                    1,
+                )
             ),
         ]
         if budget.mode == "lookup"
         else [
-            ("initial", search_topic, 2),
-            ("query_rewrite", f"{rewritten} official", 1),
-            ("authoritative_domain", authority_query, 1),
+            _Phase("initial", search_topic, 2),
+            _Phase("query_rewrite", f"{rewritten} official", 1),
+            _Phase("authoritative_domain", authority_query, 1),
             (
-                "page_type_refinement",
-                f"{authority_query} models release API documentation",
-                1,
+                _Phase(
+                    "page_type_refinement",
+                    f"{authority_query} models release API documentation",
+                    1,
+                )
             ),
         ]
     )
@@ -416,10 +455,13 @@ def _recover_public_research(
             official_query = _rewrite(f"{scope.group(1)} {entities}")[0]
         # A multi-question plan should not spend two reads on its first facet
         # before other facets get their own search/read opportunity.
-        phases = [("semantic_query", planned[0]["query"], 1 if multi_facet else 2),
-                  ("authoritative_domain", official_query, 1)] + [
-                      ("semantic_query", row["query"], 1) for row in planned[1:]
-                      if row["query"] != official_query]
+        phases = [_Phase("semantic_query", planned[0]["query"],
+                         cap=1 if multi_facet else 2,
+                         facet_id=str(planned[0].get("rq_id") or "")),
+                  _Phase("authoritative_domain", official_query, 1)] + [
+                      _Phase("semantic_query", row["query"], 1,
+                             facet_id=str(row.get("rq_id") or ""))
+                      for row in planned[1:] if row["query"] != official_query]
 
     def active() -> None:
         if should_cancel():
@@ -451,9 +493,55 @@ def _recover_public_research(
 
     plan = official_plan(query)
     if plan and getattr(gateway, "supports_official_metadata", False) is True:
-        phases.insert(0, ("official_resolver", query, 2))
+        phases.insert(0, _Phase("official_resolver", query, 2))
 
-    def checkpoint(state: str, reason: str) -> None:
+    # Coverage of the *planned questions* and of the *kind* of source the
+    # question asks for. Both signals are lexical and advisory: they can stop a
+    # search or point it at a missing part of the question, but they never
+    # promote a snippet to evidence.
+    planned_text = {
+        str(row.get("id") or ""): str(row.get("question") or "")
+        for row in (
+            semantic_session.episode.questions
+            if semantic_session is not None and semantic_session.episode is not None
+            else []
+        )
+        if isinstance(row, dict)
+    }
+    facets = plan_facets(query_plan, query, questions=planned_text) if query_plan else ()
+    official_hosts = tuple(
+        dict.fromkeys(
+            host
+            for host in (
+                *domains,
+                *doc_domains,
+                *(urlparse(url).hostname or "" for url in (plan.urls if plan else ())),
+            )
+            if host
+        )
+    )
+    community_hosts = community_hosts_for(query)
+    covered_bodies: list[tuple[str, str]] = []
+    searched_queries: set[str] = set()
+    gap_steps: list[dict[str, str]] = []
+    coverage: Any = None
+    gap_used = False
+    duplicate_queries_skipped = 0
+
+    def refresh_coverage() -> Any:
+        nonlocal coverage
+        if not facets:
+            return None
+        coverage = assess_coverage(
+            facets,
+            covered_bodies,
+            question=query,
+            official_hosts=official_hosts,
+            community_hosts=community_hosts,
+        )
+        return coverage
+
+    def checkpoint(state: str, reason: str, *, coverage_stop: bool = False) -> None:
         if state != "needs_more_research":
             for row in dispositions.values():
                 if row["state"] in {"eligible", "discovered"}:
@@ -478,6 +566,12 @@ def _recover_public_research(
                         "required": len(markers),
                     },
                     "question_coverage": "not_semantically_evaluated",
+                    "facet_coverage": (
+                        coverage.to_dict() if coverage is not None else None
+                    ),
+                    "gap_steps": list(gap_steps),
+                    "coverage_stop": coverage_stop,
+                    "duplicate_queries_skipped": duplicate_queries_skipped,
                     "candidate_scheduler": scheduler.snapshot(),
                     "candidate_dispositions": list(dispositions.values()),
                     "provider_failures": provider_failures,
@@ -518,7 +612,48 @@ def _recover_public_research(
     last_search_ok = False
     try:
         bounded_phases = phases[: budget.max_queries]
-        for phase_index, (phase, search_query, phase_cap) in enumerate(bounded_phases):
+        phase_index = 0
+        while phase_index < len(bounded_phases):
+            step = bounded_phases[phase_index]
+            # A planned question already answered by earlier reads must not
+            # spend its search slot repeating itself; point it at the part of
+            # the question that no read has addressed yet. When nothing is
+            # missing, the planned query still runs: a lexical hit is a hint,
+            # not proof that a better page for this facet does not exist.
+            if (
+                step.kind == "semantic_query"
+                and step.facet_id
+                and coverage is not None
+                and len(facets) >= 2
+            ):
+                status = coverage.status_for(step.facet_id)
+                if status is not None and status.covered:
+                    gap = next_gap_step(
+                        coverage,
+                        facets=facets,
+                        question=query,
+                        official_hosts=official_hosts,
+                        searched=searched_queries,
+                        skip_facet_ids={step.facet_id},
+                    )
+                    if gap is not None:
+                        gap_steps.append(gap.to_dict())
+                        step = _Phase("gap_fill", gap.query, step.cap,
+                                      facet_id=gap.facet_id, gap_reason=gap.reason)
+                        bounded_phases[phase_index] = step
+            phase, search_query, phase_cap = step.kind, step.query, step.cap
+            normalized_query = " ".join(search_query.split()).casefold()
+            if (
+                phase != "official_resolver"
+                and normalized_query in searched_queries
+            ):
+                # The same query inside one run returns the same rows; a
+                # retargeted slot that lands on an already-searched phrase adds
+                # nothing and costs a provider round trip. The official resolver
+                # does not search the question, so its phase never claims it.
+                duplicate_queries_skipped += 1
+                phase_index += 1
+                continue
             # Phase caps reserve future opportunities; at the final phase there
             # is no later phase to reserve for. Spend unused slots on novel
             # candidates rather than strand a discovered release behind a
@@ -530,10 +665,12 @@ def _recover_public_research(
                 checkpoint("budget_exhausted", "read_or_text_limit")
                 return calls
             checkpoint("needs_more_research", phase)
+            if phase != "official_resolver":
+                searched_queries.add(normalized_query)
             searches += 1
             if phase in {"authoritative_domain", "page_type_refinement"}:
                 authority_queries += 1
-            if phase in {"query_rewrite", "page_type_refinement"}:
+            if phase in {"query_rewrite", "page_type_refinement", "gap_fill"}:
                 rewrites += 1
             try:
                 if phase == "official_resolver" and plan:
@@ -559,7 +696,9 @@ def _recover_public_research(
                         "query": search_query,
                         "max_results": 5,
                         "recovery_stage": phase,
-                        "rq_ids": [row["rq_id"] for row in query_plan or [] if row["query"] == search_query],
+                        "rq_ids": [row["rq_id"] for row in query_plan or [] if row["query"] == search_query]
+                        or ([step.facet_id] if step.gap_reason and step.facet_id else []),
+                        **({"gap_reason": step.gap_reason} if step.gap_reason else {}),
                     },
                     "result": result,
                 }
@@ -836,6 +975,8 @@ def _recover_public_research(
                         "result": body,
                     }
                 )
+                if content and body.get("answer_eligible") is not False:
+                    covered_bodies.append((url, content))
                 evidence = evidence_tool_calls(calls)
                 if evidence and evidence[-1].get("arguments", {}).get("url") == url:
                     covered.update(matches)
@@ -853,6 +994,44 @@ def _recover_public_research(
                 ):
                     checkpoint("read_backed", "related_discovery_linked_bodies")
                     return calls
+            # End of one search step: ask what the read bodies actually cover.
+            refresh_coverage()
+            if (
+                _coverage_stop_enabled()
+                and coverage is not None
+                and len(facets) >= 2
+                and coverage.complete
+                and evidence_tool_calls(calls)
+            ):
+                # Every planned question has a body that mentions it and the
+                # source kind is present. Spending the remaining searches on
+                # generic padding would add pages, not answers.
+                checkpoint("read_backed", "coverage_satisfied_for_planned_questions",
+                           coverage_stop=True)
+                return calls
+            if (
+                not gap_used
+                and coverage is not None
+                and len(facets) >= 2
+                and len(bounded_phases) < budget.max_queries
+                and searches < budget.max_queries
+                and phase_index + 1 == len(bounded_phases)
+            ):
+                gap = next_gap_step(
+                    coverage,
+                    facets=facets,
+                    question=query,
+                    official_hosts=official_hosts,
+                    searched=searched_queries,
+                )
+                if gap is not None:
+                    gap_used = True
+                    gap_steps.append(gap.to_dict())
+                    bounded_phases.append(
+                        _Phase("gap_fill", gap.query, 1,
+                               facet_id=gap.facet_id, gap_reason=gap.reason)
+                    )
+            phase_index += 1
     except RecoveryDeadline:
         checkpoint("deadline_exhausted", "finalization_reserve_preserved")
         return calls
