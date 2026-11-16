@@ -5,6 +5,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import partial
 import hashlib
 import os
 import re
@@ -605,8 +606,10 @@ def _recover_public_research(
                     if cached is None:
                         try:
                             cached = invoke(
-                                lambda domain=doc_domain: discover_official_index(
-                                    domain, search_query,
+                                partial(
+                                    discover_official_index,
+                                    doc_domain,
+                                    search_query,
                                 )
                             )
                         except (RecoveryCancelled, RecoveryDeadline):

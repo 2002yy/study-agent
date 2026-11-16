@@ -181,7 +181,7 @@ _SAFE_OPENER = build_opener(_SafeHTTPRedirectHandler())
 
 def _fetch_html_payload(
     url: str,
-    timeout: int,
+    timeout: float,
     max_bytes: int,
 ) -> tuple[str, str, str, str]:
     """Return (html_text, final_url, content_type, reason).
