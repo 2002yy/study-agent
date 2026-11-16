@@ -5,6 +5,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import partial
 import hashlib
 import os
 import re
@@ -17,6 +18,12 @@ from src.web.recovery_candidates import CandidateScheduler
 from src.web.tool_evidence import _public_url, evidence_tool_calls
 from src.web.semantic_recovery import ResearchSemanticSession
 from src.web.research.official_resolver import official_plan
+from src.web.research.official_doc_index import (
+    OFFICIAL_DOCUMENT_INDEXES,
+    discover_official_index,
+    has_facet_document,
+    parse_official_index_links,
+)
 from src.web.query_normalizer import normalize_web_query
 
 
@@ -343,6 +350,7 @@ def _recover_public_research(
     body_digests: set[str] = set()
     semantic_rejected_urls: set[str] = set()
     pending_candidates: list[dict[str, Any]] = []
+    official_index_cache: dict[str, dict[str, object]] = {}
     covered: set[int] = set()
     searches = reads = used_chars = recovery_reads = authority_queries = rewrites = 0
     provider_failures = 0
@@ -571,6 +579,76 @@ def _recover_public_research(
                 if isinstance(items, list)
                 else []
             )
+            # An official directory is a bounded discovery fallback when a
+            # planned facet has no discovered, topic-specific official page.
+            # Search errors stay visible in the original web_search event.
+            # Directory HTML is never evidence and never enters the writer.
+            if phase == "semantic_query" and query_plan:
+                facet_domains = documentation_domains(search_query)
+                for doc_domain in facet_domains:
+                    if doc_domain not in OFFICIAL_DOCUMENT_INDEXES:
+                        continue
+                    previous = [
+                        {"url": str(call.get("arguments", {}).get("url") or ""),
+                         "title": str(call.get("result", {}).get("content") or "")[:120]}
+                        for call in calls
+                        if call.get("name") == "web_read"
+                        and call.get("result", {}).get("ok") is True
+                        and call.get("result", {}).get("answer_eligible") is not False
+                    ]
+                    if has_facet_document(
+                        [*candidates, *previous],
+                        domain=doc_domain,
+                        facet_query=search_query,
+                    ):
+                        continue
+                    cached = official_index_cache.get(doc_domain)
+                    if cached is None:
+                        try:
+                            cached = invoke(
+                                partial(
+                                    discover_official_index,
+                                    doc_domain,
+                                    search_query,
+                                )
+                            )
+                        except (RecoveryCancelled, RecoveryDeadline):
+                            raise
+                        except Exception as exc:
+                            cached = {"status": "unavailable", "reason": type(exc).__name__}
+                        official_index_cache[doc_domain] = cached
+                    index_html = cached.get("html")
+                    found = parse_official_index_links(
+                        str(index_html),
+                        index_url=str(cached.get("index_url") or ""),
+                        domain=doc_domain,
+                        facet_query=search_query,
+                    ) if isinstance(index_html, str) else []
+                    if not found:
+                        continue
+                    calls.append({
+                        "name": "web_search",
+                        "arguments": {
+                            "query": search_query,
+                            "recovery_stage": "official_document_index",
+                            "index_url": cached["index_url"],
+                        },
+                        "result": {
+                            "status": "ok",
+                            "reason": "links_parsed_from_official_document_index",
+                            "source_index_url": cached["index_url"],
+                            "results": found,
+                        },
+                    })
+                    # The directory's own URL is a discovery aid, not a
+                    # substitute for the child evidence it points to.
+                    candidates = [
+                        *found,
+                        *(item for item in candidates
+                          if str(item.get("url") or item.get("link") or "")
+                          != str(cached["index_url"])),
+                    ]
+                    break  # one official index per facet, not a broad crawl
             for item in candidates:
                 disposition(str(item.get("url") or item.get("link") or ""), "discovered")
             # Rank this phase's results against the question it searched for.
