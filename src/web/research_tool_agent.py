@@ -1528,7 +1528,8 @@ def run_tool_agent(
             call["result"] = {"status": result.get("status"), "reason": result.get("reason"),
                               "n": len(rows), "urls": [r.get("url") for r in rows]}
             call["search_diag"] = {k: result.get(k) for k in
-                                   ("status", "reason", "providers_attempted", "provider_errors")
+                                   ("status", "reason", "providers_attempted",
+                                    "provider_errors", "provider_outcomes")
                                    if k in result}
             shown_urls = [str(r.get("url") or "") for r in rows]
             search_hosts = sorted({urlsplit(u).netloc.casefold() for u in shown_urls if u})
