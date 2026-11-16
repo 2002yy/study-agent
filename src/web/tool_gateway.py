@@ -7,6 +7,8 @@ general web search, explicit page reads, and bounded GitHub repository access.
 
 from __future__ import annotations
 
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeout
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 import os
@@ -27,6 +29,7 @@ from src.news.search_sources.searxng_source import (
 from src.web.github_reader import GitHubSourceReader
 from src.web.github_snapshot import GitHubRepositorySnapshotter
 from src.web.query_normalizer import normalize_web_query
+from src.web.search_router import DUAL, route_search
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -37,8 +40,7 @@ def _env_flag(name: str, default: bool = False) -> bool:
 
 
 def _env_float(
-    name: str,
-    default: float,
+    name: str,    default: float,
     *,
     minimum: float,
     maximum: float,
@@ -73,8 +75,32 @@ def _search_failure_kind(error: str) -> str:
     return "provider_error"
 
 
-_DUCKDUCKGO_CHALLENGE_MARKERS = (
-    'class="anomaly-modal',
+def _dual_channel_enabled() -> bool:
+    """Off by default: the browser lane must be measured before it is default."""
+
+    return _env_flag("WEB_SEARCH_DUAL_CHANNEL", False)
+
+
+def _browser_search(
+    query: str, limit: int, timeout: float, engine: str
+) -> tuple[list[dict[str, str]], str]:
+    """Run one browser engine search; imported lazily so the fast path stays cheap."""
+
+    from src.web.browse_search import search_browse
+
+    return search_browse(query, limit, timeout, engine=engine)
+
+
+@dataclass
+class _BrowserLane:
+    executor: ThreadPoolExecutor
+    future: Future[tuple[list[dict[str, str]], str]]
+    started: float
+    deadline: float
+    engine: str
+
+
+_DUCKDUCKGO_CHALLENGE_MARKERS = (    'class="anomaly-modal',
     'id="challenge-form"',
     "bots use duckduckgo",
 )
@@ -412,7 +438,10 @@ class GeneralWebGateway:
                 "searched_at": current.isoformat(),
             }
 
+        lane = self._start_browser_lane(focused, limit)
         outcome = self._search_single(focused, limit)
+        if lane is not None:
+            outcome = self._merge_browser_lane(outcome, lane, limit)
         results = list(outcome["results"])
         filtered_count = outcome.get("domain_filtered_count", 0)
         provider_errors = list(outcome["provider_errors"])
@@ -451,12 +480,120 @@ class GeneralWebGateway:
             "provider_outcomes": outcomes,
             **{
                 key: outcome[key]
-                for key in ("site_outcomes", "site_route")
+                for key in ("site_outcomes", "site_route", "dual_channel")
                 if key in outcome
             },
             **trace,
             "searched_at": current.isoformat(),
         }
+
+    def _start_browser_lane(self, query: str, limit: int) -> _BrowserLane | None:
+        """Start the browser channel alongside the fast one, when shape says so."""
+
+        if self.search_strategy in {"browse_sites", "browser_first"}:
+            return None
+        if not _dual_channel_enabled() or route_search(query) != DUAL:
+            return None
+        if _query_domain(query):
+            # A domain-constrained query is the existing domain-first job; a
+            # general engine page would ignore the constraint.
+            return None
+        total = _env_float(
+            "WEB_DUAL_CHANNEL_TOTAL_SECONDS", 8.0, minimum=1.0, maximum=20.0
+        )
+        engine = (os.getenv("WEB_DUAL_CHANNEL_ENGINE") or "bing").strip().lower()
+        started = time.monotonic()
+        deadline = started + total
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="browser-lane")
+        future = executor.submit(_browser_search, query, limit, total, engine)
+        return _BrowserLane(
+            executor=executor,
+            future=future,
+            started=started,
+            deadline=deadline,
+            engine=engine,
+        )
+
+    def _merge_browser_lane(
+        self, outcome: dict[str, Any], lane: _BrowserLane, limit: int
+    ) -> dict[str, Any]:
+        """Merge browser rows into one outcome, keeping provenance.
+
+        Browser rows go first for a dual-routed question: the engine page ranked
+        a multi-constraint CJK question far better than the aggregated fast path
+        did. The channel only adds candidates; every row still needs an ordinary
+        ``web_read`` before it can support an answer.
+        """
+
+        merge_seconds = max(0.0, lane.deadline - time.monotonic())
+        rows: list[dict[str, str]] = []
+        error = ""
+        try:
+            if merge_seconds <= 0:
+                raise FutureTimeout()
+            rows, error = lane.future.result(timeout=merge_seconds)
+        except FutureTimeout:
+            error = "browser_timeout"
+        except Exception as exc:  # noqa: BLE001 - a lane failure is diagnostic
+            error = type(exc).__name__
+        finally:
+            lane.executor.shutdown(wait=False)
+        elapsed_ms = int((time.monotonic() - lane.started) * 1000)
+        source_label = f"browser_{lane.engine}"
+        clean = [
+            {
+                "title": str(row.get("title") or ""),
+                "url": str(row.get("url") or ""),
+                "snippet": str(row.get("snippet") or ""),
+                "source": source_label,
+            }
+            for row in rows
+            if isinstance(row, dict) and str(row.get("url") or "").strip()
+        ]
+        merged: list[dict[str, str]] = []
+        seen_urls: set[str] = set()
+        # Fast rows keep their order and provenance; the browser only adds
+        # candidates the fast channel did not already return.
+        for item in [*list(outcome.get("results") or []), *clean]:
+            url = str(item.get("url") or "")
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            merged.append(item)
+        outcome["results"] = merged[:limit]
+        kind = _search_failure_kind(error) if error else "no_results"
+        outcomes = list(outcome.get("provider_outcomes") or [])
+        outcomes.append(
+            {
+                "provider": "browser_bing",
+                "status": (
+                    "ok" if clean
+                    else "empty" if kind == "no_results"
+                    else "failed"
+                ),
+                "reason": "results_found" if clean else kind,
+                "result_count": len(clean),
+                "elapsed_ms": elapsed_ms,
+            }
+        )
+        outcome["provider_outcomes"] = outcomes
+        attempted = list(outcome.get("providers_attempted") or [])
+        if "browser_bing" not in attempted:
+            attempted.append("browser_bing")
+        outcome["providers_attempted"] = attempted
+        if error:
+            outcome["provider_errors"] = [
+                *(outcome.get("provider_errors") or []),
+                f"browser_bing:{error}",
+            ]
+        outcome["dual_channel"] = {
+            "route": DUAL,
+            "engine": lane.engine,
+            "browser_rows": len(clean),
+            "elapsed_ms": elapsed_ms,
+            "deadline_ms": int((lane.deadline - lane.started) * 1000),
+        }
+        return outcome
 
     def search_detailed(
         self,
