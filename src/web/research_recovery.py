@@ -71,6 +71,7 @@ class _Phase:
     cap: int
     facet_id: str = ""
     gap_reason: str = ""
+    gap_host: str = ""
 
 
 LOOKUP_BUDGET = RecoveryBudget("lookup", 30, 10, 2, 1, 2, 6000, 16000)
@@ -469,9 +470,13 @@ def _recover_public_research(
         if monotonic() >= deadline:
             raise RecoveryDeadline("finalization_reserve_preserved")
 
-    def invoke(fn: Callable[[], Any]) -> Any:
+    def invoke(fn: Callable[[], Any], *, cap_seconds: float | None = None) -> Any:
         active()
-        call_deadline = min(deadline, monotonic() + _provider_call_seconds(gateway))
+        call_deadline = min(
+            deadline, monotonic() + (
+                cap_seconds if cap_seconds is not None else _provider_call_seconds(gateway)
+            )
+        )
         # Only the caller owns trace/persistence. A late network worker cannot
         # publish, and a new request never waits behind an old blocked worker.
         pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research-recovery")
@@ -490,6 +495,63 @@ def _recover_public_research(
         finally:
             future.cancel()
             pool.shutdown(wait=False, cancel_futures=True)
+
+    def search_gap(step: _Phase) -> dict[str, Any]:
+        """One search slot: use a real community page, then a fast fallback.
+
+        The browser search does not create evidence; the caller still runs the
+        regular candidate assessment and ``web_read``. The old gateway protocol
+        stays valid for fixtures and deployments without a community adapter.
+        """
+
+        browser = getattr(gateway, "search_community_site", None)
+        if (
+            step.gap_reason != "missing_community_source"
+            or not step.gap_host
+            or not callable(browser)
+        ):
+            return invoke(lambda: gateway.search_exact(step.query, max_results=5))
+        try:
+            community = invoke(
+                lambda: browser(step.query, host=step.gap_host, max_results=5),
+                cap_seconds=12.0,
+            )
+            if not isinstance(community, dict):
+                raise ValueError("invalid_community_search_result")
+        except (RecoveryCancelled, RecoveryDeadline):
+            raise
+        except Exception as exc:
+            failure = "timeout" if isinstance(exc, TimeoutError) else "provider_error"
+            community = {
+                "status": "unavailable", "reason": failure,
+                "results": [], "providers_attempted": ["community_browser"],
+                "provider_outcomes": [{"provider": "community_browser", "status": "failed",
+                                       "reason": failure, "result_count": 0}],
+            }
+        if community.get("status") == "ok" and community.get("results"):
+            return community
+        # A login wall, zero results, or a provider error on the *one* selected
+        # community site must not suppress the old broad-discovery fallback.
+        fallback = invoke(lambda: gateway.search_exact(step.query, max_results=5))
+        if not isinstance(fallback, dict):
+            raise ValueError("invalid_search_result")
+        return {
+            **fallback,
+            "community_browser": {
+                "status": community.get("status"),
+                "reason": community.get("reason"),
+                "host": step.gap_host,
+            },
+            "site_outcomes": community.get("site_outcomes", []),
+            "providers_attempted": [
+                *community.get("providers_attempted", []),
+                *fallback.get("providers_attempted", []),
+            ],
+            "provider_outcomes": [
+                *community.get("provider_outcomes", []),
+                *fallback.get("provider_outcomes", []),
+            ],
+        }
 
     plan = official_plan(query)
     if plan and getattr(gateway, "supports_official_metadata", False) is True:
@@ -639,7 +701,8 @@ def _recover_public_research(
                     if gap is not None:
                         gap_steps.append(gap.to_dict())
                         step = _Phase("gap_fill", gap.query, step.cap,
-                                      facet_id=gap.facet_id, gap_reason=gap.reason)
+                                      facet_id=gap.facet_id, gap_reason=gap.reason,
+                                      gap_host=gap.host)
                         bounded_phases[phase_index] = step
             phase, search_query, phase_cap = step.kind, step.query, step.cap
             normalized_query = " ".join(search_query.split()).casefold()
@@ -678,7 +741,7 @@ def _recover_public_research(
                               "results": [{"url": url, "title": f"{plan.entity} {plan.version} official metadata", "snippet": ""}
                                           for url in plan.urls]}
                 else:
-                    result = invoke(lambda: gateway.search_exact(search_query, max_results=5))
+                    result = search_gap(step)
                 if not isinstance(result, dict):
                     raise ValueError("invalid_search_result")
             except (RecoveryCancelled, RecoveryDeadline):
@@ -699,6 +762,7 @@ def _recover_public_research(
                         "rq_ids": [row["rq_id"] for row in query_plan or [] if row["query"] == search_query]
                         or ([step.facet_id] if step.gap_reason and step.facet_id else []),
                         **({"gap_reason": step.gap_reason} if step.gap_reason else {}),
+                        **({"gap_host": step.gap_host} if step.gap_host else {}),
                     },
                     "result": result,
                 }
@@ -1029,7 +1093,8 @@ def _recover_public_research(
                     gap_steps.append(gap.to_dict())
                     bounded_phases.append(
                         _Phase("gap_fill", gap.query, 1,
-                               facet_id=gap.facet_id, gap_reason=gap.reason)
+                               facet_id=gap.facet_id, gap_reason=gap.reason,
+                               gap_host=gap.host)
                     )
             phase_index += 1
     except RecoveryDeadline:

@@ -33,13 +33,17 @@ from dataclasses import dataclass
 import re
 from typing import Iterable, Literal, Sequence
 
-from src.web.site_pool import select_sites
+from src.web.site_pool import SITES, select_sites
 
 COVERAGE_KIND = "lexical_facet_coverage_next_step_only"
 
 #: Source categories that carry first-hand user experience rather than the
 #: vendor's own description. The site pool owns the catalogue and its routing.
 COMMUNITY_CATEGORIES = frozenset({"zh_community", "en_community"})
+# Verified, domain-specific first-hand discussions live in the site's "domain"
+# category, not in the generic community categories. Video-only Bilibili is
+# deliberately excluded: its search hit is not yet a normal readable body.
+DOMAIN_COMMUNITY_KEYS = frozenset({"miyoushe", "nowcoder", "chiphell"})
 
 GapReason = Literal[
     "uncovered_facet",
@@ -388,10 +392,19 @@ def community_hosts_for(question: str, *, limit: int = 2) -> tuple[str, ...]:
     does not add sites and does not execute a search.
     """
 
+    # The normal browser route stops at three sites, often Google/Reddit/HN.
+    # Inspect the *already verified* wider route to discover the V2EX/LINUX DO
+    # community options without browsing every site or enabling unverified ones.
+    routed = [
+        site for site in select_sites(question, limit=len(SITES))
+        if site.category in COMMUNITY_CATEGORIES or site.key in DOMAIN_COMMUNITY_KEYS
+    ]
+    local_category = "zh_community" if _CJK.search(question) else "en_community"
+    preferred = [site for site in routed if site.key in DOMAIN_COMMUNITY_KEYS]
+    preferred.extend(site for site in routed if site.category == local_category)
+    preferred.extend(site for site in routed if site not in preferred)
     hosts: list[str] = []
-    for site in select_sites(question):
-        if site.category not in COMMUNITY_CATEGORIES:
-            continue
+    for site in preferred:
         host = _host(site.home)
         host = _SCOPE_HOST.get(host, host)
         if host and host not in hosts:
@@ -529,6 +542,14 @@ def _gap_query(
     """
 
     candidates: list[str] = []
+    # A generated English facet is valuable for international search, but a
+    # site-native Chinese search should use the user's Chinese vocabulary.
+    if host and _CJK.search(question) and host in {
+        "v2ex.com", "linux.do", "juejin.cn", "miyoushe.com", "nowcoder.com", "chiphell.com"
+    }:
+        if facet is not None and _CJK.search(facet.question):
+            candidates.append(facet.question)
+        candidates.append(" ".join(str(question or "").split()))
     if facet is not None:
         candidates.extend([_ascii_query(facet.query), _ascii_query(facet.question)])
         candidates.extend([facet.query, facet.question])

@@ -102,7 +102,7 @@ def test_a_question_whose_facets_share_no_vocabulary_is_never_complete():
 def test_one_community_thread_satisfies_the_source_expectation():
     question = "Notion 和 Obsidian 哪个更适合长期笔记？求真实使用体验"
     hosts = community_hosts_for(question)
-    assert "reddit.com" in hosts
+    assert hosts == ("v2ex.com", "linux.do")
     plan = [
         {"rq_id": "rq-1", "query": "Notion Obsidian long term notes"},
         {"rq_id": "rq-2", "query": "Notion Obsidian real user experience"},
@@ -115,12 +115,20 @@ def test_one_community_thread_satisfies_the_source_expectation():
                          searched=[row["query"] for row in plan])
     assert step is not None
     assert step.reason == "missing_community_source"
-    assert "site:reddit.com" in step.query
+    assert "site:v2ex.com" in step.query
+    assert "长期笔记" in step.query
 
-    thread = ("https://www.reddit.com/r/Notion/comments/1/x", "long term notes experience")
+    thread = ("https://www.v2ex.com/t/123456", "长期笔记的 real user experience")
     satisfied = assess_coverage(plan_facets(plan, question), [vendor, thread],
                                 question=question, community_hosts=hosts)
     assert satisfied.missing_community_hosts == ()
+
+
+def test_domain_communities_are_prioritized_without_routing_to_video_only_pages():
+    assert community_hosts_for("星铁虚构叙事配队推荐")[0] == "miyoushe.com"
+    assert community_hosts_for("校招牛客面经真实体验")[0] == "nowcoder.com"
+    assert community_hosts_for("RTX 显卡装机真实体验")[0] == "chiphell.com"
+    assert community_hosts_for("Notion vs Obsidian long term notes recommendation")[0] == "reddit.com"
 
 
 def test_an_official_gap_never_scopes_a_chinese_only_phrase():
