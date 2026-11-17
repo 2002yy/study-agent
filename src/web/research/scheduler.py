@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from math import ceil
 from math import isfinite
@@ -10,6 +10,7 @@ from typing import Any, Literal
 
 from src.web.research.candidate_ranking import RankedCandidate
 from src.web.research.contracts import ResearchBudget, ResearchClaim
+from src.web.research.runtime import RuntimeReadOutcome
 
 ReadWaveStatus = Literal[
     "planned",
@@ -21,6 +22,25 @@ ReadWaveStatus = Literal[
     "hard_deadline",
 ]
 CancellationCheck = Callable[[], bool]
+
+
+def attempted_read_backends(
+    outcomes: Iterable[RuntimeReadOutcome], candidate_id: str
+) -> tuple[str, ...]:
+    """Durable attempt history for one candidate, preserving backend order.
+
+    Another candidate's read cannot consume this candidate's backend slot;
+    legacy outcomes without a backend remain invisible to chain scheduling.
+    """
+
+    return tuple(
+        dict.fromkeys(
+            item.backend
+            for item in outcomes
+            if getattr(item, "candidate_id", "") == candidate_id
+            and getattr(item, "backend", "")
+        )
+    )
 
 
 class ReadSchedulingCancelled(RuntimeError):

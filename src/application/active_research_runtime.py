@@ -152,6 +152,7 @@ from src.web.research.scheduler import (
     ReadSchedulerPolicy,
     ReadSchedulingCancelled,
     _restore_completed_read_targets as _restore_completed_read_targets,
+    attempted_read_backends,
     is_schedulable_candidate,
     is_schedulable_lead,
     plan_read_wave,
@@ -1027,7 +1028,7 @@ class ActiveResearchRuntimeExecutor:
             else None
         )
 
-        def schedule_read(url: str) -> Any:
+        def schedule_read(target_candidate_id: str, url: str) -> Any:
             """§100 A2c: pre-attempt scheduling for the reader chain.
 
             The chain is the single reader the runtime has today, so this is
@@ -1044,17 +1045,12 @@ class ActiveResearchRuntimeExecutor:
                 schedulable_now,
             )
 
-            attempted = tuple(
-                dict.fromkeys(
-                    item.backend
-                    for item in cursor.read_outcomes
-                    if getattr(item, "candidate_id", "") == candidate_id
-                    and getattr(item, "backend", "")
-                )
+            attempted = attempted_read_backends(
+                cursor.read_outcomes, target_candidate_id
             )
             decision = schedulable_now(
                 SchedulingContext(
-                    candidate_id=str(candidate_id),
+                    candidate_id=str(target_candidate_id),
                     available_backends=ACTIVE_READER_CHAIN,
                     attempted_backends=attempted,
                     host=host_of(url),
@@ -1077,18 +1073,6 @@ class ActiveResearchRuntimeExecutor:
 
         # §143-B0: ACTIVE_READER_CHAIN is now a module-level contract
         # (see the definition above), so the chain has a single authority.
-
-        def read_chain_attempted_backends(target_candidate_id: str) -> tuple[str, ...]:
-            """Attempt history for one candidate; another candidate never counts."""
-
-            return tuple(
-                dict.fromkeys(
-                    item.backend
-                    for item in cursor.read_outcomes
-                    if getattr(item, "candidate_id", "") == target_candidate_id
-                    and getattr(item, "backend", "")
-                )
-            )
 
         def read_chain_health_state_for(backend: str, host: str) -> str:
             if breaker is None:
@@ -2487,7 +2471,7 @@ class ActiveResearchRuntimeExecutor:
                     # reader is currently unavailable is not planned at all this
                     # wave - no attempt, and no read outcome, because nothing was
                     # read.
-                    scheduling = schedule_read(candidate.url)
+                    scheduling = schedule_read(candidate_id, candidate.url)
                     if scheduling is not None and not scheduling.executable:
                         continue
                     # §105 A2d-4: one candidate, one outer read-slot, an explicit
@@ -2558,7 +2542,9 @@ class ActiveResearchRuntimeExecutor:
                             chain=ACTIVE_READER_CHAIN,
                             executors=executors,
                             record_outcome=chain_steps.append,
-                            attempted_backends=read_chain_attempted_backends(candidate_id),
+                            attempted_backends=attempted_read_backends(
+                                cursor.read_outcomes, candidate_id
+                            ),
                             health_state_for=read_chain_health_state_for,
                         )
                     # §105 A2d-4: the chain's own decision, recorded even when it
