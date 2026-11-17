@@ -9,9 +9,9 @@ from typing import Any, Protocol
 
 from src.domain.runtime_entities import WebLookupRun, new_id, utc_now
 from src.application.web_lookup_evidence import (
-    _INHERITED_ITEM_FIELDS,
-    _INHERITED_ASSESSMENT_FIELDS,
-    _FOLLOW_UP_STOPWORDS,
+    _INHERITED_ITEM_FIELDS as _INHERITED_ITEM_FIELDS,
+    _INHERITED_ASSESSMENT_FIELDS as _INHERITED_ASSESSMENT_FIELDS,
+    _FOLLOW_UP_STOPWORDS as _FOLLOW_UP_STOPWORDS,
     _canonical_source_url,
     _follow_up_tokens,
     _safe_inherited_source,
@@ -21,7 +21,7 @@ from src.application.web_lookup_evidence import (
     _source_url,
     _is_read_ok,
     _bounded_read_result,
-    _read_excerpt,
+    _read_excerpt as _read_excerpt,
     _format_research_source_block,
     _dedupe,
 )
