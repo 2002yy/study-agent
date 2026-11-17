@@ -261,6 +261,7 @@ from src.application.research_runtime_checkpoint import (
 )
 from src.application.research_runtime_model_policy import updated_model_policy_audits
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
+from src.application.research_runtime_read_scheduling import schedule_active_research_read
 from src.application.active_research_evidence_projection import (
     _bounded_retrieval_policy as _bounded_retrieval_policy,
     _bounded_text,
@@ -1039,49 +1040,6 @@ class ActiveResearchRuntimeExecutor:
             breaker=breaker,
             escalation_recorder=_record_escalation_diagnostics,
         )
-
-        def schedule_read(target_candidate_id: str, url: str) -> Any:
-            """§100 A2c: pre-attempt scheduling for the reader chain.
-
-            The chain is the single reader the runtime has today, so this is
-            where a circuit-open backend stops being planned at all instead of
-            producing a meaningless skip every wave. It decides only; it never
-            executes and never records a read outcome.
-
-            Attempt history is **per candidate**: another candidate's read must
-            never make this one look already attempted.
-            """
-
-            from src.web.research.progressive_routing import (
-                SchedulingContext,
-                schedulable_now,
-            )
-
-            attempted = attempted_read_backends(
-                cursor.read_outcomes, target_candidate_id
-            )
-            decision = schedulable_now(
-                SchedulingContext(
-                    candidate_id=str(target_candidate_id),
-                    available_backends=ACTIVE_READER_CHAIN,
-                    attempted_backends=attempted,
-                    host=host_of(url),
-                    remaining_seconds=research_seconds_left(),
-                ),
-                health_state_for=(
-                    (lambda backend, host: breaker.state_for(backend=backend, host=host))
-                    if breaker is not None
-                    else None
-                ),
-            )
-            metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-            if isinstance(metrics, dict):
-                entries = metrics.get("read_scheduling")
-                if not isinstance(entries, list):
-                    entries = []
-                entries.append(decision.to_dict())
-                metrics["read_scheduling"] = entries[-60:]
-            return decision
 
         # §143-B0: ACTIVE_READER_CHAIN is now a module-level contract
         # (see the definition above), so the chain has a single authority.
@@ -2310,7 +2268,15 @@ class ActiveResearchRuntimeExecutor:
                     # reader is currently unavailable is not planned at all this
                     # wave - no attempt, and no read outcome, because nothing was
                     # read.
-                    scheduling = schedule_read(candidate_id, candidate.url)
+                    scheduling = schedule_active_research_read(
+                        candidate_id=candidate_id,
+                        url=candidate.url,
+                        read_outcomes=cursor.read_outcomes,
+                        context=context,
+                        breaker=breaker,
+                        available_backends=ACTIVE_READER_CHAIN,
+                        research_seconds_left=research_seconds_left,
+                    )
                     if scheduling is not None and not scheduling.executable:
                         continue
                     # §105 A2d-4: one candidate, one outer read-slot, an explicit
