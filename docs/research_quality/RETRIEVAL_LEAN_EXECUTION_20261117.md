@@ -185,3 +185,17 @@
 下一小片读取站点的 `read_site_hint_route`、`specialist_chain_run`、`record_read_site_specialist` 与 `execute()` 内唯一专家调用闭包，归入 `research_runtime_read_site.py`：`ActiveReadSiteContext` 只持有当前研究窗口的剩余硬预算**回调**，每次 `try_specialist(context, candidate, source_limit)` 均接收当前可被 checkpoint/steering 回填的上下文，绝不缓存旧映射。默认读取链仍是唯一兜底执行权威；只有显式提示且专家返回可用正文时才短路；无提示不访问预算时钟、不写多余专家诊断，失败或未满足提示仍回落原链。`active_research_runtime.py` 保留旧路由/记录/链标准化导出，避免已有测试和外部调用破坏。
 
 此片不迁移检索调度、真实读取尝试或恢复/费用账本；已有端到端 selector 测试继续覆盖真实默认链，新增直接负控仅检查**无提示不调用**、跨上下文/候选与时间变化、不可用专家回退及记录形状。待本地定向测试和精确 PR HEAD CI 取得结果后再记录最终门禁，不把静态验收当真实浏览器、模型或检索产品质量验证。
+
+### 2026-11-18：故障投影和模型尝试生命周期收口
+
+[#399](https://github.com/2002yy/study-agent/pull/399) 精确 HEAD `b676659bc94783a36e064f38f685900a6d1e0094`，CI `44136804289` 成功、审阅无阻断，#398 合入主线并同树核验后改 base 为 main，再合并 `f2666db8d2e80503fe1f18d1a881fe168674ae67`；主线 tree `618e987fb9b4807062bc84f9046788e6d3321001` 与 #399 验收树一致。
+
+[#400](https://github.com/2002yy/study-agent/pull/400) 精确 HEAD `b505fb3f0f62c9b58611aff86f3c5a84c58b206c`，CI `44138134273` 成功、审阅无阻断，#399 合入主线并同树核验后改 base 为 main，再合并 `9abe320d7361d2ee96d8046b5312088fed2b2714`；主线 tree `8e9fef3e4e9f304693133a60353e447bff3f54a8` 与 #400 验收树一致。这两片只形成静态工程证据，不宣称动态质量提升，真实付费调用 0。
+
+[#401](https://github.com/2002yy/study-agent/pull/401) 已以 HEAD `4d01a31247864ab8c2f3cadb9b1a50d7fb365df1` 和 tree `50211070e7f2384af3dd20c59ae15ebc8eb61090` 创建草稿；本地影响集 108 passed，测试造景去重后 15 passed、Ruff/diff-check 通过，人工复核无阻断线程。CI `44140163266` 本次回看仍在运行；#400 合并后主线树与其验收父树一致，已重定基线为 main。未取得本 HEAD CI 成功前不能合并。
+
+### 证据终态发布参数归属（独立后一片）
+
+执行器内正常波次结算、硬预算耗尽和有证据的异常结束，各自重复拼装 `repository.complete()` 的 `items`、`source_block`、`warnings`、四组共享缓冲区、当前上下文、停止结果字段。新 `ActiveResearchPublisher` 只持有一次运行固定的仓储、run/operation 身份和 `ActiveResearchResultBuffers`，发布时**显式接收当前 `context` 和 `ResearchStopDecision`**；不缓存可能被 checkpoint/CAS 回填替换的研究上下文。
+
+保留每种调用路径**原先**的检查点和停止门禁时机：正常路径在完成游标检查点之后发布，预算异常路径在原窗口诊断/检查点之后发布，有证据异常路径先写原故障 checkpoint（若失败允许旧容错）再发布部分结果。无证据失败仍走执行器自己的 `repository.fail`。内部参数求值仍按 `eligible items → evidence brief formatting → warning dedupe`；异常路径的 `_evidence_brief(state,None,...)` 必须在 eligible 投影之后计算，预算异常仍按 `state.evidence` 选择显式 confidence，不能被 canonical stop decision 的 `partial` 覆盖。负控对照正常、预算和异常三类发布以及不完整简报不得终态写入。此片不涉及真实模型、预算结算、来源质量判断或前端发布策略。
