@@ -262,6 +262,7 @@ from src.application.research_runtime_checkpoint import (
 from src.application.research_runtime_model_policy import updated_model_policy_audits
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import schedule_active_research_read
+from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
 from src.application.active_research_evidence_projection import (
     _bounded_retrieval_policy as _bounded_retrieval_policy,
     _bounded_text,
@@ -913,6 +914,9 @@ class ActiveResearchRuntimeExecutor:
             envelope=deep_envelope,
             now=_deep_wall_now(self.utc_now),
         )
+        research_window_diagnostics = ResearchWindowDiagnostics(
+            reserve_seconds=RESEARCH_WINDOW_RESERVE_SECONDS
+        )
 
         def elapsed() -> float:
             return base_elapsed + max(0.0, self.monotonic() - execution_started)
@@ -1132,32 +1136,13 @@ class ActiveResearchRuntimeExecutor:
         def record_research_window(exhausted: bool) -> None:
             """Phase telemetry: when research ended and how much tail remained."""
 
-            metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-            metrics["research_window"] = {
-                "reserve_seconds": RESEARCH_WINDOW_RESERVE_SECONDS,
-                "hard_seconds": state.budget.hard_timeout_seconds,
-                "deadline_elapsed": round(
-                    state.budget.hard_timeout_seconds
-                    - RESEARCH_WINDOW_RESERVE_SECONDS,
-                    3,
-                ),
-                "research_elapsed_seconds": round(elapsed(), 3),
-                "remaining_after_research_seconds": round(
-                    state.budget.hard_timeout_seconds - elapsed(), 3
-                ),
-                "exhausted": exhausted,
-            }
+            research_window_diagnostics.record_end(
+                context,
+                hard_seconds=state.budget.hard_timeout_seconds,
+                elapsed=elapsed,
+                exhausted=exhausted,
+            )
             checkpoint()
-
-        def record_research_window_skip(key: str) -> None:
-            """Count work the exhausted research window refused to start."""
-
-            metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-            skips = metrics.get("research_window_skips")
-            if not isinstance(skips, dict):
-                skips = {}
-                metrics["research_window_skips"] = skips
-            skips[key] = int(skips.get(key) or 0) + 1
 
         phase_timing = RuntimePhaseTiming(ledger=timing_ledger, now=self.monotonic)
 
@@ -2237,7 +2222,8 @@ class ActiveResearchRuntimeExecutor:
                         # reader's own timeout is already window-capped, so no
                         # second, stricter requirement is added here.
                         read_loop_stop_reason = "research_window_closed"
-                        record_research_window_skip(
+                        research_window_diagnostics.record_skip(
+                            context,
                             "read_skipped_insufficient_research_window"
                         )
                         try:
@@ -2596,7 +2582,8 @@ class ActiveResearchRuntimeExecutor:
                     if research_seconds_left() < MIN_READ_SECONDS:
                         # Bounded lead reads obey the same shared window as
                         # evidence reads; an exhausted window starts none.
-                        record_research_window_skip(
+                        research_window_diagnostics.record_skip(
+                            context,
                             "lead_read_skipped_insufficient_research_window"
                         )
                         break

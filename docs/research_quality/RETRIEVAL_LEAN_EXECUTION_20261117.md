@@ -134,3 +134,14 @@
 4. 调用方继续拥有当前 `cursor` 和 `context`，调度模块只执行一次判断与诊断投影；结果仍交给原调用点处理。
 
 这是继 #394 后的独立静态片。除代码审查、定向离线测试和精确 HEAD CI 外，不声称真实社区覆盖率或答案质量变化。
+
+### 下一组诊断归属：研究窗口（待 #395 先收口）
+
+执行器中 `record_research_window`、`record_research_window_skip` 的实际共享对象是当前 `context`、`state.budget.hard_timeout_seconds` 和研究时钟。前者还在记录后紧接 `checkpoint()`，**不能**把检查点职责塞进诊断模块。暂存下一组设计为 `ResearchWindowDiagnostics`：
+
+- 每次由调用点给出当前 `context` 和 `hard_seconds`；固定末尾预留秒数由运行期诊断对象持有，决不缓存可能被持久化回填替换的上下文。
+- `record_end` 只生成旧形状的 `research_window`，必须调用 `elapsed()` **两次**，并由执行器在其返回后继续原顺序 `checkpoint()`；该方法本身不持久化。
+- `record_skip(context, key)` 只累计 `research_window_skips`，旧值非 dict 时重建；不构造读取尝试或改变断路器健康。
+- `research_seconds_left`、研究窗耗尽准入和 `ensure_budget` 保留原表达式，不在这一片重算、收紧或延长研究时限。
+
+本片作为独立于 #395 读取准入模块的后一批，需冻结回归与自己的精确 HEAD CI；两片仅共享主运行器的不同闭包区域，**不得在前片未验收时提前合并后一片**。
