@@ -97,9 +97,8 @@ def test_a_verified_support_qualifies_a_paraphrase():
 def test_the_qualified_row_is_what_makes_the_paraphrase_publishable():
     # The literal rule alone refuses this paraphrase, which is the reason the
     # qualification layer exists. This proves the *path*, not the judgement: the
-    # example evidence states co-occurrence, not causation, so whether this
-    # `supports` verdict is correct is exactly what A4's shadow run must
-    # measure rather than assume.
+    # example evidence states co-occurrence, not causation, so this test does
+    # not assert that the supplied `supports` verdict is semantically correct.
     assert claim_grounded_in_text(CLAIM, BODY) is False
 
     candidate = _verified(claim_text=CLAIM)
