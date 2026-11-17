@@ -103,7 +103,7 @@
 
 ### 读取尝试上下文：暂存分支的恢复注意事项
 
-- 诊断独立片（远端分支 `codex/read-observability-20261117`）将读取耗时与后端健康记录拆到 `research_runtime_read_observability.py`；原执行器的同名入口仍可导入。未开 PR，尚无精确 HEAD CI，**不能标为主线交付**。
+- 诊断独立片 [#393](https://github.com/2002yy/study-agent/pull/393)（远端分支 `codex/read-observability-20261117`）将读取耗时与后端健康记录拆到 `research_runtime_read_observability.py`；原执行器的同名入口仍可导入。基于 #391 主线重基后的 HEAD `271010c377037dd3c09ea842cb2d7e26bc2eec61`，本地 **137 + 124 = 261 passed**，已人工审阅，**精确 HEAD CI 待完成，不能标为主线交付**。
 - 在其上验证的暂存分支 `codex/read-attempt-context-staging-20261117` 以 `ActiveReadAttemptContext` 管理每次真实读取尝试的游标结果、断路器健康、读取耗时与升级诊断。`context` 和 `cursor` **每次调用都从当前执行现场显式传入**，上下文对象只持有本次运行固定的断路器及诊断记录器。
 - 特意拆成 `cursor = append_outcome(...)` 然后 `observe_step(...)` 两步：如果诊断阶段失败，执行器仍保留已经产生的内存游标结果；合并为一个返回值的函数会悄悄改变该异常时序。升级读取仍仅在真正发起 Wigolo 时调用研究时钟，避免统计动作改变耗时预算；记录 invocation_id 必须先于追加 attempt 行。
 - `_record_escalation_diagnostics` 的 AST 主体与原实现完全一致；新增真实尝试的成功/失败游标、诊断失败、后端健康、时钟调用次数与升级 invocation/attempt 顺序负控。对 #392 + 诊断片 + 本片的组合代码，相关离线 **150 passed + 129 passed = 279 passed**；另有同文件定向 12 passed，Ruff 与 diff-check 通过。全量 L3、真实浏览器和付费模型 **not_run**。这一暂存分支必须在 #392 和读取诊断片进入 main 后**重新重基、精确 HEAD CI 与审查**，不得直接标记为可合并。
