@@ -85,9 +85,19 @@
 | `cursor`（波次、调用审计、失败、读取结果） | 每阶段可重绑定；请求前 inflight 与语义结果的持久化顺序不可改 | 研究恢复/模型尝试契约 + #386 |
 | `context`（研究上下文、追加要求、诊断） | 仓储可能 CAS 合并并发 steering；写完需取回持久上下文 | #386 回填责任 |
 | `query_attempts / selected_sources / rejected_sources / warnings` | 入口初始化后只原地增补，无重绑定；终态发布必须用同一组数据 | #388 结果缓冲区 |
-| `timing_ledger / phase_started / breaker` | 可变观测和运行期健康状态；不能借拆分改变超时与重试策略 | 下一组诊断与读取上下文 |
-| `candidate_id` 等循环临时值 | `schedule_read(url)` 捕获外层当前候选，调用者看不出作用目标 | 独立切片改为 `schedule_read(candidate_id, url)` |
+| `timing_ledger / phase_started / breaker` | 可变观测和运行期健康状态；不能借拆分改变超时与重试策略 | #391 计时上下文、#393 观测函数、下一片读取尝试上下文 |
+| `candidate_id` 等循环临时值 | 旧 `schedule_read(url)` 捕获外层当前候选，调用者看不出作用目标 | #390 已实现 `schedule_read(candidate_id, url)` |
 | `run_id / operation_id / elapsed` | 一次执行内固定的身份和单调时间基线 | 明确作为执行上下文输入，不重置崩溃计时 |
+
+职责边界按实际写入权归位；表中“仍在执行器”的部分是**明确保留**，不能仅因新增一个模块就宣称彻底拆完：
+
+| 职责 | 已有明确所有者 | 尚需继续收口的隐式依赖 |
+| --- | --- | --- |
+| 研究状态与恢复 | `ActiveRuntimeCheckpointContext` 组织检查点，执行器负责真实 `state`/`cursor` 的重绑定与持久写回 | 请求前 inflight 顺序、恢复 CAS 回填和阶段转换仍在执行器，受 #385 冻结契约约束 |
+| 检索与读取调度 | 候选身份显式传入调度器；`ActiveReadAttemptContext`（下一 PR）负责单次读取结果与派生观测 | 外围调度闭包和波次推进仍在执行器；不能把可重绑定 `cursor` 缓存在上下文 |
+| 模型调用与预算 | 执行器拥有供应商调用和结算；#392 纯函数只加工政策审计 | 请求开始/完成回调与预算占用仍紧邻持久检查点，不在本次拆开 |
+| 证据整理与发布 | `ActiveResearchResultBuffers` 持有同组列表；证据投影模块只生成数据 | 终态门禁、选择发布和仓储写回仍由执行器排序 |
+| 诊断与性能观测 | `RuntimePhaseTiming` 拥有阶段计时；#393 独立读取耗时/健康统计；下一片收拢尝试诊断 | 观察必须在读取结果游标写回之后，不能改变时钟采样次数或超时决策 |
 
 读取调度先显式传入候选身份：旧 `schedule_read` 自由变量包含 `candidate_id`，新签名从实参接收，避免未来跨候选复用此闭包时误用上一轮循环值。接着将预调度和读取链两处相同的“每候选已尝试后端”逻辑统一为 `scheduler.attempted_read_backends(outcomes, candidate_id)`；从两处外围闭包读取 `cursor` 的重复计算，变为显式传入持久读取结果和候选身份的一个纯函数。保留遇到顺序去重、跳过空后端、跨候选隔离及读取阶段决策。新增隔离负控；此片不改读写账本、计费和发布。
 
@@ -97,7 +107,16 @@
 | --- | --- | --- |
 | [#390](https://github.com/2002yy/study-agent/pull/390) | 合并 `96ac38b654658c80e6da4445766b75c4610b5db3`，精确 HEAD CI `44086183784` 成功 | 读取候选身份显式化；不调整读取调度策略 |
 | [#391](https://github.com/2002yy/study-agent/pull/391) | HEAD `9f1a8c7f753d783a0acb9eba4159273796db3023` 的 CI `44089619882` 成功，合并 `6e7e6c53f2e8535233e9e69d9c462172b1716e96` | `RuntimePhaseTiming` 拥有阶段起始字典和计时账本，`end` 显式接收**当前**上下文，防止恢复/追加要求后旧引用写入；不修改超时判定 |
-| [#392](https://github.com/2002yy/study-agent/pull/392) | 旧 HEAD `025969de` 的 CI `44092795823` 后端失败、其余三项成功；诊断日志 404，已重基到 #393 主线，等待**新 HEAD** CI | `updated_model_policy_audits` 只负责原形状、顺序、100 条上限的纯投影；模型准入、网络调用与计费责任仍留原位置 |
+| [#392](https://github.com/2002yy/study-agent/pull/392) | 旧 HEAD `025969de` 的 CI `44092795823` 后端失败、其余三项成功；日志 404。重基 #393 后新 HEAD `c45b8287`，CI `44106896286` 运行中，本地 112 passed | `updated_model_policy_audits` 只负责原形状、顺序、100 条上限的纯投影；模型准入、网络调用与计费责任仍留原位置 |
 | [#393](https://github.com/2002yy/study-agent/pull/393) | HEAD `271010c377037dd3c09ea842cb2d7e26bc2eec61` 的 CI `44100349280` 五项成功，合并 `5bcfc8a0e0166936ab1223ee4a38c9e134a7b7fd` | `_record_read_timing` 与 `_record_backend_health` AST 主体原样迁出，旧入口仍可导入；不修改读调度和预算 |
 
-下一独立结构片把单次读取的尝试结果游标写入和诊断记录组合成 `ActiveReadAttemptContext`；代码与 32 处游标测试初始化去重已暂存在专用分支，待 #392 合并后从干净主线提交独立 PR。执行方法里的 `state`、`cursor`、`context` 仍属不同生命周期：**不能**为了减少一层闭包而将重绑定游标固化为旧对象，也不能越过请求前 inflight 持久化；这类高风险迁移须先补恢复负控再动。
+下一独立结构片把单次读取的尝试结果游标写入和诊断记录组合成 `ActiveReadAttemptContext`；代码和 32 处游标测试初始化去重现已整理为两份提交。在 #392 合并前可以提前以其分支为基线开启**草稿**并运行 CI，但严格保持 **#392 先合并 → 确认主线同树 → 下一 PR 才能合并**。执行方法里的 `state`、`cursor`、`context` 仍属不同生命周期：**不能**为了减少一层闭包而将重绑定游标固化为旧对象，也不能越过请求前 inflight 持久化；这类高风险迁移须先补恢复负控再动。
+
+### 读取尝试上下文：暂存分支的恢复注意事项
+
+- 诊断独立片 #393 已在精确 HEAD CI 全绿后合并，读取耗时与后端健康记录迁入 `research_runtime_read_observability.py`；原执行器的同名入口仍可导入。
+- 在其上验证的暂存分支 `codex/read-attempt-context-staging-20261117` 以 `ActiveReadAttemptContext` 管理每次真实读取尝试的游标结果、断路器健康、读取耗时与升级诊断。`context` 和 `cursor` **每次调用都从当前执行现场显式传入**，上下文对象只持有本次运行固定的断路器及诊断记录器。
+- 特意拆成 `cursor = append_outcome(...)` 然后 `observe_step(...)` 两步：如果诊断阶段失败，执行器仍保留已经产生的内存游标结果；合并为一个返回值的函数会悄悄改变该异常时序。升级读取仍仅在真正发起 Wigolo 时调用研究时钟，避免统计动作改变耗时预算；记录 invocation_id 必须先于追加 attempt 行。
+- `_record_escalation_diagnostics` 的 AST 主体与原实现完全一致；新增真实尝试的成功/失败游标、诊断失败、后端健康、时钟调用次数与升级 invocation/attempt 顺序负控。原先的 #392 + 诊断片 + 本片组合代码已相关离线 **150 passed + 129 passed = 279 passed**；重新组织提交后六个主要影响文件 **124 passed（141.37s）**、Ruff 和 diff-check 通过。仍需新 HEAD 的整套 CI，**旧测试不能替代正式门禁**。全量 L3、真实浏览器和付费模型 **not_run**。必须在 #392 合并后复核新主线一致性才可合并下一 PR。
+- 测试共用既有 `_candidate()` 造景辅助，4 个新增测试并入同一读取诊断测试文件，避免为相同候选构造再建一个重复辅助。
+- 继续检查 `test_active_research_runtime.py` 的恢复游标读取，发现 **32** 处可统一的三行 `ResearchRuntimeCursor.from_dict(run.research_context[...])`，改用一处 `_cursor_from_run(run)`；旧 `_a2e_cursor` 重复包装亦已归并。直接传递原始字典、模拟中断游标的两处特殊构造保持原写法。测试文件净减少约 **60 行**；静态核对 **63/63 个测试函数、481/481 条 `assert`** 没有删减。此变更属于场景搭建与重复解码的合并，不改变测试断言和场景输入。
