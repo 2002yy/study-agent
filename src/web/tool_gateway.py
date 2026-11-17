@@ -1046,8 +1046,20 @@ class GeneralWebGateway:
         )
         if not result.ok:
             # Independent paid Fetch is a last-resort, explicitly enabled
-            # fallback; a normal successful HTTP read never invokes it.
-            if _env_flag("WEB_DEEPSEEK_FETCH_ENABLED") and remaining() >= 0.5:
+            # fallback; never override an explicit safety refusal from the
+            # regular reader by forwarding that URL to an outside vendor.
+            # Its DNS/redirect checks are stronger than Fetch's lexical URL
+            # preflight, so a denied internal hostname must remain denied.
+            refusal = str(result.reason or "").lower()
+            security_refused = (
+                refusal in {"unsafe_or_empty_url", "unsafe_redirect_target"}
+                or refusal.startswith("security_refused:")
+            )
+            if (
+                not security_refused
+                and _env_flag("WEB_DEEPSEEK_FETCH_ENABLED")
+                and remaining() >= 0.5
+            ):
                 fetched, _error = fetch_deepseek(
                     value, max_chars=max_chars, timeout=remaining()
                 )

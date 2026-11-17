@@ -276,6 +276,39 @@ def test_gateway_read_fetch_uses_last_resort_only_when_opted_in(monkeypatch):
     assert with_fetch["content"] == "Readable evidence"
 
 
+def test_gateway_security_refusal_never_reaches_paid_fetch(monkeypatch):
+    from src.web.research import official_resolver
+
+    monkeypatch.setenv("WEB_DEEPSEEK_FETCH_ENABLED", "true")
+    monkeypatch.setenv("WEB_DEEPSEEK_FETCH_MAX_REQUESTS", "10")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setattr(
+        official_resolver, "read_official_metadata", lambda *_a, **_kw: None
+    )
+    forwarded = []
+    monkeypatch.setattr(
+        tool_gateway, "fetch_deepseek",
+        lambda url, **_kw: (forwarded.append(url), "unexpected_external_fetch"),
+    )
+    for reason in (
+        "unsafe_or_empty_url",
+        "unsafe_redirect_target",
+        "security_refused:unsafe_target",
+        "security_refused:private_dns_address",
+    ):
+        monkeypatch.setattr(
+            tool_gateway,
+            "fetch_article_read_result",
+            lambda url, **_kw: SimpleNamespace(
+                ok=False, requested_url=url, reason=reason,
+            ),
+        )
+        outcome = GeneralWebGateway().read("https://public-looking.example/internal", timeout=3)
+        assert outcome["ok"] is False
+        assert outcome["error"] == reason
+        assert forwarded == []
+
+
 def test_gateway_successful_normal_read_never_pays_for_fetch(monkeypatch):
     from src.web.research import official_resolver
 
