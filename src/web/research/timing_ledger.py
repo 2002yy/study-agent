@@ -22,9 +22,13 @@ Timing discipline (frozen for this batch):
 
 from __future__ import annotations
 
+import time
+from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator
+
+ACTIVE_RESEARCH_METRICS_KEY = "claim_engine_metrics"
 
 MODEL_KINDS = ("selector", "assessment", "extraction", "planner", "support", "other")
 
@@ -35,6 +39,93 @@ _PURPOSE_TO_KIND = {
     "research_claim_planning": "planner",
     "research_support_formation": "support",
 }
+
+
+def _record_checkpoint_timing(
+    context: dict[str, Any],
+    diagnostics: Mapping[str, Any],
+    *,
+    wall_ms: float,
+    stage: str | None,
+    caller: str,
+    phase: str = "",
+) -> None:
+    """F2-O4a: per-checkpoint persistence cost, without any of its content.
+
+    Records how long one checkpoint took, how much was written and in which
+    section, whether it actually differed from the previous checkpoint (by
+    section identity, never by storing content), and how long it has been since
+    the previous one. Observation only: it never debounces, coalesces or skips a
+    checkpoint, and durability semantics are untouched.
+    """
+
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if not isinstance(metrics, dict):
+        return
+    entries = metrics.get("checkpoint_timing")
+    if not isinstance(entries, list):
+        entries = []
+    previous = entries[-1] if entries else {}
+    previous_hashes = (
+        previous.get("section_hashes") if isinstance(previous, Mapping) else None
+    )
+    hashes = diagnostics.get("section_hashes")
+    hashes = hashes if isinstance(hashes, Mapping) else {}
+    sizes = diagnostics.get("bytes_by_section")
+    sizes = sizes if isinstance(sizes, Mapping) else {}
+    changed_sections: list[str] = []
+    changed_bytes = 0
+    unchanged_bytes = 0
+    for section, size in sizes.items():
+        same = bool(
+            previous_hashes
+            and isinstance(previous_hashes, Mapping)
+            and previous_hashes.get(section) == hashes.get(section)
+        )
+        if same:
+            unchanged_bytes += int(size)
+        else:
+            changed_sections.append(str(section))
+            changed_bytes += int(size)
+    previous_end = previous.get("t_end_ms") if isinstance(previous, Mapping) else None
+    entry = {
+        "ordinal": len(entries) + 1,
+        "t_end_ms": round(float(_checkpoint_now_ms()), 1),
+        "wall_ms": round(float(wall_ms), 1),
+        "stage": str(stage or ""),
+        "caller": str(caller or ""),
+        "phase": str(phase or ""),
+        "since_previous_ms": (
+            round(float(_checkpoint_now_ms()) - float(previous_end), 1)
+            if previous_end is not None
+            else None
+        ),
+        "attempts": int(diagnostics.get("attempts") or 0),
+        "conflicts": int(diagnostics.get("conflicts") or 0),
+        "repo_call_ms": float(diagnostics.get("repo_call_ms") or 0.0),
+        "prep_ms": round(
+            max(0.0, float(wall_ms) - float(diagnostics.get("repo_call_ms") or 0.0)), 1
+        ),
+        "load_ms": float(diagnostics.get("load_ms") or 0.0),
+        "repo_other_ms": float(diagnostics.get("repo_other_ms") or 0.0),
+        "serialize_ms": float(diagnostics.get("serialize_ms") or 0.0),
+        "write_ms": float(diagnostics.get("write_ms") or 0.0),
+        "hash_ms": float(diagnostics.get("hash_ms") or 0.0),
+        "bytes_total": int(diagnostics.get("bytes_total") or 0),
+        "bytes_by_section": {str(k): int(v) for k, v in sizes.items()},
+        "changed_sections": changed_sections,
+        "changed_bytes": changed_bytes,
+        "unchanged_bytes": unchanged_bytes,
+        "section_hashes": {str(k): str(v) for k, v in hashes.items()},
+        "write_targets": int(diagnostics.get("write_targets") or 0),
+        "files": int(diagnostics.get("files") or 0),
+    }
+    entries.append(entry)
+    metrics["checkpoint_timing"] = entries[-120:]
+
+
+def _checkpoint_now_ms() -> float:
+    return round(time.monotonic() * 1000.0, 1)
 
 
 def model_kind(purpose: str) -> str:

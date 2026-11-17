@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+import src.web.research.timing_ledger as timing
 from src.web.research.timing_ledger import (
+    ACTIVE_RESEARCH_METRICS_KEY,
     TimedGateway,
     TimingLedger,
     model_kind,
@@ -173,3 +175,38 @@ def test_timed_gateway_delegates_unknown_attributes() -> None:
 
     gateway = TimedGateway(_Inner(), ledger, _Clock())
     assert gateway.model_profile == "flash"
+
+
+def test_checkpoint_observability_preserves_metadata_and_size_deltas(monkeypatch) -> None:
+    ticks = iter((100.0, 200.0, 225.0))
+    monkeypatch.setattr(timing, "_checkpoint_now_ms", lambda: next(ticks))
+    context = {}
+    diagnostics = {
+        "section_hashes": {"research_state": "same-hash"},
+        "bytes_by_section": {"research_state": 128},
+        "repo_call_ms": 5.0,
+        "write_ms": 3.0,
+        "conflicts": 0,
+    }
+    timing._record_checkpoint_timing(
+        context, diagnostics, wall_ms=12.0, stage="read", caller="checkpoint"
+    )
+    timing._record_checkpoint_timing(
+        context, diagnostics, wall_ms=7.0, stage="read", caller="checkpoint"
+    )
+
+    entries = context[ACTIVE_RESEARCH_METRICS_KEY]["checkpoint_timing"]
+    assert [row["ordinal"] for row in entries] == [1, 2]
+    assert [row["changed_bytes"] for row in entries] == [128, 0]
+    assert [row["unchanged_bytes"] for row in entries] == [0, 128]
+    assert entries[1]["since_previous_ms"] == 125.0
+    assert entries[0]["prep_ms"] == 7.0
+    assert entries[1]["prep_ms"] == 2.0
+
+
+def test_checkpoint_observability_does_not_replace_invalid_metric_state() -> None:
+    context = {ACTIVE_RESEARCH_METRICS_KEY: "legacy-corrupt-state"}
+    timing._record_checkpoint_timing(
+        context, {}, wall_ms=0.0, stage=None, caller=""
+    )
+    assert context[ACTIVE_RESEARCH_METRICS_KEY] == "legacy-corrupt-state"
