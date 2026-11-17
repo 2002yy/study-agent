@@ -4140,9 +4140,10 @@ def _cutover_service(
     *,
     read_gateway: Any,
     escalation_backend: Any | None,
+    search_backend: Any | None = None,
 ) -> ClaimEngineDispatchWebLookupService:
     gateway = ActiveResearchGateway(
-        search_backend=_SearchBackend(),
+        search_backend=search_backend or _SearchBackend(),
         read_gateway=read_gateway,
     )
     if escalation_backend is not None:
@@ -4175,15 +4176,12 @@ def _cutover_service(
 
 
 def _cutover_run(repository: WebLookupRepository, run_id: str) -> WebLookupRun:
-    return repository.create(
-        WebLookupRun(
-            id=run_id,
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    return _pending_active_run(
+        repository,
+        run_id=run_id,
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
 
 
@@ -4406,47 +4404,6 @@ class _ScriptedNativeReadGateway:
         return base
 
 
-def _a2e_service(
-    repository: WebLookupRepository,
-    client: _StructuredClient,
-    *,
-    read_gateway: Any,
-    escalation_backend: Any | None,
-    search_backend: Any | None = None,
-) -> ClaimEngineDispatchWebLookupService:
-    gateway = ActiveResearchGateway(
-        search_backend=search_backend or _SearchBackend(),
-        read_gateway=read_gateway,
-    )
-    if escalation_backend is not None:
-        gateway.set_escalation_backend(escalation_backend)
-
-    def gateway_factory() -> ActiveResearchGateway:
-        return gateway
-
-    def runtime_factory(
-        repo: WebLookupRepository,
-        active_gateway: ActiveResearchGateway,
-    ) -> ActiveResearchRuntimeExecutor:
-        model = ResearchModelGateway(
-            client=client,
-            model_name="test-model",
-            timeout_seconds=20,
-        )
-        return ActiveResearchRuntimeExecutor(
-            repo,
-            active_gateway,
-            model_gateway=model,
-            monotonic=perf_counter,
-        )
-
-    return ClaimEngineDispatchWebLookupService(
-        repository,
-        active_gateway_factory=gateway_factory,
-        active_runtime_factory=runtime_factory,
-    )
-
-
 def _a2e_run(
     tmp_path: Any,
     monkeypatch: pytest.MonkeyPatch,
@@ -4474,21 +4431,13 @@ def _a2e_run(
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / f"{name}.sqlite"))
     run = _cutover_run(repository, f"run_{name}")
-    return _a2e_service(
+    return _cutover_service(
         repository,
         _StructuredClient(),
         read_gateway=native,
         escalation_backend=wigolo,
         search_backend=search_backend,
     ).execute(run.id, raise_on_error=True)
-
-
-def _a2e_sources(completed: Any) -> list[dict[str, Any]]:
-    return [
-        dict(item)
-        for item in (completed.selected_sources or [])
-        if isinstance(item, Mapping)
-    ]
 
 
 def _a2e_metrics(completed: Any) -> dict[str, Any]:
@@ -4649,7 +4598,7 @@ def test_a2e_reader_chain_correctness(
         assert [step["backend"] for step in row["steps"]] == list(expected_steps)
         assert row["action"] == expected_action
 
-    sources = _a2e_sources(completed)
+    sources = _breaker_sources(completed)
     assert sources
     assert len(sources) == len({item["candidate_id"] for item in sources})
     for item in sources:
@@ -4703,7 +4652,7 @@ def test_a2e_circuit_open_native_is_never_faked_as_an_outcome(
     assert deferred, "a candidate whose only capable reader is unhealthy defers"
     for row in deferred:
         assert row["steps"] == []
-    assert len(_a2e_sources(completed)) == 1
+    assert len(_breaker_sources(completed)) == 1
 
 
 def test_a2e_unavailable_alternate_exhausts_without_looping(
@@ -4729,7 +4678,7 @@ def test_a2e_unavailable_alternate_exhausts_without_looping(
     outcomes = _cursor_from_run(completed).read_outcomes
     assert outcomes
     assert all(item.backend == "native_http" for item in outcomes)
-    for item in _a2e_sources(completed):
+    for item in _breaker_sources(completed):
         assert item["read_status"] == "failed"
         assert item["final_backend"] == "native_http"
 
@@ -4755,7 +4704,7 @@ def test_a2e_candidate_lifecycle_is_one_source_per_candidate(
     assert keys, "the fallback path must produce attempts"
     assert len(keys) == len(set(keys)), "one outcome per (candidate, backend)"
 
-    sources = _a2e_sources(completed)
+    sources = _breaker_sources(completed)
     candidate_ids = [item["candidate_id"] for item in sources]
     assert len(candidate_ids) == len(set(candidate_ids)), "one source per candidate"
 
@@ -4804,7 +4753,7 @@ def test_a2e_not_found_is_terminal_but_unusable(
 
     resolution = _a2e_metrics(completed).get("candidate_resolution") or {}
     assert resolution.get("counts", {}).get("resolved") == len(outcomes)
-    for item in _a2e_sources(completed):
+    for item in _breaker_sources(completed):
         assert item["read_status"] == "failed"
 
 
@@ -4828,10 +4777,10 @@ def test_a2e_chain_exhausted_is_terminal_but_unusable(
 
     resolution = _a2e_metrics(completed).get("candidate_resolution") or {}
     assert resolution.get("counts", {}).get("chain_exhausted") == len(
-        _a2e_sources(completed)
+        _breaker_sources(completed)
     )
     assert resolution.get("counts", {}).get("resolved") == 0
-    for item in _a2e_sources(completed):
+    for item in _breaker_sources(completed):
         assert item["read_status"] == "failed"
 
 
@@ -4872,7 +4821,7 @@ def test_a2e_retry_stays_inside_the_backend_and_the_chain_stays_bounded(
         assert len(row["steps"]) == 2
 
     # The backend-local retry count is still observable in the attempt cost.
-    for item in _a2e_sources(completed):
+    for item in _breaker_sources(completed):
         native_attempt = next(
             a for a in (item.get("retrieval_attempts") or []) if a["backend"] == "native_http"
         )
@@ -5026,7 +4975,7 @@ def test_a2e_failure_state_routing_and_lifecycle_agree(
         tmp_path, monkeypatch, name=f"a2e_failure_{case}", native=native, wigolo=wigolo
     )
 
-    for item in _a2e_sources(completed):
+    for item in _breaker_sources(completed):
         attempts = _a2e_attempt_tuples(item)
         native_attempt = next(a for a in attempts if a[0] == "native_http")
         # The canonical state is carried by the attempt, not re-derived later.
@@ -5079,7 +5028,7 @@ def test_a2e_provenance_links_outcome_timing_chain_and_source(
     }
     timing = metrics.get("read_timing") or []
 
-    for item in _a2e_sources(completed):
+    for item in _breaker_sources(completed):
         candidate_id = item["candidate_id"]
         attempts = _a2e_attempt_tuples(item)
         assert len(attempts) == 2, "why native failed and whether Wigolo ran"
@@ -5141,7 +5090,7 @@ def test_a2e_failure_records_carry_the_attempt_id_of_the_failed_step(
     ]
     assert read_failures, "an unusable attempt must leave a failure record"
     failed_ids = {failure.item_id for failure in read_failures}
-    assert failed_ids == {item["candidate_id"] for item in _a2e_sources(completed)}
+    assert failed_ids == {item["candidate_id"] for item in _breaker_sources(completed)}
 
     # The durable failure carries the attempt id of the step that failed, so the
     # per-attempt marker's non-durability does not hide the audit trail.
@@ -5204,7 +5153,7 @@ def _a2e_authority_view(completed: Any) -> dict[str, Any]:
                 item.get("content"),
                 (item.get("extraction") or {}).get("status"),
             )
-            for item in _a2e_sources(completed)
+            for item in _breaker_sources(completed)
         ],
     }
 
@@ -5238,7 +5187,7 @@ def test_a2e_authority_is_unchanged_when_no_fallback_is_needed(
 
     # The progressive run really had the alternate available but never needed it.
     for completed in (single, progressive):
-        for item in _a2e_sources(completed):
+        for item in _breaker_sources(completed):
             assert item["final_backend"] == "native_http"
             assert _a2e_attempt_tuples(item) == [
                 ("native_http", "success", True, True)

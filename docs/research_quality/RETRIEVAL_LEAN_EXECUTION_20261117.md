@@ -145,3 +145,9 @@
 - `research_seconds_left`、研究窗耗尽准入和 `ensure_budget` 保留原表达式，不在这一片重算、收紧或延长研究时限。
 
 本片作为独立于 #395 读取准入模块的后一批，需冻结回归与自己的精确 HEAD CI；两片仅共享主运行器的不同闭包区域，**不得在前片未验收时提前合并后一片**。
+
+### 读取链测试造景去重（待前两批收口）
+
+`test_active_research_runtime.py` 中 `_cutover_service` 与 `_a2e_service` 曾各自构造同一种 `ActiveResearchGateway`、模型网关和执行器，只在是否指定检索后端上有区别；现在将检索后端设为 `_cutover_service` 的可选输入，A2e 端到端测试复用同一构造入口。`_cutover_run` 继续保留场景名称与原始参数，但内部复用 `_pending_active_run`，不重新复制 `WebLookupRun` 的 pending/planned 字段。重复的 `_a2e_sources` 与 `_breaker_sources` 投影合并为后者，保持 `Mapping` 过滤和浅字典复制不变。
+
+此片**只改测试代码**，保留所有测试、断言、固定 URL、断路器配置、升级读环境与账本检查；不改生产检索、读取消费、恢复、模型预算或发布。定向 `test_active_research_runtime.py` **84/84 passed**、Ruff 与 diff-check 通过；依赖的 #395、#396 均未满足合并门禁前，该片仅作为堆叠草稿验收，不能提前合入 main。
