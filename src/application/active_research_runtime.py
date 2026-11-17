@@ -236,6 +236,9 @@ from src.application.research_stop_gate import (
     ResearchStopSignal,
 )
 from src.application.active_research_evidence_projection import (
+    _bounded_retrieval_policy,
+    _bounded_text,
+    _source_record,
     _add_extracted_evidence,
     _evidence_brief,
     _evidence_id_for_record,
@@ -6535,46 +6538,6 @@ def _record_backend_health(context: dict[str, Any], breaker: Any) -> None:
     metrics["backend_health"] = breaker.snapshot()
 
 
-def _bounded_retrieval_policy(raw_read: Mapping[str, Any]) -> dict[str, Any]:
-    """§96 A1a: the policy half of a read outcome, bounded for the artifact.
-
-    Answers, after the fact: which (backend, host) key, what the health state
-    was before and after, the failure streak, whether this was a probe, why the
-    attempt was allowed or refused, and when a probe becomes eligible again.
-    """
-
-    policy = raw_read.get("retrieval_policy")
-    if not isinstance(policy, Mapping):
-        return {}
-    keys = (
-        "attempted",
-        "skip_reason",
-        "breaker_state",
-        "backend",
-        "health_key",
-        "breaker_state_before",
-        "breaker_state_after",
-        "probe_index",
-        "is_probe",
-        "legacy",
-    )
-    bounded: dict[str, Any] = {}
-    for key in keys:
-        if key not in policy:
-            continue
-        value = policy[key]
-        if isinstance(value, bool) or value is None:
-            bounded[key] = value
-        elif isinstance(value, (int, float)):
-            bounded[key] = value
-        else:
-            bounded[key] = _bounded_text(value, 120)
-    if "failure_streak" in policy:
-        bounded["failure_streak"] = int(policy.get("failure_streak") or 0)
-    eligible = policy.get("eligible_probe_at_ms")
-    if isinstance(eligible, (int, float)):
-        bounded["eligible_probe_at_ms"] = round(float(eligible), 1)
-    return bounded
 
 
 def _record_read_timing(
@@ -6637,115 +6600,6 @@ def _record_read_timing(
     metrics["read_timing"] = timing[-80:]
 
 
-def _source_record(
-    candidate: CandidatePoolItem,
-    plan: Mapping[str, str],
-    *,
-    raw_read: Mapping[str, Any],
-    final_backend: str = "",
-    retrieval_attempts: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
-    read = {
-        "ok": raw_read.get("ok") is True,
-        "status": str(raw_read.get("status") or "failed"),
-        "url": candidate.url,
-        "title": _bounded_text(raw_read.get("title") or candidate.title, 500),
-        "content": str(raw_read.get("content") or "")[:6000],
-        "error": _bounded_text(raw_read.get("error"), 200),
-    }
-    record = {
-        "candidate_id": candidate.id,
-        "item": {
-            "title": candidate.title,
-            "url": candidate.url,
-            "source": candidate.source,
-            "published_at": candidate.published_at,
-        },
-        "assessment": {
-            "title": candidate.title,
-            "url": candidate.url,
-            "selected": True,
-            "worth_reading": True,
-            "source_role": plan["source_role"],
-            "source_cluster_id": plan["cluster_id"],
-            "claim_id": plan["claim_id"],
-            "providers": list(candidate.providers),
-        },
-        "read": read,
-        "read_status": read["status"],
-        "evidence_state": "new" if read["status"] == "read" else "invalid_or_rejected",
-    }
-    retrieval_state = str(raw_read.get("retrieval_state") or "")
-    if retrieval_state:
-        # §94 A0 canonical outcome; §96 A1a adds the policy half. Absent for
-        # unclassified reads, which are never treated as success.
-        record["retrieval_state"] = retrieval_state
-    if final_backend:
-        # §104: one candidate / URL has at most one top-level source. The backend
-        # that produced the final projection is recorded here; the per-backend
-        # attempt history lives in ``retrieval_attempts`` and never inflates the
-        # source or evidence count.
-        record["final_backend"] = str(final_backend)
-    if retrieval_attempts:
-        record["retrieval_attempts"] = [dict(item) for item in retrieval_attempts]
-    policy = _bounded_retrieval_policy(raw_read)
-    if policy:
-        record["retrieval_policy"] = policy
-    escalation = raw_read.get("escalation")
-    if isinstance(escalation, Mapping):
-        # §71C-3a: per-read escalation outcome (attempted false = adequate read
-        # or disabled mode), so the gate item "already-PASS -> 0 calls" is
-        # verifiable from the sources as well as the ledger.
-        record["escalation"] = {
-            "attempted": bool(escalation.get("attempted")),
-            "tier": str(escalation.get("tier") or ""),
-            "state": str(escalation.get("state") or ""),
-            "reason": str(escalation.get("reason") or ""),
-            "rescued": bool(escalation.get("rescued")),
-            "shape_before": str(escalation.get("shape_before") or ""),
-            "shape_after": str(escalation.get("shape_after") or ""),
-            "chars_before": int(escalation.get("chars_before") or 0),
-            "chars_after": int(escalation.get("chars_after") or 0),
-            "latency_ms": float(escalation.get("latency_ms") or 0.0),
-            "cache_hit": escalation.get("cache_hit"),
-            "max_chars_requested": int(escalation.get("max_chars_requested") or 0),
-            "preflight": str(escalation.get("preflight") or ""),
-            "url": str(escalation.get("url") or ""),
-            "attempt_seq": int(escalation.get("attempt_seq") or 0),
-            "research_seconds_left_at_start": escalation.get(
-                "research_seconds_left_at_start"
-            ),
-            "hard_seconds_left_at_start": escalation.get("hard_seconds_left_at_start"),
-            "invocation_id": str(escalation.get("invocation_id") or ""),
-        }
-    retry = raw_read.get("read_retry")
-    if isinstance(retry, Mapping):
-        # §48 diagnostics only: how many bounded fetch-layer retries the reader
-        # spent before this result; never influences evidence semantics.
-        record["read_retry"] = {
-            "attempts": int(retry.get("attempts") or 0),
-            "retries": int(retry.get("retries") or 0),
-            "retry_reasons": [
-                _bounded_text(item, 160) for item in (retry.get("retry_reasons") or [])
-            ][:4],
-            # F2-O1: the cost side of the retry decision, per read
-            "skipped_due_to_budget": int(retry.get("skipped_due_to_budget") or 0),
-            "retry_backoff_ms": float(retry.get("retry_backoff_ms") or 0.0),
-            "retry_fetch_ms": float(retry.get("retry_fetch_ms") or 0.0),
-            "admission_reasons": [
-                _bounded_text(item, 80)
-                for item in (retry.get("admission_reasons") or [])
-            ][:4],
-            # F2-O1b: why idle waiting or a retry was removed
-            "suppressed_backoff_ms": float(retry.get("suppressed_backoff_ms") or 0.0),
-            "backoff_suppressed_reason": _bounded_text(
-                retry.get("backoff_suppressed_reason"), 60
-            ),
-            "retry_suppressed_reason": _bounded_text(
-                retry.get("retry_suppressed_reason"), 60
-            ),
-        }
-    return record
 
 
 
@@ -7144,8 +6998,6 @@ def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(str(value)[:500] for value in values if str(value).strip()))
 
 
-def _bounded_text(value: Any, limit: int) -> str:
-    return " ".join(str(value or "").split())[:limit]
 
 
 def _utc_now() -> str:
