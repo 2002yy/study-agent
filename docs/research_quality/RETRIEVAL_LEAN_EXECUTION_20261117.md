@@ -108,3 +108,4 @@
 - 特意拆成 `cursor = append_outcome(...)` 然后 `observe_step(...)` 两步：如果诊断阶段失败，执行器仍保留已经产生的内存游标结果；合并为一个返回值的函数会悄悄改变该异常时序。升级读取仍仅在真正发起 Wigolo 时调用研究时钟，避免统计动作改变耗时预算；记录 invocation_id 必须先于追加 attempt 行。
 - `_record_escalation_diagnostics` 的 AST 主体与原实现完全一致；新增真实尝试的成功/失败游标、诊断失败、后端健康、时钟调用次数与升级 invocation/attempt 顺序负控。对 #392 + 诊断片 + 本片的组合代码，相关离线 **150 passed + 129 passed = 279 passed**；另有同文件定向 12 passed，Ruff 与 diff-check 通过。全量 L3、真实浏览器和付费模型 **not_run**。这一暂存分支必须在 #392 和读取诊断片进入 main 后**重新重基、精确 HEAD CI 与审查**，不得直接标记为可合并。
 - 测试共用既有 `_candidate()` 造景辅助，4 个新增测试并入同一读取诊断测试文件，避免为相同候选构造再建一个重复辅助。
+- 继续检查 `test_active_research_runtime.py` 的恢复游标读取，发现 **32** 处可统一的三行 `ResearchRuntimeCursor.from_dict(run.research_context[...])`，改用一处 `_cursor_from_run(run)`；旧 `_a2e_cursor` 重复包装亦已归并。直接传递原始字典、模拟中断游标的两处特殊构造保持原写法。测试文件净减少约 **60 行**；静态核对 **63/63 个测试函数、481/481 条 `assert`** 没有删减。此变更属于场景搭建与重复解码的合并，不改变测试断言和场景输入。
