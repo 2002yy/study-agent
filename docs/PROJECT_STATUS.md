@@ -36,6 +36,7 @@
 | [#395](https://github.com/2002yy/study-agent/pull/395) | 将读取预调度闭包迁为显式传入当前候选、游标历史、上下文、断路器和研究时钟的函数 | HEAD `f4c63a26`；精确 CI `44125608541` 成功，合并 `bd7fd5dc`；合并后 tree `9d96107b` 与验收树一致 |
 | [#396](https://github.com/2002yy/study-agent/pull/396) | 研究窗口诊断独立化；保留两次时间采样和记录后检查点顺序，不改预算准入 | HEAD `bcd8d697`；精确 CI `44126675280` 成功，合并 `30c27cf2`；合并后 tree `02c395cf` 与验收树一致 |
 | [#397](https://github.com/2002yy/study-agent/pull/397) | 读取链测试共用服务/运行记录/来源投影，净减 45 行，生产代码不变 | HEAD `8e781a64`；精确 CI `44127618845` 成功，合并 `4f46684d`；合并后 tree `7044d37f` 与验收树一致 |
+| [#398](https://github.com/2002yy/study-agent/pull/398) | 模型准入政策以当前 `context` 显式入参；不变回调封装为 `RuntimeModelPolicyContext` | HEAD `25ae27cd`；精确 CI `44135910377` 成功，合并 `b4ae4291`；合并后 tree `69154167` 与验收树一致 |
 
 **当前结构片**：[#387](https://github.com/2002yy/study-agent/pull/387) 的 40 处测试初始化删重已合并 `main@315b07a1`，原 63 个测试函数与 474 条断言保持、84 passed，精确 PR CI `44079893336` 成功；[#386](https://github.com/2002yy/study-agent/pull/386) 将有序检查点封装为执行上下文，精确 HEAD CI `44080509512` 成功、合并 `df6f2a7e`；[#388](https://github.com/2002yy/study-agent/pull/388) 将结果缓冲区显式化，精确 HEAD CI `44080750573` 成功、合并 `0e72901d`。这些是各 PR 头提交的验证，不冒充合并主线后的独立 CI。重复的 #389 已关闭，未入主线。
 
@@ -66,7 +67,7 @@
 
 ### 唯一下一执行片
 
-**当前用户指定的 P3 任务**：#386—#388、#390—#397 均已按精确 HEAD CI、审查和依赖树门禁合入主线。后续依序：[#398](https://github.com/2002yy/study-agent/pull/398) 将政策检查显式接收当前 `context`（HEAD `25ae27cd`，CI `44135910377` 尚待结束）；[#399](https://github.com/2002yy/study-agent/pull/399) 将故障 ID/去重投影显式传入当前游标与上下文（依赖 #398，HEAD `b676659b`，CI `44136804289` 尚待结束）。当前新增独立后一片 `ActiveModelAttemptContext`：通过实时游标读写接口、取消/硬预算检查和原检查点回调，把 `on_model_started`/`on_model_finished` 归入明确执行上下文；**保留请求前持久 inflight、完成后仅内存审计、语义结果后再持久化的原顺序**，真实 `reserve_call` 不改。三片必须各自验 CI，按依赖树核验后才可合并。详细责任图见[2026-11-17/18 执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。**原产品实验仍待执行**：在具备真实浏览器和 SearXNG 的环境运行 #369 零模型、零收费搜索的社区覆盖探针。
+**当前用户指定的 P3 任务**：#386—#388、#390—#398 均已按精确 HEAD CI、审查和依赖树门禁合入主线；最新核实 `main@b4ae42918e2494db9e858d28c8944fff6e5a3fee`，tree `69154167ec64d92a8a6255c78448d623e525955f`。后续依序：[#399](https://github.com/2002yy/study-agent/pull/399) 将故障 ID/去重投影显式传入当前游标与上下文（依赖 #398，HEAD `b676659b`，CI `44136804289` 本次查询尚在运行）；[#400](https://github.com/2002yy/study-agent/pull/400) 把请求前/后回调归入 `ActiveModelAttemptContext`（依赖 #399，HEAD `b505fb3f`，CI `44138134273` 本次查询尚在运行）。**保留请求前持久 inflight、完成后仅内存审计、语义结果后再持久化的原顺序**，真实 `reserve_call` 不改。下一独立片是读取站点专家选择/来源诊断迁入显式读取上下文（依赖 #400）；三片必须各自验 CI，按依赖树核验后才可合并。详细责任图见[2026-11-17/18 执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。**原产品实验仍待执行**：在具备真实浏览器和 SearXNG 的环境运行 #369 零模型、零收费搜索的社区覆盖探针。
 
 ## 0A. 已冻结研究路线（摘要）
 

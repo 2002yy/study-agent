@@ -31,6 +31,7 @@ from src.application.reader_hint_routing import (  # noqa: E402
     SESSION_STATE,
 )
 from src.web.research.chain_executor import ChainStepResult  # noqa: E402
+from src.web.research.candidate_pool import CandidatePoolItem  # noqa: E402
 
 
 def _load_test_module():
@@ -42,6 +43,13 @@ def _load_test_module():
 
 
 ART = _load_test_module()
+
+
+def _enable_specialist(monkeypatch) -> None:
+    monkeypatch.setenv(EXPLICIT_HINTS_ENABLED_ENV, "1")
+    monkeypatch.setenv("CRAWL4AI_SPECIALIST_ENABLED", "1")
+    monkeypatch.setenv("CRAWL4AI_PYTHON", SPECIALIST_PYTHON)
+    monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "browser")
 
 
 # ------------------------------------------------------------- pure decision
@@ -63,20 +71,14 @@ def test_hint_with_flag_off_is_default(monkeypatch) -> None:
 
 
 def test_hint_ready_routes_specialist(monkeypatch) -> None:
-    monkeypatch.setenv(EXPLICIT_HINTS_ENABLED_ENV, "1")
-    monkeypatch.setenv("CRAWL4AI_SPECIALIST_ENABLED", "1")
-    monkeypatch.setenv("CRAWL4AI_PYTHON", SPECIALIST_PYTHON)
-    monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "browser")
+    _enable_specialist(monkeypatch)
     route = runtime.read_site_hint_route({"reader_capabilities": [JS_RENDER]})
     assert route["route"] == "specialist"
     assert route["hint_honored"] is True
 
 
 def test_session_hint_without_inputs_is_unsatisfied(monkeypatch) -> None:
-    monkeypatch.setenv(EXPLICIT_HINTS_ENABLED_ENV, "1")
-    monkeypatch.setenv("CRAWL4AI_SPECIALIST_ENABLED", "1")
-    monkeypatch.setenv("CRAWL4AI_PYTHON", SPECIALIST_PYTHON)
-    monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "browser")
+    _enable_specialist(monkeypatch)
     route = runtime.read_site_hint_route({"reader_capabilities": [SESSION_STATE]})
     assert route["route"] == "unsatisfied"
     assert route["reason"] == "session_inputs_missing"
@@ -94,10 +96,7 @@ def _hint_context(*capabilities: str, session_id: str = "") -> dict:
 
 
 def _run_with_hint(monkeypatch, tmp_path, *, capabilities, specialist):
-    monkeypatch.setenv(EXPLICIT_HINTS_ENABLED_ENV, "1")
-    monkeypatch.setenv("CRAWL4AI_SPECIALIST_ENABLED", "1")
-    monkeypatch.setenv("CRAWL4AI_PYTHON", SPECIALIST_PYTHON)
-    monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "browser")
+    _enable_specialist(monkeypatch)
     monkeypatch.setenv("WIGOLO_RERANKER", "off")
 
     monkeypatch.setattr(
@@ -154,6 +153,97 @@ def _unusable_specialist(*, url, **kwargs):
         "latency_ms": 0.0,
         "result": None,
     }
+
+
+def _site_candidate(candidate_id: str, url: str) -> CandidatePoolItem:
+    return CandidatePoolItem(
+        id=candidate_id,
+        canonical_url=url,
+        url=url,
+        title="",
+        snippet="",
+        source="",
+        published_at="",
+        query_ids=(),
+        intents=(),
+        providers=(),
+        first_seen_rank=0,
+    )
+
+
+def test_read_site_context_default_does_not_invoke_or_sample_budget(monkeypatch) -> None:
+    from src.application.research_runtime_read_site import ActiveReadSiteContext
+
+    def unexpected_time() -> float:
+        pytest.fail("no explicit specialist should not sample the time budget")
+
+    def unexpected_specialist(**kwargs):
+        pytest.fail("no explicit specialist should not be invoked")
+
+    monkeypatch.setattr(
+        "src.web.research.crawl4ai_specialist.invoke_crawl4ai_specialist",
+        unexpected_specialist,
+    )
+    context: dict = {}
+    site = ActiveReadSiteContext(hard_seconds_left=unexpected_time)
+    assert site.try_specialist(
+        context, _site_candidate("a", "https://example.com/a"), 1200
+    ) is None
+    assert ART.ACTIVE_RESEARCH_METRICS_KEY not in context
+
+
+def test_read_site_context_uses_latest_context_and_time(monkeypatch) -> None:
+    from src.application.research_runtime_read_site import ActiveReadSiteContext
+
+    _enable_specialist(monkeypatch)
+    time_left = [13.0]
+    actual_calls: list[dict] = []
+
+    def specialist(**kwargs):
+        actual_calls.append({
+            "session_id": kwargs["session_id"],
+            "candidate_id": kwargs["candidate_id"],
+            "remaining": kwargs["hard_seconds_left"](),
+        })
+        return _usable_specialist(url=kwargs["url"])
+
+    monkeypatch.setattr(
+        "src.web.research.crawl4ai_specialist.invoke_crawl4ai_specialist", specialist
+    )
+    site = ActiveReadSiteContext(hard_seconds_left=lambda: time_left[0])
+    first = _hint_context(JS_RENDER, session_id="session-one")
+    second = _hint_context(JS_RENDER, session_id="session-two")
+    assert site.try_specialist(first, _site_candidate("a", "https://a.test"), 1000)
+    time_left[0] = 4.0
+    assert site.try_specialist(second, _site_candidate("b", "https://b.test"), 2000)
+    assert actual_calls == [
+        {"session_id": "session-one", "candidate_id": "a", "remaining": 13.0},
+        {"session_id": "session-two", "candidate_id": "b", "remaining": 4.0},
+    ]
+    assert len(first[ART.ACTIVE_RESEARCH_METRICS_KEY]["read_site_specialist"]) == 1
+    assert len(second[ART.ACTIVE_RESEARCH_METRICS_KEY]["read_site_specialist"]) == 1
+    assert first[ART.ACTIVE_RESEARCH_METRICS_KEY]["read_site_specialist"][0][
+        "specialist_usable"
+    ] is True
+
+
+def test_read_site_context_failed_specialist_keeps_default_fallback(monkeypatch) -> None:
+    from src.application.research_runtime_read_site import ActiveReadSiteContext
+
+    _enable_specialist(monkeypatch)
+    monkeypatch.setattr(
+        "src.web.research.crawl4ai_specialist.invoke_crawl4ai_specialist",
+        _unusable_specialist,
+    )
+    context = _hint_context(JS_RENDER)
+    site = ActiveReadSiteContext(hard_seconds_left=lambda: 3.0)
+    assert site.try_specialist(
+        context, _site_candidate("a", "https://example.com/a"), 2000
+    ) is None
+    record = context[ART.ACTIVE_RESEARCH_METRICS_KEY]["read_site_specialist"][0]
+    assert record["specialist_attempted"] is True
+    assert record["specialist_unavailable_reason"] == "worker_crash"
+    assert record["fallback_used"] is True
 
 
 def test_usable_specialist_short_circuits_default_chain(monkeypatch, tmp_path) -> None:

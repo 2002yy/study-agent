@@ -177,3 +177,11 @@
 3. 预算拒绝前不能更新游标；开始阶段检查点抛异常时，内存中的 inflight 不得丢失；完成阶段在取消检查抛异常时，已追加的内存 audit 不得被回退。游标被恢复/其他操作重绑定后必须读取最新值。
 
 新增直接负控依次验证以上五种情况。真实 `reserve_call` 在 `model_gateway.py` 的原位置不动；本批不声称解决跨进程预算或真实模型回答质量问题。依赖前面的模型政策与故障投影片按序验收后才可并入主线。
+
+### 2026-11-18：#398 收口与读取站点专家上下文
+
+[#398](https://github.com/2002yy/study-agent/pull/398) 原 HEAD `25ae27cdb05e3b2f5d334e65a8a2b06594473137` 对应 CI `44135910377` 成功；审阅无线程阻断，按预期 HEAD 合并 `b4ae42918e2494db9e858d28c8944fff6e5a3fee`。拉取 `main` 后 tree `69154167ec64d92a8a6255c78448d623e525955f` 与原验收树一致。#399、#400 的 CI 在此轮首次回看仍在运行，继续保留草稿并禁止越级合并。
+
+下一小片读取站点的 `read_site_hint_route`、`specialist_chain_run`、`record_read_site_specialist` 与 `execute()` 内唯一专家调用闭包，归入 `research_runtime_read_site.py`：`ActiveReadSiteContext` 只持有当前研究窗口的剩余硬预算**回调**，每次 `try_specialist(context, candidate, source_limit)` 均接收当前可被 checkpoint/steering 回填的上下文，绝不缓存旧映射。默认读取链仍是唯一兜底执行权威；只有显式提示且专家返回可用正文时才短路；无提示不访问预算时钟、不写多余专家诊断，失败或未满足提示仍回落原链。`active_research_runtime.py` 保留旧路由/记录/链标准化导出，避免已有测试和外部调用破坏。
+
+此片不迁移检索调度、真实读取尝试或恢复/费用账本；已有端到端 selector 测试继续覆盖真实默认链，新增直接负控仅检查**无提示不调用**、跨上下文/候选与时间变化、不可用专家回退及记录形状。待本地定向测试和精确 PR HEAD CI 取得结果后再记录最终门禁，不把静态验收当真实浏览器、模型或检索产品质量验证。
