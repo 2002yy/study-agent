@@ -247,8 +247,6 @@ from src.application.research_stop_gate import (
 from src.application.research_runtime_checkpoint import (
     ActiveResearchResultBuffers,
     ActiveRuntimeCheckpointContext,
-    _dedupe,
-    _eligible_items,
     updated_runtime_budget,
 )
 from src.application.research_runtime_model_policy import (
@@ -271,6 +269,7 @@ from src.application.research_runtime_read_site import (
     record_read_site_specialist as record_read_site_specialist,
     specialist_chain_run as specialist_chain_run,
 )
+from src.application.research_runtime_publication import ActiveResearchPublisher
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
 from src.application.active_research_evidence_projection import (
     _bounded_retrieval_policy as _bounded_retrieval_policy,
@@ -280,7 +279,6 @@ from src.application.active_research_evidence_projection import (
     _evidence_brief,
     _evidence_id_for_record,
     _evidence_snapshot,
-    _format_evidence_brief,
     _state_after_gate,
 )
 from src.application.research_runtime_read_observability import (
@@ -786,6 +784,12 @@ class ActiveResearchRuntimeExecutor:
             rejected_sources=rejected_sources,
             warnings=warnings,
         )
+        publisher = ActiveResearchPublisher(
+            repository=self.repository,
+            run_id=run_id,
+            operation_id=operation_id,
+            buffers=results,
+        )
         execution_started = self.monotonic()
         # Deep-2: the Deep tier owns its own budget window, so wall time since Deep admission
         # counts even across a crash. A non-Deep run has no envelope and is unchanged.
@@ -1162,21 +1166,7 @@ class ActiveResearchRuntimeExecutor:
                 phase="completed" if stop.decision == "success" else "unavailable",
             )
             checkpoint()
-            return self.repository.complete(
-                run_id,
-                operation_id=operation_id,
-                items=_eligible_items(results.selected_sources),
-                source_block=_format_evidence_brief(brief),
-                warnings=_dedupe(results.warnings),
-                research_context=context,
-                query_attempts=results.query_attempts,
-                selected_sources=results.selected_sources,
-                rejected_sources=results.rejected_sources,
-                provider_status=stop.provider_status,
-                stop_reason=stop.reason,
-                answer_confidence=stop.answer_confidence,
-                final_status=stop.final_status,
-            )
+            return publisher.complete(context=context, stop=stop, brief=brief)
 
         try:
             ensure_active()
@@ -3120,22 +3110,11 @@ class ActiveResearchRuntimeExecutor:
                     ),
                 )
             )
-            return self.repository.complete(
-                run_id,
-                operation_id=operation_id,
-                items=_eligible_items(selected_sources),
-                source_block=_format_evidence_brief(brief),
-                warnings=_dedupe(warnings),
-                research_context=context,
-                query_attempts=query_attempts,
-                selected_sources=selected_sources,
-                rejected_sources=rejected_sources,
-                provider_status=stop.provider_status,
-                stop_reason=stop.reason,
-                answer_confidence=(
-                    "partial" if state.evidence else "none"
-                ),
-                final_status=stop.final_status,
+            return publisher.complete(
+                context=context,
+                stop=stop,
+                brief=brief,
+                answer_confidence="partial" if state.evidence else "none",
             )
         except Exception as exc:
             latest = self._required(run_id)
@@ -3168,20 +3147,11 @@ class ActiveResearchRuntimeExecutor:
                 )
             )
             if state.evidence:
-                result = self.repository.complete(
-                    run_id,
-                    operation_id=operation_id,
-                    items=_eligible_items(selected_sources),
-                    source_block=_format_evidence_brief(
-                        _evidence_brief(state, None, selected_sources)
-                    ),
-                    warnings=_dedupe([*warnings, "active research became unavailable"]),
-                    research_context=context,
-                    query_attempts=query_attempts,
-                    selected_sources=selected_sources,
-                    rejected_sources=rejected_sources,
-                    provider_status=stop.provider_status,
-                    stop_reason=stop.reason,
+                result = publisher.complete(
+                    context=context,
+                    stop=stop,
+                    state_for_exception=state,
+                    extra_warning="active research became unavailable",
                     answer_confidence="partial",
                     final_status="partial",
                 )
