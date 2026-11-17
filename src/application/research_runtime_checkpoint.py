@@ -1,0 +1,144 @@
+"""Durable checkpoint boundary for one active research execution.
+
+The executor owns research decisions and the current mutable values. This
+context owns the *ordered* projection of those values to a repository
+checkpoint, without owning search, model calls or final publication.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, replace
+from typing import Any
+
+from src.domain.runtime_entities import WebLookupRun
+from src.repositories.web_lookup_repository import WebLookupRepository
+from src.web.research.contracts import ResearchState
+from src.web.research.runtime import ResearchRuntimeCursor, attach_runtime_cursor
+from src.web.research.state import attach_claim_engine_state
+from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
+
+
+def updated_runtime_budget(
+    state: ResearchState,
+    cursor: ResearchRuntimeCursor,
+    *,
+    elapsed_seconds: float,
+    reads_used: int | None = None,
+) -> ResearchState:
+    """One budget projection shared by read progress and durable checkpoints."""
+
+    return replace(
+        state,
+        budget=replace(
+            state.budget,
+            candidates_used=min(len(cursor.candidates), state.budget.max_candidates),
+            reads_used=(state.budget.reads_used if reads_used is None else reads_used),
+            elapsed_seconds=elapsed_seconds,
+        ),
+    )
+
+
+@dataclass
+class ActiveRuntimeCheckpointContext:
+    """Explicit snapshot and operation lease for a single checkpoint.
+
+    `prepare` must precede `persist`: visible stage, refreshed budget, both
+    serialized state layers, then the repository's concurrency-aware write.
+    The caller replaces its local context with the returned durable context.
+    """
+
+    repository: WebLookupRepository
+    run_id: str
+    operation_id: str
+    context: dict[str, Any]
+    state: ResearchState
+    cursor: ResearchRuntimeCursor
+    query_attempts: list[dict[str, Any]]
+    selected_sources: list[dict[str, Any]]
+    rejected_sources: list[dict[str, Any]]
+    warnings: list[str]
+    known_evidence_ids: Callable[[], tuple[str, ...]]
+
+    def prepare(self, *, stage: str | None, elapsed: Callable[[], float]) -> None:
+        if stage is not None:
+            current = self.repository.get(self.run_id)
+            if current is None:
+                raise ValueError(f"WebLookupRun not found: {self.run_id}")
+            if current.stage != stage:
+                self.repository.set_stage(
+                    self.run_id,
+                    stage=stage,
+                    operation_id=self.operation_id,
+                )
+        self.state = updated_runtime_budget(
+            self.state, self.cursor, elapsed_seconds=elapsed()
+        )
+        self.context = attach_runtime_cursor(self.context, self.cursor)
+        self.context = attach_claim_engine_state(
+            self.context,
+            self.state,
+            known_evidence_ids=self.known_evidence_ids(),
+        )
+        _update_metrics(self.context, self.state, self.cursor)
+
+    def persist(
+        self,
+        *,
+        diagnostics: dict[str, Any] | None,
+        elapsed_ms: Callable[[], float],
+    ) -> WebLookupRun:
+        started = elapsed_ms()
+        persisted = self.repository.checkpoint(
+            self.run_id,
+            operation_id=self.operation_id,
+            research_context=self.context,
+            query_attempts=self.query_attempts,
+            selected_sources=self.selected_sources,
+            rejected_sources=self.rejected_sources,
+            items=_eligible_items(self.selected_sources),
+            warnings=_dedupe(self.warnings),
+            provider_status="",
+            stop_reason="",
+            answer_confidence="",
+            diagnostics=diagnostics,
+        )
+        if isinstance(diagnostics, dict):
+            diagnostics["repo_call_ms"] = round(elapsed_ms() - started, 1)
+        return persisted
+
+
+def _eligible_items(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        dict(record.get("item") or {})
+        for record in records
+        if isinstance(record.get("extraction"), Mapping)
+        and record["extraction"].get("status") == "eligible"
+    ]
+
+
+def _update_metrics(
+    context: dict[str, Any],
+    state: ResearchState,
+    cursor: ResearchRuntimeCursor,
+) -> None:
+    context[ACTIVE_RESEARCH_METRICS_KEY] = {
+        **(
+            dict(context.get(ACTIVE_RESEARCH_METRICS_KEY) or {})
+            if isinstance(context.get(ACTIVE_RESEARCH_METRICS_KEY), Mapping)
+            else {}
+        ),
+        "candidate_count": len(cursor.candidates),
+        "read_count": sum(item.status == "success" for item in cursor.read_outcomes),
+        "cluster_count": len(state.source_clusters),
+        "open_critical_gap_count": sum(
+            gap.state in {"open", "searching"}
+            and any(claim.id == gap.claim_id and claim.priority == "critical" for claim in state.claims)
+            for gap in state.gaps
+        ),
+        "phase": cursor.phase,
+    }
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(str(value)[:500] for value in values if str(value).strip()))
