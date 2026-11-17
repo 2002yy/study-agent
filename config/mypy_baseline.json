@@ -45,9 +45,6 @@
     "src/web/repository_graph.py|attr-defined|\"ParsedImport\" has no attribute \"child\"": 2,
     "src/web/repository_graph.py|attr-defined|\"ParsedImport\" has no attribute \"parent\"": 1,
     "src/web/semantic_impact.py|arg-type|Argument 2 to \"_test_files\" of \"SemanticImpactIndex\" has incompatible type \"set[Sequence[str]]\"; expected \"set[str]\"": 1,
-    "src/web/structure_quality.py|assignment|Incompatible types in assignment (expression has type \"ImpactGoldenCase\", variable has type \"ResolutionGoldenCase\")": 1,
-    "src/web/structure_quality.py|attr-defined|\"ResolutionGoldenCase\" has no attribute \"expected_files\"": 1,
-    "src/web/structure_quality.py|attr-defined|\"ResolutionGoldenCase\" has no attribute \"expected_tests\"; maybe \"expected_status\"?": 1,
     "src/web/tree_sitter_backend/__init__.py|assignment|Incompatible types in assignment (expression has type \"JavaCollector\", variable has type \"PythonCollector\")": 1,
     "src/web/tree_sitter_backend/__init__.py|assignment|Incompatible types in assignment (expression has type \"JavaScriptCollector\", variable has type \"PythonCollector\")": 1
   }
