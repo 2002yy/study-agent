@@ -11,6 +11,7 @@ from src.web.research.contracts import EvidenceRequirement, ResearchBudget, Rese
 from src.web.research.gap_planner import GapSearchIntent
 from src.web.research.scheduler import (
     ReadSchedulingCancelled,
+    _restore_completed_read_targets,
     plan_read_wave,
 )
 
@@ -179,3 +180,22 @@ def test_scheduler_checks_cancellation_before_and_after_and_checkpoints() -> Non
             checkpoint=checkpoints.append,
         )
     assert checkpoints == []
+
+
+def test_reused_physical_read_requires_each_claims_own_eligibility() -> None:
+    existing = [{"candidate_id": "same", "claim_id": "a", "cluster_id": "old", "source_role": "primary"}]
+    restored = _restore_completed_read_targets(
+        existing,
+        completed_read_ids={"same", "lead"},
+        rankings={
+            "a": (_ranked("same", 1, cluster="one"),),
+            "b": (
+                _ranked("same", 1, cluster="two"),
+                _ranked("lead", 2, eligibility="lead_only"),
+            ),
+        },
+    )
+    assert restored == existing + [
+        {"candidate_id": "same", "claim_id": "b", "cluster_id": "two", "source_role": "primary"}
+    ]
+    assert existing[0]["cluster_id"] == "old"
