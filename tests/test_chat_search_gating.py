@@ -326,11 +326,11 @@ def test_a_short_follow_up_without_a_research_lead_does_not_search(tmp_path):
 
 
 def test_saved_deep_memory_scope_does_not_request_deep_research(monkeypatch, tmp_path):
-    from src import api
+    from src.application import helpers
 
     path = tmp_path / "frontend-settings.yaml"
     path.write_text("context_mode: deep\n", encoding="utf-8")
-    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", path)
+    monkeypatch.setattr(helpers, "FRONTEND_SETTINGS_PATH_DEFAULT", path)
     for policy in (False, True):
         directory = tmp_path / str(policy)
         harness = _policy_service(directory) if policy else _base_service(directory)

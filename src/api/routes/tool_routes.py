@@ -95,9 +95,9 @@ def get_workflow_run(run_id: str) -> WorkflowRunResponse:
 
 
 def _workflow_store():
-    from src.workflows.store import WorkflowStore
-    from src import api as _api
-    return WorkflowStore(_api.WORKFLOW_DIR)
+    from src.workflows import store
+
+    return store.WorkflowStore(store.DEFAULT_WORKFLOW_DIR)
 
 
 def _workflow_summary(run: dict):

@@ -25,9 +25,9 @@ from src.tools.web_agent import WebToolTrace
 
 @pytest.fixture
 def setup_service(monkeypatch, tmp_path):
-    from src import api
+    from src.application import helpers
 
-    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", tmp_path / "frontend.yaml")
+    monkeypatch.setattr(helpers, "FRONTEND_SETTINGS_PATH_DEFAULT", tmp_path / "frontend.yaml")
     for key in (
         "STUDY_AGENT_SETTLEMENT_ADMISSION",
         "LLM_SPEND_CAP_CNY",

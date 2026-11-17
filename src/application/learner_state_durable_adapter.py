@@ -15,8 +15,8 @@ The final rulings were
 so only the objective is genuinely adjudicated into the effective runtime state. The other
 four are handled by their own owners and are deliberately **not** emitted here:
 
-* G2 / G3 / G4 -> independent comparators (``run_next_step_parity_probe``,
-  ``run_misconception_parity_probe``) and the durable lifecycle services.
+* G2 / G3 / G4 -> separate durable lifecycle services; the historical parity
+  comparison scripts are retired rather than maintained as runtime adapters.
 * G5 freshness  -> the durable projection.
 
 Emitting them as ``legacy_fallback`` from here produced telemetry that contradicted the

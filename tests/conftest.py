@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from src import api as api_module
 from src.api import app
 from src.application.chat_service import ChatDependencies, ChatService
 from src.application.group_chat_service import GroupChatService, GroupDependencies
@@ -42,6 +41,7 @@ from src.router import route_request
 from src.tools.registry import create_default_tool_registry
 from src.tools.web_agent import WebToolTrace
 from src.workflows.store import WorkflowStore
+from src.workflows import store as workflow_store_module
 
 
 class FakeRagResult:
@@ -202,7 +202,7 @@ def runtime_test_context(tmp_path, monkeypatch):
     tool_service = ToolService(
         tool_repository,
         create_default_tool_registry(),
-        workflow_store_factory=lambda: WorkflowStore(api_module.WORKFLOW_DIR),
+        workflow_store_factory=lambda: WorkflowStore(workflow_store_module.DEFAULT_WORKFLOW_DIR),
     )
     web_lookup_repository = WebLookupRepository(RuntimeDatabase(api_root / "runtime.db"))
     web_lookup_service = WebLookupService(web_lookup_repository)
