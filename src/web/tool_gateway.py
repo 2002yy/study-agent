@@ -26,6 +26,7 @@ from src.news.search_sources.searxng_source import (
     search_searxng,
     searxng_enabled,
 )
+from src.web.deepseek_web_tools import fetch_deepseek, search_deepseek
 from src.web.github_reader import GitHubSourceReader
 from src.web.github_snapshot import GitHubRepositorySnapshotter
 from src.web.query_normalizer import normalize_web_query
@@ -253,7 +254,14 @@ def _merge_site_results(
     return merged[:limit]
 
 
-SEARCH_STRATEGIES = ("fallback", "merge", "ddg_first", "browser_first", "browse_sites")
+SEARCH_STRATEGIES = (
+    "fallback",
+    "merge",
+    "ddg_first",
+    "browser_first",
+    "browse_sites",
+    "deepseek_first",
+)
 _DEFAULT_SEARCH_STRATEGY = "fallback"
 _MERGE_TRACE_KEYS = (
     "search_strategy",
@@ -552,7 +560,7 @@ class GeneralWebGateway:
     def _start_browser_lane(self, query: str, limit: int) -> _BrowserLane | None:
         """Start the browser channel alongside the fast one, when shape says so."""
 
-        if self.search_strategy in {"browse_sites", "browser_first"}:
+        if self.search_strategy in {"browse_sites", "browser_first", "deepseek_first"}:
             return None
         if not _dual_channel_enabled() or route_search(query) != DUAL:
             return None
@@ -789,11 +797,25 @@ class GeneralWebGateway:
             "browse_sites": ("browse_sites", "searxng", "bing_rss", "duckduckgo_html"),
             "ddg_first": ("duckduckgo_html", "bing_rss"),
             "merge": ("bing_rss", "duckduckgo_html"),
+            "deepseek_first": ("deepseek", "searxng", "bing_rss", "duckduckgo_html"),
         }[self.search_strategy]
+        # No change to existing routing/diagnostics until explicitly enabled.
+        # The independent index is tried after SearXNG on regular fallback,
+        # or first when selected for a later controlled comparison.
+        if _env_flag("WEB_DEEPSEEK_SEARCH_ENABLED") and self.search_strategy in {
+            "fallback",
+            "browser_first",
+            "browse_sites",
+        }:
+            index = plan.index("searxng") + 1
+            plan = (*plan[:index], "deepseek", *plan[index:])
         providers = {
             "browse": (True, self._search_browse),
             "browse_sites": (True, self._search_browse_sites),
             "searxng": (searxng_enabled(), self._search_searxng),
+            "deepseek": (
+                _env_flag("WEB_DEEPSEEK_SEARCH_ENABLED"), self._search_deepseek
+            ),
             "bing_rss": (_env_flag("WEB_ENABLE_BING_RSS", True), self._search_bing_rss),
             "duckduckgo_html": (
                 _env_flag("WEB_ENABLE_DUCKDUCKGO", True),
@@ -988,6 +1010,12 @@ class GeneralWebGateway:
         return unique, "" if unique else "browse:no_results"
 
     @staticmethod
+    def _search_deepseek(
+        query: str, limit: int, timeout: float
+    ) -> tuple[list[dict[str, str]], str]:
+        return search_deepseek(query, limit, timeout)
+
+    @staticmethod
     def _search_searxng(
         query: str, limit: int, timeout: float
     ) -> tuple[list[dict[str, str]], str]:
@@ -1081,6 +1109,33 @@ class GeneralWebGateway:
             max_chars=max(500, min(max_chars, 20_000)),
         )
         if not result.ok:
+            # Independent paid Fetch is a last-resort, explicitly enabled
+            # fallback; never override an explicit safety refusal from the
+            # regular reader by forwarding that URL to an outside vendor.
+            # Its DNS/redirect checks are stronger than Fetch's lexical URL
+            # preflight, so a denied internal hostname must remain denied.
+            refusal = str(result.reason or "").lower()
+            security_refused = (
+                refusal in {"unsafe_or_empty_url", "unsafe_redirect_target"}
+                or refusal.startswith("security_refused:")
+            )
+            if (
+                not security_refused
+                and _env_flag("WEB_DEEPSEEK_FETCH_ENABLED")
+                and remaining() >= 0.5
+            ):
+                fetched, _error = fetch_deepseek(
+                    value, max_chars=max_chars, timeout=remaining()
+                )
+                if fetched is not None:
+                    return {
+                        "ok": True,
+                        "kind": "web_page",
+                        "url": value,
+                        "method": "deepseek_fetch",
+                        "content": fetched["content"],
+                        "title": fetched["title"],
+                    }
             return {
                 "ok": False,
                 "url": result.requested_url,
