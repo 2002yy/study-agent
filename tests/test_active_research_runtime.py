@@ -2383,6 +2383,75 @@ def test_extraction_attempt_exhaustion_crash_is_claim_local(tmp_path: Any) -> No
     # Assertion 6: terminal stop_reason != active_runtime_unavailable。
     assert resumed.status in {"completed", "partial"}
     assert resumed.stop_reason != "active_runtime_unavailable"
+def _cluster_coverage_fixture(
+    tmp_path: Any,
+    *,
+    sqlite_file: str,
+    run_id: str,
+    claim_specs: tuple[tuple[str, str, str], ...],
+) -> tuple[_TrackingRepository, WebLookupRun]:
+    """The same research envelope for both cumulative-cluster regressions."""
+
+    question = ResearchQuestion(id="question_1", question_surface="Compare releases")
+    requirement = EvidenceRequirement(
+        source_roles=("primary", "independent_secondary"),
+        min_independent_sources=2,
+        requires_primary_source=True,
+    )
+    claims = tuple(
+        ResearchClaim(
+            id=claim_id, question_id=question.id, text=text,
+            kind="factual", priority="major", state="searching",
+            evidence_requirement=requirement,
+        )
+        for claim_id, _gap_id, text in claim_specs
+    )
+    gaps = tuple(
+        EvidenceGap(
+            id=gap_id, claim_id=claim_id, gap_type="missing_evidence",
+            desired_source_role="primary", priority="major", state="open",
+        )
+        for claim_id, gap_id, _text in claim_specs
+    )
+    state = build_research_state(
+        mode="active", questions=(question,), claims=claims,
+        evidence=(), evidence_links=(), source_clusters=(), gaps=gaps,
+        conflict_gaps=(),
+        budget=ResearchBudget(
+            max_candidates=20, max_reads=8, soft_timeout_seconds=45,
+            hard_timeout_seconds=60, max_total_chars=16000,
+        ),
+        reference_date="2026-08-28", known_evidence_ids=(),
+    )
+    context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / sqlite_file))
+    run = repository.create(
+        WebLookupRun(
+            id=run_id, query="Alpha framework current release",
+            stage="planned", status="pending", research_context=context, max_items=5,
+        )
+    )
+    return repository, run
+
+
+def _cluster_search_results(urls: list[str]) -> dict[str, Any]:
+    """Identical source metadata for both cluster-scheduler scenarios."""
+    return {
+        "status": "ok", "reason": "results_found",
+        "results": [
+            {
+                "title": f"Result {index}", "url": url,
+                "snippet": "Verified release announcement",
+                "published_at": "2026-08-01", "provider": "searxng",
+            }
+            for index, url in enumerate(urls)
+        ],
+        "providers_attempted": ["searxng"],
+        "provider_errors": [], "provider_audits": [], "provider_outcomes": [],
+        "searched_at": "2026-08-27T00:00:00+00:00",
+    }
+
+
 def test_covered_clusters_are_cumulative_across_waves(
     tmp_path: Any,
 ) -> None:
@@ -2397,61 +2466,11 @@ def test_covered_clusters_are_cumulative_across_waves(
     import src.application.active_research_runtime as art_mod
     from src.web.research.gap_planner import GapSearchIntent
 
-    question = ResearchQuestion(id="question_1", question_surface="Compare releases")
-    requirement = EvidenceRequirement(
-        source_roles=("primary", "independent_secondary"),
-        min_independent_sources=2,
-        requires_primary_source=True,
-    )
-    claim = ResearchClaim(
-        id="claim_major",
-        question_id=question.id,
-        text="Alpha framework current release",
-        kind="factual",
-        priority="major",
-        state="searching",
-        evidence_requirement=requirement,
-    )
-    gap = EvidenceGap(
-        id="gap_major",
-        claim_id=claim.id,
-        gap_type="missing_evidence",
-        desired_source_role="primary",
-        priority="major",
-        state="open",
-    )
-    state = build_research_state(
-        mode="active",
-        questions=(question,),
-        claims=(claim,),
-        evidence=(),
-        evidence_links=(),
-        source_clusters=(),
-        gaps=(gap,),
-        conflict_gaps=(),
-        budget=ResearchBudget(
-            max_candidates=20,
-            max_reads=8,
-            soft_timeout_seconds=45,
-            hard_timeout_seconds=60,
-            max_total_chars=16000,
-        ),
-        reference_date="2026-08-28",
-        known_evidence_ids=(),
-    )
-    context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
-    repository = _TrackingRepository(
-        RuntimeDatabase(tmp_path / "active-cluster-cumulative.sqlite")
-    )
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_cluster_cumulative",
-            query="Alpha framework current release",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
+    repository, run = _cluster_coverage_fixture(
+        tmp_path,
+        sqlite_file="active-cluster-cumulative.sqlite",
+        run_id="run_active_cluster_cumulative",
+        claim_specs=(("claim_major", "gap_major", "Alpha framework current release"),),
     )
 
     class _WaveClusterSearchBackend:
@@ -2477,25 +2496,7 @@ def test_covered_clusters_are_cumulative_across_waves(
                 ]
             else:
                 urls = []
-            return {
-                "status": "ok",
-                "reason": "results_found",
-                "results": [
-                    {
-                        "title": f"Result {index}",
-                        "url": url,
-                        "snippet": "Verified release announcement",
-                        "published_at": "2026-08-01",
-                        "provider": "searxng",
-                    }
-                    for index, url in enumerate(urls)
-                ],
-                "providers_attempted": ["searxng"],
-                "provider_errors": [],
-                "provider_audits": [],
-                "provider_outcomes": [],
-                "searched_at": "2026-08-27T00:00:00+00:00",
-            }
+            return _cluster_search_results(urls)
 
     def _novel_wave_query(
         cursor: ResearchRuntimeCursor,
@@ -2629,78 +2630,14 @@ def test_covered_clusters_preserved_for_shared_read_claims(
     import src.application.active_research_runtime as art_mod
     from src.web.research.gap_planner import GapSearchIntent
 
-    question = ResearchQuestion(id="question_1", question_surface="Compare releases")
-    requirement = EvidenceRequirement(
-        source_roles=("primary", "independent_secondary"),
-        min_independent_sources=2,
-        requires_primary_source=True,
-    )
-    claim_a = ResearchClaim(
-        id="claim_a",
-        question_id=question.id,
-        text="Alpha framework current release",
-        kind="factual",
-        priority="major",
-        state="searching",
-        evidence_requirement=requirement,
-    )
-    claim_b = ResearchClaim(
-        id="claim_b",
-        question_id=question.id,
-        text="Alpha framework release announcement",
-        kind="factual",
-        priority="major",
-        state="searching",
-        evidence_requirement=requirement,
-    )
-    gap_a = EvidenceGap(
-        id="gap_a",
-        claim_id=claim_a.id,
-        gap_type="missing_evidence",
-        desired_source_role="primary",
-        priority="major",
-        state="open",
-    )
-    gap_b = EvidenceGap(
-        id="gap_b",
-        claim_id=claim_b.id,
-        gap_type="missing_evidence",
-        desired_source_role="primary",
-        priority="major",
-        state="open",
-    )
-    state = build_research_state(
-        mode="active",
-        questions=(question,),
-        claims=(claim_a, claim_b),
-        evidence=(),
-        evidence_links=(),
-        source_clusters=(),
-        gaps=(gap_a, gap_b),
-        conflict_gaps=(),
-        budget=ResearchBudget(
-            max_candidates=20,
-            max_reads=8,
-            soft_timeout_seconds=45,
-            hard_timeout_seconds=60,
-            max_total_chars=16000,
+    repository, run = _cluster_coverage_fixture(
+        tmp_path,
+        sqlite_file="active-shared-coverage.sqlite",
+        run_id="run_active_shared_coverage",
+        claim_specs=(
+            ("claim_a", "gap_a", "Alpha framework current release"),
+            ("claim_b", "gap_b", "Alpha framework release announcement"),
         ),
-        reference_date="2026-08-28",
-        known_evidence_ids=(),
-    )
-    context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
-    repository = _TrackingRepository(
-        RuntimeDatabase(tmp_path / "active-shared-coverage.sqlite")
-    )
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_shared_coverage",
-            query="Alpha framework current release",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
     )
 
     class _SharedCoverageSearchBackend:
@@ -2717,25 +2654,7 @@ def test_covered_clusters_preserved_for_shared_read_claims(
                 urls = ["https://shared.example/q", "https://fresh.example/r"]
             else:
                 urls = []
-            return {
-                "status": "ok",
-                "reason": "results_found",
-                "results": [
-                    {
-                        "title": f"Result {index}",
-                        "url": url,
-                        "snippet": "Verified release announcement",
-                        "published_at": "2026-08-01",
-                        "provider": "searxng",
-                    }
-                    for index, url in enumerate(urls)
-                ],
-                "providers_attempted": ["searxng"],
-                "provider_errors": [],
-                "provider_audits": [],
-                "provider_outcomes": [],
-                "searched_at": "2026-08-27T00:00:00+00:00",
-            }
+            return _cluster_search_results(urls)
 
     def _novel_wave_query(
         cursor: ResearchRuntimeCursor,
