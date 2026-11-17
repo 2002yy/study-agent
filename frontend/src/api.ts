@@ -14,7 +14,6 @@ import type {
   MemoryUpdate,
   NewsLookupResponse,
   WebLookupRunResponse,
-  NewsRunResponse,
   RagSettings,
   RagIndexResponse,
   RagQueryResponse,
@@ -526,78 +525,6 @@ export async function searchWechat(keyword: string, maxResults = 10, groupThread
       keyword,
       max_results: maxResults,
       group_thread_id: groupThreadId
-    })
-  });
-}
-
-export async function createNewsRun(
-  query: string,
-  requestOptions: { signal?: AbortSignal } = {}
-): Promise<NewsRunResponse> {
-  return requestJson<NewsRunResponse>("/news/runs", {
-    method: "POST",
-    signal: requestOptions.signal,
-    body: JSON.stringify({ query })
-  });
-}
-
-export async function searchNewsRun(
-  runId: string,
-  maxItems = 10,
-  requestOptions: { signal?: AbortSignal } = {}
-): Promise<NewsRunResponse> {
-  return requestJson<NewsRunResponse>(`/news/runs/${encodeURIComponent(runId)}/search`, {
-    method: "POST",
-    signal: requestOptions.signal,
-    body: JSON.stringify({ max_items: maxItems })
-  });
-}
-
-export async function getNewsRun(runId: string): Promise<NewsRunResponse> {
-  return requestJson<NewsRunResponse>(`/news/runs/${encodeURIComponent(runId)}`);
-}
-
-export async function enrichNewsRun(
-  runId: string,
-  maxArticles: number,
-  requestOptions: { signal?: AbortSignal } = {}
-): Promise<NewsRunResponse> {
-  return requestJson<NewsRunResponse>(`/news/runs/${encodeURIComponent(runId)}/enrich`, {
-    method: "POST",
-    signal: requestOptions.signal,
-    body: JSON.stringify({ max_articles: maxArticles })
-  });
-}
-
-export async function digestNewsRun(
-  runId: string,
-  chatSettings: ChatSettings,
-  requestOptions: { signal?: AbortSignal } = {}
-): Promise<NewsRunResponse> {
-  return requestJson<NewsRunResponse>(`/news/runs/${encodeURIComponent(runId)}/digest`, {
-    method: "POST",
-    signal: requestOptions.signal,
-    body: JSON.stringify({
-      selected_model: chatSettings.selectedModel,
-      performance_mode: null
-    })
-  });
-}
-
-export async function discussNewsRun(
-  runId: string,
-  groupThreadId: string | undefined,
-  chatSettings: ChatSettings,
-  requestOptions: { signal?: AbortSignal } = {}
-): Promise<NewsRunResponse> {
-  return requestJson<NewsRunResponse>(`/news/runs/${encodeURIComponent(runId)}/discuss`, {
-    method: "POST",
-    signal: requestOptions.signal,
-    body: JSON.stringify({
-      group_thread_id: groupThreadId,
-      selected_model: chatSettings.selectedModel,
-      relationship_mode: chatSettings.relationshipMode,
-      performance_mode: null
     })
   });
 }

@@ -706,29 +706,6 @@ export type ToolRunResponse = {
   updated_at: string;
 };
 
-export type NewsRunResponse = {
-  id: string;
-  query: string;
-  stage: "created" | "searched" | "enriched" | "enrich_skipped" | "digested" | "discussed";
-  status: "running" | "failed" | "completed";
-  safe_mode: boolean;
-  items: Array<Record<string, unknown>>;
-  digest: string;
-  source_block: string;
-  article_coverage: Record<string, unknown>;
-  discussion: string;
-  warnings: string[];
-  error: string;
-  group_thread_id?: string | null;
-  active_operation_id?: string | null;
-  active_operation_started_at?: string | null;
-  stage_started_at?: string | null;
-  completed_at?: string | null;
-  version: number;
-  created_at: string;
-  updated_at: string;
-};
-
 export type SessionNewResponse = {
   session_id: string;
   settings: Partial<RuntimeSettingsResponse["settings"]>;
