@@ -108,8 +108,6 @@ from src.web.research.gap_planner import (
 )
 from src.web.research.model_gateway import (
     MAX_RESEARCH_MODEL_ATTEMPTS as MAX_RESEARCH_MODEL_ATTEMPTS,
-    ResearchModelAttemptStart,
-    ResearchModelCallAudit,
     ResearchModelGateway,
 )
 from src.web.research.phase_budget import FINALIZATION_RESERVE_SECONDS
@@ -137,9 +135,7 @@ from src.web.research.runtime import (
     RuntimeReadOutcome,
     attach_runtime_cursor,
     begin_external_attempt,
-    begin_model_attempt,
     finish_external_attempt,
-    finish_model_attempt,
     load_runtime_cursor,
     recover_interrupted_external_attempt,
     recover_interrupted_model_attempt,
@@ -258,6 +254,9 @@ from src.application.research_runtime_checkpoint import (
 from src.application.research_runtime_model_policy import (
     ACTIVE_RESEARCH_POLICY_AUDITS_KEY,
     RuntimeModelPolicyContext,
+)
+from src.application.research_runtime_model_attempt_context import (
+    ActiveModelAttemptContext,
 )
 from src.application.research_runtime_failure_projection import (
     with_appended_runtime_failure,
@@ -1189,23 +1188,21 @@ class ActiveResearchRuntimeExecutor:
         def model_allowed(purpose: str, categories: tuple[str, ...]) -> bool:
             return model_policy.allowed(context, purpose, categories)
 
-        def on_model_started(marker: ResearchModelAttemptStart) -> None:
+        def set_model_cursor(value: ResearchRuntimeCursor) -> None:
             nonlocal cursor
-            ensure_active()
-            ensure_budget()
-            cursor = begin_model_attempt(cursor, marker)
-            checkpoint()
+            cursor = value
 
-        def on_model_finished(audit: ResearchModelCallAudit) -> None:
-            nonlocal cursor
-            # B5-H1 crash-consistency: keep the completed audit in memory only.
-            # The caller persists it together with the semantic result in the
-            # next checkpoint, so a crash before that checkpoint leaves the
-            # durable truth as an inflight call that recovery resolves through
-            # interrupted_unknown with a bounded new attempt instead of a
-            # completed call_id that can never re-enter inflight.
-            cursor = finish_model_attempt(cursor, audit)
-            ensure_active()
+        model_attempt_context = ActiveModelAttemptContext(
+            current_cursor=lambda: cursor,
+            set_cursor=set_model_cursor,
+            ensure_active=ensure_active,
+            ensure_budget=ensure_budget,
+            checkpoint=checkpoint,
+        )
+        on_model_started = model_attempt_context.started
+        # B5-H1: finish stays in memory until the caller checkpoints the
+        # semantic result. A crash first leaves durable inflight for recovery.
+        on_model_finished = model_attempt_context.finished
 
         def _append_failure(
             code: ResearchFailureCode,

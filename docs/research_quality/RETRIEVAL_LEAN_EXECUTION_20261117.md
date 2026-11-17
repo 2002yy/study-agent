@@ -165,3 +165,15 @@
 执行器原 `_append_failure` 同时捕获**可重绑定**的 `cursor`、`context` 来生成故障身份，再使用 `replace(cursor, failures=append_runtime_failure(...))`。新 `with_appended_runtime_failure(cursor, context, ...)` 将当前两项作为明确输入，返回替换后的新游标；调用点依旧只在原时序将返回值赋给 `cursor`，没有新增检查点、恢复、模型结算或发布操作。
 
 保留 `attempt_id or f"run-attempt:{context['run_attempt']}"` 原有**惰性**求值：显式 attempt_id 存在时不应访问缺失的 `run_attempt`；反之缺失时照旧抛 `KeyError` 而不改变输入游标。已有 `runtime_failure_id`/`runtime_failure_id_unattached`、`build_runtime_failure`、`append_runtime_failure` 三处身份与幂等去重权威保持原样。新增直测包括当前上下文跨恢复、同一尝试重复插入幂等、显式 attempt 短路及缺失上下文失败；不得因为纯函数迁移而更改历史故障 ID。
+
+### 模型调用前后回调的显式执行上下文（独立后一片）
+
+原 `on_model_started`/`on_model_finished` 两个闭包共享并重绑定 `cursor`，同时要求取消/硬预算准入、检查点在严格时机触发。`ActiveModelAttemptContext` 以注入的 `current_cursor`/`set_cursor` 接口取得**实时**游标；执行器仍拥有实际游标变量和 `checkpoint()` 实现。新对象不缓存游标，也不接管供应商请求或实际费用账本。
+
+时序原样冻结：
+
+1. 请求开始：`ensure_active` → `ensure_budget` → 读取当前游标 → `begin_model_attempt` → 更新内存游标 → **调用旧 checkpoint** → 网关后续才可 `reserve_call` 和发请求。
+2. 请求完成：读取当前游标 → `finish_model_attempt` → 更新内存游标 → `ensure_active`；**这里仍不 checkpoint**。成功解析的语义结果由原调用点负责下一次持久化。
+3. 预算拒绝前不能更新游标；开始阶段检查点抛异常时，内存中的 inflight 不得丢失；完成阶段在取消检查抛异常时，已追加的内存 audit 不得被回退。游标被恢复/其他操作重绑定后必须读取最新值。
+
+新增直接负控依次验证以上五种情况。真实 `reserve_call` 在 `model_gateway.py` 的原位置不动；本批不声称解决跨进程预算或真实模型回答质量问题。依赖前面的模型政策与故障投影片按序验收后才可并入主线。
