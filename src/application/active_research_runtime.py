@@ -135,18 +135,14 @@ from src.web.research.runtime import (
     RuntimePlannedQuery,
     RuntimeQueryOutcome,
     RuntimeReadOutcome,
-    append_runtime_failure,
     attach_runtime_cursor,
     begin_external_attempt,
     begin_model_attempt,
-    build_runtime_failure,
     finish_external_attempt,
     finish_model_attempt,
     load_runtime_cursor,
     recover_interrupted_external_attempt,
     recover_interrupted_model_attempt,
-    runtime_failure_id,
-    runtime_failure_id_unattached,
 )
 from src.web.research.scheduler import (
     ReadSchedulerPolicy,
@@ -262,6 +258,9 @@ from src.application.research_runtime_checkpoint import (
 from src.application.research_runtime_model_policy import (
     ACTIVE_RESEARCH_POLICY_AUDITS_KEY,
     RuntimeModelPolicyContext,
+)
+from src.application.research_runtime_failure_projection import (
+    with_appended_runtime_failure,
 )
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import schedule_active_research_read
@@ -1220,30 +1219,17 @@ class ActiveResearchRuntimeExecutor:
             attempt_id: str = "",
         ) -> None:
             nonlocal cursor
-            durable_attempt_id = attempt_id or f"run-attempt:{context['run_attempt']}"
-            failure_id = (
-                runtime_failure_id(logical_call_id=logical_call_id, code=code)
-                if logical_call_id
-                else runtime_failure_id_unattached(
-                    phase=phase,
-                    item_id=item_id,
-                    attempt_id=durable_attempt_id,
-                    code=code,
-                )
-            )
-            failure = build_runtime_failure(
-                failure_id=failure_id,
+            cursor = with_appended_runtime_failure(
+                cursor,
+                context,
                 code=code,
                 phase=phase,
+                logical_call_id=logical_call_id,
                 item_id=item_id,
                 detail=detail,
                 provider_code=provider_code,
                 exception_type=exception_type,
-                attempt_id=durable_attempt_id,
-            )
-            cursor = replace(
-                cursor,
-                failures=append_runtime_failure(cursor.failures, failure),
+                attempt_id=attempt_id,
             )
 
         def settle_completed_wave(
