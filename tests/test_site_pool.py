@@ -362,6 +362,56 @@ def test_browse_sites_merges_selected_sites_and_records_outcomes(monkeypatch):
     assert [item["new_results"] for item in result["site_outcomes"]] == [1, 1]
 
 
+def test_community_gap_opens_only_the_requested_verified_chinese_site(monkeypatch):
+    visited: list[str] = []
+
+    def at(url, limit, timeout, **kwargs):
+        visited.append(url)
+        return ([{"title": "Notion Obsidian 使用体验", "url": "https://www.v2ex.com/t/123456",
+                  "snippet": "真实用户讨论"}], "", {"status": "ok", "seconds": 1.2})
+
+    monkeypatch.setattr(browse_search, "search_browse_at", at)
+    gateway = GeneralWebGateway()
+    result = gateway.search_community_site(
+        "Notion Obsidian 长期笔记 site:v2ex.com", host="v2ex.com"
+    )
+
+    assert len(visited) == 1 and visited[0].startswith("https://www.v2ex.com/search")
+    assert result["status"] == "ok"
+    assert result["site_route"] == {"target": "v2ex"}
+    assert result["provider_outcomes"][0]["provider"] == "community_browser"
+    assert result["results"][0]["url"] == "https://www.v2ex.com/t/123456"
+
+
+def test_community_gap_rejects_unverified_or_mismatched_site_without_browser(monkeypatch):
+    def unexpected(*args, **kwargs):
+        raise AssertionError("browser_must_not_run")
+
+    monkeypatch.setattr(browse_search, "search_browse_at", unexpected)
+    gateway = GeneralWebGateway()
+    for query, host in [
+        ("notion site:zhihu.com", "zhihu.com"),
+        ("notion site:v2ex.com", "linux.do"),
+        ("notion site:unknown.example", "unknown.example"),
+    ]:
+        result = gateway.search_community_site(query, host=host)
+        assert result["status"] == "unavailable"
+        assert result["results"] == []
+
+
+def test_community_gap_distinguishes_login_wall_from_empty(monkeypatch):
+    def at(url, limit, timeout, **kwargs):
+        return [], "browse:login_required", {"status": "browse:login_required", "seconds": 0.5}
+
+    monkeypatch.setattr(browse_search, "search_browse_at", at)
+    result = GeneralWebGateway().search_community_site(
+        "Notion long term notes site:v2ex.com", host="v2ex.com"
+    )
+    assert result["status"] == "unavailable"
+    assert result["reason"] == "provider_error"
+    assert result["site_outcomes"][0]["status"] == "browse:login_required"
+
+
 def test_a_login_wall_on_one_site_does_not_stop_the_others(monkeypatch):
     def behavior(host):
         if host == "github.com":

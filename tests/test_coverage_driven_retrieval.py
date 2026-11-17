@@ -210,6 +210,91 @@ def test_a_missing_community_thread_is_searched_before_the_facet():
     assert any("site:reddit.com" in query for query in gateway.queries)
 
 
+def test_chinese_community_gap_uses_browser_and_only_read_body_becomes_evidence():
+    question = "Notion 和 Obsidian 对比，哪个更适合长期笔记？求真实使用体验"
+    plan = [
+        {"rq_id": "rq-notes", "query": "Notion Obsidian long term notes"},
+        {"rq_id": "rq-experience", "query": "Notion Obsidian real user experience"},
+    ]
+    questions = {"rq-notes": "long term notes", "rq-experience": "real user experience"}
+    thread_url = "https://www.v2ex.com/t/123456"
+
+    class CommunityGateway(ScriptedGateway):
+        def __init__(self):
+            super().__init__(
+                {"Notion Obsidian long term notes": [row("https://www.notion.so/product")]},
+                {"https://www.notion.so/product": "Notion long term notes; real user experience.",
+                 thread_url: "Notion Obsidian 长期笔记真实用户体验，迁移成本和离线功能。"},
+            )
+            self.browser_calls = []
+
+        def search_community_site(self, query, *, host, max_results):
+            self.browser_calls.append((query, host))
+            return {
+                "status": "ok", "reason": "results_found",
+                "results": [row(thread_url, "Notion Obsidian 长期笔记真实用户体验")],
+                "provider_outcomes": [{"provider": "community_browser", "status": "ok"}],
+            }
+
+    gateway = CommunityGateway()
+    calls = recover_public_research(
+        gateway, question, query_plan=plan, semantic_session=session_for(questions)
+    )
+    summary = recovery_summary(calls)
+
+    assert summary["gap_steps"][0]["reason"] == "missing_community_source"
+    assert gateway.browser_calls and gateway.browser_calls[0][1] == "v2ex.com"
+    assert thread_url in gateway.reads
+    assert any(call["arguments"]["url"] == thread_url for call in evidence_tool_calls(calls))
+    assert all(call["name"] != "web_read" or call["arguments"]["url"] in gateway.reads
+               for call in calls)
+
+
+def test_failed_community_browser_falls_back_to_original_search_with_diagnostics():
+    question = "Notion vs Obsidian long term notes recommendation"
+    plan = [
+        {"rq_id": "rq-notes", "query": "Notion Obsidian long term notes"},
+        {"rq_id": "rq-experience", "query": "Notion Obsidian real user experience"},
+    ]
+    questions = {"rq-notes": "long term notes", "rq-experience": "real user experience"}
+    thread_url = "https://www.reddit.com/r/Notion/comments/1/abc"
+
+    class BlockedGateway(ScriptedGateway):
+        def search_community_site(self, query, *, host, max_results):
+            return {
+                "status": "unavailable", "reason": "provider_error", "results": [],
+                "provider_outcomes": [{"provider": "community_browser", "status": "failed",
+                                       "reason": "login_required"}],
+                "site_outcomes": [{"site": "reddit", "status": "browse:login_required"}],
+            }
+
+    gateway = BlockedGateway(
+        {
+            "Notion Obsidian long term notes": [row("https://www.notion.so/product")],
+            "Notion vs Obsidian long term notes recommendation site:reddit.com": [row(thread_url)],
+        },
+        {
+            "https://www.notion.so/product": "Notion long term notes real user experience.",
+            thread_url: "Notion Obsidian real user experience comparing notes.",
+        },
+    )
+    calls = recover_public_research(
+        gateway, question, query_plan=plan, semantic_session=session_for(questions)
+    )
+    gap_search = next(
+        call for call in calls
+        if call["name"] == "web_search"
+        and call["arguments"].get("gap_reason") == "missing_community_source"
+    )
+    result = gap_search["result"]
+    assert result["status"] == "ok"
+    assert result["community_browser"] == {
+        "status": "unavailable", "reason": "provider_error", "host": "reddit.com"
+    }
+    assert result["provider_outcomes"][0]["status"] == "failed"
+    assert "Notion vs Obsidian long term notes recommendation site:reddit.com" in gateway.queries
+
+
 def test_an_irrelevant_homepage_does_not_count_as_facet_coverage():
     gateway = ScriptedGateway(
         {
