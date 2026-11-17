@@ -13,6 +13,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+### 2026-11-17 DeepSeek Search / Fetch 独立 API 预接入（默认关闭；待 PR）
+
+- 用户明确要求先通过 PR 接入、后续再测试启用。基于远端 `main@cf62add5` 新建独立工作树 `codex/deepseek-search-off-by-default-20261117`，不修改其他未合并切片。本条是候选实现，不代表已合并或动态质量验收。
+- 新独立 Search/Fetch HTTP 适配器（不调用语言模型），连接 `GeneralWebGateway`；常规 fallback 只在明确启用时将 DeepSeek 放在 SearXNG 后，另提供 `deepseek_first` 对照策略；原浏览器、社区站点池、证据白名单、默认路由不变。Fetch 只在正常网页读取失败且有剩余时间时作为可选兜底。
+- 双重默认关断：`WEB_DEEPSEEK_{SEARCH,FETCH}_ENABLED=false`，各 `_MAX_REQUESTS=0`；两者都须显式配置才发付费请求。请求上限仅进程内原子计数，不是持久跨 worker 支出权限，后续真实调用必须另行确认额度与授权。
+- 离线：11 项独立断言通过，涵盖不联网、并发计数封顶、请求映射、HTTP 402 安全错误、坏返回/正常空结果、私网及带授权参数 URL 拒绝、免费来源回退和网页读取开关；`compileall` / `git diff --check` 通过。无付费 API 调用；本环境没有 pytest/Ruff，完整影响集/CI 尚待执行。
+- 精确范围与后续真实三渠道对照见 `docs/research_quality/DEEPSEEK_WEB_TOOLS_INTEGRATION_20261117.md`。下一门：静态 PR 和 CI，待用户另行允许的定额真实覆盖实验后才考虑启用默认路由。
+
 ### 2026-11-17 社区证据缺口定向检索（独立候选；待 PR/CI）
 
 - 基于 `main@cf62add5`（#366 已合并）的独立工作树 `codex/research-gap-channel-20261117`；未占用或覆盖另一工作树的未提交内容。此前 #365 的快速/浏览器双通道仍独立受 `WEB_SEARCH_DUAL_CHANNEL` 控制，本片不更改它的默认值或返回顺序。
