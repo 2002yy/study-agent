@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import pytest
 
+from src.web.research.runtime import RuntimeReadOutcome
+from src.web.research.scheduler import attempted_read_backends
 from src.web.research.progressive_routing import (
     ACTION_BLOCK_RUN,
     ACTION_DEFER,
@@ -50,6 +52,26 @@ def _closed(backend: str, host: str) -> str:
 
 
 # --------------------------------------------------------------- the happy path
+
+
+def test_read_attempt_history_is_per_candidate_ordered_and_deduplicated() -> None:
+    outcomes = (
+        RuntimeReadOutcome(candidate_id="c2", status="failed", backend="native_http"),
+        RuntimeReadOutcome(candidate_id="c1", status="failed", backend="native_http"),
+        RuntimeReadOutcome(candidate_id="c1", status="failed", backend="native_http"),
+        RuntimeReadOutcome(candidate_id="c2", status="failed", backend="wigolo_browser"),
+        RuntimeReadOutcome(candidate_id="c1", status="success", backend="wigolo_http"),
+        RuntimeReadOutcome(candidate_id="c1", status="failed", backend=""),
+    )
+
+    attempted = attempted_read_backends(outcomes, "c1")
+    assert attempted == ("native_http", "wigolo_http")
+    assert attempted_read_backends(outcomes, "c2") == (
+        "native_http",
+        "wigolo_browser",
+    )
+    assert attempted_read_backends(outcomes, "unseen") == ()
+    assert schedulable_now(_sched(attempted_backends=attempted)).backend == "wigolo_browser"
 
 
 def test_scheduling_picks_the_first_eligible_backend() -> None:
