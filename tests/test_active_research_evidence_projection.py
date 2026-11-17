@@ -5,10 +5,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from src.application.active_research_evidence_projection import (
+    _bounded_retrieval_policy,
     _evidence_brief,
     _evidence_snapshot,
     _format_evidence_brief,
+    _source_record,
 )
+from src.web.research.candidate_pool import CandidatePoolItem
 
 
 def test_evidence_brief_without_gate_keeps_conditional_publication() -> None:
@@ -67,3 +70,33 @@ def test_evidence_projection_formats_open_claims_and_conflict_warning() -> None:
     assert "只能使用条件化措辞" in displayed
     assert displayed.endswith("Keep uncertainty.")
     assert not _evidence_snapshot("run-1", [], []).refs
+
+
+def test_source_record_preserves_bounded_provenance_and_legacy_export() -> None:
+    from src.application import active_research_runtime
+
+    assert active_research_runtime._source_record is _source_record
+    assert active_research_runtime._bounded_retrieval_policy is _bounded_retrieval_policy
+    candidate = CandidatePoolItem(
+        id="candidate-1", canonical_url="https://example.org/p",
+        url="https://example.org/p", title="Primary Source", snippet="",
+        source="searxng", published_at="2026-11-17", query_ids=(),
+        intents=(), providers=("searxng",), first_seen_rank=1,
+    )
+    record = _source_record(
+        candidate, {"claim_id": "claim-1", "cluster_id": "cluster-1", "source_role": "primary"},
+        raw_read={
+            "ok": True, "status": "read", "content": "x" * 6100,
+            "retrieval_policy": {"breaker_state": "closed", "failure_streak": 2},
+            "read_retry": {"attempts": 2, "retry_reasons": ["timeout"]},
+            "escalation": {"attempted": False, "state": "adequate"},
+        },
+        final_backend="native_http", retrieval_attempts=[{"backend": "native_http"}],
+    )
+    assert record["assessment"]["claim_id"] == "claim-1"
+    assert len(record["read"]["content"]) == 6000
+    assert record["retrieval_policy"]["failure_streak"] == 2
+    assert record["read_retry"]["attempts"] == 2
+    assert record["escalation"]["attempted"] is False
+    assert record["final_backend"] == "native_http"
+    assert record["retrieval_attempts"] == [{"backend": "native_http"}]
