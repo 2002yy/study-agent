@@ -79,6 +79,7 @@ def test_the_classifier_publishes_what_the_other_jobs_route_on():
         "research_browser_required",
         "impact_set",
         "full_scope",
+        "docs_only",
     ):
         assert outputs[key] == f"${{{{ steps.ci_scope.outputs.{key} }}}}"
 
@@ -88,6 +89,23 @@ def test_no_step_routes_on_the_event_type():
         for step in _steps(job_name):
             condition = str(step.get("if") or "")
             assert EVENT_TYPE_ROUTING not in condition, step.get("name") or step.get("id")
+
+
+def test_docs_only_skips_long_backend_steps_but_keeps_security_and_quality_gates():
+    jobs = _jobs()
+    backend = jobs["backend"]
+    assert jobs["classify"]["outputs"]["docs_only"] == (
+        "${{ steps.ci_scope.outputs.docs_only }}"
+    )
+    for step_id in ("pytest", "rag_quality", "mypy", "mypy_baseline"):
+        assert "docs_only != 'true'" in str(_by_id("backend", step_id)["if"])
+    for step_id in ("ruff", "packaging", "secrets"):
+        assert "docs_only" not in str(_by_id("backend", step_id).get("if") or "")
+    gate = str(backend["steps"][-1]["run"])
+    assert '"ruff,packaging,secrets"' in gate
+    assert "pytest|pytest_impact,rag_quality,ruff,packaging,secrets,mypy_baseline" in gate
+    assert "CI_DOCS_ONLY" in gate
+    assert "docs_only=false" in str(_by_id("classify", "ci_scope")["run"])
 
 
 def test_the_browser_job_follows_the_classifier_and_stays_separate_from_frontend():
