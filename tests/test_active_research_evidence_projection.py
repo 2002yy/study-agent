@@ -1,0 +1,69 @@
+"""Small, fixture-free checks for the extracted research evidence projections."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+from src.application.active_research_evidence_projection import (
+    _evidence_brief,
+    _evidence_snapshot,
+    _format_evidence_brief,
+)
+
+
+def test_evidence_brief_without_gate_keeps_conditional_publication() -> None:
+    state = SimpleNamespace(
+        evidence_links=(), evidence=(), claims=(SimpleNamespace(id="c1", priority="critical"),),
+        conflict_gaps=(), gaps=(SimpleNamespace(id="g1", state="open"),),
+        budget=SimpleNamespace(to_dict=lambda: {"reads_used": 0}),
+    )
+    brief = _evidence_brief(state, None, [])
+    assert brief["schema_version"] == "research-evidence-brief-v1"
+    assert brief["eligible_evidence"] == []
+    assert brief["conditional_wording_required"] is True
+    assert brief["open_critical_claim_ids"] == ["c1"]
+    assert brief["open_gap_ids"] == ["g1"]
+
+
+def test_evidence_brief_prefers_claim_specific_extraction_anchor() -> None:
+    link = SimpleNamespace(
+        evidence_id="e1", claim_id="c1", locator="old-anchor", anchored_spans=(),
+        relation="supports", strength=0.8, source_role="primary",
+        source_cluster_id="cluster-1", caveats=(),
+        to_dict=lambda: {"claim_id": "c1", "evidence_id": "e1"},
+    )
+    state = SimpleNamespace(
+        evidence_links=(link,),
+        evidence=(SimpleNamespace(evidence_id="e1", extraction_status="eligible",
+                                  anchored_spans=("old-span",), published_at="2026-11-17"),),
+        claims=(), conflict_gaps=(), gaps=(),
+        budget=SimpleNamespace(to_dict=lambda: {}),
+    )
+    record = {
+        "candidate_id": "a1", "item": {"title": "Paper", "url": "https://example.org/a"},
+        "extractions": {"c1": {"locator": "old-anchor", "anchored_spans": ["specific-span"]}},
+    }
+    brief = _evidence_brief(state, None, [record])
+    row = brief["eligible_evidence"][0]
+    assert row["title"] == "Paper"
+    assert row["anchored_spans"] == ["specific-span"]
+    assert brief["claim_links"] == [{"claim_id": "c1", "evidence_id": "e1"}]
+
+
+def test_evidence_projection_formats_open_claims_and_conflict_warning() -> None:
+    brief = {
+        "gate_status": "fail",
+        "eligible_evidence": [{"relation": "supports", "claim_id": "c1", "title": "Source",
+                                "source_cluster_id": "s1", "strength": 0.9,
+                                "locator": "p3", "url": "https://example.org/a"}],
+        "open_critical_claim_ids": ["c2"],
+        "unresolved_conflicts": [{"id": "conflict"}],
+        "conditional_wording_required": True,
+        "answer_instruction": "Keep uncertainty.",
+    }
+    displayed = _format_evidence_brief(brief)
+    assert "Source" in displayed and "c2" in displayed
+    assert "仍有未解决冲突" in displayed
+    assert "只能使用条件化措辞" in displayed
+    assert displayed.endswith("Keep uncertainty.")
+    assert not _evidence_snapshot("run-1", [], []).refs
