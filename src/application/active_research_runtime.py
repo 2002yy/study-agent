@@ -259,6 +259,7 @@ from src.application.research_runtime_checkpoint import (
     _eligible_items,
     updated_runtime_budget,
 )
+from src.application.research_runtime_model_policy import updated_model_policy_audits
 from src.application.active_research_evidence_projection import (
     _bounded_retrieval_policy as _bounded_retrieval_policy,
     _bounded_text,
@@ -1363,21 +1364,13 @@ class ActiveResearchRuntimeExecutor:
 
         def model_allowed(purpose: str, categories: tuple[str, ...]) -> bool:
             allowed = bool(self.policy_check(context, purpose))
-            audits = [
-                dict(item)
-                for item in context.get(ACTIVE_RESEARCH_POLICY_AUDITS_KEY, [])
-                if isinstance(item, Mapping)
-            ]
-            audits.append(
-                {
-                    "call_id": f"policy:{purpose}:{len(audits) + 1}",
-                    "purpose": purpose,
-                    "status": "allowed" if allowed else "blocked_by_policy",
-                    "data_categories": list(categories),
-                    "checked_at": self.utc_now(),
-                }
+            context[ACTIVE_RESEARCH_POLICY_AUDITS_KEY] = updated_model_policy_audits(
+                context.get(ACTIVE_RESEARCH_POLICY_AUDITS_KEY, []),
+                purpose=purpose,
+                categories=categories,
+                allowed=allowed,
+                checked_at=self.utc_now(),
             )
-            context[ACTIVE_RESEARCH_POLICY_AUDITS_KEY] = audits[-100:]
             return allowed
 
         def on_model_started(marker: ResearchModelAttemptStart) -> None:

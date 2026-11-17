@@ -90,3 +90,14 @@
 | `run_id / operation_id / elapsed` | 一次执行内固定的身份和单调时间基线 | 明确作为执行上下文输入，不重置崩溃计时 |
 
 读取调度先显式传入候选身份：旧 `schedule_read` 自由变量包含 `candidate_id`，新签名从实参接收，避免未来跨候选复用此闭包时误用上一轮循环值。接着将预调度和读取链两处相同的“每候选已尝试后端”逻辑统一为 `scheduler.attempted_read_backends(outcomes, candidate_id)`；从两处外围闭包读取 `cursor` 的重复计算，变为显式传入持久读取结果和候选身份的一个纯函数。保留遇到顺序去重、跳过空后端、跨候选隔离及读取阶段决策。新增隔离负控；此片不改读写账本、计费和发布。
+
+### 后续结构片收口与正在执行的边界
+
+| 结构片 | 状态、可复核静态证据 | 责任变化及非目标 |
+| --- | --- | --- |
+| [#390](https://github.com/2002yy/study-agent/pull/390) | 合并 `96ac38b654658c80e6da4445766b75c4610b5db3`，精确 HEAD CI `44086183784` 成功 | 读取候选身份显式化；不调整读取调度策略 |
+| [#391](https://github.com/2002yy/study-agent/pull/391) | HEAD `9f1a8c7f753d783a0acb9eba4159273796db3023` 的 CI `44089619882` 成功，合并 `6e7e6c53f2e8535233e9e69d9c462172b1716e96` | `RuntimePhaseTiming` 拥有阶段起始字典和计时账本，`end` 显式接收**当前**上下文，防止恢复/追加要求后旧引用写入；不修改超时判定 |
+| [#392](https://github.com/2002yy/study-agent/pull/392) | 旧 HEAD `025969de` 的 CI `44092795823` 后端失败、其余三项成功；诊断日志 404，已重基到 #393 主线，等待**新 HEAD** CI | `updated_model_policy_audits` 只负责原形状、顺序、100 条上限的纯投影；模型准入、网络调用与计费责任仍留原位置 |
+| [#393](https://github.com/2002yy/study-agent/pull/393) | HEAD `271010c377037dd3c09ea842cb2d7e26bc2eec61` 的 CI `44100349280` 五项成功，合并 `5bcfc8a0e0166936ab1223ee4a38c9e134a7b7fd` | `_record_read_timing` 与 `_record_backend_health` AST 主体原样迁出，旧入口仍可导入；不修改读调度和预算 |
+
+下一独立结构片把单次读取的尝试结果游标写入和诊断记录组合成 `ActiveReadAttemptContext`；代码与 32 处游标测试初始化去重已暂存在专用分支，待 #392 合并后从干净主线提交独立 PR。执行方法里的 `state`、`cursor`、`context` 仍属不同生命周期：**不能**为了减少一层闭包而将重绑定游标固化为旧对象，也不能越过请求前 inflight 持久化；这类高风险迁移须先补恢复负控再动。
