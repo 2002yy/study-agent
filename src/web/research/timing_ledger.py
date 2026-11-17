@@ -317,6 +317,45 @@ class TimingLedger:
         }
 
 
+@dataclass
+class RuntimePhaseTiming:
+    """Own mutable phase starts; account into the caller's current context.
+
+    The research context can be rebound after a durable checkpoint. Passing it
+    to ``end`` keeps metrics on the newest context rather than a stale snapshot.
+    This is observation only; phase spans never decide admission or deadlines.
+    """
+
+    ledger: TimingLedger
+    now: Callable[[], float]
+    started: dict[str, float] = field(default_factory=dict)
+
+    def begin(self, phase: str) -> None:
+        self.started[phase] = self.now()
+        self.ledger._phase_enter(phase)
+
+    def end(self, phase: str, *, context: dict[str, Any]) -> None:
+        self.ledger._phase_exit(phase)
+        started = self.started.pop(phase, None)
+        if started is None:
+            return
+        metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+        phases = metrics.get("phase_seconds")
+        if not isinstance(phases, dict):
+            phases = {}
+            metrics["phase_seconds"] = phases
+        entry = phases.get(phase)
+        if not isinstance(entry, dict):
+            entry = {"seconds": 0.0, "calls": 0}
+            phases[phase] = entry
+        entry["seconds"] = round(
+            float(entry.get("seconds") or 0.0)
+            + max(0.0, self.now() - started),
+            6,
+        )
+        entry["calls"] = int(entry.get("calls") or 0) + 1
+
+
 class TimedGateway:
     """Transparent gateway proxy that times model calls into the ledger."""
 
@@ -341,6 +380,7 @@ class TimedGateway:
 
 __all__ = [
     "MODEL_KINDS",
+    "RuntimePhaseTiming",
     "TimedGateway",
     "TimingLedger",
     "model_kind",

@@ -189,6 +189,7 @@ from src.web.research.read_escalation import (
 )
 from src.web.research.timing_ledger import (
     ACTIVE_RESEARCH_METRICS_KEY,
+    RuntimePhaseTiming,
     TimedGateway,
     TimingLedger,
     _checkpoint_now_ms as _checkpoint_now_ms,
@@ -1319,42 +1320,7 @@ class ActiveResearchRuntimeExecutor:
                 metrics["research_window_skips"] = skips
             skips[key] = int(skips.get(key) or 0) + 1
 
-        phase_started: dict[str, float] = {}
-
-        def phase_begin(phase: str) -> None:
-            """Start timing one research phase (telemetry only)."""
-
-            phase_started[phase] = self.monotonic()
-            timing_ledger._phase_enter(phase)
-
-        def phase_end(phase: str) -> None:
-            """Accumulate wall-clock seconds per research phase (telemetry only).
-
-            Paired performance attribution needs the research window split into
-            search / assessment / read / extraction / discovery, so a later batch
-            can price one action instead of guessing a constant. This never
-            changes control flow: it only adds to ``metrics.phase_seconds``.
-            """
-
-            timing_ledger._phase_exit(phase)
-            started = phase_started.pop(phase, None)
-            if started is None:
-                return
-            metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-            phases = metrics.get("phase_seconds")
-            if not isinstance(phases, dict):
-                phases = {}
-                metrics["phase_seconds"] = phases
-            entry = phases.get(phase)
-            if not isinstance(entry, dict):
-                entry = {"seconds": 0.0, "calls": 0}
-                phases[phase] = entry
-            entry["seconds"] = round(
-                float(entry.get("seconds") or 0.0)
-                + max(0.0, self.monotonic() - started),
-                6,
-            )
-            entry["calls"] = int(entry.get("calls") or 0) + 1
+        phase_timing = RuntimePhaseTiming(ledger=timing_ledger, now=self.monotonic)
 
         # §143-B0.1: read semantics come from the shared production primitive,
         # so execute() and the narrow measurement entry cannot drift apart.
@@ -1365,8 +1331,8 @@ class ActiveResearchRuntimeExecutor:
             research_seconds_left=research_seconds_left,
             hard_seconds_left=lambda: state.budget.hard_timeout_seconds - elapsed(),
             wave_index=lambda: int(cursor.wave_index),
-            on_phase_start=phase_begin,
-            on_phase_end=phase_end,
+            on_phase_start=phase_timing.begin,
+            on_phase_end=lambda phase: phase_timing.end(phase, context=context),
             on_retry=lambda *, wait_ms, fetch_ms: timing_ledger.record_retry(
                 wait_ms=wait_ms, fetch_ms=fetch_ms
             ),
@@ -1858,7 +1824,7 @@ class ActiveResearchRuntimeExecutor:
                             remaining - RESEARCH_WINDOW_RESERVE_SECONDS,
                         )
                         try:
-                            phase_begin("search")
+                            phase_timing.begin("search")
                             payload = self.gateway.search_detailed(
                                 query,
                                 max_items=max_results,
@@ -1892,7 +1858,7 @@ class ActiveResearchRuntimeExecutor:
                             )
                             return payload
                         finally:
-                            phase_end("search")
+                            phase_timing.end("search", context=context)
 
                     one_query = _gap_query_batch(planned)
                     try:
@@ -2061,7 +2027,7 @@ class ActiveResearchRuntimeExecutor:
                         )
                         checkpoint()
                         continue
-                    phase_begin("assessment")
+                    phase_timing.begin("assessment")
                     try:
                         assessed = self.candidate_assessor.assess(
                             run_id=run_id,
@@ -2078,7 +2044,7 @@ class ActiveResearchRuntimeExecutor:
                             attempt_start=assessment_attempt_start,
                         )
                     finally:
-                        phase_end("assessment")
+                        phase_timing.end("assessment", context=context)
                     ensure_active()
                     if assessed.status != "completed" or not assessed.assessments:
                         assessment_reason = (
@@ -2129,7 +2095,7 @@ class ActiveResearchRuntimeExecutor:
                         TIER2_PROPOSED_CLAIMS_KEY, []
                     )
                     if isinstance(proposed_claim_ids, list):
-                        phase_begin("tier2_proposal")
+                        phase_timing.begin("tier2_proposal")
                         cursor = _tier2_proposal_step(
                             cursor=cursor,
                             state=state,
@@ -2143,14 +2109,14 @@ class ActiveResearchRuntimeExecutor:
                             timeout_seconds=remaining_timeout(),
                             proposed_claim_ids=proposed_claim_ids,
                         )
-                        phase_end("tier2_proposal")
+                        phase_timing.end("tier2_proposal", context=context)
                     # §63 Tier-1.5 (default off): official-domain site search
                     # as a second, deterministic discovery channel.
                     targeted_claim_ids = context.setdefault(
                         DOMAIN_TARGETED_CLAIMS_KEY, []
                     )
                     if isinstance(targeted_claim_ids, list):
-                        phase_begin("domain_targeted")
+                        phase_timing.begin("domain_targeted")
                         cursor = _domain_targeted_step(
                             cursor=cursor,
                             state=state,
@@ -2167,12 +2133,12 @@ class ActiveResearchRuntimeExecutor:
                             seconds_left=research_seconds_left,
                             now_ms=elapsed_ms,
                         )
-                        phase_end("domain_targeted")
+                        phase_timing.end("domain_targeted", context=context)
                     # §69/B1-T5 R1': discovery channels can only admit after
                     # this wave's window was frozen; give those late candidates
                     # their own bounded assessment entry so the read plan can
                     # actually see them.
-                    phase_begin("late_tail")
+                    phase_timing.begin("late_tail")
                     cursor = _late_admission_tail(
                         cursor=cursor,
                         state=state,
@@ -2185,8 +2151,8 @@ class ActiveResearchRuntimeExecutor:
                         model_allowed=model_allowed,
                         on_model_started=on_model_started,
                         on_model_finished=on_model_finished,
-                        phase_begin=phase_begin,
-                        phase_end=phase_end,
+                        phase_begin=phase_timing.begin,
+                        phase_end=lambda phase: phase_timing.end(phase, context=context),
                         remaining_timeout=remaining_timeout,
                         research_seconds_left=research_seconds_left,
                         trace=selection_trace,
@@ -2200,12 +2166,12 @@ class ActiveResearchRuntimeExecutor:
                         ),
                         live_context=lambda: context,
                     )
-                    phase_end("late_tail")
+                    phase_timing.end("late_tail", context=context)
                     checkpoint()
 
                 cursor = replace(cursor, phase="ranking")
                 # F2-S1: the ranking/planning block gets its own span
-                phase_begin("ranking")
+                phase_timing.begin("ranking")
                 checkpoint(stage="assessing")
 
                 # P1-C batch 2: the read plan is recomputed at the start of every
@@ -2290,7 +2256,7 @@ class ActiveResearchRuntimeExecutor:
                     )
                     for claim_id, ranked in claim_rankings.items()
                 }
-                phase_end("ranking")
+                phase_timing.end("ranking", context=context)
                 physical_reads, extraction_targets = _fair_read_plan(
                     state,
                     rankings_for_plan,
@@ -2872,7 +2838,7 @@ class ActiveResearchRuntimeExecutor:
                         _bump_lead_metric(context, "policy_blocked")
                         checkpoint()
                         continue
-                    phase_begin("discovery")
+                    phase_timing.begin("discovery")
                     try:
                         discovery = self.lead_discoverer.discover(
                             run_id=run_id,
@@ -2883,7 +2849,7 @@ class ActiveResearchRuntimeExecutor:
                             on_attempt_finished=on_model_finished,
                         )
                     finally:
-                        phase_end("discovery")
+                        phase_timing.end("discovery", context=context)
                     ensure_active()
                     if (
                         discovery.status == "completed"
@@ -3037,7 +3003,7 @@ class ActiveResearchRuntimeExecutor:
                         )
                         checkpoint()
                         continue
-                    phase_begin("extraction")
+                    phase_timing.begin("extraction")
                     try:
                         extracted = self.evidence_extractor.extract(
                             run_id=run_id,
@@ -3055,7 +3021,7 @@ class ActiveResearchRuntimeExecutor:
                             attempt_start=extraction_attempt_start,
                         )
                     finally:
-                        phase_end("extraction")
+                        phase_timing.end("extraction", context=context)
                     ensure_active()
                     if extracted.status != "completed" or extracted.extraction is None:
                         extraction_reason = extracted.reason or "extractor_unavailable"
@@ -3327,7 +3293,7 @@ class ActiveResearchRuntimeExecutor:
                         routing_metrics["atomic_routing_extractions"] = observed[-60:]
 
                 cursor = replace(cursor, phase="gating")
-                phase_begin("gating")
+                phase_timing.begin("gating")
                 checkpoint(stage="gating")
                 gate = evaluate_evidence_gate(state)
                 state = _state_after_gate(state, gate)
@@ -3336,7 +3302,7 @@ class ActiveResearchRuntimeExecutor:
                 # §45 funnel: proposal -> added -> assessed -> read ->
                 # extracted -> gate-eligible, per llm_proposed candidate.
                 _record_tier2_funnel(context, cursor, brief, selected_sources)
-                phase_end("gating")
+                phase_timing.end("gating", context=context)
                 checkpoint()
 
                 # P1-C batch 2: wave-level Evidence Gain + Saturation using the
