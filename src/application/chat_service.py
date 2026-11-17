@@ -31,18 +31,18 @@ from src.application.answer_consistency import (
 from src.application.chat_research_publication import (
     THINKING_DISABLED_EXTRA_BODY,
     _answer_attempt_budget,
-    _evidence_rows_present,
+    _evidence_rows_present as _evidence_rows_present,
     _answer_generation_extra_body,
     _answer_bounded_policy_enabled,
     _strict_research_publication_enabled,
     _configured_llm_provider,
     answer_validation_active,
-    _official_plan_for,
-    _research_intent,
+    _official_plan_for as _official_plan_for,
+    _research_intent as _research_intent,
     _official_publication_required,
-    _tool_read_validation_plan,
+    _tool_read_validation_plan as _tool_read_validation_plan,
     inline_research_validation_plan,
-    _question_excerpts,
+    _question_excerpts as _question_excerpts,
     _route_generation_calls,
 )
 from src.application.learner_state_durable_adapter import (
