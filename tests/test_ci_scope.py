@@ -271,6 +271,9 @@ def test_pure_docs_change_requires_nothing_heavy():
     ["docs/PROJECT_STATUS.md", "tests/stage_gates.json"],
     ["docs/PROJECT_STATUS.md", "tools/ci_scope.py"],
     ["docs/PROJECT_STATUS.md", "mystery/thing.xyz"],
+    ["docs/PROJECT_STATUS.md", "docs/M4C3_PROMPTS_V1.json"],
+    ["docs/PROJECT_STATUS.md", "docs/dynamic_probe.py"],
+    ["docs/PROJECT_STATUS.md", "docs/dashboard.html"],
 ])
 def test_docs_never_skip_backend_for_product_gate_or_unknown_changes(paths):
     assert classify(paths)["docs_only"] is False
