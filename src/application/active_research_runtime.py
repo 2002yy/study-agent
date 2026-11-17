@@ -17,7 +17,7 @@ from math import ceil, isfinite
 import re
 import sys
 import time
-from typing import Any, Iterable, MutableMapping, cast
+from typing import Any, Iterable, cast
 from urllib.parse import urlsplit
 
 from src.domain.runtime_entities import WebLookupRun, new_id
@@ -260,8 +260,9 @@ from src.application.research_runtime_checkpoint import (
     updated_runtime_budget,
 )
 from src.application.research_runtime_model_policy import updated_model_policy_audits
+from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.active_research_evidence_projection import (
-    _bounded_retrieval_policy,
+    _bounded_retrieval_policy as _bounded_retrieval_policy,
     _bounded_text,
     _source_record,
     _add_extracted_evidence,
@@ -270,6 +271,11 @@ from src.application.active_research_evidence_projection import (
     _evidence_snapshot,
     _format_evidence_brief,
     _state_after_gate,
+)
+from src.application.research_runtime_read_observability import (
+    _record_backend_health as _record_backend_health,
+    _record_escalation_diagnostics as _record_escalation_diagnostics,
+    _record_read_timing as _record_read_timing,
 )
 
 ACTIVE_RESEARCH_ASSESSMENTS_KEY = "claim_engine_assessments"
@@ -1029,6 +1035,10 @@ class ActiveResearchRuntimeExecutor:
             if read_breaker_enabled()
             else None
         )
+        read_attempt_context = ActiveReadAttemptContext(
+            breaker=breaker,
+            escalation_recorder=_record_escalation_diagnostics,
+        )
 
         def schedule_read(target_candidate_id: str, url: str) -> Any:
             """§100 A2c: pre-attempt scheduling for the reader chain.
@@ -1148,136 +1158,6 @@ class ActiveResearchRuntimeExecutor:
             if step is not None and bool(getattr(step, "usable_content", False)):
                 return step
             return None
-
-        def record_read_chain_attempt(
-            candidate: CandidatePoolItem,
-            step: ChainStepResult,
-            *,
-            wave_index: int,
-        ) -> None:
-            """§104: one real attempt -> durable outcome + timing + health.
-
-            This is the *attempt history* layer. It never materialises a
-            ``sources[]`` record: the candidate-level projection is written once,
-            at the resolution boundary.
-            """
-
-            nonlocal cursor
-            ok = bool(step.usable_content)
-            cursor = replace(
-                cursor,
-                read_outcomes=(
-                    *cursor.read_outcomes,
-                    RuntimeReadOutcome(
-                        candidate_id=candidate.id,
-                        status="success" if ok else "failed",
-                        content_chars=len(step.content) if ok else 0,
-                        error_code="" if ok else "read_failed",
-                        backend=step.backend,
-                        retrieval_state=step.retrieval_state,
-                    ),
-                ),
-            )
-            if breaker is not None:
-                breaker.record(
-                    backend=step.backend,
-                    host=host_of(candidate.url),
-                    state=step.retrieval_state,
-                    attempted=True,
-                )
-                _record_backend_health(context, breaker)
-            cost = step.cost if isinstance(step.cost, Mapping) else {}
-            _record_read_timing(
-                context,
-                candidate=candidate,
-                wave_index=wave_index,
-                status="success" if ok else "failed",
-                wall_ms=float(cost.get("latency_ms") or 0.0),
-                chars=int(cost.get("chars") or len(step.content or "")),
-                raw_read={
-                    "read_retry": {
-                        "retry_fetch_ms": cost.get("fetch_ms"),
-                        "retry_backoff_ms": cost.get("backoff_ms"),
-                        "attempts": cost.get("attempts"),
-                        "retries": cost.get("retries"),
-                        "attempts_detail": cost.get("attempts_detail"),
-                    },
-                    "retrieval_state": step.retrieval_state,
-                    "retrieval_policy": dict(step.policy)
-                    if isinstance(step.policy, Mapping)
-                    else {},
-                    "error": "" if ok else step.adequacy_reason,
-                },
-                backend=str(step.backend),
-            )
-
-        def record_read_chain_escalation_signal(
-            candidate: CandidatePoolItem,
-            native_step: ChainStepResult | None,
-            wigolo_step: ChainStepResult | None,
-        ) -> None:
-            """§71C-3a signal, now derived from the explicit chain (superset).
-
-            The adapter no longer emits an ``escalation`` payload, so the runtime
-            rebuilds the same diagnostics signal from the chain's second step. A
-            real Wigolo attempt reports itself; an adequate native read reports
-            the legacy ``already_adequate`` no-call row.
-            """
-
-            if wigolo_step is not None and wigolo_step.attempted:
-                cost = wigolo_step.cost if isinstance(wigolo_step.cost, Mapping) else {}
-                signal: dict[str, Any] = {
-                    "attempted": True,
-                    "tier": "http",
-                    "state": str(wigolo_step.retrieval_state),
-                    "reason": str(wigolo_step.adequacy_reason),
-                    "rescued": bool(wigolo_step.usable_content),
-                    "shape_before": str(
-                        native_step.adequacy_reason if native_step is not None else ""
-                    ),
-                    "shape_after": str(wigolo_step.adequacy_reason),
-                    "chars_before": int(
-                        native_step.cost.get("chars") or 0
-                        if native_step is not None
-                        and isinstance(native_step.cost, Mapping)
-                        else 0
-                    ),
-                    "chars_after": len(wigolo_step.content or ""),
-                    "latency_ms": float(cost.get("latency_ms") or 0.0),
-                    "cache_hit": cost.get("cache_hit"),
-                    "max_chars_requested": int(cost.get("max_chars_requested") or 0),
-                    "preflight": str(cost.get("preflight") or ""),
-                    "url": candidate.url,
-                    "attempt_seq": int(
-                        context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {}).get(
-                            "retrieval_attempt_seq"
-                        )
-                        or 0
-                    ),
-                    "research_seconds_left_at_start": research_seconds_left(),
-                    "hard_seconds_left_at_start": (
-                        state.budget.hard_timeout_seconds - elapsed()
-                    ),
-                    "envelope_remaining_at_start_ms": cost.get(
-                        "envelope_remaining_at_start_ms"
-                    ),
-                    "effective_timeout_seconds": cost.get("effective_timeout_seconds"),
-                }
-            elif native_step is not None and native_step.usable_content:
-                signal = {
-                    "attempted": False,
-                    "tier": "http",
-                    "state": "ok",
-                    "reason": "already_adequate",
-                    "rescued": False,
-                    "shape_before": str(native_step.adequacy_reason),
-                    "shape_after": str(native_step.adequacy_reason),
-                }
-            else:
-                return
-            _record_escalation_diagnostics(
-                context, signal, wave_index=int(cursor.wave_index)
-            )
 
         def research_seconds_left() -> float:
             """Seconds left in the research window (finalization reserve kept)."""
@@ -2568,8 +2448,16 @@ class ActiveResearchRuntimeExecutor:
                         )
                         cursor = begin_external_attempt(cursor, marker)
                         cursor = finish_external_attempt(cursor, call_id=marker.call_id)
-                        record_read_chain_attempt(
-                            candidate, step, wave_index=cursor.wave_index
+                        # Keep the durable cursor transition before any
+                        # diagnostic side effect, including on failure.
+                        cursor = read_attempt_context.append_outcome(
+                            cursor, candidate, step
+                        )
+                        read_attempt_context.observe_step(
+                            context,
+                            candidate=candidate,
+                            step=step,
+                            wave_index=cursor.wave_index,
                         )
                         if not step.usable_content:
                             step_cost = (
@@ -2598,8 +2486,15 @@ class ActiveResearchRuntimeExecutor:
                                 exception_type=step_error,
                                 attempt_id=marker.call_id,
                             )
-                    record_read_chain_escalation_signal(
-                        candidate, native_step, wigolo_step
+                    read_attempt_context.record_escalation_signal(
+                        context,
+                        candidate=candidate,
+                        native_step=native_step,
+                        wigolo_step=wigolo_step,
+                        wave_index=cursor.wave_index,
+                        research_seconds_left=research_seconds_left,
+                        hard_timeout_seconds=state.budget.hard_timeout_seconds,
+                        elapsed=elapsed,
                     )
                     ensure_active()
                     # The candidate has content if *any* backend produced a
@@ -6151,182 +6046,6 @@ def _deadline_skip_payload(url: str, decision: Any) -> dict[str, Any]:
         "retrieval_policy": decision.to_policy_dict(),
     }
 
-
-def _record_backend_health(context: dict[str, Any], breaker: Any) -> None:
-    """Flush the per-run breaker snapshot into the run metrics (no new ledger)."""
-
-    if breaker is None:
-        return
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if not isinstance(metrics, dict):
-        return
-    metrics["backend_health"] = breaker.snapshot()
-
-
-
-
-def _record_read_timing(
-    context: dict[str, Any],
-    *,
-    candidate: CandidatePoolItem,
-    wave_index: int,
-    status: str,
-    wall_ms: float,
-    chars: int,
-    raw_read: Mapping[str, Any],
-    backend: str = NATIVE_HTTP_BACKEND,
-) -> None:
-    """F2-O3a: split one read's wall time into network wait, backoff and local work.
-
-    Observation only - it never feeds scheduling, admission or policy. The
-    network component is the retry loop's own fetch total when a retry happened
-    (its clock covers every attempt, first one included) and the whole read call
-    otherwise; ``local_ms`` is what remains after removing network wait and
-    backoff, i.e. decode/parse/bookkeeping inside the reader, plus the
-    escalation tier when it ran (which keeps its own ``escalation_ms``).
-    """
-
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if not isinstance(metrics, dict):
-        return
-    retry = raw_read.get("read_retry")
-    retry = retry if isinstance(retry, Mapping) else {}
-    escalation = raw_read.get("escalation")
-    escalation = escalation if isinstance(escalation, Mapping) else {}
-    fetch_ms = float(retry.get("retry_fetch_ms") or 0.0) if retry else float(wall_ms)
-    backoff_ms = float(retry.get("retry_backoff_ms") or 0.0)
-    entry = {
-        "candidate_id": candidate.id,
-        "backend": str(backend),
-        "host": str(candidate.url).split("//")[-1].split("/")[0][:120],
-        "wave_index": int(wave_index),
-        "status": str(status),
-        "wall_ms": round(float(wall_ms), 1),
-        "fetch_ms": round(fetch_ms, 1),
-        "backoff_ms": round(backoff_ms, 1),
-        "escalation_ms": round(float(escalation.get("latency_ms") or 0.0), 1),
-        "local_ms": round(max(0.0, float(wall_ms) - fetch_ms - backoff_ms), 1),
-        "attempts": int(retry.get("attempts") or 1),
-        "retries": int(retry.get("retries") or 0),
-        "chars": int(chars),
-        "error_signature": error_signature(raw_read),
-        "retrieval_state": str(raw_read.get("retrieval_state") or ""),
-        "retrieval_policy": _bounded_retrieval_policy(raw_read),
-        "attempts_detail": [
-            dict(item)
-            for item in (retry.get("attempts_detail") or [])
-            if isinstance(item, Mapping)
-        ][:4],
-    }
-    timing = metrics.get("read_timing")
-    if not isinstance(timing, list):
-        timing = []
-    timing.append(entry)
-    metrics["read_timing"] = timing[-80:]
-
-
-
-
-
-def _record_escalation_diagnostics(
-    context: dict[str, Any], escalation: Mapping[str, Any], *, wave_index: int
-) -> None:
-    """§71C-3a: one escalation outcome -> retrieval attempt + terminal invocation.
-
-    Order matters: the invocation is created (and its id mirrored into the
-    escalation payload) BEFORE the attempt row is appended, so the row carries
-    the same id the source provenance uses. Not-attempted escalations (already
-    adequate, disabled) never create an invocation.
-
-    Reads carry no claim id (the source record keeps that link), so the ledger
-    entry is wave-scoped and the funnel joins it per claim. Diagnostics only:
-    the read payload already decided the outcome.
-    """
-
-    from src.web.research.retrieval_backends import (
-        READ_OPERATION,
-        TERMINAL_RETRIEVAL_STATES,
-        create_retrieval_invocation,
-        finalize_retrieval_invocation,
-        retrieval_attempt_row,
-    )
-
-    def _provider() -> Any:
-        metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
-        return metrics if isinstance(metrics, MutableMapping) else None
-
-    tier = str(escalation.get("tier") or "http")
-    state = str(escalation.get("state") or "")
-    state = state if state in TERMINAL_RETRIEVAL_STATES else "empty"
-    attempted = bool(escalation.get("attempted"))
-    latency_ms = float(escalation.get("latency_ms") or 0.0)
-    chars_after = int(escalation.get("chars_after") or 0)
-
-    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
-    if not isinstance(metrics, dict):
-        return
-
-    entry: dict[str, Any] | None = None
-    if attempted:
-        entry = create_retrieval_invocation(
-            _provider,
-            claim_id="read",
-            wave_index=int(wave_index),
-            backend="wigolo",
-            operation=READ_OPERATION,
-        )
-        entry["tier"] = tier
-        if isinstance(escalation, MutableMapping):
-            # B1: the source provenance links to the ledger by invocation_id
-            escalation["invocation_id"] = entry["invocation_id"]
-
-    rows = metrics.get("retrieval_attempts")
-    if not isinstance(rows, list):
-        rows = []
-    rows.append(
-        retrieval_attempt_row(
-            backend="wigolo",
-            operation=READ_OPERATION,
-            claim_id="",
-            wave_index=int(wave_index),
-            latency_ms=latency_ms,
-            result_count=1 if attempted else 0,
-            bytes=chars_after,
-            cache_hit=bool(escalation.get("cache_hit")),
-            escalation_reason=str(escalation.get("reason") or ""),
-        )
-        | {
-            "tier": tier,
-            "transition": str(escalation.get("shape_before") or "")
-            + " -> "
-            + str(escalation.get("shape_after") or ""),
-            "preflight": str(escalation.get("preflight") or ""),
-            "max_chars_requested": int(escalation.get("max_chars_requested") or 0),
-            "url": str(escalation.get("url") or ""),
-            "attempt_seq": int(escalation.get("attempt_seq") or 0),
-            "research_seconds_left_at_start": escalation.get(
-                "research_seconds_left_at_start"
-            ),
-            "hard_seconds_left_at_start": escalation.get("hard_seconds_left_at_start"),
-            "invocation_id": str(escalation.get("invocation_id") or ""),
-            "envelope_remaining_at_start_ms": escalation.get(
-                "envelope_remaining_at_start_ms"
-            ),
-            "effective_timeout_seconds": escalation.get("effective_timeout_seconds"),
-        }
-    )
-    metrics["retrieval_attempts"] = rows[-60:]
-    if entry is not None:
-        finalize_retrieval_invocation(
-            _provider,
-            entry,
-            state=state,
-            result_count=1 if chars_after else 0,
-            bytes=chars_after,
-            cache_hit=bool(escalation.get("cache_hit")),
-            escalation_reason=str(escalation.get("reason") or ""),
-            latency_ms=latency_ms,
-        )
 
 def _inventory_fetch_with_retry(
     url: str,
