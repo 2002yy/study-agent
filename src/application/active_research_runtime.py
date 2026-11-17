@@ -95,7 +95,6 @@ from src.web.research.evidence_gain import (
     GapBatchDelta,
     SaturationState,
     evaluate_evidence_gain,
-    saturated_claim_ids,
     update_saturation,
 )
 from src.web.research.failure_contracts import ResearchFailureCode
@@ -270,6 +269,7 @@ from src.application.research_runtime_read_site import (
     specialist_chain_run as specialist_chain_run,
 )
 from src.application.research_runtime_publication import ActiveResearchPublisher
+from src.application.research_runtime_wave_stop_signal import completed_wave_stop_signal
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
 from src.application.active_research_evidence_projection import (
     _bounded_retrieval_policy as _bounded_retrieval_policy,
@@ -1105,49 +1105,18 @@ class ActiveResearchRuntimeExecutor:
                 )
                 checkpoint()
                 return None
-            # Settlement must use the same actionable scope as planning.
-            # Context gaps are deliberately deferred by _ordered_gaps(); they
-            # therefore cannot keep an otherwise saturated active run alive.
-            open_gap_claims = {gap.claim_id for gap in _ordered_gaps(state)}
-            extra_batch_claims = {
-                claim.id for claim in state.claims if claim.priority == "critical"
-            } | {conflict.claim_id for conflict in state.conflict_gaps}
-            saturated_claims = set(
-                saturated_claim_ids(
-                    SaturationState(
-                        no_gain_batches_by_claim=dict(
-                            cursor.no_gain_batches_by_claim
-                        )
-                    ),
-                    extra_batch_eligible_claim_ids=extra_batch_claims,
-                )
-            )
-
             # P1-C batch 3: the single stop truth lives in ResearchStopGate.
-            # The executor derives durable signals and never decides a stop
-            # reason itself; the frozen priority (gate pass > hard budget >
-            # no actionable gaps > saturation > wave ceiling > continue) is
-            # locked inside the gate.  Whether a late steering blocks the old
-            # graph's gate pass is recomputed from the merged durable context
-            # (steering status=late is durable truth), never from the return
-            # value of this invocation's mark call - a crash between the late
-            # checkpoint and the terminal complete must resume to the same
-            # decision.
-            unapplied_steering = _unapplied_steering_blocks_completion(context)
+            # The projection consumes the latest durable steering context;
+            # the frozen gate remains the only stop-decision authority.
             stop = ResearchStopGate.evaluate(
-                ResearchStopSignal(
-                    gate_pass=gate.status == "pass",
-                    hard_budget_exhausted=(
-                        hard_exhausted
-                    ),
-                    has_actionable_gaps=(
-                        bool(open_gap_claims) or unapplied_steering
-                    ),
-                    all_actionable_saturated=bool(open_gap_claims)
-                    and open_gap_claims <= saturated_claims,
-                    wave_limit_reached=wave_exhausted,
-                    has_evidence=bool(state.evidence),
-                    unapplied_steering_blocks_completion=unapplied_steering,
+                completed_wave_stop_signal(
+                    state=state,
+                    cursor=cursor,
+                    context=context,
+                    gate=gate,
+                    actionable_gaps=_ordered_gaps(state),
+                    hard_exhausted=hard_exhausted,
+                    wave_exhausted=wave_exhausted,
                 )
             )
             if stop.decision == "continue":

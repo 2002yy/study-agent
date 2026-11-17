@@ -199,3 +199,18 @@
 执行器内正常波次结算、硬预算耗尽和有证据的异常结束，各自重复拼装 `repository.complete()` 的 `items`、`source_block`、`warnings`、四组共享缓冲区、当前上下文、停止结果字段。新 `ActiveResearchPublisher` 只持有一次运行固定的仓储、run/operation 身份和 `ActiveResearchResultBuffers`，发布时**显式接收当前 `context` 和 `ResearchStopDecision`**；不缓存可能被 checkpoint/CAS 回填替换的研究上下文。
 
 保留每种调用路径**原先**的检查点和停止门禁时机：正常路径在完成游标检查点之后发布，预算异常路径在原窗口诊断/检查点之后发布，有证据异常路径先写原故障 checkpoint（若失败允许旧容错）再发布部分结果。无证据失败仍走执行器自己的 `repository.fail`。内部参数求值仍按 `eligible items → evidence brief formatting → warning dedupe`；异常路径的 `_evidence_brief(state,None,...)` 必须在 eligible 投影之后计算，预算异常仍按 `state.evidence` 选择显式 confidence，不能被 canonical stop decision 的 `partial` 覆盖。负控对照正常、预算和异常三类发布以及不完整简报不得终态写入。此片不涉及真实模型、预算结算、来源质量判断或前端发布策略。
+
+### 2026-11-18：#401 验收合并与停止信号投影
+
+[#401](https://github.com/2002yy/study-agent/pull/401) 精确 HEAD `4d01a31247864ab8c2f3cadb9b1a50d7fb365df1` 的 CI `44140163266` 已成功；无阻断审阅，依精确提交合并 `8f5a2ff0cb5c7a3d746bb5abf940b224df330cd0`。拉取后主线 tree `50211070e7f2384af3dd20c59ae15ebc8eb61090` 与原验收树一致。该片无真实模型或联网读取，静态结论不外推为浏览器产品质量。
+
+[#402](https://github.com/2002yy/study-agent/pull/402) 发布上下文 HEAD `a7d67a074149a30bb802249c4c82c61f82e9defd` 的 CI `44141917095` 最近一次观察仍在运行；#401 同树合并后已改为 main 基线，仍是草稿，**不得跳过精确 HEAD CI 就合并**。
+
+后继独立片收窄至 `settle_completed_wave` 中的停止信号推导，不改 `ResearchStopGate` 决策优先级、不移动 steering 合并/迟到标记检查点，也不移动波次推进和最终发布检查点：
+
+- `completed_wave_stop_signal(state, cursor, context, gate, actionable_gaps, hard_exhausted, wave_exhausted)` 是无写入的投影；`_ordered_gaps(state)` 仍由执行器选出，与检索计划相同的可行动范围，纯上下文缺口不延长主动波次。
+- 原本连续的 `open_gap_claims → critical/conflict 额外批次 → saturation → 当前 durable late-steering` 顺序不变。普通 claim 连续两批无增益饱和，critical/冲突 claim 允许第三批；恢复后的当前 `context` 可否决基于旧图计算的 gate pass。
+- 执行器仍唯一持有当前游标重绑定、硬预算计时、`ResearchStopGate.evaluate`、`checkpoint` 和 `publisher.complete`。新模块既不查询时钟也不推导费用，不能将晚到 steering 的结算改为一次调用期间的局部返回值。
+- 新增独立投影测试复用一处研究状态和信号搭建，覆盖普通/关键/冲突阈值、不可行动上下文缺口、恢复后的迟到 steering 和证据/波次标志；既有运行器/停止门禁回归继续作为分层约束。
+
+本片本地定向离线回归：新投影、停止门禁、主动研究运行器及费用边界共 **133 passed（102.63s）**，Ruff 与 diff-check 通过。未执行全量 L3、真实浏览器或付费模型调用；精确远端 CI 留给本片自己的 HEAD 验收。

@@ -8,7 +8,7 @@
 
 ### 权威基线（按精确 SHA 核实）
 
-- 本次架构减负已核验主线：`main@9abe320d7361d2ee96d8046b5312088fed2b2714`（#400 合并后；tree `8e9fef3e4e9f304693133a60353e447bff3f54a8`）。此值是静态快照，**新会话须重新获取最新 main**，不得把旧工作树 HEAD 当成远端主线。
+- 本次架构减负已核验主线：`main@8f5a2ff0cb5c7a3d746bb5abf940b224df330cd0`（#401 合并后；tree `50211070e7f2384af3dd20c59ae15ebc8eb61090`）。此值是静态快照，**新会话须重新获取最新 main**，不得把旧工作树 HEAD 当成远端主线。
 - **研究发布**：#360 已将 `simple` 设为默认：检索、读取正文、生成、检查引用属于已读 URL，再无损发布；`strict` 显式保留旧逐段校验。简单模式**不提供逐条事实已核实**的保证。历史 q9 曾一次完整输出（50.31 秒，3,173 字符），**不能据此认定跨题质量达标**。
 - **检索**：#365 双通道与 #366 基于已读正文的缺口查询已入主线；双通道默认关闭。#368 中文社区浏览器在 `main@5f146a67` 合并，修复米游社游戏分区路由。#369 免费覆盖探针见下文；**搜索发现的 URL 不等于正文已读、可以引用的证据**。
 - **DeepSeek 官方 Search / Fetch**：#370 于 `main@6a1c880e` 合并，仅预接入。两套 `ENABLED=false`、`MAX_REQUESTS=0` 独立默认关断；敏感 URL 和危险跳转不得发送至外部 Fetch。**未授权真实计费调用，未启用生产路由**。
@@ -39,6 +39,8 @@
 | [#398](https://github.com/2002yy/study-agent/pull/398) | 模型准入政策以当前 `context` 显式入参；不变回调封装为 `RuntimeModelPolicyContext` | HEAD `25ae27cd`；精确 CI `44135910377` 成功，合并 `b4ae4291`；合并后 tree `69154167` 与验收树一致 |
 | [#399](https://github.com/2002yy/study-agent/pull/399) | 故障记录显式读取当前游标/上下文，保持尝试 ID 与去重 | HEAD `b676659b`；精确 CI `44136804289` 成功，合并 `f2666db8`；合并后 tree `618e987f` 与验收树一致 |
 | [#400](https://github.com/2002yy/study-agent/pull/400) | 模型尝试回调归入 `ActiveModelAttemptContext`，锁定开始检查点、费用前时序及完成后内存审计 | HEAD `b505fb3f`；精确 CI `44138134273` 成功，合并 `9abe320d`；合并后 tree `8e9fef3e` 与验收树一致 |
+| [#401](https://github.com/2002yy/study-agent/pull/401) | 专家读取的路由、预算窗口与来源诊断归入 `ActiveReadSiteContext`；保持默认读取链为兜底 | HEAD `4d01a312`；精确 CI `44140163266` 成功，合并 `8f5a2ff0`；合并后 tree `50211070` 与验收树一致 |
+| [#402](https://github.com/2002yy/study-agent/pull/402) | 三类有证据终态统一由 `ActiveResearchPublisher` 接收当前上下文和停止结果；检查点仍在执行器 | HEAD `a7d67a07`；CI `44141917095` 最近一次观察仍在运行；草稿、未合并 |
 
 **当前结构片**：[#387](https://github.com/2002yy/study-agent/pull/387) 的 40 处测试初始化删重已合并 `main@315b07a1`，原 63 个测试函数与 474 条断言保持、84 passed，精确 PR CI `44079893336` 成功；[#386](https://github.com/2002yy/study-agent/pull/386) 将有序检查点封装为执行上下文，精确 HEAD CI `44080509512` 成功、合并 `df6f2a7e`；[#388](https://github.com/2002yy/study-agent/pull/388) 将结果缓冲区显式化，精确 HEAD CI `44080750573` 成功、合并 `0e72901d`。这些是各 PR 头提交的验证，不冒充合并主线后的独立 CI。重复的 #389 已关闭，未入主线。
 
@@ -69,7 +71,7 @@
 
 ### 唯一下一执行片
 
-**当前用户指定的 P3 任务**：#386—#388、#390—#400 均已按精确 HEAD CI、审查和依赖树门禁合入主线；最新核实 `main@9abe320d7361d2ee96d8046b5312088fed2b2714`，tree `8e9fef3e4e9f304693133a60353e447bff3f54a8`。下一草稿 [#401](https://github.com/2002yy/study-agent/pull/401) 将专家读取的提示、结果与来源诊断迁为 `ActiveReadSiteContext`，HEAD `4d01a312`（tree `50211070`），CI `44140163266` 本次回看尚在运行；已核对其原父树等于当前主线，PR base 改为 `main`，**尚未合并**。再后一片明确有证据终态的发布参数归属：统一正常、硬预算和异常部分发布的结果缓冲区/停止结论/当前上下文传入；确保三种旧时序不改。**保留请求前持久 inflight、完成后仅内存审计、语义结果后再持久化的原顺序**，真实 `reserve_call` 不改。详细责任图见[2026-11-17/18 执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。**原产品实验仍待执行**：在具备真实浏览器和 SearXNG 的环境运行 #369 零模型、零收费搜索的社区覆盖探针。
+**当前用户指定的 P3 任务**：#386—#388、#390—#401 均已按精确 HEAD CI、审查和依赖树门禁合入主线；最新核实 `main@8f5a2ff0cb5c7a3d746bb5abf940b224df330cd0`，tree `50211070e7f2384af3dd20c59ae15ebc8eb61090`。草稿 [#402](https://github.com/2002yy/study-agent/pull/402) 统一正常、硬预算和有证据异常三种终态的发布参数；HEAD `a7d67a07`，CI `44141917095` 最近一次观察仍在运行，**未合并**。其后独立片将波次结束的停止信号推导迁到纯投影：执行器显式提供当前 `state/cursor/context`、与规划一致的可行动缺口及预算标志，`ResearchStopGate` 仍唯一裁决停止，晚到 steering 的 checkpoint 和波次推进不动。**保留请求前持久 inflight、完成后仅内存审计、语义结果后再持久化的原顺序**，真实 `reserve_call` 不改。详细责任图见[2026-11-17/18 执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。**原产品实验仍待执行**：在具备真实浏览器和 SearXNG 的环境运行 #369 零模型、零收费搜索的社区覆盖探针。
 
 ## 0A. 已冻结研究路线（摘要）
 
