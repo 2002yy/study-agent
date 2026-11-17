@@ -17,7 +17,8 @@ from src.api.models.memory import (
 )
 from src.application.memory_service import MemoryService
 from src.application.runtime_repository import get_memory_service
-from src.mode_manager import load_runtime_modes
+from src.mode_manager import is_memory_write_allowed, load_runtime_modes
+from src.memory import read_memory_file
 from src.application.helpers import (
     extract_latest_section,
     memory_file_row,
@@ -33,11 +34,9 @@ def _run_response(run) -> MemoryRunResponse:
 
 @router.get("/memory", response_model=MemoryStatusResponse)
 def get_memory_status(context_mode: str | None = None) -> MemoryStatusResponse:
-    from src import api as _api  # imported via api proxy for monkeypatch
-
     from src.memory import CONTEXT_FILE_GROUPS
 
-    modes = _api.load_runtime_modes()
+    modes = load_runtime_modes()
     from src.application.helpers import resolve_context_mode
 
     if context_mode and context_mode not in CONTEXT_FILE_GROUPS:
@@ -45,7 +44,7 @@ def get_memory_status(context_mode: str | None = None) -> MemoryStatusResponse:
     resolved_context_mode = resolve_context_mode(context_mode, modes.context_mode)
     if resolved_context_mode not in CONTEXT_FILE_GROUPS:
         raise HTTPException(status_code=400, detail=f"Invalid context_mode: {resolved_context_mode}")
-    writable = _api.is_memory_write_allowed(modes)
+    writable = is_memory_write_allowed(modes)
     file_names = list(dict.fromkeys(CONTEXT_FILE_GROUPS["archive"]))
     files = [memory_file_row(name) for name in file_names]
     return MemoryStatusResponse(
@@ -56,7 +55,7 @@ def get_memory_status(context_mode: str | None = None) -> MemoryStatusResponse:
         context_mode=resolved_context_mode,
         groups=CONTEXT_FILE_GROUPS,
         files=files,
-        latest_section=extract_latest_section(_api.read_memory_file("current_focus.md")),
+        latest_section=extract_latest_section(read_memory_file("current_focus.md")),
         latest_updated_at="",
     )
 

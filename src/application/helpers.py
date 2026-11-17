@@ -1,15 +1,4 @@
-"""Application service helpers extracted from the original api.py monolith.
-
-These are pure helper functions used by route handlers. They do NOT contain
-any endpoint definitions — routes are in src/api/routes/.
-
-IMPORTANT — Monkeypatch bridge
-    Tests monkeypatch attributes on ``src.api``.  All patchable symbols
-    (path constants, imported functions) must be resolved through *api*
-    at call time via the ``_api()`` helper — never kept as module-level
-    bindings.  This guarantees monkeypatches take effect regardless of
-    which module the symbol was originally defined in.
-"""
+"""Application helpers used by route handlers; endpoints live in src/api/routes/."""
 
 from __future__ import annotations
 
@@ -40,14 +29,10 @@ from src.constants import (
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = ROOT / "config"
-# Path constants kept as module-level *defaults* for internal use;
-# functions that need monkeypatch-compatible values resolve them
-# through _api() at call time.
 FRONTEND_SETTINGS_PATH_DEFAULT = CONFIG_DIR / "frontend_settings.yaml"
 RAG_UPLOAD_DIR_DEFAULT = ROOT / "logs" / "rag_uploads"
 SESSION_DIR_DEFAULT = ROOT / "logs" / "sessions"
 CURRENT_SESSION_DIR_DEFAULT = ROOT / "logs" / "current"
-WORKFLOW_DIR_DEFAULT = ROOT / "logs" / "workflows"
 MEMORY_DIR_DEFAULT = ROOT / "memory"
 
 DEFAULT_FRONTEND_SETTINGS = {
@@ -80,42 +65,6 @@ ROLE_DESCRIPTIONS = {
     "nahida": "偏概念解释和知识连接，适合机制、原理、概念边界、知识结构和深入理解。",
     "firefly": "偏陪伴、复盘和收束，适合整理感受、回顾学习过程、缓和压力并形成温和结论。",
 }
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Monkeypatch bridge
-# ═══════════════════════════════════════════════════════════════════════════
-#
-# Tests do  monkeypatch.setattr(api, "NAME", ...)  so functions that need
-# patchable symbols MUST resolve them through _api() at call time rather
-# than keeping a module-level binding.
-# ═══════════════════════════════════════════════════════════════════════════
-
-def _api():
-    """Lazy reference to ``src.api`` for monkeypatch-compatible access."""
-    from src import api
-    return api
-
-
-def _api_path(name: str) -> Path:
-    """Return the current value of a *path* constant from api at call time.
-
-    Tests do ``monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", ...)``
-    so we must NOT use a module-level ``FRONTEND_SETTINGS_PATH`` constant.
-    """
-    return getattr(_api(), name, _api_path_default(name))
-
-
-def _api_path_default(name: str) -> Path:
-    defaults: dict[str, Path] = {
-        "FRONTEND_SETTINGS_PATH": FRONTEND_SETTINGS_PATH_DEFAULT,
-        "RAG_UPLOAD_DIR": RAG_UPLOAD_DIR_DEFAULT,
-        "SESSION_DIR": SESSION_DIR_DEFAULT,
-        "CURRENT_SESSION_DIR": CURRENT_SESSION_DIR_DEFAULT,
-        "WORKFLOW_DIR": WORKFLOW_DIR_DEFAULT,
-        "MEMORY_DIR": ROOT / "data" / "memory",
-    }
-    return defaults[name]
 
 
 # ── Index path helper ──────────────────────────────────────────────────
@@ -203,7 +152,7 @@ def _normalize_frontend_settings(settings: dict[str, Any]) -> dict[str, Any]:
 
 def load_frontend_settings() -> dict[str, Any]:
     data: dict[str, Any] = {}
-    frontend_path = _api_path("FRONTEND_SETTINGS_PATH")
+    frontend_path = FRONTEND_SETTINGS_PATH_DEFAULT
     if frontend_path.is_file():
         try:
             raw = yaml.safe_load(frontend_path.read_text(encoding="utf-8"))
@@ -229,7 +178,7 @@ def write_frontend_settings(settings: dict[str, Any]) -> None:
 
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     safe_write_text(
-        _api_path("FRONTEND_SETTINGS_PATH"),
+        FRONTEND_SETTINGS_PATH_DEFAULT,
         yaml.safe_dump(
             _normalize_frontend_settings(settings),
             allow_unicode=True,
@@ -251,7 +200,7 @@ def validate_choice(value: str, choices: list[str] | tuple[str, ...], label: str
 # ── Performance / model helpers ────────────────────────────────────────
 
 def request_performance_mode(requested: str | None) -> str:
-    load_runtime_modes = _api().load_runtime_modes
+    from src.mode_manager import load_runtime_modes
 
     modes = load_runtime_modes()
     if requested:
@@ -272,7 +221,7 @@ def request_model_profile(selected_model: str, performance_mode: str) -> str:
 
 
 def runtime_modes_for_request(requested_performance_mode: str | None):
-    load_runtime_modes = _api().load_runtime_modes
+    from src.mode_manager import load_runtime_modes
 
     runtime_modes = load_runtime_modes()
     if not requested_performance_mode:
@@ -405,8 +354,8 @@ def session_snapshot_from_raw(raw: str) -> dict[str, Any]:
 
 
 def find_session_file(session_id: str) -> tuple[str, Path | None]:
-    current_dir = _api_path("CURRENT_SESSION_DIR")
-    session_dir = _api_path("SESSION_DIR")
+    current_dir = CURRENT_SESSION_DIR_DEFAULT
+    session_dir = SESSION_DIR_DEFAULT
     current = current_dir / f"{session_id}.md"
     if current.is_file():
         return "current", current
@@ -452,9 +401,11 @@ def memory_update_preview_text(update: Any, action: str) -> str:
 
 
 def memory_file_row(name: str) -> dict[str, Any]:
-    path = _api_path("MEMORY_DIR") / name
+    from src.memory import read_memory_file
+
+    path = MEMORY_DIR_DEFAULT / name
     exists = path.is_file()
-    content = _api().read_memory_file(name) if exists else ""
+    content = read_memory_file(name) if exists else ""
     stat = path.stat() if exists else None
     return {
         "name": name,
@@ -483,8 +434,7 @@ def extract_latest_section(text: str) -> str:
 def role_payload(role_id: str) -> Any:
     from fastapi import HTTPException
     from src.api.models.common import RoleResponse
-    load_role = _api().load_role
-    list_roles = _api().list_roles
+    from src.role_manager import load_role, list_roles
 
     if role_id == "auto":
         return RoleResponse(
@@ -528,8 +478,7 @@ def runtime_settings_options() -> dict[str, Any]:
 
 def runtime_settings_payload() -> Any:
     from src.api.models.settings import RuntimeSettingsResponse
-    from src.mode_manager import get_runtime_config_warnings
-    load_runtime_modes = _api().load_runtime_modes
+    from src.mode_manager import get_runtime_config_warnings, load_runtime_modes
 
     modes = load_runtime_modes()
     profile = modes.profile
@@ -561,14 +510,15 @@ def runtime_settings_payload() -> Any:
 
 def wechat_state_payload() -> Any:
     from src.api.models.wechat import WechatStateResponse
-    api = _api()
-    read_wechat_state = api.read_wechat_state
-    read_wechat_group = api.read_wechat_group
-    read_wechat_unread = api.read_wechat_unread
-    has_wechat_unread = api.has_wechat_unread
-    has_wechat_group_started = api.has_wechat_group_started
-    count_wechat_messages = api.count_wechat_messages
-    summarize_wechat = api.summarize_wechat
+    from src.wechat_state import (
+        count_wechat_messages,
+        has_wechat_group_started,
+        has_wechat_unread,
+        read_wechat_group,
+        read_wechat_state,
+        read_wechat_unread,
+        summarize_wechat,
+    )
 
     state = read_wechat_state()
     content = read_wechat_group()
@@ -618,12 +568,11 @@ def session_settings_from_request(request: Any, context_mode: str) -> dict[str, 
 
 
 def prepare_chat_context(request: Any) -> dict[str, Any]:
-    api = _api()
-    read_memory_bundle = api.read_memory_bundle
-    build_role_prompt = api.build_role_prompt
-    route_request = api.route_request
-    retrieve_local_knowledge = api.retrieve_local_knowledge
     from src.context_builder import build_messages as _build_messages
+    from src.memory import read_memory_bundle
+    from src.role_manager import build_role_prompt
+    from src.router import route_request
+    from src.tools.local_knowledge import retrieve_local_knowledge
 
     runtime_modes = runtime_modes_for_request(request.performance_mode)
     context_mode = resolve_context_mode(request.context_mode, runtime_modes.context_mode)

@@ -49,10 +49,12 @@ os.environ.setdefault("RAG_EMBEDDING_PROVIDER", "local_hash")
 from fastapi import HTTPException  # noqa: E402
 from starlette.types import ASGIApp, Receive, Scope, Send  # noqa: E402
 
-from src import api as api_package  # noqa: E402
 from src import memory as memory_module  # noqa: E402
 from src import memory_writer as memory_writer_module  # noqa: E402
+from src import mode_manager as mode_manager_module  # noqa: E402
 from src.api.app import app  # noqa: E402
+from src.api.routes import memory_routes  # noqa: E402
+from src.application import helpers as helpers_module  # noqa: E402
 from src.application import memory_service as memory_service_module  # noqa: E402
 from src.application.chat_service import ChatDependencies  # noqa: E402
 from src.application.learning_closure_service import (  # noqa: E402
@@ -193,11 +195,12 @@ def _test_runtime_modes() -> RuntimeModes:
 
 
 # Isolate every filesystem owner used by the real upload and memory workflows.
-api_package.RAG_UPLOAD_DIR = RAG_UPLOAD_DIR
-api_package.MEMORY_DIR = MEMORY_DIR
-api_package.FRONTEND_SETTINGS_PATH = FRONTEND_SETTINGS_PATH
-api_package.load_runtime_modes = _test_runtime_modes
-api_package.is_memory_write_allowed = lambda _modes: True
+helpers_module.RAG_UPLOAD_DIR_DEFAULT = RAG_UPLOAD_DIR
+helpers_module.MEMORY_DIR_DEFAULT = MEMORY_DIR
+helpers_module.FRONTEND_SETTINGS_PATH_DEFAULT = FRONTEND_SETTINGS_PATH
+mode_manager_module.load_runtime_modes = _test_runtime_modes
+memory_routes.load_runtime_modes = _test_runtime_modes
+memory_routes.is_memory_write_allowed = lambda _modes: True
 memory_module.MEMORY_DIR = MEMORY_DIR
 rag_index_module.DEFAULT_RAG_INDEX_PATH = RAG_INDEX_PATH
 memory_service_module.load_runtime_modes = _test_runtime_modes

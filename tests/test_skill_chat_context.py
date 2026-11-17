@@ -24,10 +24,10 @@ CONTENT = "---\nname: clear-steps\ndescription: Explain in clear steps\n---\nSKI
 
 @pytest.fixture
 def installed(monkeypatch, tmp_path):
-    from src import api
+    from src.application import helpers
 
     monkeypatch.setattr(skills, "SKILL_STORE_PATH", tmp_path / "skills.json")
-    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", tmp_path / "frontend.yaml")
+    monkeypatch.setattr(helpers, "FRONTEND_SETTINGS_PATH_DEFAULT", tmp_path / "frontend.yaml")
     store = skills.SkillStore()
     row = store.import_skill(CONTENT)
     store.set_enabled(row["id"], True)

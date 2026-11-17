@@ -173,7 +173,11 @@ def test_resolve_news_link_uses_final_redirect_url(monkeypatch):
     assert resolved == "https://publisher.example.com/article"
 
 
-def test_fetch_article_text_with_method_uses_cached_method():
+def test_fetch_article_text_with_method_uses_cached_method(monkeypatch):
+    monkeypatch.setattr(
+        "src.news.article_fetcher._check_dns_target_safe",
+        lambda host: host == "example.com",
+    )
     _ARTICLE_CACHE.clear()
     _ARTICLE_CACHE["https://example.com/a"] = (
         time.time(),
@@ -433,7 +437,11 @@ def test_news_article_coverage_summary_warns_when_no_article_text():
     assert "只能给出保守判断" in summary
 
 
-def test_is_fetchable_article_url_blocks_local_and_private_hosts():
+def test_is_fetchable_article_url_blocks_local_and_private_hosts(monkeypatch):
+    monkeypatch.setattr(
+        "src.news.article_fetcher._check_dns_target_safe",
+        lambda host: host == "example.com",
+    )
     assert not _is_fetchable_article_url("http://127.0.0.1/a")
     assert not _is_fetchable_article_url("http://172.20.1.5/a")
     assert not _is_fetchable_article_url("http://169.254.1.10/a")
