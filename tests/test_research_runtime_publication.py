@@ -7,7 +7,7 @@ from typing import Any, cast
 import pytest
 
 from src.application import research_runtime_publication as publication
-from src.application.research_runtime_checkpoint import ActiveResearchResultBuffers
+from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
 from src.application.research_runtime_publication import ActiveResearchPublisher
 from src.application.research_stop_gate import ResearchStopDecision
 from src.repositories.web_lookup_repository import WebLookupRepository
@@ -54,9 +54,11 @@ def _stop() -> ResearchStopDecision:
 
 def test_completion_uses_current_context_and_shared_result_lists() -> None:
     publisher, repository = _publisher()
+    assert publisher.buffers.known_evidence_ids("run-a") == ()
     publisher.buffers.selected_sources.append(
         {"item": {"url": "https://read.example"}, "extraction": {"status": "eligible"}}
     )
+    assert len(publisher.buffers.known_evidence_ids("run-a")) == 1
     latest_context = {"run_attempt": 2}
     returned = publisher.complete(
         context=latest_context,

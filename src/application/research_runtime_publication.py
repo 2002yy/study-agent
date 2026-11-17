@@ -15,7 +15,7 @@ from src.application.active_research_evidence_projection import (
     _evidence_brief,
     _format_evidence_brief,
 )
-from src.application.research_runtime_checkpoint import (
+from src.application.research_runtime_result_buffers import (
     ActiveResearchResultBuffers,
     _dedupe,
     _eligible_items,

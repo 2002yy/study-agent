@@ -13,6 +13,7 @@ import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
+from functools import partial
 from math import ceil, isfinite
 import re
 import sys
@@ -242,10 +243,10 @@ from src.application.research_stop_gate import (
     ResearchStopSignal,
 )
 from src.application.research_runtime_checkpoint import (
-    ActiveResearchResultBuffers,
     ActiveRuntimeCheckpointContext,
     updated_runtime_budget,
 )
+from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
 from src.application.research_runtime_model_policy import (
     ACTIVE_RESEARCH_POLICY_AUDITS_KEY,
     RuntimeModelPolicyContext,
@@ -787,6 +788,7 @@ class ActiveResearchRuntimeExecutor:
             rejected_sources=rejected_sources,
             warnings=warnings,
         )
+        known_evidence_ids = partial(results.known_evidence_ids, run_id)
         publisher = ActiveResearchPublisher(
             repository=self.repository,
             run_id=run_id,
@@ -831,10 +833,6 @@ class ActiveResearchRuntimeExecutor:
         def ensure_active() -> None:
             if self.repository.cancel_requested(run_id, operation_id=operation_id):
                 raise ActiveResearchCancelled("active research cancelled")
-
-        def known_evidence_ids() -> tuple[str, ...]:
-            snapshot = _evidence_snapshot(run_id, selected_sources, rejected_sources)
-            return tuple(ref.id for ref in snapshot.refs)
 
         def checkpoint(*, stage: str | None = None) -> WebLookupRun:
             nonlocal context, state

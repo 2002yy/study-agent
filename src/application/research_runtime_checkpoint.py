@@ -11,6 +11,11 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from typing import Any
 
+from src.application.research_runtime_result_buffers import (
+    ActiveResearchResultBuffers,
+    _dedupe,
+    _eligible_items,
+)
 from src.domain.runtime_entities import WebLookupRun
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import ResearchState
@@ -37,16 +42,6 @@ def updated_runtime_budget(
             elapsed_seconds=elapsed_seconds,
         ),
     )
-
-
-@dataclass
-class ActiveResearchResultBuffers:
-    """Lists shared by checkpoint and terminal publication, with stable identity."""
-
-    query_attempts: list[dict[str, Any]]
-    selected_sources: list[dict[str, Any]]
-    rejected_sources: list[dict[str, Any]]
-    warnings: list[str]
 
 
 @dataclass
@@ -115,15 +110,6 @@ class ActiveRuntimeCheckpointContext:
         return persisted
 
 
-def _eligible_items(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        dict(record.get("item") or {})
-        for record in records
-        if isinstance(record.get("extraction"), Mapping)
-        and record["extraction"].get("status") == "eligible"
-    ]
-
-
 def _update_metrics(
     context: dict[str, Any],
     state: ResearchState,
@@ -145,7 +131,3 @@ def _update_metrics(
         ),
         "phase": cursor.phase,
     }
-
-
-def _dedupe(values: list[str]) -> list[str]:
-    return list(dict.fromkeys(str(value)[:500] for value in values if str(value).strip()))
