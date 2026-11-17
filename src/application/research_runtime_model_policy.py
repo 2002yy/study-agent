@@ -1,13 +1,18 @@
-"""Pure bounded policy-audit projection for active research model calls.
+"""Policy admission and bounded audit projection for active research calls.
 
-Policy authorization itself remains with the executor; this module does not
-call a provider, persist a checkpoint or settle a model attempt.
+The executor still owns provider calls, checkpoints and cost settlement. This
+module only checks policy against the *current* context and records its audit.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from typing import Any
+
+
+ACTIVE_RESEARCH_POLICY_AUDITS_KEY = "claim_engine_policy_audits"
 
 
 def updated_model_policy_audits(
@@ -31,3 +36,29 @@ def updated_model_policy_audits(
         }
     )
     return audits[-100:]
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeModelPolicyContext:
+    """Own stable policy dependencies, never a rebound run context."""
+
+    policy_check: Callable[[dict[str, Any], str], Any]
+    utc_now: Callable[[], Any]
+
+    def allowed(
+        self,
+        context: dict[str, Any],
+        purpose: str,
+        categories: tuple[str, ...],
+    ) -> bool:
+        """Check authorization first, then append an audit without persisting."""
+
+        allowed = bool(self.policy_check(context, purpose))
+        context[ACTIVE_RESEARCH_POLICY_AUDITS_KEY] = updated_model_policy_audits(
+            context.get(ACTIVE_RESEARCH_POLICY_AUDITS_KEY, []),
+            purpose=purpose,
+            categories=categories,
+            allowed=allowed,
+            checked_at=self.utc_now(),
+        )
+        return allowed

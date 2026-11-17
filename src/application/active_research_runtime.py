@@ -259,7 +259,10 @@ from src.application.research_runtime_checkpoint import (
     _eligible_items,
     updated_runtime_budget,
 )
-from src.application.research_runtime_model_policy import updated_model_policy_audits
+from src.application.research_runtime_model_policy import (
+    ACTIVE_RESEARCH_POLICY_AUDITS_KEY,
+    RuntimeModelPolicyContext,
+)
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import schedule_active_research_read
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
@@ -291,7 +294,6 @@ DOMAIN_TARGETED_CLAIMS_KEY = "domain_targeted_claim_ids"
 MAX_DOMAIN_TARGETED_CANDIDATES = 3
 MAX_DOMAIN_TARGETED_SEARCH_FETCHES = 3
 DOMAIN_TARGETED_MIN_SECONDS_LEFT = 12.0
-ACTIVE_RESEARCH_POLICY_AUDITS_KEY = "claim_engine_policy_audits"
 CANDIDATE_ASSESSMENT_WINDOW_MAX_CANDIDATES = 2
 # §69/B1-T5 R1': a discovery channel can only admit candidates *after* the
 # initial assessment window was frozen for the wave, which made them
@@ -917,6 +919,10 @@ class ActiveResearchRuntimeExecutor:
         research_window_diagnostics = ResearchWindowDiagnostics(
             reserve_seconds=RESEARCH_WINDOW_RESERVE_SECONDS
         )
+        model_policy = RuntimeModelPolicyContext(
+            policy_check=self.policy_check,
+            utc_now=self.utc_now,
+        )
 
         def elapsed() -> float:
             return base_elapsed + max(0.0, self.monotonic() - execution_started)
@@ -1182,15 +1188,7 @@ class ActiveResearchRuntimeExecutor:
                 raise _HardBudgetReached
 
         def model_allowed(purpose: str, categories: tuple[str, ...]) -> bool:
-            allowed = bool(self.policy_check(context, purpose))
-            context[ACTIVE_RESEARCH_POLICY_AUDITS_KEY] = updated_model_policy_audits(
-                context.get(ACTIVE_RESEARCH_POLICY_AUDITS_KEY, []),
-                purpose=purpose,
-                categories=categories,
-                allowed=allowed,
-                checked_at=self.utc_now(),
-            )
-            return allowed
+            return model_policy.allowed(context, purpose, categories)
 
         def on_model_started(marker: ResearchModelAttemptStart) -> None:
             nonlocal cursor
