@@ -147,6 +147,7 @@ from src.web.research.runtime import (
 from src.web.research.scheduler import (
     ReadSchedulerPolicy,
     ReadSchedulingCancelled,
+    _restore_completed_read_targets as _restore_completed_read_targets,
     is_schedulable_candidate,
     is_schedulable_lead,
     plan_read_wave,
@@ -6229,45 +6230,6 @@ def _lead_discovered_candidates(
         )
     stats["added"] = len(added)
     return tuple(added), stats
-
-
-def _restore_completed_read_targets(
-    extraction_targets: list[dict[str, str]],
-    *,
-    completed_read_ids: set[str],
-    rankings: Mapping[str, tuple[RankedCandidate, ...]],
-) -> list[dict[str, str]]:
-    """Restore only eligible per-claim bindings for already-read candidates.
-
-    Physical-read reuse never grants semantic eligibility to another claim.
-    The binding is rebuilt from that claim's own RankedCandidate, including its
-    own role and cluster, and must pass the scheduler's shared predicate.
-    """
-
-    restored = list(extraction_targets)
-    targeted_pairs = {
-        (item["candidate_id"], item["claim_id"]) for item in extraction_targets
-    }
-    for claim_id in sorted(rankings):
-        for item in rankings[claim_id]:
-            candidate_id = item.candidate.id
-            pair = (candidate_id, claim_id)
-            if (
-                candidate_id not in completed_read_ids
-                or pair in targeted_pairs
-                or not is_schedulable_candidate(item)
-            ):
-                continue
-            restored.append(
-                {
-                    "candidate_id": candidate_id,
-                    "claim_id": claim_id,
-                    "cluster_id": item.assessment.cluster_id,
-                    "source_role": item.assessment.source_role,
-                }
-            )
-            targeted_pairs.add(pair)
-    return restored
 
 
 def _read_plan_entries(raw: Any, keys: tuple[str, ...]) -> list[dict[str, str]]:
