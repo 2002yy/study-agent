@@ -420,11 +420,17 @@ def classify(paths: list[str]) -> dict:
     # registers or updates an impact set is eligible but not required.
     l3_eligible = bool(_L3_CATEGORIES & category_set) or bool(unknown)
     full_scope = bool(unknown)
-    # Documentation is already protected by the policy gate, static analysis,
-    # packaging checks and secret detection. A pure docs change cannot change
-    # backend execution, so it need not run ~23 minutes of pytest/RAG/mypy.
-    # CI-router changes and every unrecognized path still take the normal gates.
-    docs_only = category_set == {"docs"} and not unknown and not router_changed
+    # Docs can also contain executable fixtures and JSON consumed by the product.
+    # Only Markdown is eligible for the reduced gate; non-Markdown docs,
+    # CI-router changes and unrecognized paths retain the full backend checks.
+    # Even on this path, policy, lint, packaging and secret gates still run.
+    docs_only = (
+        category_set == {"docs"}
+        and not unknown
+        and not router_changed
+        and bool(paths)
+        and all(str(path).strip().replace("\\", "/").lower().endswith(".md") for path in paths)
+    )
 
     # The workflow consumes a named impact set instead of keeping its own file list.
     # Docs, CI tooling and a stage-gate registration ride along with a real slice, so they
