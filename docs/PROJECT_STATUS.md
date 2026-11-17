@@ -19,7 +19,7 @@
 | PR | 已实施工作 | 精确证据 |
 | --- | --- | --- |
 | [#368](https://github.com/2002yy/study-agent/pull/368) | 中文站点浏览器及米游社分区修复 | 合并 `5f146a67`；PR 审阅/精确 CI 已收口 |
-| [#369](https://github.com/2002yy/study-agent/pull/369) | 免费社区覆盖探针：fast / 浏览器增量 URL、实际读取、失败诊断，禁止继承错误搜索策略，付费开关开启时拒绝执行 | `9456271ee1db1e2c56c7c86a868dc05a2f1815dd；合并 `faf1a94b``；CI ``44034118706` 成功`；审阅 P2 已修复 |
+| [#369](https://github.com/2002yy/study-agent/pull/369) | 免费社区覆盖探针：fast / 浏览器增量 URL、实际读取、失败诊断，禁止继承错误搜索策略，付费开关开启时拒绝执行 | HEAD `9456271e`；合并 `faf1a94b`；CI `44034118706` 成功；审阅 P2 已修复 |
 | [#370](https://github.com/2002yy/study-agent/pull/370) | 官方 Search/Fetch 双重默认关闭、安全校验、离线负控 | 合并 `6a1c880e`；精确 PR CI `44031322548` 成功 |
 | [#371](https://github.com/2002yy/study-agent/pull/371) | 有日期、可复核的执行审计与工作树整理 | 合并 `e06b882e` |
 | [#373](https://github.com/2002yy/study-agent/pull/373) | 研究运行器纯证据投影函数抽离：`active_research_runtime.py` 7,453→7,167 行 | 合并 `92af5937`；CI `44030559637` 成功；AST 函数体一致 |
