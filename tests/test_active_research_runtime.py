@@ -500,8 +500,9 @@ def _service(
     search_backend: Any | None = None,
     read_gateway: Any | None = None,
     monotonic: Callable[[], float] = perf_counter,
+    active_gateway_factory: Callable[[], ActiveResearchGateway] | None = None,
 ) -> ClaimEngineDispatchWebLookupService:
-    def gateway_factory() -> ActiveResearchGateway:
+    def default_gateway_factory() -> ActiveResearchGateway:
         return ActiveResearchGateway(
             search_backend=search_backend or _SearchBackend(),
             read_gateway=read_gateway or _ReadGateway(),
@@ -525,7 +526,7 @@ def _service(
 
     return ClaimEngineDispatchWebLookupService(
         repository,
-        active_gateway_factory=gateway_factory,
+        active_gateway_factory=active_gateway_factory or default_gateway_factory,
         active_runtime_factory=runtime_factory,
     )
 
@@ -4149,29 +4150,12 @@ def _cutover_service(
     if escalation_backend is not None:
         gateway.set_escalation_backend(escalation_backend)
 
-    def gateway_factory() -> ActiveResearchGateway:
-        return gateway
-
-    def runtime_factory(
-        repo: WebLookupRepository,
-        active_gateway: ActiveResearchGateway,
-    ) -> ActiveResearchRuntimeExecutor:
-        model = ResearchModelGateway(
-            client=client,
-            model_name="test-model",
-            timeout_seconds=20,
-        )
-        return ActiveResearchRuntimeExecutor(
-            repo,
-            active_gateway,
-            model_gateway=model,
-            monotonic=perf_counter,
-        )
-
-    return ClaimEngineDispatchWebLookupService(
+    # Keep the cutover tests' single gateway identity, while sharing the
+    # ordinary tests' exact model/runtime construction.
+    return _service(
         repository,
-        active_gateway_factory=gateway_factory,
-        active_runtime_factory=runtime_factory,
+        client,
+        active_gateway_factory=lambda: gateway,
     )
 
 

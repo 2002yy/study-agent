@@ -41,6 +41,7 @@
 | [#400](https://github.com/2002yy/study-agent/pull/400) | 模型尝试回调归入 `ActiveModelAttemptContext`，锁定开始检查点、费用前时序及完成后内存审计 | HEAD `b505fb3f`；精确 CI `44138134273` 成功，合并 `9abe320d`；合并后 tree `8e9fef3e` 与验收树一致 |
 | [#401](https://github.com/2002yy/study-agent/pull/401) | 专家读取的路由、预算窗口与来源诊断归入 `ActiveReadSiteContext`；保持默认读取链为兜底 | HEAD `4d01a312`；精确 CI `44140163266` 成功，合并 `8f5a2ff0`；合并后 tree `50211070` 与验收树一致 |
 | [#402](https://github.com/2002yy/study-agent/pull/402) | 三类有证据终态统一由 `ActiveResearchPublisher` 接收当前上下文和停止结果；检查点仍在执行器 | HEAD `a7d67a07`；CI `44141917095` 最近一次观察仍在运行；草稿、未合并 |
+| [#403](https://github.com/2002yy/study-agent/pull/403) | 波次结束停止信号纯投影：当前缺口、饱和阈值、恢复后迟到 steering，`ResearchStopGate` 仍独占裁决 | HEAD `3271c810`；本地 133 passed；CI `44145248671` 运行中；堆叠草稿、未合并 |
 
 **当前结构片**：[#387](https://github.com/2002yy/study-agent/pull/387) 的 40 处测试初始化删重已合并 `main@315b07a1`，原 63 个测试函数与 474 条断言保持、84 passed，精确 PR CI `44079893336` 成功；[#386](https://github.com/2002yy/study-agent/pull/386) 将有序检查点封装为执行上下文，精确 HEAD CI `44080509512` 成功、合并 `df6f2a7e`；[#388](https://github.com/2002yy/study-agent/pull/388) 将结果缓冲区显式化，精确 HEAD CI `44080750573` 成功、合并 `0e72901d`。这些是各 PR 头提交的验证，不冒充合并主线后的独立 CI。重复的 #389 已关闭，未入主线。
 
@@ -71,7 +72,7 @@
 
 ### 唯一下一执行片
 
-**当前用户指定的 P3 任务**：#386—#388、#390—#401 均已按精确 HEAD CI、审查和依赖树门禁合入主线；最新核实 `main@8f5a2ff0cb5c7a3d746bb5abf940b224df330cd0`，tree `50211070e7f2384af3dd20c59ae15ebc8eb61090`。草稿 [#402](https://github.com/2002yy/study-agent/pull/402) 统一正常、硬预算和有证据异常三种终态的发布参数；HEAD `a7d67a07`，CI `44141917095` 最近一次观察仍在运行，**未合并**。其后独立片将波次结束的停止信号推导迁到纯投影：执行器显式提供当前 `state/cursor/context`、与规划一致的可行动缺口及预算标志，`ResearchStopGate` 仍唯一裁决停止，晚到 steering 的 checkpoint 和波次推进不动。**保留请求前持久 inflight、完成后仅内存审计、语义结果后再持久化的原顺序**，真实 `reserve_call` 不改。详细责任图见[2026-11-17/18 执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。**原产品实验仍待执行**：在具备真实浏览器和 SearXNG 的环境运行 #369 零模型、零收费搜索的社区覆盖探针。
+**当前用户指定的 P3 任务**：#386—#388、#390—#401 均已按精确 HEAD CI、审查和依赖树门禁合入主线；最新核实 `main@8f5a2ff0cb5c7a3d746bb5abf940b224df330cd0`，tree `50211070e7f2384af3dd20c59ae15ebc8eb61090`。草稿 [#402](https://github.com/2002yy/study-agent/pull/402) 统一三种有证据发布终态，草稿 [#403](https://github.com/2002yy/study-agent/pull/403) 独立停止信号纯投影；两者精确提交 CI 仍显示运行中，**未合并**。#402 本次查看的 5 个单独 job 已成功，但 workflow 顶层尚无成功结论，不能冒充正式验收。下一独立测试片归并 `_cutover_service` 和普通研究服务的重复模型/运行器搭建，同时保持切换场景单一网关实例；不改生产代码。完成后按 #402→#403→测试片的依赖树逐个核对、合并。**保留请求前持久 inflight、完成后仅内存审计、语义结果后再持久化的原顺序**，真实 `reserve_call` 不改。详细责任图见[2026-11-17/18 执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。**原产品实验仍待执行**：在具备真实浏览器和 SearXNG 的环境运行 #369 零模型、零收费搜索的社区覆盖探针。
 
 ## 0A. 已冻结研究路线（摘要）
 
