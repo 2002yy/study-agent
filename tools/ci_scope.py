@@ -305,6 +305,9 @@ _IMPACT_NEUTRAL_CATEGORIES = frozenset({"docs"})
 # neutral *only* in that role; any other qualification path (a contract change, a protocol
 # probe) is a real change and must not be treated as an attachment.
 _MANIFEST_ATTACHMENT = "tests/stage_gates.json"
+_PROSE_ONLY_ROOT_FILES = frozenset({
+    "AGENTS.md", "README.md", "USER_GUIDE.md", "CONTRIBUTING.md", "CHANGELOG.md",
+})
 
 
 def _is_impact_neutral(path: str, category: str) -> bool:
@@ -313,6 +316,13 @@ def _is_impact_neutral(path: str, category: str) -> bool:
     if category in _IMPACT_NEUTRAL_CATEGORIES:
         return True
     return str(path or "").replace("\\", "/") == _MANIFEST_ATTACHMENT
+
+
+def _is_prose_only_document(path: str) -> bool:
+    normalized = str(path or "").strip().replace("\\", "/")
+    return normalized.lower().endswith(".md") and (
+        normalized.startswith("docs/") or normalized in _PROSE_ONLY_ROOT_FILES
+    )
 
 
 def _is_e2e_ignored(path: str) -> bool:
@@ -420,16 +430,17 @@ def classify(paths: list[str]) -> dict:
     # registers or updates an impact set is eligible but not required.
     l3_eligible = bool(_L3_CATEGORIES & category_set) or bool(unknown)
     full_scope = bool(unknown)
-    # Docs can also contain executable fixtures and JSON consumed by the product.
-    # Only Markdown is eligible for the reduced gate; non-Markdown docs,
-    # CI-router changes and unrecognized paths retain the full backend checks.
-    # Even on this path, policy, lint, packaging and secret gates still run.
+    # The generic docs classifier also matches tests/fixtures/**/*.md and
+    # machine-consumed Markdown. The fast lane is intentionally narrower: only
+    # files in docs/ and a short list of root prose files qualify. All other
+    # Markdown, non-Markdown docs, CI-router changes and unknown paths keep the
+    # full backend checks. Policy, lint, packaging and secret gates still run.
     docs_only = (
         category_set == {"docs"}
         and not unknown
         and not router_changed
         and bool(paths)
-        and all(str(path).strip().replace("\\", "/").lower().endswith(".md") for path in paths)
+        and all(_is_prose_only_document(path) for path in paths)
     )
 
     # The workflow consumes a named impact set instead of keeping its own file list.
