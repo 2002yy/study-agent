@@ -8,8 +8,13 @@ from __future__ import annotations
 from typing import Any
 from types import SimpleNamespace
 
-from src.application.active_research_runtime import _bounded_assessment_candidates
+from src.application.active_research_runtime import (
+    _bounded_assessment_candidates,
+    _fair_read_plan,
+)
+from src.web.research.candidate_assessment import CandidateSemanticAssessment
 from src.web.research.candidate_pool import CandidatePoolItem
+from src.web.research.candidate_ranking import RankedCandidate
 from src.web.research.gap_planner import GapSearchIntent
 
 from src.web.research.contracts import (
@@ -17,8 +22,86 @@ from src.web.research.contracts import (
     ResearchBudget,
     ResearchClaim,
     ResearchQuestion,
+    ResearchState,
     build_research_state,
 )
+
+
+def _claim(claim_id: str, priority: Any = "critical") -> ResearchClaim:
+    return ResearchClaim(
+        id=claim_id,
+        question_id="q1",
+        text="claim",
+        kind="factual",
+        priority=priority,
+        state="pending",
+        evidence_requirement=EvidenceRequirement(),
+    )
+
+
+def _ranked(
+    candidate_id: str,
+    cluster_id: str,
+    rank: int,
+    *,
+    eligibility: str = "eligible",
+    signals: tuple[str, ...] = ("new_primary",),
+) -> RankedCandidate:
+    candidate = CandidatePoolItem(
+        id=candidate_id,
+        canonical_url=f"https://x.example/{candidate_id}",
+        url=f"https://x.example/{candidate_id}",
+        title=candidate_id,
+        snippet="",
+        source="",
+        published_at="",
+        query_ids=("q1",),
+        intents=(),
+        providers=("searxng",),
+        first_seen_rank=rank,
+    )
+    assessment = CandidateSemanticAssessment(
+        candidate_id=candidate_id,
+        relevance="answer_relevant",
+        relevance_confidence=0.9,
+        source_role="primary",
+        source_role_confidence=0.9,
+        cluster_id=cluster_id,
+        expected_gain_signals=signals,
+        freshness_score=0.5,
+        estimated_read_cost=1.0,
+    )
+    return RankedCandidate(
+        candidate=candidate,
+        assessment=assessment,
+        rank=rank,
+        eligibility=eligibility,
+        reason_codes=(),
+        new_cluster=False,
+        expected_information_gain=1,
+    )
+
+
+def _two_claim_state() -> ResearchState:
+    return build_research_state(
+        mode="active",
+        questions=(ResearchQuestion(id="q1", question_surface="question"),),
+        claims=(_claim("claim_A"), _claim("claim_B")),
+        evidence=(),
+        evidence_links=(),
+        source_clusters=(),
+        gaps=(),
+        conflict_gaps=(),
+        budget=ResearchBudget(
+            max_candidates=20,
+            max_reads=8,
+            soft_timeout_seconds=45,
+            hard_timeout_seconds=60,
+            max_total_chars=16000,
+        ),
+        reference_date="2026-08-28",
+        known_evidence_ids=(),
+    )
 
 
 def test_assessment_window_is_read_bounded_and_cluster_diverse() -> None:
@@ -77,96 +160,13 @@ def test_reusable_candidates_obey_scheduler_eligibility() -> None:
     its physical read exists, while a legitimate fresh Y is still selected and
     a lead_only candidate carrying a gain signal (Z) is not rejected.
     """
-    from src.application.active_research_runtime import _fair_read_plan
-    from src.web.research.candidate_assessment import CandidateSemanticAssessment
-    from src.web.research.candidate_pool import CandidatePoolItem
-    from src.web.research.candidate_ranking import RankedCandidate
-    from src.web.research.contracts import (
-        EvidenceRequirement,
-        ResearchClaim,
-        ResearchQuestion,
-    )
-
-    question = ResearchQuestion(id="q1", question_surface="question")
-
-    def claim(claim_id: str) -> ResearchClaim:
-        return ResearchClaim(
-            id=claim_id,
-            question_id="q1",
-            text="claim",
-            kind="factual",
-            priority="critical",
-            state="pending",
-            evidence_requirement=EvidenceRequirement(),
-        )
-
-    def ranked(
-        candidate_id: str,
-        cluster_id: str,
-        rank: int,
-        *,
-        eligibility: str = "eligible",
-        signals: tuple[str, ...] = ("new_primary",),
-    ) -> RankedCandidate:
-        candidate = CandidatePoolItem(
-            id=candidate_id,
-            canonical_url=f"https://x.example/{candidate_id}",
-            url=f"https://x.example/{candidate_id}",
-            title=candidate_id,
-            snippet="",
-            source="",
-            published_at="",
-            query_ids=("q1",),
-            intents=(),
-            providers=("searxng",),
-            first_seen_rank=rank,
-        )
-        assessment = CandidateSemanticAssessment(
-            candidate_id=candidate_id,
-            relevance="answer_relevant",
-            relevance_confidence=0.9,
-            source_role="primary",
-            source_role_confidence=0.9,
-            cluster_id=cluster_id,
-            expected_gain_signals=signals,
-            freshness_score=0.5,
-            estimated_read_cost=1.0,
-        )
-        return RankedCandidate(
-            candidate=candidate,
-            assessment=assessment,
-            rank=rank,
-            eligibility=eligibility,
-            reason_codes=(),
-            new_cluster=False,
-            expected_information_gain=1,
-        )
-
-    state = build_research_state(
-        mode="active",
-        questions=(question,),
-        claims=(claim("claim_A"), claim("claim_B")),
-        evidence=(),
-        evidence_links=(),
-        source_clusters=(),
-        gaps=(),
-        conflict_gaps=(),
-        budget=ResearchBudget(
-            max_candidates=20,
-            max_reads=8,
-            soft_timeout_seconds=45,
-            hard_timeout_seconds=60,
-            max_total_chars=16000,
-        ),
-        reference_date="2026-08-28",
-        known_evidence_ids=(),
-    )
+    state = _two_claim_state()
     rankings = {
-        "claim_A": (ranked("X", "cluster_X", 1),),
+        "claim_A": (_ranked("X", "cluster_X", 1),),
         "claim_B": (
-            ranked("X", "cluster_X", 1, eligibility="lead_only", signals=()),
-            ranked("Y", "cluster_Y", 2),
-            ranked("Z", "cluster_Z", 3, eligibility="lead_only", signals=("new_primary",)),
+            _ranked("X", "cluster_X", 1, eligibility="lead_only", signals=()),
+            _ranked("Y", "cluster_Y", 2),
+            _ranked("Z", "cluster_Z", 3, eligibility="lead_only", signals=("new_primary",)),
         ),
     }
 
@@ -194,90 +194,13 @@ def test_read_plan_cluster_diversity_spans_reusable_and_fresh() -> None:
     must skip the fresh same-cluster candidate Q without wasting the slot, and
     still take R (cluster Y).
     """
-    from src.application.active_research_runtime import _fair_read_plan
-    from src.web.research.candidate_assessment import CandidateSemanticAssessment
-    from src.web.research.candidate_pool import CandidatePoolItem
-    from src.web.research.candidate_ranking import RankedCandidate
-    from src.web.research.contracts import (
-        EvidenceRequirement,
-        ResearchClaim,
-        ResearchQuestion,
-    )
-
-    question = ResearchQuestion(id="q1", question_surface="question")
-    question_tuple = (question,)
-
-    def claim(claim_id: str) -> ResearchClaim:
-        return ResearchClaim(
-            id=claim_id,
-            question_id="q1",
-            text="claim",
-            kind="factual",
-            priority="critical",
-            state="pending",
-            evidence_requirement=EvidenceRequirement(),
-        )
-
-    def ranked(candidate_id: str, cluster_id: str, rank: int) -> RankedCandidate:
-        candidate = CandidatePoolItem(
-            id=candidate_id,
-            canonical_url=f"https://x.example/{candidate_id}",
-            url=f"https://x.example/{candidate_id}",
-            title=candidate_id,
-            snippet="",
-            source="",
-            published_at="",
-            query_ids=("q1",),
-            intents=(),
-            providers=("searxng",),
-            first_seen_rank=rank,
-        )
-        assessment = CandidateSemanticAssessment(
-            candidate_id=candidate_id,
-            relevance="answer_relevant",
-            relevance_confidence=0.9,
-            source_role="primary",
-            source_role_confidence=0.9,
-            cluster_id=cluster_id,
-            expected_gain_signals=("new_primary",),
-            freshness_score=0.5,
-            estimated_read_cost=1.0,
-        )
-        return RankedCandidate(
-            candidate=candidate,
-            assessment=assessment,
-            rank=rank,
-            eligibility="eligible",
-            reason_codes=(),
-            new_cluster=False,
-            expected_information_gain=1,
-        )
-
-    state = build_research_state(
-        mode="active",
-        questions=question_tuple,
-        claims=(claim("claim_A"), claim("claim_B")),
-        evidence=(),
-        evidence_links=(),
-        source_clusters=(),
-        gaps=(),
-        conflict_gaps=(),
-        budget=ResearchBudget(
-            max_candidates=20,
-            max_reads=8,
-            soft_timeout_seconds=45,
-            hard_timeout_seconds=60,
-            max_total_chars=16000,
-        ),
-        reference_date="2026-08-28",
-        known_evidence_ids=(),
-    )
+    state = _two_claim_state()
     rankings = {
-        "claim_A": (ranked("P", "cluster_X", 1),),
+        "claim_A": (_ranked("P", "cluster_X", 1),),
         "claim_B": (
-            ranked("P", "cluster_X", 1),
-            ranked("Q", "cluster_X", 2),
-            ranked("R", "cluster_Y", 3),
+            _ranked("P", "cluster_X", 1),
+            _ranked("Q", "cluster_X", 2),
+            _ranked("R", "cluster_Y", 3),
         ),
     }
 
@@ -302,8 +225,8 @@ def test_read_plan_cluster_diversity_spans_reusable_and_fresh() -> None:
         state,
         {
             "claim_B": (
-                ranked("Q", "cluster_X", 2),
-                ranked("R", "cluster_Y", 3),
+                _ranked("Q", "cluster_X", 2),
+                _ranked("R", "cluster_Y", 3),
             )
         },
         covered_cluster_ids_by_claim={"claim_B": {"cluster_X"}},
@@ -321,10 +244,6 @@ def test_read_plan_cluster_diversity_spans_reusable_and_fresh() -> None:
 def test_read_plan_uses_persisted_conflicts_and_backfills_major_slots() -> None:
     """Persisted conflict truth releases reserve, and covered clusters do not
     consume a major claim's one-item wave before an independent backfill."""
-    from src.application.active_research_runtime import _fair_read_plan
-    from src.web.research.candidate_assessment import CandidateSemanticAssessment
-    from src.web.research.candidate_pool import CandidatePoolItem
-    from src.web.research.candidate_ranking import RankedCandidate
     from src.domain.evidence import ClaimEvidenceLinkV1
     from src.web.research.contracts import (
         ConflictGap,
@@ -335,54 +254,7 @@ def test_read_plan_uses_persisted_conflicts_and_backfills_major_slots() -> None:
 
     question = ResearchQuestion(id="q1", question_surface="question")
 
-    def claim(claim_id: str, priority: Any) -> ResearchClaim:
-        return ResearchClaim(
-            id=claim_id,
-            question_id="q1",
-            text="claim",
-            kind="factual",
-            priority=priority,
-            state="pending",
-            evidence_requirement=EvidenceRequirement(),
-        )
-
-    def ranked(candidate_id: str, cluster_id: str, rank: int) -> Any:
-        candidate = CandidatePoolItem(
-            id=candidate_id,
-            canonical_url=f"https://x.example/{candidate_id}",
-            url=f"https://x.example/{candidate_id}",
-            title=candidate_id,
-            snippet="",
-            source="",
-            published_at="",
-            query_ids=("q1",),
-            intents=(),
-            providers=("searxng",),
-            first_seen_rank=rank,
-        )
-        return RankedCandidate(
-            candidate=candidate,
-            assessment=CandidateSemanticAssessment(
-                candidate_id=candidate_id,
-                relevance="answer_relevant",
-                relevance_confidence=0.9,
-                source_role="primary",
-                source_role_confidence=0.9,
-                cluster_id=cluster_id,
-                # Deliberately no new_contradiction: the persisted conflict,
-                # not a prediction on this candidate, must release reserve.
-                expected_gain_signals=("new_primary",),
-                freshness_score=0.5,
-                estimated_read_cost=1.0,
-            ),
-            rank=rank,
-            eligibility="eligible",
-            reason_codes=(),
-            new_cluster=False,
-            expected_information_gain=1,
-        )
-
-    conflict_claim = claim("claim_conflict", "critical")
+    conflict_claim = _claim("claim_conflict", "critical")
     conflict_evidence = (
         ResearchEvidence(
             evidence_id="ev_support",
@@ -458,15 +330,17 @@ def test_read_plan_uses_persisted_conflicts_and_backfills_major_slots() -> None:
         reference_date="2026-08-30",
         known_evidence_ids=("ev_support", "ev_contradict"),
     )
+    # Deliberately no new_contradiction: persisted conflict, not prediction,
+    # must release the reservation.
     conflict_physical, _ = _fair_read_plan(
         conflict_state,
-        {conflict_claim.id: (ranked("conflict-source", "cluster_C", 1),)},
+        {conflict_claim.id: (_ranked("conflict-source", "cluster_C", 1),)},
     )
     assert {item["candidate_id"] for item in conflict_physical} == {
         "conflict-source"
     }
 
-    major_claim = claim("claim_major", "major")
+    major_claim = _claim("claim_major", "major")
     major_state = build_research_state(
         mode="active",
         questions=(question,),
@@ -490,8 +364,8 @@ def test_read_plan_uses_persisted_conflicts_and_backfills_major_slots() -> None:
         major_state,
         {
             major_claim.id: (
-                ranked("Q", "cluster_X", 1),
-                ranked("R", "cluster_Y", 2),
+                _ranked("Q", "cluster_X", 1),
+                _ranked("R", "cluster_Y", 2),
             )
         },
         covered_cluster_ids_by_claim={major_claim.id: {"cluster_X"}},
