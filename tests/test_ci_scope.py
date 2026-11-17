@@ -274,6 +274,9 @@ def test_pure_docs_change_requires_nothing_heavy():
     ["docs/PROJECT_STATUS.md", "docs/M4C3_PROMPTS_V1.json"],
     ["docs/PROJECT_STATUS.md", "docs/dynamic_probe.py"],
     ["docs/PROJECT_STATUS.md", "docs/dashboard.html"],
+    ["tests/fixtures/rag_eval/python_requests.md"],
+    ["docs/PROJECT_STATUS.md", "tests/fixtures/rag_eval/python_requests.md"],
+    ["sample.md"],
 ])
 def test_docs_never_skip_backend_for_product_gate_or_unknown_changes(paths):
     assert classify(paths)["docs_only"] is False
