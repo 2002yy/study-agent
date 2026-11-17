@@ -7,6 +7,7 @@ import pytest
 import src.web.research.timing_ledger as timing
 from src.web.research.timing_ledger import (
     ACTIVE_RESEARCH_METRICS_KEY,
+    RuntimePhaseTiming,
     TimedGateway,
     TimingLedger,
     model_kind,
@@ -136,6 +137,45 @@ def test_phase_spans_and_missing_exits_are_tolerated() -> None:
 
     record = ledger.to_metrics()["wave_timeline"][0]
     assert record["spans_ms"]["read"] == pytest.approx(250.0)
+
+
+def test_runtime_phase_timing_preserves_phase_seconds_and_exclusive_span() -> None:
+    clock = _Clock()
+    ledger = TimingLedger(lambda: clock() * 1000.0)
+    timing_context = RuntimePhaseTiming(ledger=ledger, now=clock)
+    context: dict = {}
+    ledger.start_wave(1)
+
+    timing_context.begin("read")
+    clock.advance(0.25)
+    timing_context.end("read", context=context)
+    timing_context.begin("read")
+    clock.advance(0.125)
+    timing_context.end("read", context=context)
+    ledger.end_wave()
+
+    phase = context[ACTIVE_RESEARCH_METRICS_KEY]["phase_seconds"]["read"]
+    assert phase == {"seconds": 0.375, "calls": 2}
+    assert timing_context.started == {}
+    assert ledger.to_metrics()["wave_timeline"][0]["spans_ms"]["read"] == 375.0
+
+
+def test_runtime_phase_timing_uses_rebound_context_and_tolerates_missing_start() -> None:
+    clock = _Clock(10.0)
+    ledger = TimingLedger(lambda: clock() * 1000.0)
+    timing_context = RuntimePhaseTiming(ledger=ledger, now=clock)
+    old_context: dict = {}
+    new_context: dict = {ACTIVE_RESEARCH_METRICS_KEY: {"phase_seconds": "legacy"}}
+
+    timing_context.begin("assessment")
+    clock.advance(0.3)
+    timing_context.end("assessment", context=new_context)
+    timing_context.end("unknown", context=old_context)
+
+    assert old_context == {}
+    assert new_context[ACTIVE_RESEARCH_METRICS_KEY]["phase_seconds"] == {
+        "assessment": {"seconds": 0.3, "calls": 1}
+    }
 
 
 def test_timed_gateway_records_purpose_kinds() -> None:
