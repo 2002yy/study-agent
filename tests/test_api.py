@@ -105,10 +105,10 @@ def test_cors_allowlist_handles_preflight_and_response_headers(monkeypatch):
 
 
 def test_runtime_settings_endpoint_reads_and_persists_frontend_defaults(monkeypatch, tmp_path):
-    from src import api
+    from src.application import helpers
 
     settings_path = tmp_path / "frontend_settings.yaml"
-    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", settings_path)
+    monkeypatch.setattr(helpers, "FRONTEND_SETTINGS_PATH_DEFAULT", settings_path)
     client = TestClient(app)
 
     initial = client.get("/runtime/settings")
@@ -139,9 +139,9 @@ def test_runtime_settings_endpoint_reads_and_persists_frontend_defaults(monkeypa
 
 
 def test_runtime_settings_endpoint_accepts_legacy_rag_top_k(monkeypatch, tmp_path):
-    from src import api
+    from src.application import helpers
 
-    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", tmp_path / "frontend_settings.yaml")
+    monkeypatch.setattr(helpers, "FRONTEND_SETTINGS_PATH_DEFAULT", tmp_path / "frontend_settings.yaml")
     client = TestClient(app)
 
     response = client.patch("/runtime/settings", json={"rag_top_k": 7})
@@ -154,9 +154,9 @@ def test_runtime_settings_endpoint_accepts_legacy_rag_top_k(monkeypatch, tmp_pat
 
 
 def test_runtime_settings_endpoint_rejects_invalid_frontend_choice(monkeypatch, tmp_path):
-    from src import api
+    from src.application import helpers
 
-    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", tmp_path / "frontend_settings.yaml")
+    monkeypatch.setattr(helpers, "FRONTEND_SETTINGS_PATH_DEFAULT", tmp_path / "frontend_settings.yaml")
     client = TestClient(app)
 
     response = client.patch("/runtime/settings", json={"selected_role": "unknown"})
@@ -166,11 +166,11 @@ def test_runtime_settings_endpoint_rejects_invalid_frontend_choice(monkeypatch, 
 
 
 def test_runtime_settings_endpoint_ignores_invalid_frontend_yaml(monkeypatch, tmp_path):
-    from src import api
+    from src.application import helpers
 
     settings_path = tmp_path / "frontend_settings.yaml"
     settings_path.write_text("selected_role: [", encoding="utf-8")
-    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", settings_path)
+    monkeypatch.setattr(helpers, "FRONTEND_SETTINGS_PATH_DEFAULT", settings_path)
     client = TestClient(app)
 
     response = client.get("/runtime/settings")
@@ -213,14 +213,15 @@ def test_memory_status_endpoint_reports_runtime_and_files():
 
 
 def test_memory_file_preview_prefers_latest_content(monkeypatch, tmp_path):
-    from src import api
+    from src.application import helpers
+    from src import memory
 
     path = tmp_path / "progress.md"
     path.write_text("x" * 1700 + "LATEST", encoding="utf-8")
-    monkeypatch.setattr(api, "MEMORY_DIR", tmp_path)
-    monkeypatch.setattr(api, "read_memory_file", lambda name: path.read_text(encoding="utf-8"))
+    monkeypatch.setattr(helpers, "MEMORY_DIR_DEFAULT", tmp_path)
+    monkeypatch.setattr(memory, "read_memory_file", lambda name: path.read_text(encoding="utf-8"))
 
-    row = api._memory_file_row("progress.md")
+    row = helpers.memory_file_row("progress.md")
 
     assert row["preview"].endswith("LATEST")
     assert len(row["preview"]) == 1600
@@ -330,7 +331,7 @@ def test_wechat_message_stream_endpoint_emits_tokens_and_commits_group(runtime_t
 
 
 def test_news_discussion_outputs_remain_isolated_by_group_thread(runtime_test_context):
-    from src import api
+    from src.mode_manager import load_runtime_modes
     from src.application.news_service import NewsDependencies
 
     runtime_test_context.news_service.dependencies = NewsDependencies(
@@ -346,7 +347,7 @@ def test_news_discussion_outputs_remain_isolated_by_group_thread(runtime_test_co
             f"【纳西妲】\nreply for {digest}",
             "legacy ignored",
         ),
-        load_runtime_modes=api.load_runtime_modes,
+        load_runtime_modes=load_runtime_modes,
     )
     first = runtime_test_context.group_service.create_thread(title="First")
     second = runtime_test_context.group_service.create_thread(title="Second")
@@ -376,7 +377,7 @@ def test_news_discussion_outputs_remain_isolated_by_group_thread(runtime_test_co
 
 
 def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_context):
-    from src import api
+    from src.mode_manager import load_runtime_modes
     from src.application.news_service import NewsDependencies
 
     calls = {}
@@ -405,9 +406,8 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_con
         ],
         digest=fake_digest,
         discuss=fake_discussion,
-        load_runtime_modes=api.load_runtime_modes,
+        load_runtime_modes=load_runtime_modes,
     )
-    monkeypatch.setattr(api, "init_session", lambda: "news-stage-session")
     client = TestClient(app)
 
     created = client.post("/news/runs", json={"query": "AI"})
@@ -684,11 +684,11 @@ def test_rag_upload_appends_by_default_and_can_rebuild(tmp_path):
 
 
 def test_rag_upload_keeps_duplicate_basenames_unique(monkeypatch, tmp_path):
-    from src import api
+    from src.application import helpers
 
     upload_dir = tmp_path / "uploads"
     index_path = tmp_path / "duplicate_index.json"
-    monkeypatch.setattr(api, "RAG_UPLOAD_DIR", upload_dir)
+    monkeypatch.setattr(helpers, "RAG_UPLOAD_DIR_DEFAULT", upload_dir)
     client = TestClient(app)
 
     response = client.post(
@@ -713,11 +713,11 @@ def test_rag_upload_keeps_duplicate_basenames_unique(monkeypatch, tmp_path):
 
 
 def test_rag_upload_cannot_escape_upload_directory(monkeypatch, tmp_path):
-    from src import api
+    from src.application import helpers
 
     upload_dir = tmp_path / "uploads"
     index_path = tmp_path / "safe_index.json"
-    monkeypatch.setattr(api, "RAG_UPLOAD_DIR", upload_dir)
+    monkeypatch.setattr(helpers, "RAG_UPLOAD_DIR_DEFAULT", upload_dir)
 
     response = TestClient(app).post(
         "/rag/upload",
@@ -852,15 +852,16 @@ def test_chat_endpoint_builds_reply_and_logs_session(runtime_test_context):
 
 
 def test_previous_assistant_role_uses_avatar_role():
-    from src import api
+    from src.api.models.chat import ChatMessage
+    from src.application.helpers import previous_assistant_role
 
     history = [
-        api.ChatMessage(role="user", content="first"),
-        api.ChatMessage(role="assistant", content="reply", avatarRole="nahida"),
-        api.ChatMessage(role="user", content="follow-up"),
+        ChatMessage(role="user", content="first"),
+        ChatMessage(role="assistant", content="reply", avatarRole="nahida"),
+        ChatMessage(role="user", content="follow-up"),
     ]
 
-    assert api._previous_assistant_role(history) == "nahida"
+    assert previous_assistant_role(history) == "nahida"
 
 
 def test_chat_stream_endpoint_emits_sse_and_logs(runtime_test_context):
@@ -1301,10 +1302,10 @@ def test_archive_current_session_file_after_restart(runtime_test_context):
 
 
 def test_tools_and_workflow_endpoints_record_local_knowledge_call(monkeypatch, tmp_path):
-    from src import api
+    from src.workflows import store
 
     workflow_dir = tmp_path / "workflows"
-    monkeypatch.setattr(api, "WORKFLOW_DIR", workflow_dir)
+    monkeypatch.setattr(store, "DEFAULT_WORKFLOW_DIR", workflow_dir)
     document = tmp_path / "tool_notes.md"
     index_path = tmp_path / "rag_index.json"
     document.write_text("Tool registry calls can retrieve cited workflow evidence.", encoding="utf-8")

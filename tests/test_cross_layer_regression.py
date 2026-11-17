@@ -83,14 +83,14 @@ def test_session_archive_creates_new_id_on_next_chat(monkeypatch):
 def test_single_round_session_visible_before_save(monkeypatch, tmp_path):
     """A session with one chat turn should appear in /sessions before save()."""
     from src import session_logger
-    from src import api as api_mod
+    from src.application import helpers
 
     current_dir = tmp_path / "current"
     sessions_dir = tmp_path / "sessions"
     monkeypatch.setattr(session_logger, "CURRENT_DIR", current_dir)
     monkeypatch.setattr(session_logger, "LOG_DIR", sessions_dir)
-    monkeypatch.setattr(api_mod, "CURRENT_SESSION_DIR", current_dir)
-    monkeypatch.setattr(api_mod, "SESSION_DIR", sessions_dir)
+    monkeypatch.setattr(helpers, "CURRENT_SESSION_DIR_DEFAULT", current_dir)
+    monkeypatch.setattr(helpers, "SESSION_DIR_DEFAULT", sessions_dir)
     current_dir.mkdir(parents=True, exist_ok=True)
     sessions_dir.mkdir(parents=True, exist_ok=True)
 
@@ -147,13 +147,8 @@ def test_opening_with_existing_group_rejected(runtime_test_context):
 # ── 4. safe mode skips enrich (no network read) ─────────────────────────
 
 
-def test_safe_mode_skips_news_enrich(monkeypatch):
+def test_safe_mode_skips_news_enrich():
     """Under safe_mode, NewsRun persists a visible enrich_skipped stage."""
-    from src import api
-
-    monkeypatch.setattr(
-        api, "run_search_stage", lambda query, max_items: [{"title": "A"}]
-    )
     client = TestClient(app)
     created = client.post("/news/runs", json={"query": "test"})
     client.post(f"/news/runs/{created.json()['id']}/search", json={})
@@ -385,7 +380,7 @@ def test_news_query_change_invalidates_downstream_stages(runtime_test_context):
 
 def test_news_digest_uses_enriched_items(runtime_test_context):
     """Verify enrich→digest pipeline: digest receives enriched items."""
-    from src import api
+    from src.mode_manager import load_runtime_modes
     from src.application.news_service import NewsDependencies
 
     client = TestClient(app)
@@ -412,7 +407,7 @@ def test_news_digest_uses_enriched_items(runtime_test_context):
         enrich=fake_enrich,
         digest=fake_digest,
         discuss=lambda digest, **kwargs: ("discussion", ""),
-        load_runtime_modes=api.load_runtime_modes,
+        load_runtime_modes=load_runtime_modes,
     )
 
     created = client.post("/news/runs", json={"query": "China tech news today"})
@@ -502,7 +497,7 @@ def test_memory_commit_multiple_current_focus_rejected(monkeypatch):
 
     # Turn off safe_mode for this test by patching the modes
     monkeypatch.setattr(
-        "src.api.load_runtime_modes",
+        "src.api.routes.memory_routes.load_runtime_modes",
         lambda: RuntimeModes(memory_mode="confirm_write", safe_mode=False),
     )
     monkeypatch.setattr(
@@ -530,7 +525,7 @@ def test_memory_commit_multiple_current_focus_rejected(monkeypatch):
 def test_memory_commit_with_invalid_target_rejected(monkeypatch):
     """Writing to a non-existent target must fail before any file is written."""
     monkeypatch.setattr(
-        "src.api.load_runtime_modes",
+        "src.api.routes.memory_routes.load_runtime_modes",
         lambda: RuntimeModes(memory_mode="confirm_write", safe_mode=False),
     )
     monkeypatch.setattr(
