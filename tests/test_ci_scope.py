@@ -260,9 +260,20 @@ def test_unknown_path_is_conservative():
 def test_pure_docs_change_requires_nothing_heavy():
     result = classify(["docs/PROJECT_STATUS.md", "AGENTS.md"])
     assert result["categories"] == ["docs"]
+    assert result["docs_only"] is True
     assert result["frontend_required"] is False
     assert result["l3_eligible"] is False
     assert result["full_scope"] is False
+
+
+@pytest.mark.parametrize("paths", [
+    ["docs/PROJECT_STATUS.md", "src/application/chat_service.py"],
+    ["docs/PROJECT_STATUS.md", "tests/stage_gates.json"],
+    ["docs/PROJECT_STATUS.md", "tools/ci_scope.py"],
+    ["docs/PROJECT_STATUS.md", "mystery/thing.xyz"],
+])
+def test_docs_never_skip_backend_for_product_gate_or_unknown_changes(paths):
+    assert classify(paths)["docs_only"] is False
 
 
 def test_mixed_change_unions_the_categories():
