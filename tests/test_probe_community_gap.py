@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import time
+from unittest.mock import patch
 
 from tools.probe_community_gap import CASES, ProbeCase, run
 from src.web.research.facet_coverage import community_hosts_for
+from src.web.tool_gateway import GeneralWebGateway
 
 
 def _row(title: str, url: str) -> dict[str, str]:
@@ -98,3 +100,29 @@ def test_route_mismatch_is_reported_without_any_external_calls():
     report = run((wrong,), gateway_factory=forbidden)
     assert report["cases"][0]["reason"] == "unexpected_community_route"
     assert report["cases"][0]["route_ok"] is False
+
+
+def test_fast_control_forces_fallback_even_when_global_mode_is_browser(monkeypatch):
+    monkeypatch.setenv("WEB_SEARCH_STRATEGY", "browse_sites")
+    empty = {"status": "ok", "results": []}
+    with (patch.object(GeneralWebGateway, "__init__", return_value=None) as init,
+          patch.object(GeneralWebGateway, "search_exact", return_value=empty),
+          patch.object(GeneralWebGateway, "search_community_site", return_value=empty)):
+        report = run((CASES[0],), read_limit=0)
+    assert report["cases"][0]["route_ok"]
+    assert init.call_args_list[0].kwargs == {"search_strategy": "fallback"}
+
+
+def test_probe_refuses_paid_provider_flags_before_creating_gateways(monkeypatch):
+    def forbidden():
+        raise AssertionError("probe must stop before gateway construction")
+
+    for flag in ("WEB_DEEPSEEK_SEARCH_ENABLED", "WEB_DEEPSEEK_FETCH_ENABLED"):
+        monkeypatch.setenv(flag, "true")
+        try:
+            run((CASES[0],), gateway_factory=forbidden)
+        except RuntimeError as exc:
+            assert str(exc) == "community_probe_requires_deepseek_tools_disabled"
+        else:
+            raise AssertionError(f"probe did not reject {flag}")
+        monkeypatch.delenv(flag)

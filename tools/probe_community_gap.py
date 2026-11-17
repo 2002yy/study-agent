@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -90,6 +91,13 @@ def run(
     does not expose a progressive search API or change production routing.
     """
 
+    # Even if a developer enables the optional billable providers for ordinary
+    # requests, this explicitly free experiment must never silently use them.
+    paid_flags = ("WEB_DEEPSEEK_SEARCH_ENABLED", "WEB_DEEPSEEK_FETCH_ENABLED")
+    if any(os.environ.get(name, "").strip().casefold() in {"1", "true", "yes", "on"}
+           for name in paid_flags):
+        raise RuntimeError("community_probe_requires_deepseek_tools_disabled")
+
     max_results = max(1, min(max_results, 12))
     read_limit = max(0, min(read_limit, 3))
     details = []
@@ -102,7 +110,10 @@ def run(
                             "reason": "unexpected_community_route"})
             continue
         scoped = f"{case.search} site:{host}"
-        fast = gateway_factory()
+        # An externally selected browser-first mode must not turn the "fast"
+        # control arm into another browser run. Keep injectable test gateways.
+        fast = (GeneralWebGateway(search_strategy="fallback")
+                if gateway_factory is GeneralWebGateway else gateway_factory())
         browser = gateway_factory()
         started = time.monotonic()
         order: list[str] = []
