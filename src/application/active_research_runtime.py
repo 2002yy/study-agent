@@ -250,6 +250,12 @@ from src.application.research_stop_gate import (
     ResearchStopGate,
     ResearchStopSignal,
 )
+from src.application.research_runtime_checkpoint import (
+    ActiveRuntimeCheckpointContext,
+    _dedupe,
+    _eligible_items,
+    updated_runtime_budget,
+)
 from src.application.active_research_evidence_projection import (
     _bounded_retrieval_policy,
     _bounded_text,
@@ -896,14 +902,8 @@ class ActiveResearchRuntimeExecutor:
 
         def update_budget(*, reads_used: int | None = None) -> None:
             nonlocal state
-            state = replace(
-                state,
-                budget=replace(
-                    state.budget,
-                    candidates_used=min(len(cursor.candidates), state.budget.max_candidates),
-                    reads_used=(state.budget.reads_used if reads_used is None else reads_used),
-                    elapsed_seconds=elapsed(),
-                ),
+            state = updated_runtime_budget(
+                state, cursor, elapsed_seconds=elapsed(), reads_used=reads_used
             )
 
         def ensure_active() -> None:
@@ -915,11 +915,34 @@ class ActiveResearchRuntimeExecutor:
             return tuple(ref.id for ref in snapshot.refs)
 
         def checkpoint(*, stage: str | None = None) -> WebLookupRun:
-            nonlocal context
+            nonlocal context, state
             diagnostics: dict[str, Any] = {}
             _checkpoint_started = elapsed_ms()
             try:
-                return _checkpoint_inner(stage=stage, diagnostics=diagnostics)
+                snapshot = ActiveRuntimeCheckpointContext(
+                    repository=self.repository,
+                    run_id=run_id,
+                    operation_id=operation_id,
+                    context=context,
+                    state=state,
+                    cursor=cursor,
+                    query_attempts=query_attempts,
+                    selected_sources=selected_sources,
+                    rejected_sources=rejected_sources,
+                    warnings=warnings,
+                    known_evidence_ids=known_evidence_ids,
+                )
+                try:
+                    snapshot.prepare(stage=stage, elapsed=elapsed)
+                finally:
+                    # Preserve partial in-memory projection if serialization
+                    # raises, as the former nested checkpoint did.
+                    state, context = snapshot.state, snapshot.context
+                persisted = snapshot.persist(diagnostics=diagnostics, elapsed_ms=elapsed_ms)
+                # A concurrent steering entry may be merged by the repository;
+                # carry the durable result into the next wave boundary.
+                context = dict(persisted.research_context)
+                return persisted
             finally:
                 timing_ledger.record_checkpoint(elapsed_ms() - _checkpoint_started)
                 _record_checkpoint_timing(
@@ -930,49 +953,6 @@ class ActiveResearchRuntimeExecutor:
                     caller=_checkpoint_caller(),
                     phase=timing_ledger.current_phase(),
                 )
-
-        def _checkpoint_inner(
-            *,
-            stage: str | None = None,
-            diagnostics: dict[str, Any] | None = None,
-        ) -> WebLookupRun:
-            nonlocal context
-            if stage is not None and self._required(run_id).stage != stage:
-                self.repository.set_stage(
-                    run_id,
-                    stage=stage,
-                    operation_id=operation_id,
-                )
-            update_budget()
-            context = attach_runtime_cursor(context, cursor)
-            context = attach_claim_engine_state(
-                context,
-                state,
-                known_evidence_ids=known_evidence_ids(),
-            )
-            _update_metrics(context, state, cursor)
-            _repo_started = elapsed_ms()
-            persisted = self.repository.checkpoint(
-                run_id,
-                operation_id=operation_id,
-                research_context=context,
-                query_attempts=query_attempts,
-                selected_sources=selected_sources,
-                rejected_sources=rejected_sources,
-                items=_eligible_items(selected_sources),
-                warnings=_dedupe(warnings),
-                provider_status="",
-                stop_reason="",
-                answer_confidence="",
-                diagnostics=diagnostics,
-            )
-            if isinstance(diagnostics, dict):
-                diagnostics["repo_call_ms"] = round(elapsed_ms() - _repo_started, 1)
-            # The repository may have merged a steering entry that arrived
-            # concurrently with this checkpoint.  Keep the executor's local
-            # copy aligned so the next wave boundary can consume it.
-            context = dict(persisted.research_context)
-            return persisted
 
         def refresh_steering() -> None:
             nonlocal context
@@ -6575,42 +6555,6 @@ def _source_by_candidate(records: list[dict[str, Any]], candidate_id: str) -> di
 def _read_status(record: Mapping[str, Any]) -> str:
     read = record.get("read")
     return str(read.get("status") or "") if isinstance(read, Mapping) else ""
-
-
-def _eligible_items(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        dict(record.get("item") or {})
-        for record in records
-        if isinstance(record.get("extraction"), Mapping)
-        and record["extraction"].get("status") == "eligible"
-    ]
-
-
-def _update_metrics(
-    context: dict[str, Any],
-    state: ResearchState,
-    cursor: ResearchRuntimeCursor,
-) -> None:
-    context[ACTIVE_RESEARCH_METRICS_KEY] = {
-        **(
-            dict(context.get(ACTIVE_RESEARCH_METRICS_KEY) or {})
-            if isinstance(context.get(ACTIVE_RESEARCH_METRICS_KEY), Mapping)
-            else {}
-        ),
-        "candidate_count": len(cursor.candidates),
-        "read_count": sum(item.status == "success" for item in cursor.read_outcomes),
-        "cluster_count": len(state.source_clusters),
-        "open_critical_gap_count": sum(
-            gap.state in {"open", "searching"}
-            and any(claim.id == gap.claim_id and claim.priority == "critical" for claim in state.claims)
-            for gap in state.gaps
-        ),
-        "phase": cursor.phase,
-    }
-
-
-def _dedupe(values: list[str]) -> list[str]:
-    return list(dict.fromkeys(str(value)[:500] for value in values if str(value).strip()))
 
 
 
