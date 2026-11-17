@@ -260,7 +260,7 @@ from src.application.research_runtime_checkpoint import (
     updated_runtime_budget,
 )
 from src.application.active_research_evidence_projection import (
-    _bounded_retrieval_policy,
+    _bounded_retrieval_policy as _bounded_retrieval_policy,
     _bounded_text,
     _source_record,
     _add_extracted_evidence,
@@ -269,6 +269,10 @@ from src.application.active_research_evidence_projection import (
     _evidence_snapshot,
     _format_evidence_brief,
     _state_after_gate,
+)
+from src.application.research_runtime_read_observability import (
+    _record_backend_health as _record_backend_health,
+    _record_read_timing as _record_read_timing,
 )
 
 ACTIVE_RESEARCH_ASSESSMENTS_KEY = "claim_engine_assessments"
@@ -6157,82 +6161,6 @@ def _deadline_skip_payload(url: str, decision: Any) -> dict[str, Any]:
         "retrieval_state": "budget_exhausted",
         "retrieval_policy": decision.to_policy_dict(),
     }
-
-
-def _record_backend_health(context: dict[str, Any], breaker: Any) -> None:
-    """Flush the per-run breaker snapshot into the run metrics (no new ledger)."""
-
-    if breaker is None:
-        return
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if not isinstance(metrics, dict):
-        return
-    metrics["backend_health"] = breaker.snapshot()
-
-
-
-
-def _record_read_timing(
-    context: dict[str, Any],
-    *,
-    candidate: CandidatePoolItem,
-    wave_index: int,
-    status: str,
-    wall_ms: float,
-    chars: int,
-    raw_read: Mapping[str, Any],
-    backend: str = NATIVE_HTTP_BACKEND,
-) -> None:
-    """F2-O3a: split one read's wall time into network wait, backoff and local work.
-
-    Observation only - it never feeds scheduling, admission or policy. The
-    network component is the retry loop's own fetch total when a retry happened
-    (its clock covers every attempt, first one included) and the whole read call
-    otherwise; ``local_ms`` is what remains after removing network wait and
-    backoff, i.e. decode/parse/bookkeeping inside the reader, plus the
-    escalation tier when it ran (which keeps its own ``escalation_ms``).
-    """
-
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if not isinstance(metrics, dict):
-        return
-    retry = raw_read.get("read_retry")
-    retry = retry if isinstance(retry, Mapping) else {}
-    escalation = raw_read.get("escalation")
-    escalation = escalation if isinstance(escalation, Mapping) else {}
-    fetch_ms = float(retry.get("retry_fetch_ms") or 0.0) if retry else float(wall_ms)
-    backoff_ms = float(retry.get("retry_backoff_ms") or 0.0)
-    entry = {
-        "candidate_id": candidate.id,
-        "backend": str(backend),
-        "host": str(candidate.url).split("//")[-1].split("/")[0][:120],
-        "wave_index": int(wave_index),
-        "status": str(status),
-        "wall_ms": round(float(wall_ms), 1),
-        "fetch_ms": round(fetch_ms, 1),
-        "backoff_ms": round(backoff_ms, 1),
-        "escalation_ms": round(float(escalation.get("latency_ms") or 0.0), 1),
-        "local_ms": round(max(0.0, float(wall_ms) - fetch_ms - backoff_ms), 1),
-        "attempts": int(retry.get("attempts") or 1),
-        "retries": int(retry.get("retries") or 0),
-        "chars": int(chars),
-        "error_signature": error_signature(raw_read),
-        "retrieval_state": str(raw_read.get("retrieval_state") or ""),
-        "retrieval_policy": _bounded_retrieval_policy(raw_read),
-        "attempts_detail": [
-            dict(item)
-            for item in (retry.get("attempts_detail") or [])
-            if isinstance(item, Mapping)
-        ][:4],
-    }
-    timing = metrics.get("read_timing")
-    if not isinstance(timing, list):
-        timing = []
-    timing.append(entry)
-    metrics["read_timing"] = timing[-80:]
-
-
-
 
 
 def _record_escalation_diagnostics(
