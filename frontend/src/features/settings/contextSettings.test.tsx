@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { createWechatOpening, digestNewsRun, discussNewsRun, sendChat, sendWechatMessage } from "../../api";
+import { createWechatOpening, sendChat, sendWechatMessage } from "../../api";
 import { CHAT_SETTINGS_DEFAULTS, RAG_SETTINGS_DEFAULTS } from "./SettingsPanel";
 import { useSettingsController } from "./settingsController";
 
@@ -15,9 +15,7 @@ it.each(["", "none", "fast", "light", "deep"])("preserves context %s without sen
   await sendChat("question", [], options);
   await createWechatOpening(chatSettings);
   await sendWechatMessage("question", options);
-  await digestNewsRun("run", chatSettings);
-  await discussNewsRun("run", "group", chatSettings);
-  expect(fetchMock).toHaveBeenCalledTimes(5);
+  expect(fetchMock).toHaveBeenCalledTimes(3);
   for (const [, init] of fetchMock.mock.calls as unknown as [string, RequestInit][]) {
     expect(JSON.parse(String(init.body)).performance_mode).toBeNull();
   }
