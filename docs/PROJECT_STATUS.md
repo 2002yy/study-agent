@@ -8,7 +8,7 @@
 
 ### 权威基线（按精确 SHA 核实）
 
-- 本次架构减负已核验主线：`main@8f5a2ff0cb5c7a3d746bb5abf940b224df330cd0`（#401 合并后；tree `50211070e7f2384af3dd20c59ae15ebc8eb61090`）。此值是静态快照，**新会话须重新获取最新 main**，不得把旧工作树 HEAD 当成远端主线。
+- 本次架构减负已核验主线：`main@f93326559e453b7b24917d49d516d25e0526bfe3`（#403 合并后；tree `37be116f171a2b74cfc0f6479b4d6187cb83a5fe`，与 #403 验收树一致）。此值是静态快照，**新会话须重新获取最新 main**，不得把旧工作树 HEAD 当成远端主线。
 - **研究发布**：#360 已将 `simple` 设为默认：检索、读取正文、生成、检查引用属于已读 URL，再无损发布；`strict` 显式保留旧逐段校验。简单模式**不提供逐条事实已核实**的保证。历史 q9 曾一次完整输出（50.31 秒，3,173 字符），**不能据此认定跨题质量达标**。
 - **检索**：#365 双通道与 #366 基于已读正文的缺口查询已入主线；双通道默认关闭。#368 中文社区浏览器在 `main@5f146a67` 合并，修复米游社游戏分区路由。#369 免费覆盖探针见下文；**搜索发现的 URL 不等于正文已读、可以引用的证据**。
 - **DeepSeek 官方 Search / Fetch**：#370 于 `main@6a1c880e` 合并，仅预接入。两套 `ENABLED=false`、`MAX_REQUESTS=0` 独立默认关断；敏感 URL 和危险跳转不得发送至外部 Fetch。**未授权真实计费调用，未启用生产路由**。
@@ -40,7 +40,9 @@
 | [#399](https://github.com/2002yy/study-agent/pull/399) | 故障记录显式读取当前游标/上下文，保持尝试 ID 与去重 | HEAD `b676659b`；精确 CI `44136804289` 成功，合并 `f2666db8`；合并后 tree `618e987f` 与验收树一致 |
 | [#400](https://github.com/2002yy/study-agent/pull/400) | 模型尝试回调归入 `ActiveModelAttemptContext`，锁定开始检查点、费用前时序及完成后内存审计 | HEAD `b505fb3f`；精确 CI `44138134273` 成功，合并 `9abe320d`；合并后 tree `8e9fef3e` 与验收树一致 |
 | [#401](https://github.com/2002yy/study-agent/pull/401) | 专家读取的路由、预算窗口与来源诊断归入 `ActiveReadSiteContext`；保持默认读取链为兜底 | HEAD `4d01a312`；精确 CI `44140163266` 成功，合并 `8f5a2ff0`；合并后 tree `50211070` 与验收树一致 |
-| [#402](https://github.com/2002yy/study-agent/pull/402) | 三类有证据终态统一由 `ActiveResearchPublisher` 接收当前上下文和停止结果；检查点仍在执行器 | HEAD `a7d67a07`；CI `44141917095` 最近一次观察仍在运行；草稿、未合并 |
+| [#402](https://github.com/2002yy/study-agent/pull/402) | 三类有证据终态统一由 `ActiveResearchPublisher` 接收当前上下文和停止结果；检查点仍在执行器 | HEAD `a7d67a07`；精确 CI `44141917095` 成功，合并 `ef99b162`；合并后 tree `66a33f5f` 与验收树一致 |
+| [#403](https://github.com/2002yy/study-agent/pull/403) | 波次结束停止信号纯投影：当前缺口、饱和阈值、恢复后迟到 steering，`ResearchStopGate` 仍独占裁决 | HEAD `3271c810`；133 passed、精确 CI `44145248671` 成功；合并 `f9332655`、tree `37be116f` 与验收树一致 |
+| [#404](https://github.com/2002yy/study-agent/pull/404) | 共用切换/普通研究测试工厂，保留升级网关对象身份 | HEAD `ab298385`；84 passed；CI `44146778208` 最近一次观察仍在运行；已改以 #403 合并后的 main 为基线，未合并 |
 
 **当前结构片**：[#387](https://github.com/2002yy/study-agent/pull/387) 的 40 处测试初始化删重已合并 `main@315b07a1`，原 63 个测试函数与 474 条断言保持、84 passed，精确 PR CI `44079893336` 成功；[#386](https://github.com/2002yy/study-agent/pull/386) 将有序检查点封装为执行上下文，精确 HEAD CI `44080509512` 成功、合并 `df6f2a7e`；[#388](https://github.com/2002yy/study-agent/pull/388) 将结果缓冲区显式化，精确 HEAD CI `44080750573` 成功、合并 `0e72901d`。这些是各 PR 头提交的验证，不冒充合并主线后的独立 CI。重复的 #389 已关闭，未入主线。
 
@@ -48,7 +50,7 @@
 
 ### 测试与执行成本的量化基线
 
-- 约 **588** 个 `tests/test_*.py` 文件，**150,637 行**测试代码，AST 约 **5,917** 个测试函数定义；参数化后的实际用例数更多。全仓结构相同的测试函数仅发现 9 组、10 个额外定义，**不能把 15.1 万行当作机械重复代码批量删除**。
+- 约 **588** 个 `tests/test_*.py` 文件，历史 AST 约 **5,917** 个测试函数定义；参数化后的实际用例数更多。2026-11-18 本地预算时钟切片工作树实测 `src/**/*.py` **149,719 行**、`tests/**/*.py` **152,805 行**，测试/主体约 **1.02:1**（均为物理行，含空行与注释；两侧口径一致）。全仓结构相同的测试函数仅发现 9 组、10 个额外定义，**不能仅凭测试行数大于主体而批量删除**。
 - #373 的一次完整后端 CI：**7,347 passed、21 skipped、1,376.13 秒**（约 22 分 56 秒）；单个最慢测试约 5.13 秒。主要负担是对小变更触发整套回归，不是个别慢用例。
 - `tools/ci_scope.py` 目前只对 `developer-cli`、`conversation-decision`、`standard` 类别登记精准影响集；通用 `learning-backend`、新增纯研究模块仍常走全量。后续应按**明确文件→直接引用测试→下层契约测试**新增影响集，保留 L3 主线/发布门和未知路径保守兜底；不能靠跳过覆盖换速度。
 
@@ -71,7 +73,7 @@
 
 ### 唯一下一执行片
 
-**当前用户指定的 P3 任务**：#386—#388、#390—#401 均已按精确 HEAD CI、审查和依赖树门禁合入主线；最新核实 `main@8f5a2ff0cb5c7a3d746bb5abf940b224df330cd0`，tree `50211070e7f2384af3dd20c59ae15ebc8eb61090`。草稿 [#402](https://github.com/2002yy/study-agent/pull/402) 统一正常、硬预算和有证据异常三种终态的发布参数；HEAD `a7d67a07`，CI `44141917095` 最近一次观察仍在运行，**未合并**。其后独立片将波次结束的停止信号推导迁到纯投影：执行器显式提供当前 `state/cursor/context`、与规划一致的可行动缺口及预算标志，`ResearchStopGate` 仍唯一裁决停止，晚到 steering 的 checkpoint 和波次推进不动。**保留请求前持久 inflight、完成后仅内存审计、语义结果后再持久化的原顺序**，真实 `reserve_call` 不改。详细责任图见[2026-11-17/18 执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。**原产品实验仍待执行**：在具备真实浏览器和 SearXNG 的环境运行 #369 零模型、零收费搜索的社区覆盖探针。
+**当前用户指定的 P3 任务**：#386—#388、#390—#403 已按精确 HEAD CI、审查和依赖树门禁合入主线；最新核实 `main@f93326559e453b7b24917d49d516d25e0526bfe3`，tree `37be116f171a2b74cfc0f6479b4d6187cb83a5fe`。测试夹具 [#404](https://github.com/2002yy/study-agent/pull/404) 已以 main 为基线，仍待精确 HEAD CI 成功后合并。**独立结构片**从该主线另开 `codex/research-budget-clock-pr-20261118`：将运行单调时钟、Deep 恢复基线、研究窗口、模型单次超时归入 `ResearchBudgetClock`；该对象只持有固定时钟参数及获取**当前**研究硬额度的回调，不缓存可重绑定的 `state`、不修改实际费用预留、结算和检查点。`elapsed`、窗口剩余、单次模型超时及硬额度剩余仍各自按需**采样一次**时钟，Deep 基线不重新起算；单次超时的 1 秒下限、供应商上限和 12 秒研究尾部预留未改。定向离线影响集 `test_research_runtime_budget_clock.py`、`test_active_research_runtime.py`、`test_spend_boundary_controls.py`、`test_deep_planner_production.py`、`test_research_runtime_window_diagnostics.py` **115 passed（145.40s）**；Ruff、格式和 diff-check 通过；本片精确远端 CI 尚待验收。**保留请求前持久 inflight、完成后仅内存审计、语义结果后再持久化的原顺序**，真实 `reserve_call` 不改。详细责任图见[2026-11-17/18 执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。**原产品实验仍待执行**：在具备真实浏览器和 SearXNG 的环境运行 #369 零模型、零收费搜索的社区覆盖探针。
 
 ## 0A. 已冻结研究路线（摘要）
 

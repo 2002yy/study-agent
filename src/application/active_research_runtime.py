@@ -268,6 +268,7 @@ from src.application.research_runtime_read_site import (
     record_read_site_specialist as record_read_site_specialist,
     specialist_chain_run as specialist_chain_run,
 )
+from src.application.research_runtime_budget_clock import ResearchBudgetClock
 from src.application.research_runtime_publication import ActiveResearchPublisher
 from src.application.research_runtime_wave_stop_signal import completed_wave_stop_signal
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
@@ -799,6 +800,18 @@ class ActiveResearchRuntimeExecutor:
             envelope=deep_envelope,
             now=_deep_wall_now(self.utc_now),
         )
+        budget_clock = ResearchBudgetClock(
+            monotonic=self.monotonic,
+            execution_started=execution_started,
+            base_elapsed=base_elapsed,
+            current_hard_seconds=lambda: state.budget.hard_timeout_seconds,
+            model_timeout_cap_seconds=self.model_timeout_cap_seconds,
+            reserve_seconds=RESEARCH_WINDOW_RESERVE_SECONDS,
+        )
+        elapsed = budget_clock.elapsed
+        elapsed_ms = budget_clock.elapsed_ms
+        research_seconds_left = budget_clock.research_seconds_left
+        remaining_timeout = budget_clock.remaining_timeout
         research_window_diagnostics = ResearchWindowDiagnostics(
             reserve_seconds=RESEARCH_WINDOW_RESERVE_SECONDS
         )
@@ -806,9 +819,6 @@ class ActiveResearchRuntimeExecutor:
             policy_check=self.policy_check,
             utc_now=self.utc_now,
         )
-
-        def elapsed() -> float:
-            return base_elapsed + max(0.0, self.monotonic() - execution_started)
 
         def update_budget(*, reads_used: int | None = None) -> None:
             nonlocal state
@@ -903,20 +913,6 @@ class ActiveResearchRuntimeExecutor:
             if isinstance(metrics, dict):
                 metrics.update(timing_ledger.to_metrics())
 
-        def remaining_timeout() -> float:
-            return max(
-        1.0,
-        min(
-            self.model_timeout_cap_seconds,
-            research_seconds_left(),
-        ),
-    )
-
-        def elapsed_ms() -> float:
-            """Monotonic milliseconds since run start (diagnostics only)."""
-
-            return round(elapsed() * 1000.0, 1)
-
         # F2-S1: wave-scoped exclusive timing ledger (observation only).
         timing_ledger = TimingLedger(elapsed_ms)
         timed_gateway = TimedGateway(self.model_gateway, timing_ledger, elapsed_ms)
@@ -958,23 +954,12 @@ class ActiveResearchRuntimeExecutor:
                 source_limit=source_limit,
                 gateway_read=gateway_read,
                 escalation_backend=escalation_backend,
-                hard_seconds_left=lambda: (
-                    state.budget.hard_timeout_seconds - elapsed()
-                ),
+                hard_seconds_left=budget_clock.hard_seconds_left,
             )
 
         read_site_context = ActiveReadSiteContext(
-            hard_seconds_left=lambda: state.budget.hard_timeout_seconds - elapsed()
+            hard_seconds_left=budget_clock.hard_seconds_left
         )
-
-        def research_seconds_left() -> float:
-            """Seconds left in the research window (finalization reserve kept)."""
-
-            return (
-                state.budget.hard_timeout_seconds
-                - RESEARCH_WINDOW_RESERVE_SECONDS
-                - elapsed()
-            )
 
         def research_window_exhausted() -> bool:
             return research_seconds_left() <= 0.0
@@ -999,7 +984,7 @@ class ActiveResearchRuntimeExecutor:
             accepts_timeout=self.read_gateway_accepts_timeout,
             get_context=lambda: context,
             research_seconds_left=research_seconds_left,
-            hard_seconds_left=lambda: state.budget.hard_timeout_seconds - elapsed(),
+            hard_seconds_left=budget_clock.hard_seconds_left,
             wave_index=lambda: int(cursor.wave_index),
             on_phase_start=phase_timing.begin,
             on_phase_end=lambda phase: phase_timing.end(phase, context=context),
@@ -1412,7 +1397,7 @@ class ActiveResearchRuntimeExecutor:
                         # Deadline-aware provider policy: reserve the tail of the
                         # shared hard budget for assessment/read/answer so a
                         # degraded provider cannot consume the entire budget.
-                        remaining = state.budget.hard_timeout_seconds - elapsed()
+                        remaining = budget_clock.hard_seconds_left()
                         search_deadline = self.monotonic() + max(
                             0.0,
                             remaining - RESEARCH_WINDOW_RESERVE_SECONDS,
@@ -2719,9 +2704,7 @@ class ActiveResearchRuntimeExecutor:
                             for item in cursor.evidence_lead_followups
                             if int(item.get("wave_index") or 0) == cursor.wave_index
                         )
-                        remaining_seconds = (
-                            state.budget.hard_timeout_seconds - elapsed()
-                        )
+                        remaining_seconds = budget_clock.hard_seconds_left()
                         if (
                             wave_followups >= MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE
                             or len(cursor.evidence_lead_followups)
