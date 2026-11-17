@@ -40,6 +40,16 @@ def updated_runtime_budget(
 
 
 @dataclass
+class ActiveResearchResultBuffers:
+    """Lists shared by checkpoint and terminal publication, with stable identity."""
+
+    query_attempts: list[dict[str, Any]]
+    selected_sources: list[dict[str, Any]]
+    rejected_sources: list[dict[str, Any]]
+    warnings: list[str]
+
+
+@dataclass
 class ActiveRuntimeCheckpointContext:
     """Explicit snapshot and operation lease for a single checkpoint.
 
@@ -54,10 +64,7 @@ class ActiveRuntimeCheckpointContext:
     context: dict[str, Any]
     state: ResearchState
     cursor: ResearchRuntimeCursor
-    query_attempts: list[dict[str, Any]]
-    selected_sources: list[dict[str, Any]]
-    rejected_sources: list[dict[str, Any]]
-    warnings: list[str]
+    results: ActiveResearchResultBuffers
     known_evidence_ids: Callable[[], tuple[str, ...]]
 
     def prepare(self, *, stage: str | None, elapsed: Callable[[], float]) -> None:
@@ -93,11 +100,11 @@ class ActiveRuntimeCheckpointContext:
             self.run_id,
             operation_id=self.operation_id,
             research_context=self.context,
-            query_attempts=self.query_attempts,
-            selected_sources=self.selected_sources,
-            rejected_sources=self.rejected_sources,
-            items=_eligible_items(self.selected_sources),
-            warnings=_dedupe(self.warnings),
+            query_attempts=self.results.query_attempts,
+            selected_sources=self.results.selected_sources,
+            rejected_sources=self.results.rejected_sources,
+            items=_eligible_items(self.results.selected_sources),
+            warnings=_dedupe(self.results.warnings),
             provider_status="",
             stop_reason="",
             answer_confidence="",

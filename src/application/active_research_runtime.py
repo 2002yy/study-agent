@@ -251,6 +251,7 @@ from src.application.research_stop_gate import (
     ResearchStopSignal,
 )
 from src.application.research_runtime_checkpoint import (
+    ActiveResearchResultBuffers,
     ActiveRuntimeCheckpointContext,
     _dedupe,
     _eligible_items,
@@ -887,6 +888,12 @@ class ActiveResearchRuntimeExecutor:
         selected_sources = [dict(item) for item in run.selected_sources]
         rejected_sources = [dict(item) for item in run.rejected_sources]
         warnings = list(run.warnings)
+        results = ActiveResearchResultBuffers(
+            query_attempts=query_attempts,
+            selected_sources=selected_sources,
+            rejected_sources=rejected_sources,
+            warnings=warnings,
+        )
         execution_started = self.monotonic()
         # Deep-2: the Deep tier owns its own budget window, so wall time since Deep admission
         # counts even across a crash. A non-Deep run has no envelope and is unchanged.
@@ -926,10 +933,7 @@ class ActiveResearchRuntimeExecutor:
                     context=context,
                     state=state,
                     cursor=cursor,
-                    query_attempts=query_attempts,
-                    selected_sources=selected_sources,
-                    rejected_sources=rejected_sources,
-                    warnings=warnings,
+                    results=results,
                     known_evidence_ids=known_evidence_ids,
                 )
                 try:
@@ -1576,13 +1580,13 @@ class ActiveResearchRuntimeExecutor:
             return self.repository.complete(
                 run_id,
                 operation_id=operation_id,
-                items=_eligible_items(selected_sources),
+                items=_eligible_items(results.selected_sources),
                 source_block=_format_evidence_brief(brief),
-                warnings=_dedupe(warnings),
+                warnings=_dedupe(results.warnings),
                 research_context=context,
-                query_attempts=query_attempts,
-                selected_sources=selected_sources,
-                rejected_sources=rejected_sources,
+                query_attempts=results.query_attempts,
+                selected_sources=results.selected_sources,
+                rejected_sources=results.rejected_sources,
                 provider_status=stop.provider_status,
                 stop_reason=stop.reason,
                 answer_confidence=stop.answer_confidence,
