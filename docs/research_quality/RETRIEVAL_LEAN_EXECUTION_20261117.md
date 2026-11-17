@@ -109,8 +109,9 @@
 | [#391](https://github.com/2002yy/study-agent/pull/391) | HEAD `9f1a8c7f753d783a0acb9eba4159273796db3023` 的 CI `44089619882` 成功，合并 `6e7e6c53f2e8535233e9e69d9c462172b1716e96` | `RuntimePhaseTiming` 拥有阶段起始字典和计时账本，`end` 显式接收**当前**上下文，防止恢复/追加要求后旧引用写入；不修改超时判定 |
 | [#392](https://github.com/2002yy/study-agent/pull/392) | 旧 HEAD `025969de` 的 CI `44092795823` 后端失败、其余三项成功；日志 404。重基 #393 后新 HEAD `c45b8287`，CI `44106896286` 运行中，本地 112 passed | `updated_model_policy_audits` 只负责原形状、顺序、100 条上限的纯投影；模型准入、网络调用与计费责任仍留原位置 |
 | [#393](https://github.com/2002yy/study-agent/pull/393) | HEAD `271010c377037dd3c09ea842cb2d7e26bc2eec61` 的 CI `44100349280` 五项成功，合并 `5bcfc8a0e0166936ab1223ee4a38c9e134a7b7fd` | `_record_read_timing` 与 `_record_backend_health` AST 主体原样迁出，旧入口仍可导入；不修改读调度和预算 |
+| [#394](https://github.com/2002yy/study-agent/pull/394) | 草稿，**base 为 #392 分支，不可抢先合并**；本地相关 124 passed，精确 HEAD CI 等待完成 | `ActiveReadAttemptContext` 显式传入当前游标/上下文；32 处重复恢复游标解码收口 |
 
-下一独立结构片把单次读取的尝试结果游标写入和诊断记录组合成 `ActiveReadAttemptContext`；代码和 32 处游标测试初始化去重现已整理为两份提交。在 #392 合并前可以提前以其分支为基线开启**草稿**并运行 CI，但严格保持 **#392 先合并 → 确认主线同树 → 下一 PR 才能合并**。执行方法里的 `state`、`cursor`、`context` 仍属不同生命周期：**不能**为了减少一层闭包而将重绑定游标固化为旧对象，也不能越过请求前 inflight 持久化；这类高风险迁移须先补恢复负控再动。
+下一独立结构片已开草稿 #394，将单次读取的尝试结果游标写入和诊断记录组合成 `ActiveReadAttemptContext`，并收口 32 处游标测试初始化重复。其基线是 #392 分支，可并行验 CI，但严格保持 **#392 先合并 → 确认主线同树 → #394 才能合并**。执行方法里的 `state`、`cursor`、`context` 仍属不同生命周期：**不能**为了减少一层闭包而将重绑定游标固化为旧对象，也不能越过请求前 inflight 持久化；这类高风险迁移须先补恢复负控再动。
 
 ### 读取尝试上下文：暂存分支的恢复注意事项
 
