@@ -90,3 +90,13 @@
 | `run_id / operation_id / elapsed` | 一次执行内固定的身份和单调时间基线 | 明确作为执行上下文输入，不重置崩溃计时 |
 
 读取调度先显式传入候选身份：旧 `schedule_read` 自由变量包含 `candidate_id`，新签名从实参接收，避免未来跨候选复用此闭包时误用上一轮循环值。接着将预调度和读取链两处相同的“每候选已尝试后端”逻辑统一为 `scheduler.attempted_read_backends(outcomes, candidate_id)`；从两处外围闭包读取 `cursor` 的重复计算，变为显式传入持久读取结果和候选身份的一个纯函数。保留遇到顺序去重、跳过空后端、跨候选隔离及读取阶段决策。新增隔离负控；此片不改读写账本、计费和发布。
+
+### 后续结构片收口与正在执行的边界
+
+| 结构片 | 状态、可复核静态证据 | 责任变化及非目标 |
+| --- | --- | --- |
+| [#390](https://github.com/2002yy/study-agent/pull/390) | 合并 `96ac38b654658c80e6da4445766b75c4610b5db3`，精确 HEAD CI `44086183784` 成功 | 读取候选身份显式化；不调整读取调度策略 |
+| [#391](https://github.com/2002yy/study-agent/pull/391) | HEAD `9f1a8c7f753d783a0acb9eba4159273796db3023` 的 CI `44089619882` 成功，合并 `6e7e6c53f2e8535233e9e69d9c462172b1716e96` | `RuntimePhaseTiming` 拥有阶段起始字典和计时账本，`end` 显式接收**当前**上下文，防止恢复/追加要求后旧引用写入；不修改超时判定 |
+| [#392](https://github.com/2002yy/study-agent/pull/392) | 原 HEAD `ef9ee5b7` 的 CI `44088008445` 成功；新主线必须另行验证重基后的**新 HEAD** | `updated_model_policy_audits` 只负责原形状、顺序、100 条上限的纯投影；模型准入、网络调用与计费责任仍留原位置 |
+
+下一独立诊断片将把 `_record_read_timing` / `_record_backend_health` 的读取耗时与后端健康记录从巨大运行器模块迁出，保留旧名兼容入口。执行方法里的 `state`、`cursor`、`context` 仍属不同生命周期：**不能**为了减少一层闭包而将重绑定游标固化为旧对象，也不能越过请求前 inflight 持久化；这类高风险迁移须先补恢复负控再动。
