@@ -263,6 +263,14 @@ from src.application.research_runtime_failure_projection import (
 )
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import schedule_active_research_read
+from src.application.research_runtime_read_site import (
+    ActiveReadSiteContext,
+    READ_SITE_HINT_ROUTE_DEFAULT as READ_SITE_HINT_ROUTE_DEFAULT,
+    READ_SITE_HINT_ROUTE_SPECIALIST as READ_SITE_HINT_ROUTE_SPECIALIST,
+    read_site_hint_route as read_site_hint_route,
+    record_read_site_specialist as record_read_site_specialist,
+    specialist_chain_run as specialist_chain_run,
+)
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
 from src.application.active_research_evidence_projection import (
     _bounded_retrieval_policy as _bounded_retrieval_policy,
@@ -553,133 +561,6 @@ def run_single_read_measurement(
 
 class ActiveResearchCancelled(RuntimeError):
     pass
-
-
-# ── §143-RS explicit reader-capability selector (execute() read site) ─────────
-# Frozen contract: docs/PROJECT_STATUS.md §143.158-§143.160. The inline default
-# chain remains the ONLY production default execution authority; this selector
-# may short-circuit it only when an explicit hint selected the Crawl4AI
-# specialist AND the specialist returned usable content. With no hint (or any
-# gate/health/budget failure) the original code path runs unchanged.
-
-READ_SITE_HINT_ROUTE_DEFAULT = "default"
-READ_SITE_HINT_ROUTE_SPECIALIST = "specialist"
-
-
-def read_site_hint_route(context: Mapping[str, Any]) -> dict[str, Any]:
-    """Pure decision over an explicit reader-capability hint at the read site."""
-
-    capabilities = context.get("reader_capabilities")
-    if not capabilities:
-        return {
-            "route": READ_SITE_HINT_ROUTE_DEFAULT,
-            "hint_honored": True,
-            "reason": "",
-            "requested_reader_capabilities": [],
-        }
-    try:
-        from src.application.reader_hint_routing import (
-            explicit_reader_hints_enabled,
-            resolve_reader_route,
-        )
-        from src.web.research.crawl4ai_specialist import crawl4ai_specialist_status
-    except Exception:  # pragma: no cover - defensive fail-closed
-        return {
-            "route": READ_SITE_HINT_ROUTE_DEFAULT,
-            "hint_honored": False,
-            "reason": "specialist_unavailable",
-            "requested_reader_capabilities": list(capabilities),
-        }
-    try:
-        return resolve_reader_route(
-            capabilities,
-            hints_enabled=explicit_reader_hints_enabled(),
-            specialist_config_ok=bool(crawl4ai_specialist_status().get("config_ok")),
-            session_inputs_present=bool(
-                context.get("reader_session_id") or context.get("reader_setup_url")
-            ),
-        )
-    except Exception:
-        return {
-            "route": READ_SITE_HINT_ROUTE_DEFAULT,
-            "hint_honored": False,
-            "reason": "invalid_hint",
-            "requested_reader_capabilities": list(capabilities),
-        }
-
-
-def specialist_chain_run(
-    *, candidate_id: str, step: ChainStepResult, outer_attempt_number: int
-) -> Any:
-    """Normalise one specialist step into the standard ``ChainRun`` contract.
-
-    Downstream scheduling/evidence/synthesis must never learn a specialist-only
-    data type; only the content's origin changes.
-    """
-
-    from src.web.research.chain_executor import ChainRun, ChainStep
-
-    chain_step = ChainStep(
-        chain_step=0,
-        outer_attempt_number=outer_attempt_number,
-        backend=str(step.backend),
-        retrieval_state=str(step.retrieval_state),
-        attempted=bool(step.attempted),
-        usable_content=bool(step.usable_content),
-    )
-    return ChainRun(
-        candidate_id=candidate_id,
-        steps=(chain_step,),
-        action="resolve",
-        reason="specialist_usable_content",
-        final_state=str(step.retrieval_state),
-        terminal=True,
-        usable_content=True,
-        attempted_backends=(str(step.backend),),
-        content=str(step.content or ""),
-    )
-
-
-def record_read_site_specialist(
-    context: dict[str, Any],
-    *,
-    route: Mapping[str, Any],
-    specialist: Mapping[str, Any] | None,
-    hint_source: str,
-) -> None:
-    """Durable selector provenance (independent of default attempt numbering)."""
-
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if not isinstance(metrics, dict):
-        return
-    specialist = specialist or {}
-    attempted = bool(specialist)
-    usable = bool(
-        specialist.get("specialist_available")
-        and getattr(specialist.get("result"), "usable_content", False)
-    )
-    entries = metrics.get("read_site_specialist")
-    if not isinstance(entries, list):
-        entries = []
-    entries.append(
-        {
-            "requested_reader_capabilities": list(
-                route.get("requested_reader_capabilities") or []
-            ),
-            "hint_source": str(hint_source or ""),
-            "hint_honored": attempted and bool(specialist.get("specialist_available")),
-            "specialist_attempted": attempted,
-            "specialist_backend": str(specialist.get("actual_backend") or ""),
-            "specialist_outcome": str(specialist.get("terminal_outcome") or ""),
-            "specialist_usable": usable,
-            "specialist_unavailable_reason": str(
-                specialist.get("unavailable_reason") or route.get("reason") or ""
-            ),
-            "specialist_latency_ms": float(specialist.get("latency_ms") or 0.0),
-            "fallback_used": not usable,
-        }
-    )
-    metrics["read_site_specialist"] = entries[-60:]
 
 
 # Multimodal Reader v1 read-site seam (docs/PROJECT_STATUS.md §144.15).
@@ -1078,52 +959,9 @@ class ActiveResearchRuntimeExecutor:
                 ),
             )
 
-        def read_site_specialist_step(
-            candidate: CandidatePoolItem, source_limit: int
-        ) -> ChainStepResult | None:
-            """§143-RS: try the explicit specialist first; only usable wins.
-
-            It never replaces the default chain: any non-usable outcome returns
-            ``None`` so the original inline default block runs unchanged.
-            """
-
-            route = read_site_hint_route(context)
-            if route.get("route") != READ_SITE_HINT_ROUTE_SPECIALIST:
-                if route.get("requested_reader_capabilities"):
-                    record_read_site_specialist(
-                        context,
-                        route=route,
-                        specialist=None,
-                        hint_source=str(
-                            context.get("reader_capabilities_source") or ""
-                        ),
-                    )
-                return None
-            from src.web.research.crawl4ai_specialist import (
-                invoke_crawl4ai_specialist,
-            )
-
-            specialist = invoke_crawl4ai_specialist(
-                url=candidate.url,
-                mode="browser",
-                max_chars=source_limit,
-                session_id=context.get("reader_session_id") or None,
-                setup_url=context.get("reader_setup_url") or None,
-                hard_seconds_left=lambda: (
-                    state.budget.hard_timeout_seconds - elapsed()
-                ),
-                candidate_id=str(candidate.id),
-            )
-            record_read_site_specialist(
-                context,
-                route=route,
-                specialist=specialist,
-                hint_source=str(context.get("reader_capabilities_source") or ""),
-            )
-            step = specialist.get("result")
-            if step is not None and bool(getattr(step, "usable_content", False)):
-                return step
-            return None
+        read_site_context = ActiveReadSiteContext(
+            hard_seconds_left=lambda: state.budget.hard_timeout_seconds - elapsed()
+        )
 
         def research_seconds_left() -> float:
             """Seconds left in the research window (finalization reserve kept)."""
@@ -2293,8 +2131,8 @@ class ActiveResearchRuntimeExecutor:
                     # §143-RS: an explicit hint may select the specialist first.
                     # With no hint (or any gate/health failure) the original
                     # inline default block below runs unchanged.
-                    specialist_step = read_site_specialist_step(
-                        candidate, source_limit
+                    specialist_step = read_site_context.try_specialist(
+                        context, candidate, source_limit
                     )
                     chain_steps: list[ChainStepResult] = []
                     if specialist_step is not None:
