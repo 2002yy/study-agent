@@ -531,7 +531,19 @@ def _service(
 
 
 def test_active_single_wave_builds_strict_evidence_and_passes_gate(tmp_path: Any) -> None:
-    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active.sqlite"))
+    class _CheckpointContractRepository(_TrackingRepository):
+        def __init__(self, database: RuntimeDatabase) -> None:
+            super().__init__(database)
+            self.checkpoint_budgets: list[tuple[str, dict[str, Any]]] = []
+
+        def checkpoint(self, run_id: str, **kwargs: Any) -> WebLookupRun:
+            state = kwargs["research_context"]["claim_engine"]
+            self.checkpoint_budgets.append(
+                (self.get(run_id).stage, dict(state["budget"]))
+            )
+            return super().checkpoint(run_id, **kwargs)
+
+    repository = _CheckpointContractRepository(RuntimeDatabase(tmp_path / "active.sqlite"))
     run = repository.create(
         WebLookupRun(
             id="run_active_single_wave",
@@ -542,7 +554,15 @@ def test_active_single_wave_builds_strict_evidence_and_passes_gate(tmp_path: Any
             max_items=5,
         )
     )
-    client = _StructuredClient()
+    durable_model_starts: list[str] = []
+
+    def assert_model_start_was_checkpointed(_call_number: int) -> None:
+        persisted = repository.get(run.id).research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+        marker = persisted["inflight_model_call"]
+        assert marker is not None  # Physical model I/O requires a durable attempt marker.
+        durable_model_starts.append(str(marker["call_id"]))
+
+    client = _StructuredClient(on_call=assert_model_start_was_checkpointed)
 
     completed = _service(repository, client).execute(run.id, raise_on_error=True)
 
@@ -572,12 +592,25 @@ def test_active_single_wave_builds_strict_evidence_and_passes_gate(tmp_path: Any
     assert runtime["inflight_external_call"] is None
     assert len(runtime["model_calls"]) == len(client.calls)
     assert client.calls
+    assert len(set(durable_model_starts)) == len(client.calls)
     assert all(1.0 <= float(call["timeout"]) <= 20.0 for call in client.calls)
     assert {
         tuple(candidate["providers"])
         for candidate in runtime["candidates"]
     } == {("searxng",), ("bing_rss",)}
     assert repository.visible_stages == ["searching", "assessing", "reading", "gating"]
+    # The stage transition precedes its snapshot; spent budgets never decrease
+    # across durable checkpoints, including those made before model calls.
+    stages = [stage for stage, _budget in repository.checkpoint_budgets]
+    assert all(stage in stages for stage in repository.visible_stages)
+    budgets = [budget for _stage, budget in repository.checkpoint_budgets]
+    for field, cap in (("candidates_used", "max_candidates"), ("reads_used", "max_reads")):
+        values = [budget[field] for budget in budgets]
+        assert values == sorted(values)
+        assert all(value <= budget[cap] for value, budget in zip(values, budgets))
+    assert [budget["elapsed_seconds"] for budget in budgets] == sorted(
+        budget["elapsed_seconds"] for budget in budgets
+    )
     progress = _research_progress(completed)
     assert progress["candidate_count"] == 2
     assert progress["read_count"] == 2
