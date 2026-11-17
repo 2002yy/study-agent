@@ -1,7 +1,6 @@
 """M3-QD-1b acceptance: the real bounded loop, with only the model and executor scripted.
 
-The previous slice (`test_semantic_research_host.py`) proved the loop's *logic* with a host
-object. This one drives the production ``run_conversation_loop`` and asserts the properties
+This test drives the production ``run_conversation_loop`` and asserts the properties
 that only the real wiring can show: the event order, the per-round decision identity, how an
 observation is actually delivered to the next decision, and the closing receipt.
 
