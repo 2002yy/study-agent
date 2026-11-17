@@ -530,6 +530,28 @@ def _service(
     )
 
 
+def _pending_active_run(
+    repository: WebLookupRepository,
+    *,
+    run_id: str,
+    query: str,
+    research_context: dict[str, Any],
+    max_items: int | None = None,
+) -> WebLookupRun:
+    """Only the shared pending/planned setup; keep scenario inputs explicit."""
+
+    fields: dict[str, Any] = {
+        "id": run_id,
+        "query": query,
+        "stage": "planned",
+        "status": "pending",
+        "research_context": research_context,
+    }
+    if max_items is not None:
+        fields["max_items"] = max_items
+    return repository.create(WebLookupRun(**fields))
+
+
 def test_active_single_wave_builds_strict_evidence_and_passes_gate(tmp_path: Any) -> None:
     class _CheckpointContractRepository(_TrackingRepository):
         def __init__(self, database: RuntimeDatabase) -> None:
@@ -544,15 +566,12 @@ def test_active_single_wave_builds_strict_evidence_and_passes_gate(tmp_path: Any
             return super().checkpoint(run_id, **kwargs)
 
     repository = _CheckpointContractRepository(RuntimeDatabase(tmp_path / "active.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_single_wave",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_single_wave",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     durable_model_starts: list[str] = []
 
@@ -621,14 +640,11 @@ def test_active_single_wave_builds_strict_evidence_and_passes_gate(tmp_path: Any
 
 def test_active_model_policy_denial_fails_closed_before_external_call(tmp_path: Any) -> None:
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "deny.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_policy_deny",
-            query="Research this",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(policy_allowed=False),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_policy_deny",
+        query="Research this",
+        research_context=_active_context(policy_allowed=False),
     )
     client = _StructuredClient()
 
@@ -651,14 +667,11 @@ def test_active_model_policy_denial_fails_closed_before_external_call(tmp_path: 
 
 def test_unavailable_search_projects_canonical_outcome_and_failure(tmp_path: Any) -> None:
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "search-failure.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_search_failure",
-            query="Research unavailable providers",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_search_failure",
+        query="Research unavailable providers",
+        research_context=_active_context(),
     )
 
     completed = _service(
@@ -681,14 +694,11 @@ def test_unavailable_search_projects_canonical_outcome_and_failure(tmp_path: Any
 
 def test_failed_read_projects_canonical_outcome_and_failure(tmp_path: Any) -> None:
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "read-failure.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_read_failure",
-            query="Research reader failures",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_read_failure",
+        query="Research reader failures",
+        research_context=_active_context(),
     )
 
     completed = _service(
@@ -800,15 +810,12 @@ def test_semantic_query_dedupe_still_saturates_each_active_gap(tmp_path: Any) ->
         known_evidence_ids=(),
     )
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active-gaps.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_gap_saturation",
-            query="Compare identical research surfaces",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_gap_saturation",
+        query="Compare identical research surfaces",
+        research_context=context,
+        max_items=5,
     )
     search = _EmptySearchBackend()
     client = _StructuredClient()
@@ -839,14 +846,11 @@ def test_malformed_extraction_never_becomes_evidence_and_resume_skips_calls(
     tmp_path: Any,
 ) -> None:
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "malformed.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_malformed_extraction",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_malformed_extraction",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
     )
     client = _StructuredClient(malformed_extraction=True)
 
@@ -894,15 +898,12 @@ def test_model_crash_after_success_before_semantic_persist_recovers_via_new_atte
     "completed model call cannot remain inflight".
     """
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active_crash.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_crash_semantic_persist",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_crash_semantic_persist",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     client = _StructuredClient()
 
@@ -1047,15 +1048,12 @@ def test_crash_after_extraction_preserves_wave_baseline_and_gain(tmp_path: Any) 
     repository = _CrashAfterExtractionRepository(
         RuntimeDatabase(tmp_path / "active-extraction-crash.sqlite")
     )
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_extraction_crash",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_extraction_crash",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     client = _StructuredClient()
     search = _SearchBackend()
@@ -1110,15 +1108,12 @@ def test_full_candidate_pool_stops_pending_external_searches(tmp_path: Any) -> N
     must be skipped before any external call is issued.
     """
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active_flood.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_flood_pool",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_flood_pool",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     client = _StructuredClient()
     search = _FloodSearchBackend()
@@ -1149,15 +1144,12 @@ def test_one_physical_read_serves_multiple_claims(tmp_path: Any) -> None:
     must be read once while evidence is extracted for both claims.
     """
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active_multiclaim.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_multiclaim_read",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_multiclaim_read",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     client = _StructuredClient(claims_count=2)
     search = _ProvenanceSearchBackend()
@@ -1250,14 +1242,11 @@ def test_one_physical_read_serves_multiple_claims(tmp_path: Any) -> None:
 
 def test_active_cancel_during_claim_planning_settles_durably(tmp_path: Any) -> None:
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "cancel-model.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_cancel_model",
-            query="Research this",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_cancel_model",
+        query="Research this",
+        research_context=_active_context(),
     )
     client = _StructuredClient(on_call=lambda _index: repository.request_cancel(run.id))
 
@@ -1268,14 +1257,11 @@ def test_active_cancel_during_claim_planning_settles_durably(tmp_path: Any) -> N
 
 def test_active_cancel_during_search_settles_durably(tmp_path: Any) -> None:
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "cancel-search.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_cancel_search",
-            query="Research this",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_cancel_search",
+        query="Research this",
+        research_context=_active_context(),
     )
 
     class CancellingSearch(_SearchBackend):
@@ -1294,14 +1280,11 @@ def test_active_cancel_during_search_settles_durably(tmp_path: Any) -> None:
 
 def test_active_cancel_during_read_settles_durably(tmp_path: Any) -> None:
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "cancel-read.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_cancel_read",
-            query="Research this",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_cancel_read",
+        query="Research this",
+        research_context=_active_context(),
     )
     reader = _ReadGateway(on_read=lambda: repository.request_cancel(run.id))
 
@@ -1316,14 +1299,11 @@ def test_active_cancel_during_read_settles_durably(tmp_path: Any) -> None:
 
 def test_active_cancel_during_extraction_settles_durably(tmp_path: Any) -> None:
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "cancel-extract.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_cancel_extract",
-            query="Research this",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_cancel_extract",
+        query="Research this",
+        research_context=_active_context(),
     )
     client = _StructuredClient(
         on_call=lambda index: repository.request_cancel(run.id) if index == 3 else None
@@ -1355,14 +1335,11 @@ def test_slow_active_stage_cancel_settles_within_call_timeout_plus_one(
     repository = WebLookupRepository(
         RuntimeDatabase(tmp_path / f"slow-{blocked_stage}.sqlite")
     )
-    run = repository.create(
-        WebLookupRun(
-            id=f"run_slow_{blocked_stage}",
-            query="Research this",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id=f"run_slow_{blocked_stage}",
+        query="Research this",
+        research_context=_active_context(),
     )
     entered = Event()
     release = Event()
@@ -1603,15 +1580,12 @@ def test_major_claim_saturates_after_two_no_gain_waves(tmp_path: Any) -> None:
     )
     context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active-major.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_major_saturation",
-            query="Alpha framework current release",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_major_saturation",
+        query="Alpha framework current release",
+        research_context=context,
+        max_items=5,
     )
     search = _EmptySearchBackend()
     client = _StructuredClient()
@@ -1696,15 +1670,12 @@ def test_deferred_context_gap_does_not_block_critical_saturation(tmp_path: Any) 
     )
     context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active-context-gap.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_context_gap_saturation",
-            query="Alpha framework current release",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_context_gap_saturation",
+        query="Alpha framework current release",
+        research_context=context,
+        max_items=5,
     )
     search = _EmptySearchBackend()
 
@@ -1784,15 +1755,12 @@ def test_wave_limit_exhausted_is_not_fake_saturation(tmp_path: Any) -> None:
     )
     context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active-wavelimit.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_wave_limit",
-            query="Alpha framework current release",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_wave_limit",
+        query="Alpha framework current release",
+        research_context=context,
+        max_items=5,
     )
     search = _EmptySearchBackend()
     client = _StructuredClient()
@@ -1850,15 +1818,12 @@ def test_hard_budget_precedes_wave_limit_after_external_call(tmp_path: Any) -> N
     state = _two_gap_state()
     context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active-hard-budget.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_hard_budget_precedence",
-            query="Compare releases",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_hard_budget_precedence",
+        query="Compare releases",
+        research_context=context,
+        max_items=5,
     )
 
     original_limit = art_mod.MAX_RESEARCH_WAVES
@@ -1894,15 +1859,12 @@ def test_resume_restores_missing_claim_binding_after_extraction_crash(
     claim B) binding on resume - never drop it because the candidate's
     physical read already completed."""
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active-multiclaim-crash.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_multiclaim_crash",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_multiclaim_crash",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
 
     class _CrashOnSecondExtraction:
@@ -2001,15 +1963,12 @@ def test_assessment_identity_stable_across_crash_resume(tmp_path: Any) -> None:
     before the semantic result is durable must resume under the SAME logical
     call identity with attempt 2 (candidate fingerprint canonical)."""
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active-assess-crash.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_assess_crash",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_assess_crash",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
 
     class _CrashOnFirstAssessment:
@@ -2134,15 +2093,12 @@ def test_resume_after_exhausted_assessment_stays_claim_local(tmp_path: Any) -> N
     repository = _CrashAfterFirstAssessmentFailureRepository(
         RuntimeDatabase(tmp_path / "active-assessment-exhausted.sqlite")
     )
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_assessment_exhausted",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_assessment_exhausted",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     failing_client = _AssessmentFailingClient()
     with pytest.raises(RuntimeError, match="assessment failure crash"):
@@ -2195,15 +2151,12 @@ def test_extraction_attempt_exhaustion_crash_is_claim_local(tmp_path: Any) -> No
         pass
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active-extract-exhaust.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_extract_exhaust",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_extract_exhaust",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
 
     from src.web.research.model_gateway import ResearchModelGateway as _RMG3
@@ -2816,15 +2769,12 @@ def test_stop_gate_reconstructs_persisted_decision_from_durable_truth(
         known_evidence_ids=(),
     )
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active-gate-rebuild.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_gate_rebuild",
-            query="Compare identical research surfaces",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_gate_rebuild",
+        query="Compare identical research surfaces",
+        research_context=context,
+        max_items=5,
     )
     completed = _service(
         repository,
@@ -2899,15 +2849,12 @@ def test_pending_steering_forces_next_wave_and_applies_exactly_once(
     state = _two_gap_state()
     context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active-steering-apply.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_steering_apply",
-            query="Compare releases",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_steering_apply",
+        query="Compare releases",
+        research_context=context,
+        max_items=5,
     )
     injected = {"done": False}
 
@@ -2992,15 +2939,12 @@ def test_pending_steering_goes_late_when_hard_budget_exhausted(
     state = _two_gap_state()
     context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "active-steering-late.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_steering_late",
-            query="Compare releases",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_steering_late",
+        query="Compare releases",
+        research_context=context,
+        max_items=5,
     )
     injected = {"done": False}
 
@@ -3074,15 +3018,12 @@ def test_checkpoint_race_merges_concurrent_steering_without_losing_mutation(
     from src.web.research.steering import active_steering_entries
 
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "steering-race.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_steering_race",
-            query="Compare releases",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_steering_race",
+        query="Compare releases",
+        research_context=_active_context(),
+        max_items=5,
     )
     run = repository.begin_operation(run.id, operation_id="op_race", stage="searching")
     stale_context = dict(run.research_context)
@@ -3162,15 +3103,12 @@ def test_steering_apply_crash_before_and_after_checkpoint_is_exactly_once(
     repository = _CrashOnApplyCheckpoint(
         RuntimeDatabase(tmp_path / f"steering-crash-{crash_mode}.sqlite")
     )
-    run = repository.create(
-        WebLookupRun(
-            id=f"run_steering_crash_{crash_mode}",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id=f"run_steering_crash_{crash_mode}",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     injected = {"done": False}
 
@@ -3240,15 +3178,12 @@ def test_pending_steering_defers_gate_pass_to_next_wave(tmp_path: Any) -> None:
     repository = _TrackingRepository(
         RuntimeDatabase(tmp_path / "steering-gatepass.sqlite")
     )
-    run = repository.create(
-        WebLookupRun(
-            id="run_steering_gatepass",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_steering_gatepass",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     injected = {"done": False}
 
@@ -3351,15 +3286,12 @@ def test_late_steering_terminal_crash_recomputes_same_stop_decision(
     repository = _CrashOnLateCheckpoint(
         RuntimeDatabase(tmp_path / f"late-crash-{terminal}.sqlite")
     )
-    run = repository.create(
-        WebLookupRun(
-            id=f"run_late_crash_{terminal}",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id=f"run_late_crash_{terminal}",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     injected = {"done": False}
 
@@ -3512,15 +3444,12 @@ def test_v1_planning_attempt_exhaustion_is_classified_before_third_call(
     repository = _TrackingRepository(
         RuntimeDatabase(tmp_path / "active-v1-planning-exhaustion.sqlite")
     )
-    run = repository.create(
-        WebLookupRun(
-            id=run_id,
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id=run_id,
+        query="What is the verified current release date?",
+        research_context=context,
+        max_items=5,
     )
     client = _StructuredClient()
 
@@ -3558,15 +3487,12 @@ def test_bounded_lead_read_discovers_assets_without_creating_evidence(
     assets only; it never produces eligible evidence or an evidence read."""
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "lead.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_lead",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_lead",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     client = _StructuredClient(lead_only_assessment=True)
     service = _service(repository, client)
@@ -3642,15 +3568,12 @@ def test_research_window_stops_new_waves_before_the_hard_deadline(
     """Research Window Deadline Hardening: the research tail belongs to finalization."""
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "window.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_research_window",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_research_window",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     clock = _AdvancingClock(30.0)
     service = _service(repository, _StructuredClient(), monotonic=clock)
@@ -3741,15 +3664,12 @@ def test_evidence_lead_followup_reaches_deeper_support(tmp_path: Any) -> None:
     repository = _TrackingRepository(
         RuntimeDatabase(tmp_path / "evidence_lead.sqlite")
     )
-    run = repository.create(
-        WebLookupRun(
-            id="run_evidence_lead",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_evidence_lead",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     client = _StructuredClient(
         lead_then_support=True,
@@ -3812,15 +3732,12 @@ def test_evidence_lead_followup_falls_back_to_domain_hint(tmp_path: Any) -> None
     repository = _TrackingRepository(
         RuntimeDatabase(tmp_path / "evidence_lead_hint.sqlite")
     )
-    run = repository.create(
-        WebLookupRun(
-            id="run_evidence_lead_hint",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_evidence_lead_hint",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     client = _StructuredClient(lead_then_support=True)
     reader = _EvidenceLeadNoUrlReadGateway()
@@ -3908,15 +3825,12 @@ def test_read_forwards_shared_research_deadline(tmp_path: Any) -> None:
     repository = _TrackingRepository(
         RuntimeDatabase(tmp_path / "read_deadline.sqlite")
     )
-    run = repository.create(
-        WebLookupRun(
-            id="run_read_deadline",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_read_deadline",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     reader = _DeadlineRecordingReadGateway()
 
@@ -3974,15 +3888,12 @@ def test_read_never_starts_outside_research_window(tmp_path: Any) -> None:
     """An exhausted research window starts no reads instead of overrunning it."""
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "read_window.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_read_window",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-            max_items=5,
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_read_window",
+        query="What is the verified current release date?",
+        research_context=_active_context(),
+        max_items=5,
     )
     timer = _WindowJumpTimer()
     reader = _DeadlineRecordingReadGateway()
@@ -4108,14 +4019,11 @@ def test_read_breaker_opens_and_the_scheduler_skips_the_unhealthy_reader(
     monkeypatch.setenv("RESEARCH_READ_BREAKER", "on")
     monkeypatch.setenv("RESEARCH_BREAKER_FAILURE_THRESHOLD", "1")
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "breaker.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_breaker",
-            query="Research an unhealthy host",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_breaker",
+        query="Research an unhealthy host",
+        research_context=_active_context(),
     )
     gateway = _CountingFailingReadGateway()
 
@@ -4167,14 +4075,11 @@ def test_read_breaker_leaves_a_healthy_host_untouched(
     monkeypatch.setenv("RESEARCH_READ_BREAKER", "on")
     monkeypatch.setenv("RESEARCH_BREAKER_FAILURE_THRESHOLD", "1")
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "breaker-mixed.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_breaker_mixed",
-            query="Research two hosts",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_breaker_mixed",
+        query="Research two hosts",
+        research_context=_active_context(),
     )
     gateway = _MixedHostReadGateway()
 
@@ -4209,14 +4114,11 @@ def test_read_breaker_switch_defaults_off(
 
     monkeypatch.delenv("RESEARCH_READ_BREAKER", raising=False)
     repository = WebLookupRepository(RuntimeDatabase(tmp_path / "breaker-off.sqlite"))
-    run = repository.create(
-        WebLookupRun(
-            id="run_active_breaker_off",
-            query="Research with the breaker off",
-            stage="planned",
-            status="pending",
-            research_context=_active_context(),
-        )
+    run = _pending_active_run(
+        repository,
+        run_id="run_active_breaker_off",
+        query="Research with the breaker off",
+        research_context=_active_context(),
     )
     gateway = _CountingFailingReadGateway()
 
