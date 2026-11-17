@@ -159,3 +159,9 @@
 下一独立片的模型政策审计曾在 `execute()` 中通过 `model_allowed` 闭包读取当前 `context`、`self.policy_check` 和 `self.utc_now`。运行期的新 `RuntimeModelPolicyContext` 只持有后两项稳定依赖；每次检查以参数接收**当前上下文**，仍严格遵守 `policy_check` → `utc_now` → 更新 `claim_engine_policy_audits` 的原时序。任何政策检查或时钟异常都不能提前改写审计；审计仍保留旧字典形状、顺序和 100 条上限。执行器中的薄包装继续保留原先每个模型准入点的调用位置。
 
 **特别不改**：`on_model_started` 的 `ensure_active` → `ensure_budget` → `begin_model_attempt` → `checkpoint`；`on_model_finished` 的 `finish_model_attempt` → `ensure_active` 且没有即时检查点；真实费用 `reserve_call` 仍在模型网关里、发生在请求前检查点之后。模型“成功后、语义结果持久化前”崩溃必须依旧通过中断未知尝试恢复，不能把完成审计独立提前落盘。
+
+### 持久故障行的投影边界（独立后一片，依赖模型政策片）
+
+执行器原 `_append_failure` 同时捕获**可重绑定**的 `cursor`、`context` 来生成故障身份，再使用 `replace(cursor, failures=append_runtime_failure(...))`。新 `with_appended_runtime_failure(cursor, context, ...)` 将当前两项作为明确输入，返回替换后的新游标；调用点依旧只在原时序将返回值赋给 `cursor`，没有新增检查点、恢复、模型结算或发布操作。
+
+保留 `attempt_id or f"run-attempt:{context['run_attempt']}"` 原有**惰性**求值：显式 attempt_id 存在时不应访问缺失的 `run_attempt`；反之缺失时照旧抛 `KeyError` 而不改变输入游标。已有 `runtime_failure_id`/`runtime_failure_id_unattached`、`build_runtime_failure`、`append_runtime_failure` 三处身份与幂等去重权威保持原样。新增直测包括当前上下文跨恢复、同一尝试重复插入幂等、显式 attempt 短路及缺失上下文失败；不得因为纯函数迁移而更改历史故障 ID。
