@@ -487,6 +487,68 @@ class GeneralWebGateway:
             "searched_at": current.isoformat(),
         }
 
+    def search_community_site(
+        self, query: str, *, host: str, max_results: int = 5
+    ) -> dict[str, Any]:
+        """Search one *verified* community site in the browser, for a source gap.
+
+        This is discovery only. A search hit cannot become evidence without the
+        normal ``web_read`` path. Host is chosen by the source-gap planner, but
+        is checked against the enabled site catalogue rather than used as a URL.
+        """
+
+        from src.web import site_pool
+
+        focused = " ".join(str(query or "").split())
+        requested_host = site_pool.host_of(f"https://{host}/")
+        scope = re.search(r"\s+site:([a-z0-9.-]+)$", focused, re.IGNORECASE)
+        scoped_host = site_pool.host_of(f"https://{scope.group(1)}/") if scope else ""
+        phrase = focused[:scope.start()].strip() if scope else ""
+        sites = [
+            site for site in site_pool.SITES
+            if ("news.ycombinator.com" if site.key == "hn"
+                else site_pool.host_of(site.home)) == requested_host
+            and (site.default_enabled or site.key in site_pool.extra_sites())
+            and site.verified
+            and (site.category in {"zh_community", "en_community"}
+                 or site.key in {"miyoushe", "nowcoder", "chiphell"})
+        ]
+        if not phrase or requested_host != scoped_host or not sites:
+            return {
+                "status": "unavailable", "reason": "community_site_not_enabled_or_invalid_scope",
+                "query": focused, "results": [], "providers_attempted": [],
+                "provider_errors": ["community_browser:invalid_scope"],
+                "provider_outcomes": [{"provider": "community_browser", "status": "failed",
+                                       "reason": "invalid_scope", "result_count": 0}],
+                "site_outcomes": [],
+            }
+        limit = max(1, min(max_results, 12))
+        rows, _error = self._search_browse_sites(
+            phrase, limit, 10.0, target_site=sites[0]
+        )
+        site_outcomes = site_pool.take_outcomes()
+        raw_status = str(site_outcomes[0].get("status") or "") if site_outcomes else ""
+        if rows:
+            status, reason = "ok", "results_found"
+        elif raw_status in {"browse:no_results", "browse:no_valid_results"}:
+            status, reason = "empty", "no_results"
+        else:
+            status, reason = "unavailable", _search_failure_kind(raw_status or "provider_error")
+        return {
+            "status": status,
+            "reason": reason,
+            "query": focused,
+            "results": rows,
+            "providers_attempted": ["community_browser"],
+            "provider_errors": [] if status != "unavailable" else [f"community_browser:{reason}"],
+            "provider_outcomes": [{
+                "provider": "community_browser", "status": "failed" if status == "unavailable" else status,
+                "reason": reason, "result_count": len(rows), "site": sites[0].key,
+            }],
+            "site_outcomes": site_outcomes,
+            "site_route": {"target": sites[0].key},
+        }
+
     def _start_browser_lane(self, query: str, limit: int) -> _BrowserLane | None:
         """Start the browser channel alongside the fast one, when shape says so."""
 
@@ -836,7 +898,9 @@ class GeneralWebGateway:
 
         return search_browse(query, limit, timeout)
 
-    def _search_browse_sites(self, query: str, limit: int, timeout: float):
+    def _search_browse_sites(
+        self, query: str, limit: int, timeout: float, *, target_site=None
+    ):
         """Search the selected sites in order, one browser page each.
 
         Every selected site is visited: the pool exists to compare sources, so a
@@ -854,7 +918,7 @@ class GeneralWebGateway:
         outcomes = site_pool.start_outcomes()
         grouped: list[tuple[str, list[dict[str, str]]]] = []
         seen_urls: set[str] = set()
-        for site in site_pool.select_sites(query):
+        for site in ([target_site] if target_site is not None else site_pool.select_sites(query)):
             remaining = deadline - time.monotonic()
             if remaining < 1.5:
                 outcomes.append({"site": site.key, "status": "budget_exhausted",
