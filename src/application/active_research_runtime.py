@@ -107,13 +107,20 @@ from src.web.research.gap_planner import (
     query_terms,
 )
 from src.web.research.model_gateway import (
-    MAX_RESEARCH_MODEL_ATTEMPTS,
+    MAX_RESEARCH_MODEL_ATTEMPTS as MAX_RESEARCH_MODEL_ATTEMPTS,
     ResearchModelAttemptStart,
     ResearchModelCallAudit,
     ResearchModelGateway,
 )
 from src.web.research.phase_budget import FINALIZATION_RESERVE_SECONDS
 from src.web.research.runtime import (
+    _ExternalAttemptBudgetExhausted as _ExternalAttemptBudgetExhausted,
+    _ModelAttemptBudgetExhausted as _ModelAttemptBudgetExhausted,
+    _assessment_call_suffix as _assessment_call_suffix,
+    _attempt_number as _attempt_number,
+    _extraction_call_suffix as _extraction_call_suffix,
+    _is_interrupted_failure as _is_interrupted_failure,
+    _model_attempt_start as _model_attempt_start,
     EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS,
     MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN,
     MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE,
@@ -753,14 +760,6 @@ def _read_visual_evidence_for_candidate(
         )
         metrics["visual_reads"] = entries[-60:]
     return [unit.to_dict() for unit in result.units]
-
-
-class _ModelAttemptBudgetExhausted(RuntimeError):
-    pass
-
-
-class _ExternalAttemptBudgetExhausted(RuntimeError):
-    pass
 
 
 # Deadline-aware provider policy: the search stage must not consume the entire
@@ -6608,87 +6607,6 @@ def _update_metrics(
         ),
         "phase": cursor.phase,
     }
-
-
-def _attempt_number(cursor: ResearchRuntimeCursor, item_id: str) -> int:
-    interrupted = sum(
-        _is_interrupted_failure(failure) and item_id in failure.item_id
-        for failure in cursor.failures
-    )
-    if interrupted >= 2:
-        raise _ExternalAttemptBudgetExhausted(
-            f"external attempts exhausted for item: {item_id}"
-        )
-    return 1 + interrupted
-
-
-def _model_attempt_start(
-    cursor: ResearchRuntimeCursor,
-    logical_call_id: str,
-) -> int:
-    """P1-C batch 2: next attempt for a logical model operation.
-
-    Derived from completed audits plus exact recovered call IDs for the SAME
-    logical call. A process crash leaves no completed audit, so the durable
-    A legacy interrupted_unknown code or canonical v2 interrupted_unknown
-    detail is required to advance attempt 1 -> attempt 2.
-    Once the frozen ceiling has been consumed, fail before another physical
-    model call can reuse the last call ID.
-    """
-    previous = [
-        call.attempt
-        for call in cursor.model_calls
-        if call.logical_call_id == logical_call_id
-    ]
-    recovered_prefix = f"{logical_call_id}:attempt:"
-    for failure in cursor.failures:
-        if not _is_interrupted_failure(failure) or not failure.item_id.startswith(
-            recovered_prefix
-        ):
-            continue
-        raw_attempt = failure.item_id[len(recovered_prefix) :]
-        if raw_attempt.isdigit():
-            previous.append(int(raw_attempt))
-    last_attempt = max(previous, default=0)
-    if last_attempt >= MAX_RESEARCH_MODEL_ATTEMPTS:
-        raise _ModelAttemptBudgetExhausted(
-            f"model attempts exhausted for logical call: {logical_call_id}"
-        )
-    return last_attempt + 1
-
-
-def _is_interrupted_failure(failure: Any) -> bool:
-    """Recognize legacy v1 and canonical v2 interruption records."""
-
-    return failure.code == "interrupted_unknown" or (
-        failure.detail == "interrupted_unknown" and bool(failure.attempt_id)
-    )
-
-
-def _assessment_call_suffix(
-    cursor: ResearchRuntimeCursor,
-    claim_id: str,
-    candidate_ids: tuple[str, ...],
-) -> str:
-    """P1-C batch 2: pure semantic identity for one assessment operation.
-
-    Wave + claim + sorted candidate fingerprint — never the audit log length —
-    so a crash/resume re-runs the SAME logical operation (attempt layer then
-    advances) instead of minting a new logical identity.
-    """
-    fingerprint = hashlib.sha256(
-        "|".join(sorted(candidate_ids)).encode("utf-8")
-    ).hexdigest()[:12]
-    return f":{cursor.wave_id}:{claim_id}:{fingerprint}"
-
-
-def _extraction_call_suffix(
-    cursor: ResearchRuntimeCursor,
-    candidate_id: str,
-    claim_id: str,
-) -> str:
-    """P1-C batch 2: pure semantic identity for one extraction operation."""
-    return f":{cursor.wave_id}:{candidate_id}:{claim_id}"
 
 
 def _dedupe(values: list[str]) -> list[str]:
