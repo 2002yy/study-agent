@@ -36,6 +36,11 @@ class ResearchBudgetClock:
 
         return self.current_hard_seconds() - self.reserve_seconds - self.elapsed()
 
+    def research_window_exhausted(self) -> bool:
+        """Check the live research window with one elapsed-time sample."""
+
+        return self.research_seconds_left() <= 0.0
+
     def remaining_timeout(self) -> float:
         """Keep the historical one-second floor and per-call model cap."""
 
