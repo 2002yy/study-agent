@@ -552,6 +552,14 @@ def _pending_active_run(
     return repository.create(WebLookupRun(**fields))
 
 
+def _cursor_from_run(run: WebLookupRun) -> ResearchRuntimeCursor:
+    """Read the persisted runtime cursor without repeating the decode fixture."""
+
+    return ResearchRuntimeCursor.from_dict(
+        run.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+
+
 def test_active_single_wave_builds_strict_evidence_and_passes_gate(tmp_path: Any) -> None:
     class _CheckpointContractRepository(_TrackingRepository):
         def __init__(self, database: RuntimeDatabase) -> None:
@@ -656,9 +664,7 @@ def test_active_model_policy_denial_fails_closed_before_external_call(tmp_path: 
     assert client.calls == []
     audits = failed.research_context["claim_engine_policy_audits"]
     assert audits[-1]["status"] == "blocked_by_policy"
-    cursor = ResearchRuntimeCursor.from_dict(
-        failed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(failed)
     assert cursor.schema_version == "research-runtime-v2"
     assert [failure.code for failure in cursor.failures] == ["policy_blocked"]
     assert cursor.failures[0].detail == "blocked_by_policy"
@@ -680,9 +686,7 @@ def test_unavailable_search_projects_canonical_outcome_and_failure(tmp_path: Any
         search_backend=_UnavailableSearchBackend(),
     ).execute(run.id, raise_on_error=True)
 
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     assert cursor.query_outcomes
     assert all(item.error_code == "search_failed" for item in cursor.query_outcomes)
     search_failures = [item for item in cursor.failures if item.code == "search_failed"]
@@ -707,9 +711,7 @@ def test_failed_read_projects_canonical_outcome_and_failure(tmp_path: Any) -> No
         read_gateway=_RaisingReadGateway(),
     ).execute(run.id, raise_on_error=True)
 
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     assert cursor.read_outcomes
     assert all(item.error_code == "read_failed" for item in cursor.read_outcomes)
     read_failures = [item for item in cursor.failures if item.code == "read_failed"]
@@ -827,9 +829,7 @@ def test_semantic_query_dedupe_still_saturates_each_active_gap(tmp_path: Any) ->
 
     assert completed.status == "partial"
     assert completed.stop_reason == "evidence_saturated"
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     assert cursor.wave_index == 3
     assert cursor.active_gap_ids == ("gap_1", "gap_2")
     assert cursor.no_gain_batches_by_gap == {"gap_1": 3, "gap_2": 3}
@@ -922,9 +922,7 @@ def test_model_crash_after_success_before_semantic_persist_recovers_via_new_atte
                 # an inflight call with no completed audit.
                 durable = self._repo.get(run.id)
                 assert durable is not None
-                cursor = ResearchRuntimeCursor.from_dict(
-                    durable.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-                )
+                cursor = _cursor_from_run(durable)
                 assert cursor.inflight_model_call is not None
                 assert cursor.model_calls == ()
                 # Simulate the process dying: fail the run through its real
@@ -977,18 +975,14 @@ def test_model_crash_after_success_before_semantic_persist_recovers_via_new_atte
     # The wrapper intentionally failed the run to short-circuit the executor
     # fallback; the H1 invariant is that the durable cursor still holds the
     # inflight marker with no completed audit.
-    crashed_cursor = ResearchRuntimeCursor.from_dict(
-        crashed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    crashed_cursor = _cursor_from_run(crashed)
     assert crashed_cursor.inflight_model_call is not None
     assert crashed_cursor.model_calls == ()
 
     recovered = service.execute(run.id, raise_on_error=True)
 
     assert recovered.status == "completed"
-    cursor = ResearchRuntimeCursor.from_dict(
-        recovered.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(recovered)
     assert cursor.inflight_model_call is None
     assert any(
         item.code == "claim_planning_failed"
@@ -1031,9 +1025,7 @@ def test_crash_after_extraction_preserves_wave_baseline_and_gain(tmp_path: Any) 
                 )
                 for record in kwargs["selected_sources"]
             )
-            cursor = ResearchRuntimeCursor.from_dict(
-                persisted.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-            )
+            cursor = _cursor_from_run(persisted)
             if has_eligible_extraction and not cursor.gain_history:
                 self.crashed = True
                 assert persisted.active_operation_id
@@ -1075,9 +1067,7 @@ def test_crash_after_extraction_preserves_wave_baseline_and_gain(tmp_path: Any) 
     crashed_state = _dispatch_state(crashed)
     assert crashed_state is not None
     assert len(crashed_state.evidence) == 1
-    crashed_cursor = ResearchRuntimeCursor.from_dict(
-        crashed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    crashed_cursor = _cursor_from_run(crashed)
     assert crashed_cursor.wave_index == 1
     assert crashed_cursor.wave_id == f"research_wave:{run.id}:1"
     assert crashed_cursor.gain_history == ()
@@ -1087,9 +1077,7 @@ def test_crash_after_extraction_preserves_wave_baseline_and_gain(tmp_path: Any) 
     recovered = service.execute(run.id, raise_on_error=True)
 
     assert recovered.status == "completed"
-    cursor = ResearchRuntimeCursor.from_dict(
-        recovered.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(recovered)
     assert len(cursor.gain_history) == 1
     assert cursor.gain_history[0]["substantive_gain"] is True
     assert "new_eligible_evidence" in cursor.gain_history[0]["gain_reasons"]
@@ -1129,9 +1117,7 @@ def test_full_candidate_pool_stops_pending_external_searches(tmp_path: Any) -> N
     assert completed.status == "partial"
     assert completed.stop_reason == "evidence_saturated"
     assert search.calls == 1
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     assert len(cursor.candidates) == 20
     assert len(cursor.completed_query_ids) == 1
 
@@ -1159,9 +1145,7 @@ def test_one_physical_read_serves_multiple_claims(tmp_path: Any) -> None:
         raise_on_error=True,
     )
 
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     queries_by_claim: dict[str, set[str]] = {}
     for query in cursor.planned_queries:
         queries_by_claim.setdefault(query.claim_id, set()).add(query.id)
@@ -1597,9 +1581,7 @@ def test_major_claim_saturates_after_two_no_gain_waves(tmp_path: Any) -> None:
 
     assert completed.status == "partial"
     assert completed.stop_reason == "evidence_saturated"
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     assert cursor.wave_index == 2
     assert cursor.no_gain_batches_by_claim == {"claim_major": 2}
     assert cursor.no_gain_batches_by_gap == {"gap_major": 2}
@@ -1687,9 +1669,7 @@ def test_deferred_context_gap_does_not_block_critical_saturation(tmp_path: Any) 
 
     assert completed.status == "partial"
     assert completed.stop_reason == "evidence_saturated"
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     assert cursor.wave_index == 3
     assert cursor.no_gain_batches_by_claim == {"claim_critical": 3}
     assert cursor.no_gain_batches_by_gap == {"gap_critical": 3}
@@ -1780,9 +1760,7 @@ def test_wave_limit_exhausted_is_not_fake_saturation(tmp_path: Any) -> None:
     assert completed.stop_reason != "evidence_saturated"
     assert completed.stop_reason != "evidence_budget_exhausted"
     assert completed.answer_confidence == "none"  # empty evidence
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     assert cursor.wave_index == 1
     assert cursor.no_gain_batches_by_claim == {"claim_wave_limit": 1}
     from src.web.research.evidence_gain import SaturationState, saturated_claim_ids
@@ -1842,9 +1820,7 @@ def test_hard_budget_precedes_wave_limit_after_external_call(tmp_path: Any) -> N
     assert completed.stop_reason == "evidence_budget_exhausted"
     assert completed.stop_reason != "wave_limit_exhausted"
     assert completed.stop_reason != "evidence_saturated"
-    hard_budget_cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    hard_budget_cursor = _cursor_from_run(completed)
     assert all(
         failure.code != "runtime_internal_failed"
         for failure in hard_budget_cursor.failures
@@ -1932,9 +1908,7 @@ def test_resume_restores_missing_claim_binding_after_extraction_crash(
     # Python type in exception_type; a process-level crash produces a
     # stage-specific canonical code with interrupted_unknown detail instead).
     # Physical call ids stay unique.
-    cursor = ResearchRuntimeCursor.from_dict(
-        resumed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(resumed)
     assert any(
         failure.code == "runtime_internal_failed"
         and failure.exception_type == "RuntimeError"
@@ -2020,9 +1994,7 @@ def test_assessment_identity_stable_across_crash_resume(tmp_path: Any) -> None:
     )
     assert resumed.status in {"completed", "partial"}
 
-    cursor = ResearchRuntimeCursor.from_dict(
-        resumed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(resumed)
     assessment_calls = [
         call
         for call in cursor.model_calls
@@ -2066,9 +2038,7 @@ def test_resume_after_exhausted_assessment_stays_claim_local(tmp_path: Any) -> N
             persisted = super().checkpoint(run_id, **kwargs)
             if self.crashed:
                 return persisted
-            cursor = ResearchRuntimeCursor.from_dict(
-                persisted.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-            )
+            cursor = _cursor_from_run(persisted)
             failed = [
                 call
                 for call in cursor.model_calls
@@ -2106,9 +2076,7 @@ def test_resume_after_exhausted_assessment_stays_claim_local(tmp_path: Any) -> N
 
     crashed = repository.get(run.id)
     assert crashed is not None
-    crashed_cursor = ResearchRuntimeCursor.from_dict(
-        crashed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    crashed_cursor = _cursor_from_run(crashed)
     exhausted_calls = [
         call
         for call in crashed_cursor.model_calls
@@ -2123,9 +2091,7 @@ def test_resume_after_exhausted_assessment_stays_claim_local(tmp_path: Any) -> N
     )
 
     assert resumed.stop_reason != "active_runtime_unavailable"
-    resumed_cursor = ResearchRuntimeCursor.from_dict(
-        resumed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    resumed_cursor = _cursor_from_run(resumed)
     same_logical_calls = [
         call
         for call in resumed_cursor.model_calls
@@ -2248,9 +2214,7 @@ def test_extraction_attempt_exhaustion_crash_is_claim_local(tmp_path: Any) -> No
     # Assertion 1: crash 前 durable inflight == target attempt 2, attempt 1
     # audit durable, attempt 2 audit NOT durable, binding not yet failed.
     crashed_run = repository.get(run.id)
-    crashed_cursor = ResearchRuntimeCursor.from_dict(
-        crashed_run.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    crashed_cursor = _cursor_from_run(crashed_run)
     assert crashed_cursor.inflight_model_call is not None
     assert crashed_cursor.inflight_model_call.attempt == 2
     target_logical_id = crashed_cursor.inflight_model_call.logical_call_id
@@ -2295,9 +2259,7 @@ def test_extraction_attempt_exhaustion_crash_is_claim_local(tmp_path: Any) -> No
         search_backend=_SearchBackend(),
     ).execute(run.id, raise_on_error=True)
 
-    resumed_cursor = ResearchRuntimeCursor.from_dict(
-        resumed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    resumed_cursor = _cursor_from_run(resumed)
     # Assertion 2: resume 后存在 interrupted_unknown(target attempt 2)。
     recovered_item = f"{target_logical_id}:attempt:2"
     assert [
@@ -2524,9 +2486,7 @@ def test_covered_clusters_are_cumulative_across_waves(
 
     assert completed.status in {"completed", "partial"}
     assert completed.stop_reason != "active_runtime_unavailable"
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     assert cursor.wave_index >= 3
 
     url_by_id = {
@@ -2686,9 +2646,7 @@ def test_covered_clusters_preserved_for_shared_read_claims(
 
     assert completed.status in {"completed", "partial"}
     assert completed.stop_reason != "active_runtime_unavailable"
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     assert cursor.wave_index >= 3
 
     url_by_id = {item.id: item.url for item in cursor.candidates}
@@ -3373,9 +3331,7 @@ def test_late_steering_terminal_crash_recomputes_same_stop_decision(
 
     # Durable recomputation contract: the same signal rebuilt purely from
     # durable truth reproduces the persisted canonical stop reason.
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     gate = evaluate_evidence_gate(rebuilt)
     rebuilt_signal = ResearchStopSignal(
         gate_pass=gate.status == "pass",
@@ -3459,9 +3415,7 @@ def test_v1_planning_attempt_exhaustion_is_classified_before_third_call(
     assert failed.provider_status == "unavailable"
     assert failed.stop_reason == "claim_plan_unavailable"
     assert client.calls == []
-    resumed_cursor = ResearchRuntimeCursor.from_dict(
-        failed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    resumed_cursor = _cursor_from_run(failed)
     planning_failures = [
         failure
         for failure in resumed_cursor.failures
@@ -3499,9 +3453,7 @@ def test_bounded_lead_read_discovers_assets_without_creating_evidence(
 
     completed = service.execute(run.id, raise_on_error=False)
 
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     # Bounded lead reads (<= MAX_LEAD_READS_PER_RUN) produced typed payloads.
     assert 1 <= len(cursor.lead_read_ids) <= 2
     assert len(cursor.lead_discoveries) == len(cursor.lead_read_ids)
@@ -3685,9 +3637,7 @@ def test_evidence_lead_followup_reaches_deeper_support(tmp_path: Any) -> None:
 
     completed = service.execute(run.id, raise_on_error=False)
 
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     # The evidence-stage lead produced a bounded follow-up.
     assert cursor.evidence_lead_followups, "expected an evidence-lead follow-up"
     followup = cursor.evidence_lead_followups[0]
@@ -3750,9 +3700,7 @@ def test_evidence_lead_followup_falls_back_to_domain_hint(tmp_path: Any) -> None
 
     completed = service.execute(run.id, raise_on_error=False)
 
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     assert cursor.evidence_lead_followups
     followup = cursor.evidence_lead_followups[0]
     assert followup["method"] == "no_deeper_url"
@@ -4398,9 +4346,7 @@ def test_read_chain_keeps_one_outcome_per_candidate_and_backend(
         escalation_backend=backend,
     ).execute(run.id, raise_on_error=True)
 
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
+    cursor = _cursor_from_run(completed)
     keys = [(item.candidate_id, item.backend) for item in cursor.read_outcomes]
     assert len(keys) == len(set(keys)), "one outcome per (candidate, backend)"
     # both backends really ran, so the fallback pairs exist
@@ -4547,12 +4493,6 @@ def _a2e_sources(completed: Any) -> list[dict[str, Any]]:
 
 def _a2e_metrics(completed: Any) -> dict[str, Any]:
     return completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
-
-
-def _a2e_cursor(completed: Any) -> ResearchRuntimeCursor:
-    return ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
 
 
 def _a2e_attempt_tuples(source: Mapping[str, Any]) -> list[tuple[str, str, bool, bool]]:
@@ -4753,7 +4693,7 @@ def test_a2e_circuit_open_native_is_never_faked_as_an_outcome(
     assert any(item.get("backend") == "wigolo_http" for item in blocked)
 
     # No read outcome and no source was minted for a reader that never ran.
-    outcomes = _a2e_cursor(completed).read_outcomes
+    outcomes = _cursor_from_run(completed).read_outcomes
     assert outcomes, "the first candidate still ran"
     assert all(item.backend == "native_http" for item in outcomes)
     assert native.calls == 1, "bounded: the blocked reader is not re-planned"
@@ -4786,7 +4726,7 @@ def test_a2e_unavailable_alternate_exhausts_without_looping(
         assert row["action"] == "exhaust"
         assert row["reason"] == "all_backends_tried"
 
-    outcomes = _a2e_cursor(completed).read_outcomes
+    outcomes = _cursor_from_run(completed).read_outcomes
     assert outcomes
     assert all(item.backend == "native_http" for item in outcomes)
     for item in _a2e_sources(completed):
@@ -4810,7 +4750,7 @@ def test_a2e_candidate_lifecycle_is_one_source_per_candidate(
         tmp_path, monkeypatch, name="a2e_lifecycle", native=native, wigolo=wigolo
     )
 
-    outcomes = _a2e_cursor(completed).read_outcomes
+    outcomes = _cursor_from_run(completed).read_outcomes
     keys = [(item.candidate_id, item.backend) for item in outcomes]
     assert keys, "the fallback path must produce attempts"
     assert len(keys) == len(set(keys)), "one outcome per (candidate, backend)"
@@ -4857,7 +4797,7 @@ def test_a2e_not_found_is_terminal_but_unusable(
         assert row["action"] == "resolve"
         assert row["reason"] == "terminal_resource_outcome"
 
-    outcomes = _a2e_cursor(completed).read_outcomes
+    outcomes = _cursor_from_run(completed).read_outcomes
     assert outcomes
     assert all(item.status == "failed" for item in outcomes)
     assert all(item.retrieval_state == "not_found" for item in outcomes)
@@ -5132,7 +5072,7 @@ def test_a2e_provenance_links_outcome_timing_chain_and_source(
     )
 
     metrics = _a2e_metrics(completed)
-    outcomes = _a2e_cursor(completed).read_outcomes
+    outcomes = _cursor_from_run(completed).read_outcomes
     outcome_keys = {(item.candidate_id, item.backend) for item in outcomes}
     chain_by_candidate = {
         row["candidate_id"]: row for row in (metrics.get("read_chain") or [])
@@ -5193,7 +5133,7 @@ def test_a2e_failure_records_carry_the_attempt_id_of_the_failed_step(
         tmp_path, monkeypatch, name="a2e_failure_id", native=native, wigolo=wigolo
     )
 
-    cursor = _a2e_cursor(completed)
+    cursor = _cursor_from_run(completed)
     read_failures = [
         failure
         for failure in cursor.failures
