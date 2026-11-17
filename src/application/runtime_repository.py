@@ -560,15 +560,14 @@ def get_web_lookup_service():
 
 @lru_cache(maxsize=1)
 def get_tool_service():
-    from src import api
     from src.api.app import TOOL_REGISTRY
     from src.application.tool_service import ToolService
-    from src.workflows.store import WorkflowStore
+    from src.workflows import store
 
     return ToolService(
         get_tool_repository(),
         TOOL_REGISTRY,
-        workflow_store_factory=lambda: WorkflowStore(api.WORKFLOW_DIR),
+        workflow_store_factory=lambda: store.WorkflowStore(store.DEFAULT_WORKFLOW_DIR),
     )
 
 

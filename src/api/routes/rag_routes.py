@@ -111,11 +111,11 @@ def build_rag_index_endpoint(
 
 
 async def _save_uploads(files: list[UploadFile]):
-    from src.application.helpers import _api_path, unique_upload_path
+    from src.application import helpers
 
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
-    upload_dir = _api_path("RAG_UPLOAD_DIR")
+    upload_dir = helpers.RAG_UPLOAD_DIR_DEFAULT
     upload_dir.mkdir(parents=True, exist_ok=True)
     candidates = [
         UploadCandidate(
@@ -134,7 +134,7 @@ async def _save_uploads(files: list[UploadFile]):
             used_names.add(base_name)
             target = upload_dir / base_name
         else:
-            target = unique_upload_path(
+            target = helpers.unique_upload_path(
                 upload_dir, candidate.filename, used_names
             )
         target.write_bytes(candidate.data)

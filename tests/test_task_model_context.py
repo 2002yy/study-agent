@@ -41,11 +41,11 @@ def test_explicit_memory_scopes_still_read_only_their_named_files(monkeypatch):
 
 def test_memory_scope_settings_persist_without_changing_speed(monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
-    from src import api
     from src.api import app
+    from src.application import helpers
     from src.application.helpers import resolve_context_mode
 
-    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", tmp_path / "frontend.yaml")
+    monkeypatch.setattr(helpers, "FRONTEND_SETTINGS_PATH_DEFAULT", tmp_path / "frontend.yaml")
     client = TestClient(app)
     original_speed = client.get("/runtime/settings").json()["settings"]["performance_mode"]
     response = client.patch("/runtime/settings", json={"context_mode": "none"})
