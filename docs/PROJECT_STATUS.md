@@ -75,6 +75,8 @@
 
 **当前用户指定的 P3 任务**：#386—#388、#390—#403 已按精确 HEAD CI、审查和依赖树门禁合入主线；最新核实 `main@f93326559e453b7b24917d49d516d25e0526bfe3`，tree `37be116f171a2b74cfc0f6479b4d6187cb83a5fe`。测试夹具 [#404](https://github.com/2002yy/study-agent/pull/404) 已以 main 为基线，仍待精确 HEAD CI 成功后合并。**独立结构片**从该主线另开 `codex/research-budget-clock-pr-20261118`：将运行单调时钟、Deep 恢复基线、研究窗口、模型单次超时归入 `ResearchBudgetClock`；该对象只持有固定时钟参数及获取**当前**研究硬额度的回调，不缓存可重绑定的 `state`、不修改实际费用预留、结算和检查点。`elapsed`、窗口剩余、单次模型超时及硬额度剩余仍各自按需**采样一次**时钟，Deep 基线不重新起算；单次超时的 1 秒下限、供应商上限和 12 秒研究尾部预留未改。定向离线影响集 `test_research_runtime_budget_clock.py`、`test_active_research_runtime.py`、`test_spend_boundary_controls.py`、`test_deep_planner_production.py`、`test_research_runtime_window_diagnostics.py` **115 passed（145.40s）**；Ruff、格式和 diff-check 通过；本片精确远端 CI 尚待验收。**保留请求前持久 inflight、完成后仅内存审计、语义结果后再持久化的原顺序**，真实 `reserve_call` 不改。详细责任图见[2026-11-17/18 执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。**原产品实验仍待执行**：在具备真实浏览器和 SearXNG 的环境运行 #369 零模型、零收费搜索的社区覆盖探针。
 
+**2026-11-18 本窗口后继交接（不覆盖上面的 #405 基线快照）**：新结构 PR 以 #405 精确 HEAD `dec1dd3d` 为父基线，组合两个已独立离线验证的上下文：`ActiveResearchSteeringContext` 与 `ActiveWaveSettlementContext`。前者按当前 `state/context` 合并、应用和标记用户指令，后者把波次判断与检查点衔接整理成短期状态快照；原检查点仍唯一拥有持久化和回填，真实费用结算与发布权威均未改变。它只新增自己的两个边界测试文件，不改 #404 的运行器测试造景，也不恢复 #406–#408 删除的历史功能和测试。合并顺序、精确 SHA、跨分支验证见[执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。
+
 ## 0A. 已冻结研究路线（摘要）
 
 `Lookup → VERIFIED / SAFE_ABSTAIN / ESCALATE_STANDARD`；Standard 的多源/比较/冲突和 Deep 的计划/缺口/收益/暂停恢复复用既有 `ActiveResearchRuntimeExecutor`，不另起第二套研究引擎。`usable/read_backed/relevant` 不能等同逐条 claim 支持；默认 `simple` 只验证引用 URL 属于已读来源，不标逐条 verified。

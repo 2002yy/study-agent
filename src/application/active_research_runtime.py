@@ -231,13 +231,11 @@ from src.web.research.source_cluster import (
 )
 from src.web.research.state import attach_claim_engine_state
 from src.web.research.steering import (
-    _apply_pending_active_steering as _apply_pending_active_steering,
-    _mark_pending_active_steering_late as _mark_pending_active_steering_late,
+    _apply_pending_active_steering as _apply_pending_active_steering,  # legacy test import
     _pending_active_steering_ids as _pending_active_steering_ids,
     _steering_graph_ids as _steering_graph_ids,
     _steering_ids_for_claim as _steering_ids_for_claim,
     _unapplied_steering_blocks_completion as _unapplied_steering_blocks_completion,
-    merge_active_steering_context,
 )
 from src.application.research_stop_gate import (
     ResearchStopGate,
@@ -255,6 +253,11 @@ from src.application.research_runtime_model_policy import (
 from src.application.research_runtime_model_attempt_context import (
     ActiveModelAttemptContext,
 )
+from src.application.research_runtime_steering_context import ActiveResearchSteeringContext
+from src.application.research_runtime_wave_settlement import (
+    ActiveWaveSettlementContext,
+    ActiveWaveSettlementSnapshot,
+)
 from src.application.research_runtime_failure_projection import (
     with_appended_runtime_failure,
 )
@@ -270,7 +273,6 @@ from src.application.research_runtime_read_site import (
 )
 from src.application.research_runtime_budget_clock import ResearchBudgetClock
 from src.application.research_runtime_publication import ActiveResearchPublisher
-from src.application.research_runtime_wave_stop_signal import completed_wave_stop_signal
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
 from src.application.active_research_evidence_projection import (
     _bounded_retrieval_policy as _bounded_retrieval_policy,
@@ -871,35 +873,6 @@ class ActiveResearchRuntimeExecutor:
                     phase=timing_ledger.current_phase(),
                 )
 
-        def refresh_steering() -> None:
-            nonlocal context
-            _refresh_started = elapsed_ms()
-            context = merge_active_steering_context(
-                context,
-                self._required(run_id).research_context,
-            )
-            timing_ledger.record_refresh(elapsed_ms() - _refresh_started)
-
-        def apply_pending_steering(*, wave_index: int) -> tuple[str, ...]:
-            nonlocal context, state
-            state, context, applied_ids = _apply_pending_active_steering(
-                state,
-                context,
-                run_id=run_id,
-                wave_index=wave_index,
-                applied_at=self.utc_now(),
-                known_evidence_ids=known_evidence_ids(),
-            )
-            return applied_ids
-
-        def mark_pending_steering_late(reason: str) -> tuple[str, ...]:
-            nonlocal context
-            context, late_ids = _mark_pending_active_steering_late(
-                context,
-                reason=reason,
-            )
-            return late_ids
-
         # §71B2: the HTTP envelope is per-run; a fresh run starts full.
         reset_http_envelope()
         # §111 A3-1R: each active execution tier gets its own run-scoped
@@ -916,6 +889,13 @@ class ActiveResearchRuntimeExecutor:
         # F2-S1: wave-scoped exclusive timing ledger (observation only).
         timing_ledger = TimingLedger(elapsed_ms)
         timed_gateway = TimedGateway(self.model_gateway, timing_ledger, elapsed_ms)
+        steering_context = ActiveResearchSteeringContext(
+            repository=self.repository,
+            run_id=run_id,
+            utc_now=self.utc_now,
+            elapsed_ms=elapsed_ms,
+            timing_ledger=timing_ledger,
+        )
 
         # §96 A1a: per-run (backend, host) health breaker. Diagnostic switch,
         # off by default, so the A0/F2 baselines stay valid. It never switches
@@ -1057,70 +1037,49 @@ class ActiveResearchRuntimeExecutor:
             )
 
         def settle_completed_wave(
-            gate: EvidenceGateResult,
-            brief: Mapping[str, Any],
+            snapshot: ActiveWaveSettlementSnapshot,
+        ) -> None:
+            """Sync the wave's live values through the existing checkpoint owner.
+
+            Keep this caller name for the persisted checkpoint timing label.
+            """
+            nonlocal cursor, state, context
+            state, cursor, context = snapshot.state, snapshot.cursor, snapshot.context
+            try:
+                checkpoint()
+            finally:
+                snapshot.state, snapshot.cursor, snapshot.context = (
+                    state,
+                    cursor,
+                    context,
+                )
+
+        wave_settlement_context = ActiveWaveSettlementContext(
+            steering=steering_context,
+            ensure_active=ensure_active,
+            elapsed=elapsed,
+            checkpoint=settle_completed_wave,
+            known_evidence_ids=known_evidence_ids,
+            actionable_gaps=_ordered_gaps,
+            publisher=publisher,
+            max_research_waves=MAX_RESEARCH_WAVES,
+        )
+
+        def settle_wave(
+            gate: EvidenceGateResult, brief: Mapping[str, Any]
         ) -> WebLookupRun | None:
-            """Advance or finish one gain-accounted wave exactly once."""
+            """Hand the current values to settlement and always rebind them."""
 
-            nonlocal cursor
-            ensure_active()
-            refresh_steering()
-            pending = _pending_active_steering_ids(context)
-            hard_exhausted = elapsed() >= state.budget.hard_timeout_seconds
-            wave_exhausted = cursor.wave_index >= MAX_RESEARCH_WAVES
-            if pending and (hard_exhausted or wave_exhausted):
-                mark_pending_steering_late(
-                    "hard_budget_exhausted"
-                    if hard_exhausted
-                    else "wave_limit_reached"
-                )
-                checkpoint()
-            elif pending:
-                # A pending user direction invalidates completion computed from
-                # the pre-steering graph.  Apply it exactly once and advance to
-                # the next bounded wave without mutating the user's budget.
-                next_wave = cursor.wave_index + 1
-                apply_pending_steering(wave_index=next_wave)
-                cursor = replace(
-                    cursor,
-                    wave_index=next_wave,
-                    wave_id="",
-                    active_gap_ids=(),
-                    phase="searching",
-                )
-                checkpoint()
-                return None
-            # P1-C batch 3: the single stop truth lives in ResearchStopGate.
-            # The projection consumes the latest durable steering context;
-            # the frozen gate remains the only stop-decision authority.
-            stop = ResearchStopGate.evaluate(
-                completed_wave_stop_signal(
-                    state=state,
-                    cursor=cursor,
-                    context=context,
-                    gate=gate,
-                    actionable_gaps=_ordered_gaps(state),
-                    hard_exhausted=hard_exhausted,
-                    wave_exhausted=wave_exhausted,
-                )
+            nonlocal state, cursor, context
+            snapshot = ActiveWaveSettlementSnapshot(
+                state=state, cursor=cursor, context=context
             )
-            if stop.decision == "continue":
-                cursor = replace(
-                    cursor,
-                    wave_index=cursor.wave_index + 1,
-                    wave_id="",
-                    active_gap_ids=(),
-                    phase="searching",
+            try:
+                return wave_settlement_context.settle_completed_wave(
+                    snapshot, gate, brief
                 )
-                checkpoint()
-                return None
-
-            cursor = replace(
-                cursor,
-                phase="completed" if stop.decision == "success" else "unavailable",
-            )
-            checkpoint()
-            return publisher.complete(context=context, stop=stop, brief=brief)
+            finally:
+                state, cursor, context = snapshot.state, snapshot.cursor, snapshot.context
 
         try:
             ensure_active()
@@ -1247,10 +1206,15 @@ class ActiveResearchRuntimeExecutor:
                     raise _HardBudgetReached
                 if cursor.wave_index == 0:
                     cursor = replace(cursor, wave_index=1)
-                    refresh_steering()
+                    context = steering_context.refresh(context)
                     if _pending_active_steering_ids(context):
                         ensure_budget()
-                        apply_pending_steering(wave_index=1)
+                        state, context, _applied_ids = steering_context.apply_pending(
+                            state=state,
+                            context=context,
+                            wave_index=1,
+                            known_evidence_ids=known_evidence_ids,
+                        )
                     checkpoint()
                 wave_id = f"research_wave:{run_id}:{cursor.wave_index}"
                 timing_ledger.start_wave(cursor.wave_index)
@@ -1264,7 +1228,7 @@ class ActiveResearchRuntimeExecutor:
                     record_research_window(
                         exhausted=research_window_exhausted()
                     )
-                    settled = settle_completed_wave(gate, brief)
+                    settled = settle_wave(gate, brief)
                     if settled is not None:
                         return settled
                     continue
@@ -3012,7 +2976,7 @@ class ActiveResearchRuntimeExecutor:
                 record_research_window(exhausted=research_window_exhausted())
                 timing_ledger.end_wave()
                 _ledger_flush()
-                settled = settle_completed_wave(gate, brief)
+                settled = settle_wave(gate, brief)
                 if settled is not None:
                     return settled
         except (ActiveResearchCancelled, CandidatePoolCancelled, ReadSchedulingCancelled):
@@ -3020,16 +2984,20 @@ class ActiveResearchRuntimeExecutor:
             # on_model_finished records the cleared inflight marker and any
             # completed audit; the cancelled run is terminal and never resumes.
             try:
-                refresh_steering()
-                mark_pending_steering_late("user_cancelled")
+                context = steering_context.refresh(context)
+                context, _late_ids = steering_context.mark_late(
+                    context, reason="user_cancelled"
+                )
                 checkpoint()
             except Exception:
                 pass
             return self.repository.finish_cancel(run_id, operation_id=operation_id)
         except _HardBudgetReached:
             update_budget()
-            refresh_steering()
-            mark_pending_steering_late("hard_budget_exhausted")
+            context = steering_context.refresh(context)
+            context, _late_ids = steering_context.mark_late(
+                context, reason="hard_budget_exhausted"
+            )
             record_research_window(exhausted=research_window_exhausted())
             checkpoint()
             gate = evaluate_evidence_gate(state)
@@ -3911,7 +3879,7 @@ def _late_admission_tail(
     """
 
     def _live() -> dict[str, Any]:
-        # §71A-1: refresh_steering() can replace the whole context dict while
+        # §71A-1: the steering refresh can replace the whole context dict while
         # this step runs, so every read/write boundary resolves it again.
         return live_context() if live_context is not None else context
 
