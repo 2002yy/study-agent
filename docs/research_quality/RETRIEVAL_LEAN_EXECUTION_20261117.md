@@ -151,3 +151,11 @@
 `test_active_research_runtime.py` 中 `_cutover_service` 与 `_a2e_service` 曾各自构造同一种 `ActiveResearchGateway`、模型网关和执行器，只在是否指定检索后端上有区别；现在将检索后端设为 `_cutover_service` 的可选输入，A2e 端到端测试复用同一构造入口。`_cutover_run` 继续保留场景名称与原始参数，但内部复用 `_pending_active_run`，不重新复制 `WebLookupRun` 的 pending/planned 字段。重复的 `_a2e_sources` 与 `_breaker_sources` 投影合并为后者，保持 `Mapping` 过滤和浅字典复制不变。
 
 此片**只改测试代码**，保留所有测试、断言、固定 URL、断路器配置、升级读环境与账本检查；不改生产检索、读取消费、恢复、模型预算或发布。定向 `test_active_research_runtime.py` **84/84 passed**、Ruff 与 diff-check 通过；依赖的 #395、#396 均未满足合并门禁前，该片仅作为堆叠草稿验收，不能提前合入 main。
+
+## 2026-11-18 依赖收口与模型政策上下文
+
+[#395](https://github.com/2002yy/study-agent/pull/395)、[#396](https://github.com/2002yy/study-agent/pull/396)、[#397](https://github.com/2002yy/study-agent/pull/397) 已按序完成**各自原 HEAD** CI（`44125608541`、`44126675280`、`44127618845`，均成功）和人工复核，分别合并 `bd7fd5dc`、`30c27cf2`、`4f46684d`。每合并一项均重新拉取 main 并比对 tree，依次等于先前验收基线 `9d96107b`、`02c395cf`、`7044d37f`；两处堆叠 PR 均在其父 PR 合并、同树核实后才改基线和合并。三个 PR 的静态通过不代表真实研究质量提升，真实付费调用 **0**。
+
+下一独立片的模型政策审计曾在 `execute()` 中通过 `model_allowed` 闭包读取当前 `context`、`self.policy_check` 和 `self.utc_now`。运行期的新 `RuntimeModelPolicyContext` 只持有后两项稳定依赖；每次检查以参数接收**当前上下文**，仍严格遵守 `policy_check` → `utc_now` → 更新 `claim_engine_policy_audits` 的原时序。任何政策检查或时钟异常都不能提前改写审计；审计仍保留旧字典形状、顺序和 100 条上限。执行器中的薄包装继续保留原先每个模型准入点的调用位置。
+
+**特别不改**：`on_model_started` 的 `ensure_active` → `ensure_budget` → `begin_model_attempt` → `checkpoint`；`on_model_finished` 的 `finish_model_attempt` → `ensure_active` 且没有即时检查点；真实费用 `reserve_call` 仍在模型网关里、发生在请求前检查点之后。模型“成功后、语义结果持久化前”崩溃必须依旧通过中断未知尝试恢复，不能把完成审计独立提前落盘。
