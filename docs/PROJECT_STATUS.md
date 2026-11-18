@@ -215,8 +215,14 @@
   `M4D_PATCH_DEMO_DIR` 时执行；生产代码、现行 CI 和正式 UI 均无调用。
   整组删除演示运行器及其专属浏览器用例，把原先误从演示工具导入的
   测试构造函数移入 `tests/test_interactive_patch.py`。
-  保留 `src/interactive_patch.py`、恢复契约以及增量修改/能力继承的
-  现行单元测试，确保退役实验不会顺带移除仍有价值的功能基础。
+  **当时**保留 `src/interactive_patch.py`、恢复契约以及增量修改/能力继承的
+  单元测试。后续证实补丁核心 `prepare_patch/PatchCandidate/TextEdit` 仅由
+  两份测试调用，未接入正式 API、会话、前端、CLI 或阶段门；本独立片删除
+  原型模块与整份专属测试，Three 能力测试改为直接覆盖正式
+  `interactive_history` → `interactive_restore` 的版本恢复和冲突语义，
+  并在历史原型文档中撤销过时演示命令。保留正式恢复、版本识别、Three
+  沙箱加载及其测试；不补兼容空壳。原离线影响集 **82 passed**、Ruff、
+  diff-check、mypy 基线 **115/125** 通过；未执行付费 API。
 
 - **2026-11-18 M4-C3 历史实验闭环退役（独立片）**：
   11 月 4 日固定批次已有原始结果和费用回执，今天的产品/CI 不再调用当时的
