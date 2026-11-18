@@ -1602,6 +1602,7 @@ class ActiveResearchRuntimeExecutor:
                             wave_index=cursor.wave_index,
                             timeout_seconds=remaining_timeout(),
                             proposed_claim_ids=proposed_claim_ids,
+                            live_context=lambda: context,
                         )
                         phase_timing.end("tier2_proposal", context=context)
                     # §63 Tier-1.5 (default off): official-domain site search
@@ -3383,6 +3384,7 @@ def _tier2_proposal_step(
     wave_index: int,
     timeout_seconds: float | None,
     proposed_claim_ids: list[str],
+    live_context: Callable[[], dict[str, Any]] | None = None,
 ) -> ResearchRuntimeCursor:
     """§45 Tier-2: LLM URL proposal -> reader verification -> candidate.
 
@@ -3462,7 +3464,10 @@ def _tier2_proposal_step(
         record["call_status"] = status or "unknown"
         value = result.value if status == "completed" else None
         record["proposed"] = list(value or [])
-    _count_orchestration_call(context, "research_url_proposal")
+    _count_orchestration_call(
+        live_context() if live_context is not None else context,
+        "research_url_proposal",
+    )
 
     existing_urls = {item.url for item in cursor.candidates}
     anchor_query_id = next(
@@ -3516,7 +3521,9 @@ def _tier2_proposal_step(
         record["verified"].append(url)
         record["added_candidate_ids"].append(candidate_id)
         existing_urls.add(url)
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    metrics = (
+        live_context() if live_context is not None else context
+    ).setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
     if isinstance(metrics, dict):
         records = metrics.get("tier2_proposal")
         if not isinstance(records, list):

@@ -198,6 +198,10 @@ class _Gateway:
         )
 
 
+def _verified_read(url: str, *, max_chars: int) -> dict:
+    return {"ok": True, "content": "x"}
+
+
 def test_tier1_hit_never_calls_the_model(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.application.active_research_runtime import _tier2_proposal_step
 
@@ -211,7 +215,7 @@ def test_tier1_hit_never_calls_the_model(monkeypatch: pytest.MonkeyPatch) -> Non
         claim=claim,
         assessments=assessments,
         model_gateway=gateway,
-        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        read_fn=_verified_read,
         context={},
         run_id="run_1",
         wave_index=1,
@@ -269,6 +273,51 @@ def test_tier1_miss_proposes_verifies_and_adds_with_provenance(
     assert context["claim_engine_metrics"]["orchestration_model_calls"] == 1
 
 
+def test_tier2_records_model_and_verification_in_rebound_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The model-start checkpoint may replace the executor's context dict."""
+
+    from src.application.active_research_runtime import _tier2_proposal_step
+
+    monkeypatch.setenv(LLM_PROPOSAL_ENV, "on")
+    original: dict = {}
+    current: dict = original
+
+    class _RebindingGateway(_Gateway):
+        def complete_structured(self, **kwargs):
+            nonlocal current
+            current = {"claim_engine_metrics": {}}
+            return super().complete_structured(**kwargs)
+
+    state, claim = _runtime_state_and_claim()
+    _tier2_proposal_step(
+        cursor=_runtime_cursor(),
+        state=state,
+        claim=claim,
+        assessments={"candidate_search_1": _Assessment("topic_only")},
+        model_gateway=_RebindingGateway(
+            ["https://docs.docker.com/docker-hub/usage/pulls/"]
+        ),
+        read_fn=_verified_read,
+        context=original,
+        run_id="run_1",
+        wave_index=1,
+        timeout_seconds=5.0,
+        proposed_claim_ids=[],
+        live_context=lambda: current,
+    )
+
+    assert current is not original
+    assert "claim_engine_metrics" not in original
+    metrics = current["claim_engine_metrics"]
+    assert metrics["orchestration_model_calls"] == 1
+    assert len(metrics["tier2_proposal"]) == 1
+    assert metrics["tier2_proposal"][0]["verified"] == [
+        "https://docs.docker.com/docker-hub/usage/pulls/"
+    ]
+
+
 def test_completed_read_must_belong_to_this_claim(monkeypatch: pytest.MonkeyPatch) -> None:
     """Frozen §45: reads from other claims must not unlock the proposal step."""
 
@@ -292,7 +341,7 @@ def test_completed_read_must_belong_to_this_claim(monkeypatch: pytest.MonkeyPatc
         claim=claim,
         assessments={"candidate_search_1": _Assessment("topic_only")},
         model_gateway=gateway,
-        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        read_fn=_verified_read,
         context={},
         run_id="run_1",
         wave_index=2,
@@ -316,7 +365,7 @@ def test_missing_api_never_repeats_for_the_same_claim(monkeypatch: pytest.Monkey
         claim=claim,
         assessments={},
         model_gateway=gateway,
-        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        read_fn=_verified_read,
         context={},
         run_id="run_1",
         wave_index=2,
@@ -338,7 +387,7 @@ def test_flag_off_never_calls_the_model(monkeypatch: pytest.MonkeyPatch) -> None
         claim=claim,
         assessments={},
         model_gateway=gateway,
-        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        read_fn=_verified_read,
         context={},
         run_id="run_1",
         wave_index=1,
