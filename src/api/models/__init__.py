@@ -35,9 +35,7 @@ from .rag import (
     LocalKnowledgeRequest,
     LocalKnowledgeResponse,
     RagIndexRequest,
-    RagIndexResponse,
     RagQueryRequest,
-    RagQueryResponse,
     RagStatusResponse,
 )
 from .settings import RuntimeSettingsPatch, RuntimeSettingsResponse

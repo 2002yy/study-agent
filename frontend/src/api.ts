@@ -14,8 +14,6 @@ import type {
   MemoryUpdate,
   WebLookupRunResponse,
   RagSettings,
-  RagIndexResponse,
-  RagQueryResponse,
   RagStatusResponse,
   RagRunResponse,
   KnowledgeDocumentListResponse,
@@ -601,24 +599,6 @@ export async function flushSession(sessionId: string): Promise<{ session_id: str
 
 export async function loadRagStatus(): Promise<RagStatusResponse> {
   return requestJson<RagStatusResponse>("/rag/status");
-}
-
-export async function uploadDocuments(files: File[], mode: "append" | "rebuild" = "append"): Promise<RagIndexResponse> {
-  const formData = new FormData();
-  files.forEach((file) => formData.append("files", file));
-  return uploadForm<RagIndexResponse>(`/rag/upload?mode=${encodeURIComponent(mode)}`, formData);
-}
-
-export async function queryRag(query: string, settings: RagSettings): Promise<RagQueryResponse> {
-  return requestJson<RagQueryResponse>("/rag/query", {
-    method: "POST",
-    body: JSON.stringify({
-      query,
-      top_k: settings.topK,
-      min_score: settings.minScore,
-      retrieval_mode: settings.retrievalMode
-    })
-  });
 }
 
 export async function createRagQueryRun(query: string, settings: RagSettings): Promise<RagRunResponse> {

@@ -81,8 +81,10 @@ SQLite durable state + Markdown long-term memory + RAG indexes
 - `LearningClosureRun`（已实现：`src/domain/learning_closure.py` + `src/application/learning_closure_service.py` + `src/api/routes/learning_closure_routes.py`，含 source_hash 幂等 / retry / cancel / commit）。
 
 路径索引使用 `POST /rag-runs/index`，返回可追踪的 `RagRun`；
-原 `POST /rag/index` 同步响应适配入口已退役。前端仍使用
-`POST /rag/upload`，其响应模型和 `/rag` 代理前缀继续保留。
+原 `POST /rag/index` 同步响应适配入口已退役。前端上传和重建
+分别使用 `POST /rag-runs/upload`、`POST /rag-runs/rebuild`，检索使用
+`POST /rag-runs/query`；旧 `/rag/upload`、`/rag/query` 同步响应适配
+已退役。`/rag` 前缀仍服务状态读取和本地知识检索等现行接口。
 
 通用原则：
 
