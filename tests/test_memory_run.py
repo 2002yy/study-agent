@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src import memory_writer
@@ -110,3 +111,101 @@ def test_memory_run_api_create_commit_restore_and_list(
     assert restored.json()["updates_hash"] == created.json()["updates_hash"]
     assert run_id in [run["id"] for run in listed.json()["runs"]]
     assert "API frozen" in target.read_text(encoding="utf-8")
+
+
+def test_memory_run_api_preview_includes_replace_and_pending_text(
+    runtime_test_context, tmp_path, monkeypatch
+):
+    focus = tmp_path / "current_focus.md"
+    summary = tmp_path / "summary.md"
+    monkeypatch.setitem(memory_writer.MEMORY_TARGETS, "current_focus", focus)
+    monkeypatch.setitem(memory_writer.MEMORY_TARGETS, "summary", summary)
+    monkeypatch.setattr(
+        "src.application.memory_service.load_runtime_modes", lambda: WRITABLE
+    )
+
+    response = TestClient(app).post(
+        "/memory-runs",
+        json={
+            "updates": [
+                {"target": "current_focus", "content": "Focus now", "append": False},
+                {"target": "summary", "content": "Maybe useful", "learner_pending": True},
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    run = response.json()
+    assert run["status"] == "previewed"
+    assert run["preview"]["writable"] is True
+    updates = run["preview"]["updates"]
+    assert updates[0]["path"] == str(focus)
+    assert updates[0]["action"] == "replace"
+    assert updates[0]["preview"] == "Focus now\n"
+    assert updates[1]["action"] == "append"
+    assert updates[1]["preview"] == "### 待确认观察\n\nMaybe useful\n"
+    assert not focus.exists() and not summary.exists()
+
+
+@pytest.mark.parametrize(
+    ("updates", "expected_error"),
+    [
+        (
+            [{"target": "progress", "content": "replace me", "append": False}],
+            "append=false is only supported for target current_focus",
+        ),
+        (
+            [
+                {"target": "current_focus", "content": "焦点1", "append": False},
+                {"target": "current_focus", "content": "焦点2", "append": False},
+            ],
+            "最多允许一次 current_focus replace 操作",
+        ),
+        (
+            [
+                {"target": "current_focus", "content": "正常"},
+                {"target": "../etc/passwd", "content": "恶意"},
+            ],
+            "Unknown memory target: ../etc/passwd",
+        ),
+    ],
+)
+def test_memory_run_api_rejects_invalid_updates_before_persisting(
+    runtime_test_context, tmp_path, monkeypatch, updates, expected_error
+):
+    focus = tmp_path / "current_focus.md"
+    progress = tmp_path / "progress.md"
+    monkeypatch.setitem(memory_writer.MEMORY_TARGETS, "current_focus", focus)
+    monkeypatch.setitem(memory_writer.MEMORY_TARGETS, "progress", progress)
+
+    response = TestClient(app).post("/memory-runs", json={"updates": updates})
+
+    assert response.status_code == 400
+    assert expected_error in str(response.json()["detail"])
+    assert runtime_test_context.memory_service.list() == []
+    assert not focus.exists() and not progress.exists()
+
+
+def test_memory_run_api_commit_blocks_preview_mode(
+    runtime_test_context, tmp_path, monkeypatch
+):
+    target = tmp_path / "progress.md"
+    monkeypatch.setitem(memory_writer.MEMORY_TARGETS, "progress", target)
+    monkeypatch.setattr(
+        "src.application.memory_service.load_runtime_modes",
+        lambda: RuntimeModes(memory_mode="preview", safe_mode=False),
+    )
+    client = TestClient(app)
+    created = client.post(
+        "/memory-runs",
+        json={"updates": [{"target": "progress", "content": "should not write"}]},
+    )
+
+    assert created.status_code == 200
+    assert created.json()["preview"]["writable"] is False
+    committed = client.post(f"/memory-runs/{created.json()['id']}/commit")
+
+    assert committed.status_code == 200
+    assert committed.json()["status"] == "blocked"
+    assert committed.json()["reason"] == "preview"
+    assert not target.exists()

@@ -24,29 +24,8 @@ class MemoryUpdate(BaseModel):
     learner_pending: bool = False
 
 
-class MemoryPreviewRequest(BaseModel):
+class MemoryRunCreateRequest(BaseModel):
     updates: list[MemoryUpdate] = Field(min_length=1)
-
-
-class MemoryPreviewItem(BaseModel):
-    target: str
-    path: str
-    action: str
-    allowed: bool
-    preview: str
-
-
-class MemoryPreviewResponse(BaseModel):
-    writable: bool
-    memory_mode: str
-    safe_mode: bool
-    updates: list[MemoryPreviewItem]
-
-
-class MemoryCommitResponse(BaseModel):
-    writable: bool
-    results: list[dict[str, str]]
-    errors: list[dict[str, str]] | None = None
 
 
 class MemoryRunResponse(BaseModel):
