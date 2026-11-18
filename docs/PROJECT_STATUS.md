@@ -128,6 +128,14 @@
   保留正式 `run_rq1c_bounded_qualification`、冻结 holdout 清单、阶段门、
   成本/预算及相关现行测试；不改变生产搜索、研究恢复或预算决策。
 
+- **2026-11-19 RQ1-C 无调用方 guard 二次转发模块退役（独立片）**：
+  `tools/run_rq1c_bounded_qualification_guard.py` 只把正式预算守卫及资格
+  实现的符号重新导出，重复提供 `main()`，没有活跃代码、测试、CI、
+  阶段门或操作文档调用。该兼容壳已删除，不增补空桩、别名或专项测试；
+  正式 `run_rq1c_bounded_qualification.py`、预算类型、8 次调用上限、
+  硬截止、前置守卫和真实付费 API 权限边界不变。原影响集 **54 passed**；
+  本片未执行付费资格实验，精确提交的更新验收以对应 PR 为准。
+
 - **2026-11-18 旧 B-Search 离线目录实验退役（独立片）**：
   OPML 导入工具、静态信源目录、Top-K 目录召回模块及其专项测试只连接
   `tools/run_research_tool_agent.py` 手动实验入口，无生产请求、现行 CI、
