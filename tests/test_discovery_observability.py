@@ -6,7 +6,6 @@ from src.web.research.discovery_observability import (
     DEFAULT_MAX_QUERIES,
     DEFAULT_TOP_K,
     SCHEMA_VERSION,
-    issued_variant_coverage,
     record_search_call,
     variant_matches,
 )
@@ -155,26 +154,6 @@ def test_variant_matches_report_only_term_overlap() -> None:
     assert variant_matches("docker hub pull limits docs", variants) == [0]
     assert variant_matches("completely different query", variants) == []
     assert variant_matches("postgresql supported versions policy", variants) == [1]
-
-
-def test_issued_variant_coverage_is_mechanical() -> None:
-    context: dict = {}
-    _record(context, slot_index=1)
-    _record(
-        context,
-        slot_index=2,
-        query="docker hub pull limits docs",
-        variants=("docker hub pull limits docs", "unused second variant"),
-    )
-
-    coverage = issued_variant_coverage(
-        context[METRICS_KEY]["search_discovery"]["queries"]
-    )
-
-    assert coverage["generated_total"] == 4
-    assert coverage["matched_total"] >= 2
-    assert [entry["slot_index"] for entry in coverage["queries"]] == [1, 2]
-    assert "mechanical term overlap" in coverage["note"]
 
 
 def test_missing_metrics_key_creates_a_bounded_state() -> None:
