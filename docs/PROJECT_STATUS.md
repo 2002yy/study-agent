@@ -6,6 +6,21 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### 历史召回/候选供应商资格工具整链退役（2026-11-19，独立片）
+
+- 旧 §44A/§44C 研究阶段的 “已知目标召回审计 → Brave API 资格评估 / URL 提案
+  候选替代方案资格评估” 未进入生产执行链；三套脚本只被彼此依赖及专属测试
+  引用。当前代码、阶段门、CI、活跃文档均没有调用方，旧决策背景已留在
+  `docs/archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`。
+- 删除 `run_recall_target_audit.py`、`run_brave_qualification.py`、
+  `run_url_proposal_qualification.py` 及三份同名专项测试；旧目标 URL 列表与
+  已冻结的候选参数不再作为当前产品门槛维护。没有为被删接口增补适配层、
+  别名或虚假的空测试。现行 `active_research_runtime.py` 的 `research_url_proposal`
+  运行行为、Browse 搜索以及所有通用质量门保持不变。
+- 此片只做离线静态退役；现行研究运行时、搜索、URL/官方来源复核的局部影响集
+  **112 passed**，Ruff 与 `git diff --check` 通过；未调用 Brave API、
+  DeepSeek、浏览器或其它付费外部资源。
+
 ### 2026-11-19 搜索单次执行上下文（待独立 PR）
 
 - #490 已通过精确 HEAD CI `44347405572` 并合入 `main@56ebfd6f`；#493 改用包含 #490 的无冲突整合树，当前待验收提交 `cee81a55`，CI `44351248954` 尚未结束，不得引用被覆盖的旧 HEAD CI 提前合入。两者提交/状态以 GitHub 为准。
