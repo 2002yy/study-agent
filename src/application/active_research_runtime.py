@@ -970,11 +970,6 @@ class ActiveResearchRuntimeExecutor:
             if elapsed() >= state.budget.hard_timeout_seconds:
                 raise _HardBudgetReached
 
-        def model_allowed(purpose: str, categories: tuple[str, ...]) -> bool:
-            # The delegated assessment helper still requires a callback; resolve
-            # the live context here rather than binding a possibly stale dict.
-            return model_policy.allowed(context, purpose, categories)
-
         def set_model_cursor(value: ResearchRuntimeCursor) -> None:
             nonlocal cursor
             cursor = value
@@ -1045,7 +1040,7 @@ class ActiveResearchRuntimeExecutor:
                 cursor = replace(cursor, phase="planning")
                 checkpoint(stage="planned")
                 categories = ("public_research_question", "research_time_context")
-                if not model_allowed("research_claim_planning", categories):
+                if not model_policy.allowed(context, "research_claim_planning", categories):
                     cursor = with_appended_runtime_failure(
                         cursor, context,
                         "policy_blocked",
@@ -1500,7 +1495,9 @@ class ActiveResearchRuntimeExecutor:
                         f"research_candidate_assessment:{run_id}:{claim.id}:1"
                         f"{_assessment_call_suffix(cursor, claim.id, candidate_ids)}"
                     )
-                    if not model_allowed("research_candidate_assessment", categories):
+                    if not model_policy.allowed(
+                        context, "research_candidate_assessment", categories
+                    ):
                         cursor = with_appended_runtime_failure(
                             cursor, context,
                             "policy_blocked",
@@ -1654,7 +1651,7 @@ class ActiveResearchRuntimeExecutor:
                         wave_index=cursor.wave_index,
                         max_reads=state.budget.max_reads,
                         assessor=self.candidate_assessor,
-                        model_allowed=model_allowed,
+                        policy_context=model_policy,
                         on_model_started=on_model_started,
                         on_model_finished=on_model_finished,
                         phase_begin=phase_timing.begin,
@@ -2296,8 +2293,8 @@ class ActiveResearchRuntimeExecutor:
                         "public_research_candidate_metadata",
                         "bounded_public_page_excerpt",
                     )
-                    if not model_allowed(
-                        "research_lead_discovery", lead_categories
+                    if not model_policy.allowed(
+                        context, "research_lead_discovery", lead_categories
                     ):
                         cursor = with_appended_runtime_failure(
                             cursor, context,
@@ -2437,7 +2434,9 @@ class ActiveResearchRuntimeExecutor:
                         f"research_evidence_extract:{run_id}:{claim_id}:{candidate_id}:1"
                         f"{_extraction_call_suffix(cursor, candidate_id, claim_id)}"
                     )
-                    if not model_allowed("research_evidence_extraction", extraction_categories):
+                    if not model_policy.allowed(
+                        context, "research_evidence_extraction", extraction_categories
+                    ):
                         extractions[claim_id] = {"status": "extractor_failed", "reason": "blocked_by_policy"}
                         cursor = with_appended_runtime_failure(
                             cursor, context,
@@ -3744,7 +3743,7 @@ def _late_admission_tail(
     wave_index: int,
     max_reads: int,
     assessor: Any,
-    model_allowed: Any,
+    policy_context: RuntimeModelPolicyContext,
     on_model_started: Any,
     on_model_finished: Any,
     phase_begin: Any,
@@ -3909,7 +3908,9 @@ def _late_admission_tail(
             return cursor
 
         categories = ("public_research_claim", "public_candidate_metadata")
-        if not model_allowed("research_candidate_assessment", categories):
+        if not policy_context.allowed(
+            _live(), "research_candidate_assessment", categories
+        ):
             record["skipped_reason"] = "policy_blocked"
             _store()
             return cursor

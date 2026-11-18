@@ -18,6 +18,7 @@ from src.application.active_research_runtime import (
     LATE_TAIL_MAX_CANDIDATES,
     _late_admission_tail,
 )
+from src.application.research_runtime_model_policy import RuntimeModelPolicyContext
 from src.web.research.candidate_ranking import CandidateSemanticAssessment
 from src.web.research.contracts import (
     EvidenceGap,
@@ -35,6 +36,13 @@ from src.web.research.runtime import (
 from src.web.research.state import build_research_state
 
 CLAIM_ID = "claim_1"
+
+
+def _policy_context(allowed: bool = True) -> RuntimeModelPolicyContext:
+    return RuntimeModelPolicyContext(
+        policy_check=lambda context, purpose: allowed,
+        utc_now=lambda: "2026-09-21T00:00:00Z",
+    )
 
 
 def _assessment(candidate_id: str, relevance: str = "answer_relevant") -> CandidateSemanticAssessment:
@@ -177,7 +185,7 @@ def _run_tail(
         wave_index=wave_index,
         max_reads=8,
         assessor=assessor,
-        model_allowed=lambda purpose, categories: model_allowed,
+        policy_context=_policy_context(model_allowed),
         on_model_started=lambda **kwargs: None,
         on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
@@ -204,6 +212,9 @@ def test_case_1_late_candidate_is_assessed_and_enters_the_ranking() -> None:
     assert record["selector_calls"] == 0
     assert [item.candidate.id for item in rankings[CLAIM_ID]] == ["candidate_1"]
     assert assessor.calls == [("candidate_1",)]
+    assert context["claim_engine_policy_audits"][-1]["purpose"] == (
+        "research_candidate_assessment"
+    )
 
 
 def test_case_2_initial_window_picks_are_never_evicted() -> None:
@@ -477,7 +488,7 @@ def test_identity_swap_keeps_behaviour_and_terminal_state() -> None:
         wave_index=2,
         max_reads=8,
         assessor=assessor,
-        model_allowed=lambda purpose, categories: True,
+        policy_context=_policy_context(),
         on_model_started=lambda **kwargs: None,
         on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
@@ -521,7 +532,7 @@ def test_no_identity_change_path_is_unchanged() -> None:
         wave_index=2,
         max_reads=8,
         assessor=assessor,
-        model_allowed=lambda purpose, categories: True,
+        policy_context=_policy_context(),
         on_model_started=lambda **kwargs: None,
         on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
@@ -556,7 +567,7 @@ def test_refusal_paths_are_terminal_even_with_identity_swap() -> None:
         wave_index=2,
         max_reads=8,
         assessor=_Assessor(),
-        model_allowed=lambda purpose, categories: True,
+        policy_context=_policy_context(),
         on_model_started=lambda **kwargs: None,
         on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
@@ -592,7 +603,7 @@ def test_refusal_paths_are_terminal_even_with_identity_swap() -> None:
         wave_index=2,
         max_reads=8,
         assessor=_Assessor(),
-        model_allowed=lambda purpose, categories: True,
+        policy_context=_policy_context(),
         on_model_started=lambda **kwargs: None,
         on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
@@ -687,7 +698,7 @@ def test_read_only_metrics_mapping_is_rebound_not_lost() -> None:
         wave_index=2,
         max_reads=8,
         assessor=assessor,
-        model_allowed=lambda purpose, categories: True,
+        policy_context=_policy_context(),
         on_model_started=lambda **kwargs: None,
         on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
@@ -731,7 +742,7 @@ def test_aborted_tail_still_reaches_a_terminal_state() -> None:
             wave_index=2,
             max_reads=8,
             assessor=_AbortingAssessor(),
-            model_allowed=lambda purpose, categories: True,
+            policy_context=_policy_context(),
             on_model_started=lambda **kwargs: None,
             on_model_finished=lambda **kwargs: None,
             phase_begin=lambda name: None,
