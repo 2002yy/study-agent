@@ -247,6 +247,16 @@
   `/rag/upload`、`RagIndexResponse` 和 `/rag` 代理前缀。L1 **57 passed**、
   Ruff 和差异检查通过；无模型调用。精确 HEAD CI/审查及合并状态见对应 PR。
 
+- **2026-11-19 无调用方的研究匹配/调度包装函数退役**：
+  `facet_coverage._contains` 和 `scheduler._lead_is_schedulable` 都没有生产、
+  工具、测试或阶段门引用，分别是旧的全词匹配和线索调度包装，直接删除，
+  不增加空测试、适配或配置。现行 `_pattern/_term_positions`、
+  `is_schedulable_lead` 与 `plan_read_wave` 不变。另有 `_prose_score` 疑似死代码，
+  但扩展测试的 `test_goal_evidence.py::test_agent_records_evidence_per_goal_and_keeps_records_apart`
+  在未改动的主线上已有失败，因此不在此片混删相关证据路径或失败测试。
+  原匹配/调度/读取影响集 **84 passed**，Ruff、差异检查与 mypy 基线
+  **115/125** 通过；无真实搜索或付费调用。
+
 - 上轮历史减负收口：[#449](https://github.com/2002yy/study-agent/pull/449)
   精确 CI 成功，合并 `32ed94f5`；[#450](https://github.com/2002yy/study-agent/pull/450)
   精确 CI 成功，合并 `92243d58`；[#452](https://github.com/2002yy/study-agent/pull/452)
