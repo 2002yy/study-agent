@@ -320,13 +320,16 @@ def run_live(options, root: Path) -> dict[str, Any]:
             all(value in data["reply"] for value in ("37", "5", "32")),
             attachment_id=attachment["id"],
         )
-        research = request(
+        created_research = request(
             "POST",
-            "/web-lookup-runs",
+            "/research-runs",
             json={
                 "query": "site:docs.oracle.com Java static class variables",
                 "max_items": 3,
             },
+        )
+        research = request(
+            "POST", f"/research-runs/{created_research['id']}/search"
         )
         (artifact / f"{attempt}-web-search.json").write_text(
             json.dumps(research, ensure_ascii=False, indent=2), encoding="utf-8"

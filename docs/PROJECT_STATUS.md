@@ -6,6 +6,17 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### 旧 HTTP 研究入口退役（待精确提交验收）
+
+- `codex/retire-web-lookup-compat-20261118`：仓内唯一实际使用旧
+  `POST /web-lookup-runs` 的真实验收脚本 `tools/studyctl_live.py`
+  已迁至正式 `POST /research-runs` 创建、再用 `POST /research-runs/{id}/search`
+  执行。完整退役四条 `/web-lookup-runs` 兼容路由、其无用转发函数、
+  `NewsLookupRequest` 模型及旧入口专项测试；正式研究恢复测试补足
+  `/research-runs` 读取/列表覆盖。`docs/TECH_STACK.md` 的现行调用说明同步迁移。
+  **保留**供评测及业务继续调用的 `WebLookupService.lookup()`，研究持久化、
+  恢复和预算逻辑不变。本项尚未进行真实服务/付费检索验收；合并状态以对应 PR 为准。
+
 ### 当前研究结构收口（精确合并）
 
 - **2026-11-18 新收口**：故障游标显式更新 [#454](https://github.com/2002yy/study-agent/pull/454) 的 HEAD `691000e7`、精确 CI `44296684690` 成功，审阅线程为空，已用预期 HEAD 保护合并 `main@4bb5a6bd`。原 17 处故障写入不再经由捕获当前游标的内层闭包；失败标识、去重、恢复与检查点位置不变。

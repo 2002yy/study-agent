@@ -242,10 +242,11 @@ CI 运行：
 
 - `src.api` compatibility exports；
 - 旧 Markdown/YAML 状态视图；
-- 历史 `/news/lookup` 适配端点已移除：新调用改用 `POST /web-lookup-runs` 创建研究运行，
-  `GET /web-lookup-runs/{run_id}` 恢复读取。旧响应字段 `run_id`／`query_text`／
-  `news_items` 分别对应新响应 `id`／`query`／`items`；`source_block` 和 `warnings`
-  保持同名。前端现有调用已经通过新端点进行，仍使用的展示层映射不属于旧 HTTP 路由。
+- 历史 `/news/lookup` 和 `/web-lookup-runs` 适配端点均已移除：新调用通过
+  `POST /research-runs` 创建持久运行，再由 `POST /research-runs/{run_id}/search`
+  执行，使用 `GET /research-runs/{run_id}` 恢复读取。旧响应字段
+  `run_id`／`query_text`／`news_items` 对应新响应 `id`／`query`／`items`；
+  `source_block` 和 `warnings` 保持同名。展示层映射不是旧 HTTP 路由。
 - 历史 `/sessions/{session_id}/after-session/preview` 也已移除：学习收口统一通过
   `POST /sessions/{session_id}/learning-closure-runs` 创建，随后由
   `GET /learning-closure-runs/{run_id}` 获取结果。旧路由原先直接返回关联的
