@@ -1464,6 +1464,7 @@ class ActiveResearchRuntimeExecutor:
                         ),
                         trace=selection_trace,
                         context=context,
+                        live_context=lambda: context,
                         model_gateway=timed_gateway,
                         run_id=run_id,
                         wave_index=cursor.wave_index,
@@ -4380,6 +4381,7 @@ def _select_assessment_window(
     excluded_candidate_ids: frozenset[str],
     trace: SelectionTraceCollector | None,
     context: dict[str, Any],
+    live_context: Callable[[], dict[str, Any]] | None = None,
     model_gateway: Any,
     run_id: str,
     wave_index: int,
@@ -4477,12 +4479,15 @@ def _select_assessment_window(
     diagnostics.final_picks = [item.canonical_url for item in final_items]
     diagnostics.enabled = True
 
+    # A model-start checkpoint may replace the enclosing run context while
+    # TimedGateway is executing. Record counts/diagnostics on the live context.
+    metric_context = live_context() if live_context is not None else context
     _count_orchestration_call(
-        context,
+        metric_context,
         "research_selection_authority",
         calls=1 if limit > 0 and ordered else 0,
     )
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    metrics = metric_context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
     if isinstance(metrics, dict):
         records = metrics.get("selection_authority")
         if not isinstance(records, list):

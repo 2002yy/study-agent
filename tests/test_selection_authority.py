@@ -277,6 +277,26 @@ def _runtime_claim():
     )
 
 
+def _runtime_window(model_gateway, *, context: dict, candidates=None, live_context=None):
+    """Shared runtime scenario; callers vary only the model and state boundary."""
+    from src.application.active_research_runtime import _select_assessment_window
+
+    return _select_assessment_window(
+        _runtime_candidates() if candidates is None else candidates,
+        claim=_runtime_claim(),
+        assignments={},
+        max_reads=2,
+        excluded_candidate_ids=frozenset(),
+        trace=None,
+        context=context,
+        live_context=live_context,
+        model_gateway=model_gateway,
+        run_id="run_1",
+        wave_index=1,
+        timeout_seconds=5.0,
+    )
+
+
 class _ExplodingGateway:
     def complete_structured(self, **kwargs):  # pragma: no cover - must not run
         raise AssertionError("model must not be called on the rules path")
@@ -285,23 +305,9 @@ class _ExplodingGateway:
 def test_runtime_default_path_never_calls_the_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from src.application.active_research_runtime import _select_assessment_window
-
     monkeypatch.delenv(SELECTION_AUTHORITY_ENV, raising=False)
     context: dict = {}
-    selected = _select_assessment_window(
-        _runtime_candidates(),
-        claim=_runtime_claim(),
-        assignments={},
-        max_reads=2,
-        excluded_candidate_ids=frozenset(),
-        trace=None,
-        context=context,
-        model_gateway=_ExplodingGateway(),
-        run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
-    )
+    selected = _runtime_window(_ExplodingGateway(), context=context)
     assert len(selected) == 2
     assert "selection_authority" not in context.get("claim_engine_metrics", {})
 
@@ -309,14 +315,10 @@ def test_runtime_default_path_never_calls_the_model(
 def test_runtime_fallback_reruns_the_legacy_window_on_the_original_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from src.application.active_research_runtime import (
-        _bounded_assessment_candidates,
-        _select_assessment_window,
-    )
+    from src.application.active_research_runtime import _bounded_assessment_candidates
 
     monkeypatch.setenv(SELECTION_AUTHORITY_ENV, "model")
     candidates = _runtime_candidates()
-    claim = _runtime_claim()
     legacy = _bounded_assessment_candidates(
         candidates, assignments={}, max_reads=2, excluded_candidate_ids=frozenset()
     )
@@ -326,19 +328,7 @@ def test_runtime_fallback_reruns_the_legacy_window_on_the_original_pool(
             return _Result(status="completed", value=[])
 
     context: dict = {}
-    selected = _select_assessment_window(
-        candidates,
-        claim=claim,
-        assignments={},
-        max_reads=2,
-        excluded_candidate_ids=frozenset(),
-        trace=None,
-        context=context,
-        model_gateway=_EmptyModel(),
-        run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
-    )
+    selected = _runtime_window(_EmptyModel(), context=context, candidates=candidates)
     assert [item.id for item in selected] == [item.id for item in legacy]
 
     record = context["claim_engine_metrics"]["selection_authority"][-1]
@@ -354,8 +344,6 @@ def test_runtime_fallback_reruns_the_legacy_window_on_the_original_pool(
 def test_runtime_model_path_uses_model_picks_and_counts_orchestration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from src.application.active_research_runtime import _select_assessment_window
-
     monkeypatch.setenv(SELECTION_AUTHORITY_ENV, "model")
     candidates = _runtime_candidates()
     target_url = candidates[2].canonical_url
@@ -365,19 +353,7 @@ def test_runtime_model_path_uses_model_picks_and_counts_orchestration(
             return _Result(status="completed", value=[target_url])
 
     context: dict = {}
-    selected = _select_assessment_window(
-        candidates,
-        claim=_runtime_claim(),
-        assignments={},
-        max_reads=2,
-        excluded_candidate_ids=frozenset(),
-        trace=None,
-        context=context,
-        model_gateway=_Model(),
-        run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
-    )
+    selected = _runtime_window(_Model(), context=context, candidates=candidates)
     assert [item.id for item in selected] == [candidates[2].id]
     record = context["claim_engine_metrics"]["selection_authority"][-1]
     assert record["selection_source"] == "model"
@@ -387,11 +363,43 @@ def test_runtime_model_path_uses_model_picks_and_counts_orchestration(
     assert context["claim_engine_metrics"]["orchestration_model_calls"] == 1
 
 
+def test_runtime_model_checkpoint_records_on_rebound_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The selection call can checkpoint/rebind the run state before it returns."""
+    monkeypatch.setenv(SELECTION_AUTHORITY_ENV, "model")
+    candidates = _runtime_candidates()
+    original: dict = {"claim_engine_metrics": {"pre_checkpoint": True}}
+    current: dict = original
+
+    class _CheckpointingModel:
+        def complete_structured(self, **kwargs):
+            nonlocal current
+            current = {"claim_engine_metrics": {"checkpoint_restored": True}}
+            return _Result(status="completed", value=[candidates[2].canonical_url])
+
+    selected = _runtime_window(
+        _CheckpointingModel(),
+        context=original,
+        candidates=candidates,
+        live_context=lambda: current,
+    )
+
+    assert [item.id for item in selected] == [candidates[2].id]
+    assert current is not original
+    assert "selection_authority" not in original["claim_engine_metrics"]
+    assert "orchestration_model_calls" not in original["claim_engine_metrics"]
+    restored = current["claim_engine_metrics"]
+    assert restored["checkpoint_restored"] is True
+    assert restored["orchestration_model_calls"] == 1
+    assert restored["selection_authority"][-1]["model_picks"] == [
+        candidates[2].canonical_url
+    ]
+
+
 def test_runtime_unavailable_model_can_never_empty_the_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from src.application.active_research_runtime import _select_assessment_window
-
     monkeypatch.setenv(SELECTION_AUTHORITY_ENV, "model")
 
     class _Unavailable:
@@ -403,19 +411,7 @@ def test_runtime_unavailable_model_can_never_empty_the_window(
             )
 
     context: dict = {}
-    selected = _select_assessment_window(
-        _runtime_candidates(),
-        claim=_runtime_claim(),
-        assignments={},
-        max_reads=2,
-        excluded_candidate_ids=frozenset(),
-        trace=None,
-        context=context,
-        model_gateway=_Unavailable(),
-        run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
-    )
+    selected = _runtime_window(_Unavailable(), context=context)
     assert len(selected) == 2  # legacy availability preserved
     record = context["claim_engine_metrics"]["selection_authority"][-1]
     assert record["unusable_reason"] == "call_unavailable"
