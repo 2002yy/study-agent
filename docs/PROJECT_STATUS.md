@@ -23,7 +23,7 @@
 
 **试点界限**：这次只增加前端“导出当前对话 Markdown”按钮和静态负控，输出用户与助手正文，隐藏运行时系统消息及尚未提交的队列问题，保存中断的可恢复片段；附件原文件、PDF/网页正文、完整服务端历史、交互控件状态不在导出范围。纯浏览器本地文件，不增加后端 API、云端分享或自动传输。它是**用户可移植性改善的工程试点**，不是经过真实用户验证的备份机制。
 
-**静态验收与限制**：`chatTranscriptExport`、`ChatPanel.copy` 与 `ChatPanel` 影响集 **49 passed**，`tsc -b && vite build` 成功，构建仍有原有的大包体警告。开发页面在当前执行容器能启动，但浏览器扩展无法连到容器的 `127.0.0.1:4175`（`ERR_CONNECTION_REFUSED`），所以真实下载交互、移动端排版及浏览器权限实测 **not_run**，不将 jsdom 模拟当真实浏览器通过。动态模型/搜索/用户任务 **not_run**，费用授权 `not_applicable`；该片属于 P2 / static / UI / engineering-only。后继最小片按优先级收集真实失败轨迹，查明最终答案/附件/恢复在哪层丢失；预算未授权时只做离线回放。
+**静态验收与限制**：`chatTranscriptExport`、`ChatPanel.copy` 与 `ChatPanel` 影响集 **49 passed**，邻接边界/旅程测试 **9 passed**，`tsc -b && vite build` 成功，构建仍有原有的大包体警告。当前容器启动 Vite 时发生 Node 系统接口错误（`uv_interface_addresses`），浏览器连接 `127.0.0.1:4175` 报 `ERR_CONNECTION_REFUSED`；真实下载交互、移动端排版及浏览器权限实测 **not_run**，不将 jsdom 模拟当真实浏览器通过，也不将连通失败单独归因于网络隔离。动态模型/搜索/用户任务 **not_run**，费用授权 `not_applicable`；该片属于 P2 / static / UI / engineering-only。后继最小片按优先级收集真实失败轨迹，查明最终答案/附件/恢复在哪层丢失；预算未授权时只做离线回放。
 
 ### 2026-11-19 游标单一持有与检查点整合（重新验收候选）
 
