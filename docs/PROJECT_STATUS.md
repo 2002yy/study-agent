@@ -6,6 +6,20 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### 旧 Browse 四站点小样本探测入口退役（2026-11-19，独立片）
+
+- `tools/probe_browse_engines.py` 仅按旧 QP1-C A01/A05 两题，手工循环
+  Google、DuckDuckGo、Bing、Brave 并打印 URL 观察；没有任何生产、CI、
+  阶段门、测试或其它工具调用方。11 月 15 日的原始对比与约束已归档在
+  `BROWSE_ENGINE_PROBE_20261115.md`；正式浏览器策略现由
+  `src/web/browse_search.py` 与 `tool_gateway.py` 使用单一搜索入口执行。
+- 删除孤立脚本，取消历史文档中已经不可运行的复测命令，保留原始结果
+  及其对人机验证、可读性和小样本局限的记录。不删除历史 QP1-C 查询
+  数据（后续 Search-1 基准明确注明其来源）；不更改 Browse 引擎注册、
+  运行时站点选择、SSRF 与人机验证终止规则，也不创建兼容脚本。
+  本片仅做静态工程减负，Browse/站点池/搜索策略/工具网关局部影响集
+  **60 passed**，Ruff 与 `git diff --check` 通过；未调用真实浏览器或付费 API。
+
 ### 2026-11-19 搜索单次执行上下文（待独立 PR）
 
 - #490 已通过精确 HEAD CI `44347405572` 并合入 `main@56ebfd6f`；#493 改用包含 #490 的无冲突整合树，当前待验收提交 `cee81a55`，CI `44351248954` 尚未结束，不得引用被覆盖的旧 HEAD CI 提前合入。两者提交/状态以 GitHub 为准。
@@ -185,8 +199,8 @@
   `main@ee0f7c284c4074d9334efc4f13ce955325a59b0a`，工作分支
   `codex/retire-orphan-tools-20261118`。移除无生产、CI、阶段门调用方的
   `tools/run_provider_routing_replay.py` 与专属 `tests/test_provider_routing_replay.py`，
-  不再维护旧 E0–E3 历史重放策略；留存历史数据/报告及仍被浏览器搜索探针使用的
-  `qp1c_queries_v1.json`。局部检索影响集 **27 passed**；Ruff 通过，
+  不再维护旧 E0–E3 历史重放策略；留存历史数据/报告及当时供 Browse 搜索探针使用的
+  `qp1c_queries_v1.json`（探针后于 2026-11-19 退役）。局部检索影响集 **27 passed**；Ruff 通过，
   无模型/API 费用。此项仅为离线工程清理，不代表检索效果变化或动态验收。
   PR #449 已通过精确提交 CI 并合并；不影响独立研究运行器重构片。
 
