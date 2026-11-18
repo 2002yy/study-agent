@@ -398,12 +398,27 @@
   `tests/test_browser_bakeoff_harness.py` 调用，不参与现行检索、Crawl4AI
   资格评测或 CI 执行。退役整组脚本和历史联调测试，并移除阶段门中这份
   旧专项测试的两处重复引用；旧测试的浏览器是否升级/壁垒分类行为现由
-  `test_chain_executor.py`、`test_progressive_routing.py` 与
-  `test_wigolo_browser_executor.py` 验证。Crawl4AI cohort v2 **仍调用**
+  `test_chain_executor.py`、`test_progressive_routing.py` 与当时的
+  `test_wigolo_browser_executor.py` 验证（后者已在后续独立片退役，
+  现行共享安全不变量迁至 `test_browser_honesty.py`）。Crawl4AI cohort v2 **仍调用**
   `browser_bakeoff.py` 的结果构造/校验与旧 manifest，故保留该模块、
   manifest 和共用 fixture 服务，将原专项测试中不可替代的结果真实性负控
   合并进 `test_browser_bakeoff_contract.py`。不修改真实浏览器读取逻辑，
   不执行外部浏览器或付费模型调用。
+
+- **2026-11-19 未注册 Wigolo 后端整体退役（独立片）**：现行
+  `ACTIVE_READER_CHAIN`、API、研究执行器、正式 Crawl4AI 专家读取及工具
+  均未实例化 `WigoloBrowserBackendExecutor`。删除明确标注 production-inert 的
+  `wigolo_browser_executor.py` 及其独占 451 行测试；阶段门两处引用替换为
+  正式浏览器链使用的 `test_browser_honesty.py`，冻结壁垒分类、受限前缀
+  与故障真实性负控。保留 Crawl4AI/默认读取链、预算恢复、安全开关，
+  及仍被结果契约使用的 bakeoff manifest/能力词表。原定向
+  **188 passed / 1 skipped**、L2 **414 passed / 4 skipped**，Ruff、
+  diff-check、mypy **115/125**；无真实浏览器或付费模型调用。
+- 同轮审计发现 `conversation_action_step` 仅被旧集成测试使用，但其仍挂
+  大量会话阶段门，须独立重建 bounded-loop 覆盖后退役；
+  `ResearchMemoryService` 承担已建持久化契约、`backup_manager` 涉及 `.bak`
+  恢复，均不因“无直接导入”而机械删除。
 
 ### 2026-11-18 历史诊断脚本退役（独立清理片）
 
