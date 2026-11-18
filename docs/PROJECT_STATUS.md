@@ -190,6 +190,15 @@
 - 验证：`pytest tests --collect-only` **7,420 tests collected**，未出现缺失模块导入；保留的 F2/发布测试 **64 passed**，Ruff 和 `git diff --check` 通过。**不宣称全量 L3、产品效果或动态实验通过**；PR 精确 CI 与审查尚待完成。
 - **后继独立清理片（依赖上批先合并）**：删除 5 份旧的选择器/Agent 循环实验工具及 5 份专属测试；这些工具只通过彼此和配套测试互相引用，未接入生产运行器、当前测试门禁、前端、配置或持续集成。唯一额外依赖 `run_selector_schema_probe.py` 已在上批删除，因此两片须按依赖顺序合并。只保留 Git 历史和旧报告，不再维护无产品调用方的第二套模型选择器原型。
 
+### 2026-11-18 §37B 候选来源报告器退役（独立片）
+
+- `tools/run_selection_provenance.py` 是 §37B 评测阶段的离线报告格式转换器，
+  用当时双人标注的 `likely_target` 统计首个候选丢失位置；除专属的
+  `tests/test_selection_provenance_tool.py` 外，没有生产、CI、阶段门或工具调用方。
+  一并删除报告器及四项报告格式测试，避免为旧实验的 JSON 输出继续维护接口。
+  **不删除** `src/web/research/selection_trace.py`，也不改变运行时的
+  `selection_trace` 字段或候选筛选、调度与读取的正式测试。
+
 ### 安全边界与工作树
 
 - **Quality-0 预演运行器退役候选**：旧 `quality_0_arms` 是仅由自身测试调用的未接线四臂运行器；其计划预演脚本、两组专属测试、预演配置和旧操作文档一并移除。仍保留 20 题离线质量评测、评分脚本、文件资产，以及实际被模型支出门禁引用的 `send_budget`、`llm_spend_guard` 和负控。此变更须通过独立 PR 的精确 CI，不代表当前主线已清理。
