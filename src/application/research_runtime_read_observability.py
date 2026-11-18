@@ -6,15 +6,40 @@ reader, decide whether a read may start, or mutate the durable read cursor.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, MutableMapping
+from collections.abc import Mapping, MutableMapping, Sequence
 from typing import Any
 
 from src.application.active_research_evidence_projection import _bounded_retrieval_policy
 from src.web.research.candidate_pool import CandidatePoolItem
+from src.web.research.candidate_resolution import resolution_summary
 from src.web.research.chain_executor import ChainRun, ChainStepResult
 from src.web.research.health_breaker import NATIVE_HTTP_BACKEND
 from src.web.research.read_retry import error_signature
+from src.web.research.runtime import RuntimeReadOutcome
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
+
+
+def _record_read_history(
+    context: dict[str, Any],
+    read_outcomes: Sequence[RuntimeReadOutcome],
+    *,
+    include_resolution: bool = False,
+) -> None:
+    """Project current durable attempts into diagnostics, without caching state.
+
+    Preserve both original write points: the read-history snapshot is always
+    updated first; the candidate lifecycle summary is refreshed *only* after
+    a real completed chain. Materialized seeds and exhausted external attempts
+    did not write a resolution summary and must continue not to do so.
+    """
+
+    context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})["reads"] = [
+        outcome.to_dict() for outcome in read_outcomes
+    ]
+    if include_resolution:
+        context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})[
+            "candidate_resolution"
+        ] = resolution_summary(read_outcomes)
 
 
 def _record_read_chain_decision(
