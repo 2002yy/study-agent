@@ -23,6 +23,35 @@
   **28 passed**；Ruff/diff-check 通过，mypy baseline **115/125**
   （无新增债务）。真实模型和付费搜索未运行。本片与 §44A/44C 旧实验
   退役分别使用独立分支，均不等待对方改动才能独立验证。
+### 2026-11-19 读取观测实时绑定（独立候选）
+
+- #493 的精确 HEAD `cee81a55`、CI `44351248954` 成功并合入 `main@083a0172`；#494 的重挂 HEAD `ee05454e`、CI `44357775209` 成功并合入 `main@cf54cc59`。#495 模型预算状态绑定提交 `cd85309d`、CI `44359098528` 尚待最终验收，不能以本地测试替代远端门禁。
+- 新增短生命周期依赖的 `ActiveReadObservationContext`，统一绑定生产读取器需要的最新 `context`、`cursor.wave_index`、相位开始/结束及重试耗时钩子。保留当前值读取回调，且在 `phase_end` 时重新获取可能已被检查点替换的 `context`；观测对象没有修改研究状态、游标、读取重试策略、预算或持久化的权限。
+- 两条专属测试共享同一时钟/游标/上下文造景，冻结「相位开始之后上下文被替换，计时仍写入最新上下文」和「波次索引变化、重试计数仍读取最新游标/同一账本」。基于已合并 #494 的最新主线，生产读取语义、计时、主动执行与恢复整合影响集 **134 passed**，Ruff 与差异检查通过；候选精确提交 CI 仍需远端验收。**P3 / static / retrieval+orchestration / engineering-only**，真实浏览器、付费搜索及模型 `not_run`。
+
+### 2026-11-19 搜索单次执行上下文（已合并）
+
+- #490 已通过精确 HEAD CI `44347405572` 并合入 `main@56ebfd6f`；#493 的整合树已完成精确提交验收并合并，#494 的检索执行独立片以重挂提交 `ee05454e`、CI `44357775209` 成功并合入 `main@cf54cc59`。
+- 从主动执行器的逐查询 `search_exact` 闭包抽出短生命周期 `ActiveSearchQueryExecution`；它显式接受本次查询的 `context/cursor/claim_id`、预算时钟、网关和相位计时器，持有该次 provider audit。旧的搜索发现顺序号、最新定向提示解析、可信线索提示提取都移入同一检索/观测模块；旧 `_lead_hints_for_claim` 通过执行器导入兼容现有测试及调用方。
+- 冻结边界：`begin_external_attempt → checkpoint → search`、`finally finish_external_attempt → checkpoint`、查询结果归档后再次 `checkpoint` 不变。搜索超时计算仍取当次实时剩余硬预算且保留最终化预留；`last_search_audit → 搜索发现诊断 → phase_timing.end` 顺序不变。上下文不写回持久化、不结算预算，也不发布证据；搜索异常仍由候选池映射为 unavailable。
+- 新测试共享搜索场景搭建，覆盖成功时实时截止时间/审计/发现序号/相位计数，以及异常时相位关闭且不伪造审计；影响集 **115 passed**。属 **P3 / static / orchestration+retrieval / engineering-only**；动态搜索与付费模型 `not_run`，预算授权 `not_applicable`。
+
+### 2026-11-19 研究结构整合收口（以精确提交为准）
+
+- #488（研究窗口检查点顺序）CI `44344609900` 成功，合并 `main@caefa350`；#489（执行守卫与实时预算）CI `44345569048` 成功，合并 `main@51da57f2`。两项均已确认无审阅线程，使用精确 PR HEAD 保护合并。
+- #490（证据身份实时投影）与 #493（波次状态交接）在同一执行器上有交叠。基于 `main@51da57f2` 依次整合二者，修复 `gain_history` 恢复路径的一处冲突：必须先执行 `ResearchWindowDiagnostics.record_end`、再 `checkpoint()`、最后 `wave_handoff.settle(...)`，不能因替换旧 `settle_wave` 丢掉窗口检查点。合并演练 **96 passed**，Ruff/差异检查通过；该结果仅证明本地整合树，不替代远端精确提交 CI。
+- #490 后续 CI `44347405572` 成功并按 HEAD 保护合入 `main@56ebfd6f`；#493 整合树 `cee81a55` 的 CI `44351248954` 成功、审阅线程为空，按 HEAD 保护合入 `main@083a0172`。真实搜索、模型、付费动态测试未运行。
+
+### 2026-11-19 研究窗口检查点顺序显式化（独立候选）
+
+- 基线 `main@739d74f7`，分支 `codex/research-context-next-20261119`。将 `execute()` 内四个 `record_research_window` 闭包调用展开为显式的 `ResearchWindowDiagnostics.record_end(context, hard_seconds=state.budget.hard_timeout_seconds, elapsed=elapsed, exhausted=...)`，随后按原位置调用 `checkpoint()`。诊断仍由专属上下文写入，检查点仍由原执行器控制；观察时钟每次仍取样两次，预算耗尽分支原有的后续额外检查点仍保留。
+- 不触及恢复游标、费用预留及结算、状态序列化、模型请求或发布权威；不进行真实搜索/付费调用。下一片聚焦执行器的其他隐式共享变量，优先做具备对应回归用例的窄范围切分；本候选测试与提交状态以实际执行记录为准。
+
+### 2026-11-19 模型尝试实时预算状态绑定（独立候选）
+
+- #493 的精确 HEAD `cee81a55`、CI `44351248954` 已成功并合入 `main@083a0172`。#494 搜索执行上下文以相同文件树重新挂到此主线，精确 HEAD `ee05454e` 正在等待新 CI `44357775209`；上一 HEAD 的绿色 CI 不替代本次重挂后的验证。
+- `ActiveModelAttemptContext` 现在显式接收 `current_state()` 和 `ensure_budget(state)`，而非隐藏了当前状态读取的无参预算回调。模型网关触发开始回调时，顺序仍为：检查当前操作有效性 → 读取最新 `ResearchState` 并按原硬预算规则验证 → 写入 inflight 模型尝试 → durable checkpoint → 真正发送。模型结束仍只更新内存审计，等语义结果的原检查点一起入库。
+- 共享既有模型尝试造景 `_callbacks`，增加检查点/恢复重新绑定后的预算状态身份负控；不改变尝试次数、成本预留/结算、恢复游标、模型网关路由或任何持久化格式。L1 影响集 **108 passed**，Ruff、差异检查通过；mypy **115/125，无新增**。**P3 / static / orchestration+model / engineering-only**；动态搜索、模型和付费调用 `not_run`，预算授权 `not_applicable`。独立 PR 和精确提交 CI 以远端状态为准。
 
 ### F2 历史双读取器配对实验退役（独立片）
 
@@ -35,6 +64,11 @@
   未撤销的 SSRF 放宽补丁改为 pytest `monkeypatch` 生命周期内的局部放宽。
   生产读取链、安全策略、升级后端、请求契约和历史结果档案不变；不进行外部读取。
 
+### 2026-11-19 波次状态快照回写上下文（独立候选）
+
+- 基线 `main@739d74f7`，分支 `codex/research-wave-state-handoff-20261119`。新增 `ActiveWaveSettlementHandoff`，明确从运行器捕获 `state/cursor/context` 快照、结算后（含异常）将快照写回实时状态，以及检查点执行失败时将内存中部分更新重新交还给结算快照。移除原 `settle_wave` 内部函数，将两个结算入口交给上下文；运行器仅保留一处显式 `bind_wave_snapshot` 写入接口。
+- 原 `settle_completed_wave` 函数仍直接调用 `checkpoint()`，因此指标 `checkpoint_timing.caller` 保持现有标签；检查点、预算结算、恢复、波次决策和发布顺序不变。新增异常路径与原调用方标签负控，两条异常测试共享同一运行快照构造，避免重复造景；不调用外部检索或付费模型。#488–#490 各自为独立待审 PR，不混入本候选。
+
 ### 旧 HTTP 研究入口退役（待精确提交验收）
 
 - `codex/retire-web-lookup-compat-20261118`：仓内唯一实际使用旧
@@ -45,6 +79,11 @@
   `/research-runs` 读取/列表覆盖。`docs/TECH_STACK.md` 的现行调用说明同步迁移。
   **保留**供评测及业务继续调用的 `WebLookupService.lookup()`，研究持久化、
   恢复和预算逻辑不变。本项尚未进行真实服务/付费检索验收；合并状态以对应 PR 为准。
+
+### 2026-11-19 研究检查点证据身份投影（独立候选）
+
+- 分支 `codex/research-checkpoint-live-evidence-20261119`，基线 `main@739d74f7`。`ActiveRuntimeCheckpointContext.prepare()` 使用自身已有的 `results` 和 `run_id`，从当前结果缓冲区直接计算证据 ID；移除只服务该检查点的 `known_evidence_ids` 外部回调传参。波次结算上下文也直接持有结果缓冲区和运行 ID，以现有结算位置生成最新证据 ID。两处回调改为显式依赖后，证据身份仍由单一结果缓冲区投影。
+- 新增专属检查点测试、波次结算测试，覆盖两次准备之间结果变化、预算时间重新取样，以及结算上下文创建后新增证据的读取。阶段、预算、游标、Claim Engine 状态与诊断指标的原检查点顺序不变；不修改恢复模式、波次停机决策、持久数据格式和费用语义。前一阶段的 `#488` / `#489` 尚属独立 PR，不并入本片；CI/合并情况以精确提交为准。
 
 ### 当前研究结构收口（精确合并）
 
@@ -58,6 +97,11 @@
 - 当前研究窗口/计时观测 [#420](https://github.com/2002yy/study-agent/pull/420)：HEAD `2d71a79d`、精确 CI `44162132016` 成功，合并 `7cbe6a94`。
 - 共享证据结果缓冲区 [#422](https://github.com/2002yy/study-agent/pull/422)：HEAD `878e37d7`、精确 CI `44162348067` 成功，合并 `f7531d19`。
 - 四片已依次对齐父分支、核对无冲突的主线合并树，并按预期 HEAD 保护成功合入。**合并后的最新 main CI 仍待独立确认**，不能把 PR 头提交的绿色 CI 冒充主线绿色。动态浏览器、真实模型及付费调用未运行。
+
+### 2026-11-19 研究执行守卫上下文（独立候选）
+
+- 以 `main@739d74f7` 为基线，分支 `codex/research-execution-guard-20261119`。新增 `ActiveResearchExecutionGuard`：取消检查固定使用当前 `run_id/operation_id` 查询仓库，硬预算检查显式接收当前 `ResearchState`，避免持有已被检查点/恢复替换的旧预算。执行器去掉两个捕获外围变量的 `ensure_active`、`ensure_budget` 内部函数；内部模型尝试仍以回调使用最新 `state`，其余五处预算准入显式传 `state`。
+- 守卫不改变恢复游标、预算入账、计时样本、模型开始检查点或发布操作；保留既有异常类别及原导出。专项测试覆盖取消实时检查和恢复后预算上限变化，完整回归结果以本候选精确提交为准。#488 另属研究窗口诊断与检查点顺序片，不与本片混合。
 
 ### 历史减负候选快照（部分已合入，以下不是当前待办）
 

@@ -69,7 +69,6 @@ from src.web.research.deep_runtime import (
     seed_char_charge,
     seed_sources_by_url,
 )
-from src.web.research.discovery_observability import record_search_call
 from src.web.research.page_intent import (
     PageIntent,
     infer_page_intent,
@@ -254,6 +253,7 @@ from src.application.research_runtime_model_attempt_context import (
 from src.application.research_runtime_steering_context import ActiveResearchSteeringContext
 from src.application.research_runtime_wave_settlement import (
     ActiveWaveSettlementContext,
+    ActiveWaveSettlementHandoff,
     ActiveWaveSettlementSnapshot,
 )
 from src.application.research_runtime_failure_projection import (
@@ -262,6 +262,7 @@ from src.application.research_runtime_failure_projection import (
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
 from src.application.research_runtime_read_execution import ActiveReadExecutionContext
+from src.application.research_runtime_read_observation import ActiveReadObservationContext
 from src.application.research_runtime_read_projection import project_read_chain
 from src.application.research_runtime_read_site import (
     ActiveReadSiteContext,
@@ -272,6 +273,15 @@ from src.application.research_runtime_read_site import (
     specialist_chain_run as specialist_chain_run,
 )
 from src.application.research_runtime_budget_clock import ResearchBudgetClock
+from src.application.research_runtime_search_execution import (
+    ActiveSearchQueryExecution,
+    _lead_hints_for_claim as _lead_hints_for_claim,
+)
+from src.application.research_runtime_execution_guard import (
+    ActiveResearchCancelled,
+    ActiveResearchExecutionGuard,
+    HardResearchBudgetReached as _HardBudgetReached,
+)
 from src.application.research_runtime_publication import ActiveResearchPublisher
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
 from src.application.active_research_evidence_projection import (
@@ -564,10 +574,6 @@ def run_single_read_measurement(
     return chain_run, tuple(recorded)
 
 
-class ActiveResearchCancelled(RuntimeError):
-    pass
-
-
 # Multimodal Reader v1 read-site seam (docs/PROJECT_STATUS.md §144.15).
 # The read site never invents visual metadata: the caller/operator declares it on
 # the run context, exactly like every other injected read seam. The declaration
@@ -819,6 +825,13 @@ class ActiveResearchRuntimeExecutor:
         elapsed_ms = budget_clock.elapsed_ms
         research_seconds_left = budget_clock.research_seconds_left
         remaining_timeout = budget_clock.remaining_timeout
+        execution_guard = ActiveResearchExecutionGuard(
+            repository=self.repository,
+            run_id=run_id,
+            operation_id=operation_id,
+            elapsed=elapsed,
+        )
+        ensure_active = execution_guard.ensure_active
         research_window_diagnostics = ResearchWindowDiagnostics(
             reserve_seconds=RESEARCH_WINDOW_RESERVE_SECONDS
         )
@@ -826,10 +839,6 @@ class ActiveResearchRuntimeExecutor:
             policy_check=self.policy_check,
             utc_now=self.utc_now,
         )
-
-        def ensure_active() -> None:
-            if self.repository.cancel_requested(run_id, operation_id=operation_id):
-                raise ActiveResearchCancelled("active research cancelled")
 
         def checkpoint(*, stage: str | None = None) -> WebLookupRun:
             nonlocal context, state
@@ -844,7 +853,6 @@ class ActiveResearchRuntimeExecutor:
                     state=state,
                     cursor=cursor,
                     results=results,
-                    known_evidence_ids=known_evidence_ids,
                 )
                 try:
                     snapshot.prepare(stage=stage, elapsed=elapsed)
@@ -913,35 +921,26 @@ class ActiveResearchRuntimeExecutor:
             hard_seconds_left=budget_clock.hard_seconds_left
         )
 
-        def record_research_window(
-            *, current_state: ResearchState, current_context: dict[str, Any], exhausted: bool
-        ) -> None:
-            """Record the caller's live state/context before its checkpoint."""
-
-            research_window_diagnostics.record_end(
-                current_context,
-                hard_seconds=current_state.budget.hard_timeout_seconds,
-                elapsed=elapsed,
-                exhausted=exhausted,
-            )
-            checkpoint()
-
         phase_timing = RuntimePhaseTiming(ledger=timing_ledger, now=self.monotonic)
+        read_observation = ActiveReadObservationContext(
+            current_context=lambda: context,
+            current_cursor=lambda: cursor,
+            phase_timing=phase_timing,
+            timing_ledger=timing_ledger,
+        )
 
         # §143-B0.1: read semantics come from the shared production primitive,
         # so execute() and the narrow measurement entry cannot drift apart.
         gateway_read = build_production_gateway_read(
             gateway=self.gateway,
             accepts_timeout=self.read_gateway_accepts_timeout,
-            get_context=lambda: context,
+            get_context=read_observation.current_context,
             research_seconds_left=research_seconds_left,
             hard_seconds_left=budget_clock.hard_seconds_left,
-            wave_index=lambda: int(cursor.wave_index),
-            on_phase_start=phase_timing.begin,
-            on_phase_end=lambda phase: phase_timing.end(phase, context=context),
-            on_retry=lambda *, wait_ms, fetch_ms: timing_ledger.record_retry(
-                wait_ms=wait_ms, fetch_ms=fetch_ms
-            ),
+            wave_index=read_observation.wave_index,
+            on_phase_start=read_observation.phase_start,
+            on_phase_end=read_observation.phase_end,
+            on_retry=read_observation.retry,
         )
         read_execution = ActiveReadExecutionContext(
             gateway=self.gateway,
@@ -953,19 +952,16 @@ class ActiveResearchRuntimeExecutor:
             chain_runner=run_chain,
         )
 
-        def ensure_budget() -> None:
-            if elapsed() >= state.budget.hard_timeout_seconds:
-                raise _HardBudgetReached
-
         def set_model_cursor(value: ResearchRuntimeCursor) -> None:
             nonlocal cursor
             cursor = value
 
         model_attempt_context = ActiveModelAttemptContext(
+            current_state=lambda: state,
             current_cursor=lambda: cursor,
             set_cursor=set_model_cursor,
             ensure_active=ensure_active,
-            ensure_budget=ensure_budget,
+            ensure_budget=execution_guard.ensure_budget,
             checkpoint=checkpoint,
         )
         on_model_started = model_attempt_context.started
@@ -973,50 +969,36 @@ class ActiveResearchRuntimeExecutor:
         # semantic result. A crash first leaves durable inflight for recovery.
         on_model_finished = model_attempt_context.finished
 
+        def bind_wave_snapshot(snapshot: ActiveWaveSettlementSnapshot) -> None:
+            nonlocal cursor, state, context
+            state, cursor, context = snapshot.state, snapshot.cursor, snapshot.context
+
+        wave_handoff = ActiveWaveSettlementHandoff(
+            capture=lambda: ActiveWaveSettlementSnapshot(state, cursor, context),
+            bind=bind_wave_snapshot,
+        )
+
         def settle_completed_wave(
             snapshot: ActiveWaveSettlementSnapshot,
         ) -> None:
-            """Sync the wave's live values through the existing checkpoint owner.
-
-            Keep this caller name for the persisted checkpoint timing label.
-            """
-            nonlocal cursor, state, context
-            state, cursor, context = snapshot.state, snapshot.cursor, snapshot.context
+            """Keep the checkpoint caller label and its original side-effect order."""
+            wave_handoff.bind(snapshot)
             try:
                 checkpoint()
             finally:
-                snapshot.state, snapshot.cursor, snapshot.context = (
-                    state,
-                    cursor,
-                    context,
-                )
+                wave_handoff.refresh_after_checkpoint(snapshot)
 
         wave_settlement_context = ActiveWaveSettlementContext(
             steering=steering_context,
             ensure_active=ensure_active,
             elapsed=elapsed,
             checkpoint=settle_completed_wave,
-            known_evidence_ids=known_evidence_ids,
+            results=results,
+            run_id=run_id,
             actionable_gaps=_ordered_gaps,
             publisher=publisher,
             max_research_waves=MAX_RESEARCH_WAVES,
         )
-
-        def settle_wave(
-            gate: EvidenceGateResult, brief: Mapping[str, Any]
-        ) -> WebLookupRun | None:
-            """Hand the current values to settlement and always rebind them."""
-
-            nonlocal state, cursor, context
-            snapshot = ActiveWaveSettlementSnapshot(
-                state=state, cursor=cursor, context=context
-            )
-            try:
-                return wave_settlement_context.settle_completed_wave(
-                    snapshot, gate, brief
-                )
-            finally:
-                state, cursor, context = snapshot.state, snapshot.cursor, snapshot.context
 
         try:
             ensure_active()
@@ -1142,15 +1124,19 @@ class ActiveResearchRuntimeExecutor:
                 # finalization (Gate, answer synthesis, claim binding,
                 # serialization), so no new wave starts.
                 if budget_clock.research_window_exhausted():
-                    record_research_window(
-                        current_state=state, current_context=context, exhausted=True
+                    research_window_diagnostics.record_end(
+                        context,
+                        hard_seconds=state.budget.hard_timeout_seconds,
+                        elapsed=elapsed,
+                        exhausted=True,
                     )
+                    checkpoint()
                     raise _HardBudgetReached
                 if cursor.wave_index == 0:
                     cursor = replace(cursor, wave_index=1)
                     context = steering_context.refresh(context)
                     if _pending_active_steering_ids(context):
-                        ensure_budget()
+                        execution_guard.ensure_budget(state)
                         state, context, _applied_ids = steering_context.apply_pending(
                             state=state,
                             context=context,
@@ -1167,12 +1153,14 @@ class ActiveResearchRuntimeExecutor:
                     gate = evaluate_evidence_gate(state)
                     brief = _evidence_brief(state, gate, selected_sources)
                     context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
-                    record_research_window(
-                        current_state=state,
-                        current_context=context,
-                        exhausted=budget_clock.research_window_exhausted()
+                    research_window_diagnostics.record_end(
+                        context,
+                        hard_seconds=state.budget.hard_timeout_seconds,
+                        elapsed=elapsed,
+                        exhausted=budget_clock.research_window_exhausted(),
                     )
-                    settled = settle_wave(gate, brief)
+                    checkpoint()
+                    settled = wave_handoff.settle(wave_settlement_context, gate, brief)
                     if settled is not None:
                         return settled
                     continue
@@ -1299,60 +1287,25 @@ class ActiveResearchRuntimeExecutor:
                     cursor = begin_external_attempt(cursor, marker)
                     checkpoint()
 
-                    audit: dict[str, Any] | None = None
-
-                    def search_exact(query: str, *, max_results: int = 5) -> Mapping[str, Any]:
-                        nonlocal audit
-                        # Deadline-aware provider policy: reserve the tail of the
-                        # shared hard budget for assessment/read/answer so a
-                        # degraded provider cannot consume the entire budget.
-                        remaining = budget_clock.hard_seconds_left()
-                        search_deadline = self.monotonic() + max(
-                            0.0,
-                            remaining - RESEARCH_WINDOW_RESERVE_SECONDS,
-                        )
-                        try:
-                            phase_timing.begin("search")
-                            payload = self.gateway.search_detailed(
-                                query,
-                                max_items=max_results,
-                                deadline=search_deadline,
-                            )
-                            audit = self.gateway.last_search_audit()
-                            # §37A observability (diagnostic only): record the
-                            # actually-issued query and the provider's bounded
-                            # results. This never changes search behaviour,
-                            # ordering, budgets or eligibility.
-                            _search_intent, _search_variants = _deeper_targeting_inputs(
-                                context
-                            )
-                            record_search_call(
-                                context,
-                                metrics_key=ACTIVE_RESEARCH_METRICS_KEY,
-                                slot_index=_search_discovery_slot(context),
-                                query=query,
-                                claim_id=str(getattr(planned, "claim_id", "") or ""),
-                                intent=_search_intent,
-                                variants=_search_variants,
-                                hint_terms=_lead_hints_for_claim(
-                                    cursor,
-                                    str(getattr(planned, "claim_id", "") or ""),
-                                )[1],
-                                results=(
-                                    payload.get("results")
-                                    if isinstance(payload, Mapping)
-                                    else ()
-                                ),
-                            )
-                            return payload
-                        finally:
-                            phase_timing.end("search", context=context)
+                    # The attempt-start checkpoint above owns recovery. The
+                    # search context only binds live inputs for this one call;
+                    # it cannot account, checkpoint or publish an attempt.
+                    search_execution = ActiveSearchQueryExecution(
+                        gateway=self.gateway,
+                        monotonic=self.monotonic,
+                        hard_seconds_left=budget_clock.hard_seconds_left,
+                        reserve_seconds=RESEARCH_WINDOW_RESERVE_SECONDS,
+                        phase_timing=phase_timing,
+                        context=context,
+                        claim_id=str(getattr(planned, "claim_id", "") or ""),
+                        cursor=cursor,
+                    )
 
                     one_query = _gap_query_batch(planned)
                     try:
                         batch_result = execute_candidate_pool_batch(
                             one_query,
-                            search_exact=search_exact,
+                            search_exact=search_execution.search_exact,
                             should_cancel=lambda: self.repository.cancel_requested(
                                 run_id, operation_id=operation_id
                             ),
@@ -1417,7 +1370,16 @@ class ActiveResearchRuntimeExecutor:
                             "steering_ids": list(
                                 _steering_ids_for_claim(context, planned.claim_id)
                             ),
-                            **({"provider_audit": {"schema_version": "research-provider-audit-v1", **audit}} if audit else {}),
+                            **(
+                                {
+                                    "provider_audit": {
+                                        "schema_version": "research-provider-audit-v1",
+                                        **search_execution.audit,
+                                    }
+                                }
+                                if search_execution.audit
+                                else {}
+                            ),
                         }
                     )
                     checkpoint()
@@ -1481,7 +1443,7 @@ class ActiveResearchRuntimeExecutor:
                     # rankings remain durable inputs for scheduling and crash
                     # recovery; successful later windows are merged and
                     # reranked instead of replacing those bindings.
-                    ensure_budget()
+                    execution_guard.ensure_budget(state)
                     categories = ("public_research_claim", "public_candidate_metadata")
                     assessment_logical_call_id = (
                         f"research_candidate_assessment:{run_id}:{claim.id}:1"
@@ -1921,7 +1883,7 @@ class ActiveResearchRuntimeExecutor:
                             ),
                         )
                         break
-                    ensure_budget()
+                    execution_guard.ensure_budget(state)
                     candidate = _candidate_by_id(cursor, candidate_id)
                     source_limit = min(6000, state.budget.max_total_chars - used_chars)
                     # §100 A2c: pre-attempt scheduling. A candidate whose only
@@ -2207,7 +2169,7 @@ class ActiveResearchRuntimeExecutor:
                     lead_candidate = lead_item["candidate"]
                     lead_candidate_id = lead_candidate.id
                     ensure_active()
-                    ensure_budget()
+                    execution_guard.ensure_budget(state)
                     lead_source_limit = min(
                         6000, state.budget.max_total_chars - used_chars
                     )
@@ -2418,7 +2380,7 @@ class ActiveResearchRuntimeExecutor:
                     ):
                         continue
                     ensure_active()
-                    ensure_budget()
+                    execution_guard.ensure_budget(state)
                     extraction_categories = (
                         "public_research_claim",
                         "public_candidate_metadata",
@@ -2853,14 +2815,16 @@ class ActiveResearchRuntimeExecutor:
                 )
                 wave_metrics["wave_progress"] = wave_progress[-MAX_RESEARCH_WAVES:]
                 checkpoint()
-                record_research_window(
-                    current_state=state,
-                    current_context=context,
-                    exhausted=budget_clock.research_window_exhausted()
+                research_window_diagnostics.record_end(
+                    context,
+                    hard_seconds=state.budget.hard_timeout_seconds,
+                    elapsed=elapsed,
+                    exhausted=budget_clock.research_window_exhausted(),
                 )
+                checkpoint()
                 timing_ledger.end_wave()
                 timing_ledger.flush_into(context)
-                settled = settle_wave(gate, brief)
+                settled = wave_handoff.settle(wave_settlement_context, gate, brief)
                 if settled is not None:
                     return settled
         except (ActiveResearchCancelled, CandidatePoolCancelled, ReadSchedulingCancelled):
@@ -2884,11 +2848,13 @@ class ActiveResearchRuntimeExecutor:
             context, _late_ids = steering_context.mark_late(
                 context, reason="hard_budget_exhausted"
             )
-            record_research_window(
-                current_state=state,
-                current_context=context,
-                exhausted=budget_clock.research_window_exhausted()
+            research_window_diagnostics.record_end(
+                context,
+                hard_seconds=state.budget.hard_timeout_seconds,
+                elapsed=elapsed,
+                exhausted=budget_clock.research_window_exhausted(),
             )
+            checkpoint()
             checkpoint()
             gate = evaluate_evidence_gate(state)
             brief = _evidence_brief(state, gate, selected_sources)
@@ -3029,10 +2995,6 @@ class ActiveResearchRuntimeExecutor:
         if run is None:
             raise ValueError(f"WebLookupRun not found: {run_id}")
         return run
-
-
-class _HardBudgetReached(Exception):
-    pass
 
 
 def _default_policy_check(context: Mapping[str, Any], purpose: str) -> bool:
@@ -5050,62 +5012,6 @@ def _bump_lead_metric(
     state[key] = int(state.get(key) or 0) + max(0, int(amount))
 
 
-def _deeper_targeting_inputs(
-    context: dict[str, Any],
-) -> tuple[PageIntent | None, tuple[str, ...]]:
-    """Latest §36A/§36B discovery hints, for §37A observability only.
-
-    The linkage from one issued query back to a specific follow-up is
-    approximate on purpose: the durable cursor records keep their frozen shape,
-    so observability reads the most recent diagnostics entry instead of adding a
-    query-to-follow-up key. ``hint_terms`` at the search call site remain exact.
-    """
-
-    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
-    if not isinstance(metrics, Mapping):
-        return None, ()
-    state = metrics.get("deeper_targeting")
-    if not isinstance(state, Mapping):
-        return None, ()
-    recent = state.get("recent")
-    if not isinstance(recent, list) or not recent:
-        return None, ()
-    latest = recent[-1]
-    if not isinstance(latest, Mapping):
-        return None, ()
-    raw_intent = latest.get("page_intent")
-    intent: PageIntent | None = None
-    if isinstance(raw_intent, Mapping) and raw_intent.get("kind"):
-        path_terms = raw_intent.get("path_terms")
-        intent = PageIntent(
-            kind=str(raw_intent.get("kind") or ""),
-            path_terms=tuple(str(item) for item in (path_terms or []) if str(item)),
-            matched_terms=tuple(
-                str(item) for item in (raw_intent.get("matched_terms") or []) if str(item)
-            ),
-        )
-    raw_variants = latest.get("query_variants")
-    variants = (
-        tuple(str(item) for item in raw_variants if str(item))
-        if isinstance(raw_variants, list)
-        else ()
-    )
-    return intent, variants
-
-
-def _search_discovery_slot(context: dict[str, Any]) -> int:
-    """Execution-order index of the next issued query (deterministic)."""
-
-    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
-    if not isinstance(metrics, Mapping):
-        return 1
-    state = metrics.get("search_discovery")
-    if not isinstance(state, Mapping):
-        return 1
-    queries = state.get("queries")
-    return len(queries) + 1 if isinstance(queries, list) else 1
-
-
 def _flush_selection_trace(
     context: dict[str, Any], trace: SelectionTraceCollector
 ) -> None:
@@ -5198,58 +5104,6 @@ def _record_deeper_targeting(
         }
     )
     del recent[:-8]
-
-
-def _lead_hints_for_claim(
-    cursor: ResearchRuntimeCursor, claim_id: str
-) -> tuple[str, tuple[str, ...]]:
-    """Return ``(trusted_domain, hints)`` for one claim.
-
-    ``trusted_domain`` may become a ``site:`` constraint, and only two sources
-    are trusted: a domain explicitly *discovered* by a lead read, or a page
-    whose server-owned source role is ``primary`` (recorded as
-    ``trusted_primary_domain``). A mere source domain - the page we happened to
-    read - is never returned as trusted, because locking a follow-up search into
-    a mirror/aggregator domain makes primary evidence unreachable.
-    """
-
-    claim_query_ids = {
-        item.id for item in cursor.planned_queries if item.claim_id == claim_id
-    }
-    if not claim_query_ids:
-        return "", ()
-    candidates_by_id = {item.id: item for item in cursor.candidates}
-    trusted = ""
-    hints: list[str] = []
-    for payload in cursor.lead_discoveries:
-        parent_id = str(payload.get("source_candidate_id") or "")
-        parent = candidates_by_id.get(parent_id)
-        if parent is None or not claim_query_ids.intersection(parent.query_ids):
-            continue
-        if not trusted:
-            domains = payload.get("domains")
-            if isinstance(domains, list):
-                trusted = next(
-                    (str(domain).strip() for domain in domains if str(domain).strip()),
-                    "",
-                )
-        for key in ("organizations", "primary_source_hints"):
-            values = payload.get(key)
-            if isinstance(values, list):
-                hints.extend(str(value) for value in values)
-    # Evidence-stage lead follow-ups contribute bounded terms; their domain is
-    # trusted only when the read page's own role was primary.
-    for followup in cursor.evidence_lead_followups:
-        parent_id = str(followup.get("source_candidate_id") or "")
-        parent = candidates_by_id.get(parent_id)
-        if parent is None or not claim_query_ids.intersection(parent.query_ids):
-            continue
-        if not trusted:
-            trusted = str(followup.get("trusted_primary_domain") or "")
-        terms = followup.get("hint_terms")
-        if isinstance(terms, list):
-            hints.extend(str(term) for term in terms[:2])
-    return trusted, tuple(dict.fromkeys(hint for hint in hints if hint))
 
 
 def _domain_of(url: str) -> str:
