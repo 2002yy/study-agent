@@ -1,4 +1,4 @@
-"""Durable WebLookupRun API plus recoverable ResearchRun aliases."""
+"""Durable, recoverable ResearchRun HTTP API."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from fastapi.responses import StreamingResponse
 from src.api.models.news import (
     ResearchQueueRequest,
     ResearchQueueCompleteRequest,
-    NewsLookupRequest,
     ResearchFollowUpCandidateResponse,
     ResearchRunCreateRequest,
     ResearchSteerRequest,
@@ -51,53 +50,6 @@ def _not_found_or_conflict(exc: ValueError) -> HTTPException:
     message = str(exc)
     status = 404 if "not found" in message.lower() else 409
     return HTTPException(status_code=status, detail=message)
-
-
-@router.post("/web-lookup-runs", response_model=WebLookupRunResponse)
-def create_web_lookup_run(
-    request: NewsLookupRequest,
-    service: WebLookupServiceDependency,
-) -> WebLookupRunResponse:
-    """Compatibility one-shot endpoint: create and execute one research run."""
-
-    try:
-        return _response(service.lookup(request.query, max_items=request.max_items))
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Web lookup failed: {exc}") from exc
-
-
-@router.get("/web-lookup-runs", response_model=WebLookupRunListResponse)
-def list_web_lookup_runs(
-    service: WebLookupServiceDependency,
-    limit: int = 20,
-) -> WebLookupRunListResponse:
-    return WebLookupRunListResponse(
-        runs=[_response(run) for run in service.list(limit=limit)]
-    )
-
-
-@router.get("/web-lookup-runs/{run_id}", response_model=WebLookupRunResponse)
-def get_web_lookup_run(
-    run_id: str,
-    service: WebLookupServiceDependency,
-) -> WebLookupRunResponse:
-    try:
-        return _response(service.get(run_id))
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@router.post("/web-lookup-runs/{run_id}/retry", response_model=WebLookupRunResponse)
-def retry_web_lookup_run(
-    run_id: str,
-    service: WebLookupServiceDependency,
-) -> WebLookupRunResponse:
-    try:
-        return _response(service.retry(run_id))
-    except ValueError as exc:
-        raise _not_found_or_conflict(exc) from exc
 
 
 @router.post("/research-runs", response_model=WebLookupRunResponse)
@@ -144,7 +96,9 @@ def list_research_runs(
     service: WebLookupServiceDependency,
     limit: int = 20,
 ) -> WebLookupRunListResponse:
-    return list_web_lookup_runs(service=service, limit=limit)
+    return WebLookupRunListResponse(
+        runs=[_response(run) for run in service.list(limit=limit)]
+    )
 
 
 @router.get("/sessions/{thread_id}/research-queue")
@@ -184,7 +138,10 @@ def get_research_run(
     run_id: str,
     service: WebLookupServiceDependency,
 ) -> WebLookupRunResponse:
-    return get_web_lookup_run(run_id=run_id, service=service)
+    try:
+        return _response(service.get(run_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 def _run_steps(run) -> list[tuple[int, dict]]:
@@ -301,7 +258,10 @@ def retry_research_run(
     run_id: str,
     service: WebLookupServiceDependency,
 ) -> WebLookupRunResponse:
-    return retry_web_lookup_run(run_id=run_id, service=service)
+    try:
+        return _response(service.retry(run_id))
+    except ValueError as exc:
+        raise _not_found_or_conflict(exc) from exc
 
 
 @router.post("/research-runs/{run_id}/resume", response_model=WebLookupRunResponse)

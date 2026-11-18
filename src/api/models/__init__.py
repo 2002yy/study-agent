@@ -27,7 +27,6 @@ from .memory import (
     MemoryUpdate,
 )
 from .learner_model import LearnerModelSnapshotResponse
-from .news import NewsLookupRequest
 from .rag import (
     LocalKnowledgeRequest,
     LocalKnowledgeResponse,

@@ -58,11 +58,6 @@ class NewsRunListResponse(BaseModel):
     runs: list[NewsRunResponse]
 
 
-class NewsLookupRequest(BaseModel):
-    query: str = Field(default="最新新闻 when:1d", min_length=1)
-    max_items: int = Field(default=8, gt=0, le=20)
-
-
 class ResearchRunCreateRequest(BaseModel):
     query: str = Field(min_length=1)
     max_items: int = Field(default=8, gt=0, le=20)

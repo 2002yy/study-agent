@@ -199,6 +199,12 @@ def test_research_run_api_create_execute_cancel_and_resume(runtime_test_context)
     assert completed.json()["status"] == "completed"
     assert completed.json()["query_attempts"]
 
+    restored = client.get(f"/research-runs/{run_id}")
+    listed = client.get("/research-runs")
+    assert restored.status_code == 200
+    assert restored.json()["status"] == "completed"
+    assert run_id in [run["id"] for run in listed.json()["runs"]]
+
     pending = client.post(
         "/research-runs",
         json={"query": "cancel before start", "max_items": 2},
