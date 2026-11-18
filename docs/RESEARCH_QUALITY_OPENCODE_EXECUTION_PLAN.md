@@ -593,6 +593,8 @@ RQCE-P0 阶段未实现新 scheduler 时，Useful Read Ratio 可只记录 legacy
 
 `docs/research_quality/P0_SHADOW_REPORT.md`
 
+> 历史计划路径；RQCE-P0 的影子报告与实验运行器现已退役。旧结果保存在 Git 历史中，不属于当前发布门禁。
+
 重点不是达 Release Gate，而是定位：
 
 - Shadow Gate 是否抓到二手来源提前结束；

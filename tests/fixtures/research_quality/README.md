@@ -4,9 +4,8 @@
 > `frozen_trap_cases.json`（10 个 frozen，含合成 corpus）+
 > `live_trap_cases.json`（10 个 live metadata-only）。
 > 本目录不得存放 live web 抓取内容；corpus 全部为合成测试数据。
-> P0-C5 已将 live metadata 改为真实、可长期复核的公开问题；真实运行只把
-> bounded provider/search/read metadata 写到
-> `docs/research_quality/P0_LIVE_OBSERVATION.json`，不把网页正文写回 fixture。
+> P0-C5 曾使用真实公开问题进行一次性网页观测；该历史观测脚本和报告已退役。
+> 保留的 live metadata 只用于当前明确引用它的测试，不保存网页正文。
 
 ## 文件格式
 

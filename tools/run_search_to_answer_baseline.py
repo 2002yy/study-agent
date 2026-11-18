@@ -5,11 +5,10 @@ This runs the *real* gateway (search + page read) over the frozen question set i
 operational metadata only: case id, providers, public URLs, titles, error codes
 and timings. It stores no page bodies, no credentials and no proxy address.
 
-Why a separate runner instead of ``run_research_quality_live_observation.py``:
-that tool is bound to the trap-case schema (``research-quality`` gold contracts
-with primary/secondary source roles). Filling those contracts for ordinary user
-questions would mean inventing gold we cannot verify, so this runner reuses the
-same ``GeneralWebGateway`` and the same read path but not that schema.
+This runner deliberately uses ordinary user questions instead of the retired
+trap-case observational harness. The latter required research-quality gold
+contracts that cannot be truthfully assigned to arbitrary questions. This
+runner continues to use the real ``GeneralWebGateway`` read path.
 
 Answer quality is deliberately not measured here: there is no zero-cost answer
 generator wired into this checkout, so ``answer_status``, ``ttfu_seconds`` and
