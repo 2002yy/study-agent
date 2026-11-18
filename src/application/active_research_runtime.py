@@ -828,12 +828,6 @@ class ActiveResearchRuntimeExecutor:
             utc_now=self.utc_now,
         )
 
-        def update_budget(*, reads_used: int | None = None) -> None:
-            nonlocal state
-            state = updated_runtime_budget(
-                state, cursor, elapsed_seconds=elapsed(), reads_used=reads_used
-            )
-
         def ensure_active() -> None:
             if self.repository.cancel_requested(run_id, operation_id=operation_id):
                 raise ActiveResearchCancelled("active research cancelled")
@@ -1908,7 +1902,12 @@ class ActiveResearchRuntimeExecutor:
                                     str((_materialized.get("read") or {}).get("content") or "")
                                 )
                                 # 0 reads_used: no physical read happened.
-                                update_budget(reads_used=successful_reads)
+                                state = updated_runtime_budget(
+                                    state,
+                                    cursor,
+                                    elapsed_seconds=elapsed(),
+                                    reads_used=successful_reads,
+                                )
                                 _record_read_history(context, cursor.read_outcomes)
                                 checkpoint()
                             continue
@@ -2143,7 +2142,12 @@ class ActiveResearchRuntimeExecutor:
                         )
                         if visual_units:
                             record["visual_units"] = visual_units
-                    update_budget(reads_used=successful_reads)
+                    state = updated_runtime_budget(
+                        state,
+                        cursor,
+                        elapsed_seconds=elapsed(),
+                        reads_used=successful_reads,
+                    )
                     # §98 A2a: the single lifecycle view is diagnostics only;
                     # candidate_resolution remains the pure state authority.
                     _record_read_history(
@@ -2296,7 +2300,12 @@ class ActiveResearchRuntimeExecutor:
                         continue
                     successful_reads += 1
                     used_chars += len(lead_content)
-                    update_budget(reads_used=successful_reads)
+                    state = updated_runtime_budget(
+                        state,
+                        cursor,
+                        elapsed_seconds=elapsed(),
+                        reads_used=successful_reads,
+                    )
                     checkpoint()
                     lead_categories = (
                         "public_research_candidate_metadata",
@@ -2883,7 +2892,9 @@ class ActiveResearchRuntimeExecutor:
                 pass
             return self.repository.finish_cancel(run_id, operation_id=operation_id)
         except _HardBudgetReached:
-            update_budget()
+            state = updated_runtime_budget(
+                state, cursor, elapsed_seconds=elapsed()
+            )
             context = steering_context.refresh(context)
             context, _late_ids = steering_context.mark_late(
                 context, reason="hard_budget_exhausted"
