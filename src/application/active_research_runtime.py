@@ -262,6 +262,7 @@ from src.application.research_runtime_failure_projection import (
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
 from src.application.research_runtime_read_execution import ActiveReadExecutionContext
+from src.application.research_runtime_read_observation import ActiveReadObservationContext
 from src.application.research_runtime_read_projection import project_read_chain
 from src.application.research_runtime_read_site import (
     ActiveReadSiteContext,
@@ -921,21 +922,25 @@ class ActiveResearchRuntimeExecutor:
         )
 
         phase_timing = RuntimePhaseTiming(ledger=timing_ledger, now=self.monotonic)
+        read_observation = ActiveReadObservationContext(
+            current_context=lambda: context,
+            current_cursor=lambda: cursor,
+            phase_timing=phase_timing,
+            timing_ledger=timing_ledger,
+        )
 
         # §143-B0.1: read semantics come from the shared production primitive,
         # so execute() and the narrow measurement entry cannot drift apart.
         gateway_read = build_production_gateway_read(
             gateway=self.gateway,
             accepts_timeout=self.read_gateway_accepts_timeout,
-            get_context=lambda: context,
+            get_context=read_observation.current_context,
             research_seconds_left=research_seconds_left,
             hard_seconds_left=budget_clock.hard_seconds_left,
-            wave_index=lambda: int(cursor.wave_index),
-            on_phase_start=phase_timing.begin,
-            on_phase_end=lambda phase: phase_timing.end(phase, context=context),
-            on_retry=lambda *, wait_ms, fetch_ms: timing_ledger.record_retry(
-                wait_ms=wait_ms, fetch_ms=fetch_ms
-            ),
+            wave_index=read_observation.wave_index,
+            on_phase_start=read_observation.phase_start,
+            on_phase_end=read_observation.phase_end,
+            on_retry=read_observation.retry,
         )
         read_execution = ActiveReadExecutionContext(
             gateway=self.gateway,
