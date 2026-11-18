@@ -459,14 +459,14 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_con
     assert run_id in [run["id"] for run in listed.json()["runs"]]
 
 
-def test_rag_index_and_query_endpoints(tmp_path):
+def test_rag_run_index_and_query_endpoints(tmp_path):
     client = TestClient(app)
     document = tmp_path / "notes.md"
     index_path = tmp_path / "rag_index.json"
     document.write_text("FastAPI RAG query returns cited local chunks.", encoding="utf-8")
 
     index_response = client.post(
-        "/rag/index",
+        "/rag-runs/index",
         json={
             "paths": [str(document)],
             "index_path": str(index_path),
@@ -485,7 +485,7 @@ def test_rag_index_and_query_endpoints(tmp_path):
     )
 
     assert index_response.status_code == 200
-    assert index_response.json()["documents"] == 1
+    assert index_response.json()["result"]["documents"] == 1
     assert query_response.status_code == 200
     query_data = query_response.json()
     assert query_data["result_count"] == 1
@@ -501,7 +501,7 @@ def test_rag_query_endpoint_rejects_unknown_mode(tmp_path):
     document = tmp_path / "notes.md"
     index_path = tmp_path / "rag_index.json"
     document.write_text("Local retrieval.", encoding="utf-8")
-    client.post("/rag/index", json={"paths": [str(document)], "index_path": str(index_path)})
+    client.post("/rag-runs/index", json={"paths": [str(document)], "index_path": str(index_path)})
 
     response = client.post(
         "/rag/query",
@@ -517,7 +517,7 @@ def test_rag_query_endpoint_returns_optional_evaluation(tmp_path):
     document = tmp_path / "notes.md"
     index_path = tmp_path / "rag_index.json"
     document.write_text("Evaluation expects this cited local source.", encoding="utf-8")
-    client.post("/rag/index", json={"paths": [str(document)], "index_path": str(index_path)})
+    client.post("/rag-runs/index", json={"paths": [str(document)], "index_path": str(index_path)})
 
     response = client.post(
         "/rag/query",
@@ -538,10 +538,10 @@ def test_rag_query_endpoint_returns_optional_evaluation(tmp_path):
     assert data["debug"]["returned_count"] >= 1
 
 
-def test_rag_index_endpoint_reports_missing_files(tmp_path):
+def test_rag_run_index_endpoint_reports_missing_files(tmp_path):
     client = TestClient(app)
 
-    response = client.post("/rag/index", json={"paths": [str(tmp_path / "missing.md")]})
+    response = client.post("/rag-runs/index", json={"paths": [str(tmp_path / "missing.md")]})
 
     assert response.status_code == 404
 
@@ -551,7 +551,7 @@ def test_local_knowledge_endpoint_applies_agentic_retrieval(tmp_path):
     document = tmp_path / "agentic.md"
     index_path = tmp_path / "rag_index.json"
     document.write_text("Agentic RAG retrieves local evidence only when useful.", encoding="utf-8")
-    client.post("/rag/index", json={"paths": [str(document)], "index_path": str(index_path)})
+    client.post("/rag-runs/index", json={"paths": [str(document)], "index_path": str(index_path)})
 
     skipped = client.post(
         "/rag/local-knowledge",
@@ -1265,7 +1265,7 @@ def test_tools_and_workflow_endpoints_record_local_knowledge_call(monkeypatch, t
     index_path = tmp_path / "rag_index.json"
     document.write_text("Tool registry calls can retrieve cited workflow evidence.", encoding="utf-8")
     client = TestClient(app)
-    client.post("/rag/index", json={"paths": [str(document)], "index_path": str(index_path)})
+    client.post("/rag-runs/index", json={"paths": [str(document)], "index_path": str(index_path)})
 
     tools_response = client.get("/tools")
     preview_response = client.post(

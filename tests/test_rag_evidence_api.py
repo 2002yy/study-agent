@@ -16,7 +16,7 @@ def test_knowledge_document_evidence_status_controls_retrieval(tmp_path):
     old.write_text("Legacy composer requires a permanent task dropdown.", encoding="utf-8")
 
     indexed = client.post(
-        "/rag/index",
+        "/rag-runs/index",
         json={
             "paths": [str(current), str(old)],
             "index_path": str(index_path),
@@ -81,7 +81,7 @@ def test_knowledge_document_evidence_status_rejects_invalid_replacement(tmp_path
     index_path = tmp_path / "rag-index.json"
     document.write_text("Only one current document.", encoding="utf-8")
     client.post(
-        "/rag/index",
+        "/rag-runs/index",
         json={"paths": [str(document)], "index_path": str(index_path)},
     )
     listed = client.get(
