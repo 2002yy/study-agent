@@ -8,7 +8,7 @@ export function TypographySettings() {
     <section className="side-section typography-settings" aria-label="阅读外观">
       <fieldset>
         <legend className="section-title">阅读字体</legend>
-        <p className="field-hint">选择后立即生效，记住这台设备的显示偏好。</p>
+        <p className="field-hint">选择后立即生效，记住这台设备的显示偏好。未安装的字体会自动回退。</p>
         <div className="typography-options">
           {TYPOGRAPHY_OPTIONS.map(option => <label key={option.value} className={preset === option.value ? "is-selected" : ""}>
             <input type="radio" name={name} value={option.value} checked={preset === option.value}
