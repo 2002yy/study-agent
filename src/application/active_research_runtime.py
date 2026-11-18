@@ -952,10 +952,11 @@ class ActiveResearchRuntimeExecutor:
             cursor = value
 
         model_attempt_context = ActiveModelAttemptContext(
+            current_state=lambda: state,
             current_cursor=lambda: cursor,
             set_cursor=set_model_cursor,
             ensure_active=ensure_active,
-            ensure_budget=lambda: execution_guard.ensure_budget(state),
+            ensure_budget=execution_guard.ensure_budget,
             checkpoint=checkpoint,
         )
         on_model_started = model_attempt_context.started
