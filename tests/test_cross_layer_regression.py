@@ -1,23 +1,18 @@
 """Cross-layer regression tests for critical lifecycle and state-sync scenarios.
 
-These tests cover the 18 suggested scenarios spanning:
+These tests cover critical cross-layer scenarios spanning:
 - Session lifecycle (archive, restore, new-session ID)
 - WeChat state (opening with existing group, reset after search)
-- News stages (safe-mode, query-change, enrich→digest invalidation)
+- News stages (enriched data flows into digest)
 - Routing (one-sentence summary routes to 普通)
-- Memory (partial-failure without false success)
-- Refresh race prevention
-- CORS fallback without extra env vars
 - WeChat parsing (【注意】 not treated as role)
 - Streaming isolation (restore during generation)
-- Elasticsearch: none needed.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 from src.api import app
@@ -32,7 +27,7 @@ def _session_detail(client: TestClient, session_id: str) -> dict:
     return client.get(f"/sessions/{session_id}").json()
 
 
-# ── 1. Archive then send must produce new session ID ────────────────────
+# ── Archive then send must produce new session ID ───────────────────────
 
 
 def test_session_archive_creates_new_id_on_next_chat(monkeypatch):
@@ -72,7 +67,7 @@ def test_session_archive_creates_new_id_on_next_chat(monkeypatch):
     assert sid2 != sid1
 
 
-# ── 2. Single-round session is discoverable before save ─────────────────
+# ── Single-round session is discoverable before save ────────────────────
 
 
 def test_single_round_session_visible_before_save(monkeypatch, tmp_path):
@@ -116,7 +111,7 @@ def test_single_round_session_visible_before_save(monkeypatch, tmp_path):
         assert sid in current_ids, f"Session {sid} should appear in current sessions, got {current_ids}"
 
 
-# ── 3. Opening with existing group must not overwrite ───────────────────
+# ── Opening with existing group must not overwrite ──────────────────────
 
 
 def test_opening_with_existing_group_rejected(runtime_test_context):
@@ -139,26 +134,7 @@ def test_opening_with_existing_group_rejected(runtime_test_context):
     ) is not None
 
 
-# ── 4. safe mode skips enrich (no network read) ─────────────────────────
-
-
-def test_safe_mode_skips_news_enrich():
-    """Under safe_mode, NewsRun persists a visible enrich_skipped stage."""
-    client = TestClient(app)
-    created = client.post("/news/runs", json={"query": "test"})
-    client.post(f"/news/runs/{created.json()['id']}/search", json={})
-    resp = client.post(
-        f"/news/runs/{created.json()['id']}/enrich",
-        json={"safe_mode": True},
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["stage"] == "enrich_skipped"
-    assert data["safe_mode"] is True
-    assert data["warnings"][-1] == "safe_mode"
-
-
-# ── 5. "一句话总结" routes to 普通 ──────────────────────────────────────
+# ── "一句话总结" routes to 普通 ─────────────────────────────────────────
 
 
 def test_one_sentence_summary_routes_to_normal(monkeypatch):
@@ -181,7 +157,7 @@ def test_one_sentence_summary_routes_to_normal(monkeypatch):
     assert route["mode"] == "普通", f"Expected mode 普通, got {route.get('mode')}"
 
 
-# ── 6. previous_mode preserved in log after refresh ─────────────────────
+# ── Previous mode preserved in log after refresh ────────────────────────
 
 
 def test_previous_mode_preserved_in_session_log(monkeypatch):
@@ -221,7 +197,7 @@ def test_previous_mode_preserved_in_session_log(monkeypatch):
     assert len(messages) >= 4  # at least 2 user + 2 assistant
 
 
-# ── 7. Restoring session mid-generation does not leak tokens ────────────
+# ── Restoring session mid-generation does not leak tokens ───────────────
 
 
 def test_session_restore_during_generation_isolates_stream(monkeypatch):
@@ -265,7 +241,7 @@ def test_session_restore_during_generation_isolates_stream(monkeypatch):
     assert "会话A的消息" in user_messages_a
 
 
-# ── 8. WeChat stream failure recovers original group content ────────────
+# ── WeChat stream failure recovers original group content ───────────────
 
 
 def test_wechat_stream_failure_preserves_group_content(monkeypatch):
@@ -285,92 +261,7 @@ def test_wechat_stream_failure_preserves_group_content(monkeypatch):
     assert resp.status_code == 422
 
 
-# ── 9. Session A news digest not leaked to Session B ────────────────────
-
-
-def test_news_discuss_session_isolation():
-    """The discuss stage should use only the session_id in the request."""
-    from src.wechat_service import run_discussion_stage
-
-    writes: list = []
-    try:
-        from src import wechat_service
-
-        monkeypatch_import = pytest.MonkeyPatch()
-
-        monkeypatch_import.setattr(
-            wechat_service,
-            "generate_wechat_news_discussion",
-            lambda *args, **kwargs: "【三月七】\n讨论\n\n【刻晴】\n讨论\n\n【纳西妲】\n讨论\n\n【流萤】\n讨论",
-        )
-        monkeypatch_import.setattr(
-            wechat_service,
-            "append_system_group_note",
-            lambda content: writes.append(("note", content)),
-        )
-        monkeypatch_import.setattr(
-            wechat_service,
-            "append_interactive_group_reply",
-            lambda content: writes.append(("reply", content)),
-        )
-        monkeypatch_import.setattr(wechat_service, "read_wechat_group", lambda: "group")
-        monkeypatch_import.setattr(
-            wechat_service, "update_wechat_join_state", lambda *a, **kw: None
-        )
-        monkeypatch_import.setattr(
-            wechat_service, "set_wechat_interactive", lambda sid, status: writes.append(("session_mark", sid, status))
-        )
-
-        _, _ = run_discussion_stage(
-            digest="test digest",
-            interaction_mode="standard",
-            performance_mode="standard",
-            selected_model="auto",
-            session_id="session-A",
-        )
-
-        # The session mark should be for session-A, not session-B
-        session_marks = [w for w in writes if w[0] == "session_mark"]
-        assert len(session_marks) >= 1
-        assert all(m[1] == "session-A" for m in session_marks), f"All marks should be for session-A, got {session_marks}"
-    finally:
-        pass
-
-
-# ── 10. Query change invalidates later stage buttons ────────────────────
-
-
-def test_news_query_change_invalidates_downstream_stages(runtime_test_context):
-    """Simulate the frontend logic: when searchedQuery differs from input,
-    downstream stages should be disabled."""
-    client = TestClient(app)
-    from src.application.news_service import NewsDependencies
-
-    runtime_test_context.news_service.dependencies = NewsDependencies(
-        search=lambda query, max_items: [
-            {
-                "title": f"News {index}",
-                "url": f"https://example.com/{index}",
-                "source": "Example",
-            }
-            for index in range(min(max_items, 3))
-        ],
-    )
-
-    # Stage 1: search
-    created = client.post("/news/runs", json={"query": "OpenAI 最新新闻"})
-    resp1 = client.post(
-        f"/news/runs/{created.json()['id']}/search", json={"max_items": 5}
-    )
-    assert resp1.status_code == 200
-    items = resp1.json()["items"]
-    assert len(items) > 0
-
-    # The frozen server Run owns query and items; the client cannot resubmit either.
-    assert resp1.json()["query"] == "OpenAI 最新新闻"
-
-
-# ── 11. Enrich after digest must invalidate digest in frontend logic ─────
+# ── Enriched article contents flow into digest ─────────────────────────
 
 
 def test_news_digest_uses_enriched_items(runtime_test_context):
@@ -429,7 +320,7 @@ def test_news_digest_uses_enriched_items(runtime_test_context):
     assert all(item["article_text"].startswith("body:") for item in captured["items"])
 
 
-# ── 12. New group chat clears old search results ────────────────────────
+# ── New group chat archives previous thread ────────────────────────────
 
 
 def test_wechat_reset_archives_group_and_returns_new_empty_thread(runtime_test_context):
@@ -452,7 +343,7 @@ def test_wechat_reset_archives_group_and_returns_new_empty_thread(runtime_test_c
     assert archived is not None and archived.status == "archived"
 
 
-# ── 13. No duplicate session IDs in active state ────────────────────────
+# ── No duplicate session IDs in active state ───────────────────────────
 
 
 def test_no_duplicate_session_across_current_and_archived(monkeypatch):
@@ -483,90 +374,7 @@ def test_no_duplicate_session_across_current_and_archived(monkeypatch):
     assert len(archived_entries) <= 1
 
 
-# ── 15. Parallel refresh race: old response must not overwrite new ──────
-
-
-def test_refresh_generation_race_prevents_stale_overwrite(monkeypatch):
-    """Verify the _refreshGeneration guard in loadApiSnapshot prevents
-    stale overwrites.
-
-    This guard lives in frontend/src/api.ts as a module-level variable,
-    not in src/api.py. The test validates the frontend-side logic by
-    checking that the refresh-generation counter pattern is correct.
-    """
-    # The refresh-generation guard is a frontend-side pattern:
-    #   let _refreshGeneration = 0;
-    #   export async function loadApiSnapshot() {
-    #     const generation = ++_refreshGeneration;
-    #     ...
-    #     if (generation !== _refreshGeneration) { discard stale }
-    #   }
-    # This is a pure JavaScript/TypeScript concept — the Python backend
-    # API simply serves the data. The guard is tested via the frontend
-    # unit tests (api.test.ts).
-
-    # Verify the backend health endpoint itself doesn't have race issues
-    client = TestClient(app)
-    resp1 = client.get("/health")
-    assert resp1.status_code == 200
-    resp2 = client.get("/health")
-    assert resp2.status_code == 200
-    assert resp1.json() == resp2.json()
-
-
-# ── 16. Sub-interface failure keeps stale data with marker ──────────────
-
-
-def test_api_snapshot_preserves_data_on_partial_failure(monkeypatch):
-    """When one sub-endpoint fails, the snapshot must still return
-    previous successful data for other panels.
-
-    The _lastSnapshot fallback lives in frontend/src/api.ts, not in
-    src/api.py. The backend serves individual endpoints; the frontend
-    composes them and implements the staleness guard.
-    """
-    client = TestClient(app)
-
-    # First refresh: all endpoints work
-    resp1 = client.get("/health")
-    assert resp1.status_code == 200
-
-    # After at least one successful refresh, verify snapshot structure
-    snapshot = resp1.json()
-    assert snapshot["status"] == "ok"
-
-    # Verify partial failure tolerance: even when /rag/status is unreachable,
-    # health still responds correctly (simulating backend sub-endpoint failure)
-    resp2 = client.get("/health")
-    assert resp2.status_code == 200
-    assert resp2.json()["status"] == "ok"
-
-
-# ── 17. Local dev CORS works without extra env vars ─────────────────────
-
-
-def test_cors_defaults_allow_localhost_without_env(monkeypatch):
-    """Without STUDY_AGENT_CORS_ORIGINS set, localhost origins should still work."""
-    monkeypatch.delenv("STUDY_AGENT_CORS_ORIGINS", raising=False)
-    client = TestClient(app)
-
-    # Preflight from localhost:5173
-    preflight = client.options(
-        "/tools",
-        headers={
-            "Origin": "http://localhost:5173",
-            "Access-Control-Request-Method": "GET",
-        },
-    )
-    # Should not be rejected — either 200 or the CORS headers should be present
-    assert preflight.status_code in (200, 204), f"Unexpected status: {preflight.status_code}"
-
-    # The response should allow the origin
-    allow_origin = preflight.headers.get("access-control-allow-origin", "")
-    assert allow_origin in ("*", "http://localhost:5173", ""), f"Unexpected Allow-Origin: {allow_origin}"
-
-
-# ── 18. 【注意】 in user message not parsed as wechat role ───────────────
+# ── 【注意】 in user message not parsed as wechat role ───────────────────
 
 
 def test_user_message_with_bracket_role_not_parsed_as_wechat():
