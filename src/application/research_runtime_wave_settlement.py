@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from src.application.research_runtime_publication import ActiveResearchPublisher
+from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
 from src.application.research_runtime_steering_context import (
     ActiveResearchSteeringContext,
 )
@@ -41,7 +42,8 @@ class ActiveWaveSettlementContext:
     ensure_active: Callable[[], None]
     elapsed: Callable[[], float]
     checkpoint: Callable[[ActiveWaveSettlementSnapshot], None]
-    known_evidence_ids: Callable[[], tuple[str, ...]]
+    results: ActiveResearchResultBuffers
+    run_id: str
     actionable_gaps: Callable[[ResearchState], tuple[EvidenceGap, ...]]
     publisher: ActiveResearchPublisher
     max_research_waves: int
@@ -75,7 +77,9 @@ class ActiveWaveSettlementContext:
                     state=snapshot.state,
                     context=snapshot.context,
                     wave_index=next_wave,
-                    known_evidence_ids=self.known_evidence_ids,
+                    known_evidence_ids=lambda: self.results.known_evidence_ids(
+                        self.run_id
+                    ),
                 )
             )
             snapshot.cursor = replace(

@@ -844,7 +844,6 @@ class ActiveResearchRuntimeExecutor:
                     state=state,
                     cursor=cursor,
                     results=results,
-                    known_evidence_ids=known_evidence_ids,
                 )
                 try:
                     snapshot.prepare(stage=stage, elapsed=elapsed)
@@ -996,7 +995,8 @@ class ActiveResearchRuntimeExecutor:
             ensure_active=ensure_active,
             elapsed=elapsed,
             checkpoint=settle_completed_wave,
-            known_evidence_ids=known_evidence_ids,
+            results=results,
+            run_id=run_id,
             actionable_gaps=_ordered_gaps,
             publisher=publisher,
             max_research_waves=MAX_RESEARCH_WAVES,
