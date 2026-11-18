@@ -44,9 +44,12 @@ from src.web.research.browser_bakeoff import (
     ROUTING_ACTIONS,
     SCHEMA_VERSION,
     WINNER_CRITERIA,
+    bakeoff_result_document,
+    build_bakeoff_result,
     dimension_keys,
     intended_browser_chain,
     load_browser_bakeoff_manifest,
+    validate_bakeoff_result,
     validate_browser_bakeoff_manifest,
 )
 from src.web.research.read_escalation import (
@@ -290,15 +293,14 @@ def test_forbidden_core_semantics_are_named() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_bakeoff_harness_is_production_inert() -> None:
+def test_legacy_browser_backend_is_production_inert() -> None:
     # A3-0's blanket "no browser tier in production" was superseded by §143-SI,
     # which deliberately added the qualified, default-inert Crawl4AI specialist
-    # seam (docs/PROJECT_STATUS.md §143.170-§143.172). The invariant that still
-    # holds is that the *bakeoff harness* never enters production.
+    # seam. The legacy Wigolo browser backend must still stay outside the
+    # default production path.
     for module in PRODUCTION_MODULES:
         text = Path(module).read_text(encoding="utf-8")
-        assert "browser_bakeoff" not in text, f"{module} must not import the harness"
-        assert "run_browser_bakeoff" not in text, f"{module} must not run the bakeoff"
+        assert "browser_bakeoff" not in text, f"{module} must not import the bakeoff"
         assert (
             "wigolo_browser_executor" not in text
         ), f"{module} must not import the browser executor"
@@ -328,6 +330,77 @@ def test_production_chain_is_unchanged_at_a3_0() -> None:
     )
     assert match is not None, "the production reader chain must be declared"
     assert match.group(1).strip() == "NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND"
+
+
+def _valid_result_row() -> dict[str, Any]:
+    # Crawl4AI cohort v2 still uses this result format, though the original
+    # Wigolo-only experiment runner and its duplicate chain tests are retired.
+    return build_bakeoff_result(
+        backend="wigolo_browser",
+        fixture_id="js_shell:fixture",
+        category=CLASS_JS_SHELL,
+        required_capabilities=sorted(CLASS_CAPABILITY_DEMAND[CLASS_JS_SHELL]),
+        browser_called=True,
+        browser_state="success",
+        browser_usable=True,
+        outcome_state="success",
+        usable_content=True,
+        chain_action="resolve",
+        chain_reason="usable_content",
+        attempts=[{"backend": "wigolo_browser"}],
+        wall_ms=100.0,
+        fetch_ms=100.0,
+        cold=True,
+        bytes=100,
+        content_type="text/markdown",
+        rendered=True,
+        cache_hit=False,
+        failure_reason="",
+        provenance_complete=True,
+        budget_respected=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"outcome_state": "login_required", "usable_content": True},
+        {"browser_state": "login_required", "browser_usable": True},
+        {"outcome_state": "anti_bot", "usable_content": True},
+        {"browser_called": False},
+        {"browser_state": ""},
+        {"outcome_state": "rendered_ok"},
+        {"required_capabilities": ["headless_chrome"]},
+        {"provenance_complete": "yes"},
+        {"budget_respected": "yes"},
+    ],
+)
+def test_reused_bakeoff_result_rejects_false_truth(changes: dict[str, Any]) -> None:
+    row = _valid_result_row()
+    row.update(changes)
+    with pytest.raises(BrowserBakeoffContractError):
+        validate_bakeoff_result(row)
+
+
+def test_reused_bakeoff_result_rejects_browser_on_static_control() -> None:
+    row = _valid_result_row()
+    row.update(category=CLASS_STATIC_CONTROL, required_capabilities=[])
+    with pytest.raises(BrowserBakeoffContractError):
+        validate_bakeoff_result(row)
+
+
+def test_reused_bakeoff_result_rejects_missing_field() -> None:
+    row = _valid_result_row()
+    row.pop("budget_respected")
+    with pytest.raises(BrowserBakeoffContractError):
+        validate_bakeoff_result(row)
+
+
+def test_reused_bakeoff_result_keeps_version_and_budget() -> None:
+    document = bakeoff_result_document([_valid_result_row()], backend="wigolo_browser")
+    assert document["schema_version"] == "browser-bakeoff-result-v1"
+    assert document["budget"] == dict(BAKEOFF_UNIFIED_BUDGET)
+    assert len(document["results"]) == 1
 
 
 # ---------------------------------------------------------------------------
