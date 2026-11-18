@@ -48,13 +48,14 @@ def test_parser_reads_the_brave_envelope() -> None:
 def test_probe_evaluation_reports_rank_and_deep_pages() -> None:
     rows = [
         {"url": "https://www.docker.com/", "title": "Docker", "snippet": ""},
-        {"url": DOCKER.url, "title": "Pull usage and limits", "snippet": ""},
+        {"url": DOCKER.url, "title": "Pull usage and limits", "snippet": "限额规则"},
     ]
     outcome = evaluate_probe(rows, DOCKER)
     assert outcome["target_returned"] is True
     assert outcome["target_raw_rank"] == 2
     assert outcome["official_domain_hit"] is True
     assert outcome["official_deep_page_count"] == 1
+    assert outcome["cjk_results"] == 1
 
 
 def test_gate_requires_hard_cases_exact_title_hits() -> None:

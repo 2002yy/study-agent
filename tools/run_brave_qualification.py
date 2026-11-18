@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -37,7 +38,6 @@ if str(REPO_ROOT) not in sys.path:
 from dotenv import load_dotenv  # noqa: E402
 
 from tools.run_recall_target_audit import TARGETS, TargetSpec  # noqa: E402
-from tools.run_provider_attribution import _has_cjk, _path_depth  # noqa: E402
 
 SCHEMA_VERSION = "brave-provider-qualification-v1"
 BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search"
@@ -91,8 +91,18 @@ def parse_brave_payload(payload: Mapping[str, Any] | None) -> list[dict[str, str
 
 
 def _domain(url: str) -> str:
-    match = __import__("re").match(r"https?://([^/]+)", str(url or ""))
+    match = re.match(r"https?://([^/]+)", str(url or ""))
     return (match.group(1) if match else "").lower()
+
+
+def _path_depth(url: str) -> int:
+    match = re.match(r"https?://[^/]+(/.*)?$", str(url or ""))
+    path = (match.group(1) if match and match.group(1) else "/").strip("/")
+    return len([part for part in path.split("/") if part])
+
+
+def _has_cjk(text: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff]", str(text or "")))
 
 
 def evaluate_probe(
