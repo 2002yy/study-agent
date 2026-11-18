@@ -42,6 +42,68 @@ def _record_read_history(
         ] = resolution_summary(read_outcomes)
 
 
+def _record_atomic_routing_decisions(
+    context: dict[str, Any],
+    *,
+    wave_index: int,
+    records: Sequence[Mapping[str, Any]],
+) -> None:
+    """Observe already-decided claim routing without choosing extraction targets."""
+
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if not isinstance(metrics, dict):
+        return
+    entries = metrics.get("atomic_routing")
+    entries = entries if isinstance(entries, list) else []
+    for record in records:
+        entries.append({"wave_index": wave_index, **record})
+    metrics["atomic_routing"] = entries[-60:]
+
+
+def _record_atomic_routing_extractions(
+    context: dict[str, Any],
+    *,
+    wave_index: int,
+    routed_pairs: set[tuple[str, str]],
+    selected_sources: Sequence[Mapping[str, Any]],
+) -> None:
+    """Record extracted results for routed pairs; never decide claim support."""
+
+    if not routed_pairs:
+        return
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if not isinstance(metrics, dict):
+        return
+    observed = metrics.get("atomic_routing_extractions")
+    observed = observed if isinstance(observed, list) else []
+    for routed_candidate_id, routed_claim_id in sorted(routed_pairs):
+        source = next(
+            (
+                item
+                for item in selected_sources
+                if item.get("candidate_id") == routed_candidate_id
+            ),
+            None,
+        )
+        if source is None:
+            continue
+        extraction = (source.get("extractions") or {}).get(routed_claim_id)
+        if not isinstance(extraction, Mapping):
+            continue
+        observed.append(
+            {
+                "wave_index": wave_index,
+                "read_artifact_id": routed_candidate_id,
+                "origin_claim_id": "",
+                "claim_id": routed_claim_id,
+                "status": str(extraction.get("status") or ""),
+                "relation": str(extraction.get("relation") or ""),
+                "source_cluster_id": str(extraction.get("source_cluster_id") or ""),
+            }
+        )
+    metrics["atomic_routing_extractions"] = observed[-60:]
+
+
 def _record_read_chain_decision(
     context: dict[str, Any],
     *,

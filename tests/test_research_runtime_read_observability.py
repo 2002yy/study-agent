@@ -3,6 +3,12 @@
 import pytest
 
 from src.application.active_research_runtime import (
+    _record_atomic_routing_decisions as active_record_atomic_routing_decisions,
+)
+from src.application.active_research_runtime import (
+    _record_atomic_routing_extractions as active_record_atomic_routing_extractions,
+)
+from src.application.active_research_runtime import (
     _record_escalation_diagnostics as legacy_escalation_diagnostics,
 )
 from src.application.active_research_runtime import (
@@ -12,6 +18,8 @@ from src.application.active_research_runtime import (
     _record_read_timing as legacy_record_read_timing,
 )
 from src.application.research_runtime_read_observability import (
+    _record_atomic_routing_decisions,
+    _record_atomic_routing_extractions,
     _record_backend_health,
     _record_escalation_diagnostics,
     _record_read_history,
@@ -89,6 +97,79 @@ def test_seed_and_attempt_exhaustion_only_refresh_read_history() -> None:
     metrics = context[ACTIVE_RESEARCH_METRICS_KEY]
     assert metrics["reads"] == [outcome.to_dict()]
     assert metrics["candidate_resolution"] is old_resolution
+
+
+def test_atomic_routing_observation_keeps_decision_rows_and_last_sixty() -> None:
+    assert active_record_atomic_routing_decisions is _record_atomic_routing_decisions
+    old_rows = [{"old": index} for index in range(60)]
+    record = {"read_artifact_id": "read-1", "routed_claim_ids": ["fact-1"]}
+    context = {ACTIVE_RESEARCH_METRICS_KEY: {"atomic_routing": old_rows}}
+    _record_atomic_routing_decisions(context, wave_index=3, records=(record,))
+    rows = context[ACTIVE_RESEARCH_METRICS_KEY]["atomic_routing"]
+    assert len(rows) == 60
+    assert rows[0] == {"old": 1}
+    assert rows[-1] == {"wave_index": 3, **record}
+    assert record == {"read_artifact_id": "read-1", "routed_claim_ids": ["fact-1"]}
+
+    # Routing is disabled unless explicitly enabled by its caller: an empty
+    # observation must not create a route or change another metric field.
+    non_list = {ACTIVE_RESEARCH_METRICS_KEY: {"atomic_routing": "invalid", "reads": [1]}}
+    _record_atomic_routing_decisions(non_list, wave_index=3, records=())
+    assert non_list[ACTIVE_RESEARCH_METRICS_KEY] == {"atomic_routing": [], "reads": [1]}
+
+
+def test_atomic_routing_extractions_report_only_existing_results_in_sorted_order() -> None:
+    assert active_record_atomic_routing_extractions is _record_atomic_routing_extractions
+    sources = [
+        {
+            "candidate_id": "read-b",
+            "extractions": {
+                "fact-b": {"status": "no_support", "relation": "", "source_cluster_id": "c2"},
+            },
+        },
+        {
+            "candidate_id": "read-a",
+            "extractions": {
+                "fact-a": {"status": "success", "relation": "supports", "source_cluster_id": "c1"},
+                "fact-invalid": "not-a-mapping",
+            },
+        },
+    ]
+    context = {ACTIVE_RESEARCH_METRICS_KEY: {"atomic_routing_extractions": [{"old": i} for i in range(59)]}}
+    _record_atomic_routing_extractions(
+        context,
+        wave_index=5,
+        routed_pairs={
+            ("read-b", "fact-b"),
+            ("read-a", "fact-a"),
+            ("read-a", "fact-invalid"),
+            ("read-missing", "fact-unobserved"),
+        },
+        selected_sources=sources,
+    )
+    rows = context[ACTIVE_RESEARCH_METRICS_KEY]["atomic_routing_extractions"]
+    assert len(rows) == 60
+    assert rows[0] == {"old": 1}
+    assert rows[-2:] == [
+        {"wave_index": 5, "read_artifact_id": "read-a", "origin_claim_id": "", "claim_id": "fact-a", "status": "success", "relation": "supports", "source_cluster_id": "c1"},
+        {"wave_index": 5, "read_artifact_id": "read-b", "origin_claim_id": "", "claim_id": "fact-b", "status": "no_support", "relation": "", "source_cluster_id": "c2"},
+    ]
+
+
+def test_atomic_routing_diagnostics_never_recover_or_replace_invalid_context() -> None:
+    empty: dict = {}
+    _record_atomic_routing_extractions(empty, wave_index=1, routed_pairs=set(), selected_sources=[])
+    assert empty == {}
+
+    invalid = {ACTIVE_RESEARCH_METRICS_KEY: "invalid-metrics"}
+    _record_atomic_routing_decisions(invalid, wave_index=1, records=({"routed_claim_ids": []},))
+    _record_atomic_routing_extractions(
+        invalid,
+        wave_index=1,
+        routed_pairs={("read-a", "fact-a")},
+        selected_sources=[{"candidate_id": "read-a", "extractions": {"fact-a": {"status": "ok"}}}],
+    )
+    assert invalid[ACTIVE_RESEARCH_METRICS_KEY] == "invalid-metrics"
 
 
 def test_resolution_is_computed_after_history_write_and_bad_metrics_still_fail(
