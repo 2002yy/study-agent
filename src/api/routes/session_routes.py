@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -15,7 +14,6 @@ from src.api.models.common import (
     SessionTitleUpdateRequest,
     SessionTitleUpdateResponse,
 )
-from src.api.models.memory import MemoryRunResponse
 from src.api.models.learner_model import LearnerModelSnapshotResponse
 from src.api.models.learning_review import (
     LearningReviewPageResponse,
@@ -25,11 +23,9 @@ from src.api.models.learning_review import (
 )
 from src.application.helpers import runtime_settings_payload
 from src.application.learner_model import LearnerModelService
-from src.application.learning_closure_service import LearningClosureNotEligible
 from src.application.learning_revalidation import LearningRevalidationService
 from src.application.learning_review import LearningReviewService, ReviewUnavailable
 from src.application.runtime_repository import (
-    get_learning_closure_service,
     get_learner_model_service,
     get_learning_revalidation_service,
     get_learning_resume_service,
@@ -307,28 +303,3 @@ def flush_session(
         "flushed": path is not None,
         "path": str(path) if path else "",
     }
-
-
-@router.post(
-    "/sessions/{session_id}/after-session/preview",
-    response_model=MemoryRunResponse,
-    deprecated=True,
-)
-def after_session_preview(
-    session_id: str,
-) -> MemoryRunResponse:
-    """Compatibility adapter; LearningClosureService owns the workflow."""
-
-    closure_service = get_learning_closure_service()
-    try:
-        closure = closure_service.create_and_execute(session_id)
-    except LearningClosureNotEligible as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except ValueError as exc:
-        status = 404 if "not found" in str(exc).lower() else 409
-        raise HTTPException(status_code=status, detail=str(exc)) from exc
-    memory_run = closure_service.linked_memory_run(closure)
-    if memory_run is None:
-        detail = closure.error or closure.reason or "Closure preview is not ready"
-        raise HTTPException(status_code=409, detail=detail)
-    return MemoryRunResponse(**asdict(memory_run))
