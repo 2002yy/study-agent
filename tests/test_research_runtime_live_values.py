@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import Mock
@@ -16,6 +17,7 @@ from src.application.research_runtime_execution_guard import (
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import ResearchState
+from src.web.research.runtime import ResearchRuntimeCursor
 
 
 def _state(hard_seconds: float) -> ResearchState:
@@ -54,3 +56,32 @@ def test_budget_clock_and_model_guard_share_rebound_state_owner() -> None:
     assert live.current_state() is recovered
     assert clock.hard_seconds_left() == 5.0
     guard.ensure_budget(live.current_state())
+
+
+def test_model_and_read_observers_share_latest_rebound_cursor() -> None:
+    """A model callback and read observer must not retain a pre-handoff cursor."""
+    live = ActiveRuntimeLiveValues(state=_state(20.0))
+    model_cursor = live.current_cursor
+    read_cursor = live.current_cursor
+
+    original = live.current_cursor()
+    after_attempt = replace(original, phase="planning", wave_index=1)
+    model_cursor_before = model_cursor()
+    assert model_cursor_before is original
+
+    # Model attempt auditing replaces the cursor; the reader sees that value.
+    live.set_cursor(after_attempt)
+    assert read_cursor() is after_attempt
+
+    # Wave handoff may replace it again after checkpoint/recovery.
+    recovered = replace(after_attempt, phase="searching", wave_index=2)
+    live.cursor = recovered
+    assert model_cursor() is recovered
+    assert read_cursor() is recovered
+
+
+def test_live_values_owns_independent_default_cursors() -> None:
+    first = ActiveRuntimeLiveValues(state=_state(10.0))
+    second = ActiveRuntimeLiveValues(state=_state(10.0))
+    assert isinstance(first.cursor, ResearchRuntimeCursor)
+    assert first.cursor is not second.cursor

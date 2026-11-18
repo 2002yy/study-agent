@@ -781,13 +781,12 @@ class ActiveResearchRuntimeExecutor:
         live = ActiveRuntimeLiveValues(state=initial_state)
         cursor_result = load_runtime_cursor(context)
         loaded_cursor = cursor_result.cursor
-        cursor: ResearchRuntimeCursor
         if cursor_result.available and loaded_cursor is not None:
-            cursor = loaded_cursor
+            live.cursor = loaded_cursor
         else:
-            cursor = ResearchRuntimeCursor()
-        cursor = recover_interrupted_model_attempt(cursor)
-        cursor = recover_interrupted_external_attempt(cursor)
+            live.cursor = ResearchRuntimeCursor()
+        live.cursor = recover_interrupted_model_attempt(live.cursor)
+        live.cursor = recover_interrupted_external_attempt(live.cursor)
         query_attempts = list(run.query_attempts)
         selected_sources = [dict(item) for item in run.selected_sources]
         rejected_sources = [dict(item) for item in run.rejected_sources]
@@ -852,7 +851,7 @@ class ActiveResearchRuntimeExecutor:
                     operation_id=operation_id,
                     context=context,
                     state=live.state,
-                    cursor=cursor,
+                    cursor=live.cursor,
                     results=results,
                 )
                 def bind_prepared(state: ResearchState, prepared_context: dict[str, Any]) -> None:
@@ -929,7 +928,7 @@ class ActiveResearchRuntimeExecutor:
         phase_timing = RuntimePhaseTiming(ledger=timing_ledger, now=self.monotonic)
         read_observation = ActiveReadObservationContext(
             current_context=lambda: context,
-            current_cursor=lambda: cursor,
+            current_cursor=lambda: live.cursor,
             phase_timing=phase_timing,
             timing_ledger=timing_ledger,
         )
@@ -957,14 +956,10 @@ class ActiveResearchRuntimeExecutor:
             chain_runner=run_chain,
         )
 
-        def set_model_cursor(value: ResearchRuntimeCursor) -> None:
-            nonlocal cursor
-            cursor = value
-
         model_attempt_context = ActiveModelAttemptContext(
             current_state=live.current_state,
-            current_cursor=lambda: cursor,
-            set_cursor=set_model_cursor,
+            current_cursor=live.current_cursor,
+            set_cursor=live.set_cursor,
             ensure_active=ensure_active,
             ensure_budget=execution_guard.ensure_budget,
             checkpoint=checkpoint,
@@ -975,11 +970,11 @@ class ActiveResearchRuntimeExecutor:
         on_model_finished = model_attempt_context.finished
 
         def bind_wave_snapshot(snapshot: ActiveWaveSettlementSnapshot) -> None:
-            nonlocal cursor, context
-            live.state, cursor, context = snapshot.state, snapshot.cursor, snapshot.context
+            nonlocal context
+            live.state, live.cursor, context = snapshot.state, snapshot.cursor, snapshot.context
 
         wave_handoff = ActiveWaveSettlementHandoff(
-            capture=lambda: ActiveWaveSettlementSnapshot(live.state, cursor, context),
+            capture=lambda: ActiveWaveSettlementSnapshot(live.state, live.cursor, context),
             bind=bind_wave_snapshot,
         )
 
@@ -1011,12 +1006,12 @@ class ActiveResearchRuntimeExecutor:
 
             # Bootstrap an empty active state through the audited model boundary.
             if not live.state.claims:
-                cursor = replace(cursor, phase="planning")
+                live.cursor = replace(live.cursor, phase="planning")
                 checkpoint(stage="planned")
                 categories = ("public_research_question", "research_time_context")
                 if not model_policy.allowed(context, "research_claim_planning", categories):
-                    cursor = with_appended_runtime_failure(
-                        cursor, context,
+                    live.cursor = with_appended_runtime_failure(
+                        live.cursor, context,
                         "policy_blocked",
                         "planning",
                         logical_call_id=f"policy:research_claim_planning:{run_id}",
@@ -1027,7 +1022,7 @@ class ActiveResearchRuntimeExecutor:
                         run_id,
                         operation_id=operation_id,
                         context=context,
-                        cursor=cursor,
+                        cursor=live.cursor,
                         state=live.state,
                         query_attempts=query_attempts,
                         selected_sources=selected_sources,
@@ -1038,12 +1033,12 @@ class ActiveResearchRuntimeExecutor:
                 planning_logical_call_id = f"research_claim_plan:{run.id}:1"
                 try:
                     planning_attempt_start = _model_attempt_start(
-                        cursor,
+                        live.cursor,
                         planning_logical_call_id,
                     )
                 except _ModelAttemptBudgetExhausted:
-                    cursor = with_appended_runtime_failure(
-                        cursor, context,
+                    live.cursor = with_appended_runtime_failure(
+                        live.cursor, context,
                         "model_attempts_exhausted",
                         "planning",
                         logical_call_id=planning_logical_call_id,
@@ -1055,7 +1050,7 @@ class ActiveResearchRuntimeExecutor:
                         run_id,
                         operation_id=operation_id,
                         context=context,
-                        cursor=cursor,
+                        cursor=live.cursor,
                         state=live.state,
                         query_attempts=query_attempts,
                         selected_sources=selected_sources,
@@ -1082,8 +1077,8 @@ class ActiveResearchRuntimeExecutor:
                         if planning_reason == "model_call_attempts_exhausted"
                         else "claim_planning_failed"
                     )
-                    cursor = with_appended_runtime_failure(
-                        cursor, context,
+                    live.cursor = with_appended_runtime_failure(
+                        live.cursor, context,
                         planning_code,
                         "planning",
                         logical_call_id=f"research_claim_plan:{run.id}:1",
@@ -1094,7 +1089,7 @@ class ActiveResearchRuntimeExecutor:
                         run_id,
                         operation_id=operation_id,
                         context=context,
-                        cursor=cursor,
+                        cursor=live.cursor,
                         state=live.state,
                         query_attempts=query_attempts,
                         selected_sources=selected_sources,
@@ -1137,8 +1132,8 @@ class ActiveResearchRuntimeExecutor:
                     )
                     checkpoint()
                     raise _HardBudgetReached
-                if cursor.wave_index == 0:
-                    cursor = replace(cursor, wave_index=1)
+                if live.cursor.wave_index == 0:
+                    live.cursor = replace(live.cursor, wave_index=1)
                     context = steering_context.refresh(context)
                     if _pending_active_steering_ids(context):
                         execution_guard.ensure_budget(live.state)
@@ -1149,12 +1144,12 @@ class ActiveResearchRuntimeExecutor:
                             known_evidence_ids=known_evidence_ids,
                         )
                     checkpoint()
-                wave_id = f"research_wave:{run_id}:{cursor.wave_index}"
-                timing_ledger.start_wave(cursor.wave_index)
+                wave_id = f"research_wave:{run_id}:{live.cursor.wave_index}"
+                timing_ledger.start_wave(live.cursor.wave_index)
 
                 # A crash after gain/saturation persisted but before terminal
                 # settlement must not account the same wave twice.
-                if len(cursor.gain_history) >= cursor.wave_index:
+                if len(live.cursor.gain_history) >= live.cursor.wave_index:
                     gate = evaluate_evidence_gate(live.state)
                     brief = _evidence_brief(live.state, gate, selected_sources)
                     context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
@@ -1178,10 +1173,10 @@ class ActiveResearchRuntimeExecutor:
                 # checkpoint resumes the same wave with an intact baseline, so
                 # extraction persisted before a crash can never be lost to a
                 # reset baseline (no false no-gain).
-                if cursor.wave_id != wave_id:
+                if live.cursor.wave_id != wave_id:
                     active_gap_ids = tuple(gap.id for gap in _ordered_gaps(live.state))
-                    cursor = replace(
-                        cursor,
+                    live.cursor = replace(
+                        live.cursor,
                         wave_id=wave_id,
                         active_gap_ids=active_gap_ids,
                     )
@@ -1202,18 +1197,18 @@ class ActiveResearchRuntimeExecutor:
                 # Semantic query identity is stable across waves. Re-entering a
                 # wave or reaching a later wave must not re-search the same text;
                 # no new query space is handled as a no-gain batch by Saturation.
-                cursor = _append_gap_queries(cursor, live.state)
+                live.cursor = _append_gap_queries(live.cursor, live.state)
                 # Deep-2: seed candidates must join the pool after this wave's queries exist,
                 # because claim selection is driven by planned-query intersection, and before
                 # the first search, so a search duplicate can merge into the same candidate.
-                cursor = _bind_deep_seed_candidates(
-                    cursor,
+                live.cursor = _bind_deep_seed_candidates(
+                    live.cursor,
                     live.state,
                     seed_by_url=deep_seed_by_url,
                     max_candidates=live.state.budget.max_candidates,
                     trace=selection_trace,
                 )
-                cursor = replace(cursor, phase="searching")
+                live.cursor = replace(live.cursor, phase="searching")
                 checkpoint(stage="searching")
 
                 if self._required(run_id).stage != "searching":
@@ -1224,8 +1219,8 @@ class ActiveResearchRuntimeExecutor:
                     )
 
                 # Search every still-pending planned query until the shared hard budget.
-                for planned in cursor.planned_queries:
-                    if planned.id in cursor.completed_query_ids:
+                for planned in live.cursor.planned_queries:
+                    if planned.id in live.cursor.completed_query_ids:
                         continue
                     ensure_active()
                     if elapsed() >= live.state.budget.hard_timeout_seconds:
@@ -1233,13 +1228,13 @@ class ActiveResearchRuntimeExecutor:
                     # B5-H2: once the candidate pool is full, further external
                     # searches can only burn shared budget on results that would
                     # be dropped by the pool cap, so stop before any external call.
-                    if len(cursor.candidates) >= live.state.budget.max_candidates:
+                    if len(live.cursor.candidates) >= live.state.budget.max_candidates:
                         break
                     try:
-                        attempt = _attempt_number(cursor, planned.id)
+                        attempt = _attempt_number(live.cursor, planned.id)
                     except _ExternalAttemptBudgetExhausted:
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             "search_failed",
                             "searching",
                             logical_call_id=(
@@ -1248,10 +1243,10 @@ class ActiveResearchRuntimeExecutor:
                             item_id=planned.id,
                             detail="external_attempts_exhausted",
                         )
-                        cursor = replace(
-                            cursor,
+                        live.cursor = replace(
+                            live.cursor,
                             query_outcomes=(
-                                *cursor.query_outcomes,
+                                *live.cursor.query_outcomes,
                                 RuntimeQueryOutcome(
                                     query_id=planned.id,
                                     status="unavailable",
@@ -1289,7 +1284,7 @@ class ActiveResearchRuntimeExecutor:
                         attempt=attempt,
                         started_at=self.utc_now(),
                     )
-                    cursor = begin_external_attempt(cursor, marker)
+                    live.cursor = begin_external_attempt(live.cursor, marker)
                     checkpoint()
 
                     # The attempt-start checkpoint above owns recovery. The
@@ -1303,7 +1298,7 @@ class ActiveResearchRuntimeExecutor:
                         phase_timing=phase_timing,
                         context=context,
                         claim_id=str(getattr(planned, "claim_id", "") or ""),
-                        cursor=cursor,
+                        cursor=live.cursor,
                     )
 
                     one_query = _gap_query_batch(planned)
@@ -1319,13 +1314,13 @@ class ActiveResearchRuntimeExecutor:
                             trace=selection_trace,
                         )
                     finally:
-                        cursor = finish_external_attempt(cursor, call_id=marker.call_id)
+                        live.cursor = finish_external_attempt(live.cursor, call_id=marker.call_id)
                         checkpoint()
                     ensure_active()
                     outcome = batch_result.outcomes[0]
                     if outcome.status == "unavailable":
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             "search_failed",
                             "searching",
                             logical_call_id=marker.call_id,
@@ -1334,10 +1329,10 @@ class ActiveResearchRuntimeExecutor:
                             provider_code=";".join(outcome.provider_errors),
                             attempt_id=marker.call_id,
                         )
-                    cursor = replace(
-                        cursor,
+                    live.cursor = replace(
+                        live.cursor,
                         query_outcomes=(
-                            *cursor.query_outcomes,
+                            *live.cursor.query_outcomes,
                             RuntimeQueryOutcome(
                                 query_id=planned.id,
                                 status=_runtime_query_status(outcome.status),
@@ -1351,7 +1346,7 @@ class ActiveResearchRuntimeExecutor:
                             ),
                         ),
                         candidates=_merge_runtime_candidates(
-                            cursor.candidates,
+                            live.cursor.candidates,
                             batch_result.candidates,
                             max_candidates=live.state.budget.max_candidates,
                             trace=selection_trace,
@@ -1389,7 +1384,7 @@ class ActiveResearchRuntimeExecutor:
                     )
                     checkpoint()
 
-                cursor = replace(cursor, phase="assessing")
+                live.cursor = replace(live.cursor, phase="assessing")
                 checkpoint(stage="assessing")
 
                 # Strict semantic assessment and role-aware ranking, one claim at a time.
@@ -1397,7 +1392,7 @@ class ActiveResearchRuntimeExecutor:
                 assessed_inputs = _assessment_inputs_store(context)
                 claim_rankings: dict[str, tuple[RankedCandidate, ...]] = {}
                 for claim in _ordered_claims(live.state):
-                    claim_candidates = _candidates_for_claim(cursor, claim.id)
+                    claim_candidates = _candidates_for_claim(live.cursor, claim.id)
                     if not claim_candidates:
                         continue
                     saved = stored_assessments.get(claim.id)
@@ -1427,14 +1422,14 @@ class ActiveResearchRuntimeExecutor:
                         assignments=assignments,
                         max_reads=live.state.budget.max_reads,
                         excluded_candidate_ids=frozenset(
-                            {*cursor.completed_read_ids, *saved_candidate_ids}
+                            {*live.cursor.completed_read_ids, *saved_candidate_ids}
                         ),
                         trace=selection_trace,
                         context=context,
                         live_context=lambda: context,
                         model_gateway=timed_gateway,
                         run_id=run_id,
-                        wave_index=cursor.wave_index,
+                        wave_index=live.cursor.wave_index,
                         timeout_seconds=remaining_timeout(),
                         now_ms=elapsed_ms,
                     )
@@ -1452,13 +1447,13 @@ class ActiveResearchRuntimeExecutor:
                     categories = ("public_research_claim", "public_candidate_metadata")
                     assessment_logical_call_id = (
                         f"research_candidate_assessment:{run_id}:{claim.id}:1"
-                        f"{_assessment_call_suffix(cursor, claim.id, candidate_ids)}"
+                        f"{_assessment_call_suffix(live.cursor, claim.id, candidate_ids)}"
                     )
                     if not model_policy.allowed(
                         context, "research_candidate_assessment", categories
                     ):
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             "policy_blocked",
                             "assessing",
                             logical_call_id=f"policy:{assessment_logical_call_id}",
@@ -1469,7 +1464,7 @@ class ActiveResearchRuntimeExecutor:
                         continue
                     try:
                         assessment_attempt_start = _model_attempt_start(
-                            cursor,
+                            live.cursor,
                             assessment_logical_call_id,
                         )
                     except _ModelAttemptBudgetExhausted:
@@ -1478,8 +1473,8 @@ class ActiveResearchRuntimeExecutor:
                         # that claim through the normal unavailable/no-gain path;
                         # attempt exhaustion is not a whole-runtime failure and
                         # must never create a third physical model call.
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             "model_attempts_exhausted",
                             "assessing",
                             logical_call_id=assessment_logical_call_id,
@@ -1500,7 +1495,7 @@ class ActiveResearchRuntimeExecutor:
                             on_attempt_started=on_model_started,
                             on_attempt_finished=on_model_finished,
                             call_id_suffix=_assessment_call_suffix(
-                                cursor, claim.id, candidate_ids
+                                live.cursor, claim.id, candidate_ids
                             ),
                             attempt_start=assessment_attempt_start,
                         )
@@ -1516,8 +1511,8 @@ class ActiveResearchRuntimeExecutor:
                             if assessment_reason == "model_call_attempts_exhausted"
                             else "assessment_failed"
                         )
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             assessment_code,
                             "assessing",
                             logical_call_id=assessment_logical_call_id,
@@ -1558,8 +1553,8 @@ class ActiveResearchRuntimeExecutor:
                     )
                     if isinstance(proposed_claim_ids, list):
                         phase_timing.begin("tier2_proposal")
-                        cursor = _tier2_proposal_step(
-                            cursor=cursor,
+                        live.cursor = _tier2_proposal_step(
+                            cursor=live.cursor,
                             state=live.state,
                             claim=claim,
                             assessments=merged_assessments,
@@ -1567,7 +1562,7 @@ class ActiveResearchRuntimeExecutor:
                             read_fn=gateway_read,
                             context=context,
                             run_id=run_id,
-                            wave_index=cursor.wave_index,
+                            wave_index=live.cursor.wave_index,
                             timeout_seconds=remaining_timeout(),
                             proposed_claim_ids=proposed_claim_ids,
                             live_context=lambda: context,
@@ -1580,8 +1575,8 @@ class ActiveResearchRuntimeExecutor:
                     )
                     if isinstance(targeted_claim_ids, list):
                         phase_timing.begin("domain_targeted")
-                        cursor = _domain_targeted_step(
-                            cursor=cursor,
+                        live.cursor = _domain_targeted_step(
+                            cursor=live.cursor,
                             state=live.state,
                             claim=claim,
                             assessments=merged_assessments,
@@ -1590,7 +1585,7 @@ class ActiveResearchRuntimeExecutor:
                             read_fn=gateway_read,
                             context=context,
                             run_id=run_id,
-                            wave_index=cursor.wave_index,
+                            wave_index=live.cursor.wave_index,
                             timeout_seconds=remaining_timeout(),
                             targeted_claim_ids=targeted_claim_ids,
                             seconds_left=research_seconds_left,
@@ -1603,13 +1598,13 @@ class ActiveResearchRuntimeExecutor:
                     # their own bounded assessment entry so the read plan can
                     # actually see them.
                     phase_timing.begin("late_tail")
-                    cursor = _late_admission_tail(
-                        cursor=cursor,
+                    live.cursor = _late_admission_tail(
+                        cursor=live.cursor,
                         state=live.state,
                         claim=claim,
                         context=context,
                         run_id=run_id,
-                        wave_index=cursor.wave_index,
+                        wave_index=live.cursor.wave_index,
                         max_reads=live.state.budget.max_reads,
                         assessor=self.candidate_assessor,
                         policy_context=model_policy,
@@ -1633,7 +1628,7 @@ class ActiveResearchRuntimeExecutor:
                     phase_timing.end("late_tail", context=context)
                     checkpoint()
 
-                cursor = replace(cursor, phase="ranking")
+                live.cursor = replace(live.cursor, phase="ranking")
                 # F2-S1: the ranking/planning block gets its own span
                 phase_timing.begin("ranking")
                 checkpoint(stage="assessing")
@@ -1657,7 +1652,7 @@ class ActiveResearchRuntimeExecutor:
                 # Extraction targets additionally keep already-read candidates
                 # whose extraction crashed mid-wave so resume re-extracts them
                 # (per-claim prior status skips completed extractions).
-                completed_read = set(cursor.completed_read_ids)
+                completed_read = set(live.cursor.completed_read_ids)
                 # Covered clusters are run-level CUMULATIVE durable truth. The
                 # durable map is read back, merged with every claim bound to a
                 # successfully read source, and written back - never rebuilt
@@ -1772,15 +1767,15 @@ class ActiveResearchRuntimeExecutor:
                     }
                     _record_atomic_routing_decisions(
                         context,
-                        wave_index=cursor.wave_index,
+                        wave_index=live.cursor.wave_index,
                         records=routing_records,
                     )
                 context[ACTIVE_RESEARCH_READ_PLAN_KEY] = {
                     "physical_reads": physical_reads,
                     "extraction_targets": extraction_targets,
                 }
-                cursor = replace(
-                    cursor,
+                live.cursor = replace(
+                    live.cursor,
                     phase="reading",
                     planned_read_ids=tuple(item["candidate_id"] for item in physical_reads),
                 )
@@ -1807,7 +1802,7 @@ class ActiveResearchRuntimeExecutor:
                     if candidate_id in content_available:
                         try:
                             selection_trace.note_already_read(
-                                _candidate_by_id(cursor, candidate_id).canonical_url
+                                _candidate_by_id(live.cursor, candidate_id).canonical_url
                             )
                         except ValueError:
                             pass
@@ -1815,7 +1810,7 @@ class ActiveResearchRuntimeExecutor:
                     ensure_active()
                     if deep_seed_by_url:
                         try:
-                            _deep_candidate = _candidate_by_id(cursor, candidate_id)
+                            _deep_candidate = _candidate_by_id(live.cursor, candidate_id)
                         except ValueError:
                             _deep_candidate = None
                         _seed_source = (
@@ -1844,11 +1839,11 @@ class ActiveResearchRuntimeExecutor:
                                 # 0 reads_used: no physical read happened.
                                 live.state = updated_runtime_budget(
                                     live.state,
-                                    cursor,
+                                    live.cursor,
                                     elapsed_seconds=elapsed(),
                                     reads_used=successful_reads,
                                 )
-                                _record_read_history(context, cursor.read_outcomes)
+                                _record_read_history(context, live.cursor.read_outcomes)
                                 checkpoint()
                             continue
                     if successful_reads >= live.state.budget.max_reads or used_chars >= live.state.budget.max_total_chars:
@@ -1868,13 +1863,13 @@ class ActiveResearchRuntimeExecutor:
                             "read_skipped_insufficient_research_window"
                         )
                         try:
-                            _deadline_candidate = _candidate_by_id(cursor, candidate_id)
+                            _deadline_candidate = _candidate_by_id(live.cursor, candidate_id)
                         except ValueError:
                             break
                         _record_read_timing(
                             context,
                             candidate=_deadline_candidate,
-                            wave_index=cursor.wave_index,
+                            wave_index=live.cursor.wave_index,
                             status="skipped",
                             wall_ms=0.0,
                             chars=0,
@@ -1889,7 +1884,7 @@ class ActiveResearchRuntimeExecutor:
                         )
                         break
                     execution_guard.ensure_budget(live.state)
-                    candidate = _candidate_by_id(cursor, candidate_id)
+                    candidate = _candidate_by_id(live.cursor, candidate_id)
                     source_limit = min(6000, live.state.budget.max_total_chars - used_chars)
                     # §100 A2c: pre-attempt scheduling. A candidate whose only
                     # reader is currently unavailable is not planned at all this
@@ -1897,7 +1892,7 @@ class ActiveResearchRuntimeExecutor:
                     # read.
                     scheduling = read_dispatch.schedule(
                         candidate=candidate,
-                        read_outcomes=cursor.read_outcomes,
+                        read_outcomes=live.cursor.read_outcomes,
                         context=context,
                     )
                     if scheduling is not None and not scheduling.executable:
@@ -1907,10 +1902,10 @@ class ActiveResearchRuntimeExecutor:
                     # each real attempt and routes; the runtime only projects the
                     # result. Nothing here escalates behind the chain's back.
                     try:
-                        attempt = _attempt_number(cursor, candidate_id)
+                        attempt = _attempt_number(live.cursor, candidate_id)
                     except _ExternalAttemptBudgetExhausted:
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             "read_failed",
                             "reading",
                             logical_call_id=(
@@ -1919,10 +1914,10 @@ class ActiveResearchRuntimeExecutor:
                             item_id=candidate_id,
                             detail="external_attempts_exhausted",
                         )
-                        cursor = replace(
-                            cursor,
+                        live.cursor = replace(
+                            live.cursor,
                             read_outcomes=(
-                                *cursor.read_outcomes,
+                                *live.cursor.read_outcomes,
                                 RuntimeReadOutcome(
                                     candidate_id=candidate_id,
                                     status="failed",
@@ -1942,7 +1937,7 @@ class ActiveResearchRuntimeExecutor:
                             },
                         )
                         _upsert_source(selected_sources, record)
-                        _record_read_history(context, cursor.read_outcomes)
+                        _record_read_history(context, live.cursor.read_outcomes)
                         checkpoint()
                         continue
                     # §143-RS: an explicit hint may select the specialist first.
@@ -1953,7 +1948,7 @@ class ActiveResearchRuntimeExecutor:
                         candidate=candidate,
                         source_limit=source_limit,
                         outer_attempt_number=attempt,
-                        read_outcomes=cursor.read_outcomes,
+                        read_outcomes=live.cursor.read_outcomes,
                     )
                     # §105 A2d-4: the chain's own decision, recorded even when it
                     # executed nothing (a scheduling/policy skip), so the
@@ -2004,18 +1999,18 @@ class ActiveResearchRuntimeExecutor:
                             attempt=attempt,
                             started_at=self.utc_now(),
                         )
-                        cursor = begin_external_attempt(cursor, marker)
-                        cursor = finish_external_attempt(cursor, call_id=marker.call_id)
+                        live.cursor = begin_external_attempt(live.cursor, marker)
+                        live.cursor = finish_external_attempt(live.cursor, call_id=marker.call_id)
                         # Keep the durable cursor transition before any
                         # diagnostic side effect, including on failure.
-                        cursor = read_attempt_context.append_outcome(
-                            cursor, candidate, step
+                        live.cursor = read_attempt_context.append_outcome(
+                            live.cursor, candidate, step
                         )
                         read_attempt_context.observe_step(
                             context,
                             candidate=candidate,
                             step=step,
-                            wave_index=cursor.wave_index,
+                            wave_index=live.cursor.wave_index,
                         )
                         if not step.usable_content:
                             step_cost = (
@@ -2026,8 +2021,8 @@ class ActiveResearchRuntimeExecutor:
                                 or step_cost.get("error_type")
                                 or ""
                             )
-                            cursor = with_appended_runtime_failure(
-                                cursor, context,
+                            live.cursor = with_appended_runtime_failure(
+                                live.cursor, context,
                                 "read_failed",
                                 "reading",
                                 logical_call_id=marker.call_id,
@@ -2050,7 +2045,7 @@ class ActiveResearchRuntimeExecutor:
                         candidate=candidate,
                         native_step=native_step,
                         wigolo_step=wigolo_step,
-                        wave_index=cursor.wave_index,
+                        wave_index=live.cursor.wave_index,
                         research_seconds_left=research_seconds_left,
                         hard_timeout_seconds=live.state.budget.hard_timeout_seconds,
                         elapsed=elapsed,
@@ -2086,14 +2081,14 @@ class ActiveResearchRuntimeExecutor:
                             record["visual_units"] = visual_units
                     live.state = updated_runtime_budget(
                         live.state,
-                        cursor,
+                        live.cursor,
                         elapsed_seconds=elapsed(),
                         reads_used=successful_reads,
                     )
                     # §98 A2a: the single lifecycle view is diagnostics only;
                     # candidate_resolution remains the pure state authority.
                     _record_read_history(
-                        context, cursor.read_outcomes, include_resolution=True
+                        context, live.cursor.read_outcomes, include_resolution=True
                     )
                     checkpoint()
 
@@ -2105,11 +2100,11 @@ class ActiveResearchRuntimeExecutor:
                         leftover_id = plan_item["candidate_id"]
                         if leftover_id in dispatched_read_ids:
                             continue
-                        if leftover_id in cursor.completed_read_ids:
+                        if leftover_id in live.cursor.completed_read_ids:
                             continue
                         try:
                             leftover_url = _candidate_by_id(
-                                cursor, leftover_id
+                                live.cursor, leftover_id
                             ).canonical_url
                         except ValueError:
                             continue
@@ -2128,22 +2123,22 @@ class ActiveResearchRuntimeExecutor:
                 # evidence (separate typed contract).
                 discovery_assets_before_lead = sum(
                     1
-                    for item in cursor.candidates
+                    for item in live.cursor.candidates
                     if _is_discovery_candidate(item)
                 )
-                discoveries_before_lead = len(cursor.lead_discoveries)
-                followups_before_lead = len(cursor.evidence_lead_followups)
+                discoveries_before_lead = len(live.cursor.lead_discoveries)
+                followups_before_lead = len(live.cursor.evidence_lead_followups)
                 lead_budget_available = (
-                    len(cursor.lead_read_ids) < MAX_LEAD_READS_PER_RUN
+                    len(live.cursor.lead_read_ids) < MAX_LEAD_READS_PER_RUN
                 )
                 lead_plan = _lead_read_plan(
                     live.state,
                     claim_rankings,
-                    completed_read_ids=cursor.completed_read_ids,
-                    lead_read_ids=cursor.lead_read_ids,
+                    completed_read_ids=live.cursor.completed_read_ids,
+                    lead_read_ids=live.cursor.lead_read_ids,
                     lead_budget_available=lead_budget_available,
                     seed_backed_ids=frozenset(
-                        item.id for item in cursor.candidates if item.url in deep_seed_by_url
+                        item.id for item in live.cursor.candidates if item.url in deep_seed_by_url
                     )
                     if deep_seed_by_url
                     else frozenset(),
@@ -2156,7 +2151,7 @@ class ActiveResearchRuntimeExecutor:
                         else "no_lead_candidate",
                     )
                 for lead_item in lead_plan:
-                    if len(cursor.lead_read_ids) >= MAX_LEAD_READS_PER_RUN:
+                    if len(live.cursor.lead_read_ids) >= MAX_LEAD_READS_PER_RUN:
                         break
                     if (
                         successful_reads >= live.state.budget.max_reads
@@ -2179,7 +2174,7 @@ class ActiveResearchRuntimeExecutor:
                         6000, live.state.budget.max_total_chars - used_chars
                     )
                     lead_attempt = _attempt_number(
-                        cursor, f"lead:{lead_candidate_id}"
+                        live.cursor, f"lead:{lead_candidate_id}"
                     )
                     lead_marker = RuntimeExternalAttemptStart(
                         call_id=(
@@ -2191,7 +2186,7 @@ class ActiveResearchRuntimeExecutor:
                         attempt=lead_attempt,
                         started_at=self.utc_now(),
                     )
-                    cursor = begin_external_attempt(cursor, lead_marker)
+                    live.cursor = begin_external_attempt(live.cursor, lead_marker)
                     _bump_lead_metric(context, "lead_read_started")
                     checkpoint()
                     lead_read_exception = ""
@@ -2208,8 +2203,8 @@ class ActiveResearchRuntimeExecutor:
                             "error": type(exc).__name__,
                         }
                     finally:
-                        cursor = finish_external_attempt(
-                            cursor, call_id=lead_marker.call_id
+                        live.cursor = finish_external_attempt(
+                            live.cursor, call_id=lead_marker.call_id
                         )
                         checkpoint()
                     ensure_active()
@@ -2218,15 +2213,15 @@ class ActiveResearchRuntimeExecutor:
                         or raw_lead_read.get("readme")
                         or ""
                     )[:lead_source_limit]
-                    cursor = replace(
-                        cursor,
-                        lead_read_ids=(*cursor.lead_read_ids, lead_candidate_id),
+                    live.cursor = replace(
+                        live.cursor,
+                        lead_read_ids=(*live.cursor.lead_read_ids, lead_candidate_id),
                     )
                     if not (
                         raw_lead_read.get("ok") is True and lead_content.strip()
                     ):
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             "read_failed",
                             "reading",
                             logical_call_id=lead_marker.call_id,
@@ -2245,7 +2240,7 @@ class ActiveResearchRuntimeExecutor:
                     used_chars += len(lead_content)
                     live.state = updated_runtime_budget(
                         live.state,
-                        cursor,
+                        live.cursor,
                         elapsed_seconds=elapsed(),
                         reads_used=successful_reads,
                     )
@@ -2257,8 +2252,8 @@ class ActiveResearchRuntimeExecutor:
                     if not model_policy.allowed(
                         context, "research_lead_discovery", lead_categories
                     ):
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             "policy_blocked",
                             "reading",
                             logical_call_id=(
@@ -2288,10 +2283,10 @@ class ActiveResearchRuntimeExecutor:
                         and discovery.discovery is not None
                     ):
                         _bump_lead_metric(context, "lead_discovery_succeeded")
-                        cursor = replace(
-                            cursor,
+                        live.cursor = replace(
+                            live.cursor,
                             lead_discoveries=(
-                                *cursor.lead_discoveries,
+                                *live.cursor.lead_discoveries,
                                 discovery.discovery.to_dict(),
                             ),
                         )
@@ -2301,20 +2296,20 @@ class ActiveResearchRuntimeExecutor:
                         parent_candidate = next(
                             (
                                 item
-                                for item in cursor.candidates
+                                for item in live.cursor.candidates
                                 if item.id == lead_candidate_id
                             ),
                             None,
                         )
                         discovered, discovery_stats = (
                             _lead_discovered_candidates(
-                                cursor.candidates,
+                                live.cursor.candidates,
                                 discovery.discovery,
                                 parent=parent_candidate,
                                 max_candidates=live.state.budget.max_candidates,
                                 discovered_so_far=sum(
                                     1
-                                    for item in cursor.candidates
+                                    for item in live.cursor.candidates
                                     if item.discovery_method == "lead_url"
                                 ),
                             )
@@ -2327,9 +2322,9 @@ class ActiveResearchRuntimeExecutor:
                                     context, stats_key, int(stats_value)
                                 )
                         if discovered:
-                            cursor = replace(
-                                cursor,
-                                candidates=(*cursor.candidates, *discovered),
+                            live.cursor = replace(
+                                live.cursor,
+                                candidates=(*live.cursor.candidates, *discovered),
                             )
                             _bump_lead_metric(
                                 context,
@@ -2340,13 +2335,13 @@ class ActiveResearchRuntimeExecutor:
                                 ACTIVE_RESEARCH_METRICS_KEY, {}
                             )["lead_discovered_candidate_ids"] = [
                                 item.id
-                                for item in cursor.candidates
+                                for item in live.cursor.candidates
                                 if item.discovery_method == "lead_url"
                             ]
                     else:
                         _bump_lead_metric(context, "lead_discovery_failed")
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             "extraction_failed",
                             "reading",
                             logical_call_id=(
@@ -2359,7 +2354,7 @@ class ActiveResearchRuntimeExecutor:
                         )
                     checkpoint()
 
-                cursor = replace(cursor, phase="extracting")
+                live.cursor = replace(live.cursor, phase="extracting")
                 checkpoint(stage="reading")
 
                 # A successful read is not evidence until strict extraction validates.
@@ -2393,14 +2388,14 @@ class ActiveResearchRuntimeExecutor:
                     )
                     extraction_logical_call_id = (
                         f"research_evidence_extract:{run_id}:{claim_id}:{candidate_id}:1"
-                        f"{_extraction_call_suffix(cursor, candidate_id, claim_id)}"
+                        f"{_extraction_call_suffix(live.cursor, candidate_id, claim_id)}"
                     )
                     if not model_policy.allowed(
                         context, "research_evidence_extraction", extraction_categories
                     ):
                         extractions[claim_id] = {"status": "extractor_failed", "reason": "blocked_by_policy"}
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             "policy_blocked",
                             "extracting",
                             logical_call_id=f"policy:{extraction_logical_call_id}",
@@ -2409,12 +2404,12 @@ class ActiveResearchRuntimeExecutor:
                         )
                         checkpoint()
                         continue
-                    candidate = _candidate_by_id(cursor, candidate_id)
+                    candidate = _candidate_by_id(live.cursor, candidate_id)
                     claim = claims_by_id[extraction_target["claim_id"]]
                     read = cast(Mapping[str, Any], source_record["read"])
                     try:
                         extraction_attempt_start = _model_attempt_start(
-                            cursor,
+                            live.cursor,
                             extraction_logical_call_id,
                         )
                     except _ModelAttemptBudgetExhausted:
@@ -2430,8 +2425,8 @@ class ActiveResearchRuntimeExecutor:
                             "status": "extractor_failed",
                             "reason": "model_call_attempts_exhausted",
                         }
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             "model_attempts_exhausted",
                             "extracting",
                             logical_call_id=extraction_logical_call_id,
@@ -2453,7 +2448,7 @@ class ActiveResearchRuntimeExecutor:
                             on_attempt_started=on_model_started,
                             on_attempt_finished=on_model_finished,
                             call_id_suffix=_extraction_call_suffix(
-                                cursor, candidate_id, claim_id
+                                live.cursor, candidate_id, claim_id
                             ),
                             attempt_start=extraction_attempt_start,
                         )
@@ -2471,8 +2466,8 @@ class ActiveResearchRuntimeExecutor:
                             if extraction_reason == "model_call_attempts_exhausted"
                             else "extraction_failed"
                         )
-                        cursor = with_appended_runtime_failure(
-                            cursor, context,
+                        live.cursor = with_appended_runtime_failure(
+                            live.cursor, context,
                             extraction_code,
                             "extracting",
                             logical_call_id=extraction_logical_call_id,
@@ -2505,13 +2500,13 @@ class ActiveResearchRuntimeExecutor:
                         source_record["extraction"] = extraction_summary
                     evidence_id = _evidence_id_for_record(run_id, source_record, selected_sources, rejected_sources)
                     live.state = _add_extracted_evidence(live.state, evidence_id=evidence_id, link=link)
-                    cursor = replace(
-                        cursor,
+                    live.cursor = replace(
+                        live.cursor,
                         read_outcomes=tuple(
                             replace(outcome, evidence_id=evidence_id)
                             if outcome.candidate_id == candidate_id
                             else outcome
-                            for outcome in cursor.read_outcomes
+                            for outcome in live.cursor.read_outcomes
                         ),
                     )
                     checkpoint()
@@ -2535,13 +2530,13 @@ class ActiveResearchRuntimeExecutor:
                         )
                         wave_followups = sum(
                             1
-                            for item in cursor.evidence_lead_followups
-                            if int(item.get("wave_index") or 0) == cursor.wave_index
+                            for item in live.cursor.evidence_lead_followups
+                            if int(item.get("wave_index") or 0) == live.cursor.wave_index
                         )
                         remaining_seconds = budget_clock.hard_seconds_left()
                         if (
                             wave_followups >= MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE
-                            or len(cursor.evidence_lead_followups)
+                            or len(live.cursor.evidence_lead_followups)
                             >= MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN
                         ):
                             _bump_lead_metric(
@@ -2569,7 +2564,7 @@ class ActiveResearchRuntimeExecutor:
                             parent_candidate = next(
                                 (
                                     item
-                                    for item in cursor.candidates
+                                    for item in live.cursor.candidates
                                     if item.id == candidate_id
                                 ),
                                 None,
@@ -2604,7 +2599,7 @@ class ActiveResearchRuntimeExecutor:
                                 )
                             discovered, followup_stats = (
                                 _evidence_lead_followup_candidates(
-                                    cursor.candidates,
+                                    live.cursor.candidates,
                                     page_url=candidate.url,
                                     content=str(read.get("content") or ""),
                                     parent=parent_candidate,
@@ -2623,25 +2618,25 @@ class ActiveResearchRuntimeExecutor:
                                         int(stats_value),
                                     )
                             if discovered:
-                                cursor = replace(
-                                    cursor,
-                                    candidates=(*cursor.candidates, *discovered),
+                                live.cursor = replace(
+                                    live.cursor,
+                                    candidates=(*live.cursor.candidates, *discovered),
                                 )
                                 _bump_lead_metric(
                                     context,
                                     "evidence_lead_candidate_added",
                                     len(discovered),
                                 )
-                            cursor = replace(
-                                cursor,
+                            live.cursor = replace(
+                                live.cursor,
                                 evidence_lead_followups=(
-                                    *cursor.evidence_lead_followups,
+                                    *live.cursor.evidence_lead_followups,
                                     {
                                         # The durable cursor record keeps its frozen
                                         # shape (the codec strictly validates these
                                         # keys). §36A diagnostics go to metrics
                                         # below, so no runtime contract changes.
-                                        "wave_index": cursor.wave_index,
+                                        "wave_index": live.cursor.wave_index,
                                         "evidence_id": evidence_id,
                                         "source_candidate_id": candidate_id,
                                         "method": (
@@ -2700,12 +2695,12 @@ class ActiveResearchRuntimeExecutor:
                     # outcome is distinguishable from a never-routed one.
                     _record_atomic_routing_extractions(
                         context,
-                        wave_index=cursor.wave_index,
+                        wave_index=live.cursor.wave_index,
                         routed_pairs=routed_pairs,
                         selected_sources=selected_sources,
                     )
 
-                cursor = replace(cursor, phase="gating")
+                live.cursor = replace(live.cursor, phase="gating")
                 phase_timing.begin("gating")
                 checkpoint(stage="gating")
                 gate = evaluate_evidence_gate(live.state)
@@ -2714,7 +2709,7 @@ class ActiveResearchRuntimeExecutor:
                 context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
                 # §45 funnel: proposal -> added -> assessed -> read ->
                 # extracted -> gate-eligible, per llm_proposed candidate.
-                _record_tier2_funnel(context, cursor, brief, selected_sources)
+                _record_tier2_funnel(context, live.cursor, brief, selected_sources)
                 phase_timing.end("gating", context=context)
                 checkpoint()
 
@@ -2725,7 +2720,7 @@ class ActiveResearchRuntimeExecutor:
                 # search produced anything new. The gain baseline is the
                 # durable wave-start snapshot, so extraction persisted before a
                 # crash is never lost to a reset baseline.
-                handled_gap_ids = tuple(cursor.active_gap_ids)
+                handled_gap_ids = tuple(live.cursor.active_gap_ids)
                 handled_claim_ids = tuple(
                     dict.fromkeys(
                         gap.claim_id
@@ -2738,13 +2733,13 @@ class ActiveResearchRuntimeExecutor:
                     live.state,
                     target_gap_ids=handled_gap_ids,
                     gain_provenance_by_gap=_wave_gap_provenance(
-                        cursor, live.state, gate, handled_gap_ids
+                        live.cursor, live.state, gate, handled_gap_ids
                     ),
                 )
                 saturation = update_saturation(
                     SaturationState(
-                        no_gain_batches_by_claim=dict(cursor.no_gain_batches_by_claim),
-                        no_gain_batches_by_gap=dict(cursor.no_gain_batches_by_gap),
+                        no_gain_batches_by_claim=dict(live.cursor.no_gain_batches_by_claim),
+                        no_gain_batches_by_gap=dict(live.cursor.no_gain_batches_by_gap),
                     ),
                     gain,
                     handled_claim_ids=handled_claim_ids,
@@ -2759,10 +2754,10 @@ class ActiveResearchRuntimeExecutor:
                 evidence_progress = bool(gain.substantive_gain)
                 discovered_candidates_after = sum(
                     1
-                    for item in cursor.candidates
+                    for item in live.cursor.candidates
                     if _is_discovery_candidate(item)
                 )
-                new_discovery_payloads = cursor.lead_discoveries[
+                new_discovery_payloads = live.cursor.lead_discoveries[
                     discoveries_before_lead:
                 ]
                 new_discovery_assets = any(
@@ -2778,7 +2773,7 @@ class ActiveResearchRuntimeExecutor:
                     or new_discovery_assets
                     or any(
                         str(item.get("hint_domain") or "")
-                        for item in cursor.evidence_lead_followups[
+                        for item in live.cursor.evidence_lead_followups[
                             followups_before_lead:
                         ]
                         if isinstance(item, Mapping)
@@ -2786,9 +2781,9 @@ class ActiveResearchRuntimeExecutor:
                 )
                 no_gain_incremented = not (evidence_progress or discovery_progress)
                 if no_gain_incremented:
-                    cursor = replace(
-                        cursor,
-                        gain_history=(*cursor.gain_history, gain.to_dict()),
+                    live.cursor = replace(
+                        live.cursor,
+                        gain_history=(*live.cursor.gain_history, gain.to_dict()),
                         no_gain_batches_by_claim=dict(
                             saturation.no_gain_batches_by_claim
                         ),
@@ -2797,9 +2792,9 @@ class ActiveResearchRuntimeExecutor:
                         ),
                     )
                 else:
-                    cursor = replace(
-                        cursor,
-                        gain_history=(*cursor.gain_history, gain.to_dict()),
+                    live.cursor = replace(
+                        live.cursor,
+                        gain_history=(*live.cursor.gain_history, gain.to_dict()),
                     )
                 wave_metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
                 wave_progress = wave_metrics.get("wave_progress")
@@ -2807,7 +2802,7 @@ class ActiveResearchRuntimeExecutor:
                     wave_progress = []
                 wave_progress.append(
                     {
-                        "wave_index": cursor.wave_index,
+                        "wave_index": live.cursor.wave_index,
                         "evidence_progress": evidence_progress,
                         "discovery_progress": discovery_progress,
                         "discovered_candidates_added": max(
@@ -2847,7 +2842,7 @@ class ActiveResearchRuntimeExecutor:
             return self.repository.finish_cancel(run_id, operation_id=operation_id)
         except _HardBudgetReached:
             live.state = updated_runtime_budget(
-                live.state, cursor, elapsed_seconds=elapsed()
+                live.state, live.cursor, elapsed_seconds=elapsed()
             )
             context = steering_context.refresh(context)
             context, _late_ids = steering_context.mark_late(
@@ -2867,7 +2862,7 @@ class ActiveResearchRuntimeExecutor:
             # §63/§50 acceptance accounting: the run can stop here (budget
             # exhaustion) before the per-wave gating block, so record the
             # discovery funnel on this path too; it only joins metrics.
-            _record_tier2_funnel(context, cursor, brief, selected_sources)
+            _record_tier2_funnel(context, live.cursor, brief, selected_sources)
             # F2-S1: close the open wave and publish the timeline
             timing_ledger.end_wave()
             timing_ledger.flush_into(context)
@@ -2903,10 +2898,10 @@ class ActiveResearchRuntimeExecutor:
                 if raise_on_error:
                     raise
                 return latest
-            cursor = with_appended_runtime_failure(
-                cursor, context,
+            live.cursor = with_appended_runtime_failure(
+                live.cursor, context,
                 "runtime_internal_failed",
-                cursor.phase,
+                live.cursor.phase,
                 item_id=run_id,
                 detail="active_runtime_exception",
                 exception_type=type(exc).__name__,
