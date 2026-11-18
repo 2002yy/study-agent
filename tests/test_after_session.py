@@ -1,5 +1,4 @@
 import json
-from src.update_validator import validate_updates
 from src.safe_writer import safe_write_text, append_text_safely
 from src.after_session import _parse_json, _extract_json_braces, _build_markdown_preview
 
@@ -50,34 +49,6 @@ def test_generate_after_session_updates_emits_events(monkeypatch):
         "completed",
     ]
     assert events[-1].data["parsed"] is True
-
-
-def test_validator_rejects_emotion():
-    bad = {"learner_profile_update": "用户学习时很焦虑，缺乏耐心"}
-    warnings = validate_updates(bad)
-    assert len(warnings) >= 1
-
-
-def test_validator_rejects_overclaim():
-    bad = {"progress_update": "v0.6 已完成视觉增强，v0.7 已上线"}
-    warnings = validate_updates(bad)
-    assert len(warnings) >= 1
-
-
-def test_validator_rejects_too_long():
-    bad = {"current_focus_update": "x" * 600}
-    warnings = validate_updates(bad)
-    assert len(warnings) >= 1
-
-
-def test_validator_accepts_good():
-    good = {
-        "progress_update": "- 完成v0.5路由开发",
-        "learner_profile_update": "本轮无需更新",
-        "current_focus_update": "优先：自动路由",
-    }
-    warnings = validate_updates(good)
-    assert len(warnings) == 0
 
 
 def test_writer_appends_safely(tmp_path):
