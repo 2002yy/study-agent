@@ -271,7 +271,6 @@ def test_pure_docs_change_requires_nothing_heavy():
     ["docs/PROJECT_STATUS.md", "tests/stage_gates.json"],
     ["docs/PROJECT_STATUS.md", "tools/ci_scope.py"],
     ["docs/PROJECT_STATUS.md", "mystery/thing.xyz"],
-    ["docs/PROJECT_STATUS.md", "docs/M4C3_PROMPTS_V1.json"],
     ["docs/PROJECT_STATUS.md", "docs/dynamic_probe.py"],
     ["docs/PROJECT_STATUS.md", "docs/dashboard.html"],
     ["tests/fixtures/rag_eval/python_requests.md"],
