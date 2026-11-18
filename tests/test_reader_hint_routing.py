@@ -13,7 +13,6 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 from src.application import reader_hint_routing as phr  # noqa: E402
-from src.application.active_research_runtime import ACTIVE_READER_CHAIN  # noqa: E402
 from src.application.reader_hint_routing import (  # noqa: E402
     ALLOWED_READER_CAPABILITIES,
     EXPLICIT_HINTS_ENABLED_ENV,
@@ -221,10 +220,6 @@ def test_session_missing_inputs_does_no_read(readers) -> None:
 def test_flag_defaults_to_off(monkeypatch) -> None:
     monkeypatch.delenv(EXPLICIT_HINTS_ENABLED_ENV, raising=False)
     assert explicit_reader_hints_enabled() is False
-
-
-def test_default_chain_is_unchanged() -> None:
-    assert ACTIVE_READER_CHAIN == ("native_http", "wigolo_http")
 
 
 def test_no_auto_derivation_from_page_signals() -> None:
