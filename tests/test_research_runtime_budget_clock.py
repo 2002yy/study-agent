@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from src.application.research_runtime_budget_clock import ResearchBudgetClock
+from src.application.research_runtime_checkpoint import updated_runtime_budget
+from src.web.research.contracts import ResearchBudget, ResearchState
+from src.web.research.runtime import ResearchRuntimeCursor, RuntimeCandidate
 
 
 class _Clock:
@@ -84,3 +89,46 @@ def test_elapsed_ms_retains_single_sampling_and_one_decimal_rounding() -> None:
 
     assert clock.elapsed_ms() == 0.2
     assert now.calls == 1
+
+
+def test_budget_projection_only_uses_explicit_current_state_and_cursor() -> None:
+    original_budget = ResearchBudget(
+        max_candidates=2,
+        max_reads=3,
+        soft_timeout_seconds=10.0,
+        hard_timeout_seconds=30.0,
+        candidates_used=1,
+        reads_used=2,
+        elapsed_seconds=4.0,
+    )
+    state = ResearchState(
+        mode="active",
+        questions=(),
+        claims=(),
+        evidence=(),
+        evidence_links=(),
+        source_clusters=(),
+        gaps=(),
+        conflict_gaps=(),
+        budget=original_budget,
+    )
+    cursor = ResearchRuntimeCursor(
+        candidates=tuple(
+            RuntimeCandidate(id=f"candidate-{index}", url=f"https://test/{index}", title="")
+            for index in range(3)
+        )
+    )
+
+    with_read = updated_runtime_budget(
+        state, cursor, elapsed_seconds=8.0, reads_used=3
+    )
+    assert with_read.budget.candidates_used == 2
+    assert with_read.budget.reads_used == 3
+    assert with_read.budget.elapsed_seconds == 8.0
+    assert state.budget is original_budget
+
+    rebound = replace(state, budget=replace(original_budget, reads_used=3))
+    without_read = updated_runtime_budget(rebound, cursor, elapsed_seconds=9.0)
+    assert without_read.budget.reads_used == 3
+    assert without_read.budget.elapsed_seconds == 9.0
+    assert rebound.budget.elapsed_seconds == 4.0

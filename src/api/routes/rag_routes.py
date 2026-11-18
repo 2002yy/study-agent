@@ -16,9 +16,7 @@ from src.api.models.rag import (
     LocalKnowledgeRequest,
     LocalKnowledgeResponse,
     RagIndexRequest,
-    RagIndexResponse,
     RagQueryRequest,
-    RagQueryResponse,
     RagRunListResponse,
     RagRunResponse,
     RagStatusResponse,
@@ -191,26 +189,6 @@ async def create_rag_rebuild_run(
     )
 
 
-@router.post("/rag/upload", response_model=RagIndexResponse)
-async def upload_rag_documents(
-    service: RagRunServiceDependency,
-    files: list[UploadFile] = File(...),
-    index_path: str | None = None,
-    max_chars: int = 900,
-    overlap_chars: int = 120,
-    mode: str = "append",
-) -> RagIndexResponse:
-    if mode not in {"append", "rebuild"}:
-        raise HTTPException(status_code=400, detail="mode must be append or rebuild")
-    run = await _create_upload_run(
-        files=files, service=service,
-        mode="rebuild" if mode == "rebuild" else "upload",
-        index_path=index_path, max_chars=max_chars,
-        overlap_chars=overlap_chars,
-    )
-    return RagIndexResponse(**run.result)
-
-
 @router.post("/rag-runs/query", response_model=RagRunResponse)
 def create_rag_query_run(
     request: RagQueryRequest,
@@ -226,15 +204,6 @@ def create_rag_query_run(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _run_response(run)
-
-
-@router.post("/rag/query", response_model=RagQueryResponse, deprecated=True)
-def query_rag_endpoint(
-    request: RagQueryRequest,
-    service: RagRunServiceDependency,
-) -> RagQueryResponse:
-    run = create_rag_query_run(request, service)
-    return RagQueryResponse(**run.result)
 
 
 @router.get("/rag-runs", response_model=RagRunListResponse)
