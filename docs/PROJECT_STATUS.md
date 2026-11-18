@@ -78,6 +78,16 @@
   未撤销的 SSRF 放宽补丁改为 pytest `monkeypatch` 生命周期内的局部放宽。
   生产读取链、安全策略、升级后端、请求契约和历史结果档案不变；不进行外部读取。
 
+### Search-to-Answer-1 历史检索层基线退役（独立减负片）
+
+- 旧 `tools/run_search_to_answer_baseline.py` 只在 2026-10-28 的冻结题库上测量
+  搜索和前两个结果的技术读取，不测最终回答、证据判断或多轮研究。实际使用者
+  仅是专属 `tests/test_search_to_answer_baseline.py`；生产、前端、其它工具与 CI
+  无调用，并且存在独立的当前搜索阶段门覆盖。成组移除该工具、专项测试、仅供
+  它们使用的 `tests/fixtures/search_to_answer/baseline_v1.json`，同时从
+  `tests/stage_gates.json` 的 `search_flow` 注册中摘除。旧评测报告保留为历史
+  档案并注明不可从现行 HEAD 运行；正式 `GeneralWebGateway`、研究路由、
+  搜索回退/读取/恢复/预算和当前搜索测试一律不动。无联网或付费测试调用。
 ### 2026-11-19 波次状态快照回写上下文（独立候选）
 
 - 基线 `main@739d74f7`，分支 `codex/research-wave-state-handoff-20261119`。新增 `ActiveWaveSettlementHandoff`，明确从运行器捕获 `state/cursor/context` 快照、结算后（含异常）将快照写回实时状态，以及检查点执行失败时将内存中部分更新重新交还给结算快照。移除原 `settle_wave` 内部函数，将两个结算入口交给上下文；运行器仅保留一处显式 `bind_wave_snapshot` 写入接口。
