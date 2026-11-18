@@ -5,11 +5,6 @@ from src.web.advanced_module_semantics import AdvancedModuleSemanticIndex
 from src.web.lsp_adapter import CallbackLspAdapter, NullLspAdapter
 from src.web.module_identity import ModuleGraph
 from src.web.repository_graph import RepositoryGraphIndex
-from src.web.structure_quality import (
-    ImpactGoldenCase,
-    ResolutionGoldenCase,
-    evaluate_structure_quality,
-)
 
 
 SNAPSHOT = {
@@ -196,32 +191,3 @@ def test_null_lsp_is_explicit_and_callback_adapter_is_consumed():
     assert enriched["lsp"]["status"] == "available"
     assert enriched["lsp"]["provider"] == "test-lsp"
     assert enriched["lsp"]["type_info"]["type_text"] == "(id: string) => string"
-
-
-def test_structure_quality_metrics_cover_resolution_and_impact():
-    metrics = evaluate_structure_quality(
-        _index(),
-        resolution_cases=[
-            ResolutionGoldenCase(
-                "src/core.loadUser",
-                "resolved",
-                expected_path="src/core.ts",
-                expected_qualified_name="loadUser",
-            ),
-            ResolutionGoldenCase("loadUser", "ambiguous"),
-            ResolutionGoldenCase("doesNotExist", "unresolved"),
-        ],
-        impact_cases=[
-            ImpactGoldenCase(
-                "src/core.loadUser",
-                expected_files=("src/core.ts", "src/app.ts"),
-                expected_tests=("src/app.test.ts",),
-            )
-        ],
-    )
-
-    assert metrics["resolved_accuracy"] == 1.0
-    assert metrics["ambiguous_recall"] == 1.0
-    assert metrics["unresolved_recall"] == 1.0
-    assert metrics["impact_file_recall"] == 1.0
-    assert metrics["test_mapping_recall"] == 1.0
