@@ -121,11 +121,13 @@
 
 **已合并读取历史片**：[#447](https://github.com/2002yy/study-agent/pull/447) HEAD `65deabb9`，精确 CI `44284842449` 成功、机器人审查无发现，预期 HEAD 保护合并至 `main@7da66efb`。将三处 `reads` 快照合并为 `_record_read_history(context, current_outcomes)`，仅真实链结束时额外写 `candidate_resolution`；主线隔离整合影响集 **101 passed**（78.73 秒），此前独立候选 mypy 基线 **115/125**。实时读取历史、检查点及预算结算时序保持不变。
 
-**后继原子路由诊断片（独立收口中）**：`codex/research-atomic-routing-observability-20261118` 原远端代码提交 `8a154e7d`，tree `99c88a8c`。原执行器仍独占 `route_missing_atomic_claims`、`extraction_targets/routed_pairs` 与每次检查点；将“决定路由后”和“真正提取后”的两个指标写入移到读取观测模块，仍使用当前 `context`、当前波次和真实来源记录。两个指标均保留 60 条上限、既有字段和顺序，未改变实际 claim 证据关系。原定向负控 **19 passed**，读取栈阶段门 **467 passed、4 skipped**（105.25 秒）；全库 Ruff、diff-check、mypy 基线 **115/125** 通过，无模型/付费调用。
+**已合并原子路由诊断片**：[#451](https://github.com/2002yy/study-agent/pull/451) HEAD `cecb9775`，精确 PR CI `44289328844` 成功，审查无未解决线程，预期 HEAD 保护合并至 `main@95fdbe96`。原执行器仍独占 `route_missing_atomic_claims`、`extraction_targets/routed_pairs` 与每次检查点；“决定路由后”和“真实提取后”的两个指标写入移至读取观测模块，保留每项 60 条上限、既有字段及顺序，未改变实际 claim 支持关系。在当时最新主线复核读取栈 **458 passed、4 skipped**、定向 **19 passed**，mypy 仍为 **115/125**；无模型/付费调用。
 
 **共享可变状态边界**：① `execute()` 仍唯一持有、在恢复检查点后重新绑定 `state/cursor/context`；② `ActiveReadDispatchContext`/`ActiveReadExecutionContext` 只留运行期稳定依赖，当前候选和读取历史逐次显式传入；③ 读链投影只返回结果；④ `selected_sources` 在实际提取后由执行器更新；⑤ 观测函数只在调用时写当前 `context.metrics`，不持有旧快照；⑥ 模型 inflight、`reserve_call` 及最终结算、证据发布均由原权威负责。
 
-**唯一下一收口动作**：原子路由诊断片现已在合并 #447 的主线单独整合；完成当前影响集复核后创建 PR，待精确 HEAD CI 与审查通过才合并。下一批优先从执行闭包和测试造景的实际调用方出发继续去重，不重新建立模型、恢复或发布权威。#404 测试造景由另一窗口处理；原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
+**后继故障记录显式游标片（本地独立候选）**：基于 `main@95fdbe96`，直接在 17 个故障分支调用已经存在的 `with_appended_runtime_failure(cursor, context, ...)` 并显式绑定返回游标，移除 `execute()` 内捕获 `cursor/context` 的 `_append_failure` 闭包。未更改已有纯投影函数、失败 ID/去重、异常处理、检查点、恢复、预算或发布代码。冻结契约的基础运行器与故障投影回归 **87 passed**，预算时钟/模型尝试/失败契约/结算/steering **37 passed**；读取栈阶段门 **458 passed、4 skipped**（107.59 秒），全库 Ruff、diff-check 与 mypy 基线（115/125）通过。新候选精确 HEAD CI 另行验收，当前绝不冒充已合并。
+
+**唯一下一收口动作**：完成上述候选的读取栈阶段门、差异范围核对与精确 HEAD CI，审阅通过后独立合并；之后再按真实测试调用方清理重复造景，不重新建立模型、恢复或发布权威。#404 测试造景由另一窗口处理；原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
 
 ## 0A. 已冻结研究路线（摘要）
 
