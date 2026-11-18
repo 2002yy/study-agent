@@ -69,6 +69,13 @@ def test_search_admission_allows_likely_relevant():
     assert search_admission("Python 3.15.0 入门教程 (完整指南)", "", "Python 3.15.0 入门教程")["decision"] == "allow"
 
 
+def test_search_admission_matches_unsegmented_chinese_topic():
+    # Bigrams still identify a Chinese topic after the retired feed-directory
+    # recall module is removed.
+    outcome = search_admission("围棋打劫的常见规则", "", "围棋打劫的判定条件")
+    assert outcome["decision"] == "allow"
+
+
 def test_assess_body_generic_tutorial_is_background_not_match():
     a = assess_body("Python tutorial for beginners. Variables, loops, Python is great.",
                     "Python 3.15.0 入门教程")
