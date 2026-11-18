@@ -1,5 +1,9 @@
 # Search-to-Answer-1 基线（检索层，第一轮 5 题）
 
+> **历史档案（2026-11-18 起不再是可执行的现行验收）**：原一次性采集脚本、
+> 冻结题库及专属测试已成组退役，相关文件可从记录中的 Git 提交恢复。
+> 下文的路径、测量结果与运行命令仅描述当时的实验，不代表当前仓库仍提供该入口。
+
 > 本轮只测量**检索层**：真实搜索 + 真实网页读取。没有零成本回答生成器接入本检出，
 > 因此 `answer_status` / `TTFU` / `evidence_verdict` / 多轮追问行为一律记为 `not_measured`，
 > 不用检索指标冒充回答质量。
@@ -160,10 +164,10 @@ run2：全部成功。run1 的 challenge 不是查询词回显误判（查询不
 **为什么不现在做**：Jina 默认关闭；本轮读取失败的主因是 SPA 与正文抽取（mihoyo / miyoushe 直连均 200），
 不是出口问题。先实现代理旋钮属于「先建设、后测量」。
 
-## 复现方式
+## 当时的复现方式（仅历史记录）
 
 ```powershell
-# 需要本地 SearXNG(:8080) 与 .env 中的 WEB_DUCKDUCKGO_PROXY
+# 仅适用于当时的历史提交，不适用于当前工作树；当时需要本地 SearXNG(:8080) 与代理环境变量
 python tools/run_search_to_answer_baseline.py `
   --mode auto --mode fallback --mode ddg_only `
   --case A01 --case B01 --case B02 --case C01 --case D01 `

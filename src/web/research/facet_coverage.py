@@ -150,18 +150,6 @@ _FACET_WINDOW = 240
 _MAX_HITS_PER_TERM = 60
 
 
-def _contains(text: str, term: str) -> bool:
-    """Whole-word ASCII match with a light plural/participle suffix.
-
-    "concurrent writes" must cover a term written as "concurrent write"; a bare
-    substring test would also let "api" match inside "FastAPI".
-    """
-
-    if _is_cjk(term):
-        return term in text
-    return bool(_pattern(term).search(text))
-
-
 def _pattern(term: str) -> re.Pattern[str]:
     pattern = _ASCII_CONTAINS.get(term)
     if pattern is None:
