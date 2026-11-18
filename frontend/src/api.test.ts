@@ -581,6 +581,22 @@ describe("loadApiSnapshot", () => {
     vi.unstubAllGlobals();
   });
 
+  const payloads: Record<string, unknown> = {
+    "/health": { status: "ok", service: "study-agent", rag_index_exists: true },
+    "/rag/status": { index_exists: true, documents: 7, chunks: 9, index_path: "", vector_backend: { name: "local" } },
+    "/tools": { tools: [] },
+    "/workflows/runs": { runs: [] },
+    "/sessions": { sessions: [] },
+    "/runtime/settings": { settings: {}, options: {}, runtime_profile: {}, warnings: [] },
+    "/memory": { writable: false, memory_mode: "preview", safe_mode: false, reason: "preview", context_mode: "light", groups: {}, files: [] },
+    "/wechat": { state: {}, content: "", unread: "", has_unread: false, started: false, message_count: 0, unread_count: 0, summary: "" }
+  };
+
+  const jsonResponse = (payload: unknown): Response => new Response(
+    JSON.stringify(payload),
+    { status: 200, headers: { "Content-Type": "application/json" } }
+  );
+
   it("keeps healthy API data when one auxiliary endpoint fails", async () => {
     vi.stubGlobal(
       "fetch",
@@ -588,17 +604,8 @@ describe("loadApiSnapshot", () => {
         if (url.endsWith("/workflows/runs")) {
           return new Response("workflow down", { status: 500, statusText: "Internal Server Error" });
         }
-        const payloads: Record<string, unknown> = {
-          "/health": { status: "ok", service: "study-agent", rag_index_exists: true },
-          "/rag/status": { index_exists: true, documents: 0, chunks: 0, index_path: "", vector_backend: { name: "local" } },
-          "/tools": { tools: [] },
-          "/sessions": { sessions: [] },
-          "/runtime/settings": { settings: {}, options: {}, runtime_profile: {}, warnings: [] },
-          "/memory": { writable: false, memory_mode: "preview", safe_mode: false, reason: "preview", context_mode: "light", groups: {}, files: [] },
-          "/wechat": { state: {}, content: "", unread: "", has_unread: false, started: false, message_count: 0, unread_count: 0, summary: "" }
-        };
         const path = new URL(url, "http://localhost").pathname;
-        return new Response(JSON.stringify(payloads[path]), { status: 200, headers: { "Content-Type": "application/json" } });
+        return jsonResponse(payloads[path]);
       })
     );
 
@@ -607,6 +614,51 @@ describe("loadApiSnapshot", () => {
     expect(snapshot.health?.status).toBe("ok");
     expect(snapshot.error).toBe("");
     expect(snapshot.errors.workflows).toContain("500");
+  });
+
+  it("preserves last-good RAG data when a later refresh fails", async () => {
+    let ragUnavailable = false;
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const path = new URL(url, "http://localhost").pathname;
+      if (path === "/rag/status" && ragUnavailable) {
+        return new Response("RAG unavailable", { status: 503, statusText: "Service Unavailable" });
+      }
+      return jsonResponse(payloads[path]);
+    }));
+
+    const first = await loadApiSnapshot();
+    ragUnavailable = true;
+    const second = await loadApiSnapshot();
+
+    expect(first.ragStatus?.documents).toBe(7);
+    expect(second.ragStatus).toEqual(first.ragStatus);
+    expect(second.errors.rag).toContain("503");
+    expect(second.health?.status).toBe("ok");
+  });
+
+  it("discards an older refresh that completes after a newer one", async () => {
+    let healthRequests = 0;
+    let releaseOldHealth: (response: Response) => void = () => { throw new Error("missing old health request"); };
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const path = new URL(url, "http://localhost").pathname;
+      if (path === "/health") {
+        healthRequests += 1;
+        if (healthRequests === 1) {
+          return await new Promise<Response>(resolve => { releaseOldHealth = resolve; });
+        }
+        return jsonResponse({ status: "ok", service: "newer", rag_index_exists: true });
+      }
+      return jsonResponse(payloads[path]);
+    }));
+
+    const oldRequest = loadApiSnapshot();
+    const newRequest = loadApiSnapshot();
+    const current = await newRequest;
+    releaseOldHealth(jsonResponse({ status: "ok", service: "older", rag_index_exists: true }));
+    const superseded = await oldRequest;
+
+    expect(current.health?.service).toBe("newer");
+    expect(superseded.health?.service).toBe("newer");
   });
 });
 
