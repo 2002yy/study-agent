@@ -32,6 +32,15 @@
 
 ### 历史减负候选快照（部分已合入，以下不是当前待办）
 
+- **2026-11-18 RQ1-C 成对归因实验链退役（独立片）**：
+  `codex/retire-rq1c-paired-attribution-20261118`。旧 `run_paired_attribution.py`
+  只调度同阶段 `run_rq1c_calibration.py` 和
+  `run_environment_fingerprint.py`，三套工具没有现行应用、CI、阶段门或
+  其他工具调用；旧产物仅供诊断，**不是**正式资格证据。连同唯一专属
+  `test_paired_attribution.py`（20 个历史测试）整链删除，净减 **1,941 行**。
+  保留正式 `run_rq1c_bounded_qualification`、冻结 holdout 清单、阶段门、
+  成本/预算及相关现行测试；不改变生产搜索、研究恢复或预算决策。
+
 - **2026-11-18 旧 §44B 提供商归因实验退役（独立片）**：
   `run_provider_attribution.py` 的旧三提供商归因/地区化判定仅由本身的
   专项测试调用，无生产路由、当前 CI/阶段门或在用执行入口；成组移除
