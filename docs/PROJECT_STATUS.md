@@ -19,6 +19,15 @@
 
 ### 历史减负候选快照（部分已合入，以下不是当前待办）
 
+- **2026-11-18 M4-D 一次性补丁演示退役（独立片）**：确认
+  `tools/interactive_patch_demo.py` 只作为历史手工演示入口使用，
+  `frontend/e2e/acceptance/incrementalPatch.spec.ts` 只在设置
+  `M4D_PATCH_DEMO_DIR` 时执行；生产代码、现行 CI 和正式 UI 均无调用。
+  整组删除演示运行器及其专属浏览器用例，把原先误从演示工具导入的
+  测试构造函数移入 `tests/test_interactive_patch.py`。
+  保留 `src/interactive_patch.py`、恢复契约以及增量修改/能力继承的
+  现行单元测试，确保退役实验不会顺带移除仍有价值的功能基础。
+
 - **2026-11-18 旧记忆接口与专项测试退役（独立片）**：以
   `main@d879a4af79d99521129f361e07866cedc3fa0064` 为基线。
   前端现行记忆操作已由 `POST /memory-runs` → `POST /memory-runs/{id}/commit`
