@@ -129,7 +129,6 @@ from src.web.research.runtime import (
     ResearchRuntimeCursor,
     RuntimeCandidate,
     RuntimeExternalAttemptStart,
-    RuntimePhase,
     RuntimePlannedQuery,
     RuntimeQueryOutcome,
     RuntimeReadOutcome,
@@ -998,31 +997,6 @@ class ActiveResearchRuntimeExecutor:
         # semantic result. A crash first leaves durable inflight for recovery.
         on_model_finished = model_attempt_context.finished
 
-        def _append_failure(
-            code: ResearchFailureCode,
-            phase: RuntimePhase,
-            *,
-            logical_call_id: str = "",
-            item_id: str = "",
-            detail: str = "",
-            provider_code: str = "",
-            exception_type: str = "",
-            attempt_id: str = "",
-        ) -> None:
-            nonlocal cursor
-            cursor = with_appended_runtime_failure(
-                cursor,
-                context,
-                code=code,
-                phase=phase,
-                logical_call_id=logical_call_id,
-                item_id=item_id,
-                detail=detail,
-                provider_code=provider_code,
-                exception_type=exception_type,
-                attempt_id=attempt_id,
-            )
-
         def settle_completed_wave(
             snapshot: ActiveWaveSettlementSnapshot,
         ) -> None:
@@ -1078,7 +1052,8 @@ class ActiveResearchRuntimeExecutor:
                 checkpoint(stage="planned")
                 categories = ("public_research_question", "research_time_context")
                 if not model_allowed("research_claim_planning", categories):
-                    _append_failure(
+                    cursor = with_appended_runtime_failure(
+                        cursor, context,
                         "policy_blocked",
                         "planning",
                         logical_call_id=f"policy:research_claim_planning:{run_id}",
@@ -1104,7 +1079,8 @@ class ActiveResearchRuntimeExecutor:
                         planning_logical_call_id,
                     )
                 except _ModelAttemptBudgetExhausted:
-                    _append_failure(
+                    cursor = with_appended_runtime_failure(
+                        cursor, context,
                         "model_attempts_exhausted",
                         "planning",
                         logical_call_id=planning_logical_call_id,
@@ -1143,7 +1119,8 @@ class ActiveResearchRuntimeExecutor:
                         if planning_reason == "model_call_attempts_exhausted"
                         else "claim_planning_failed"
                     )
-                    _append_failure(
+                    cursor = with_appended_runtime_failure(
+                        cursor, context,
                         planning_code,
                         "planning",
                         logical_call_id=f"research_claim_plan:{run.id}:1",
@@ -1288,7 +1265,8 @@ class ActiveResearchRuntimeExecutor:
                     try:
                         attempt = _attempt_number(cursor, planned.id)
                     except _ExternalAttemptBudgetExhausted:
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             "search_failed",
                             "searching",
                             logical_call_id=(
@@ -1408,7 +1386,8 @@ class ActiveResearchRuntimeExecutor:
                     ensure_active()
                     outcome = batch_result.outcomes[0]
                     if outcome.status == "unavailable":
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             "search_failed",
                             "searching",
                             logical_call_id=marker.call_id,
@@ -1528,7 +1507,8 @@ class ActiveResearchRuntimeExecutor:
                         f"{_assessment_call_suffix(cursor, claim.id, candidate_ids)}"
                     )
                     if not model_allowed("research_candidate_assessment", categories):
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             "policy_blocked",
                             "assessing",
                             logical_call_id=f"policy:{assessment_logical_call_id}",
@@ -1548,7 +1528,8 @@ class ActiveResearchRuntimeExecutor:
                         # that claim through the normal unavailable/no-gain path;
                         # attempt exhaustion is not a whole-runtime failure and
                         # must never create a third physical model call.
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             "model_attempts_exhausted",
                             "assessing",
                             logical_call_id=assessment_logical_call_id,
@@ -1585,7 +1566,8 @@ class ActiveResearchRuntimeExecutor:
                             if assessment_reason == "model_call_attempts_exhausted"
                             else "assessment_failed"
                         )
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             assessment_code,
                             "assessing",
                             logical_call_id=assessment_logical_call_id,
@@ -1970,7 +1952,8 @@ class ActiveResearchRuntimeExecutor:
                     try:
                         attempt = _attempt_number(cursor, candidate_id)
                     except _ExternalAttemptBudgetExhausted:
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             "read_failed",
                             "reading",
                             logical_call_id=(
@@ -2086,7 +2069,8 @@ class ActiveResearchRuntimeExecutor:
                                 or step_cost.get("error_type")
                                 or ""
                             )
-                            _append_failure(
+                            cursor = with_appended_runtime_failure(
+                                cursor, context,
                                 "read_failed",
                                 "reading",
                                 logical_call_id=marker.call_id,
@@ -2279,7 +2263,8 @@ class ActiveResearchRuntimeExecutor:
                     if not (
                         raw_lead_read.get("ok") is True and lead_content.strip()
                     ):
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             "read_failed",
                             "reading",
                             logical_call_id=lead_marker.call_id,
@@ -2305,7 +2290,8 @@ class ActiveResearchRuntimeExecutor:
                     if not model_allowed(
                         "research_lead_discovery", lead_categories
                     ):
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             "policy_blocked",
                             "reading",
                             logical_call_id=(
@@ -2392,7 +2378,8 @@ class ActiveResearchRuntimeExecutor:
                             ]
                     else:
                         _bump_lead_metric(context, "lead_discovery_failed")
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             "extraction_failed",
                             "reading",
                             logical_call_id=(
@@ -2443,7 +2430,8 @@ class ActiveResearchRuntimeExecutor:
                     )
                     if not model_allowed("research_evidence_extraction", extraction_categories):
                         extractions[claim_id] = {"status": "extractor_failed", "reason": "blocked_by_policy"}
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             "policy_blocked",
                             "extracting",
                             logical_call_id=f"policy:{extraction_logical_call_id}",
@@ -2473,7 +2461,8 @@ class ActiveResearchRuntimeExecutor:
                             "status": "extractor_failed",
                             "reason": "model_call_attempts_exhausted",
                         }
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             "model_attempts_exhausted",
                             "extracting",
                             logical_call_id=extraction_logical_call_id,
@@ -2513,7 +2502,8 @@ class ActiveResearchRuntimeExecutor:
                             if extraction_reason == "model_call_attempts_exhausted"
                             else "extraction_failed"
                         )
-                        _append_failure(
+                        cursor = with_appended_runtime_failure(
+                            cursor, context,
                             extraction_code,
                             "extracting",
                             logical_call_id=extraction_logical_call_id,
@@ -2934,7 +2924,8 @@ class ActiveResearchRuntimeExecutor:
                 if raise_on_error:
                     raise
                 return latest
-            _append_failure(
+            cursor = with_appended_runtime_failure(
+                cursor, context,
                 "runtime_internal_failed",
                 cursor.phase,
                 item_id=run_id,
