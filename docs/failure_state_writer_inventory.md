@@ -78,11 +78,6 @@ Post-merge P2 finding and hotfix (2026-09-02):
 - `src\application\web_lookup_service.py:1101: type(exc).__name__: f"source read failed ({url}): {type(exc).__name__}: {exc}"`
 - `src\application\web_lookup_service.py:1597: type(exc).__name__: "error": f"{type(exc).__name__}: {exc}",`
 
-## src\evals\research_quality_semantic_projector.py
-
-- `src\evals\research_quality_semantic_projector.py:196: type(exc).__name__: "error_type": type(exc).__name__,`
-- `src\evals\research_quality_semantic_projector.py:398: type(exc).__name__: error_type = type(exc).__name__`
-
 ## src\infrastructure\sqlite\database.py
 
 - `src\infrastructure\sqlite\database.py:403: stop_reason writer: stop_reason = 'legacy_run_interrupted',`
