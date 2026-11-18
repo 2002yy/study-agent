@@ -16,7 +16,6 @@ class RuntimeSettingsPatch(BaseModel):
     memory_mode: str | None = None
     debug_mode: bool | None = None
     safe_mode: bool | None = None
-    wechat_memory_capture_enabled: bool | None = None
     rag_enabled: bool | None = None
     rag_retrieval_mode: str | None = None
     rag_search_top_k: int | None = Field(default=None, ge=1, le=20)

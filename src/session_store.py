@@ -9,8 +9,6 @@ class SessionMeta:
     wechat_status: str = "none"
     wechat_unread_cleared: bool = False
     wechat_interactive: str = "none"
-    wechat_memory_capture: str = "disabled"
-    wechat_memory_candidates: str = "none"
     interaction_mode: str = "standard"
 
     def reset(self):
@@ -18,6 +16,4 @@ class SessionMeta:
         self.wechat_status = "none"
         self.wechat_unread_cleared = False
         self.wechat_interactive = "none"
-        self.wechat_memory_capture = "disabled"
-        self.wechat_memory_candidates = "none"
         self.interaction_mode = "standard"

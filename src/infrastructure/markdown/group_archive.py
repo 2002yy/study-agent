@@ -58,8 +58,6 @@ class LegacyGroupImporter:
             "user_has_joined_group",
             "first_join_reaction_done",
             "mode",
-            "memory_capture_enabled",
-            "memory_capture_mode",
         ):
             match = re.search(rf"^-\s*{re.escape(key)}:\s*(.+?)\s*$", raw, re.MULTILINE)
             if not match:

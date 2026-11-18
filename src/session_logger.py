@@ -76,14 +76,6 @@ def set_wechat_interactive(session_id: str, status: str) -> None:
     get_or_create_session(session_id)["meta"].wechat_interactive = status
 
 
-def set_wechat_memory_capture(session_id: str, status: str) -> None:
-    get_or_create_session(session_id)["meta"].wechat_memory_capture = status
-
-
-def set_wechat_memory_candidates(session_id: str, status: str) -> None:
-    get_or_create_session(session_id)["meta"].wechat_memory_candidates = status
-
-
 def set_interaction_mode(session_id: str, mode: str) -> None:
     get_or_create_session(session_id)["meta"].interaction_mode = mode
 
@@ -305,9 +297,6 @@ def save(session_id: str) -> str:
     lines.append(f"- after_session: {meta.after_session_status}")
     lines.append(f"- wechat_status: {meta.wechat_status}")
     lines.append(f"- wechat_interactive: {meta.wechat_interactive}")
-    lines.append(f"- wechat_memory_capture: {meta.wechat_memory_capture}")
-    if meta.wechat_memory_candidates != "none":
-        lines.append(f"- wechat_memory_candidates: {meta.wechat_memory_candidates}")
     lines.append(f"- interaction_mode: {meta.interaction_mode}")
     if meta.wechat_unread_cleared:
         lines.append("- wechat_unread: cleared")
@@ -321,7 +310,6 @@ def save(session_id: str) -> str:
         lines.append(f"- relationship_mode: {runtime.relationship_mode}")
         lines.append(f"- wechat_mode: {runtime.wechat_mode}")
         lines.append(f"- user_has_joined_group: {'true' if runtime.user_has_joined else 'false'}")
-        lines.append(f"- memory_capture_enabled: {'true' if runtime.memory_capture_enabled else 'false'}")
         lines.append(f"- memory_mode: {runtime.memory_mode}")
         lines.append(f"- route_mode: {runtime.route_mode}")
         lines.append(f"- performance_mode: {runtime.performance_mode}")

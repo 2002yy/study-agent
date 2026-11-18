@@ -62,8 +62,6 @@ const RUNTIME_SETTINGS = {
     current_version: "browser-audit",
     active_task: "",
     next_version: "",
-    wechat_memory_capture_enabled: false,
-    wechat_memory_capture_mode: "off",
     rag_enabled: true,
     rag_retrieval_mode: "hybrid",
     rag_search_top_k: 5,
