@@ -107,7 +107,9 @@
 
 **当前候选（未合并）**：已将读取准入、实时后端尝试历史和断路器健康归入 `ActiveReadDispatchContext`；只保存稳定的断路器、后端顺序及剩余时间回调，每次显式取得当前候选、`cursor.read_outcomes` 和 `context`，避免恢复/检查点后使用旧引用。基于 `main@88037618` 本地分支 `codex/research-read-dispatch-context-20261118`；读取链、名额、失败、CAS、模型 inflight、费用结算和发布未改。原始影响集 **169 passed**，Ruff 全库、mypy 基线及差异检查通过；精确候选 PR CI、动态产品验收尚未完成。详细证据见[读取调度第一片](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。
 
-**后继依赖片（独立本地候选，未创建 PR）**：`codex/research-read-execution-context-20261118` 以 #434 同树提交为父基线，已把 `read_chain_executors` 闭包与专家/默认链派发放进 `ActiveReadExecutionContext`，保留共享 `build_read_chain_executors`/`run_chain`、专家失败兜底和原执行器内的真实游标/诊断/费用写入权威。读取栈阶段门 **467 passed、4 skipped**，定向边界 **29 passed**，Ruff 和类型基线通过；均无真实模型调用。**不能在 #434 精确 HEAD CI 成功并合并之前，直接将依赖片当作 main 或推入主线。**
+**后继依赖片（远端分支已保存，未创建 PR）**：`codex/research-read-execution-context-20261118` 以 #434 同树提交为父基线，远端 commit `884dc459`、tree `c5aff9a3` 与本地验收树一致。已把 `read_chain_executors` 闭包与专家/默认链派发放进 `ActiveReadExecutionContext`，保留共享 `build_read_chain_executors`/`run_chain`、专家失败兜底和原执行器内的真实游标/诊断/费用写入权威。读取栈阶段门 **467 passed、4 skipped**，定向边界 **29 passed**，Ruff 和类型基线通过；均无真实模型调用。**不能在 #434 精确 HEAD CI 成功并合并之前，直接将依赖片当作 main 或推入主线。**
+
+**再后一片（本地候选，尚未建 PR）**：`codex/research-read-projection-context-20261118` 接在上述读取执行分支之后，继续把读链单来源投影迁到纯投影函数、路由诊断迁入既有读取观测模块。原执行器保留游标、真实尝试标记、费用和检查点的写入次序，静态回归独立验收。后续才考虑合并重复的诊断写入，不触碰 #404 另一窗口测试工厂。
 
 **唯一下一收口动作**：#434 完成精确 CI 与审阅后按预期 HEAD 合并；后继片再对齐当时最新 main、完成自己的测试/差异检查、独立提交 PR。#404 测试造景、其他窗口功能减负各自收口。原 #369 零模型社区覆盖探针仍待部署环境真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
 

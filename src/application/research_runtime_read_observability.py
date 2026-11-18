@@ -11,9 +11,37 @@ from typing import Any
 
 from src.application.active_research_evidence_projection import _bounded_retrieval_policy
 from src.web.research.candidate_pool import CandidatePoolItem
+from src.web.research.chain_executor import ChainRun, ChainStepResult
 from src.web.research.health_breaker import NATIVE_HTTP_BACKEND
 from src.web.research.read_retry import error_signature
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
+
+
+def _record_read_chain_decision(
+    context: dict[str, Any],
+    *,
+    candidate_id: str,
+    chain_run: ChainRun,
+    chain_steps: list[ChainStepResult],
+) -> None:
+    """Record routing even when a chain ran no backend; diagnostics only."""
+
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if not isinstance(metrics, dict):
+        return
+    entries = metrics.get("read_chain")
+    if not isinstance(entries, list):
+        entries = []
+    entries.append(
+        {
+            "candidate_id": candidate_id,
+            "action": str(chain_run.action),
+            "reason": str(chain_run.reason),
+            "attempted_backends": list(chain_run.attempted_backends),
+            "steps": [step.to_dict() for step in chain_steps],
+        }
+    )
+    metrics["read_chain"] = entries[-60:]
 
 
 def _record_backend_health(context: dict[str, Any], breaker: Any) -> None:

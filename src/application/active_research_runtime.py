@@ -207,7 +207,7 @@ from src.web.research.wigolo_http_executor import (
     WIGOLO_HTTP_BACKEND,
     WigoloHttpBackendExecutor,
 )
-from src.web.research.read_adequacy import ADEQUATE_SHAPE, classify_reader_result
+from src.web.research.read_adequacy import classify_reader_result
 from src.web.research.read_retry import (
     error_signature,
     make_window_admission,
@@ -264,6 +264,7 @@ from src.application.research_runtime_failure_projection import (
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
 from src.application.research_runtime_read_execution import ActiveReadExecutionContext
+from src.application.research_runtime_read_projection import project_read_chain
 from src.application.research_runtime_read_site import (
     ActiveReadSiteContext,
     READ_SITE_HINT_ROUTE_DEFAULT as READ_SITE_HINT_ROUTE_DEFAULT,
@@ -288,6 +289,7 @@ from src.application.active_research_evidence_projection import (
 from src.application.research_runtime_read_observability import (
     _record_backend_health as _record_backend_health,
     _record_escalation_diagnostics as _record_escalation_diagnostics,
+    _record_read_chain_decision,
     _record_read_timing as _record_read_timing,
 )
 
@@ -2028,23 +2030,12 @@ class ActiveResearchRuntimeExecutor:
                     # §105 A2d-4: the chain's own decision, recorded even when it
                     # executed nothing (a scheduling/policy skip), so the
                     # explicit path is observable without a new ledger.
-                    chain_metrics = context.setdefault(
-                        ACTIVE_RESEARCH_METRICS_KEY, {}
+                    _record_read_chain_decision(
+                        context,
+                        candidate_id=candidate_id,
+                        chain_run=chain_run,
+                        chain_steps=chain_steps,
                     )
-                    if isinstance(chain_metrics, dict):
-                        chain_entries = chain_metrics.get("read_chain")
-                        if not isinstance(chain_entries, list):
-                            chain_entries = []
-                        chain_entries.append(
-                            {
-                                "candidate_id": candidate_id,
-                                "action": str(chain_run.action),
-                                "reason": str(chain_run.reason),
-                                "attempted_backends": list(chain_run.attempted_backends),
-                                "steps": [item.to_dict() for item in chain_steps],
-                            }
-                        )
-                        chain_metrics["read_chain"] = chain_entries[-60:]
                     if not chain_steps:
                         # A policy/scheduling skip: no backend ran, so there is no
                         # attempt, no outcome and no source - only the scheduling
@@ -2140,42 +2131,17 @@ class ActiveResearchRuntimeExecutor:
                     # usable read. Prefer the adequate attempt (the legacy
                     # escalation replaced a short read with the adequate one),
                     # else the last non-empty attempt.
-                    usable_step = next(
-                        (
-                            item
-                            for item in chain_steps
-                            if item.usable_content
-                            and item.adequacy_reason == ADEQUATE_SHAPE
-                        ),
-                        None,
-                    ) or next(
-                        (item for item in chain_steps if item.usable_content), None
+                    projection = project_read_chain(
+                        candidate=candidate,
+                        plan_item=plan_item,
+                        chain_steps=chain_steps,
+                        source_limit=source_limit,
                     )
-                    ok = usable_step is not None
-                    content = (
-                        str(usable_step.content or "")[:source_limit]
-                        if usable_step is not None
-                        else ""
-                    )
-                    final_step = usable_step or chain_steps[-1]
+                    ok, content = projection.ok, projection.content
                     if ok:
                         successful_reads += 1
                         used_chars += len(content)
-                    record = _source_record(
-                        candidate,
-                        plan_item,
-                        raw_read={
-                            "ok": ok,
-                            "status": "read" if ok else "failed",
-                            "url": candidate.url,
-                            "content": content,
-                            "retrieval_state": str(
-                                final_step.retrieval_state if final_step else ""
-                            ),
-                        },
-                        final_backend=str(final_step.backend) if final_step else "",
-                        retrieval_attempts=[item.to_dict() for item in chain_steps],
-                    )
+                    record = projection.record
                     _upsert_source(selected_sources, record)
                     if ok:
                         # Multimodal Reader v1 (default-inert): declared visual
