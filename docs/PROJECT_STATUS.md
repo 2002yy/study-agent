@@ -111,7 +111,11 @@
 
 **后继独立本地片（尚未创建 PR）**：`codex/research-read-history-observability-20261118` 接在 #443 的同语义主线整合提交之后。将三处 `reads` 快照合并为 `_record_read_history(context, current_outcomes)`，仅真实链结束时额外写 `candidate_resolution`。仍从当前游标读历史、当前上下文写观测，持久化/检查点保留原位置。原测试造景复用，完整直接影响集 **101 passed**、Ruff 和 mypy 基线通过；未做真实模型/浏览器调用。
 
-**唯一下一收口动作**：#443 精确 HEAD CI 与审查通过后合并；再让后继片对齐当时最新 `main`，跑自己的整合影响集并创建 PR。再后一批才调查 `atomic_routing` 诊断的消费点、60 条保留上限和提取时序；#404 测试造景由另一窗口独立收口。原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
+**本窗口第三个独立后继（尚未创建 PR）**：`codex/research-atomic-routing-observability-20261118` 接在上一读取历史片的远端 HEAD `bb5d51f8` 后。原执行器仍独占 `route_missing_atomic_claims`、`extraction_targets/routed_pairs` 与每次检查点；将“决定路由后”和“真正提取后”的两个指标写入移到读取观测模块，仍使用当前 `context`、当前波次和真实来源记录。两个指标均保留 60 条上限、既有字段和顺序，未改变实际 claim 证据关系。原路由判定和诊断新增负控 **19 passed**，读取栈阶段门 **467 passed、4 skipped**（105.25 秒）；全库 Ruff、diff-check、mypy 基线 **115/125** 通过，无模型/付费调用。
+
+**共享可变状态边界**：① `execute()` 仍唯一持有、在恢复检查点后重新绑定 `state/cursor/context`；② `ActiveReadDispatchContext`/`ActiveReadExecutionContext` 只留运行期稳定依赖，当前候选和读取历史逐次显式传入；③ 读链投影只返回结果；④ `selected_sources` 在实际提取后由执行器更新；⑤ 观测函数只在调用时写当前 `context.metrics`，不持有旧快照；⑥ 模型 inflight、`reserve_call` 及最终结算、证据发布均由原权威负责。
+
+**唯一下一收口动作**：#443 的精确 HEAD 审查已完成且无发现，CI `44276778323` 最近一次核查仍为 `in_progress`；待明确的整合收口时确认通过后按预期 HEAD 合并。随后按依赖顺序在各自最新主线整合并提交读取历史片、原子路由观测片（每片独立 PR/精确 CI 与审查，不越过父项合并）。#404 测试造景由另一窗口处理；原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
 
 ## 0A. 已冻结研究路线（摘要）
 
