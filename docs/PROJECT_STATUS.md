@@ -35,6 +35,13 @@
   对应标记和群聊隔离已由 `test_wechat_service.py`、`test_api.py` 分别覆盖。
   只调整测试与交接，不更改运行时；验证状态以对应 PR 为准。
 
+- **2026-11-18 交互历史阶段一报告脚本退役（独立片）**：
+  `tools/interactive_history_report.py` 是仅需手工指定 SQLite 库的阶段一
+  压缩前后比较脚本，库内无其它调用方、CI 配置、专属测试或发布依赖。
+  删除该一次性报告入口；保留正式聊天上下文使用的
+  `src/interactive_history.py` 及 `tests/test_interactive_history.py`，
+  继续检查用户原文保留、版本来源和历史压缩契约。
+
 - **2026-11-18 M4-D 一次性补丁演示退役（独立片）**：确认
   `tools/interactive_patch_demo.py` 只作为历史手工演示入口使用，
   `frontend/e2e/acceptance/incrementalPatch.spec.ts` 只在设置
