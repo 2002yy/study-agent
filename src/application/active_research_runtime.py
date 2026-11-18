@@ -913,12 +913,14 @@ class ActiveResearchRuntimeExecutor:
             hard_seconds_left=budget_clock.hard_seconds_left
         )
 
-        def record_research_window(exhausted: bool) -> None:
-            """Phase telemetry: when research ended and how much tail remained."""
+        def record_research_window(
+            *, current_state: ResearchState, current_context: dict[str, Any], exhausted: bool
+        ) -> None:
+            """Record the caller's live state/context before its checkpoint."""
 
             research_window_diagnostics.record_end(
-                context,
-                hard_seconds=state.budget.hard_timeout_seconds,
+                current_context,
+                hard_seconds=current_state.budget.hard_timeout_seconds,
                 elapsed=elapsed,
                 exhausted=exhausted,
             )
@@ -1160,7 +1162,9 @@ class ActiveResearchRuntimeExecutor:
                 # finalization (Gate, answer synthesis, claim binding,
                 # serialization), so no new wave starts.
                 if budget_clock.research_window_exhausted():
-                    record_research_window(exhausted=True)
+                    record_research_window(
+                        current_state=state, current_context=context, exhausted=True
+                    )
                     raise _HardBudgetReached
                 if cursor.wave_index == 0:
                     cursor = replace(cursor, wave_index=1)
@@ -1184,6 +1188,8 @@ class ActiveResearchRuntimeExecutor:
                     brief = _evidence_brief(state, gate, selected_sources)
                     context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
                     record_research_window(
+                        current_state=state,
+                        current_context=context,
                         exhausted=budget_clock.research_window_exhausted()
                     )
                     settled = settle_wave(gate, brief)
@@ -2861,6 +2867,8 @@ class ActiveResearchRuntimeExecutor:
                 wave_metrics["wave_progress"] = wave_progress[-MAX_RESEARCH_WAVES:]
                 checkpoint()
                 record_research_window(
+                    current_state=state,
+                    current_context=context,
                     exhausted=budget_clock.research_window_exhausted()
                 )
                 timing_ledger.end_wave()
@@ -2890,6 +2898,8 @@ class ActiveResearchRuntimeExecutor:
                 context, reason="hard_budget_exhausted"
             )
             record_research_window(
+                current_state=state,
+                current_context=context,
                 exhausted=budget_clock.research_window_exhausted()
             )
             checkpoint()
