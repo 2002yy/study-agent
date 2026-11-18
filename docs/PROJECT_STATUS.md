@@ -107,11 +107,11 @@
 
 **已合并的读取边界**：[#434](https://github.com/2002yy/study-agent/pull/434) 将读取准入、实时后端历史和断路器健康归入 `ActiveReadDispatchContext`，精确 HEAD `5ff7b4b4`、CI `44263823378` 成功，合并 `008dc2c1`。[#437](https://github.com/2002yy/study-agent/pull/437) 将专家/默认链派发归入 `ActiveReadExecutionContext`，精确 HEAD `884dc459`、CI `44267030564` 成功，审查没有阻断，合并 `b3350fd2`。两片均保持 `execute()` 对恢复状态、游标、检查点和实际费用的唯一写入权威；无真实付费调用。
 
-**当前 PR**：[#443](https://github.com/2002yy/study-agent/pull/443)，远端 HEAD `4f522e26`，基于 #437 已合并的主线；其代码将读链单来源投影迁到 `project_read_chain`，将纯路由诊断归入既有读取观测模块。最新主线整合复核：**63 passed**（定向与恢复）、读取栈 **467 passed / 4 skipped**（103.46 秒）、Ruff 与 mypy 基线 **115/125** 通过；精确 HEAD CI `44276778323` 最近一次观察为 **in_progress**，尚未合并。真实尝试、失败、读额度、恢复、费用、来源 upsert 与检查点顺序均不动。
+**已合并读取投影片**：[#443](https://github.com/2002yy/study-agent/pull/443)，HEAD `4f522e26`，精确 CI `44276778323` 成功、机器人审查无发现，预期 HEAD 保护合并至 `main@b613c96c`。该片把读链单来源投影迁到 `project_read_chain`，纯路由诊断归入读取观测模块；合并前同主线的读取栈回归 **467 passed / 4 skipped**，mypy 基线 **115/125** 通过。真实尝试、失败、读额度、恢复、费用、来源 upsert 与检查点顺序均不动。
 
-**后继独立本地片（尚未创建 PR）**：`codex/research-read-history-observability-20261118` 接在 #443 的同语义主线整合提交之后。将三处 `reads` 快照合并为 `_record_read_history(context, current_outcomes)`，仅真实链结束时额外写 `candidate_resolution`。仍从当前游标读历史、当前上下文写观测，持久化/检查点保留原位置。原测试造景复用，完整直接影响集 **101 passed**、Ruff 和 mypy 基线通过；未做真实模型/浏览器调用。
+**后继读取历史片（远端分支已保存，PR 准备中）**：`codex/research-read-history-observability-20261118` 的代码父项为 #443 HEAD，原实现提交 `3d9655f3`、文档提交 `bb5d51f8`。将三处 `reads` 快照合并为 `_record_read_history(context, current_outcomes)`，仅真实链结束时额外写 `candidate_resolution`。在 `main@b613c96c` 的隔离整合工作树中影响集再次 **101 passed**（78.73 秒）、全库 Ruff 和差异检查通过；此前独立候选 mypy 基线 **115/125**。仍从当前游标读历史、当前上下文写观测，持久化/检查点保留原位置；没有真实模型/浏览器调用。
 
-**唯一下一收口动作**：#443 精确 HEAD CI 与审查通过后合并；再让后继片对齐当时最新 `main`，跑自己的整合影响集并创建 PR。再后一批才调查 `atomic_routing` 诊断的消费点、60 条保留上限和提取时序；#404 测试造景由另一窗口独立收口。原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
+**唯一下一收口动作**：创建并验证读取历史片的独立 PR；精确 HEAD CI 与审阅通过后合并，然后对齐原子事实路由诊断片 `codex/research-atomic-routing-observability-20261118`（其初始远端代码树 `99c88a8c`、后续仅文档变化），按同样程序单独验收。两片均不改 `state/cursor/context` 的恢复权威、模型 inflight、`reserve_call`、来源发布及检查点排序；#404 测试造景由另一窗口独立收口。原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
 
 ## 0A. 已冻结研究路线（摘要）
 
