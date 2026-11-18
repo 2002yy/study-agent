@@ -430,6 +430,15 @@
 
 ## 历史原文与追踪
 
+- **2026-11-19 无调用方的游标/新鲜度辅助函数退役**：
+  `src/web/research/runtime.py::_counter_mapping` 与
+  `src/web/github_freshness.py::_payload_compact` 均无生产、工具、测试、
+  CI、阶段门调用，也非动态入口，直接删除，不保留空壳或测试/配置。
+  正式 `ResearchRuntimeCursor.from_dict` 的 v1/v2 游标格式和逐字段校验、
+  GitHub 新鲜度缓存及主/辅证据与漂移判断均不变。原游标恢复和快照
+  影响集 **74 passed**，Ruff、差异检查、mypy 基线 **115/125** 通过；
+  真实远程 GitHub 请求及付费模型 `not_run`。
+
 - **压缩前原始 1,466 行**：[`main@cf62add5/docs/PROJECT_STATUS.md`](https://github.com/2002yy/study-agent/blob/cf62add59d4a35e9a2060cbeafc68be1572ad570/docs/PROJECT_STATUS.md)，原始记录完整存于 Git 历史。
 - [2026-10-24 999 行归档](archive/PROJECT_STATUS_HANDOFF_PRE_CLEANUP_2026-10-24.md)、[2026-10-23 旧档](archive/PROJECT_STATUS_HANDOFF_PRE_CLEANUP_2026-10-23.md)、[2026-10-06 旧档](archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md)。
 - 2026-11-17 完整执行链以本文件上方 PR/CI、[有日期执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)、各 PR 讨论及可还原的提交历史复核。
