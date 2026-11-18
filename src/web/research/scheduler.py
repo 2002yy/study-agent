@@ -258,15 +258,6 @@ def is_schedulable_lead(
     return bool(LEAD_DISCOVERY_INTENTS.intersection(item.candidate.intents))
 
 
-def _lead_is_schedulable(item: RankedCandidate, policy: ReadSchedulerPolicy) -> bool:
-    if not policy.allow_provenance_leads:
-        return False
-    return bool(
-        _LEAD_SCHEDULABLE_SIGNALS
-        & set(item.assessment.expected_gain_signals)
-    )
-
-
 def _empty_plan(
     claim: ResearchClaim,
     status: ReadWaveStatus,

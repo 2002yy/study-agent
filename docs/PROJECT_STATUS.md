@@ -6,6 +6,21 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### 无调用方的研究调度/匹配包装函数退役（2026-11-19，独立片）
+
+- `facet_coverage._contains` 与 `scheduler._lead_is_schedulable` 已无生产、
+  工具、测试或阶段门调用方；分别是过时的完整词匹配包装及线索策略判定
+  包装函数。删除两处死代码，不改变正式 `_pattern/_term_positions` 匹配、
+  `is_schedulable_lead` 和 `plan_read_wave` 调度分支；没有相关适配、专属
+  测试或配置需要继续保留。
+- 另发现 `research_claims._prose_score` 无调用方，但扩展影响集的
+  `test_goal_evidence.py::test_agent_records_evidence_per_goal_and_keeps_records_apart`
+  在未修改的主线基线已失败（“goal_evidence” 为空），因此不混入这条
+  证据链的清理，留待单独诊断，严禁靠删除失败测试达成绿色。
+  本片局部匹配/调度/读取影响集 **84 passed**，Ruff、`git diff --check` 与
+  mypy 基线（当前 115 / 基线 125）通过；仅为静态工程减负，
+  真实搜索和付费模型未执行。
+
 ### 2026-11-19 读取观测实时绑定（独立候选）
 
 - #493 的精确 HEAD `cee81a55`、CI `44351248954` 成功并合入 `main@083a0172`；#494 的重挂 HEAD `ee05454e`、CI `44357775209` 成功并合入 `main@cf54cc59`。#495 模型预算状态绑定提交 `cd85309d`、CI `44359098528` 尚待最终验收，不能以本地测试替代远端门禁。
