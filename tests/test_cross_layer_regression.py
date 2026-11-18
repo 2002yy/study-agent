@@ -21,7 +21,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api import app
-from src.mode_manager import RuntimeModes
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -31,10 +30,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 def _session_detail(client: TestClient, session_id: str) -> dict:
     return client.get(f"/sessions/{session_id}").json()
-
-
-def _memory_commit(client: TestClient, updates: list[dict]) -> dict:
-    return client.post("/memory/commit", json={"updates": updates}).json()
 
 
 # ── 1. Archive then send must produce new session ID ────────────────────
@@ -486,69 +481,6 @@ def test_no_duplicate_session_across_current_and_archived(monkeypatch):
     )
     assert len(current_entries) <= 1
     assert len(archived_entries) <= 1
-
-
-# ── 14. Multi-candidate memory write partial failure ────────────────────
-
-
-def test_memory_commit_multiple_current_focus_rejected(monkeypatch):
-    """Submitting two current_focus replaces must be rejected."""
-    client = TestClient(app)
-
-    # Turn off safe_mode for this test by patching the modes
-    monkeypatch.setattr(
-        "src.api.routes.memory_routes.load_runtime_modes",
-        lambda: RuntimeModes(memory_mode="confirm_write", safe_mode=False),
-    )
-    monkeypatch.setattr(
-        "src.memory_writer.load_runtime_modes",
-        lambda: RuntimeModes(memory_mode="confirm_write", safe_mode=False),
-    )
-    monkeypatch.setattr(
-        "src.memory_writer.is_memory_write_allowed",
-        lambda modes: True,
-    )
-
-    resp = client.post(
-        "/memory/commit",
-        json={
-            "updates": [
-                {"target": "current_focus", "content": "焦点1", "append": False},
-                {"target": "current_focus", "content": "焦点2", "append": False},
-            ]
-        },
-    )
-    assert resp.status_code == 400, f"Expected 400, got {resp.status_code}: {resp.json()}"
-    assert "最多允许一次" in str(resp.json()["detail"])
-
-
-def test_memory_commit_with_invalid_target_rejected(monkeypatch):
-    """Writing to a non-existent target must fail before any file is written."""
-    monkeypatch.setattr(
-        "src.api.routes.memory_routes.load_runtime_modes",
-        lambda: RuntimeModes(memory_mode="confirm_write", safe_mode=False),
-    )
-    monkeypatch.setattr(
-        "src.memory_writer.load_runtime_modes",
-        lambda: RuntimeModes(memory_mode="confirm_write", safe_mode=False),
-    )
-    monkeypatch.setattr(
-        "src.memory_writer.is_memory_write_allowed",
-        lambda modes: True,
-    )
-
-    client = TestClient(app)
-    resp = client.post(
-        "/memory/commit",
-        json={
-            "updates": [
-                {"target": "current_focus", "content": "正常"},
-                {"target": "../etc/passwd", "content": "恶意"},
-            ]
-        },
-    )
-    # Should reject or at minimum not write the invalid target
-    assert resp.status_code in (400, 403, 500), f"Unexpected status: {resp.status_code}"
 
 
 # ── 15. Parallel refresh race: old response must not overwrite new ──────

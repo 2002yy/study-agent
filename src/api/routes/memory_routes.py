@@ -1,4 +1,4 @@
-"""Memory preview and commit endpoints."""
+"""Durable memory-run preview and commit endpoints."""
 
 from __future__ import annotations
 
@@ -8,9 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.models.memory import (
-    MemoryCommitResponse,
-    MemoryPreviewRequest,
-    MemoryPreviewResponse,
+    MemoryRunCreateRequest,
     MemoryStatusResponse,
     MemoryRunListResponse,
     MemoryRunResponse,
@@ -62,7 +60,7 @@ def get_memory_status(context_mode: str | None = None) -> MemoryStatusResponse:
 
 @router.post("/memory-runs", response_model=MemoryRunResponse)
 def create_memory_run(
-    request: MemoryPreviewRequest,
+    request: MemoryRunCreateRequest,
     service: MemoryServiceDependency,
 ) -> MemoryRunResponse:
     try:
@@ -103,55 +101,3 @@ def commit_memory_run(
         return _run_response(service.commit(run_id))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@router.post("/memory/preview", response_model=MemoryPreviewResponse, deprecated=True)
-def preview_memory_updates(
-    request: MemoryPreviewRequest,
-    service: MemoryServiceDependency,
-) -> MemoryPreviewResponse:
-    try:
-        run = service.create(
-            [update.model_dump() for update in request.updates],
-            runtime_modes=load_runtime_modes(),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return MemoryPreviewResponse(**run.preview)
-
-
-@router.post("/memory/commit", response_model=MemoryCommitResponse)
-def commit_memory_updates(
-    request: MemoryPreviewRequest,
-    service: MemoryServiceDependency,
-) -> MemoryCommitResponse:
-    modes = load_runtime_modes()
-    try:
-        created = service.create(
-            [update.model_dump() for update in request.updates],
-            runtime_modes=modes,
-        )
-        committed = service.commit(created.id, runtime_modes=modes)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if committed.status == "blocked":
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "memory_mode": modes.memory_mode,
-                "safe_mode": modes.safe_mode,
-                "reason": committed.reason,
-            },
-        )
-    results = committed.result.get("results", [])
-    errors = committed.result.get("errors", [])
-    if committed.status == "failed":
-        raise HTTPException(
-            status_code=500,
-            detail={"message": "所有写入均失败", "errors": errors},
-        )
-    return MemoryCommitResponse(
-        writable=True,
-        results=results,
-        errors=errors or None,
-    )
