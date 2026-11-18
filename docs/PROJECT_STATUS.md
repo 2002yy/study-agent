@@ -107,7 +107,7 @@
 
 **已合并的读取边界**：[#434](https://github.com/2002yy/study-agent/pull/434) 将读取准入、实时后端历史和断路器健康归入 `ActiveReadDispatchContext`，精确 HEAD `5ff7b4b4`、CI `44263823378` 成功，合并 `008dc2c1`。[#437](https://github.com/2002yy/study-agent/pull/437) 将专家/默认链派发归入 `ActiveReadExecutionContext`，精确 HEAD `884dc459`、CI `44267030564` 成功，审查没有阻断，合并 `b3350fd2`。两片均保持 `execute()` 对恢复状态、游标、检查点和实际费用的唯一写入权威；无真实付费调用。
 
-**当前 PR**：[#443](https://github.com/2002yy/study-agent/pull/443)，远端 HEAD `4f522e26`，基于 #437 已合并的主线；其代码将读链单来源投影迁到 `project_read_chain`，将纯路由诊断归入既有读取观测模块。最新主线整合复核：**63 passed**（定向与恢复）、读取栈 **467 passed / 4 skipped**（103.46 秒）、Ruff 与 mypy 基线 **115/125** 通过；首次查精确 HEAD 未见 CI 记录，**不得据此宣称 CI 成功或合并**。真实尝试、失败、读额度、恢复、费用、来源 upsert 与检查点顺序均不动。
+**当前 PR**：[#443](https://github.com/2002yy/study-agent/pull/443)，远端 HEAD `4f522e26`，基于 #437 已合并的主线；其代码将读链单来源投影迁到 `project_read_chain`，将纯路由诊断归入既有读取观测模块。最新主线整合复核：**63 passed**（定向与恢复）、读取栈 **467 passed / 4 skipped**（103.46 秒）、Ruff 与 mypy 基线 **115/125** 通过；精确 HEAD CI `44276778323` 最近一次观察为 **in_progress**，尚未合并。真实尝试、失败、读额度、恢复、费用、来源 upsert 与检查点顺序均不动。
 
 **后继独立本地片（尚未创建 PR）**：`codex/research-read-history-observability-20261118` 接在 #443 的同语义主线整合提交之后。将三处 `reads` 快照合并为 `_record_read_history(context, current_outcomes)`，仅真实链结束时额外写 `candidate_resolution`。仍从当前游标读历史、当前上下文写观测，持久化/检查点保留原位置。原测试造景复用，完整直接影响集 **101 passed**、Ruff 和 mypy 基线通过；未做真实模型/浏览器调用。
 
