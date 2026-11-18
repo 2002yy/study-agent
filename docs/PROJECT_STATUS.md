@@ -98,6 +98,8 @@
 
 **本次合并窗口的下一步**：#406 旧新闻无调用方功能及重复测试已在精确 PR CI 成功后合入 `main@265bd4ea`，持久化/API 能力未删除。#405 的研究预算时钟仍是独立结构片，原 HEAD `dec1dd3d` 的精确 PR CI 已成功，但因 #406 同时修改交接文档，本次需要先合并主线、保留双方记录并验证新 HEAD，才能合入 main。#409 的 steering/波次结算上下文依赖 #405，必须待 #405 合并后重新定位 PR 基线和完成精确 CI。#404 研究测试夹具、#407 历史探针及 #408 API 兼容桥由各自独立门禁和审阅收口；不能为了减少测试而删去模型费用、权限、恢复、发布的负控。真实 `reserve_call`、模型请求前 inflight 检查点与完成后审计次序均不变。原 #369 零模型社区覆盖探针仍待具备真实浏览器和 SearXNG 的部署环境执行。
 
+**2026-11-18 本窗口后继交接（不覆盖上面的 #405 基线快照）**：新结构 PR 以 #405 精确 HEAD `dec1dd3d` 为父基线，组合两个已独立离线验证的上下文：`ActiveResearchSteeringContext` 与 `ActiveWaveSettlementContext`。前者按当前 `state/context` 合并、应用和标记用户指令，后者把波次判断与检查点衔接整理成短期状态快照；原检查点仍唯一拥有持久化和回填，真实费用结算与发布权威均未改变。它只新增自己的两个边界测试文件，不改 #404 的运行器测试造景，也不恢复 #406–#408 删除的历史功能和测试。合并顺序、精确 SHA、跨分支验证见[执行记录](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。
+
 ## 0A. 已冻结研究路线（摘要）
 
 `Lookup → VERIFIED / SAFE_ABSTAIN / ESCALATE_STANDARD`；Standard 的多源/比较/冲突和 Deep 的计划/缺口/收益/暂停恢复复用既有 `ActiveResearchRuntimeExecutor`，不另起第二套研究引擎。`usable/read_backed/relevant` 不能等同逐条 claim 支持；默认 `simple` 只验证引用 URL 属于已读来源，不标逐条 verified。
