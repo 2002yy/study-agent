@@ -14,7 +14,6 @@ from src.api.models.news import (
     ResearchQueueRequest,
     ResearchQueueCompleteRequest,
     NewsLookupRequest,
-    NewsLookupResponse,
     ResearchFollowUpCandidateResponse,
     ResearchRunCreateRequest,
     ResearchSteerRequest,
@@ -392,24 +391,3 @@ def complete_research_followup(run_id: str, request_id: str, request: ResearchQu
         return _response(service.repository.complete_followup(run_id, request_id=request_id, turn_id=request.turn_id))
     except ValueError as exc:
         raise _not_found_or_conflict(exc) from exc
-
-
-@router.post("/news/lookup", response_model=NewsLookupResponse, deprecated=True)
-def lookup_news_compatibility_adapter(
-    request: NewsLookupRequest,
-    service: WebLookupServiceDependency,
-) -> NewsLookupResponse:
-    run = create_web_lookup_run(request, service)
-    return NewsLookupResponse(
-        run_id=run.id,
-        query_text=run.query,
-        news_items=run.items,
-        source_block=run.source_block,
-        warnings=run.warnings,
-        status=run.status,
-        stage=run.stage,
-        provider_status=run.provider_status,
-        stop_reason=run.stop_reason,
-        query_attempts=run.query_attempts,
-        error=run.error,
-    )

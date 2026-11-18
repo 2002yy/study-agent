@@ -459,35 +459,6 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_con
     assert run_id in [run["id"] for run in listed.json()["runs"]]
 
 
-def test_news_lookup_endpoint_returns_source_block():
-    from src.application.runtime_repository import get_web_lookup_service
-    from src.application.web_lookup_service import WebLookupRun
-
-    class FakeLookupService:
-        def lookup(self, query, *, max_items):
-            return WebLookupRun(
-                id="web_lookup_test",
-                query=query,
-                items=[{"title": "A", "source": "S"}],
-                source_block=f"source:{query}:1",
-                warnings=["warn"],
-            )
-
-    app.dependency_overrides[get_web_lookup_service] = FakeLookupService
-    client = TestClient(app)
-
-    try:
-        response = client.post("/news/lookup", json={"query": "OpenAI latest", "max_items": 3})
-    finally:
-        app.dependency_overrides.pop(get_web_lookup_service, None)
-
-    assert response.status_code == 200
-    assert response.json()["run_id"] == "web_lookup_test"
-    assert response.json()["news_items"] == [{"title": "A", "source": "S"}]
-    assert response.json()["source_block"] == "source:OpenAI latest:1"
-    assert response.json()["warnings"] == ["warn"]
-
-
 def test_rag_index_and_query_endpoints(tmp_path):
     client = TestClient(app)
     document = tmp_path / "notes.md"
