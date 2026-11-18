@@ -36,6 +36,17 @@
 
 - 基线 `main@739d74f7`，分支 `codex/research-context-next-20261119`。将 `execute()` 内四个 `record_research_window` 闭包调用展开为显式的 `ResearchWindowDiagnostics.record_end(context, hard_seconds=state.budget.hard_timeout_seconds, elapsed=elapsed, exhausted=...)`，随后按原位置调用 `checkpoint()`。诊断仍由专属上下文写入，检查点仍由原执行器控制；观察时钟每次仍取样两次，预算耗尽分支原有的后续额外检查点仍保留。
 - 不触及恢复游标、费用预留及结算、状态序列化、模型请求或发布权威；不进行真实搜索/付费调用。下一片聚焦执行器的其他隐式共享变量，优先做具备对应回归用例的窄范围切分；本候选测试与提交状态以实际执行记录为准。
+### 未接线的旧 Discovery 适配器退役（2026-11-19，独立减负片）
+
+- `src/web/research/discovery.py` 持有一套历史 `DiscoveryRequest/Hit/Batch`、
+  `DiscoveryProvider` 和未注册的 `LegacyDiscoveryAdapter`；全仓生产、测试、
+  CLI、路由及注册机制都没有导入它或其符号。正式检索已经使用
+  `src/web/research/retrieval_backends.py` 的独立 `DiscoveryRequest` 契约。
+- 整个旧模块删除，不增加同名重导出、兼容 shim 或只验证删除结果的测试；
+  现行检索、浏览器、查询预算、状态恢复和证据发布契约均不变。
+  本片为 P3 离线工程减负：Ruff 全库通过，检索后端/主动研究适配器/
+  诊断观测/主动研究运行器影响集 **129 passed**，`git diff --check` 通过。
+  不声称提高检索质量，也不发起付费 API 调用；L3 未运行。
 
 ### 2026-11-19 模型尝试实时预算状态绑定（独立候选）
 
