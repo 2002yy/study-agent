@@ -6,6 +6,17 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### 无调用方的 RQ1-C guard 二次转发模块退役（2026-11-19，独立片）
+
+- `tools/run_rq1c_bounded_qualification_guard.py` 只把当前
+  `rq1c_qualification_guardrails.py` 的预算类型和正式
+  `run_rq1c_bounded_qualification_impl.py` 的函数再次导出，提供重复的 `main()`；
+  全仓没有活跃代码、测试、CI、阶段门或操作文档引用它。
+- 删除这个无调用方的旧兼容文件；不修改或代替预算守卫本体，不触碰正式
+  `run_rq1c_bounded_qualification.py` 入口及其测试/硬截止、真实 API 调用约束，
+  不增加别名或保留空壳。离线入口与预算负控影响集 **54 passed**，Ruff 与
+  `git diff --check` 通过；不运行付费资格实验。
+
 ### 2026-11-19 读取观测实时绑定（独立候选）
 
 - #493 的精确 HEAD `cee81a55`、CI `44351248954` 成功并合入 `main@083a0172`；#494 的重挂 HEAD `ee05454e`、CI `44357775209` 成功并合入 `main@cf54cc59`。#495 模型预算状态绑定提交 `cd85309d`、CI `44359098528` 尚待最终验收，不能以本地测试替代远端门禁。
