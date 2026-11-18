@@ -68,6 +68,14 @@
   保留沙箱双视口语义/Three 按需加载用例。真实预算闸门、
   `src/interactive_history.py` 和生成/发布路径不变；无付费调用。
 
+- **2026-11-18 M4-C 候选轨迹离线审计退役（独立片）**：
+  `tools/audit_tool_agent_candidates.py` 仅消费旧运行记录生成供人工查看的
+  `m4c-tool-agent-candidate-audit-v1` 报告；全库没有正式业务、CI、阶段门或
+  其他工具调用它，只有 `tests/test_tool_agent_candidate_audit.py` 检查其输出。
+  成组删除这个阶段性报告器和全部专属测试。保留生产运行时真正生成的
+  `candidate_trace`、`candidate_audit` 观测字段和现行 Web Tool Agent 测试；
+  旧集成收口文档中对应的历史文件列表不追溯篡改。
+
 - **2026-11-18 旧记忆接口与专项测试退役（独立片）**：以
   `main@d879a4af79d99521129f361e07866cedc3fa0064` 为基线。
   前端现行记忆操作已由 `POST /memory-runs` → `POST /memory-runs/{id}/commit`
