@@ -115,7 +115,7 @@ def _run_with_hint(monkeypatch, tmp_path, *, capabilities, specialist):
             max_items=5,
         )
     )
-    service = ART._cutover_service(
+    service = ART._service(
         repository,
         ART._StructuredClient(),
         read_gateway=ART._ShortNativeReadGateway(text="z" * 1200),

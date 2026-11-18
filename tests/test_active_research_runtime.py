@@ -499,13 +499,17 @@ def _service(
     *,
     search_backend: Any | None = None,
     read_gateway: Any | None = None,
+    escalation_backend: Any | None = None,
     monotonic: Callable[[], float] = perf_counter,
 ) -> ClaimEngineDispatchWebLookupService:
     def gateway_factory() -> ActiveResearchGateway:
-        return ActiveResearchGateway(
+        gateway = ActiveResearchGateway(
             search_backend=search_backend or _SearchBackend(),
             read_gateway=read_gateway or _ReadGateway(),
         )
+        if escalation_backend is not None:
+            gateway.set_escalation_backend(escalation_backend)
+        return gateway
 
     def runtime_factory(
         repo: WebLookupRepository,
@@ -4134,47 +4138,6 @@ class _ShortNativeReadGateway:
         }
 
 
-def _cutover_service(
-    repository: WebLookupRepository,
-    client: _StructuredClient,
-    *,
-    read_gateway: Any,
-    escalation_backend: Any | None,
-    search_backend: Any | None = None,
-) -> ClaimEngineDispatchWebLookupService:
-    gateway = ActiveResearchGateway(
-        search_backend=search_backend or _SearchBackend(),
-        read_gateway=read_gateway,
-    )
-    if escalation_backend is not None:
-        gateway.set_escalation_backend(escalation_backend)
-
-    def gateway_factory() -> ActiveResearchGateway:
-        return gateway
-
-    def runtime_factory(
-        repo: WebLookupRepository,
-        active_gateway: ActiveResearchGateway,
-    ) -> ActiveResearchRuntimeExecutor:
-        model = ResearchModelGateway(
-            client=client,
-            model_name="test-model",
-            timeout_seconds=20,
-        )
-        return ActiveResearchRuntimeExecutor(
-            repo,
-            active_gateway,
-            model_gateway=model,
-            monotonic=perf_counter,
-        )
-
-    return ClaimEngineDispatchWebLookupService(
-        repository,
-        active_gateway_factory=gateway_factory,
-        active_runtime_factory=runtime_factory,
-    )
-
-
 def _cutover_run(repository: WebLookupRepository, run_id: str) -> WebLookupRun:
     return _pending_active_run(
         repository,
@@ -4210,7 +4173,7 @@ def test_read_chain_falls_back_to_wigolo_without_inflating_sources(
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover.sqlite"))
     run = _cutover_run(repository, "run_cutover_fallback")
-    completed = _cutover_service(
+    completed = _service(
         repository,
         _StructuredClient(),
         read_gateway=native,
@@ -4259,7 +4222,7 @@ def test_read_chain_does_not_run_wigolo_when_native_is_adequate(
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_ok.sqlite"))
     run = _cutover_run(repository, "run_cutover_native_ok")
-    completed = _cutover_service(
+    completed = _service(
         repository,
         _StructuredClient(),
         read_gateway=_ShortNativeReadGateway(
@@ -4283,7 +4246,7 @@ def test_read_chain_does_not_run_wigolo_when_the_tier_is_disabled(
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_off.sqlite"))
     run = _cutover_run(repository, "run_cutover_disabled")
-    completed = _cutover_service(
+    completed = _service(
         repository,
         _StructuredClient(),
         read_gateway=_ShortNativeReadGateway(),
@@ -4314,7 +4277,7 @@ def test_read_chain_charges_the_run_envelope_once_per_real_wigolo_call(
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_env.sqlite"))
     run = _cutover_run(repository, "run_cutover_envelope")
-    _cutover_service(
+    _service(
         repository,
         _StructuredClient(),
         read_gateway=_ShortNativeReadGateway(),
@@ -4337,7 +4300,7 @@ def test_read_chain_keeps_one_outcome_per_candidate_and_backend(
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_uniq.sqlite"))
     run = _cutover_run(repository, "run_cutover_unique")
-    completed = _cutover_service(
+    completed = _service(
         repository,
         _StructuredClient(),
         read_gateway=_ShortNativeReadGateway(),
@@ -4431,7 +4394,7 @@ def _a2e_run(
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / f"{name}.sqlite"))
     run = _cutover_run(repository, f"run_{name}")
-    return _cutover_service(
+    return _service(
         repository,
         _StructuredClient(),
         read_gateway=native,
