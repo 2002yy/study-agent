@@ -246,14 +246,6 @@ def query_rag_endpoint(
     return RagQueryResponse(**run.result)
 
 
-@router.post("/rag", response_model=RagQueryResponse, deprecated=True)
-def query_rag_alias(
-    request: RagQueryRequest,
-    service: RagRunServiceDependency,
-) -> RagQueryResponse:
-    return query_rag_endpoint(request, service)
-
-
 @router.get("/rag-runs", response_model=RagRunListResponse)
 def list_rag_runs(
     service: RagRunServiceDependency,
