@@ -6,6 +6,22 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### §44A/44C 旧召回及替代提供商资格实验退役（2026-11-19，独立减负片）
+
+- 历史 `run_recall_target_audit.py` 的离线报告解析与在线探测，以及依赖其
+  `TARGETS/TargetSpec` 的 Brave 搜索资格脚本、DeepSeek URL 提案资格脚本，
+  只在这三个实验脚本及各自专项测试内互相引用；现行应用、CLI、CI 工作流、
+  `stage_gates.json` 和其它工具均无调用方。相应实验结论只见于归档状态文档。
+- 本片整体删除 **三个实验工具及三个专属测试（1,086 行）**，不将历史
+  `TargetSpec` 复制成新的兼容模块，也不保留旧 API key 读取逻辑或资格判定。
+  历史归档仍保留，不追溯改写当年的实验记录。与实验无关的 SearXNG
+  Brave 引擎可选配置继续保留，正式搜索/读取及其预算与恢复逻辑不变。
+  离线验收：Ruff 全库通过，CI scope / 阶段门 / 研究 Provider / 主动研究
+  adapter 影响集 **134 passed**，`git diff --check` 通过；未运行付费
+  搜索或模型 API，也未声称检索质量提升。下一独立候选是仍被测试专用
+  `session_logger` 手动 flush/save 链，须先确认正式会话与微信上下文的真实
+  调用边界，不与本片混写。
+
 ### F2 历史双读取器配对实验退役（独立片）
 
 - `tools/run_f2_paired.py` 对固定六类本地页面重复运行旧 default/Crawl4AI
