@@ -144,7 +144,6 @@ from src.web.research.scheduler import (
     ReadSchedulerPolicy,
     ReadSchedulingCancelled,
     _restore_completed_read_targets as _restore_completed_read_targets,
-    attempted_read_backends,
     is_schedulable_candidate,
     is_schedulable_lead,
     plan_read_wave,
@@ -263,7 +262,7 @@ from src.application.research_runtime_failure_projection import (
     with_appended_runtime_failure,
 )
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
-from src.application.research_runtime_read_scheduling import schedule_active_research_read
+from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
 from src.application.research_runtime_read_site import (
     ActiveReadSiteContext,
     READ_SITE_HINT_ROUTE_DEFAULT as READ_SITE_HINT_ROUTE_DEFAULT,
@@ -906,10 +905,11 @@ class ActiveResearchRuntimeExecutor:
         # §143-B0: ACTIVE_READER_CHAIN is now a module-level contract
         # (see the definition above), so the chain has a single authority.
 
-        def read_chain_health_state_for(backend: str, host: str) -> str:
-            if breaker is None:
-                return ""
-            return breaker.state_for(backend=backend, host=host)
+        read_dispatch = ActiveReadDispatchContext(
+            breaker=breaker,
+            available_backends=ACTIVE_READER_CHAIN,
+            research_seconds_left=research_seconds_left,
+        )
 
         def read_chain_executors(source_limit: int) -> dict[str, Any]:
             """One executor per enabled backend; the chain decides who runs.
@@ -1973,14 +1973,10 @@ class ActiveResearchRuntimeExecutor:
                     # reader is currently unavailable is not planned at all this
                     # wave - no attempt, and no read outcome, because nothing was
                     # read.
-                    scheduling = schedule_active_research_read(
-                        candidate_id=candidate_id,
-                        url=candidate.url,
+                    scheduling = read_dispatch.schedule(
+                        candidate=candidate,
                         read_outcomes=cursor.read_outcomes,
                         context=context,
-                        breaker=breaker,
-                        available_backends=ACTIVE_READER_CHAIN,
-                        research_seconds_left=research_seconds_left,
                     )
                     if scheduling is not None and not scheduling.executable:
                         continue
@@ -2052,10 +2048,11 @@ class ActiveResearchRuntimeExecutor:
                             chain=ACTIVE_READER_CHAIN,
                             executors=executors,
                             record_outcome=chain_steps.append,
-                            attempted_backends=attempted_read_backends(
-                                cursor.read_outcomes, candidate_id
+                            attempted_backends=read_dispatch.attempted_backends(
+                                candidate_id=candidate_id,
+                                read_outcomes=cursor.read_outcomes,
                             ),
-                            health_state_for=read_chain_health_state_for,
+                            health_state_for=read_dispatch.health_state_for,
                         )
                     # §105 A2d-4: the chain's own decision, recorded even when it
                     # executed nothing (a scheduling/policy skip), so the
