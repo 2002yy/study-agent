@@ -5306,42 +5306,6 @@ def _lead_discovered_candidates(
     return tuple(added), stats
 
 
-def _read_plan_entries(raw: Any, keys: tuple[str, ...]) -> list[dict[str, str]]:
-    if not isinstance(raw, list):
-        return []
-    return [
-        {key: str(item[key]) for key in keys}
-        for item in raw
-        if isinstance(item, Mapping) and all(key in item for key in keys)
-    ]
-
-
-def _load_read_plan(context: Mapping[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """Load the persisted read plan as ``(physical_reads, extraction_targets)``.
-
-    v2 persists both lists explicitly; the v1 format stored a single list of
-    claim-bound entries, which is converted so in-flight runs keep resuming.
-    """
-    raw = context.get(ACTIVE_RESEARCH_READ_PLAN_KEY)
-    if isinstance(raw, Mapping):
-        physical_keys = ("candidate_id", "claim_id", "cluster_id", "source_role")
-        return (
-            _read_plan_entries(raw.get("physical_reads"), physical_keys),
-            _read_plan_entries(raw.get("extraction_targets"), physical_keys),
-        )
-    if isinstance(raw, list):
-        physical_keys = ("candidate_id", "claim_id", "cluster_id", "source_role")
-        entries = _read_plan_entries(raw, physical_keys)
-        physical: list[dict[str, str]] = []
-        seen: set[str] = set()
-        for item in entries:
-            if item["candidate_id"] not in seen:
-                seen.add(item["candidate_id"])
-                physical.append(item)
-        return physical, entries
-    return [], []
-
-
 def _candidate_by_id(cursor: ResearchRuntimeCursor, candidate_id: str) -> CandidatePoolItem:
     for item in cursor.candidates:
         if item.id == candidate_id:

@@ -416,6 +416,14 @@
 
 **共享可变状态边界**：① `execute()` 仍唯一持有、在恢复检查点后重新绑定 `state/cursor/context`；② `ActiveReadDispatchContext`/`ActiveReadExecutionContext` 只留运行期稳定依赖，当前候选和读取历史逐次显式传入；③ 读链投影只返回结果；④ `selected_sources` 在实际提取后由执行器更新；⑤ 观测函数只在调用时写当前 `context.metrics`，不持有旧快照；⑥ 模型 inflight、`reserve_call` 及最终结算、证据发布均由原权威负责。
 
+**历史 read-plan v1 加载器退役（2026-11-19，独立片）**：主动研究运行器中
+`_load_read_plan` 与唯一专用的 `_read_plan_entries` 曾将旧版单列表计划转换为
+v2 双列表，但在仓内运行、恢复、测试及阶段门已无调用方。二者成组删除，不留
+兼容空壳。**保留**现行 `claim_engine_read_plan` 字段、
+`ACTIVE_RESEARCH_READ_PLAN_KEY`、活动计划和持久化恢复契约，不修改 schema，
+也不声称删除实际数据库迁移能力。原影响集 **96 passed**，Ruff、差异检查、
+mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
+
 **后继故障记录显式游标片（本地独立候选）**：基于 `main@95fdbe96`，直接在 17 个故障分支调用已经存在的 `with_appended_runtime_failure(cursor, context, ...)` 并显式绑定返回游标，移除 `execute()` 内捕获 `cursor/context` 的 `_append_failure` 闭包。未更改已有纯投影函数、失败 ID/去重、异常处理、检查点、恢复、预算或发布代码。冻结契约的基础运行器与故障投影回归 **87 passed**，预算时钟/模型尝试/失败契约/结算/steering **37 passed**；读取栈阶段门 **458 passed、4 skipped**（107.59 秒），全库 Ruff、diff-check 与 mypy 基线（115/125）通过。新候选精确 HEAD CI 另行验收，当前绝不冒充已合并。
 
 **唯一下一收口动作**：完成上述候选的读取栈阶段门、差异范围核对与精确 HEAD CI，审阅通过后独立合并；之后再按真实测试调用方清理重复造景，不重新建立模型、恢复或发布权威。#404 测试造景由另一窗口处理；原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
