@@ -120,38 +120,12 @@ def test_browser_test_artifacts_are_excluded():
     assert should_exclude(Path("frontend/playwright-real-stack-report/index.html"))
 
 
-def test_session_logger_init_does_not_create_dirs():
-    text = Path("src/session_logger.py").read_text(encoding="utf-8")
-    block_start = text.index("def init_session()")
-    block_end = text.index("def get_or_create_session")
-    block = text[block_start:block_end]
-    assert "_ensure_dir()" not in block
-
-
-def test_session_logger_get_or_create_does_not_create_dirs():
-    text = Path("src/session_logger.py").read_text(encoding="utf-8")
-    block_start = text.index("def get_or_create_session")
-    block_end = text.index("def set_after_session_status")
-    block = text[block_start:block_end]
-    assert "_ensure_dir()" not in block
-
-
-def test_session_logger_flush_uses_safe_writer():
-    text = Path("src/session_logger.py").read_text(encoding="utf-8")
-    block_start = text.index("def flush_current_session")
-    block_end = text.index("def save(")
-    block = text[block_start:block_end]
-    assert "safe_write_text(current_file, existing + chunk)" in block
-    assert "with current_file.open(" not in block
-
-
 def test_chat_and_session_routes_use_application_services_only():
     chat_route = Path("src/api/routes/chat_routes.py").read_text(encoding="utf-8")
     session_route = Path("src/api/routes/session_routes.py").read_text(encoding="utf-8")
 
     for route in (chat_route, session_route):
         assert "from src.api import" not in route
-        assert "src.session_logger" not in route
         assert "src.llm_client" not in route
     assert "ChatService" in chat_route
     assert "SessionService" in session_route

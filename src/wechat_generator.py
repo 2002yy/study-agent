@@ -25,35 +25,17 @@ from src.wechat_format import (
 from src.wechat_prompt import load_interactive_prompt, load_system_prompt
 from src.wechat_state import read_wechat_group, read_wechat_state
 
-# ── Single-chat context helpers ───────────────────────────────────────
+# ── Learning-memory context helpers ───────────────────────────────────
 
-def _build_single_chat_context_block(
+def _build_learning_context_block(
     session_id: str | None = None,
     memory_bundle: dict[str, str] | None = None,
 ) -> str:
-    """Build a compact block from single-chat + memory for group-chat prompts.
+    """Build a compact learning-memory block for group-chat prompts.
 
-    Returns "" if no session context is available.
+    Returns "" if no learning memory is available.
     """
     parts: list[str] = []
-
-    # Single-chat recent turns
-    if session_id:
-        from src.session_logger import get_session_entries
-
-        entries = get_session_entries(session_id)
-        if entries:
-            recent = entries[-4:]  # last 4 single-chat turns
-            lines = ["[单聊近期对话]"]
-            for entry in recent:
-                user_text = (entry.get("user") or "").strip()
-                agent_text = (entry.get("agent") or "").strip()
-                if user_text:
-                    lines.append(f"用户: {user_text[:150]}")
-                if agent_text:
-                    lines.append(f"Agent: {agent_text[:150]}")
-            if len(lines) > 1:
-                parts.append("\n".join(lines))
 
     # Learning memory bundle
     if memory_bundle is None and session_id:
@@ -121,14 +103,14 @@ def generate_wechat_news_discussion(
         "三月七偏轻松和反应，刻晴偏判断和重点，纳西妲偏分析和连接，流萤偏感受和收束。"
     )
 
-    single_chat_block = _build_single_chat_context_block(session_id, memory_bundle)
-    if single_chat_block:
+    learning_context = _build_learning_context_block(session_id, memory_bundle)
+    if learning_context:
         system_prompt += (
-            "\n\n[单聊上下文导入]\n"
-            "以下是用户与AI在单聊中的近期对话记录和学习状态。"
+            "\n\n[学习记忆导入]\n"
+            "以下是用户已有的学习状态。"
             "角色在群聊中可以自然引用这些背景来让讨论更贴合用户当前情况，"
             "但不要逐字复述或显式说「你在单聊里说过」。"
-            f"{single_chat_block}"
+            f"{learning_context}"
         )
 
     user_content = (
@@ -202,14 +184,14 @@ def _build_interactive_messages(
             f"{rag_context.strip()}"
         )
 
-    single_chat_block = _build_single_chat_context_block(session_id, memory_bundle)
-    if single_chat_block:
+    learning_context = _build_learning_context_block(session_id, memory_bundle)
+    if learning_context:
         prompt += (
-            "\n\n[单聊上下文导入]\n"
-            "以下是用户与AI在单聊中的近期对话记录和学习状态。"
+            "\n\n[学习记忆导入]\n"
+            "以下是用户已有的学习状态。"
             "角色在群聊中可以自然引用这些背景来让对话更连贯，"
             "但不要逐字复述或显式说「你在单聊里说过」「根据你的学习记录」。"
-            f"{single_chat_block}"
+            f"{learning_context}"
         )
 
     messages = [

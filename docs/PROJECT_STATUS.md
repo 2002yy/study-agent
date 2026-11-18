@@ -6,6 +6,24 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### 旧 `session_logger` 手动落盘镜像退役（2026-11-19，独立减负片）
+
+- 正式聊天和会话恢复由 SQLite `ChatThread/ChatTurn`、`SessionService` 与
+  `LegacySessionImporter` 承担。旧 `src/session_logger.py` 的 `log`、
+  `flush_current_session`、`save` 无生产调用方，主要由
+  `tests/test_session_logger_flush.py` 模拟调用。其 `_state` 从未由正式聊天
+  填充，因此微信群从它读取最近单聊及写 `wechat_interactive` 标记的两处
+  留存入口也没有真实上下游；`src/session_store.py` 只服务该旧镜像。
+- 本片一并删除这两个旧模块、旧 flush 专项测试、三个只检查其源码结构
+  的打包测试、微信状态桩，以及重复的单轮会话列表测试。正式历史 Markdown
+  导入/恢复测试保留，但直接以遗留 `session_turn` 快照构造数据，不再先调用
+  废弃写入器；微信群仍能读取学习记忆，单独补充了离线断言。
+  正式 SQLite 会话、归档、恢复及模型/预算行为不变。离线影响集
+  **128 passed**、扩展会话/微信集 **170 passed**、学习记忆聚焦集
+  **28 passed**；Ruff/diff-check 通过，mypy baseline **115/125**
+  （无新增债务）。真实模型和付费搜索未运行。本片与 §44A/44C 旧实验
+  退役分别使用独立分支，均不等待对方改动才能独立验证。
+
 ### F2 历史双读取器配对实验退役（独立片）
 
 - `tools/run_f2_paired.py` 对固定六类本地页面重复运行旧 default/Crawl4AI

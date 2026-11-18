@@ -4,7 +4,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable
 
-from src.session_logger import set_wechat_interactive
 from src.mode_manager import RuntimeModes, build_runtime_profile, update_wechat_join_state
 from src.news.article_fetcher import enrich_news_items_with_article_text
 from src.news.audit import NewsAuditArtifact, save_news_audit
@@ -207,9 +206,6 @@ def run_discussion_stage(
             mode="interactive_group",
         )
         group_content = read_wechat_group()
-        if session_id:
-            set_wechat_interactive(session_id, "news_round")
-
     return discussion, group_content
 
 
