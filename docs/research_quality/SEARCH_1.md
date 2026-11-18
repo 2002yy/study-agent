@@ -186,23 +186,13 @@ F（交错合并）保留为已实现的对照臂：只有当「第 2–6 位的
 并加入反例测试（24 条池子、相关结果全部位于第 13 条之后：旧实现返回 0.0，新实现返回
 `1 - C(16,6)/C(24,6) = 0.9405`）。本轮 `--limit 6` 的数据不受影响（池子就是 12 条）。
 
-## 复现
+## 历史复现材料（执行器已退役）
 
-```powershell
-# 采集（真实网络；需要 SearXNG 容器与 DDG 代理）
-$env:WEB_ENABLE_SEARXNG="true"; $env:SEARXNG_BASE_URL="http://127.0.0.1:8080"
-$env:SEARXNG_ALLOW_LOOPBACK="true"; $env:WEB_ENABLE_BING_RSS="true"
-$env:WEB_ENABLE_DUCKDUCKGO="true"; $env:WEB_DUCKDUCKGO_PROXY="http://127.0.0.1:7890"
-$env:NO_PROXY="127.0.0.1,localhost"
-python tools/run_provider_routing_replay.py --capture `
-  --queries tests/fixtures/provider_routing/search_1_queries_v1.json `
-  --limit 6 --output docs/research_quality/SEARCH_1_CAPTURE.json
+本阶段使用的搜索采集与离线回放脚本 `tools/run_provider_routing_replay.py`
+已作为历史专项实验退役，不再属于现行工具或测试入口。原始题集
+`tests/fixtures/provider_routing/search_1_queries_v1.json`、采集文件
+`SEARCH_1_CAPTURE.json` 和回放输出 `SEARCH_1_REPLAY.json` 保留供审计；
+当时执行器的源码可由对应 Git 历史版本恢复。
 
-# 离线回放（无网络、无模型）
-python tools/run_provider_routing_replay.py `
-  --input docs/research_quality/SEARCH_1_CAPTURE.json `
-  --queries tests/fixtures/provider_routing/search_1_queries_v1.json `
-  --limit 6 --output docs/research_quality/SEARCH_1_REPLAY.json
-```
-
-回放会把采集快照与题集绑定（版本 + 指纹 + case id），题集或锚点被改动会直接拒绝。
+原执行器要求回放输入绑定题集版本、内容指纹及 case id；上述历史结果不能
+被视为当前生产检索路由的回归验收。
