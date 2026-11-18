@@ -184,9 +184,3 @@ class GitHubFreshnessBlobReader:
             self._blob_cache.pop(oldest, None)
             self._blob_cache[sha] = (time.monotonic(), content)
         return content
-
-
-def _payload_compact(payload: dict[str, Any]) -> dict[str, Any]:
-    """Keep the drift-relevant subset of a freshness primary/supporting detail."""
-    keys = ("path", "symbol", "reason", "head_file_sha", "materially_changed", "error")
-    return {key: payload.get(key) for key in keys if key in payload}

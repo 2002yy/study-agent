@@ -1147,19 +1147,6 @@ def _object_list(value: Any, label: str) -> list[Mapping[str, Any]]:
     return [_as_mapping(item, label) for item in value]
 
 
-def _counter_mapping(value: Any, label: str) -> dict[str, int]:
-    if not isinstance(value, Mapping) or len(value) > _MAX_CURSOR_ITEMS:
-        raise ValueError(f"invalid {label}")
-    counters: dict[str, int] = {}
-    for key, count in value.items():
-        if not isinstance(key, str) or not key:
-            raise ValueError(f"invalid {label} key")
-        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
-            raise ValueError(f"invalid {label} counter")
-        counters[key] = count
-    return counters
-
-
 def _as_mapping(value: Any, label: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise TypeError(f"{label} item must be an object")

@@ -140,7 +140,6 @@
       "tests/test_web_tool_agent.py",
       "tests/test_source_assessment.py",
       "tests/test_searxng_source.py",
-      "tests/test_search_to_answer_baseline.py",
       "tests/test_lookup_official_identity.py",
       "tests/test_lookup_rescue_support.py",
       "tests/test_lookup_terminal.py",

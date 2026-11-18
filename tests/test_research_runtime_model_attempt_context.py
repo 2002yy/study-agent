@@ -1,10 +1,13 @@
 """Model attempt callbacks preserve durable-before-send and in-memory finish."""
 
+from typing import Any, cast
+
 import pytest
 
 from src.application.research_runtime_model_attempt_context import (
     ActiveModelAttemptContext,
 )
+from src.web.research.contracts import ResearchState
 from src.web.research.model_gateway import (
     ResearchModelAttemptStart,
     ResearchModelCallAudit,
@@ -52,9 +55,16 @@ def _callbacks(
     budget_fails: bool = False,
     checkpoint_fails: bool = False,
     cancel_after_finish: bool = False,
-) -> tuple[ActiveModelAttemptContext, dict, list[str]]:
-    slot = {"cursor": ResearchRuntimeCursor()}
+) -> tuple[ActiveModelAttemptContext, dict[str, Any], list[str]]:
+    slot: dict[str, Any] = {
+        "cursor": ResearchRuntimeCursor(),
+        "state": cast(ResearchState, object()),
+    }
     order: list[str] = []
+
+    def current_state() -> ResearchState:
+        order.append("get_state")
+        return slot["state"]
 
     def current_cursor() -> ResearchRuntimeCursor:
         order.append("get_cursor")
@@ -69,8 +79,9 @@ def _callbacks(
         if cancel_after_finish and slot["cursor"].model_calls:
             raise RuntimeError("cancelled after completion")
 
-    def ensure_budget() -> None:
+    def ensure_budget(state: ResearchState) -> None:
         order.append("ensure_budget")
+        slot["budget_state_seen"] = state
         if budget_fails:
             raise RuntimeError("hard budget reached")
 
@@ -81,6 +92,7 @@ def _callbacks(
 
     return (
         ActiveModelAttemptContext(
+            current_state=current_state,
             current_cursor=current_cursor,
             set_cursor=set_cursor,
             ensure_active=ensure_active,
@@ -100,7 +112,7 @@ def test_model_callbacks_checkpoint_start_before_finish_and_never_flush_audit() 
     assert slot["cursor"].inflight_model_call == marker
     assert slot["cursor"].model_calls == ()
     assert order == [
-        "ensure_active", "ensure_budget", "get_cursor", "set_cursor", "checkpoint"
+        "ensure_active", "get_state", "ensure_budget", "get_cursor", "set_cursor", "checkpoint"
     ]
 
     callbacks.finished(_audit(marker))
@@ -115,7 +127,7 @@ def test_model_callbacks_budget_denial_happens_before_cursor_mutation() -> None:
     with pytest.raises(RuntimeError, match="hard budget reached"):
         callbacks.started(_marker())
 
-    assert order == ["ensure_active", "ensure_budget"]
+    assert order == ["ensure_active", "get_state", "ensure_budget"]
     assert slot["cursor"] == ResearchRuntimeCursor()
 
 
@@ -125,7 +137,7 @@ def test_model_callbacks_checkpoint_crash_retains_in_memory_inflight() -> None:
         callbacks.started(_marker())
 
     assert order == [
-        "ensure_active", "ensure_budget", "get_cursor", "set_cursor", "checkpoint"
+        "ensure_active", "get_state", "ensure_budget", "get_cursor", "set_cursor", "checkpoint"
     ]
     assert slot["cursor"].inflight_model_call == _marker()
 
@@ -151,4 +163,16 @@ def test_model_callbacks_read_rebound_cursor_when_started() -> None:
     assert rebound.inflight_model_call is None
     assert slot["cursor"].wave_index == 7
     assert slot["cursor"].inflight_model_call == _marker()
-    assert order[:3] == ["ensure_active", "ensure_budget", "get_cursor"]
+    assert order[:4] == ["ensure_active", "get_state", "ensure_budget", "get_cursor"]
+
+
+def test_model_callbacks_budget_check_reads_rebound_state_at_send_boundary() -> None:
+    callbacks, slot, order = _callbacks()
+    rebound = cast(ResearchState, object())
+    slot["state"] = rebound
+
+    callbacks.started(_marker())
+
+    assert slot["budget_state_seen"] is rebound
+    assert order.index("ensure_budget") < order.index("set_cursor")
+    assert order.index("checkpoint") > order.index("set_cursor")
