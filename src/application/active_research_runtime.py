@@ -272,6 +272,11 @@ from src.application.research_runtime_read_site import (
     specialist_chain_run as specialist_chain_run,
 )
 from src.application.research_runtime_budget_clock import ResearchBudgetClock
+from src.application.research_runtime_execution_guard import (
+    ActiveResearchCancelled,
+    ActiveResearchExecutionGuard,
+    HardResearchBudgetReached as _HardBudgetReached,
+)
 from src.application.research_runtime_publication import ActiveResearchPublisher
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
 from src.application.active_research_evidence_projection import (
@@ -564,10 +569,6 @@ def run_single_read_measurement(
     return chain_run, tuple(recorded)
 
 
-class ActiveResearchCancelled(RuntimeError):
-    pass
-
-
 # Multimodal Reader v1 read-site seam (docs/PROJECT_STATUS.md §144.15).
 # The read site never invents visual metadata: the caller/operator declares it on
 # the run context, exactly like every other injected read seam. The declaration
@@ -819,6 +820,13 @@ class ActiveResearchRuntimeExecutor:
         elapsed_ms = budget_clock.elapsed_ms
         research_seconds_left = budget_clock.research_seconds_left
         remaining_timeout = budget_clock.remaining_timeout
+        execution_guard = ActiveResearchExecutionGuard(
+            repository=self.repository,
+            run_id=run_id,
+            operation_id=operation_id,
+            elapsed=elapsed,
+        )
+        ensure_active = execution_guard.ensure_active
         research_window_diagnostics = ResearchWindowDiagnostics(
             reserve_seconds=RESEARCH_WINDOW_RESERVE_SECONDS
         )
@@ -826,10 +834,6 @@ class ActiveResearchRuntimeExecutor:
             policy_check=self.policy_check,
             utc_now=self.utc_now,
         )
-
-        def ensure_active() -> None:
-            if self.repository.cancel_requested(run_id, operation_id=operation_id):
-                raise ActiveResearchCancelled("active research cancelled")
 
         def checkpoint(*, stage: str | None = None) -> WebLookupRun:
             nonlocal context, state
@@ -953,10 +957,6 @@ class ActiveResearchRuntimeExecutor:
             chain_runner=run_chain,
         )
 
-        def ensure_budget() -> None:
-            if elapsed() >= state.budget.hard_timeout_seconds:
-                raise _HardBudgetReached
-
         def set_model_cursor(value: ResearchRuntimeCursor) -> None:
             nonlocal cursor
             cursor = value
@@ -965,7 +965,7 @@ class ActiveResearchRuntimeExecutor:
             current_cursor=lambda: cursor,
             set_cursor=set_model_cursor,
             ensure_active=ensure_active,
-            ensure_budget=ensure_budget,
+            ensure_budget=lambda: execution_guard.ensure_budget(state),
             checkpoint=checkpoint,
         )
         on_model_started = model_attempt_context.started
@@ -1150,7 +1150,7 @@ class ActiveResearchRuntimeExecutor:
                     cursor = replace(cursor, wave_index=1)
                     context = steering_context.refresh(context)
                     if _pending_active_steering_ids(context):
-                        ensure_budget()
+                        execution_guard.ensure_budget(state)
                         state, context, _applied_ids = steering_context.apply_pending(
                             state=state,
                             context=context,
@@ -1481,7 +1481,7 @@ class ActiveResearchRuntimeExecutor:
                     # rankings remain durable inputs for scheduling and crash
                     # recovery; successful later windows are merged and
                     # reranked instead of replacing those bindings.
-                    ensure_budget()
+                    execution_guard.ensure_budget(state)
                     categories = ("public_research_claim", "public_candidate_metadata")
                     assessment_logical_call_id = (
                         f"research_candidate_assessment:{run_id}:{claim.id}:1"
@@ -1921,7 +1921,7 @@ class ActiveResearchRuntimeExecutor:
                             ),
                         )
                         break
-                    ensure_budget()
+                    execution_guard.ensure_budget(state)
                     candidate = _candidate_by_id(cursor, candidate_id)
                     source_limit = min(6000, state.budget.max_total_chars - used_chars)
                     # §100 A2c: pre-attempt scheduling. A candidate whose only
@@ -2207,7 +2207,7 @@ class ActiveResearchRuntimeExecutor:
                     lead_candidate = lead_item["candidate"]
                     lead_candidate_id = lead_candidate.id
                     ensure_active()
-                    ensure_budget()
+                    execution_guard.ensure_budget(state)
                     lead_source_limit = min(
                         6000, state.budget.max_total_chars - used_chars
                     )
@@ -2418,7 +2418,7 @@ class ActiveResearchRuntimeExecutor:
                     ):
                         continue
                     ensure_active()
-                    ensure_budget()
+                    execution_guard.ensure_budget(state)
                     extraction_categories = (
                         "public_research_claim",
                         "public_candidate_metadata",
@@ -3029,10 +3029,6 @@ class ActiveResearchRuntimeExecutor:
         if run is None:
             raise ValueError(f"WebLookupRun not found: {run_id}")
         return run
-
-
-class _HardBudgetReached(Exception):
-    pass
 
 
 def _default_policy_check(context: Mapping[str, Any], purpose: str) -> bool:
