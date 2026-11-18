@@ -101,15 +101,6 @@ def create_rag_index_run(
     return _run_response(run)
 
 
-@router.post("/rag/index", response_model=RagIndexResponse, deprecated=True)
-def build_rag_index_endpoint(
-    request: RagIndexRequest,
-    service: RagRunServiceDependency,
-) -> RagIndexResponse:
-    run = create_rag_index_run(request, service)
-    return RagIndexResponse(**run.result)
-
-
 async def _save_uploads(files: list[UploadFile]):
     from src.application import helpers
 
