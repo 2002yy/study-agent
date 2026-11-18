@@ -111,7 +111,7 @@
 
 **后继独立本地片（尚未创建 PR）**：`codex/research-read-history-observability-20261118` 接在 #443 的同语义主线整合提交之后。将三处 `reads` 快照合并为 `_record_read_history(context, current_outcomes)`，仅真实链结束时额外写 `candidate_resolution`。仍从当前游标读历史、当前上下文写观测，持久化/检查点保留原位置。原测试造景复用，完整直接影响集 **101 passed**、Ruff 和 mypy 基线通过；未做真实模型/浏览器调用。
 
-**本窗口第三个独立后继（尚未创建 PR）**：`codex/research-atomic-routing-observability-20261118` 接在上一读取历史片的远端 HEAD `bb5d51f8` 后。原执行器仍独占 `route_missing_atomic_claims`、`extraction_targets/routed_pairs` 与每次检查点；将“决定路由后”和“真正提取后”的两个指标写入移到读取观测模块，仍使用当前 `context`、当前波次和真实来源记录。两个指标均保留 60 条上限、既有字段和顺序，未改变实际 claim 证据关系。原路由判定和诊断新增负控 **19 passed**，读取栈阶段门 **467 passed、4 skipped**（105.25 秒）；全库 Ruff、diff-check、mypy 基线 **115/125** 通过，无模型/付费调用。
+**本窗口第三个独立后继（远端分支已保存，尚未创建 PR）**：`codex/research-atomic-routing-observability-20261118` 接在上一读取历史片的远端 HEAD `bb5d51f8` 后，远端代码提交 `8a154e7d`、tree `99c88a8c` 与本地候选 `e125adb0` 的 tree 相同。原执行器仍独占 `route_missing_atomic_claims`、`extraction_targets/routed_pairs` 与每次检查点；将“决定路由后”和“真正提取后”的两个指标写入移到读取观测模块，仍使用当前 `context`、当前波次和真实来源记录。两个指标均保留 60 条上限、既有字段和顺序，未改变实际 claim 证据关系。原路由判定和诊断新增负控 **19 passed**，读取栈阶段门 **467 passed、4 skipped**（105.25 秒）；全库 Ruff、diff-check、mypy 基线 **115/125** 通过，无模型/付费调用。
 
 **共享可变状态边界**：① `execute()` 仍唯一持有、在恢复检查点后重新绑定 `state/cursor/context`；② `ActiveReadDispatchContext`/`ActiveReadExecutionContext` 只留运行期稳定依赖，当前候选和读取历史逐次显式传入；③ 读链投影只返回结果；④ `selected_sources` 在实际提取后由执行器更新；⑤ 观测函数只在调用时写当前 `context.metrics`，不持有旧快照；⑥ 模型 inflight、`reserve_call` 及最终结算、证据发布均由原权威负责。
 
