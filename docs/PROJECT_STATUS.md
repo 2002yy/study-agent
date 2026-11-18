@@ -96,6 +96,13 @@
 
 - #406：移除无前端调用方的新闻运行客户端兼容接口及对应历史测试，约净减 530 行。
 - #407：移除 17 份只供历史阶段使用的单次实验脚本及配套专项测试，净减约 4,495 行。
+- **2026-11-18 §37B 候选来源报告器退役（独立片）**：
+  `tools/run_selection_provenance.py` 是 §37B 评测阶段的离线报告格式转换器，
+  用当时双人标注的 `likely_target` 统计首个候选丢失位置；除专属的
+  `tests/test_selection_provenance_tool.py` 外，没有生产、CI、阶段门或工具调用方。
+  一并删除报告器及四项报告格式测试，避免为旧实验的 JSON 输出继续维护接口。
+  **不删除** `src/web/research/selection_trace.py`，也不改变运行时的
+  `selection_trace` 字段或候选筛选、调度与读取的正式测试。
 - **2026-11-18 无调用的会话手动落盘链路退役（独立片）**：前端已用
   SQLite 会话列表/详情和正式归档流程，没有 `flushSession` 调用；同步移除
   `POST /sessions/{id}/flush`、后端 `SessionService.flush_session`、
