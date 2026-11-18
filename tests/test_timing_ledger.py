@@ -176,6 +176,15 @@ def test_runtime_phase_timing_uses_rebound_context_and_tolerates_missing_start()
     assert new_context[ACTIVE_RESEARCH_METRICS_KEY]["phase_seconds"] == {
         "assessment": {"seconds": 0.3, "calls": 1}
     }
+    ledger.flush_into(new_context)
+    assert old_context == {}
+    assert new_context[ACTIVE_RESEARCH_METRICS_KEY]["phase_seconds"] == {
+        "assessment": {"seconds": 0.3, "calls": 1}
+    }
+    assert (
+        new_context[ACTIVE_RESEARCH_METRICS_KEY]["timing_schema"]
+        == "f2-wave-timeline-v1"
+    )
 
 
 def test_timed_gateway_records_purpose_kinds() -> None:

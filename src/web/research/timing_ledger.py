@@ -316,6 +316,13 @@ class TimingLedger:
             "timing_schema": "f2-wave-timeline-v1",
         }
 
+    def flush_into(self, context: dict[str, Any]) -> None:
+        """Write telemetry into the caller's current, possibly rebound context."""
+
+        metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+        if isinstance(metrics, dict):
+            metrics.update(self.to_metrics())
+
 
 @dataclass
 class RuntimePhaseTiming:

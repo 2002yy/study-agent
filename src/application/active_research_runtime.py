@@ -881,11 +881,6 @@ class ActiveResearchRuntimeExecutor:
         # inherit a spent ledger.
         reset_run_envelope(TIER_BROWSER)
 
-        def _ledger_flush() -> None:
-            metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-            if isinstance(metrics, dict):
-                metrics.update(timing_ledger.to_metrics())
-
         # F2-S1: wave-scoped exclusive timing ledger (observation only).
         timing_ledger = TimingLedger(elapsed_ms)
         timed_gateway = TimedGateway(self.model_gateway, timing_ledger, elapsed_ms)
@@ -941,9 +936,6 @@ class ActiveResearchRuntimeExecutor:
             hard_seconds_left=budget_clock.hard_seconds_left
         )
 
-        def research_window_exhausted() -> bool:
-            return research_seconds_left() <= 0.0
-
         def record_research_window(exhausted: bool) -> None:
             """Phase telemetry: when research ended and how much tail remained."""
 
@@ -993,6 +985,8 @@ class ActiveResearchRuntimeExecutor:
                 raise _HardBudgetReached
 
         def model_allowed(purpose: str, categories: tuple[str, ...]) -> bool:
+            # The delegated assessment helper still requires a callback; resolve
+            # the live context here rather than binding a possibly stale dict.
             return model_policy.allowed(context, purpose, categories)
 
         def set_model_cursor(value: ResearchRuntimeCursor) -> None:
@@ -1201,7 +1195,7 @@ class ActiveResearchRuntimeExecutor:
                 # absolute boundary. Once it is exhausted the tail belongs to
                 # finalization (Gate, answer synthesis, claim binding,
                 # serialization), so no new wave starts.
-                if research_window_exhausted():
+                if budget_clock.research_window_exhausted():
                     record_research_window(exhausted=True)
                     raise _HardBudgetReached
                 if cursor.wave_index == 0:
@@ -1226,7 +1220,7 @@ class ActiveResearchRuntimeExecutor:
                     brief = _evidence_brief(state, gate, selected_sources)
                     context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
                     record_research_window(
-                        exhausted=research_window_exhausted()
+                        exhausted=budget_clock.research_window_exhausted()
                     )
                     settled = settle_wave(gate, brief)
                     if settled is not None:
@@ -2973,9 +2967,11 @@ class ActiveResearchRuntimeExecutor:
                 )
                 wave_metrics["wave_progress"] = wave_progress[-MAX_RESEARCH_WAVES:]
                 checkpoint()
-                record_research_window(exhausted=research_window_exhausted())
+                record_research_window(
+                    exhausted=budget_clock.research_window_exhausted()
+                )
                 timing_ledger.end_wave()
-                _ledger_flush()
+                timing_ledger.flush_into(context)
                 settled = settle_wave(gate, brief)
                 if settled is not None:
                     return settled
@@ -2998,7 +2994,9 @@ class ActiveResearchRuntimeExecutor:
             context, _late_ids = steering_context.mark_late(
                 context, reason="hard_budget_exhausted"
             )
-            record_research_window(exhausted=research_window_exhausted())
+            record_research_window(
+                exhausted=budget_clock.research_window_exhausted()
+            )
             checkpoint()
             gate = evaluate_evidence_gate(state)
             brief = _evidence_brief(state, gate, selected_sources)
@@ -3009,7 +3007,7 @@ class ActiveResearchRuntimeExecutor:
             _record_tier2_funnel(context, cursor, brief, selected_sources)
             # F2-S1: close the open wave and publish the timeline
             timing_ledger.end_wave()
-            _ledger_flush()
+            timing_ledger.flush_into(context)
             checkpoint()
             # P1-C batch 3: the stop truth comes from the gate; the frozen
             # exception-path confidence ("partial" if evidence else "none")

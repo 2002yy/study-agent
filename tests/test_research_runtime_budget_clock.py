@@ -54,6 +54,17 @@ def test_current_hard_limit_is_read_after_runtime_state_rebinding() -> None:
     assert now.calls == 4  # one monotonic reading per check
 
 
+def test_research_window_boundary_uses_current_limit_and_one_sample() -> None:
+    now = _Clock(10.0)
+    hard_seconds = [17.0]
+    clock = _budget_clock(now, hard_seconds)
+
+    assert clock.research_window_exhausted() is True
+    hard_seconds[0] = 18.0
+    assert clock.research_window_exhausted() is False
+    assert now.calls == 2
+
+
 def test_model_timeout_preserves_cap_floor_and_research_reserve() -> None:
     now = _Clock(10.0)
     hard_seconds = [60.0]
