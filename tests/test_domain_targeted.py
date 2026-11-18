@@ -348,6 +348,10 @@ class _Diagnostics:
     relevance: str = "topic_only"
 
 
+def _sitemap_fetch(url: str, **_kwargs):
+    return DOCKER_SITEMAP, url, "application/xml", ""
+
+
 class _Gateway:
     """Fake gateway whose value is what parse_domain_proposal would return."""
 
@@ -385,7 +389,7 @@ def test_step_adds_verified_domain_targeted_candidate(
     gateway = _Gateway(["docs.docker.com"])
     target = "https://docs.docker.com/docker-hub/usage/pulls"
 
-    def fetch_text(url: str):
+    def fetch_text(url: str, **_kwargs):
         if url.endswith("/sitemap.xml"):
             return DOCKER_SITEMAP, url, "application/xml", ""
         return "", "", "", "unexpected"
@@ -431,6 +435,59 @@ def test_step_adds_verified_domain_targeted_candidate(
     assert context["claim_engine_metrics"]["orchestration_model_calls"] == 1
 
 
+def test_inventory_fetch_reads_live_context_after_model_proposal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model-start checkpoint may replace the outer context before sitemap I/O."""
+
+    from src.application.active_research_runtime import _domain_targeted_step
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    initial_context: dict = {}
+    current_context: dict = initial_context
+
+    class _RebindingGateway(_Gateway):
+        def complete_structured(self, **kwargs):
+            nonlocal current_context
+            current_context = {"claim_engine_metrics": {}}
+            return super().complete_structured(**kwargs)
+
+    seen_contexts: list[dict] = []
+
+    def seconds_left() -> float:
+        return 30.0
+
+    def fetch_text(url: str, *, context: dict, remaining_seconds):
+        assert remaining_seconds is seconds_left
+        seen_contexts.append(context)
+        return DOCKER_SITEMAP, url, "application/xml", ""
+
+    state, claim = _runtime_state_and_claim()
+    _domain_targeted_step(
+        cursor=_runtime_cursor(),
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=_RebindingGateway(["docs.docker.com"]),
+        fetch_text=fetch_text,
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context=initial_context,
+        run_id="run_1",
+        wave_index=1,
+        timeout_seconds=5.0,
+        targeted_claim_ids=[],
+        seconds_left=seconds_left,
+        live_context=lambda: current_context,
+    )
+
+    assert seen_contexts
+    assert current_context is not initial_context
+    assert all(item is current_context for item in seen_contexts)
+    assert current_context["claim_engine_metrics"]["orchestration_model_calls"] == 1
+    assert len(current_context["claim_engine_metrics"]["domain_targeted"]) == 1
+    assert "claim_engine_metrics" not in initial_context
+
+
 def test_step_follows_a_sitemap_index_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -441,7 +498,7 @@ def test_step_follows_a_sitemap_index_child(
     gateway = _Gateway(["docs.docker.com"])
     target = "https://docs.docker.com/docker-hub/usage/pulls"
 
-    def fetch_text(url: str):
+    def fetch_text(url: str, **_kwargs):
         if url.endswith("/sitemap.xml"):
             return DOCKER_INDEX_SITEMAP, url, "application/xml", ""
         if url.endswith("pages.xml"):
@@ -484,7 +541,7 @@ def test_step_is_silent_when_support_exists(monkeypatch: pytest.MonkeyPatch) -> 
         claim=claim,
         assessments={},
         model_gateway=gateway,
-        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        fetch_text=_sitemap_fetch,
         read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
         context={},
         run_id="run_1",
@@ -511,7 +568,7 @@ def test_step_never_runs_twice_for_the_same_claim(
         claim=claim,
         assessments={},
         model_gateway=gateway,
-        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        fetch_text=_sitemap_fetch,
         read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
         context={},
         run_id="run_1",
@@ -542,7 +599,7 @@ def _run_step(
         claim=claim,
         assessments={},
         model_gateway=gateway,
-        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        fetch_text=_sitemap_fetch,
         read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
         context=context,
         run_id="run_1",
@@ -608,7 +665,7 @@ def test_trigger_fires_when_tier1_left_no_readable_result(
         claim=claim,
         assessments={},
         model_gateway=gateway,
-        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        fetch_text=_sitemap_fetch,
         read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
         context=context,
         run_id="run_1",
@@ -660,7 +717,7 @@ def test_trigger_does_not_race_tier1_in_the_first_wave(
         claim=claim,
         assessments={},
         model_gateway=gateway,
-        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        fetch_text=_sitemap_fetch,
         read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
         context={},
         run_id="run_1",
@@ -724,7 +781,7 @@ def test_trigger_uses_claim_state_not_run_state(
         claim=claim,
         assessments={},
         model_gateway=gateway,
-        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        fetch_text=_sitemap_fetch,
         read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
         context=context,
         run_id="run_1",
@@ -760,7 +817,7 @@ def test_it_reads_no_content_from_the_inventory_fetches(
         claim=claim,
         assessments={},
         model_gateway=gateway,
-        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        fetch_text=_sitemap_fetch,
         read_fn=read_fn,
         context=context,
         run_id="run_1",
@@ -785,7 +842,7 @@ def test_window_guard_skips_inventory_fetches(monkeypatch: pytest.MonkeyPatch) -
     gateway = _Gateway(["docs.docker.com", "hub.docker.com"])
     attempts: list[str] = []
 
-    def fetch_text(url: str):
+    def fetch_text(url: str, **_kwargs):
         attempts.append(url)
         return DOCKER_SITEMAP, url, "application/xml", ""
 
