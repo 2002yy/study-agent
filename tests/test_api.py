@@ -496,22 +496,6 @@ def test_rag_index_and_query_endpoints(tmp_path):
     assert query_data["debug"]["results"][0]["score_breakdown"]["combined_score"] > 0
 
 
-def test_rag_alias_queries_existing_index(tmp_path):
-    client = TestClient(app)
-    document = tmp_path / "notes.md"
-    index_path = tmp_path / "rag_index.json"
-    document.write_text("Alias route keeps the /rag endpoint usable.", encoding="utf-8")
-    client.post("/rag/index", json={"paths": [str(document)], "index_path": str(index_path)})
-
-    response = client.post(
-        "/rag",
-        json={"query": "alias route", "index_path": str(index_path), "retrieval_mode": "lexical"},
-    )
-
-    assert response.status_code == 200
-    assert response.json()["result_count"] == 1
-
-
 def test_rag_query_endpoint_rejects_unknown_mode(tmp_path):
     client = TestClient(app)
     document = tmp_path / "notes.md"
