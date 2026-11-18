@@ -96,13 +96,6 @@
 
 - #406：移除无前端调用方的新闻运行客户端兼容接口及对应历史测试，约净减 530 行。
 - #407：移除 17 份只供历史阶段使用的单次实验脚本及配套专项测试，净减约 4,495 行。
-- **2026-11-18 §37B 候选来源报告器退役（独立片）**：
-  `tools/run_selection_provenance.py` 是 §37B 评测阶段的离线报告格式转换器，
-  用当时双人标注的 `likely_target` 统计首个候选丢失位置；除专属的
-  `tests/test_selection_provenance_tool.py` 外，没有生产、CI、阶段门或工具调用方。
-  一并删除报告器及四项报告格式测试，避免为旧实验的 JSON 输出继续维护接口。
-  **不删除** `src/web/research/selection_trace.py`，也不改变运行时的
-  `selection_trace` 字段或候选筛选、调度与读取的正式测试。
 - **2026-11-18 无调用的会话手动落盘链路退役（独立片）**：前端已用
   SQLite 会话列表/详情和正式归档流程，没有 `flushSession` 调用；同步移除
   `POST /sessions/{id}/flush`、后端 `SessionService.flush_session`、
@@ -174,6 +167,15 @@
 - 逐个检索生产实现、CI、门禁、测试、前端和配置，没有留下直接引用；共享的 `run_f2_paired`、当前研究/发布功能、真实任务测量工具及历史结果文件保留。代码在 Git 历史中可恢复。
 - 验证：`pytest tests --collect-only` **7,420 tests collected**，未出现缺失模块导入；保留的 F2/发布测试 **64 passed**，Ruff 和 `git diff --check` 通过。**不宣称全量 L3、产品效果或动态实验通过**；PR 精确 CI 与审查尚待完成。
 - **后继独立清理片（依赖上批先合并）**：删除 5 份旧的选择器/Agent 循环实验工具及 5 份专属测试；这些工具只通过彼此和配套测试互相引用，未接入生产运行器、当前测试门禁、前端、配置或持续集成。唯一额外依赖 `run_selector_schema_probe.py` 已在上批删除，因此两片须按依赖顺序合并。只保留 Git 历史和旧报告，不再维护无产品调用方的第二套模型选择器原型。
+
+### 2026-11-18 §37B 候选来源报告器退役（独立片）
+
+- `tools/run_selection_provenance.py` 是 §37B 评测阶段的离线报告格式转换器，
+  用当时双人标注的 `likely_target` 统计首个候选丢失位置；除专属的
+  `tests/test_selection_provenance_tool.py` 外，没有生产、CI、阶段门或工具调用方。
+  一并删除报告器及四项报告格式测试，避免为旧实验的 JSON 输出继续维护接口。
+  **不删除** `src/web/research/selection_trace.py`，也不改变运行时的
+  `selection_trace` 字段或候选筛选、调度与读取的正式测试。
 
 ### 安全边界与工作树
 
