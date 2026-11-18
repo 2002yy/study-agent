@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "main@a343a7f897db92f7f0424af8d46cf94d1559c503",
-  "known_error_count": 128,
+  "known_error_count": 125,
   "signatures": {
     "src/api/routes/chat_routes.py|arg-type|Argument 1 to \"create_task\" has incompatible type \"Awaitable[str]\"; expected \"Coroutine[Any, Any, Never]\"": 1,
     "src/api/routes/chat_routes.py|attr-defined|\"AsyncIterator[str]\" has no attribute \"aclose\"": 1,
