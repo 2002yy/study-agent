@@ -12,7 +12,6 @@ import type {
   MemoryStatusResponse,
   MemoryRunResponse,
   MemoryUpdate,
-  NewsLookupResponse,
   WebLookupRunResponse,
   RagSettings,
   RagIndexResponse,
@@ -527,39 +526,6 @@ export async function searchWechat(keyword: string, maxResults = 10, groupThread
       group_thread_id: groupThreadId
     })
   });
-}
-
-export async function lookupNews(
-  query: string,
-  maxItems = 8,
-  requestOptions: { signal?: AbortSignal } = {}
-): Promise<NewsLookupResponse> {
-  const run = await requestJson<WebLookupRunResponse>("/web-lookup-runs", {
-    method: "POST",
-    signal: requestOptions.signal,
-    body: JSON.stringify({
-      query,
-      max_items: maxItems
-    })
-  });
-  return webLookupRunToLegacyResponse(run);
-}
-
-export async function loadWebLookupRun(runId: string): Promise<NewsLookupResponse> {
-  const run = await requestJson<WebLookupRunResponse>(
-    `/web-lookup-runs/${encodeURIComponent(runId)}`
-  );
-  return webLookupRunToLegacyResponse(run);
-}
-
-function webLookupRunToLegacyResponse(run: WebLookupRunResponse): NewsLookupResponse {
-  return {
-    run_id: run.id,
-    query_text: run.query,
-    news_items: run.items,
-    source_block: run.source_block,
-    warnings: run.warnings,
-  };
 }
 
 export async function loadSessions(): Promise<SessionRow[]> {

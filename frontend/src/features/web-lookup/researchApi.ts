@@ -1,4 +1,3 @@
-import type { NewsLookupResponse } from "../../types";
 import { authHeaders } from "../../apiToken";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -21,7 +20,12 @@ export type ResearchRunStage =
   | "failed"
   | "cancelled";
 
-export type ResearchLookupResponse = NewsLookupResponse & {
+export type ResearchLookupResponse = {
+  run_id: string;
+  query_text: string;
+  news_items: Array<Record<string, unknown>>;
+  source_block: string;
+  warnings: string[];
   status: ResearchRunStatus;
   stage: ResearchRunStage;
   research_context: Record<string, unknown>;

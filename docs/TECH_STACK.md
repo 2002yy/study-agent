@@ -236,7 +236,10 @@ CI 运行：
 
 - `src.api` compatibility exports；
 - 旧 Markdown/YAML 状态视图；
-- 已废弃的 `/news/lookup` 等 adapter。
+- 历史 `/news/lookup` 适配端点已移除：新调用改用 `POST /web-lookup-runs` 创建研究运行，
+  `GET /web-lookup-runs/{run_id}` 恢复读取。旧响应字段 `run_id`／`query_text`／
+  `news_items` 分别对应新响应 `id`／`query`／`items`；`source_block` 和 `warnings`
+  保持同名。前端现有调用已经通过新端点进行，仍使用的展示层映射不属于旧 HTTP 路由。
 
 删除 legacy 前必须有替代路径、迁移说明和回归覆盖。
 

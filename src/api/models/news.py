@@ -100,20 +100,6 @@ class ResearchQueueCompleteRequest(BaseModel):
     turn_id: str = Field(min_length=1, max_length=200)
 
 
-class NewsLookupResponse(BaseModel):
-    run_id: str
-    query_text: str
-    news_items: list[dict]
-    source_block: str
-    warnings: list[str]
-    status: str = "completed"
-    stage: str = "completed"
-    provider_status: str = ""
-    stop_reason: str = ""
-    query_attempts: list[dict] = Field(default_factory=list)
-    error: str = ""
-
-
 class WebLookupRunResponse(BaseModel):
     id: str
     query: str

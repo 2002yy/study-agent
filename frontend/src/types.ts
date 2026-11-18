@@ -399,14 +399,6 @@ export type WechatSearchResponse = {
   results: WechatSearchResult[];
 };
 
-export type NewsLookupResponse = {
-  run_id: string;
-  query_text: string;
-  news_items: Array<Record<string, unknown>>;
-  source_block: string;
-  warnings: string[];
-};
-
 export type ChatResponse = {
   reply: string;
   session_id: string;
