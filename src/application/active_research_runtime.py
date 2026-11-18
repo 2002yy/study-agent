@@ -69,7 +69,6 @@ from src.web.research.deep_runtime import (
     seed_char_charge,
     seed_sources_by_url,
 )
-from src.web.research.discovery_observability import record_search_call
 from src.web.research.page_intent import (
     PageIntent,
     infer_page_intent,
@@ -273,6 +272,10 @@ from src.application.research_runtime_read_site import (
     specialist_chain_run as specialist_chain_run,
 )
 from src.application.research_runtime_budget_clock import ResearchBudgetClock
+from src.application.research_runtime_search_execution import (
+    ActiveSearchQueryExecution,
+    _lead_hints_for_claim as _lead_hints_for_claim,
+)
 from src.application.research_runtime_execution_guard import (
     ActiveResearchCancelled,
     ActiveResearchExecutionGuard,
@@ -1278,60 +1281,25 @@ class ActiveResearchRuntimeExecutor:
                     cursor = begin_external_attempt(cursor, marker)
                     checkpoint()
 
-                    audit: dict[str, Any] | None = None
-
-                    def search_exact(query: str, *, max_results: int = 5) -> Mapping[str, Any]:
-                        nonlocal audit
-                        # Deadline-aware provider policy: reserve the tail of the
-                        # shared hard budget for assessment/read/answer so a
-                        # degraded provider cannot consume the entire budget.
-                        remaining = budget_clock.hard_seconds_left()
-                        search_deadline = self.monotonic() + max(
-                            0.0,
-                            remaining - RESEARCH_WINDOW_RESERVE_SECONDS,
-                        )
-                        try:
-                            phase_timing.begin("search")
-                            payload = self.gateway.search_detailed(
-                                query,
-                                max_items=max_results,
-                                deadline=search_deadline,
-                            )
-                            audit = self.gateway.last_search_audit()
-                            # §37A observability (diagnostic only): record the
-                            # actually-issued query and the provider's bounded
-                            # results. This never changes search behaviour,
-                            # ordering, budgets or eligibility.
-                            _search_intent, _search_variants = _deeper_targeting_inputs(
-                                context
-                            )
-                            record_search_call(
-                                context,
-                                metrics_key=ACTIVE_RESEARCH_METRICS_KEY,
-                                slot_index=_search_discovery_slot(context),
-                                query=query,
-                                claim_id=str(getattr(planned, "claim_id", "") or ""),
-                                intent=_search_intent,
-                                variants=_search_variants,
-                                hint_terms=_lead_hints_for_claim(
-                                    cursor,
-                                    str(getattr(planned, "claim_id", "") or ""),
-                                )[1],
-                                results=(
-                                    payload.get("results")
-                                    if isinstance(payload, Mapping)
-                                    else ()
-                                ),
-                            )
-                            return payload
-                        finally:
-                            phase_timing.end("search", context=context)
+                    # The attempt-start checkpoint above owns recovery. The
+                    # search context only binds live inputs for this one call;
+                    # it cannot account, checkpoint or publish an attempt.
+                    search_execution = ActiveSearchQueryExecution(
+                        gateway=self.gateway,
+                        monotonic=self.monotonic,
+                        hard_seconds_left=budget_clock.hard_seconds_left,
+                        reserve_seconds=RESEARCH_WINDOW_RESERVE_SECONDS,
+                        phase_timing=phase_timing,
+                        context=context,
+                        claim_id=str(getattr(planned, "claim_id", "") or ""),
+                        cursor=cursor,
+                    )
 
                     one_query = _gap_query_batch(planned)
                     try:
                         batch_result = execute_candidate_pool_batch(
                             one_query,
-                            search_exact=search_exact,
+                            search_exact=search_execution.search_exact,
                             should_cancel=lambda: self.repository.cancel_requested(
                                 run_id, operation_id=operation_id
                             ),
@@ -1396,7 +1364,16 @@ class ActiveResearchRuntimeExecutor:
                             "steering_ids": list(
                                 _steering_ids_for_claim(context, planned.claim_id)
                             ),
-                            **({"provider_audit": {"schema_version": "research-provider-audit-v1", **audit}} if audit else {}),
+                            **(
+                                {
+                                    "provider_audit": {
+                                        "schema_version": "research-provider-audit-v1",
+                                        **search_execution.audit,
+                                    }
+                                }
+                                if search_execution.audit
+                                else {}
+                            ),
                         }
                     )
                     checkpoint()
@@ -5029,62 +5006,6 @@ def _bump_lead_metric(
     state[key] = int(state.get(key) or 0) + max(0, int(amount))
 
 
-def _deeper_targeting_inputs(
-    context: dict[str, Any],
-) -> tuple[PageIntent | None, tuple[str, ...]]:
-    """Latest §36A/§36B discovery hints, for §37A observability only.
-
-    The linkage from one issued query back to a specific follow-up is
-    approximate on purpose: the durable cursor records keep their frozen shape,
-    so observability reads the most recent diagnostics entry instead of adding a
-    query-to-follow-up key. ``hint_terms`` at the search call site remain exact.
-    """
-
-    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
-    if not isinstance(metrics, Mapping):
-        return None, ()
-    state = metrics.get("deeper_targeting")
-    if not isinstance(state, Mapping):
-        return None, ()
-    recent = state.get("recent")
-    if not isinstance(recent, list) or not recent:
-        return None, ()
-    latest = recent[-1]
-    if not isinstance(latest, Mapping):
-        return None, ()
-    raw_intent = latest.get("page_intent")
-    intent: PageIntent | None = None
-    if isinstance(raw_intent, Mapping) and raw_intent.get("kind"):
-        path_terms = raw_intent.get("path_terms")
-        intent = PageIntent(
-            kind=str(raw_intent.get("kind") or ""),
-            path_terms=tuple(str(item) for item in (path_terms or []) if str(item)),
-            matched_terms=tuple(
-                str(item) for item in (raw_intent.get("matched_terms") or []) if str(item)
-            ),
-        )
-    raw_variants = latest.get("query_variants")
-    variants = (
-        tuple(str(item) for item in raw_variants if str(item))
-        if isinstance(raw_variants, list)
-        else ()
-    )
-    return intent, variants
-
-
-def _search_discovery_slot(context: dict[str, Any]) -> int:
-    """Execution-order index of the next issued query (deterministic)."""
-
-    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
-    if not isinstance(metrics, Mapping):
-        return 1
-    state = metrics.get("search_discovery")
-    if not isinstance(state, Mapping):
-        return 1
-    queries = state.get("queries")
-    return len(queries) + 1 if isinstance(queries, list) else 1
-
-
 def _flush_selection_trace(
     context: dict[str, Any], trace: SelectionTraceCollector
 ) -> None:
@@ -5177,58 +5098,6 @@ def _record_deeper_targeting(
         }
     )
     del recent[:-8]
-
-
-def _lead_hints_for_claim(
-    cursor: ResearchRuntimeCursor, claim_id: str
-) -> tuple[str, tuple[str, ...]]:
-    """Return ``(trusted_domain, hints)`` for one claim.
-
-    ``trusted_domain`` may become a ``site:`` constraint, and only two sources
-    are trusted: a domain explicitly *discovered* by a lead read, or a page
-    whose server-owned source role is ``primary`` (recorded as
-    ``trusted_primary_domain``). A mere source domain - the page we happened to
-    read - is never returned as trusted, because locking a follow-up search into
-    a mirror/aggregator domain makes primary evidence unreachable.
-    """
-
-    claim_query_ids = {
-        item.id for item in cursor.planned_queries if item.claim_id == claim_id
-    }
-    if not claim_query_ids:
-        return "", ()
-    candidates_by_id = {item.id: item for item in cursor.candidates}
-    trusted = ""
-    hints: list[str] = []
-    for payload in cursor.lead_discoveries:
-        parent_id = str(payload.get("source_candidate_id") or "")
-        parent = candidates_by_id.get(parent_id)
-        if parent is None or not claim_query_ids.intersection(parent.query_ids):
-            continue
-        if not trusted:
-            domains = payload.get("domains")
-            if isinstance(domains, list):
-                trusted = next(
-                    (str(domain).strip() for domain in domains if str(domain).strip()),
-                    "",
-                )
-        for key in ("organizations", "primary_source_hints"):
-            values = payload.get(key)
-            if isinstance(values, list):
-                hints.extend(str(value) for value in values)
-    # Evidence-stage lead follow-ups contribute bounded terms; their domain is
-    # trusted only when the read page's own role was primary.
-    for followup in cursor.evidence_lead_followups:
-        parent_id = str(followup.get("source_candidate_id") or "")
-        parent = candidates_by_id.get(parent_id)
-        if parent is None or not claim_query_ids.intersection(parent.query_ids):
-            continue
-        if not trusted:
-            trusted = str(followup.get("trusted_primary_domain") or "")
-        terms = followup.get("hint_terms")
-        if isinstance(terms, list):
-            hints.extend(str(term) for term in terms[:2])
-    return trusted, tuple(dict.fromkeys(hint for hint in hints if hint))
 
 
 def _domain_of(url: str) -> str:
