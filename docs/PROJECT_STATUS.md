@@ -4,28 +4,20 @@
 >
 > **产品目标**：体验接近 ChatGPT 的通用聊天与研究 Agent，覆盖自然聊天、自主研究、持续交互、智能 UI、多模态和工具执行；教学是专业场景。**部署仍限可信环境的单用户**；多用户身份/数据/费用隔离未实现。
 
-## 0. Current Handoff（2026-11-18，冷启动）
+## 0. Current Handoff（2026-11-19，冷启动）
 
-### 历史召回/候选供应商资格工具整链退役（2026-11-19，独立片）
+### 2026-11-19 研究状态单一持有（新独立候选）
 
-- 旧 §44A/§44C 研究阶段的 “已知目标召回审计 → Brave API 资格评估 / URL 提案
-  候选替代方案资格评估” 未进入生产执行链；三套脚本只被彼此依赖及专属测试
-  引用。当前代码、阶段门、CI、活跃文档均没有调用方，旧决策背景已留在
-  `docs/archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`。
-- 删除 `run_recall_target_audit.py`、`run_brave_qualification.py`、
-  `run_url_proposal_qualification.py` 及三份同名专项测试；旧目标 URL 列表与
-  已冻结的候选参数不再作为当前产品门槛维护。没有为被删接口增补适配层、
-  别名或虚假的空测试。现行 `active_research_runtime.py` 的 `research_url_proposal`
-  运行行为、Browse 搜索以及所有通用质量门保持不变。
-- 此片只做离线静态退役；现行研究运行时、搜索、URL/官方来源复核的局部影响集
-  **112 passed**，Ruff 与 `git diff --check` 通过；未调用 Brave API、
-  DeepSeek、浏览器或其它付费外部资源。
+- #495 的精确 HEAD `cd85309d`、CI `44359098528` 成功，已合并 `main@5c695ff8`；#502 的精确 HEAD `e7d2ebf1`、CI `44361647146` 全部成功、审阅线程为空，已合并 `main@47c8f041`。本片基于这两项收口后的主线，职责属 **P3 / static / orchestration-contract / engineering-only**，付费模型、真实搜索及动态产品比对 `not_run`，预算授权 `not_applicable`。
+- `ActiveRuntimeLiveValues` 成为一次主动研究执行中 `ResearchState` 的唯一可变持有者。`execute()` 里的 86 处状态引用统一由 `live.state` 读取；规划、检查点准备、steering、预算刷新、证据投影和波次交接产生的新状态均写回该持有者。预算时钟和模型准入绑定持有者方法，跨检查点/恢复回绑后读到的始终是同一份实时状态。
+- **冻结顺序与语义**：检查点仍先准备投影、即使序列化失败也先回绑局部状态/上下文，再持久化；模型尝试的开始审计→检查点→调用、完成计费/游标更新与后续检查点原位保留；波次完成、窗口观测、超时分支的诊断→检查点顺序不变。无持久化格式变更、无额外预算采样、检索/读取、证据发布或模型调用次数变更。`cursor` 和持久化 `context` **暂留执行方法局部变量**，不在本片复制进持有者；后续分别迁移单一所有权。
+- 专属负控冻结「状态替换后，预算时钟与模型守卫同时读取恢复后的硬时限」；主动执行、Deep、检查点和恢复影响集 **156 passed / 1 skipped**，Ruff、差异检查及 mypy 基线 **115/125，无新增错误**通过。**全量 L3 与精确远端 HEAD CI 待验收**；不据此宣称产品体验改善。
 
-### 2026-11-19 读取观测实时绑定（独立候选）
+### 2026-11-19 读取观测实时绑定（已合并）
 
-- #493 的精确 HEAD `cee81a55`、CI `44351248954` 成功并合入 `main@083a0172`；#494 的重挂 HEAD `ee05454e`、CI `44357775209` 成功并合入 `main@cf54cc59`。#495 模型预算状态绑定提交 `cd85309d`、CI `44359098528` 尚待最终验收，不能以本地测试替代远端门禁。
+- #493 的精确 HEAD `cee81a55`、CI `44351248954` 成功并合入 `main@083a0172`；#494 的重挂 HEAD `ee05454e`、CI `44357775209` 成功并合入 `main@cf54cc59`。#495 模型预算状态绑定提交 `cd85309d`、CI `44359098528` 成功合入 `main@5c695ff8`；本片 #502 的精确 HEAD `e7d2ebf1`、CI `44361647146` 全绿，已合入 `main@47c8f041`。
 - 新增短生命周期依赖的 `ActiveReadObservationContext`，统一绑定生产读取器需要的最新 `context`、`cursor.wave_index`、相位开始/结束及重试耗时钩子。保留当前值读取回调，且在 `phase_end` 时重新获取可能已被检查点替换的 `context`；观测对象没有修改研究状态、游标、读取重试策略、预算或持久化的权限。
-- 两条专属测试共享同一时钟/游标/上下文造景，冻结「相位开始之后上下文被替换，计时仍写入最新上下文」和「波次索引变化、重试计数仍读取最新游标/同一账本」。基于已合并 #494 的最新主线，生产读取语义、计时、主动执行与恢复整合影响集 **134 passed**，Ruff 与差异检查通过；候选精确提交 CI 仍需远端验收。**P3 / static / retrieval+orchestration / engineering-only**，真实浏览器、付费搜索及模型 `not_run`。
+- 两条专属测试共享同一时钟/游标/上下文造景，冻结「相位开始之后上下文被替换，计时仍写入最新上下文」和「波次索引变化、重试计数仍读取最新游标/同一账本」。基于已合并 #494 的主线，生产读取语义、计时、主动执行与恢复整合影响集 **134 passed**，Ruff、差异检查和候选精确 HEAD CI 均通过。**P3 / static / retrieval+orchestration / engineering-only**，付费搜索及模型 `not_run`。
 
 ### 2026-11-19 搜索单次执行上下文（已合并）
 
@@ -44,6 +36,30 @@
 
 - 基线 `main@739d74f7`，分支 `codex/research-context-next-20261119`。将 `execute()` 内四个 `record_research_window` 闭包调用展开为显式的 `ResearchWindowDiagnostics.record_end(context, hard_seconds=state.budget.hard_timeout_seconds, elapsed=elapsed, exhausted=...)`，随后按原位置调用 `checkpoint()`。诊断仍由专属上下文写入，检查点仍由原执行器控制；观察时钟每次仍取样两次，预算耗尽分支原有的后续额外检查点仍保留。
 - 不触及恢复游标、费用预留及结算、状态序列化、模型请求或发布权威；不进行真实搜索/付费调用。下一片聚焦执行器的其他隐式共享变量，优先做具备对应回归用例的窄范围切分；本候选测试与提交状态以实际执行记录为准。
+### 未接线的配置缓存与性能日志工具退役（2026-11-19，独立减负片）
+
+- 旧 `src/config.py` 的 `get_config/validate/reload_config` 及模块级缓存没有
+  现行调用方；生产 `src/llm_client.py` 已直接从 provider 环境配置读取并以
+  凭据、端点和重试配置签名自动刷新缓存。旧 `reset_client()` 唯一调用方
+  是 `src/config.py`，其专项测试只检查源码字符串是否存在。
+- 旧 `src/perf.py` 的 `PerfTracker/PerfMetrics/write_perf_log` 同样没有
+  生产、脚本、CI 或测试调用方；现行性能观测由研究运行器及独立诊断
+  模块承担。本片成组移除两个孤立模块、旧重置函数和源码存在性测试，
+  用现行同步/异步 Provider 客户端行为测试直接验证凭据变化后的缓存更新。
+  Ruff 全库及 `git diff --check` 通过，配置/Provider/会话/打包影响集
+  **127 passed**。不更改生产 Provider 调用、真实预算或研究检查点语义，
+  且不发起真实模型 API；L3 未运行。
+### 未接线的旧 Discovery 适配器退役（2026-11-19，独立减负片）
+
+- `src/web/research/discovery.py` 持有一套历史 `DiscoveryRequest/Hit/Batch`、
+  `DiscoveryProvider` 和未注册的 `LegacyDiscoveryAdapter`；全仓生产、测试、
+  CLI、路由及注册机制都没有导入它或其符号。正式检索已经使用
+  `src/web/research/retrieval_backends.py` 的独立 `DiscoveryRequest` 契约。
+- 整个旧模块删除，不增加同名重导出、兼容 shim 或只验证删除结果的测试；
+  现行检索、浏览器、查询预算、状态恢复和证据发布契约均不变。
+  本片为 P3 离线工程减负：Ruff 全库通过，检索后端/主动研究适配器/
+  诊断观测/主动研究运行器影响集 **129 passed**，`git diff --check` 通过。
+  不声称提高检索质量，也不发起付费 API 调用；L3 未运行。
 
 ### 2026-11-19 模型尝试实时预算状态绑定（独立候选）
 
@@ -102,6 +118,18 @@
 - 守卫不改变恢复游标、预算入账、计时样本、模型开始检查点或发布操作；保留既有异常类别及原导出。专项测试覆盖取消实时检查和恢复后预算上限变化，完整回归结果以本候选精确提交为准。#488 另属研究窗口诊断与检查点顺序片，不与本片混合。
 
 ### 历史减负候选快照（部分已合入，以下不是当前待办）
+
+#### 历史召回/候选供应商资格工具整链退役（2026-11-19，独立片）
+
+- 旧 §44A/§44C 研究阶段的“已知目标召回审计 → Brave API 资格评估 / URL 提案
+  候选替代方案资格评估”未进入生产执行链；三套脚本只被彼此依赖及专属测试
+  引用。现行代码、阶段门、CI、活跃文档均无调用方，旧决策背景保存在
+  `docs/archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`。
+- 删除 `run_recall_target_audit.py`、`run_brave_qualification.py`、
+  `run_url_proposal_qualification.py` 及三份同名专项测试。旧冻结参数不再作为
+  产品门槛维护；不补适配层、别名或空测试。正式 `research_url_proposal`、
+  Browse 搜索和通用质量门不变。离线影响集 **112 passed**，Ruff 与差异检查
+  通过；未执行 Brave API、DeepSeek、真实浏览器或其它付费请求。
 
 - **2026-11-18 RQ1-C 成对归因实验链退役（独立片）**：
   `codex/retire-rq1c-paired-attribution-20261118`。旧 `run_paired_attribution.py`
