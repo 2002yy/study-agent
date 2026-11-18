@@ -736,9 +736,3 @@ def _migration_statements(sql: str) -> list[str]:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def apply_schema(connection: sqlite3.Connection) -> None:
-    """Backward-compatible alias used by older callers and tests."""
-
-    apply_migrations(connection)

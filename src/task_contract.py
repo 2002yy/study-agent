@@ -242,10 +242,6 @@ def has_active_learning_state(state: LearningState) -> bool:
     }
 
 
-# Backward-compatible private alias for older imports and direct tests.
-_has_active_learning_state = has_active_learning_state
-
-
 def resolve_turn_task_contract(
     *,
     user_input: str,
