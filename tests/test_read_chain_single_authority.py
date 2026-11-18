@@ -47,8 +47,8 @@ def test_active_reader_chain_is_module_level_and_importable() -> None:
     assert len(module_level) == 1, "ACTIVE_READER_CHAIN must be module-level exactly once"
 
 
-def test_shared_primitive_exists_and_is_used_by_execute() -> None:
-    """`build_read_chain_executors` exists and execute() delegates to it."""
+def test_shared_primitive_is_wired_into_read_execution_context() -> None:
+    """The production executor must inject the measurement's shared builder."""
 
     from src.application import active_research_runtime as mod
 
@@ -56,8 +56,27 @@ def test_shared_primitive_exists_and_is_used_by_execute() -> None:
 
     src = _source()
     assert src.count("def build_read_chain_executors(") == 1
-    # the in-method wrapper must call the shared primitive
-    assert "return build_read_chain_executors(" in src
+    # Check the wiring structurally, independent of formatting or local names.
+    tree = ast.parse(src)
+    executor = next(
+        node for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "ActiveResearchRuntimeExecutor"
+    )
+    execute = next(
+        node for node in executor.body
+        if isinstance(node, ast.FunctionDef) and node.name == "execute"
+    )
+    bound = [
+        node for node in ast.walk(execute)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "ActiveReadExecutionContext"
+    ]
+    assert len(bound) == 1
+    factory = next(kw.value for kw in bound[0].keywords if kw.arg == "executor_factory")
+    assert isinstance(factory, ast.Name) and factory.id == "build_read_chain_executors"
+    runner = next(kw.value for kw in bound[0].keywords if kw.arg == "chain_runner")
+    assert isinstance(runner, ast.Name) and runner.id == "run_chain"
 
 
 def test_read_semantics_primitive_is_the_only_authority() -> None:

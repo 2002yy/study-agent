@@ -263,6 +263,7 @@ from src.application.research_runtime_failure_projection import (
 )
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
+from src.application.research_runtime_read_execution import ActiveReadExecutionContext
 from src.application.research_runtime_read_site import (
     ActiveReadSiteContext,
     READ_SITE_HINT_ROUTE_DEFAULT as READ_SITE_HINT_ROUTE_DEFAULT,
@@ -911,25 +912,6 @@ class ActiveResearchRuntimeExecutor:
             research_seconds_left=research_seconds_left,
         )
 
-        def read_chain_executors(source_limit: int) -> dict[str, Any]:
-            """One executor per enabled backend; the chain decides who runs.
-
-            §143-B0: delegates to the shared production primitive so this path
-            and the narrow measurement entry share one implementation authority.
-            """
-
-            escalation_backend = (
-                self.gateway.escalation_backend()
-                if hasattr(self.gateway, "escalation_backend")
-                else None
-            )
-            return build_read_chain_executors(
-                source_limit=source_limit,
-                gateway_read=gateway_read,
-                escalation_backend=escalation_backend,
-                hard_seconds_left=budget_clock.hard_seconds_left,
-            )
-
         read_site_context = ActiveReadSiteContext(
             hard_seconds_left=budget_clock.hard_seconds_left
         )
@@ -961,6 +943,15 @@ class ActiveResearchRuntimeExecutor:
             on_retry=lambda *, wait_ms, fetch_ms: timing_ledger.record_retry(
                 wait_ms=wait_ms, fetch_ms=fetch_ms
             ),
+        )
+        read_execution = ActiveReadExecutionContext(
+            gateway=self.gateway,
+            gateway_read=gateway_read,
+            hard_seconds_left=budget_clock.hard_seconds_left,
+            dispatch=read_dispatch,
+            read_site=read_site_context,
+            executor_factory=build_read_chain_executors,
+            chain_runner=run_chain,
         )
 
         def fetch_text(url: str) -> tuple[str, str, str, str]:
@@ -2027,33 +2018,13 @@ class ActiveResearchRuntimeExecutor:
                     # §143-RS: an explicit hint may select the specialist first.
                     # With no hint (or any gate/health failure) the original
                     # inline default block below runs unchanged.
-                    specialist_step = read_site_context.try_specialist(
-                        context, candidate, source_limit
+                    chain_run, chain_steps = read_execution.run_candidate(
+                        context=context,
+                        candidate=candidate,
+                        source_limit=source_limit,
+                        outer_attempt_number=attempt,
+                        read_outcomes=cursor.read_outcomes,
                     )
-                    chain_steps: list[ChainStepResult] = []
-                    if specialist_step is not None:
-                        chain_steps = [specialist_step]
-                        chain_run = specialist_chain_run(
-                            candidate_id=candidate_id,
-                            step=specialist_step,
-                            outer_attempt_number=attempt,
-                        )
-                    else:
-                        executors = read_chain_executors(source_limit)
-                        chain_run = run_chain(
-                            candidate_id=candidate_id,
-                            url=candidate.url,
-                            host=host_of(candidate.url),
-                            outer_attempt_number=attempt,
-                            chain=ACTIVE_READER_CHAIN,
-                            executors=executors,
-                            record_outcome=chain_steps.append,
-                            attempted_backends=read_dispatch.attempted_backends(
-                                candidate_id=candidate_id,
-                                read_outcomes=cursor.read_outcomes,
-                            ),
-                            health_state_for=read_dispatch.health_state_for,
-                        )
                     # §105 A2d-4: the chain's own decision, recorded even when it
                     # executed nothing (a scheduling/policy skip), so the
                     # explicit path is observable without a new ledger.
