@@ -6,6 +6,17 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### F2 历史双读取器配对实验退役（独立片）
+
+- `tools/run_f2_paired.py` 对固定六类本地页面重复运行旧 default/Crawl4AI
+  采样，是 §143-B 阶段的手工表征实验；无生产、前端、CI/阶段门或其它当前
+  资格工具调用。连同只验证其报告逻辑的 `tests/test_f2_paired_harness.py`
+  一并退役。**保留**供当前 Crawl4AI 集成测试使用的
+  `tools/f2_paired_fixture_server.py`；`tests/test_reader_task_request.py`
+  的可选真实环境操作员测试直接指向共享夹具，并将以前从实验脚本导入且
+  未撤销的 SSRF 放宽补丁改为 pytest `monkeypatch` 生命周期内的局部放宽。
+  生产读取链、安全策略、升级后端、请求契约和历史结果档案不变；不进行外部读取。
+
 ### 旧 HTTP 研究入口退役（待精确提交验收）
 
 - `codex/retire-web-lookup-compat-20261118`：仓内唯一实际使用旧
