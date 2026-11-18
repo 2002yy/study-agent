@@ -290,16 +290,3 @@ def revoke_memory_consent(
         return service.revoke_memory_consent(session_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@router.post("/sessions/{session_id}/flush")
-def flush_session(
-    session_id: str,
-    service: SessionServiceDependency,
-) -> dict[str, Any]:
-    path = service.flush_session(session_id)
-    return {
-        "session_id": session_id,
-        "flushed": path is not None,
-        "path": str(path) if path else "",
-    }

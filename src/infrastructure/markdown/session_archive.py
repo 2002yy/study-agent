@@ -22,15 +22,6 @@ class SessionMarkdownExporter:
         self.current_dir = current_dir
         self.archive_dir = archive_dir
 
-    def export_current(
-        self,
-        thread: ChatThread,
-        turns: list[ChatTurn],
-    ) -> Path:
-        path = self.current_dir / f"{thread.id}.md"
-        safe_write_text(path, _render_thread(thread, turns, archived=False))
-        return path
-
     def export_archive(
         self,
         thread: ChatThread,

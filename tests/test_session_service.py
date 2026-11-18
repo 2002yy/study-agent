@@ -22,6 +22,14 @@ def _service(tmp_path):
     return service, repository
 
 
+def _legacy_current_mirror(service: SessionService, session_id: str) -> Path:
+    """An imported old-style mirror, not a new product export operation."""
+    path = service.exporter.current_dir / f"{session_id}.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("Legacy current-session mirror", encoding="utf-8")
+    return path
+
+
 def test_active_unflushed_thread_is_listed_and_restored_from_sqlite(tmp_path):
     service, repository = _service(tmp_path)
     thread = service.create_session(
@@ -77,7 +85,7 @@ def test_active_unflushed_thread_is_listed_and_restored_from_sqlite(tmp_path):
     assert detail["conversation_instruction"] == "direct answer"
 
 
-def test_flush_exports_mirror_and_archive_locks_thread(tmp_path):
+def test_archive_removes_legacy_mirror_and_locks_thread(tmp_path):
     service, repository = _service(tmp_path)
     thread = service.create_session({})
     repository.add_chat_turn(
@@ -90,10 +98,9 @@ def test_flush_exports_mirror_and_archive_locks_thread(tmp_path):
         )
     )
 
-    current_path = service.flush_session(thread.id)
+    current_path = _legacy_current_mirror(service, thread.id)
     archived = service.archive_session(thread.id)
 
-    assert current_path is not None
     assert not current_path.exists()
     assert archived is not None
     assert archived.status == "archived"
@@ -184,8 +191,7 @@ def test_archive_export_failure_restores_active_thread_and_current_mirror(tmp_pa
             status="completed",
         )
     )
-    current_path = service.flush_session(thread.id)
-    assert current_path is not None
+    current_path = _legacy_current_mirror(service, thread.id)
 
     def fail_export(*args, **kwargs):
         raise OSError("disk full")
@@ -233,8 +239,7 @@ def test_current_mirror_cleanup_failure_keeps_committed_archive(tmp_path, monkey
             status="completed",
         )
     )
-    current_path = service.flush_session(thread.id)
-    assert current_path is not None
+    current_path = _legacy_current_mirror(service, thread.id)
     original_unlink = Path.unlink
 
     def fail_current_unlink(path, *args, **kwargs):
