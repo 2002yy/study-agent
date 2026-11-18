@@ -458,6 +458,16 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
 
 ## 历史原文与追踪
 
+- **2026-11-19 §120 Crawl4AI 一次性资格编排入口退役（独立片）**：
+  `tools/run_crawl4ai_qualification.py` 曾在单个前台进程中启动固定端口的
+  浏览器夹具与 worker，串行执行 A3-2 四项手工门，再可选调用旧 cohort。
+  正式应用、当前测试、CI/阶段门、其它工具及活跃文档均未调用此入口；
+  原始资格观测保存在归档。删除这份历史编排脚本，不留下兼容别名或空测试。
+  **保留**现行 Crawl4AI 专家读取、`browser_bakeoff_fixture_server.py`、
+  `run_crawl4ai_cohort_v2.py` 和超时、shutdown、安全/读取调度测试。
+  不改变真实浏览器路径或预算；本片仅执行离线影响测试，真实浏览器资格重跑
+  与付费模型 `not_run`。
+
 - **2026-11-19 无调用方的游标/新鲜度辅助函数退役**：
   `src/web/research/runtime.py::_counter_mapping` 与
   `src/web/github_freshness.py::_payload_compact` 均无生产、工具、测试、
