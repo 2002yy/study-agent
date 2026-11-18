@@ -177,6 +177,55 @@ def test_manifest_hint_maps_one_to_one(readers) -> None:
 
 # --------------------------------------------- operator e2e (explicit env only)
 
+def _allow_operator_loopback_fixture(monkeypatch) -> None:
+    """Permit only this test's loopback fixture without weakening production SSRF policy."""
+
+    from urllib.parse import urlparse
+
+    from src.news import article_fetcher
+    from src.web import safe_http
+
+    def is_loopback(value: str) -> bool:
+        return (urlparse(str(value or "")).hostname or "").lower() in {
+            "127.0.0.1", "localhost", "::1"
+        }
+
+    fetchable = article_fetcher._is_fetchable_article_url  # noqa: SLF001
+    monkeypatch.setattr(
+        article_fetcher,
+        "_is_fetchable_article_url",
+        lambda url: is_loopback(url) or fetchable(url),
+    )
+
+    resolve = safe_http.resolve_public_ips
+    host_ok = safe_http.host_resolves_public
+
+    def is_loopback_host(host: str) -> bool:
+        return str(host or "").lower() in {"127.0.0.1", "localhost", "::1"}
+
+    monkeypatch.setattr(
+        safe_http, "resolve_public_ips",
+        lambda host, *, deadline=None: ["127.0.0.1"] if is_loopback_host(host)
+        else resolve(host, deadline=deadline),
+    )
+    monkeypatch.setattr(
+        safe_http, "host_resolves_public",
+        lambda host, *, deadline=None: True if is_loopback_host(host)
+        else host_ok(host, deadline=deadline),
+    )
+
+    public_url = safe_http._public_url  # noqa: SLF001
+    check_target = safe_http._check_target  # noqa: SLF001
+    monkeypatch.setattr(
+        safe_http, "_public_url",
+        lambda value: str(value).strip() if is_loopback(value) else public_url(value),
+    )
+    monkeypatch.setattr(
+        safe_http, "_check_target",
+        lambda value: None if is_loopback(value) else check_target(value),
+    )
+
+
 def test_operator_e2e_real_request_specialist_and_fallback(monkeypatch) -> None:
     """Real request -> P1 -> Crawl4AI, and the recorded fallback path."""
 
@@ -197,19 +246,16 @@ def test_operator_e2e_real_request_specialist_and_fallback(monkeypatch) -> None:
     monkeypatch.setenv("WIGOLO_RERANKER", "off")
     assert explicit_reader_hints_enabled() is True
 
-    from tools.run_f2_paired import (
-        FIXTURE,
-        _allow_local_fixture_reads,
-    )
     from src.web.research.active_adapter import (
         ActiveResearchGateway,
         read_gateway_accepts_timeout,
     )
     from src.web.research.crawl4ai_specialist import reset_crawl4ai_specialist
 
+    fixture = REPO_ROOT / "tools" / "f2_paired_fixture_server.py"
     port = 8802
     server = subprocess.Popen(
-        [sys.executable, "-u", "-X", "utf8", str(FIXTURE), "--port", str(port)],
+        [sys.executable, "-u", "-X", "utf8", str(fixture), "--port", str(port)],
         cwd=str(REPO_ROOT),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -228,7 +274,7 @@ def test_operator_e2e_real_request_specialist_and_fallback(monkeypatch) -> None:
         server.terminate()
         pytest.skip("fixture server not ready")
 
-    _allow_local_fixture_reads()
+    _allow_operator_loopback_fixture(monkeypatch)
     gateway = ActiveResearchGateway()
     default_kwargs = {
         "source_limit": 20000,
