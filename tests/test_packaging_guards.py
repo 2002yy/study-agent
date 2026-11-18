@@ -110,7 +110,7 @@ def test_exports_are_excluded():
 
 
 def test_replacement_artifact_dirs_are_excluded():
-    assert should_exclude(Path("article_text_replacement_files_v069/src/wechat.py"))
+    assert should_exclude(Path("article_text_replacement_files_v069/src/wechat_state.py"))
     assert should_exclude(Path("article_text_replacement_files_v070/src/ui/wechat_panel.py"))
 
 
