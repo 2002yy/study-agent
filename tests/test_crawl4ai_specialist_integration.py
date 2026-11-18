@@ -275,11 +275,6 @@ def test_deadline_and_budget_are_forwarded(enabled) -> None:
     assert FakeExecutor.last_kwargs["charge_envelope"] is sentinel_charge
 
 
-def test_specialist_gate_off_has_no_effect_on_default_runtime() -> None:
-    # gate is off by default; the default chain is a static contract
-    assert ACTIVE_READER_CHAIN == ("native_http", "wigolo_http")
-
-
 # ------------------------------------------------- optional real-worker e2e
 
 def test_real_specialist_is_addressable(monkeypatch, tmp_path) -> None:

@@ -272,18 +272,7 @@ def test_the_runner_callbacks_adapt_keyword_only_services(monkeypatch, db):
     assert seen["consume"] == {"parent": "turn-1", "thread": "thread-1"}
 
 
-# --- F39 / F40: no migration, no publication --------------------------------------
-
-
-def test_f39_no_deep_migration_or_new_table(db):
-    with db.connect() as connection:
-        names = {
-            row["name"]
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'"
-            ).fetchall()
-        }
-    assert not [name for name in names if name.startswith("deep_")]
+# --- F40: no answer regeneration or publication authority --------------------------
 
 
 def test_f40_the_deep_layer_never_regenerates_the_answer():

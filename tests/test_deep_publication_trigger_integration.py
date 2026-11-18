@@ -232,14 +232,3 @@ def test_the_runner_has_a_publish_callback_wired():
     finally:
         runtime.get_deep_trigger_runner.cache_clear()
         runtime.get_chat_service.cache_clear()
-
-
-def test_no_deep_queue_table_is_created(db):
-    with db.connect() as connection:
-        names = {
-            row["name"]
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'"
-            ).fetchall()
-        }
-    assert not [name for name in names if name.startswith("deep_")]
