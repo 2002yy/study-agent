@@ -224,6 +224,19 @@
 - **另一独立清理片（待 PR）**：退役不再被生产、CI、现有工具或当前评测调用的旧网页重试特征统计、学习状态临时方案对照、S1/S2 阶段观察，以及重试统计专属测试。共 4 文件，原始约 639 行；不触碰实际网页读取器、持久学习模型、计费安全和故障恢复用例。旧实验结论仍可从 Git 历史或归档文档查看。
 - **后继学习状态实验链（依赖上一片先合并）**：完整移除早期 §164/165/168 的下一步、误解、持续对话、阶段 D 取样、影子采集和 S1/S2 真实观察六份单次脚本；其中唯一跨脚本调用源 `run_phase2_rollout_observation` 已在上一片删除。生产 `learner_state_durable_adapter`、`learner_state_shadow_seam`、持久学习状态及相关测试不动，仅更新说明中对已退役脚本的提及。此片独立验证，不能将未完成的 CI 视为通过。
 
+### 2026-11-18 旧 Wigolo 浏览器对比运行器退役（独立片）
+
+- 早期 A3 的 `tools/run_browser_bakeoff.py` 只有其专属
+  `tests/test_browser_bakeoff_harness.py` 调用，不参与现行检索、Crawl4AI
+  资格评测或 CI 执行。退役整组脚本和历史联调测试，并移除阶段门中这份
+  旧专项测试的两处重复引用；旧测试的浏览器是否升级/壁垒分类行为现由
+  `test_chain_executor.py`、`test_progressive_routing.py` 与
+  `test_wigolo_browser_executor.py` 验证。Crawl4AI cohort v2 **仍调用**
+  `browser_bakeoff.py` 的结果构造/校验与旧 manifest，故保留该模块、
+  manifest 和共用 fixture 服务，将原专项测试中不可替代的结果真实性负控
+  合并进 `test_browser_bakeoff_contract.py`。不修改真实浏览器读取逻辑，
+  不执行外部浏览器或付费模型调用。
+
 ### 2026-11-18 历史诊断脚本退役（独立清理片）
 
 - 代码提交 `ef29cab8`（分支 `codex/retire-oneoff-probes-20261118`，基于 `main@f9332655`）：**17 个文件、4,501 行移除**，含 F2 早期定点延迟/账本脚本，以及 RQ1C 历史实验的答复生成、时间线、推理政策、冻结 A/B、断言形状、选择器格式探针。删除脚本时同步删除其 **6 个专属测试文件、36 个测试函数**。

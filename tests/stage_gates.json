@@ -237,7 +237,6 @@
     ],
     "a3_browser": [
       "tests/test_browser_bakeoff_contract.py",
-      "tests/test_browser_bakeoff_harness.py",
       "tests/test_wigolo_browser_executor.py",
       "tests/test_crawl4ai_timeout_propagation.py",
       "tests/test_crawl4ai_shutdown_contract.py"
@@ -977,7 +976,6 @@
       "tests/test_read_escalation.py",
       "tests/test_read_retry.py",
       "tests/test_browser_bakeoff_contract.py",
-      "tests/test_browser_bakeoff_harness.py",
       "tests/test_wigolo_browser_executor.py",
       "tests/test_crawl4ai_timeout_propagation.py",
       "tests/test_crawl4ai_shutdown_contract.py",
