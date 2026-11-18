@@ -1,5 +1,10 @@
 # Browse 搜索站点小样本实测（2026-11-15）
 
+> **历史观测记录，非当前运行手册。** 2026-11-19 已退役只用于本报告
+> 小样本重放的 `tools/probe_browse_engines.py`；下方事实保留用于追溯。
+> 现行 Browse 搜索通过 `src/web/browse_search.py` 与站点池的生产入口执行，
+> 仍需在有授权的真实浏览器环境单独验收，不能以这份旧样本替代。
+
 ## 结论与选择依据
 
 **保留 Google 为默认 Browse 搜索；Brave、Bing 作为可手动切换的候选；DuckDuckGo 暂不推荐作为 Browse 默认站点。** 不增加自动逐站轮询，也不改变生产默认的 SearXNG 优先路径。
@@ -31,13 +36,10 @@ WEB_BROWSE_SEARCH_ENGINE=google
 
 `WEB_BROWSE_SEARCH_ENGINE` 可取 `google`、`brave`、`bing`、`duckduckgo`；不设置时沿用 Google。它**只控制现有的单个 Browse 入口**，不创建额外的回退链；遭遇人机挑战按既有策略立即停下。
 
-在用户本机已配对 Browse 的环境，以冻结题集复核：
-
-```powershell
-python tools/probe_browse_engines.py --case-ids A01,A05
-```
-
-比较时至少记录每站 ①成功/挑战/超时，②结果数量及目标网址，③首条是否对应问题，④来源能否被 `web_read` 真正读到。只有真实使用多次验证后，才考虑改变默认策略。
+后续若要重新比较站点，应经现行 Browse 搜索入口（而非已经退役的固定
+两题探测器）分别记录 ①成功/挑战/超时，②结果数量及目标网址，
+③首条是否对应问题，④来源能否被 `web_read` 真正读到。
+只有真实使用多次验证后，才考虑改变默认策略。
 
 ## 2026-11-15 合并到站点池
 

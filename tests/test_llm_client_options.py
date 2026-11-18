@@ -1,6 +1,8 @@
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+
 from src import llm_client
 
 
@@ -24,6 +26,48 @@ def test_get_provider_settings_uses_profile_specific_env(monkeypatch):
     assert settings.default_profile == "pro"
     assert settings.timeout_seconds == 45.0
     assert settings.max_retries == 3
+
+
+@pytest.mark.parametrize("async_client", [False, True])
+def test_provider_client_cache_refreshes_when_credentials_change(monkeypatch, async_client):
+    import openai
+
+    credentials = {"key": "first-key"}
+    creations = []
+
+    def fake_settings(provider_profile=None):
+        return llm_client.ProviderSettings(
+            profile_name="openai",
+            api_key=credentials["key"],
+            base_url="https://example.test/v1",
+            flash_model="flash",
+            pro_model="pro",
+            default_profile="flash",
+            timeout_seconds=20.0,
+            max_retries=1,
+        )
+
+    def fake_client(**kwargs):
+        instance = SimpleNamespace(**kwargs)
+        creations.append(instance)
+        return instance
+
+    monkeypatch.setattr(llm_client, "get_provider_settings", fake_settings)
+    monkeypatch.setattr(openai, "AsyncOpenAI" if async_client else "OpenAI", fake_client)
+    name = "get_async_client" if async_client else "get_client"
+    cache = "_async_client" if async_client else "_client"
+    signature = "_async_client_signature" if async_client else "_client_signature"
+    monkeypatch.setattr(llm_client, cache, None)
+    monkeypatch.setattr(llm_client, signature, None)
+
+    initial = getattr(llm_client, name)()
+    assert getattr(llm_client, name)() is initial
+    credentials["key"] = "second-key"
+    refreshed = getattr(llm_client, name)()
+
+    assert refreshed is not initial
+    assert refreshed.api_key == "second-key"
+    assert len(creations) == 2
 
 
 def test_chat_passes_extended_request_options(monkeypatch):
