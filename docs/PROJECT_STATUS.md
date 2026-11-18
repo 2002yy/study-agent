@@ -119,9 +119,13 @@
 
 **已合并读取投影片**：[#443](https://github.com/2002yy/study-agent/pull/443)，HEAD `4f522e26`，精确 CI `44276778323` 成功、机器人审查无发现，预期 HEAD 保护合并至 `main@b613c96c`。该片把读链单来源投影迁到 `project_read_chain`，纯路由诊断归入读取观测模块；合并前同主线的读取栈回归 **467 passed / 4 skipped**，mypy 基线 **115/125** 通过。真实尝试、失败、读额度、恢复、费用、来源 upsert 与检查点顺序均不动。
 
-**后继读取历史片（远端分支已保存，PR 准备中）**：`codex/research-read-history-observability-20261118` 的代码父项为 #443 HEAD，原实现提交 `3d9655f3`、文档提交 `bb5d51f8`。将三处 `reads` 快照合并为 `_record_read_history(context, current_outcomes)`，仅真实链结束时额外写 `candidate_resolution`。在 `main@b613c96c` 的隔离整合工作树中影响集再次 **101 passed**（78.73 秒）、全库 Ruff 和差异检查通过；此前独立候选 mypy 基线 **115/125**。仍从当前游标读历史、当前上下文写观测，持久化/检查点保留原位置；没有真实模型/浏览器调用。
+**已合并读取历史片**：[#447](https://github.com/2002yy/study-agent/pull/447) HEAD `65deabb9`，精确 CI `44284842449` 成功、机器人审查无发现，预期 HEAD 保护合并至 `main@7da66efb`。将三处 `reads` 快照合并为 `_record_read_history(context, current_outcomes)`，仅真实链结束时额外写 `candidate_resolution`；主线隔离整合影响集 **101 passed**（78.73 秒），此前独立候选 mypy 基线 **115/125**。实时读取历史、检查点及预算结算时序保持不变。
 
-**唯一下一收口动作**：创建并验证读取历史片的独立 PR；精确 HEAD CI 与审阅通过后合并，然后对齐原子事实路由诊断片 `codex/research-atomic-routing-observability-20261118`（其初始远端代码树 `99c88a8c`、后续仅文档变化），按同样程序单独验收。两片均不改 `state/cursor/context` 的恢复权威、模型 inflight、`reserve_call`、来源发布及检查点排序；#404 测试造景由另一窗口独立收口。原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
+**后继原子路由诊断片（独立收口中）**：`codex/research-atomic-routing-observability-20261118` 原远端代码提交 `8a154e7d`，tree `99c88a8c`。原执行器仍独占 `route_missing_atomic_claims`、`extraction_targets/routed_pairs` 与每次检查点；将“决定路由后”和“真正提取后”的两个指标写入移到读取观测模块，仍使用当前 `context`、当前波次和真实来源记录。两个指标均保留 60 条上限、既有字段和顺序，未改变实际 claim 证据关系。原定向负控 **19 passed**，读取栈阶段门 **467 passed、4 skipped**（105.25 秒）；全库 Ruff、diff-check、mypy 基线 **115/125** 通过，无模型/付费调用。
+
+**共享可变状态边界**：① `execute()` 仍唯一持有、在恢复检查点后重新绑定 `state/cursor/context`；② `ActiveReadDispatchContext`/`ActiveReadExecutionContext` 只留运行期稳定依赖，当前候选和读取历史逐次显式传入；③ 读链投影只返回结果；④ `selected_sources` 在实际提取后由执行器更新；⑤ 观测函数只在调用时写当前 `context.metrics`，不持有旧快照；⑥ 模型 inflight、`reserve_call` 及最终结算、证据发布均由原权威负责。
+
+**唯一下一收口动作**：原子路由诊断片现已在合并 #447 的主线单独整合；完成当前影响集复核后创建 PR，待精确 HEAD CI 与审查通过才合并。下一批优先从执行闭包和测试造景的实际调用方出发继续去重，不重新建立模型、恢复或发布权威。#404 测试造景由另一窗口处理；原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
 
 ## 0A. 已冻结研究路线（摘要）
 
