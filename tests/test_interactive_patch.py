@@ -1,8 +1,26 @@
+import json
+from types import SimpleNamespace
+
 import pytest
 
 from src.interactive_patch import PatchConflict, TextEdit, prepare_patch, source_hash
 from src.interactive_restore import RestoreRequest
-from tools.interactive_patch_demo import saved_turn
+
+def saved_turn(html: str, revision: int) -> SimpleNamespace:
+    """Build a stored interactive turn without depending on a historical demo runner."""
+    payload = {
+        "type": "interactive",
+        "id": "linear-demo",
+        "revision": revision,
+        "title": "Linear function",
+        "summary": "Explore y=2x+1",
+        "html": html,
+    }
+    return SimpleNamespace(
+        id=f"turn-{revision}",
+        status="completed",
+        assistant_message="```study-ui\n" + json.dumps(payload) + "\n```",
+    )
 
 
 def test_patch_is_source_bound_and_keeps_other_content_unchanged():
