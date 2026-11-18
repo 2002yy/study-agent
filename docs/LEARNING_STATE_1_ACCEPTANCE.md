@@ -57,7 +57,7 @@ M6             写入隔离变异负控（已实测检出）                 PAS
 
 - 扫描 `src/**/*.py`，`create_understanding_evidence` / `commit_review_attempt` / `commit_semantic_closure` 的调用者必须 ⊆ closure 链（`learning_closure_truth` / `learning_semantic_closure`）；`create_understanding_evidence` 在生产中**无调用者**。
 - `LearningClosureTruthService` 只允许在 `runtime_repository.py` 构造。
-- closure 入口（`create_and_execute` / `commit` / `retry` / `cancel`）只允许由 `learning_closure_routes.py` / `session_routes.py` 触发或提交；只扫描引用了 closure service 的路由模块。
+- closure 入口（`create_and_execute` / `commit` / `retry` / `cancel`）现只允许由 `learning_closure_routes.py` 触发或提交；旧 `session_routes.py` 适配入口已退役。只扫描引用了 closure service 的路由模块。
 - **变异实测 1（研究写入）**：向 `src/web/research/` 加入一个 `commit_semantic_closure` 调用 → `test_only_the_closure_chain_writes_durable_understanding` FAIL（探针已删除）。
 - **变异实测 2（路由提交）**：新增一个非授权路由引用 closure service 并调用 `service.commit(run_id)` → `test_only_explicit_closure_routes_trigger_a_closure_run` FAIL（探针已删除）。
 

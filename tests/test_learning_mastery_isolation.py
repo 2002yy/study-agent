@@ -47,7 +47,6 @@ _CLOSURE_SERVICE_MODULE = "application/runtime_repository.py"
 # Only explicit closure entry points may trigger or commit a closure run.
 _ALLOWED_CLOSURE_TRIGGERS = {
     "api/routes/learning_closure_routes.py",
-    "api/routes/session_routes.py",
 }
 
 # Markers that identify a route module as wired to the closure service.

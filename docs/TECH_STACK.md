@@ -240,6 +240,11 @@ CI 运行：
   `GET /web-lookup-runs/{run_id}` 恢复读取。旧响应字段 `run_id`／`query_text`／
   `news_items` 分别对应新响应 `id`／`query`／`items`；`source_block` 和 `warnings`
   保持同名。前端现有调用已经通过新端点进行，仍使用的展示层映射不属于旧 HTTP 路由。
+- 历史 `/sessions/{session_id}/after-session/preview` 也已移除：学习收口统一通过
+  `POST /sessions/{session_id}/learning-closure-runs` 创建，随后由
+  `GET /learning-closure-runs/{run_id}` 获取结果。旧路由原先直接返回关联的
+  `MemoryRunResponse`；新接口返回 `LearningClosureRunResponse`（其中可包含关联的
+  `memory_run`），可继续使用 `/memory-runs/{run_id}` 查询实际记忆运行。
 
 删除 legacy 前必须有替代路径、迁移说明和回归覆盖。
 
