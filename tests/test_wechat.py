@@ -2,46 +2,48 @@ import pytest
 from pathlib import Path
 import threading
 import time
-from src.wechat import (
+from src import wechat_state
+from src.news.article_extractor import (
+    clean_article_text as _clean_article_text,
+    decode_html_payload as _decode_html_payload,
+    extract_article_text as _extract_article_text,
+)
+from src.news.article_fetcher import (
     _ARTICLE_CACHE,
     _article_fetch_priority,
-    _clean_article_text,
-    _decode_html_payload,
-    _dedupe_and_trim_news_items,
-    _extract_resolved_url_from_google_news_html,
-    _extract_article_text,
-    _fetch_query_news_items,
     _is_fetchable_article_url,
-    _parse_news_pub_date,
-    _news_article_coverage_summary,
-    _title_matches_query,
-    append_system_group_note,
-    append_wechat_messages,
     enrich_news_items_with_article_text,
     fetch_article_text_with_method,
+)
+from src.news.digest import (
+    _news_article_coverage_summary,
     format_news_source_block,
+)
+from src.news.link_resolver import (
+    _extract_resolved_url_from_google_news_html,
+    resolve_news_link,
+)
+from src.news.rss_fetcher import (
+    _dedupe_and_trim_news_items,
+    _fetch_query_news_items,
+    _parse_news_pub_date,
+    _title_matches_query,
+)
+from src.wechat_state import (
+    append_system_group_note,
+    append_wechat_messages,
     read_wechat_unread,
     read_wechat_group,
     clear_wechat_unread,
-    resolve_news_link,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-GROUP = PROJECT_ROOT / "chat" / "wechat_group.md"
-UNREAD = PROJECT_ROOT / "chat" / "wechat_unread.md"
-STATE = PROJECT_ROOT / "chat" / "wechat_state.md"
-
-
 @pytest.fixture(autouse=True)
-def _save_restore():
-    """备份原文件，测试结束后恢复"""
-    gb = GROUP.read_text(encoding="utf-8") if GROUP.is_file() else ""
-    ub = UNREAD.read_text(encoding="utf-8") if UNREAD.is_file() else ""
-    sb = STATE.read_text(encoding="utf-8") if STATE.is_file() else ""
-    yield
-    GROUP.write_text(gb, encoding="utf-8")
-    UNREAD.write_text(ub, encoding="utf-8")
-    STATE.write_text(sb, encoding="utf-8")
+def _isolated_wechat_state(monkeypatch, tmp_path):
+    """Exercise the current state writer without touching real chat/mode files."""
+    monkeypatch.setattr(wechat_state, "GROUP_FILE", tmp_path / "wechat_group.md")
+    monkeypatch.setattr(wechat_state, "UNREAD_FILE", tmp_path / "wechat_unread.md")
+    monkeypatch.setattr(wechat_state, "STATE_FILE", tmp_path / "wechat_state.md")
+    monkeypatch.setattr(wechat_state, "update_wechat_join_state", lambda **_kwargs: None)
 
 
 def test_unread_has_metadata_header():
@@ -69,7 +71,7 @@ def test_unread_not_empty():
 def test_group_preserved_after_clear():
     append_wechat_messages("【流萤】\nunique_test_marker")
     clear_wechat_unread()
-    after = GROUP.read_text(encoding="utf-8")
+    after = read_wechat_group()
     assert "unique_test_marker" in after
 
 

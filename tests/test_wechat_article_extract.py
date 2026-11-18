@@ -1,6 +1,6 @@
-from src.wechat import (
-    _extract_article_text,
-    _extract_article_text_with_fallback_parser,
+from src.news.article_extractor import (
+    extract_article_text as _extract_article_text,
+    extract_article_text_with_fallback_parser as _extract_article_text_with_fallback_parser,
 )
 
 
