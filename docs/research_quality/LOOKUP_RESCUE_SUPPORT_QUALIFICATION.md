@@ -1,5 +1,11 @@
 # Lookup L5：恢复正文与事实支持
 
+> 历史执行记录：本文件记述 2026-10 的固定来源资格化，不是当前运行指令。
+> 2026-11-18 已退役仅对旧 `main@7ff7451d` 和固定 CI 记录有效的
+> `tools/run_lookup_rescue_support.py`、专属重放测试及其阶段门条目。
+> 当前 Lookup 恢复／发布权限合同仍由 `tests/test_lookup_rescue_support.py`、
+> `tests/test_lookup_terminal.py` 和实际研究／发布回归验证；下列旧命令仅供历史追溯。
+
 本 slice 从 #174 merge `7ff7451da608775324383968b4c7ed23c5687832` 独立分支开始，不修改其16案例、生产解析器、预算或发布权限。进度唯一入口仍为 `docs/PROJECT_STATUS.md`。
 
 ## 执行门与证据等级
