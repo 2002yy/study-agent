@@ -19,13 +19,6 @@
 
 ### 历史减负候选快照（部分已合入，以下不是当前待办）
 
-- **2026-11-18 交互历史阶段一报告脚本退役（独立片）**：
-  `tools/interactive_history_report.py` 是仅需手工指定 SQLite 库的阶段一
-  压缩前后比较脚本，库内无其它调用方、CI 配置、专属测试或发布依赖。
-  删除该一次性报告入口；保留正式聊天上下文使用的
-  `src/interactive_history.py` 及 `tests/test_interactive_history.py`，
-  继续检查用户原文保留、版本来源和历史压缩契约。
-
 - **2026-11-18 虚假跨层测试清理（独立片）**：两项 Python 测试
   名为“前端刷新竞态”和“部分接口失败保留旧状态”，实际只重复请求
   `/health`，既未制造竞态也未触发接口失败。移除这些误导性的
@@ -39,6 +32,22 @@
   另删除手工创建却没有撤销补丁、可能污染后续用例的群聊会话标记专项检查：
   对应标记和群聊隔离已由 `test_wechat_service.py`、`test_api.py` 分别覆盖。
   只调整测试与交接，不更改运行时；验证状态以对应 PR 为准。
+
+- **2026-11-18 交互历史阶段一报告脚本退役（独立片）**：
+  `tools/interactive_history_report.py` 是仅需手工指定 SQLite 库的阶段一
+  压缩前后比较脚本，库内无其它调用方、CI 配置、专属测试或发布依赖。
+  删除该一次性报告入口；保留正式聊天上下文使用的
+  `src/interactive_history.py` 及 `tests/test_interactive_history.py`，
+  继续检查用户原文保留、版本来源和历史压缩契约。
+
+- **2026-11-18 M4-D 一次性补丁演示退役（独立片）**：确认
+  `tools/interactive_patch_demo.py` 只作为历史手工演示入口使用，
+  `frontend/e2e/acceptance/incrementalPatch.spec.ts` 只在设置
+  `M4D_PATCH_DEMO_DIR` 时执行；生产代码、现行 CI 和正式 UI 均无调用。
+  整组删除演示运行器及其专属浏览器用例，把原先误从演示工具导入的
+  测试构造函数移入 `tests/test_interactive_patch.py`。
+  保留 `src/interactive_patch.py`、恢复契约以及增量修改/能力继承的
+  现行单元测试，确保退役实验不会顺带移除仍有价值的功能基础。
 
 - **2026-11-18 旧记忆接口与专项测试退役（独立片）**：以
   `main@d879a4af79d99521129f361e07866cedc3fa0064` 为基线。
