@@ -6,6 +6,17 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### Search-to-Answer-1 历史检索层基线退役（独立减负片）
+
+- 旧 `tools/run_search_to_answer_baseline.py` 只在 2026-10-28 的冻结题库上测量
+  搜索和前两个结果的技术读取，不测最终回答、证据判断或多轮研究。实际使用者
+  仅是专属 `tests/test_search_to_answer_baseline.py`；生产、前端、其它工具与 CI
+  无调用，并且存在独立的当前搜索阶段门覆盖。成组移除该工具、专项测试、仅供
+  它们使用的 `tests/fixtures/search_to_answer/baseline_v1.json`，同时从
+  `tests/stage_gates.json` 的 `search_flow` 注册中摘除。旧评测报告保留为历史
+  档案并注明不可从现行 HEAD 运行；正式 `GeneralWebGateway`、研究路由、
+  搜索回退/读取/恢复/预算和当前搜索测试一律不动。无联网或付费测试调用。
+
 ### 旧 HTTP 研究入口退役（待精确提交验收）
 
 - `codex/retire-web-lookup-compat-20261118`：仓内唯一实际使用旧
