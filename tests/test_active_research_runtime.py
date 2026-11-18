@@ -564,7 +564,20 @@ def _cursor_from_run(run: WebLookupRun) -> ResearchRuntimeCursor:
     )
 
 
-def test_active_single_wave_builds_strict_evidence_and_passes_gate(tmp_path: Any) -> None:
+def test_active_single_wave_builds_strict_evidence_and_passes_gate(
+    tmp_path: Any, monkeypatch: Any
+) -> None:
+    import src.application.active_research_runtime as runtime_module
+
+    checkpoint_callers: list[str] = []
+    record_timing = runtime_module._record_checkpoint_timing
+
+    def capture_timing(*args: Any, **kwargs: Any) -> None:
+        checkpoint_callers.append(str(kwargs.get("caller") or ""))
+        record_timing(*args, **kwargs)
+
+    monkeypatch.setattr(runtime_module, "_record_checkpoint_timing", capture_timing)
+
     class _CheckpointContractRepository(_TrackingRepository):
         def __init__(self, database: RuntimeDatabase) -> None:
             super().__init__(database)
@@ -630,6 +643,7 @@ def test_active_single_wave_builds_strict_evidence_and_passes_gate(tmp_path: Any
         for candidate in runtime["candidates"]
     } == {("searxng",), ("bing_rss",)}
     assert repository.visible_stages == ["searching", "assessing", "reading", "gating"]
+    assert "settle_completed_wave" in checkpoint_callers
     # The stage transition precedes its snapshot; spent budgets never decrease
     # across durable checkpoints, including those made before model calls.
     stages = [stage for stage, _budget in repository.checkpoint_budgets]

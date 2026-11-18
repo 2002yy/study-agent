@@ -60,7 +60,6 @@ class ActiveRuntimeCheckpointContext:
     state: ResearchState
     cursor: ResearchRuntimeCursor
     results: ActiveResearchResultBuffers
-    known_evidence_ids: Callable[[], tuple[str, ...]]
 
     def prepare(self, *, stage: str | None, elapsed: Callable[[], float]) -> None:
         if stage is not None:
@@ -80,7 +79,7 @@ class ActiveRuntimeCheckpointContext:
         self.context = attach_claim_engine_state(
             self.context,
             self.state,
-            known_evidence_ids=self.known_evidence_ids(),
+            known_evidence_ids=self.results.known_evidence_ids(self.run_id),
         )
         _update_metrics(self.context, self.state, self.cursor)
 

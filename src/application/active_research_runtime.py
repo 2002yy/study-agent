@@ -254,6 +254,7 @@ from src.application.research_runtime_model_attempt_context import (
 from src.application.research_runtime_steering_context import ActiveResearchSteeringContext
 from src.application.research_runtime_wave_settlement import (
     ActiveWaveSettlementContext,
+    ActiveWaveSettlementHandoff,
     ActiveWaveSettlementSnapshot,
 )
 from src.application.research_runtime_failure_projection import (
@@ -848,7 +849,6 @@ class ActiveResearchRuntimeExecutor:
                     state=state,
                     cursor=cursor,
                     results=results,
-                    known_evidence_ids=known_evidence_ids,
                 )
                 try:
                     snapshot.prepare(stage=stage, elapsed=elapsed)
@@ -960,50 +960,36 @@ class ActiveResearchRuntimeExecutor:
         # semantic result. A crash first leaves durable inflight for recovery.
         on_model_finished = model_attempt_context.finished
 
+        def bind_wave_snapshot(snapshot: ActiveWaveSettlementSnapshot) -> None:
+            nonlocal cursor, state, context
+            state, cursor, context = snapshot.state, snapshot.cursor, snapshot.context
+
+        wave_handoff = ActiveWaveSettlementHandoff(
+            capture=lambda: ActiveWaveSettlementSnapshot(state, cursor, context),
+            bind=bind_wave_snapshot,
+        )
+
         def settle_completed_wave(
             snapshot: ActiveWaveSettlementSnapshot,
         ) -> None:
-            """Sync the wave's live values through the existing checkpoint owner.
-
-            Keep this caller name for the persisted checkpoint timing label.
-            """
-            nonlocal cursor, state, context
-            state, cursor, context = snapshot.state, snapshot.cursor, snapshot.context
+            """Keep the checkpoint caller label and its original side-effect order."""
+            wave_handoff.bind(snapshot)
             try:
                 checkpoint()
             finally:
-                snapshot.state, snapshot.cursor, snapshot.context = (
-                    state,
-                    cursor,
-                    context,
-                )
+                wave_handoff.refresh_after_checkpoint(snapshot)
 
         wave_settlement_context = ActiveWaveSettlementContext(
             steering=steering_context,
             ensure_active=ensure_active,
             elapsed=elapsed,
             checkpoint=settle_completed_wave,
-            known_evidence_ids=known_evidence_ids,
+            results=results,
+            run_id=run_id,
             actionable_gaps=_ordered_gaps,
             publisher=publisher,
             max_research_waves=MAX_RESEARCH_WAVES,
         )
-
-        def settle_wave(
-            gate: EvidenceGateResult, brief: Mapping[str, Any]
-        ) -> WebLookupRun | None:
-            """Hand the current values to settlement and always rebind them."""
-
-            nonlocal state, cursor, context
-            snapshot = ActiveWaveSettlementSnapshot(
-                state=state, cursor=cursor, context=context
-            )
-            try:
-                return wave_settlement_context.settle_completed_wave(
-                    snapshot, gate, brief
-                )
-            finally:
-                state, cursor, context = snapshot.state, snapshot.cursor, snapshot.context
 
         try:
             ensure_active()
@@ -1165,7 +1151,7 @@ class ActiveResearchRuntimeExecutor:
                         exhausted=budget_clock.research_window_exhausted(),
                     )
                     checkpoint()
-                    settled = settle_wave(gate, brief)
+                    settled = wave_handoff.settle(wave_settlement_context, gate, brief)
                     if settled is not None:
                         return settled
                     continue
@@ -2855,7 +2841,7 @@ class ActiveResearchRuntimeExecutor:
                 checkpoint()
                 timing_ledger.end_wave()
                 timing_ledger.flush_into(context)
-                settled = settle_wave(gate, brief)
+                settled = wave_handoff.settle(wave_settlement_context, gate, brief)
                 if settled is not None:
                     return settled
         except (ActiveResearchCancelled, CandidatePoolCancelled, ReadSchedulingCancelled):

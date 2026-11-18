@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from src.application.research_runtime_publication import ActiveResearchPublisher
+from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
 from src.application.research_runtime_steering_context import (
     ActiveResearchSteeringContext,
 )
@@ -34,6 +35,40 @@ class ActiveWaveSettlementSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class ActiveWaveSettlementHandoff:
+    """Transfer live values to/from settlement, even on checkpoint failure.
+
+    The executor still owns the mutable locals and the physical checkpoint.
+    This boundary only defines the rebind protocol: settlement changes must
+    return to the executor, and a partially prepared checkpoint must return
+    its latest in-memory projection to the settlement snapshot.
+    """
+
+    capture: Callable[[], ActiveWaveSettlementSnapshot]
+    bind: Callable[[ActiveWaveSettlementSnapshot], None]
+
+    def refresh_after_checkpoint(self, snapshot: ActiveWaveSettlementSnapshot) -> None:
+        live = self.capture()
+        snapshot.state, snapshot.cursor, snapshot.context = (
+            live.state,
+            live.cursor,
+            live.context,
+        )
+
+    def settle(
+        self,
+        settlement: ActiveWaveSettlementContext,
+        gate: EvidenceGateResult,
+        brief: Mapping[str, Any],
+    ) -> WebLookupRun | None:
+        snapshot = self.capture()
+        try:
+            return settlement.settle_completed_wave(snapshot, gate, brief)
+        finally:
+            self.bind(snapshot)
+
+
+@dataclass(frozen=True, slots=True)
 class ActiveWaveSettlementContext:
     """Bind stable run operations; always work on the supplied live snapshot."""
 
@@ -41,7 +76,8 @@ class ActiveWaveSettlementContext:
     ensure_active: Callable[[], None]
     elapsed: Callable[[], float]
     checkpoint: Callable[[ActiveWaveSettlementSnapshot], None]
-    known_evidence_ids: Callable[[], tuple[str, ...]]
+    results: ActiveResearchResultBuffers
+    run_id: str
     actionable_gaps: Callable[[ResearchState], tuple[EvidenceGap, ...]]
     publisher: ActiveResearchPublisher
     max_research_waves: int
@@ -75,7 +111,9 @@ class ActiveWaveSettlementContext:
                     state=snapshot.state,
                     context=snapshot.context,
                     wave_index=next_wave,
-                    known_evidence_ids=self.known_evidence_ids,
+                    known_evidence_ids=lambda: self.results.known_evidence_ids(
+                        self.run_id
+                    ),
                 )
             )
             snapshot.cursor = replace(
