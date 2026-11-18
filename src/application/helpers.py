@@ -495,8 +495,6 @@ def runtime_settings_payload() -> Any:
         "current_version": modes.current_version,
         "active_task": modes.active_task,
         "next_version": modes.next_version,
-        "wechat_memory_capture_enabled": modes.memory_capture_enabled,
-        "wechat_memory_capture_mode": modes.memory_capture_mode,
     }
     return RuntimeSettingsResponse(
         settings=settings,

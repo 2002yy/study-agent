@@ -33,7 +33,6 @@ from src.mode_manager import (
     update_debug_mode,
     update_entry_mode,
     update_interaction_mode,
-    update_memory_capture,
     update_performance_mode,
     update_safe_mode,
 )
@@ -137,8 +136,6 @@ def patch_runtime_settings(request: RuntimeSettingsPatch) -> RuntimeSettingsResp
         update_debug_mode(request.debug_mode)
     if request.safe_mode is not None:
         update_safe_mode(request.safe_mode)
-    if request.wechat_memory_capture_enabled is not None:
-        update_memory_capture(request.wechat_memory_capture_enabled)
     return _runtime_settings_with_external_policy()
 
 

@@ -33,8 +33,6 @@ def test_load_runtime_modes_reads_yaml_state(monkeypatch, tmp_path):
                     "mode": "interactive_group",
                     "user_has_joined_group": True,
                     "first_join_reaction_done": True,
-                    "memory_capture_enabled": True,
-                    "memory_capture_mode": "auto",
                 },
             },
             allow_unicode=True,
@@ -62,8 +60,6 @@ def test_load_runtime_modes_reads_yaml_state(monkeypatch, tmp_path):
     assert modes.wechat_mode == "interactive_group"
     assert modes.user_has_joined is True
     assert modes.first_reaction_done is True
-    assert modes.memory_capture_enabled is True
-    assert modes.memory_capture_mode == "auto"
 
 
 def test_missing_yaml_migrates_from_markdown(monkeypatch, tmp_path):
@@ -96,9 +92,7 @@ def test_missing_yaml_migrates_from_markdown(monkeypatch, tmp_path):
         "# wechat\n\n"
         "- user_has_joined_group: true\n"
         "- first_join_reaction_done: false\n"
-        "- mode: first_user_join\n"
-        "- memory_capture_enabled: true\n"
-        "- memory_capture_mode: manual\n",
+        "- mode: first_user_join\n",
         encoding="utf-8",
     )
 
@@ -123,7 +117,6 @@ def test_missing_yaml_migrates_from_markdown(monkeypatch, tmp_path):
     assert modes.wechat_mode == "first_user_join"
     assert modes.user_has_joined is True
     assert modes.first_reaction_done is False
-    assert modes.memory_capture_enabled is True
 
 
 def test_updates_write_yaml_and_sync_markdown(monkeypatch, tmp_path):
@@ -192,8 +185,6 @@ def test_yaml_remains_source_of_truth_when_markdown_drifts(monkeypatch, tmp_path
                     "mode": "unread_feedback",
                     "user_has_joined_group": False,
                     "first_join_reaction_done": False,
-                    "memory_capture_enabled": True,
-                    "memory_capture_mode": "manual",
                 },
             },
             allow_unicode=True,
@@ -238,7 +229,6 @@ def test_runtime_config_schema_warns_and_uses_safe_defaults(monkeypatch, tmp_pat
     raw_state["runtime"]["entry_mode"] = "desktop"
     raw_state["runtime"]["debug_mode"] = "true"
     raw_state["runtime"]["typo_mode"] = "oops"
-    raw_state["wechat"]["memory_capture_enabled"] = "not-bool"
     raw_state["unknown"] = {"x": 1}
     runtime_state.write_text(
         yaml.safe_dump(raw_state, allow_unicode=True, sort_keys=False),
@@ -255,7 +245,6 @@ def test_runtime_config_schema_warns_and_uses_safe_defaults(monkeypatch, tmp_pat
 
     assert modes.entry_mode == "wechat"
     assert modes.debug_mode is True
-    assert modes.memory_capture_enabled is False
     assert any("runtime.entry_mode: invalid value" in item for item in result.warnings)
     assert any("runtime.debug_mode: coerced string boolean" in item for item in result.warnings)
     assert any("runtime.typo_mode: unknown key ignored" in item for item in result.warnings)

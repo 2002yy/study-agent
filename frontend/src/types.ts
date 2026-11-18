@@ -248,8 +248,6 @@ export type RuntimeSettingsResponse = {
     current_version: string;
     active_task: string;
     next_version: string;
-    wechat_memory_capture_enabled: boolean;
-    wechat_memory_capture_mode: string;
     rag_enabled: boolean;
     rag_retrieval_mode: RagSettings["retrievalMode"];
     rag_search_top_k: number;

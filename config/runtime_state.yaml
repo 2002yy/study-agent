@@ -15,5 +15,3 @@ wechat:
   mode: unread_feedback
   user_has_joined_group: false
   first_join_reaction_done: false
-  memory_capture_enabled: true
-  memory_capture_mode: manual

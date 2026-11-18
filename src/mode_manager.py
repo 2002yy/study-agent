@@ -32,8 +32,6 @@ class RuntimeModes:
     wechat_mode: str = "unread_feedback"
     user_has_joined: bool = False
     first_reaction_done: bool = False
-    memory_capture_enabled: bool = False
-    memory_capture_mode: str = "manual"
     performance_mode: str = "standard"
     entry_mode: str = "wechat"
 
@@ -164,8 +162,6 @@ _RUNTIME_STATE_SCHEMA: dict[str, dict[str, dict[str, Any]]] = {
         },
         "user_has_joined_group": {"type": bool},
         "first_join_reaction_done": {"type": bool},
-        "memory_capture_enabled": {"type": bool},
-        "memory_capture_mode": {"type": str, "choices": {"manual", "auto"}},
     },
 }
 
@@ -205,8 +201,6 @@ def _default_runtime_state_dict() -> dict[str, Any]:
             "mode": defaults.wechat_mode,
             "user_has_joined_group": defaults.user_has_joined,
             "first_join_reaction_done": defaults.first_reaction_done,
-            "memory_capture_enabled": defaults.memory_capture_enabled,
-            "memory_capture_mode": defaults.memory_capture_mode,
         },
     }
 
@@ -257,12 +251,6 @@ def _read_md_state_migration() -> dict[str, Any]:
         data["wechat"]["first_join_reaction_done"] = _parse_bool(
             raw, "first_join_reaction_done"
         )
-        data["wechat"]["memory_capture_enabled"] = _parse_bool(
-            raw, "memory_capture_enabled"
-        )
-        capture_mode = _parse_keyvalue(raw, "memory_capture_mode")
-        if capture_mode:
-            data["wechat"]["memory_capture_mode"] = capture_mode
 
     return data
 
@@ -376,10 +364,7 @@ def _render_runtime_state_markdown_views(data: dict[str, Any]) -> tuple[str, str
         "## Visibility\n"
         f"- user_has_joined_group: {'true' if wechat['user_has_joined_group'] else 'false'}\n"
         f"- first_join_reaction_done: {'true' if wechat['first_join_reaction_done'] else 'false'}\n"
-        f"- mode: {wechat['mode']}\n\n"
-        "## Memory Capture\n"
-        f"- memory_capture_enabled: {'true' if wechat['memory_capture_enabled'] else 'false'}\n"
-        f"- memory_capture_mode: {wechat['memory_capture_mode']}\n"
+        f"- mode: {wechat['mode']}\n"
     )
     return internal_md, interaction_md, wechat_md
 
@@ -478,8 +463,6 @@ def _modes_from_runtime_state(data: dict[str, Any]) -> RuntimeModes:
         wechat_mode=wechat["mode"],
         user_has_joined=bool(wechat["user_has_joined_group"]),
         first_reaction_done=bool(wechat["first_join_reaction_done"]),
-        memory_capture_enabled=bool(wechat["memory_capture_enabled"]),
-        memory_capture_mode=wechat["memory_capture_mode"],
         performance_mode=runtime["performance_mode"],
         entry_mode=runtime["entry_mode"],
     )
@@ -537,10 +520,6 @@ def _apply_state_updates(path: Path, updates: dict[str, str]) -> None:
                 data["wechat"]["first_join_reaction_done"] = value.lower() == "true"
             elif key == "mode":
                 data["wechat"]["mode"] = value
-            elif key == "memory_capture_enabled":
-                data["wechat"]["memory_capture_enabled"] = value.lower() == "true"
-            elif key == "memory_capture_mode":
-                data["wechat"]["memory_capture_mode"] = value
             else:
                 raise ValueError(f"Unsupported wechat key: {key}")
 
@@ -589,16 +568,6 @@ def update_wechat_join_state(
             "user_has_joined_group": "true" if user_has_joined else "false",
             "first_join_reaction_done": "true" if first_reaction_done else "false",
             "mode": mode,
-        },
-    )
-
-
-def update_memory_capture(enabled: bool, capture_mode: str = "manual") -> None:
-    _write_keyvalues(
-        WECHAT_STATE,
-        {
-            "memory_capture_enabled": "true" if enabled else "false",
-            "memory_capture_mode": capture_mode,
         },
     )
 
