@@ -95,15 +95,6 @@ def test_wechat_join_state_uses_single_batch_write():
     assert 'user_has_joined_group": "true" if user_has_joined else "false"' in text
 
 
-def test_llm_client_can_reset_cached_client():
-    text = Path("src/llm_client.py").read_text(encoding="utf-8")
-    assert "def reset_client()" in text
-    assert "_client_signature" in text
-
-    config_text = Path("src/config.py").read_text(encoding="utf-8")
-    assert "reset_client" in config_text
-
-
 def test_exports_are_excluded():
     assert should_exclude(Path("exports/session_report_20260508.md"))
     assert should_exclude(Path("exports/session_report_20260508.docx"))

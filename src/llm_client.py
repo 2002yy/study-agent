@@ -135,14 +135,6 @@ def _classify_error(e: Exception) -> str:
     return f"API call failed: {e}"
 
 
-def reset_client() -> None:
-    global _client, _client_signature, _async_client, _async_client_signature
-    _client = None
-    _client_signature = None
-    _async_client = None
-    _async_client_signature = None
-
-
 def _normalize_provider_profile(provider_profile: str | None = None) -> str:
     raw_profile = provider_profile or os.getenv("LLM_PROVIDER_PROFILE") or "openai"
     profile = raw_profile.strip().lower()
