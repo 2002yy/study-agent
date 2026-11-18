@@ -953,21 +953,6 @@ class ActiveResearchRuntimeExecutor:
             chain_runner=run_chain,
         )
 
-        def fetch_text(url: str) -> tuple[str, str, str, str]:
-            """§63 inventory fetch (XML/JSON/HTML) for the domain-targeted channel.
-
-            §50/B2: transient fetch failures are retried under the *same*
-            window-aware admission policy as page reads, but accounted
-            separately (``inventory_fetch``) so inventory I/O never
-            contaminates read-retry statistics.
-            """
-
-            return _inventory_fetch_with_retry(
-                url,
-                context=context,
-                remaining_seconds=research_seconds_left,
-            )
-
         def ensure_budget() -> None:
             if elapsed() >= state.budget.hard_timeout_seconds:
                 raise _HardBudgetReached
@@ -1632,7 +1617,7 @@ class ActiveResearchRuntimeExecutor:
                             claim=claim,
                             assessments=merged_assessments,
                             model_gateway=timed_gateway,
-                            fetch_text=fetch_text,
+                            fetch_text=_inventory_fetch_with_retry,
                             read_fn=gateway_read,
                             context=context,
                             run_id=run_id,
@@ -1640,6 +1625,7 @@ class ActiveResearchRuntimeExecutor:
                             timeout_seconds=remaining_timeout(),
                             targeted_claim_ids=targeted_claim_ids,
                             seconds_left=research_seconds_left,
+                            live_context=lambda: context,
                             now_ms=elapsed_ms,
                         )
                         phase_timing.end("domain_targeted", context=context)
@@ -4019,6 +4005,7 @@ def _domain_targeted_step(
     timeout_seconds: float | None,
     targeted_claim_ids: list[str],
     seconds_left: Any,
+    live_context: Callable[[], dict[str, Any]] | None = None,
     now_ms: Any = None,
 ) -> ResearchRuntimeCursor:
     """§63 Tier-1.5: official-domain site search -> verified candidates.
@@ -4119,7 +4106,10 @@ def _domain_targeted_step(
         target.to_record() for target in targets if not target.accepted
     ]
     record["domains"] = [target.host for target in accepted]
-    _count_orchestration_call(context, "research_domain_proposal")
+    _count_orchestration_call(
+        live_context() if live_context is not None else context,
+        "research_domain_proposal",
+    )
     if now_ms:
         record["t_proposal_ms"] = round(float(now_ms()), 1)
 
@@ -4147,7 +4137,11 @@ def _domain_targeted_step(
             inventory_fetches += 1
             record["search_urls"].append(sitemap_url)
             try:
-                text, _final_url, _content_type, reason = fetch_text(sitemap_url)
+                text, _final_url, _content_type, reason = fetch_text(
+                    sitemap_url,
+                    context=live_context() if live_context is not None else context,
+                    remaining_seconds=seconds_left,
+                )
             except Exception as exc:
                 text, reason = "", f"exception:{type(exc).__name__}"
             if not text:
@@ -4172,7 +4166,11 @@ def _domain_targeted_step(
                     inventory_fetches += 1
                     record["search_urls"].append(child)
                     try:
-                        child_text, _f, _c, child_reason = fetch_text(child)
+                        child_text, _f, _c, child_reason = fetch_text(
+                            child,
+                            context=live_context() if live_context is not None else context,
+                            remaining_seconds=seconds_left,
+                        )
                     except Exception as exc:
                         child_text, child_reason = "", f"exception:{type(exc).__name__}"
                     if not child_text:
@@ -4256,7 +4254,9 @@ def _domain_targeted_step(
         "verification_succeeded": len(record["verified"]),
         "candidate_admitted": len(record["added_candidate_ids"]),
     }
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    metrics = (
+        live_context() if live_context is not None else context
+    ).setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
     if isinstance(metrics, dict):
         records = metrics.get("domain_targeted")
         if not isinstance(records, list):
