@@ -1,4 +1,4 @@
-"""Feed-entry semantic selection (B-Search-2B8).
+"""Entry/search semantic selection (B-Search-2B8).
 
 Deterministic, offline: rank feed entries against the user's full research goal
 (topic + version + time + question type) and refuse when nothing matches. This is
@@ -8,7 +8,28 @@ from __future__ import annotations
 
 import re
 
-from src.web.research.source_directory import _terms
+_LATIN = re.compile(r"[a-z0-9]{2,}")
+_CJK = re.compile(r"[\u3400-\u9fff]{2,}")
+_STOPWORDS = frozenset({
+    "net", "com", "org", "www", "http", "https", "the", "and",
+    "for", "blog", "news", "rss", "feed", "io", "co", "me",
+    "dev", "app", "site",
+})
+
+
+def _terms(text: str) -> set[str]:
+    """Tokenize Latin and Chinese goals for active entry/search relevance checks."""
+    lowered = (text or "").casefold()
+    tokens = {
+        token
+        for token in (set(_LATIN.findall(lowered)) | set(_CJK.findall(lowered)))
+        if token not in _STOPWORDS
+    }
+    # Chinese questions are often unsegmented: include adjacent CJK bigrams.
+    for run in _CJK.findall(lowered):
+        for i in range(len(run) - 1):
+            tokens.add(run[i : i + 2])
+    return tokens
 
 _VER = re.compile(r"\d+(?:\.\d+)+")
 _YEAR = re.compile(r"\b(?:19|20)\d{2}\b")
