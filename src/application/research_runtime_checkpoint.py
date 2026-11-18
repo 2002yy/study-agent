@@ -61,6 +61,27 @@ class ActiveRuntimeCheckpointContext:
     cursor: ResearchRuntimeCursor
     results: ActiveResearchResultBuffers
 
+    def prepare_and_persist(
+        self,
+        *,
+        stage: str | None,
+        elapsed: Callable[[], float],
+        bind_prepared: Callable[[ResearchState, dict[str, Any]], None],
+        diagnostics: dict[str, Any] | None,
+        elapsed_ms: Callable[[], float],
+    ) -> WebLookupRun:
+        """Rebind the projected values even when preparation fails.
+
+        The executor owns the live values; this boundary fixes the order of
+        projection, in-memory handoff and durable write. A failed projection
+        must not proceed to persistence.
+        """
+        try:
+            self.prepare(stage=stage, elapsed=elapsed)
+        finally:
+            bind_prepared(self.state, self.context)
+        return self.persist(diagnostics=diagnostics, elapsed_ms=elapsed_ms)
+
     def prepare(self, *, stage: str | None, elapsed: Callable[[], float]) -> None:
         if stage is not None:
             current = self.repository.get(self.run_id)

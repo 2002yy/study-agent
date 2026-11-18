@@ -855,13 +855,17 @@ class ActiveResearchRuntimeExecutor:
                     cursor=cursor,
                     results=results,
                 )
-                try:
-                    snapshot.prepare(stage=stage, elapsed=elapsed)
-                finally:
-                    # Preserve partial in-memory projection if serialization
-                    # raises, as the former nested checkpoint did.
-                    live.state, context = snapshot.state, snapshot.context
-                persisted = snapshot.persist(diagnostics=diagnostics, elapsed_ms=elapsed_ms)
+                def bind_prepared(state: ResearchState, prepared_context: dict[str, Any]) -> None:
+                    nonlocal context
+                    live.state, context = state, prepared_context
+
+                persisted = snapshot.prepare_and_persist(
+                    stage=stage,
+                    elapsed=elapsed,
+                    bind_prepared=bind_prepared,
+                    diagnostics=diagnostics,
+                    elapsed_ms=elapsed_ms,
+                )
                 # A concurrent steering entry may be merged by the repository;
                 # carry the durable result into the next wave boundary.
                 context = dict(persisted.research_context)
