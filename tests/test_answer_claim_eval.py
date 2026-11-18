@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 from src.domain.answer_claims import answer_content_hash, deterministic_claim_id
 from src.rag.answer_claim_eval import (
@@ -14,7 +15,6 @@ from src.rag.answer_claim_eval import (
     parse_answer_claim_producer_output,
     run_answer_claim_producer,
 )
-from tools.run_answer_claim_eval_baseline import DeterministicGoldProducer
 
 
 FIXTURE = Path("tests/fixtures/rag_eval/answer_cases.json")
@@ -95,10 +95,21 @@ def test_k1_answer_cases_project_into_versioned_claim_eval_cases():
 def test_deterministic_gold_producer_proves_evaluator_can_score_perfect_contract():
     cases = load_answer_claim_eval_cases(FIXTURE)
     answers = {case.case_id: deterministic_gold_payload(case)[0] for case in cases}
+    case_by_id = {case.case_id: case for case in cases}
+
+    def produce_gold(request: AnswerClaimProducerInput) -> dict:
+        expected_answer, payload = deterministic_gold_payload(case_by_id[request.case_id])
+        assert request.final_answer == expected_answer
+        return payload.to_dict()
+
     candidates = run_answer_claim_producer(
         cases=cases,
         answers=answers,
-        producer=DeterministicGoldProducer(cases),
+        producer=SimpleNamespace(
+            producer_id="deterministic-gold-test",
+            producer_version="v1",
+            produce=produce_gold,
+        ),
     )
     summary = evaluate_answer_claim_suite(cases, candidates)
 
