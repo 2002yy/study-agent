@@ -251,6 +251,10 @@ from src.application.research_runtime_model_policy import (
 from src.application.research_runtime_model_attempt_context import (
     ActiveModelAttemptContext,
 )
+from src.application.research_runtime_operation_guard import (
+    ActiveResearchCancelled,
+    ActiveResearchOperationGuard,
+)
 from src.application.research_runtime_steering_context import ActiveResearchSteeringContext
 from src.application.research_runtime_wave_settlement import (
     ActiveWaveSettlementContext,
@@ -564,10 +568,6 @@ def run_single_read_measurement(
     return chain_run, tuple(recorded)
 
 
-class ActiveResearchCancelled(RuntimeError):
-    pass
-
-
 # Multimodal Reader v1 read-site seam (docs/PROJECT_STATUS.md §144.15).
 # The read site never invents visual metadata: the caller/operator declares it on
 # the run context, exactly like every other injected read seam. The declaration
@@ -827,9 +827,11 @@ class ActiveResearchRuntimeExecutor:
             utc_now=self.utc_now,
         )
 
-        def ensure_active() -> None:
-            if self.repository.cancel_requested(run_id, operation_id=operation_id):
-                raise ActiveResearchCancelled("active research cancelled")
+        operation_guard = ActiveResearchOperationGuard(
+            repository=self.repository,
+            run_id=run_id,
+            operation_id=operation_id,
+        )
 
         def checkpoint(*, stage: str | None = None) -> WebLookupRun:
             nonlocal context, state
@@ -964,7 +966,7 @@ class ActiveResearchRuntimeExecutor:
         model_attempt_context = ActiveModelAttemptContext(
             current_cursor=lambda: cursor,
             set_cursor=set_model_cursor,
-            ensure_active=ensure_active,
+            ensure_active=operation_guard.ensure_active,
             ensure_budget=ensure_budget,
             checkpoint=checkpoint,
         )
@@ -993,7 +995,7 @@ class ActiveResearchRuntimeExecutor:
 
         wave_settlement_context = ActiveWaveSettlementContext(
             steering=steering_context,
-            ensure_active=ensure_active,
+            ensure_active=operation_guard.ensure_active,
             elapsed=elapsed,
             checkpoint=settle_completed_wave,
             known_evidence_ids=known_evidence_ids,
@@ -1019,7 +1021,7 @@ class ActiveResearchRuntimeExecutor:
                 state, cursor, context = snapshot.state, snapshot.cursor, snapshot.context
 
         try:
-            ensure_active()
+            operation_guard.ensure_active()
             checkpoint()
 
             # Bootstrap an empty active state through the audited model boundary.
@@ -1087,7 +1089,7 @@ class ActiveResearchRuntimeExecutor:
                     on_attempt_finished=on_model_finished,
                     attempt_start=planning_attempt_start,
                 )
-                ensure_active()
+                operation_guard.ensure_active()
                 if not bootstrap.completed or bootstrap.state is None:
                     planning_reason = bootstrap.reason or "claim_plan_unavailable"
                     planning_code: ResearchFailureCode = (
@@ -1234,7 +1236,7 @@ class ActiveResearchRuntimeExecutor:
                 for planned in cursor.planned_queries:
                     if planned.id in cursor.completed_query_ids:
                         continue
-                    ensure_active()
+                    operation_guard.ensure_active()
                     if elapsed() >= state.budget.hard_timeout_seconds:
                         break
                     # B5-H2: once the candidate pool is full, further external
@@ -1363,7 +1365,7 @@ class ActiveResearchRuntimeExecutor:
                     finally:
                         cursor = finish_external_attempt(cursor, call_id=marker.call_id)
                         checkpoint()
-                    ensure_active()
+                    operation_guard.ensure_active()
                     outcome = batch_result.outcomes[0]
                     if outcome.status == "unavailable":
                         cursor = with_appended_runtime_failure(
@@ -1539,7 +1541,7 @@ class ActiveResearchRuntimeExecutor:
                         )
                     finally:
                         phase_timing.end("assessment", context=context)
-                    ensure_active()
+                    operation_guard.ensure_active()
                     if assessed.status != "completed" or not assessed.assessments:
                         assessment_reason = (
                             assessed.reason or "candidate_assessment_unavailable"
@@ -1845,7 +1847,7 @@ class ActiveResearchRuntimeExecutor:
                         except ValueError:
                             pass
                         continue
-                    ensure_active()
+                    operation_guard.ensure_active()
                     if deep_seed_by_url:
                         try:
                             _deep_candidate = _candidate_by_id(cursor, candidate_id)
@@ -2023,7 +2025,7 @@ class ActiveResearchRuntimeExecutor:
                     )
                     selection_trace.note_read(candidate.canonical_url, dispatched=True)
                     dispatched_read_ids.add(candidate_id)
-                    ensure_active()
+                    operation_guard.ensure_active()
                     for step in chain_steps:
                         # §104: one marker per real backend attempt (audit grain),
                         # all sharing this candidate's single outer read-slot.
@@ -2088,7 +2090,7 @@ class ActiveResearchRuntimeExecutor:
                         hard_timeout_seconds=state.budget.hard_timeout_seconds,
                         elapsed=elapsed,
                     )
-                    ensure_active()
+                    operation_guard.ensure_active()
                     # The candidate has content if *any* backend produced a
                     # usable read. Prefer the adequate attempt (the legacy
                     # escalation replaced a short read with the adequate one),
@@ -2206,7 +2208,7 @@ class ActiveResearchRuntimeExecutor:
                         break
                     lead_candidate = lead_item["candidate"]
                     lead_candidate_id = lead_candidate.id
-                    ensure_active()
+                    operation_guard.ensure_active()
                     ensure_budget()
                     lead_source_limit = min(
                         6000, state.budget.max_total_chars - used_chars
@@ -2245,7 +2247,7 @@ class ActiveResearchRuntimeExecutor:
                             cursor, call_id=lead_marker.call_id
                         )
                         checkpoint()
-                    ensure_active()
+                    operation_guard.ensure_active()
                     lead_content = str(
                         raw_lead_read.get("content")
                         or raw_lead_read.get("readme")
@@ -2315,7 +2317,7 @@ class ActiveResearchRuntimeExecutor:
                         )
                     finally:
                         phase_timing.end("discovery", context=context)
-                    ensure_active()
+                    operation_guard.ensure_active()
                     if (
                         discovery.status == "completed"
                         and discovery.discovery is not None
@@ -2417,7 +2419,7 @@ class ActiveResearchRuntimeExecutor:
                         and legacy.get("claim_id") == claim_id
                     ):
                         continue
-                    ensure_active()
+                    operation_guard.ensure_active()
                     ensure_budget()
                     extraction_categories = (
                         "public_research_claim",
@@ -2492,7 +2494,7 @@ class ActiveResearchRuntimeExecutor:
                         )
                     finally:
                         phase_timing.end("extraction", context=context)
-                    ensure_active()
+                    operation_guard.ensure_active()
                     if extracted.status != "completed" or extracted.extraction is None:
                         extraction_reason = extracted.reason or "extractor_unavailable"
                         extractions[claim_id] = {

@@ -6,6 +6,12 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### 2026-11-18 取消检查归入显式操作租约（独立研究结构片）
+
+- 工作分支 `codex/research-operation-guard-20261118` 基于 `main@697612cf`；仅调整运行器取消检查与紧邻的重复测试造景。新增不可变的 `ActiveResearchOperationGuard(repository, run_id, operation_id)`，替换 `execute()` 隐式捕获三者的 `ensure_active` 闭包。13 处直接取消检查、模型调用起止和波次结算仍在原位置、原顺序检查同一操作租约；`ActiveResearchCancelled` 继续从原公开模块导出，异常类型/消息不变。**没有**移动恢复、预算结算、检查点或发布权威。
+- 四条取消边界测试共享同一建库/建运行记录助手，分别保留模型规划、搜索、读取、抽取的真实取消注入与终态断言。新负控验证同一租约在取消前后都只使用冻结的 `run_id/operation_id`。完整直接影响集 **91 passed / 103.62s**，重复场景提取后五项 **5 passed / 4.46s**；Ruff、diff-check、mypy **115 ≤ 125** 通过。只执行注入桩的离线静态测试，未调用真实搜索/模型或产生 API 费用。
+- 执行方法的当前可变所有权继续冻结：`state/context/cursor` 仍由执行器持有并在检查点及波次结算后回写；四组结果列表由 `ActiveResearchResultBuffers` 与发布者共享；`ResearchBudgetClock` 只读时间预算，`TimingLedger` 仅用于观测。后续优先处理模型预算 `ensure_budget` 对当前 `state` 的捕获及检查点回写，不一次性改动这些权威。
+
 ### 旧 HTTP 研究入口退役（待精确提交验收）
 
 - `codex/retire-web-lookup-compat-20261118`：仓内唯一实际使用旧
