@@ -6,8 +6,11 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock
 
+import pytest
+
 from src.application.research_runtime_wave_settlement import (
     ActiveWaveSettlementContext,
+    ActiveWaveSettlementHandoff,
     ActiveWaveSettlementSnapshot,
 )
 from src.application.research_runtime_publication import ActiveResearchPublisher
@@ -15,6 +18,88 @@ from src.application.research_runtime_result_buffers import ActiveResearchResult
 from src.web.research.contracts import ResearchState
 from src.web.research.evidence_gate import EvidenceGateResult
 from src.web.research.runtime import ResearchRuntimeCursor
+
+
+class _InterruptedWave(BaseException):
+    pass
+
+
+def _live_wave_handoff() -> tuple[SimpleNamespace, ActiveWaveSettlementHandoff]:
+    """One shared live-local model for both checkpoint interruption boundaries."""
+
+    live = SimpleNamespace(
+        state=cast(ResearchState, object()),
+        cursor=ResearchRuntimeCursor(wave_index=1),
+        context={"before": True},
+    )
+
+    def bind(snapshot: ActiveWaveSettlementSnapshot) -> None:
+        live.state, live.cursor, live.context = (
+            snapshot.state,
+            snapshot.cursor,
+            snapshot.context,
+        )
+
+    return live, ActiveWaveSettlementHandoff(
+        capture=lambda: ActiveWaveSettlementSnapshot(
+            live.state, live.cursor, live.context
+        ),
+        bind=bind,
+    )
+
+
+def test_wave_handoff_rebinds_mutated_state_when_settlement_raises() -> None:
+    live, handoff = _live_wave_handoff()
+    updated_state = cast(ResearchState, object())
+    settlement = Mock()
+
+    def interrupt(snapshot: ActiveWaveSettlementSnapshot, *_: Any) -> None:
+        snapshot.state = updated_state
+        snapshot.cursor = ResearchRuntimeCursor(wave_index=2)
+        snapshot.context = {"after": True}
+        raise _InterruptedWave
+
+    settlement.settle_completed_wave.side_effect = interrupt
+
+    with pytest.raises(_InterruptedWave):
+        handoff.settle(
+            cast(ActiveWaveSettlementContext, settlement),
+            cast(EvidenceGateResult, object()),
+            {},
+        )
+
+    assert live.state is updated_state
+    assert live.cursor.wave_index == 2
+    assert live.context == {"after": True}
+
+
+def test_wave_handoff_retains_partial_checkpoint_projection_on_crash() -> None:
+    live, handoff = _live_wave_handoff()
+    projected_state = cast(ResearchState, object())
+    settlement = Mock()
+
+    def interrupted_checkpoint(snapshot: ActiveWaveSettlementSnapshot, *_: Any) -> None:
+        snapshot.cursor = ResearchRuntimeCursor(wave_index=2)
+        handoff.bind(snapshot)
+        try:
+            live.state = projected_state
+            live.context = {"prepared": True}
+            raise _InterruptedWave
+        finally:
+            handoff.refresh_after_checkpoint(snapshot)
+
+    settlement.settle_completed_wave.side_effect = interrupted_checkpoint
+
+    with pytest.raises(_InterruptedWave):
+        handoff.settle(
+            cast(ActiveWaveSettlementContext, settlement),
+            cast(EvidenceGateResult, object()),
+            {},
+        )
+
+    assert live.state is projected_state
+    assert live.cursor.wave_index == 2
+    assert live.context == {"prepared": True}
 
 
 def test_late_direction_uses_checkpoint_rebound_context_before_publication(

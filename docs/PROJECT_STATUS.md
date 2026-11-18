@@ -6,6 +6,12 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### 2026-11-19 研究结构整合收口（以精确提交为准）
+
+- #488（研究窗口检查点顺序）CI `44344609900` 成功，合并 `main@caefa350`；#489（执行守卫与实时预算）CI `44345569048` 成功，合并 `main@51da57f2`。两项均已确认无审阅线程，使用精确 PR HEAD 保护合并。
+- #490（证据身份实时投影）与 #493（波次状态交接）在同一执行器上有交叠。基于 `main@51da57f2` 依次整合二者，修复 `gain_history` 恢复路径的一处冲突：必须先执行 `ResearchWindowDiagnostics.record_end`、再 `checkpoint()`、最后 `wave_handoff.settle(...)`，不能因替换旧 `settle_wave` 丢掉窗口检查点。合并演练 **96 passed**，Ruff/差异检查通过；该结果仅证明本地整合树，不替代远端精确提交 CI。
+- 下一步：待 #490 CI 成功后合入，然后按新的精确 HEAD 验收 #493 的整合树及 CI；两片最终合入后再继续修改执行器。真实搜索、模型、付费动态测试未运行。
+
 ### 2026-11-19 研究窗口检查点顺序显式化（独立候选）
 
 - 基线 `main@739d74f7`，分支 `codex/research-context-next-20261119`。将 `execute()` 内四个 `record_research_window` 闭包调用展开为显式的 `ResearchWindowDiagnostics.record_end(context, hard_seconds=state.budget.hard_timeout_seconds, elapsed=elapsed, exhausted=...)`，随后按原位置调用 `checkpoint()`。诊断仍由专属上下文写入，检查点仍由原执行器控制；观察时钟每次仍取样两次，预算耗尽分支原有的后续额外检查点仍保留。
@@ -21,6 +27,11 @@
   的可选真实环境操作员测试直接指向共享夹具，并将以前从实验脚本导入且
   未撤销的 SSRF 放宽补丁改为 pytest `monkeypatch` 生命周期内的局部放宽。
   生产读取链、安全策略、升级后端、请求契约和历史结果档案不变；不进行外部读取。
+
+### 2026-11-19 波次状态快照回写上下文（独立候选）
+
+- 基线 `main@739d74f7`，分支 `codex/research-wave-state-handoff-20261119`。新增 `ActiveWaveSettlementHandoff`，明确从运行器捕获 `state/cursor/context` 快照、结算后（含异常）将快照写回实时状态，以及检查点执行失败时将内存中部分更新重新交还给结算快照。移除原 `settle_wave` 内部函数，将两个结算入口交给上下文；运行器仅保留一处显式 `bind_wave_snapshot` 写入接口。
+- 原 `settle_completed_wave` 函数仍直接调用 `checkpoint()`，因此指标 `checkpoint_timing.caller` 保持现有标签；检查点、预算结算、恢复、波次决策和发布顺序不变。新增异常路径与原调用方标签负控，两条异常测试共享同一运行快照构造，避免重复造景；不调用外部检索或付费模型。#488–#490 各自为独立待审 PR，不混入本候选。
 
 ### 旧 HTTP 研究入口退役（待精确提交验收）
 
