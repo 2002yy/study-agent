@@ -10,8 +10,8 @@ wires the other two research phases, without duplicating the contract:
 
 - `src/application/research_shadow_seam.py` — the generic, phase-aware seam
   (`standard` / `lookup` / `deep`), one flag per phase.
-- `src/application/standard_shadow_seam.py` — now a thin compatibility shim that
-  re-exports the M4-A names (behaviour unchanged).
+- Standard 续接器直接调用统一的 `research_shadow_seam`。早期
+  `standard_shadow_seam.py` 兼容模块及其专属测试已退役；记录格式保持不变。
 - `src/application/shadow_telemetry_sink.py` — owns the single process-wide telemetry
   (`shadow_telemetry()` / `close_shadow_telemetry()`, closed at interpreter exit);
   Standard and Deep share it, so flusher threads cannot multiply.
@@ -44,7 +44,8 @@ disabled and forwards `phase="lookup"` when enabled; hook failures are swallowed
 Deep service provisions a sink only when its flag is on and its helper never raises; the
 shared sink is one instance per process.
 
-Existing M4-A tests still pass unchanged (the shim preserves the public names).
+原 M4-A 兼容接口专属测试已退役；仍有价值的 Standard 行为、隔离及
+持久化记录格式负控已合入统一阶段测试。
 
 ## Telemetry schema (explicit, not silent)
 
@@ -55,9 +56,8 @@ Records are versioned per phase (`PHASE_SCHEMA`):
 | standard | `standard-bsearch-shadow-seam-v1` | **absent** (M4-A shape preserved) |
 | lookup / deep | `research-bsearch-shadow-seam-v1` | present |
 
-The M4-A public return type (`StandardShadowResult`: `enabled`, `submitted`,
-`decision_inputs`) is restored as a real dataclass — not an alias of the generic
-result — so no constructor field is added under existing callers.
+统一接口的内存结果包含 `phase`；Standard 的调用方不读取返回值。
+已有持久化记录继续沿用 M4-A 形状（无 `phase` 键），由现役测试冻结。
 
 ## Deep observation semantics
 

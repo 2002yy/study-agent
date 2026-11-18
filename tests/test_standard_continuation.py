@@ -399,7 +399,7 @@ def test_shadow_off_on_pairing_matches_the_standard_outcome(ctx, tmp_path, monke
 
     import tests.test_standard_handoff as handoff
     from src.application import shadow_telemetry_sink as sink
-    from src.application.standard_shadow_seam import grants_evidence_authority
+    from src.application.research_shadow_seam import grants_evidence_authority
 
     # --- OFF baseline (the ctx service was built with the flag unset)
     off_service, _repository, _runs, parent, _created, gateway, clock = ctx
