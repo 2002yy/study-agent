@@ -119,6 +119,18 @@
 
 ### 历史减负候选快照（部分已合入，以下不是当前待办）
 
+#### 历史召回/候选供应商资格工具整链退役（2026-11-19，独立片）
+
+- 旧 §44A/§44C 研究阶段的“已知目标召回审计 → Brave API 资格评估 / URL 提案
+  候选替代方案资格评估”未进入生产执行链；三套脚本只被彼此依赖及专属测试
+  引用。现行代码、阶段门、CI、活跃文档均无调用方，旧决策背景保存在
+  `docs/archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`。
+- 删除 `run_recall_target_audit.py`、`run_brave_qualification.py`、
+  `run_url_proposal_qualification.py` 及三份同名专项测试。旧冻结参数不再作为
+  产品门槛维护；不补适配层、别名或空测试。正式 `research_url_proposal`、
+  Browse 搜索和通用质量门不变。离线影响集 **112 passed**，Ruff 与差异检查
+  通过；未执行 Brave API、DeepSeek、真实浏览器或其它付费请求。
+
 - **2026-11-18 RQ1-C 成对归因实验链退役（独立片）**：
   `codex/retire-rq1c-paired-attribution-20261118`。旧 `run_paired_attribution.py`
   只调度同阶段 `run_rq1c_calibration.py` 和
