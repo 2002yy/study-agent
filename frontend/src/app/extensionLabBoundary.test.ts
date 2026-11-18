@@ -7,6 +7,7 @@ const sourceOf = (relativePath: string) => {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
 };
 
+const typesSource = sourceOf("../types.ts");
 const chatPanelSource = sourceOf("../features/single-chat/WorkspaceActions.tsx");
 const launcherSource = sourceOf("../features/extensions/ExtensionLauncher.tsx");
 const contractSource = sourceOf("../features/extensions/extensionDrawerContract.ts");
@@ -15,6 +16,15 @@ const runtimeSource = sourceOf("./useExtensionRuntime.ts");
 const drawersSource = sourceOf("./ExtensionDrawers.tsx");
 
 describe("single laboratory product boundary", () => {
+  it("exposes only the laboratory in the workspace drawer type", () => {
+    const drawerIds =
+      typesSource.split("export type DrawerId =", 2)[1]?.split(";", 1)[0] ?? "";
+    expect(drawerIds).toContain('"lab"');
+    for (const retiredDrawer of ['"group"', '"tools"', '"timeline"']) {
+      expect(drawerIds).not.toContain(retiredDrawer);
+    }
+  });
+
   it("keeps one laboratory entry in the ordinary learning menu", () => {
     expect(contractSource).toContain('export const LAB_DRAWER: DrawerId = "lab"');
     expect(chatPanelSource).toContain("<ExtensionLauncher");
@@ -40,13 +50,9 @@ describe("single laboratory product boundary", () => {
     expect(runtimeSource).toContain("if (!activeCapability) return;");
     expect(runtimeSource).toContain("EXTENSION_DRAWER_CONFIG[activeCapability]");
     expect(drawersSource).toContain('view.activeSurface === "lab"');
-  });
-
-  it("does not retain legacy capability drawer surfaces", () => {
+    expect(contractSource).not.toContain("selectExtensionDrawer");
+    expect(runtimeSource).not.toContain("isLegacySurface");
     expect(runtimeSource).not.toContain("selectExtensionDrawer");
     expect(drawersSource).not.toContain("isLegacySurface");
-    expect(launcherSource).not.toContain('onOpen("group"');
-    expect(launcherSource).not.toContain('onOpen("tools"');
-    expect(launcherSource).not.toContain('onOpen("timeline"');
   });
 });
