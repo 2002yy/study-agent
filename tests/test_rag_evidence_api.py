@@ -49,7 +49,7 @@ def test_knowledge_document_evidence_status_controls_retrieval(tmp_path):
     assert patched.json()["retrievable_documents"] == 1
 
     queried = client.post(
-        "/rag/query",
+        "/rag-runs/query",
         json={
             "query": "task dropdown composer",
             "index_path": str(index_path),
@@ -58,12 +58,12 @@ def test_knowledge_document_evidence_status_controls_retrieval(tmp_path):
         },
     )
     assert queried.status_code == 200
-    assert queried.json()["results"]
+    assert queried.json()["result"]["results"]
     assert all(
         Path(result["chunk"]["source_path"]).name != "old.md"
-        for result in queried.json()["results"]
+        for result in queried.json()["result"]["results"]
     )
-    assert queried.json()["debug"]["evidence_eligibility"]["excluded_documents"] == 1
+    assert queried.json()["result"]["debug"]["evidence_eligibility"]["excluded_documents"] == 1
 
     relisted = client.get(
         "/knowledge-base/documents",

@@ -14,14 +14,6 @@ class RagIndexRequest(BaseModel):
     overlap_chars: int = Field(default=120, ge=0, le=5_000)
 
 
-class RagIndexResponse(BaseModel):
-    documents: int
-    chunks: int
-    index_path: str
-    stages: list[dict] = Field(default_factory=list)
-    index_version: int = 0
-
-
 class RagStatusResponse(BaseModel):
     index_path: str
     index_exists: bool
@@ -47,17 +39,6 @@ class RagQueryRequest(BaseModel):
     rerank_top_n: int = Field(default=20, gt=0, le=100)
     rerank_latency_budget_ms: int = Field(default=250, gt=0, le=10_000)
     rerank_cost_budget: float = Field(default=0.0, ge=0)
-
-
-class RagQueryResponse(BaseModel):
-    query: str
-    retrieval_mode: str
-    result_count: int
-    context: str
-    sources: str
-    results: list[dict]
-    debug: dict
-    evaluation: dict | None = None
 
 
 class LocalKnowledgeRequest(BaseModel):

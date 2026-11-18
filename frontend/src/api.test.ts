@@ -9,14 +9,14 @@ import {
   checkSearchProviderHealth,
   loadApiSnapshot,
   createToolRun,
-  queryRag,
+  createRagQueryRun,
+  createRagWriteRun,
   searchWechat,
   sendChatStream,
   steerResearchRun,
   queueResearchFollowup,
   sendWechatMessage,
   sendWechatMessageStream,
-  uploadDocuments,
   saveInteractiveState,
   loadInteractiveState
 } from "./api";
@@ -430,34 +430,46 @@ describe("RAG API calls", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await queryRag("RAG", { ...ragSettings, topK: 8, chatTopK: 2 });
+    await createRagQueryRun("RAG", { ...ragSettings, topK: 8, chatTopK: 2 });
 
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/rag-runs/query");
     const body = JSON.parse(String(init.body));
     expect(body.top_k).toBe(8);
   });
 
-  it("parses local and vector upload stages", async () => {
+  it("uses the durable upload endpoint and exposes its stage results", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(
         JSON.stringify({
-          documents: 1,
-          chunks: 2,
-          index_path: "logs/rag_index.json",
-          stages: [
-            { name: "local", status: "completed", documents: 1, chunks: 2 },
-            { name: "vector", status: "failed", detail: "vector offline" }
-          ]
+          id: "rag-upload-1",
+          kind: "upload",
+          status: "partial",
+          result: {
+            documents: 1,
+            chunks: 2,
+            index_path: "logs/rag_index.json",
+            stages: [
+              { name: "local", status: "completed", documents: 1, chunks: 2 },
+              { name: "vector", status: "failed", detail: "vector offline" }
+            ]
+          }
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       )
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const response = await uploadDocuments([new File(["hello"], "note.md", { type: "text/markdown" })]);
+    const response = await createRagWriteRun(
+      [new File(["hello"], "note.md", { type: "text/markdown" })],
+      "upload"
+    );
 
-    expect(response.stages?.[0].name).toBe("local");
-    expect(response.stages?.[1].status).toBe("failed");
+    const [url] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/rag-runs/upload");
+    const stages = (response.result as { stages: Array<{ name: string; status: string }> }).stages;
+    expect(stages[0].name).toBe("local");
+    expect(stages[1].status).toBe("failed");
   });
 });
 

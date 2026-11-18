@@ -475,7 +475,7 @@ def test_rag_run_index_and_query_endpoints(tmp_path):
         },
     )
     query_response = client.post(
-        "/rag/query",
+        "/rag-runs/query",
         json={
             "query": "FastAPI cited chunks",
             "index_path": str(index_path),
@@ -487,7 +487,7 @@ def test_rag_run_index_and_query_endpoints(tmp_path):
     assert index_response.status_code == 200
     assert index_response.json()["result"]["documents"] == 1
     assert query_response.status_code == 200
-    query_data = query_response.json()
+    query_data = query_response.json()["result"]
     assert query_data["result_count"] == 1
     assert "[1] notes" in query_data["context"]
     assert query_data["results"][0]["chunk"]["source_path"] == str(document)
@@ -504,7 +504,7 @@ def test_rag_query_endpoint_rejects_unknown_mode(tmp_path):
     client.post("/rag-runs/index", json={"paths": [str(document)], "index_path": str(index_path)})
 
     response = client.post(
-        "/rag/query",
+        "/rag-runs/query",
         json={"query": "retrieval", "index_path": str(index_path), "retrieval_mode": "semantic"},
     )
 
@@ -520,7 +520,7 @@ def test_rag_query_endpoint_returns_optional_evaluation(tmp_path):
     client.post("/rag-runs/index", json={"paths": [str(document)], "index_path": str(index_path)})
 
     response = client.post(
-        "/rag/query",
+        "/rag-runs/query",
         json={
             "query": "cited local source",
             "index_path": str(index_path),
@@ -532,7 +532,7 @@ def test_rag_query_endpoint_returns_optional_evaluation(tmp_path):
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["result"]
     assert data["evaluation"]["hit"] is True
     assert data["evaluation"]["recall_at_k"] == 1.0
     assert data["debug"]["returned_count"] >= 1
@@ -580,14 +580,14 @@ def test_rag_status_and_upload_endpoints(tmp_path):
     index_path = tmp_path / "uploaded_index.json"
 
     upload_response = client.post(
-        "/rag/upload",
+        "/rag-runs/upload",
         params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
         files={"files": ("upload.md", b"Uploaded RAG files become indexed chunks.", "text/markdown")},
     )
     status_response = client.get("/rag/status", params={"index_path": str(index_path)})
 
     assert upload_response.status_code == 200
-    upload_data = upload_response.json()
+    upload_data = upload_response.json()["result"]
     assert upload_data["documents"] == 1
     assert upload_data["stages"][0]["name"] == "local"
     assert upload_data["stages"][0]["status"] == "completed"
@@ -615,27 +615,27 @@ def test_rag_upload_appends_by_default_and_can_rebuild(tmp_path):
     index_path = tmp_path / "append_index.json"
 
     first = client.post(
-        "/rag/upload",
+        "/rag-runs/upload",
         params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
         files={"files": ("a.md", b"Alpha document stays in the knowledge base.", "text/markdown")},
     )
     second = client.post(
-        "/rag/upload",
+        "/rag-runs/upload",
         params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
         files={"files": ("b.md", b"Beta document is appended later.", "text/markdown")},
     )
     rebuilt = client.post(
-        "/rag/upload",
-        params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0, "mode": "rebuild"},
+        "/rag-runs/rebuild",
+        params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
         files={"files": ("c.md", b"Gamma document replaces the previous index.", "text/markdown")},
     )
 
     assert first.status_code == 200
-    assert first.json()["documents"] == 1
+    assert first.json()["result"]["documents"] == 1
     assert second.status_code == 200
-    assert second.json()["documents"] == 2
+    assert second.json()["result"]["documents"] == 2
     assert rebuilt.status_code == 200
-    assert rebuilt.json()["documents"] == 1
+    assert rebuilt.json()["result"]["documents"] == 1
 
 
 def test_rag_upload_keeps_duplicate_basenames_unique(monkeypatch, tmp_path):
@@ -647,7 +647,7 @@ def test_rag_upload_keeps_duplicate_basenames_unique(monkeypatch, tmp_path):
     client = TestClient(app)
 
     response = client.post(
-        "/rag/upload",
+        "/rag-runs/upload",
         params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
         files=[
             ("files", ("same.md", b"First uploaded duplicate basename.", "text/markdown")),
@@ -656,9 +656,9 @@ def test_rag_upload_keeps_duplicate_basenames_unique(monkeypatch, tmp_path):
     )
 
     assert response.status_code == 200
-    assert response.json()["documents"] == 2
-    assert response.json()["chunks"] == 2
-    assert [stage["name"] for stage in response.json()["stages"]] == [
+    assert response.json()["result"]["documents"] == 2
+    assert response.json()["result"]["chunks"] == 2
+    assert [stage["name"] for stage in response.json()["result"]["stages"]] == [
         "local",
         "vector",
         "activation",
@@ -675,7 +675,7 @@ def test_rag_upload_cannot_escape_upload_directory(monkeypatch, tmp_path):
     monkeypatch.setattr(helpers, "RAG_UPLOAD_DIR_DEFAULT", upload_dir)
 
     response = TestClient(app).post(
-        "/rag/upload",
+        "/rag-runs/upload",
         params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
         files={"files": ("../unsafe.md", b"Safe upload content.", "text/markdown")},
     )
@@ -697,13 +697,13 @@ def test_rag_upload_reports_vector_stage_failure(monkeypatch, tmp_path):
     index_path = tmp_path / "partial_index.json"
 
     response = client.post(
-        "/rag/upload",
+        "/rag-runs/upload",
         params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
         files={"files": ("partial.md", b"Local index should still be saved.", "text/markdown")},
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["result"]
     assert data["documents"] == 1
     assert data["stages"][0]["status"] == "staged"
     assert data["stages"][1]["name"] == "vector"
@@ -719,7 +719,7 @@ def test_rag_upload_rejects_invalid_file_signature(tmp_path):
     index_path = tmp_path / "unsafe_index.json"
 
     response = client.post(
-        "/rag/upload",
+        "/rag-runs/upload",
         params={"index_path": str(index_path)},
         files={"files": ("fake.pdf", b"not a PDF", "application/pdf")},
     )
