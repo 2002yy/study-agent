@@ -3315,8 +3315,9 @@ def settle(self, request_id: str, *, outcome: str, cost_micros: int) -> None: ..
 - `SpendGatedAdmission` 在 `src/` 中只被 `conversation_turn_lifecycle.py`
   用于 `isinstance` 校验，**没有任何生产代码构造它**；
 - `TurnLifecycle` 在 `src/` 中**没有任何生产构造点**；
-- 生产 host `semantic_turn_host.py` / `semantic_research_host.py`
-  **只接入了 `validate_tool_call`**，没有接入 `TurnLifecycle` 或费用闸门。
+- 当时的实验 host `semantic_turn_host.py` / `semantic_research_host.py`
+  **只接入了 `validate_tool_call`**，没有接入 `TurnLifecycle` 或费用闸门；
+  这两个未接入实际运行入口的实验模块后续已退役，现行路径以正式研究运行器为准。
 
 **结论**：`LedgerPort` / `AdmittedCompletion` / `SpendGatedAdmission`
 是一套**尚未装配的骨架**，它与 main 的冲突**目前没有生产暴露面**。
