@@ -1,5 +1,10 @@
 # M4-A — B-Search observation-only Shadow (Standard research path)
 
+> 历史阶段记录：下文保留当时 M4-A 的文件和测试证据。
+> 当前 Standard 续接器已直接调用统一的 `research_shadow_seam`；
+> `standard_shadow_seam.py` 兼容层及专属测试已退役，仍有价值的安全断言
+> 移至 `tests/test_research_shadow_seam_phases.py`。
+
 Status: **implemented on branch `feat/m4a-standard-shadow`; flag defaults OFF; not
 merged**. Baseline main `31cf79937cce96b52778bd504d4a0c19fc2a883e`.
 
