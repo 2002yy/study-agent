@@ -12,6 +12,26 @@
 - 从主动执行器的逐查询 `search_exact` 闭包抽出短生命周期 `ActiveSearchQueryExecution`；它显式接受本次查询的 `context/cursor/claim_id`、预算时钟、网关和相位计时器，持有该次 provider audit。旧的搜索发现顺序号、最新定向提示解析、可信线索提示提取都移入同一检索/观测模块；旧 `_lead_hints_for_claim` 通过执行器导入兼容现有测试及调用方。
 - 冻结边界：`begin_external_attempt → checkpoint → search`、`finally finish_external_attempt → checkpoint`、查询结果归档后再次 `checkpoint` 不变。搜索超时计算仍取当次实时剩余硬预算且保留最终化预留；`last_search_audit → 搜索发现诊断 → phase_timing.end` 顺序不变。上下文不写回持久化、不结算预算，也不发布证据；搜索异常仍由候选池映射为 unavailable。
 - 新测试共享搜索场景搭建，覆盖成功时实时截止时间/审计/发现序号/相位计数，以及异常时相位关闭且不伪造审计；影响集包含主动执行、恢复与 lead 线索测试。属 **P3 / static / orchestration+retrieval / engineering-only**；动态搜索与付费模型 `not_run`，预算授权 `not_applicable`。合入状态、精确提交 CI、L1 结果在独立 PR 后回填。
+### CL-1D-1 未接入的单步会话编排器退役（2026-11-19，独立片）
+
+- `run_conversation_step` 是早期单次“决策→动作”实验组合器；仓内只有
+  `test_conversation_action_step.py` 和旧
+  `test_conversation_observation_followup.py` 造景调用它。正式
+  `DeepSeekConversationService.start` 现在直接组合 `run_conversation_loop`，
+  并由 `ConversationLoopSession` 管理流；API、服务和其它工具无单步调用。
+- 本片删除 `conversation_action_step.py` 及 177 行专属测试，删除
+  `observation_followup` 中重复验证模型→工具→再决策→回答的旧用例。
+  真实有界循环的工具观察、预算、暂停、取消及终态已有
+  `test_conversation_bounded_loop.py` 等当前路径覆盖；不把旧组合器
+  另存为兼容 facade。`stage_gates.json` 的 **16 处历史测试引用**和
+  `conversation_action_step` 命名影响集、`tools/ci_scope.py` 及其合同测试
+  同步收口。旧设计计划仅标明退役，保留历史阶段证据。
+- 正式会话流、持久费用准入、研究状态、答案发布和恢复契约均不修改。
+  `TurnLifecycle` 的后续生产宿主接线仍是另一条未完成事项，不能凭
+  “无调用方”就删除仍承担费用结算设计边界的模块。离线验收：全库
+  Ruff 通过，定向影响集 **288 passed**，完整会话 L1 集成影响集
+  `conversation_decision_1b` **482 passed**，mypy **115/125、无新增错误**，
+  `git diff --check` 通过；未运行模型或付费 API，也未执行 L3 全套。
 
 ### 2026-11-19 研究结构整合收口（以精确提交为准）
 

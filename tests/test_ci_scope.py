@@ -46,12 +46,10 @@ def test_exact_conversation_decision_paths_select_their_registered_impact_set():
         "tests/test_conversation_decision.py",
         "tests/test_conversation_decision_runner.py",
         "src/application/conversation_action_dispatch.py",
-        "src/application/conversation_action_step.py",
         "src/application/conversation_observation_followup.py",
         "src/application/conversation_bounded_loop.py",
         "src/application/conversation_loop_session.py",
         "tests/test_conversation_action_dispatch.py",
-        "tests/test_conversation_action_step.py",
         "tests/test_conversation_observation_followup.py",
         "tests/test_conversation_bounded_loop.py",
         "tests/test_conversation_loop_session.py",
@@ -102,7 +100,7 @@ def test_loop_mapping_covers_actual_modules_and_complete_registered_consumer_sta
     paths = resolve(load_manifest(), impact_set="conversation_decision_1b")
     root = Path(__file__).resolve().parents[1]
     for name in (
-        "conversation_action_dispatch", "conversation_action_step",
+        "conversation_action_dispatch",
         "conversation_observation_followup", "conversation_bounded_loop",
         "conversation_loop_session",
         "conversation_observation_trail",
@@ -127,10 +125,9 @@ def test_loop_mapping_covers_actual_modules_and_complete_registered_consumer_sta
 
 @pytest.mark.parametrize("impact,consumers", [
     ("conversation_action_dispatch", {
-        "tests/test_conversation_action_step.py", "tests/test_conversation_observation_followup.py",
+        "tests/test_conversation_observation_followup.py",
         "tests/test_conversation_bounded_loop.py", "tests/test_conversation_loop_session.py",
     }),
-    ("conversation_action_step", {"tests/test_conversation_observation_followup.py"}),
     ("conversation_observation_followup", {"tests/test_conversation_bounded_loop.py", "tests/test_conversation_observation_trail.py"}),
     ("conversation_bounded_loop", {"tests/test_conversation_loop_session.py"}),
 ])
@@ -142,7 +139,7 @@ def test_named_development_gates_retain_new_direct_consumers(impact, consumers):
 
 
 @pytest.mark.parametrize("name", [
-    "conversation_action_dispatch", "conversation_action_step",
+    "conversation_action_dispatch",
     "conversation_observation_followup", "conversation_bounded_loop",
     "conversation_loop_session",
 ])
