@@ -14,6 +14,7 @@ from src.application.active_research_runtime import (
 from src.application.research_runtime_read_observability import (
     _record_backend_health,
     _record_escalation_diagnostics,
+    _record_read_history,
     _record_read_timing,
 )
 from src.application.research_runtime_read_attempt_context import (
@@ -21,7 +22,8 @@ from src.application.research_runtime_read_attempt_context import (
 )
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.chain_executor import ChainStepResult
-from src.web.research.runtime import ResearchRuntimeCursor
+from src.web.research.candidate_resolution import resolution_summary
+from src.web.research.runtime import ResearchRuntimeCursor, RuntimeReadOutcome
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 
 
@@ -39,6 +41,81 @@ def _candidate() -> CandidatePoolItem:
         providers=(),
         first_seen_rank=0,
     )
+
+
+def test_read_history_reflects_current_outcomes_across_resumed_contexts() -> None:
+    failed = RuntimeReadOutcome(
+        candidate_id="candidate-1",
+        status="failed",
+        backend="native_http",
+        retrieval_state="timeout",
+    )
+    recovered = RuntimeReadOutcome(
+        candidate_id="candidate-1",
+        status="success",
+        backend="wigolo_http",
+        retrieval_state="success",
+        content_chars=12,
+    )
+
+    before: dict = {}
+    _record_read_history(before, (failed,), include_resolution=True)
+    original_metrics = before[ACTIVE_RESEARCH_METRICS_KEY]
+    assert original_metrics["reads"] == [failed.to_dict()]
+    assert original_metrics["candidate_resolution"] == resolution_summary((failed,))
+
+    # Checkpoint recovery may replace the entire live context mapping. The
+    # diagnostic writer must not hold the earlier metrics dictionary.
+    resumed: dict = {}
+    _record_read_history(resumed, (failed, recovered), include_resolution=True)
+    current_metrics = resumed[ACTIVE_RESEARCH_METRICS_KEY]
+    assert current_metrics["reads"] == [failed.to_dict(), recovered.to_dict()]
+    assert current_metrics["candidate_resolution"] == resolution_summary(
+        (failed, recovered)
+    )
+    assert original_metrics["reads"] == [failed.to_dict()]
+
+
+def test_seed_and_attempt_exhaustion_only_refresh_read_history() -> None:
+    outcome = RuntimeReadOutcome(candidate_id="seed", status="failed")
+    old_resolution = {"sentinel": "keep-existing-value"}
+    context = {
+        ACTIVE_RESEARCH_METRICS_KEY: {
+            "reads": [{"legacy": True}],
+            "candidate_resolution": old_resolution,
+        }
+    }
+    _record_read_history(context, (outcome,))
+    metrics = context[ACTIVE_RESEARCH_METRICS_KEY]
+    assert metrics["reads"] == [outcome.to_dict()]
+    assert metrics["candidate_resolution"] is old_resolution
+
+
+def test_resolution_is_computed_after_history_write_and_bad_metrics_still_fail(
+    monkeypatch,
+) -> None:
+    from src.application import research_runtime_read_observability as read_metrics
+
+    outcome = RuntimeReadOutcome(candidate_id="candidate-1", status="success")
+    context: dict = {}
+
+    def observe_order(outcomes):
+        assert outcomes == (outcome,)
+        assert context[ACTIVE_RESEARCH_METRICS_KEY]["reads"] == [
+            outcome.to_dict()
+        ]
+        return {"ordered": True}
+
+    monkeypatch.setattr(read_metrics, "resolution_summary", observe_order)
+    _record_read_history(context, (outcome,), include_resolution=True)
+    assert context[ACTIVE_RESEARCH_METRICS_KEY]["candidate_resolution"] == {
+        "ordered": True
+    }
+
+    invalid = {ACTIVE_RESEARCH_METRICS_KEY: "old-invalid-metrics"}
+    with pytest.raises(TypeError):
+        _record_read_history(invalid, (outcome,), include_resolution=True)
+    assert invalid[ACTIVE_RESEARCH_METRICS_KEY] == "old-invalid-metrics"
 
 
 def test_read_timing_preserves_backend_retry_components_and_legacy_import() -> None:

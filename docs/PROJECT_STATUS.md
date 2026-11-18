@@ -107,9 +107,11 @@
 
 **已合并的读取边界**：[#434](https://github.com/2002yy/study-agent/pull/434) 将读取准入、实时后端历史和断路器健康归入 `ActiveReadDispatchContext`，精确 HEAD `5ff7b4b4`、CI `44263823378` 成功，合并 `008dc2c1`。[#437](https://github.com/2002yy/study-agent/pull/437) 将专家/默认链派发归入 `ActiveReadExecutionContext`，精确 HEAD `884dc459`、CI `44267030564` 成功，审查没有阻断，合并 `b3350fd2`。两片均保持 `execute()` 对恢复状态、游标、检查点和实际费用的唯一写入权威；无真实付费调用。
 
-**当前候选（后继独立片）**：`codex/research-read-projection-context-20261118` 原远端 HEAD `ad6c279`、tree `edc58b17` 已保存，父基线为 #437 精确提交；在其合并后的 `main@b3350fd2` 上只读三方合并无冲突，整合复演保持同一业务内容。将读链单来源投影迁到 `project_read_chain`，将纯路由诊断归入既有读取观测模块；真实尝试、失败、读额度、恢复、费用、来源 upsert 与检查点顺序不动。最新主线整合复核：**63 passed**（定向与恢复）、读取栈 **467 passed / 4 skipped**（103.46 秒）、Ruff 与 mypy 基线 **115/125** 通过；精确 PR HEAD CI 尚待取得，未执行动态产品质量试验。
+**已合并读取投影片**：[#443](https://github.com/2002yy/study-agent/pull/443)，HEAD `4f522e26`，精确 CI `44276778323` 成功、机器人审查无发现，预期 HEAD 保护合并至 `main@b613c96c`。该片把读链单来源投影迁到 `project_read_chain`，纯路由诊断归入读取观测模块；合并前同主线的读取栈回归 **467 passed / 4 skipped**，mypy 基线 **115/125** 通过。真实尝试、失败、读额度、恢复、费用、来源 upsert 与检查点顺序均不动。
 
-**唯一下一收口动作**：对齐最新 `main`，完成当前候选本地影响集与文档更新，创建独立 PR；精确 HEAD CI、审查通过后才合并。下一批逐项清理 `reads`、`candidate_resolution` 和 `atomic_routing` 的诊断写入，先核对消费方再动手；#404 测试造景由另一窗口独立收口。原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
+**后继读取历史片（远端分支已保存，PR 准备中）**：`codex/research-read-history-observability-20261118` 的代码父项为 #443 HEAD，原实现提交 `3d9655f3`、文档提交 `bb5d51f8`。将三处 `reads` 快照合并为 `_record_read_history(context, current_outcomes)`，仅真实链结束时额外写 `candidate_resolution`。在 `main@b613c96c` 的隔离整合工作树中影响集再次 **101 passed**（78.73 秒）、全库 Ruff 和差异检查通过；此前独立候选 mypy 基线 **115/125**。仍从当前游标读历史、当前上下文写观测，持久化/检查点保留原位置；没有真实模型/浏览器调用。
+
+**唯一下一收口动作**：创建并验证读取历史片的独立 PR；精确 HEAD CI 与审阅通过后合并，然后对齐原子事实路由诊断片 `codex/research-atomic-routing-observability-20261118`（其初始远端代码树 `99c88a8c`、后续仅文档变化），按同样程序单独验收。两片均不改 `state/cursor/context` 的恢复权威、模型 inflight、`reserve_call`、来源发布及检查点排序；#404 测试造景由另一窗口独立收口。原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
 
 ## 0A. 已冻结研究路线（摘要）
 

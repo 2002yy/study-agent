@@ -197,7 +197,6 @@ from src.web.research.health_breaker import (
 from src.web.research.failure_taxonomy import (
     classify,
 )
-from src.web.research.candidate_resolution import resolution_summary
 from src.web.research.chain_executor import (
     ChainAttemptRequest,
     ChainStepResult,
@@ -290,6 +289,7 @@ from src.application.research_runtime_read_observability import (
     _record_backend_health as _record_backend_health,
     _record_escalation_diagnostics as _record_escalation_diagnostics,
     _record_read_chain_decision,
+    _record_read_history,
     _record_read_timing as _record_read_timing,
 )
 
@@ -1917,9 +1917,7 @@ class ActiveResearchRuntimeExecutor:
                                 )
                                 # 0 reads_used: no physical read happened.
                                 update_budget(reads_used=successful_reads)
-                                context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})[
-                                    "reads"
-                                ] = [outcome.to_dict() for outcome in cursor.read_outcomes]
+                                _record_read_history(context, cursor.read_outcomes)
                                 checkpoint()
                             continue
                     if successful_reads >= state.budget.max_reads or used_chars >= state.budget.max_total_chars:
@@ -2012,9 +2010,7 @@ class ActiveResearchRuntimeExecutor:
                             },
                         )
                         _upsert_source(selected_sources, record)
-                        context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})["reads"] = [
-                            outcome.to_dict() for outcome in cursor.read_outcomes
-                        ]
+                        _record_read_history(context, cursor.read_outcomes)
                         checkpoint()
                         continue
                     # §143-RS: an explicit hint may select the specialist first.
@@ -2156,14 +2152,11 @@ class ActiveResearchRuntimeExecutor:
                         if visual_units:
                             record["visual_units"] = visual_units
                     update_budget(reads_used=successful_reads)
-                    context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})["reads"] = [
-                        outcome.to_dict() for outcome in cursor.read_outcomes
-                    ]
-                    # §98 A2a: the single lifecycle view (diagnostics only; the
-                    # authority itself is candidate_resolution).
-                    context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})[
-                        "candidate_resolution"
-                    ] = resolution_summary(cursor.read_outcomes)
+                    # §98 A2a: the single lifecycle view is diagnostics only;
+                    # candidate_resolution remains the pure state authority.
+                    _record_read_history(
+                        context, cursor.read_outcomes, include_resolution=True
+                    )
                     checkpoint()
 
                 if read_loop_stop_reason:
