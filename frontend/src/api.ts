@@ -510,11 +510,6 @@ export async function searchWechat(keyword: string, maxResults = 10, groupThread
   });
 }
 
-export async function loadSessions(): Promise<SessionRow[]> {
-  const response = await requestJson<{ sessions: SessionRow[] }>("/sessions");
-  return response.sessions;
-}
-
 // G4: server-side paged + searchable listing so older sessions stay
 // reachable from the navigator.
 export async function searchSessions(options: {
@@ -575,14 +570,6 @@ export async function loadInteractiveState(
   return requestJson<InteractiveStateSnapshot>(
     `/sessions/${encodeURIComponent(sessionId)}/interactive-state/${encodeURIComponent(componentId)}?revision=${revision}`
   );
-}
-
-export async function flushSession(sessionId: string): Promise<{ session_id: string; flushed: boolean }> {
-  return requestJson<{ session_id: string; flushed: boolean }>(`/sessions/${encodeURIComponent(sessionId)}/flush`, { method: "POST" });
-}
-
-export async function loadRagStatus(): Promise<RagStatusResponse> {
-  return requestJson<RagStatusResponse>("/rag/status");
 }
 
 export async function createRagQueryRun(query: string, settings: RagSettings): Promise<RagRunResponse> {

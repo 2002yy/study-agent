@@ -356,15 +356,6 @@ class SessionService:
                 processed += 1
         return processed
 
-    def flush_session(self, session_id: str) -> Path | None:
-        thread = self.repository.get_chat_thread(session_id)
-        if thread is None or thread.status != "active":
-            return None
-        turns = self.repository.list_chat_turns(session_id)
-        if not turns:
-            return None
-        return self.exporter.export_current(thread, turns)
-
     def summary_payload(self, session_id: str) -> dict[str, Any]:
         state = self.summary_repository.get_effective(session_id)
         payload = asdict(state)
