@@ -1,17 +1,14 @@
 """Control-flow evidence with a scripted model and an actual local addition."""
 
 import asyncio
-from dataclasses import asdict, replace
+from dataclasses import replace
 import json
 
 import pytest
 
 from src.application.conversation_action_dispatch import (
-    ActionBudget,
     ActionEvent,
-    dispatch_conversation_action,
 )
-from src.application.conversation_action_step import run_conversation_step
 from src.application.conversation_decision import (
     ActionProposal,
     ConversationAction,
@@ -23,7 +20,6 @@ from src.application.conversation_decision_runner import DecisionBudget, Decisio
 from src.application.conversation_decision_admission import SqliteDecisionAdmission
 from src.application.conversation_observation_followup import (
     decide_after_tool_observation,
-    tool_followup_context,
 )
 
 
@@ -165,80 +161,6 @@ def response(request, *, request_id=None):
             "active_run_disposition": "none",
         }
     )
-
-
-def test_step_tool_output_feeds_one_next_model_decision_without_execution():
-    async def scenario():
-        previous, proposal, _, _ = inputs()
-        state, calls = [previous], []
-
-        async def model(request):
-            calls.append(request)
-            if len(request.messages) == 2:
-                return json.dumps(
-                    {"schema": "conversation-decision-v1", **asdict(proposal)}
-                )
-            assert json.loads(request.messages[-1][1])["content"] == "5"
-            assert (
-                json.loads(request.messages[1][1])["evidence_summary"]
-                == previous.evidence_summary
-            )
-            return response(request)
-
-        async def compute(_):
-            state[0] = replace(previous, remaining_tool_calls=0)
-            return str(2 + 3)
-
-        budget = DecisionBudget(2, 100000, 1600)
-        events = [
-            event
-            async for event in run_conversation_step(
-                previous,
-                current_context=lambda: state[0],
-                transport=model,
-                decision_budget=budget,
-                action_budget=ActionBudget(1, 1),
-                handlers={ConversationAction.USE_TOOL: compute},
-            )
-        ]
-        followup = await decide_after_tool_observation(
-            previous,
-            events[0].proposal,
-            events[1],
-            current_context=lambda: state[0],
-            transport=model,
-            budget=budget,
-        )
-        assert followup.status == "completed"
-        assert followup.proposal.action == ConversationAction.ANSWER
-        assert len(calls) == 2
-        assert calls[0].call_id != calls[1].call_id
-
-        # A host can execute that proposal using the same public projection;
-        # the helper itself has neither executed nor published the answer.
-        def next_context():
-            return tool_followup_context(
-                previous, state[0], events[0].proposal, events[1]
-            )
-
-        assert next_context().request_id == followup.proposal.request_id
-
-        async def answer(_):
-            return "根据计算结果，2+3=5"
-
-        replies = [
-            item
-            async for item in dispatch_conversation_action(
-                followup.proposal,
-                next_context(),
-                current_context=next_context,
-                handlers={ConversationAction.ANSWER: answer},
-                budget=ActionBudget(1, 0),
-            )
-        ]
-        assert replies[0].status == "observed" and "2+3=5" in replies[0].observation
-
-    asyncio.run(scenario())
 
 
 def test_extra_prompt_characters_are_admitted_exactly_and_replay_is_not_retried():

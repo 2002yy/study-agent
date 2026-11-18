@@ -147,6 +147,19 @@
   Browse 搜索和通用质量门不变。离线影响集 **112 passed**，Ruff 与差异检查
   通过；未执行 Brave API、DeepSeek、真实浏览器或其它付费请求。
 
+#### CL-1D-1 单步会话实验编排器退役（2026-11-19，独立片）
+
+- `run_conversation_step` 只由单步专项和旧 follow-up 集成测试调用；
+  正式 `DeepSeekConversationService.start` 直接组合 `run_conversation_loop`，
+  并由 `ConversationLoopSession` 管理流。删除旧 `conversation_action_step.py`、
+  177 行专项测试及 follow-up 中重复的模型→工具→再决策→答复用例；
+  同步移除阶段门 **16 处**无效注册、`tools/ci_scope.py` 的旧命名范围及
+  合同测试，更新历史设计文档。保留正式 bounded-loop 的观察、暂停/取消、
+  费用准入、终态及恢复测试，**不保留**兼容空壳。
+- `TurnLifecycle` 仍涉及未来生产宿主/费用结算边界，不因未接入而删除。
+  原定向 **288 passed**、会话 L1 **482 passed**、Ruff、diff-check、
+  mypy 基线 **115/125**；未调用模型或付费 API。
+
 - **2026-11-18 RQ1-C 成对归因实验链退役（独立片）**：
   `codex/retire-rq1c-paired-attribution-20261118`。旧 `run_paired_attribution.py`
   只调度同阶段 `run_rq1c_calibration.py` 和
