@@ -8,6 +8,8 @@
 
 ### 当前研究结构收口（精确合并）
 
+- **2026-11-18 新收口**：故障游标显式更新 [#454](https://github.com/2002yy/study-agent/pull/454) 的 HEAD `691000e7`、精确 CI `44296684690` 成功，审阅线程为空，已用预期 HEAD 保护合并 `main@4bb5a6bd`。原 17 处故障写入不再经由捕获当前游标的内层闭包；失败标识、去重、恢复与检查点位置不变。
+- **本轮待独立 PR 的预算显式状态片**：从 `main@d879a4af` 开发、远端分支 `codex/research-budget-explicit-state-20261118`，已无冲突合入 `main@4bb5a6bd` 的更新。`execute()` 移除捕获 `state/cursor` 的 `update_budget` 闭包，四处更新直接传入**当前**状态与游标并接收新状态；`elapsed()` 取样、`reads_used` 和预算耗尽时的检查点顺序不变。整合后运行器/预算/模型/恢复影响集 **137 passed**、读取栈阶段门 **458 passed、4 skipped**、Ruff 及 mypy 基线 **115/125** 通过；精确候选 CI/审阅仍须通过，**目前不视为合并**。
 - 本轮核验主线：`main@f7531d19f7716198d97b6c78ea5dcbca7f229e0b`（tree `3e428c04cde38b92d7faafc6d9bde063de7d3f7c`）；这是交接时刻快照，下一窗口仍须重新读取最新主线。
 - 研究预算时钟 [#405](https://github.com/2002yy/study-agent/pull/405)：HEAD `8ba1b995`、精确 CI `44161777666` 成功，合并 `3ea013b6`。
 - 当前 steering/波次结算 [#409](https://github.com/2002yy/study-agent/pull/409)：HEAD `ff6375a0`、精确 CI `44161971315` 成功，合并 `486bcf78`。

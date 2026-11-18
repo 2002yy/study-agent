@@ -294,3 +294,11 @@
 - **冻结不变量**：不变更 `with_appended_runtime_failure` 的失败 ID、`run_attempt` 懒加载、显式 `attempt_id`、去重和不可变游标返回规则；既有调用点与原位置检查点对应不变；真实模型请求前 inflight、结束后审计、读取预算和终态发布均不动。
 - **影响集**：故障投影及完整主动研究运行器 **87 passed**（92.14 秒）；失败契约、模型尝试、预算时钟、波次结算和 steering **37 passed**（5.49 秒）；`p2-a-retrieval-stack` **458 passed、4 skipped**（107.59 秒）。全库 Ruff、diff-check 通过，mypy **115/125**、无新增问题。PR 精确 CI 在候选推送后另行核实；未调用真实模型或网站，动态对照 **not_run**。
 - **后继**：先收口本片；下一批从有调用证据的测试重复造景入手，避免为了复用把测试重新集中到一个更大的公共夹具。
+
+### 2026-11-18：故障闭包合并与预算状态显式投影
+
+- #454 精确 HEAD `691000e7617818f475c7fb7c69393422e6098031` 的 CI `44296684690` 成功，审阅/线程无阻断，使用 expected-head 合并为 `main@4bb5a6bdc575de491424ace5120750cd976a8b63`。该片只改变故障游标写回方式，未改恢复、费用或发布契约。
+- 后继预算片在独立工作树及远端分支 `codex/research-budget-explicit-state-20261118` 开发；原候选提交 `5c49a054348e05c085a1d9f27f688dd92e7a4775`，现已将 `main@4bb5a6bd` 无冲突并入本地候选（后续精确 HEAD 以 PR 为准）。原 `update_budget` 内层闭包使用 `nonlocal state`，间接读取可能已因恢复/检查点重新绑定的 `cursor`；四个真实调用点现分别显式传入当前 `state/cursor`，并将 `updated_runtime_budget` 的返回值赋给当前 `state`。
+- **不变量**：三个读取路径依次使用各自当前 `successful_reads`、原位调用一次 `elapsed()`、执行原记录和 checkpoint；`_HardBudgetReached` 路径不提供 `reads_used`，仍使用已有账本并在后续执行迟到 steering 结算和检查点；预算投影本身不会写入 repository、请求模型或另建计时来源。
+- **负控和测试复用**：直接测试当前状态/游标投影、候选上限、读取次数、耗时以及原不可变状态未被改写；旧运行器/模型尝试/预算时钟/波次/恢复用例继续作为影响集，未复制整个研究请求造景。原候选 **15 passed** 定向、**96 passed** 运行器影响集；整合主线后扩大影响集 **137 passed（137.12 秒）**、`p2-a-retrieval-stack` **458 passed、4 skipped（144.01 秒）**，全库 Ruff、diff-check 和 mypy 基线 **115/125** 通过。真实浏览器、付费模型及动态用户对照均未执行。
+- **下一批**：在预算片精确 CI/审阅收口后，先对 `record_research_window` 等剩余闭包做所有者及生命周期核对，再决定下一段显式上下文；重复测试场景只移除确有多处复制、且不会损伤故障/恢复/费用负控的部分。
