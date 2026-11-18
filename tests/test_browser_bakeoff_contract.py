@@ -293,17 +293,13 @@ def test_forbidden_core_semantics_are_named() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_legacy_browser_backend_is_production_inert() -> None:
+def test_historical_browser_bakeoff_is_not_imported_by_production() -> None:
     # A3-0's blanket "no browser tier in production" was superseded by §143-SI,
     # which deliberately added the qualified, default-inert Crawl4AI specialist
-    # seam. The legacy Wigolo browser backend must still stay outside the
-    # default production path.
+    # seam. The frozen bakeoff data must still stay outside production routing.
     for module in PRODUCTION_MODULES:
         text = Path(module).read_text(encoding="utf-8")
         assert "browser_bakeoff" not in text, f"{module} must not import the bakeoff"
-        assert (
-            "wigolo_browser_executor" not in text
-        ), f"{module} must not import the browser executor"
 
 
 def test_no_crawl4ai_backend_is_registered() -> None:

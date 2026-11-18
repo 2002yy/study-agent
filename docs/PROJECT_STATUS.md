@@ -18,6 +18,30 @@
 - #488（研究窗口检查点顺序）CI `44344609900` 成功，合并 `main@caefa350`；#489（执行守卫与实时预算）CI `44345569048` 成功，合并 `main@51da57f2`。两项均已确认无审阅线程，使用精确 PR HEAD 保护合并。
 - #490（证据身份实时投影）与 #493（波次状态交接）在同一执行器上有交叠。基于 `main@51da57f2` 依次整合二者，修复 `gain_history` 恢复路径的一处冲突：必须先执行 `ResearchWindowDiagnostics.record_end`、再 `checkpoint()`、最后 `wave_handoff.settle(...)`，不能因替换旧 `settle_wave` 丢掉窗口检查点。合并演练 **96 passed**，Ruff/差异检查通过；该结果仅证明本地整合树，不替代远端精确提交 CI。
 - #490 后续 CI `44347405572` 成功并按 HEAD 保护合入 `main@56ebfd6f`；#493 整合树更新为 `cee81a55`，待其本身精确提交的 CI 结束、检查审阅意见后再判断合入。真实搜索、模型、付费动态测试未运行。
+- 下一步：待 #490 CI 成功后合入，然后按新的精确 HEAD 验收 #493 的整合树及 CI；两片最终合入后再继续修改执行器。真实搜索、模型、付费动态测试未运行。
+### 未注册 Wigolo 浏览器后端及历史测试退役（2026-11-19，独立片）
+
+- 旧 `wigolo_browser_executor.py` 自己声明 production-inert；现行
+  `ACTIVE_READER_CHAIN` 不包含 `wigolo_browser`，API、研究执行器、现行
+  Crawl4AI 专家读取和工具均未实例化 `WigoloBrowserBackendExecutor`。
+  源码只被 `test_wigolo_browser_executor.py` 导入，旧 A3 浏览器候选的
+  实验实现和 451 行专属测试都没有实际产品调用路径。
+- 整组删除旧执行器及其专属测试，将两处阶段门引用换成直接测试
+  **现行 Crawl4AI 真正使用**的 `browser_honesty`（壁垒分类、受限前缀、
+  冻结故障分类负控）。删除只防守已退役模块名的源码字符串断言，保留
+  浏览器对比实验不接入生产的检查。
+- **保留**正式 Crawl4AI 专家读取、默认双后端读取链、真实浏览器预算/
+  恢复测试及共享的浏览器层开关；`wigolo_browser` 的冻结能力词表和历史
+  bakeoff manifest 仍被路由/结果契约使用，本片不改变其语义。
+  不进行真实浏览器或付费模型调用。离线验收：Ruff 全库通过，定向影响集
+  **188 passed / 1 skipped**，检索阶段 L2 **414 passed / 4 skipped**，
+  mypy **115/125、无新增错误**，`git diff --check` 通过。
+- 本轮静态筛查还见到 `conversation_action_step` 仅被旧集成测试调用，
+  但它登记在大量会话阶段门和 CI scope 合同中；下一片若退役须重建真实
+  `conversation_bounded_loop` 的行为覆盖并核对范围门。
+  `ResearchMemoryService` 也无正式注入方，但其存储库承担已建 SQLite
+  持久化契约；`backup_manager` 虽无导入方，仍涉及实际 `.bak` 恢复能力。
+  **这三项均暂不机械删除**，分别以阶段门、持久化兼容和数据恢复风险先复核。
 
 ### 2026-11-19 研究窗口检查点顺序显式化（独立候选）
 
@@ -283,8 +307,9 @@
   `tests/test_browser_bakeoff_harness.py` 调用，不参与现行检索、Crawl4AI
   资格评测或 CI 执行。退役整组脚本和历史联调测试，并移除阶段门中这份
   旧专项测试的两处重复引用；旧测试的浏览器是否升级/壁垒分类行为现由
-  `test_chain_executor.py`、`test_progressive_routing.py` 与
-  `test_wigolo_browser_executor.py` 验证。Crawl4AI cohort v2 **仍调用**
+  `test_chain_executor.py`、`test_progressive_routing.py` 与当时的
+  `test_wigolo_browser_executor.py` 验证（后者已由上文独立片退役，
+  现行共享安全不变量迁至 `test_browser_honesty.py`）。Crawl4AI cohort v2 **仍调用**
   `browser_bakeoff.py` 的结果构造/校验与旧 manifest，故保留该模块、
   manifest 和共用 fixture 服务，将原专项测试中不可替代的结果真实性负控
   合并进 `test_browser_bakeoff_contract.py`。不修改真实浏览器读取逻辑，
