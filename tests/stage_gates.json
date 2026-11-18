@@ -276,9 +276,6 @@
       "tests/test_release_benchmark_plan.py",
       "tests/test_web_lookup_run.py"
     ],
-    "read_adequacy": [
-      "tests/test_read_adequacy_probe.py"
-    ],
     "runtime_read_loop": [
       "tests/test_active_research_runtime.py",
       "tests/test_active_research_read_planner.py",
@@ -980,7 +977,6 @@
       "tests/test_wigolo_http_executor.py",
       "tests/test_read_escalation.py",
       "tests/test_read_retry.py",
-      "tests/test_read_adequacy_probe.py",
       "tests/test_browser_bakeoff_contract.py",
       "tests/test_browser_bakeoff_harness.py",
       "tests/test_wigolo_browser_executor.py",
