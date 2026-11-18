@@ -12,6 +12,17 @@
 - 四条取消边界测试共享同一建库/建运行记录助手，分别保留模型规划、搜索、读取、抽取的真实取消注入与终态断言。新负控验证同一租约在取消前后都只使用冻结的 `run_id/operation_id`。完整直接影响集 **91 passed / 103.62s**，重复场景提取后五项 **5 passed / 4.46s**；Ruff、diff-check、mypy **115 ≤ 125** 通过。只执行注入桩的离线静态测试，未调用真实搜索/模型或产生 API 费用。
 - 执行方法的当前可变所有权继续冻结：`state/context/cursor` 仍由执行器持有并在检查点及波次结算后回写；四组结果列表由 `ActiveResearchResultBuffers` 与发布者共享；`ResearchBudgetClock` 只读时间预算，`TimingLedger` 仅用于观测。后续优先处理模型预算 `ensure_budget` 对当前 `state` 的捕获及检查点回写，不一次性改动这些权威。
 
+### F2 历史双读取器配对实验退役（独立片）
+
+- `tools/run_f2_paired.py` 对固定六类本地页面重复运行旧 default/Crawl4AI
+  采样，是 §143-B 阶段的手工表征实验；无生产、前端、CI/阶段门或其它当前
+  资格工具调用。连同只验证其报告逻辑的 `tests/test_f2_paired_harness.py`
+  一并退役。**保留**供当前 Crawl4AI 集成测试使用的
+  `tools/f2_paired_fixture_server.py`；`tests/test_reader_task_request.py`
+  的可选真实环境操作员测试直接指向共享夹具，并将以前从实验脚本导入且
+  未撤销的 SSRF 放宽补丁改为 pytest `monkeypatch` 生命周期内的局部放宽。
+  生产读取链、安全策略、升级后端、请求契约和历史结果档案不变；不进行外部读取。
+
 ### 旧 HTTP 研究入口退役（待精确提交验收）
 
 - `codex/retire-web-lookup-compat-20261118`：仓内唯一实际使用旧
@@ -46,6 +57,15 @@
   `test_paired_attribution.py`（20 个历史测试）整链删除，净减 **1,941 行**。
   保留正式 `run_rq1c_bounded_qualification`、冻结 holdout 清单、阶段门、
   成本/预算及相关现行测试；不改变生产搜索、研究恢复或预算决策。
+
+- **2026-11-18 旧 B-Search 离线目录实验退役（独立片）**：
+  OPML 导入工具、静态信源目录、Top-K 目录召回模块及其专项测试只连接
+  `tools/run_research_tool_agent.py` 手动实验入口，无生产请求、现行 CI、
+  阶段门或用户任务调用方。成组退役该工具链、目录配置和专属测试；
+  将唯一被当前 `entry_selection` 使用的中英文分词逻辑移入正式相关性模块，
+  以现行准入测试继续覆盖连续中文的二元分词。`research_tool_agent` 本体、
+  `research_shadow_seam`、页面准入/证据门、恢复和计费逻辑均保留。
+  本次只做离线静态减负，不发起模型、搜索或付费调用。
 
 - **2026-11-18 旧 §44B 提供商归因实验退役（独立片）**：
   `run_provider_attribution.py` 的旧三提供商归因/地区化判定仅由本身的
@@ -258,6 +278,13 @@
   一并删除报告器及四项报告格式测试，避免为旧实验的 JSON 输出继续维护接口。
   **不删除** `src/web/research/selection_trace.py`，也不改变运行时的
   `selection_trace` 字段或候选筛选、调度与读取的正式测试。
+
+### 2026-11-18 无调用方网站池测速器退役（独立片）
+
+- `tools/bench_site_pool.py` 只含固定 12 题和浏览器站点池的单次测速输出；
+  全库无生产、CI、阶段门、其它工具或测试调用，也无专项配置和测试。
+  移除该无维护价值的外部浏览器实验入口，不触及在用的
+  `src/web/site_pool.py`、真实检索路由及其回归测试。未实际运行外部浏览器。
 
 ### 安全边界与工作树
 

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""§143-B dedicated paired fixture server (threshold-safe variants).
+"""Shared loopback fixture server for Crawl4AI and reader-task integration.
 
-The §143-B frozen fixture set (docs/PROJECT_STATUS.md §143.26) was carried over
+Originally built for the historical §143-B paired qualification (the paired
+runner has since been retired). The frozen fixture set was carried over
 from the A3 browser bakeoff, where every page is deliberately tiny. The
 production readers apply a frozen adequacy threshold
 (``src/web/research/read_adequacy.py``: ``SHORT_CHAR_THRESHOLD = 800``), so those
@@ -14,8 +15,9 @@ expected answers**, but each non-PDF fixture is a realistic document whose
 normalized text is comfortably above the threshold (target >= 1200 chars). Only
 the document carrier changes; the rubric does not.
 
-It is a fixture server, not a product surface: loopback only, started by the
-operator, unknown to the runtime.
+It remains used by ``tests/test_crawl4ai_specialist_integration.py`` and the
+operator-only reader-task test. It is not a product surface: loopback only,
+started by the tests/operator, unknown to the runtime.
 
 Usage::
 
