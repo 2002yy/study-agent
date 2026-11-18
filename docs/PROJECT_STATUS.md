@@ -236,10 +236,19 @@
   `main@ee0f7c284c4074d9334efc4f13ce955325a59b0a`，工作分支
   `codex/retire-orphan-tools-20261118`。移除无生产、CI、阶段门调用方的
   `tools/run_provider_routing_replay.py` 与专属 `tests/test_provider_routing_replay.py`，
-  不再维护旧 E0–E3 历史重放策略；留存历史数据/报告及仍被浏览器搜索探针使用的
-  `qp1c_queries_v1.json`。局部检索影响集 **27 passed**；Ruff 通过，
+  不再维护旧 E0–E3 历史重放策略；留存历史数据/报告及当时供 Browse 搜索探针使用的
+  `qp1c_queries_v1.json`（探针后于 2026-11-19 退役）。局部检索影响集 **27 passed**；Ruff 通过，
   无模型/API 费用。此项仅为离线工程清理，不代表检索效果变化或动态验收。
   PR #449 已通过精确提交 CI 并合并；不影响独立研究运行器重构片。
+
+- **2026-11-19 旧 Browse 四站点小样本探针退役（独立片）**：
+  `tools/probe_browse_engines.py` 只对 QP1-C 的 A01/A05 两题手工循环
+  Google、DuckDuckGo、Bing、Brave 打印 URL，没有生产、CI、测试、
+  阶段门或其它工具调用方。删除孤立脚本及旧复测命令，但保留历史
+  `BROWSE_ENGINE_PROBE_20261115.md` 观测和 `qp1c_queries_v1.json`
+  题集来源；正式 Browse 路由、站点选择、SSRF、人机验证终止规则不动。
+  离线 Browse/站点池/搜索策略/工具网关影响集 **60 passed**，无真实
+  浏览器或付费 API。新精确提交 CI 以本片对应 PR 验收为准。
 
 - #406：移除无前端调用方的新闻运行客户端兼容接口及对应历史测试，约净减 530 行。
 - #407：移除 17 份只供历史阶段使用的单次实验脚本及配套专项测试，净减约 4,495 行。
