@@ -6,6 +6,11 @@
 
 ## 0. Current Handoff（2026-11-18，冷启动）
 
+### 2026-11-19 研究窗口检查点顺序显式化（独立候选）
+
+- 基线 `main@739d74f7`，分支 `codex/research-context-next-20261119`。将 `execute()` 内四个 `record_research_window` 闭包调用展开为显式的 `ResearchWindowDiagnostics.record_end(context, hard_seconds=state.budget.hard_timeout_seconds, elapsed=elapsed, exhausted=...)`，随后按原位置调用 `checkpoint()`。诊断仍由专属上下文写入，检查点仍由原执行器控制；观察时钟每次仍取样两次，预算耗尽分支原有的后续额外检查点仍保留。
+- 不触及恢复游标、费用预留及结算、状态序列化、模型请求或发布权威；不进行真实搜索/付费调用。下一片聚焦执行器的其他隐式共享变量，优先做具备对应回归用例的窄范围切分；本候选测试与提交状态以实际执行记录为准。
+
 ### F2 历史双读取器配对实验退役（独立片）
 
 - `tools/run_f2_paired.py` 对固定六类本地页面重复运行旧 default/Crawl4AI
