@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -934,31 +935,32 @@ def test_session_detail_restores_archived_messages(runtime_test_context):
 
 
 def test_current_session_snapshot_restores_full_state_and_avatar(
-    monkeypatch,
     runtime_test_context,
 ):
-    from src import session_logger
-
     current_dir = runtime_test_context.current_dir
     current_dir.mkdir()
-    monkeypatch.setattr(session_logger, "CURRENT_DIR", current_dir)
-    session_id = session_logger.init_session()
+    session_id = "legacy_full_snapshot"
     long_user = "user-" + ("x" * 180)
     long_agent = "agent-" + ("y" * 260)
-
-    session_logger.log(
-        session_id=session_id,
-        role="nahida",
-        mode="苏格拉底",
-        model="pro",
-        user_input=long_user,
-        agent_reply=long_agent,
-        route_info={"role": "nahida", "mode": "苏格拉底", "model_profile": "pro"},
-        session_settings={"selectedRole": "auto", "selectedMode": "auto", "contextMode": "deep"},
-        rag_info={"status": "found", "result_count": 2},
-        conversation_instruction="直接回答，不转交。",
+    legacy_snapshot = {
+        "turn_id": "legacy_turn_1",
+        "status": "completed",
+        "time": "2026-06-16 10:00:00",
+        "messages": [
+            {"role": "user", "content": long_user, "avatarRole": "user"},
+            {"role": "assistant", "content": long_agent, "avatarRole": "nahida"},
+        ],
+        "settings": {"selectedRole": "auto", "selectedMode": "auto", "contextMode": "deep"},
+        "route": {"role": "nahida", "mode": "苏格拉底", "model_profile": "pro"},
+        "rag": {"status": "found", "result_count": 2},
+        "conversation_instruction": "直接回答，不转交。",
+    }
+    (current_dir / f"{session_id}.md").write_text(
+        "# Legacy current session\n\n```json session_turn\n"
+        + json.dumps(legacy_snapshot, ensure_ascii=False)
+        + "\n```\n",
+        encoding="utf-8",
     )
-    assert session_logger.flush_current_session(session_id, force=True)
 
     client = TestClient(app)
     response = client.get(f"/sessions/{session_id}")

@@ -1,10 +1,8 @@
 # M4-D：有边界修改与保留旧版的首个原型
 
-当前交付可调用的补丁核心与真实产品沙箱演示；未接模型，不改变产品默认修改策略或数据库。
-
-```powershell
-py -3.12 -m tools.interactive_patch_demo --out D:/study-agent-validation/m4d-demo-new
-```
+> **历史原型记录（已退役，命令不可运行）。** 演示入口及其浏览器专项测试先前已删除；
+> 2026-11-19 进一步删除仅被旧测试使用的 `src/interactive_patch.py` 补丁核心。
+> 生产环境从未接入该补丁功能，下面记录的是当时的实验流程，不代表现行产品能力。
 
 一个命令完成三个版本、桌面1280×800/手机390×844共六次真实沙箱回归：
 
@@ -16,7 +14,7 @@ py -3.12 -m tools.interactive_patch_demo --out D:/study-agent-validation/m4d-dem
 `accepted-versions/v1.html`与`v2.html`。失败候选留作诊断源文件，未进入accepted-versions。
 这些HTML需要产品的studyUI沙箱桥，演示命令负责挂载；不能把直接双击HTML当作产品运行验收。
 
-`src/interactive_patch.py::prepare_patch` 接收当前会话已完成轮次、组件ID/revision、完整源码SHA和
+旧 `prepare_patch` 接收当时已完成轮次、组件ID/revision、完整源码SHA和
 `TextEdit(old,new)`列表。定位沿用已保存版本恢复逻辑，所有锚点在原源码中精确且唯一匹配（含重叠
 匹配歧义）；先验证全部操作再构造临时结果，拒绝错误目标/过期哈希/重叠编辑/整文替换/越界。
 该函数不写用户存储；只有浏览器回归通过的候选才由演示宿主保存为新版。

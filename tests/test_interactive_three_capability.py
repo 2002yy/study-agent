@@ -7,7 +7,6 @@ from src.interactive_restore import (
     locate_restore_source,
     restore_context_block,
 )
-from src.interactive_patch import prepare_patch, source_hash, TextEdit
 
 
 def turn(capabilities):
@@ -27,7 +26,7 @@ def turn(capabilities):
     )
 
 
-def test_capability_survives_history_restore_and_bounded_patch():
+def test_capability_survives_history_and_restore():
     saved = turn(["three"])
     assert find_interactive_versions(
         [dict(role="assistant", content=saved.assistant_message)]
@@ -35,14 +34,6 @@ def test_capability_survives_history_restore_and_bounded_patch():
     outcome = locate_restore_source([saved], RestoreRequest("scene", 1))
     assert outcome.capabilities == ("three",)
     assert "capabilities: ['three']" in restore_context_block(outcome)
-    patched = prepare_patch(
-        [saved],
-        RestoreRequest("scene", 1),
-        source_hash("<p>old</p>"),
-        [TextEdit("old", "new")],
-    )
-    assert patched.capabilities == ("three",)
-    assert patched.html == "<p>new</p>"
 
 
 def test_unknown_capability_is_not_a_saved_component():

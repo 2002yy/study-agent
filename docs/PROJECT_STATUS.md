@@ -6,6 +6,12 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 检查点准备与持久化顺序封装（当前候选）
+
+- 后续本地补强：检查点专项测试共用统一构造器，新增成功路径顺序负控，明确 `bind_prepared` 必须先于仓库 `checkpoint`；检查点、实时状态、波次结算和守卫专项集 **10 passed**，未触及生产代码。此补强仍属于未推送的同一候选，不能代替 L3 或远端 CI。
+- 基于上一状态单一持有候选 `e13960c8`，分支 `codex/research-cursor-context-20261119`。将主动执行器检查点内的 `prepare → finally 回绑状态/上下文 → persist` 提取为 `ActiveRuntimeCheckpointContext.prepare_and_persist`，明确准备异常后仍回绑已投影的内存值，同时禁止失败后继续持久化；执行器仍唯一持有实时状态、游标和持久化上下文，后两者不作双份镜像。
+- 专属负控冻结 Claim Engine 序列化异常时预算投影与游标上下文保留、仓库不写入；检查点、实时状态、波次结算、守卫与主动执行影响集 **93 passed**，Ruff、差异检查及 mypy 基线 **115/125（无新增）**通过。全量 L3 已启动但观察到首 1% 用时较长，为避免无界后台执行而中断，**尚未通过**；远端精确提交 CI 待验收。真实搜索、付费模型与动态比较 `not_run`，预算授权 `not_applicable`。属 P3 / static / orchestration-contract / engineering-only。下一片在主线整合后处理游标、持久化上下文的单一所有权，不在本片同时迁移。
+
 ### 2026-11-19 研究状态单一持有（新独立候选）
 
 - #495 的精确 HEAD `cd85309d`、CI `44359098528` 成功，已合并 `main@5c695ff8`；#502 的精确 HEAD `e7d2ebf1`、CI `44361647146` 全部成功、审阅线程为空，已合并 `main@47c8f041`。本片基于这两项收口后的主线，职责属 **P3 / static / orchestration-contract / engineering-only**，付费模型、真实搜索及动态产品比对 `not_run`，预算授权 `not_applicable`。
@@ -209,8 +215,14 @@
   `M4D_PATCH_DEMO_DIR` 时执行；生产代码、现行 CI 和正式 UI 均无调用。
   整组删除演示运行器及其专属浏览器用例，把原先误从演示工具导入的
   测试构造函数移入 `tests/test_interactive_patch.py`。
-  保留 `src/interactive_patch.py`、恢复契约以及增量修改/能力继承的
-  现行单元测试，确保退役实验不会顺带移除仍有价值的功能基础。
+  **当时**保留 `src/interactive_patch.py`、恢复契约以及增量修改/能力继承的
+  单元测试。后续证实补丁核心 `prepare_patch/PatchCandidate/TextEdit` 仅由
+  两份测试调用，未接入正式 API、会话、前端、CLI 或阶段门；本独立片删除
+  原型模块与整份专属测试，Three 能力测试改为直接覆盖正式
+  `interactive_history` → `interactive_restore` 的版本恢复和冲突语义，
+  并在历史原型文档中撤销过时演示命令。保留正式恢复、版本识别、Three
+  沙箱加载及其测试；不补兼容空壳。原离线影响集 **82 passed**、Ruff、
+  diff-check、mypy 基线 **115/125** 通过；未执行付费 API。
 
 - **2026-11-18 M4-C3 历史实验闭环退役（独立片）**：
   11 月 4 日固定批次已有原始结果和费用回执，今天的产品/CI 不再调用当时的
@@ -298,6 +310,17 @@
   `loadSessions`/`loadRagStatus` 快捷封装。原先以手动落盘制造旧镜像的测试
   改为直接构造历史镜像，继续验证归档清理、失败恢复和清理失败保留归档，
   不删旧版文件导入器，也不改变 SQLite 会话和归档的产品契约。
+- **2026-11-19 旧 session logger 镜像整体退役（独立片）**：
+  正式聊天与恢复由 SQLite `ChatThread/ChatTurn`、`SessionService`、
+  `LegacySessionImporter` 承担。`src/session_logger.py` 的 `log/flush/save`
+  从未填充正式会话 `_state`，`src/session_store.py` 只服务这个旧镜像；
+  微信群读取最近单聊和写入旧 `wechat_interactive` 标记没有真实上游。
+  同步删除两模块、专属 flush 测试、只检查其源码结构的打包断言、
+  过时微信状态桩及重复列表用例。历史 Markdown 导入/恢复测试改为
+  直接构造旧快照，保留正式 SQLite、学习记忆和预算/恢复行为。
+  原离线影响集 **128 passed**、扩展会话/微信 **170 passed**、
+  学习记忆 **28 passed**；Ruff、差异检查及 mypy 基线 **115/125**
+  通过。无真实模型或付费搜索。
 - 本轮独立片：移除 `src.api` 的旧测试打桩重导出和生产 `_api()` 回绕桥接；实际调用改向模块所有者，测试与真实测试入口同步迁移，并让两项微信正文安全测试不再依赖真实域名解析。保留 `from src.api import app` 公共入口；不删除持久数据、恢复和费用约束。此条是本地待提交状态，不代表 CI 通过或已合并。
 
 上述候选都基于同一主线快照开展，合并前须逐个核对最新主线、差异和文档重叠；另一个窗口的研究运行器职责拆分不得与这些减负片混写。
@@ -375,12 +398,28 @@
   `tests/test_browser_bakeoff_harness.py` 调用，不参与现行检索、Crawl4AI
   资格评测或 CI 执行。退役整组脚本和历史联调测试，并移除阶段门中这份
   旧专项测试的两处重复引用；旧测试的浏览器是否升级/壁垒分类行为现由
-  `test_chain_executor.py`、`test_progressive_routing.py` 与
-  `test_wigolo_browser_executor.py` 验证。Crawl4AI cohort v2 **仍调用**
-  `browser_bakeoff.py` 的结果构造/校验与旧 manifest，故保留该模块、
-  manifest 和共用 fixture 服务，将原专项测试中不可替代的结果真实性负控
-  合并进 `test_browser_bakeoff_contract.py`。不修改真实浏览器读取逻辑，
+  `test_chain_executor.py`、`test_progressive_routing.py` 与当时的
+  `test_wigolo_browser_executor.py` 验证（后者已在后续独立片退役，
+  现行共享安全不变量迁至 `test_browser_honesty.py`）。当时 Crawl4AI cohort v2
+  尚调用 `browser_bakeoff.py` 的结果构造/校验与旧 manifest，故暂留旧合同与
+  共享 fixture 服务；**后续 §118/§120 整链退役时**，唯一消费者一并移除，
+  旧合同、专属测试、manifest 和阶段门注册也同步退役。共用 fixture 服务
+  因仍被现行超时/读取测试调用而保留。不修改真实浏览器读取逻辑，
   不执行外部浏览器或付费模型调用。
+
+- **2026-11-19 未注册 Wigolo 后端整体退役（独立片）**：现行
+  `ACTIVE_READER_CHAIN`、API、研究执行器、正式 Crawl4AI 专家读取及工具
+  均未实例化 `WigoloBrowserBackendExecutor`。删除明确标注 production-inert 的
+  `wigolo_browser_executor.py` 及其独占 451 行测试；阶段门两处引用替换为
+  正式浏览器链使用的 `test_browser_honesty.py`，冻结壁垒分类、受限前缀
+  与故障真实性负控。保留 Crawl4AI/默认读取链、预算恢复、安全开关，
+  及仍被结果契约使用的 bakeoff manifest/能力词表。原定向
+  **188 passed / 1 skipped**、L2 **414 passed / 4 skipped**，Ruff、
+  diff-check、mypy **115/125**；无真实浏览器或付费模型调用。
+- 同轮审计发现 `conversation_action_step` 仅被旧集成测试使用，但其仍挂
+  大量会话阶段门，须独立重建 bounded-loop 覆盖后退役；
+  `ResearchMemoryService` 承担已建持久化契约、`backup_manager` 涉及 `.bak`
+  恢复，均不因“无直接导入”而机械删除。
 
 ### 2026-11-18 历史诊断脚本退役（独立清理片）
 
@@ -463,11 +502,14 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
   串行执行四项手工门，随后可选调用唯一后继
   `tools/run_crawl4ai_cohort_v2.py` 运行冻结前置状态的 12 行 cohort。
   前者无现行消费者，后者除前者外也没有生产、测试、CI、阶段门、活跃文档
-  或其他工具调用方。两份旧脚本成组删除，不留孤儿 CLI、兼容入口或空测试；
-  原始资格观测仍在 Git 历史/归档。
+  或其他工具调用方。两份旧脚本成组删除后，历史 bakeoff 结果合同及
+  六类冻结 manifest 仅被自己的专属测试引用；故再移除
+  `src/web/research/browser_bakeoff.py`、`tests/test_browser_bakeoff_contract.py`、
+  旧 manifest、两处阶段门注册及 README 中过时的当前维护承诺。
+  不留孤儿 CLI、兼容入口、假产品负控或配置。原始资格观测仍在 Git 历史/归档。
   **保留**真实 Crawl4AI 专家读取、仍被当前超时/集成测试使用的
-  `browser_bakeoff_fixture_server.py`、共享 bakeoff manifest/结果契约，
-  以及 shutdown、安全、预算/读取调度负控。本片仅执行离线影响测试，
+  `browser_bakeoff_fixture_server.py`，以及 shutdown、安全、预算/读取调度负控。
+  本片仅执行离线影响测试，
   不改变生产浏览器路径；真实浏览器资格重跑和付费模型 `not_run`。
 
 - **2026-11-19 无调用方的游标/新鲜度辅助函数退役**：

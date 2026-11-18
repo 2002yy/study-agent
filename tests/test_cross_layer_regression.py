@@ -67,50 +67,6 @@ def test_session_archive_creates_new_id_on_next_chat(monkeypatch):
     assert sid2 != sid1
 
 
-# ── Single-round session is discoverable before save ────────────────────
-
-
-def test_single_round_session_visible_before_save(monkeypatch, tmp_path):
-    """A session with one chat turn should appear in /sessions before save()."""
-    from src import session_logger
-    from src.application import helpers
-
-    current_dir = tmp_path / "current"
-    sessions_dir = tmp_path / "sessions"
-    monkeypatch.setattr(session_logger, "CURRENT_DIR", current_dir)
-    monkeypatch.setattr(session_logger, "LOG_DIR", sessions_dir)
-    monkeypatch.setattr(helpers, "CURRENT_SESSION_DIR_DEFAULT", current_dir)
-    monkeypatch.setattr(helpers, "SESSION_DIR_DEFAULT", sessions_dir)
-    current_dir.mkdir(parents=True, exist_ok=True)
-    sessions_dir.mkdir(parents=True, exist_ok=True)
-
-    client = TestClient(app)
-
-    resp = client.post(
-        "/chat",
-        json={
-            "user_input": "单轮测试",
-            "selected_role": "auto",
-            "selected_mode": "auto",
-            "selected_model": "auto",
-        },
-    )
-    assert resp.status_code == 200
-    sid = resp.json()["session_id"]
-
-    sessions = client.get("/sessions").json()["sessions"]
-    # Session file names are "{session_id}.md" — strip extension
-    current_ids = {s["name"].replace(".md", "") for s in sessions if s["kind"] == "current"}
-    # Also strip any extraneous prefix/suffix from session file name
-    if sid not in current_ids:
-        # Session might be in active memory (not yet flushed to disk)
-        # Verify it's findable via the /sessions/{id} endpoint
-        detail = client.get(f"/sessions/{sid}")
-        assert detail.status_code == 200, f"Session {sid} should be discoverable"
-    else:
-        assert sid in current_ids, f"Session {sid} should appear in current sessions, got {current_ids}"
-
-
 # ── Opening with existing group must not overwrite ──────────────────────
 
 

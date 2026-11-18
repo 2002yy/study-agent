@@ -2,12 +2,11 @@ from src.wechat_service import RuntimeContext, run_news_round
 from src.news.audit import NewsAuditArtifact
 
 
-def test_run_news_round_returns_result_and_updates_session(monkeypatch):
+def test_run_news_round_returns_result_and_persists_group(monkeypatch):
     from src import wechat_service
 
     progress_calls = []
     writes = []
-    session_marks = []
     audit_calls = []
 
     monkeypatch.setattr(
@@ -46,11 +45,6 @@ def test_run_news_round_returns_result_and_updates_session(monkeypatch):
         lambda content: writes.append(("reply", content)),
     )
     monkeypatch.setattr(wechat_service, "read_wechat_group", lambda: "group content")
-    monkeypatch.setattr(
-        wechat_service,
-        "set_wechat_interactive",
-        lambda session_id, status: session_marks.append((session_id, status)),
-    )
     monkeypatch.setattr(
         wechat_service,
         "save_news_audit",
@@ -95,7 +89,6 @@ def test_run_news_round_returns_result_and_updates_session(monkeypatch):
         ("note", "source:OpenAI latest:3"),
         ("reply", "discussion"),
     ]
-    assert session_marks == [("sess123", "news_round")]
     assert progress_calls == [
         "正在搜索：OpenAI latest",
         "正在尝试读取新闻正文...",
