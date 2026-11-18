@@ -105,17 +105,19 @@ failure; persistence must be observed at the sink, never inferred from this flag
 
 ## Evaluation validity
 
-`tools/m3_battery.py` refuses invalid runs: a missing env file or model credentials
-prints `{"run_status":"INVALID_RUN","reason":...}` and exits 2 **before** executing
-anything, so a 0-search no-op can never be mistaken for a legitimate result. Covered by
-`tests/test_m3_battery_precheck.py`.
+Historical M3 battery runs used an `INVALID_RUN` precheck to reject missing
+credentials before attempting a model call. The one-off battery runner and its
+precheck-only test have since been retired: neither is part of the current
+research runtime, stage gates, or release benchmarks. This paragraph records
+the old evaluation method, not a current executable guard.
 
 ## Done / remaining
 
 **Done**: same-run full-text capture (`capture_full_text`, default **off**); durable
 telemetry wiring; non-authoritative records with the `grants_evidence_authority` choke
-point; the `INVALID_RUN` guard; the same-run full-text re-audit of the high-risk trio
-(Redis / Minecraft / K8s); the real **OFF/ON pairing** of the whole Standard path
+point; the then-active (now retired) M3 `INVALID_RUN` guard; the same-run
+full-text re-audit of the high-risk trio (Redis / Minecraft / K8s); the real
+**OFF/ON pairing** of the whole Standard path
 (result and bindings identical modulo per-parent identity hashes, ON adds no meaningful
 latency, the persisted observation stays non-authoritative); and the telemetry resource
 lifecycle check (one shared flusher per process, closed at interpreter exit).
