@@ -76,7 +76,6 @@ def test_retrieval_stage_gate_is_the_union_of_the_retrieval_impact_sets() -> Non
         "a2c_scheduling",
         "a2d_chain",
         "a3_browser",
-        "read_adequacy",
         "runtime_read_loop",
     ):
         expected.update(payload["impact_sets"][name])
