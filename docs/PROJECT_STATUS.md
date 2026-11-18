@@ -304,6 +304,17 @@
   `loadSessions`/`loadRagStatus` 快捷封装。原先以手动落盘制造旧镜像的测试
   改为直接构造历史镜像，继续验证归档清理、失败恢复和清理失败保留归档，
   不删旧版文件导入器，也不改变 SQLite 会话和归档的产品契约。
+- **2026-11-19 旧 session logger 镜像整体退役（独立片）**：
+  正式聊天与恢复由 SQLite `ChatThread/ChatTurn`、`SessionService`、
+  `LegacySessionImporter` 承担。`src/session_logger.py` 的 `log/flush/save`
+  从未填充正式会话 `_state`，`src/session_store.py` 只服务这个旧镜像；
+  微信群读取最近单聊和写入旧 `wechat_interactive` 标记没有真实上游。
+  同步删除两模块、专属 flush 测试、只检查其源码结构的打包断言、
+  过时微信状态桩及重复列表用例。历史 Markdown 导入/恢复测试改为
+  直接构造旧快照，保留正式 SQLite、学习记忆和预算/恢复行为。
+  原离线影响集 **128 passed**、扩展会话/微信 **170 passed**、
+  学习记忆 **28 passed**；Ruff、差异检查及 mypy 基线 **115/125**
+  通过。无真实模型或付费搜索。
 - 本轮独立片：移除 `src.api` 的旧测试打桩重导出和生产 `_api()` 回绕桥接；实际调用改向模块所有者，测试与真实测试入口同步迁移，并让两项微信正文安全测试不再依赖真实域名解析。保留 `from src.api import app` 公共入口；不删除持久数据、恢复和费用约束。此条是本地待提交状态，不代表 CI 通过或已合并。
 
 上述候选都基于同一主线快照开展，合并前须逐个核对最新主线、差异和文档重叠；另一个窗口的研究运行器职责拆分不得与这些减负片混写。
