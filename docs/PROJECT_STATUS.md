@@ -105,7 +105,9 @@
 
 ### 唯一下一执行片
 
-**下一执行片（未实施）**：按[研究执行记录的“下一批已记录”](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)收敛读取调度与当前状态传递：先标注恢复后 `state/cursor/context` 的唯一持有者和调用边界，再以小片显式化候选、读取链、后端健康、尝试历史、预算窗口；先做只读投影，再迁实际读取调用。保持 `ACTIVE_READER_CHAIN`、读取名额、断路器/重试/兜底、CAS 回填、模型请求前 inflight、真实 `reserve_call`/最终结算、检查点和有证据发布门禁。测试复用现有读取负控，#404 测试造景及另一窗口减负独立收口。原 #369 零模型社区覆盖探针仍待部署环境的真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
+**当前候选（未合并）**：已将读取准入、实时后端尝试历史和断路器健康归入 `ActiveReadDispatchContext`；只保存稳定的断路器、后端顺序及剩余时间回调，每次显式取得当前候选、`cursor.read_outcomes` 和 `context`，避免恢复/检查点后使用旧引用。基于 `main@88037618` 本地分支 `codex/research-read-dispatch-context-20261118`；读取链、名额、失败、CAS、模型 inflight、费用结算和发布未改。原始影响集 **169 passed**，Ruff 全库、mypy 基线及差异检查通过；精确候选 PR CI、动态产品验收尚未完成。详细证据见[读取调度第一片](research_quality/RETRIEVAL_LEAN_EXECUTION_20261117.md)。
+
+**唯一下一实施片（待当前候选验收合并）**：再把 `read_chain_executors` 闭包与默认链派发归入读取执行上下文，仍调用唯一的 `build_read_chain_executors`/`run_chain`，并将相关脆弱源码字符串测试改为行为约束；保留专家失败后的默认链兜底。#404 测试造景、其他窗口的功能减负各自收口。原 #369 零模型社区覆盖探针仍待部署环境真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
 
 ## 0A. 已冻结研究路线（摘要）
 
