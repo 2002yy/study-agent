@@ -23,6 +23,19 @@
 
 - 基线 `main@739d74f7`，分支 `codex/research-context-next-20261119`。将 `execute()` 内四个 `record_research_window` 闭包调用展开为显式的 `ResearchWindowDiagnostics.record_end(context, hard_seconds=state.budget.hard_timeout_seconds, elapsed=elapsed, exhausted=...)`，随后按原位置调用 `checkpoint()`。诊断仍由专属上下文写入，检查点仍由原执行器控制；观察时钟每次仍取样两次，预算耗尽分支原有的后续额外检查点仍保留。
 - 不触及恢复游标、费用预留及结算、状态序列化、模型请求或发布权威；不进行真实搜索/付费调用。下一片聚焦执行器的其他隐式共享变量，优先做具备对应回归用例的窄范围切分；本候选测试与提交状态以实际执行记录为准。
+### 未接线的配置缓存与性能日志工具退役（2026-11-19，独立减负片）
+
+- 旧 `src/config.py` 的 `get_config/validate/reload_config` 及模块级缓存没有
+  现行调用方；生产 `src/llm_client.py` 已直接从 provider 环境配置读取并以
+  凭据、端点和重试配置签名自动刷新缓存。旧 `reset_client()` 唯一调用方
+  是 `src/config.py`，其专项测试只检查源码字符串是否存在。
+- 旧 `src/perf.py` 的 `PerfTracker/PerfMetrics/write_perf_log` 同样没有
+  生产、脚本、CI 或测试调用方；现行性能观测由研究运行器及独立诊断
+  模块承担。本片成组移除两个孤立模块、旧重置函数和源码存在性测试，
+  用现行同步/异步 Provider 客户端行为测试直接验证凭据变化后的缓存更新。
+  Ruff 全库及 `git diff --check` 通过，配置/Provider/会话/打包影响集
+  **127 passed**。不更改生产 Provider 调用、真实预算或研究检查点语义，
+  且不发起真实模型 API；L3 未运行。
 
 ### F2 历史双读取器配对实验退役（独立片）
 
