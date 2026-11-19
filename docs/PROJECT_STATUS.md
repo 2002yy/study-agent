@@ -133,10 +133,15 @@
   假 Provider 做“上传 → 选中 → 发送 → 模型可见材料”的离线跨层负控；
   同时审计原会话切换与队列发送期间的附件选择隔离，不开付费 API。
 
-### 2026-11-19 选源窗口诊断职责整合（#479 最新主线候选）
+### 2026-11-19 读取候选测试搭建去重（#517 最新主线候选）
+
+- `tests/research_read_candidate_factory.py` 合并读取调度、执行、投影测试内三份重复的 `CandidatePoolItem` 构造；保留 ID、URL、标题和来源场景原值，不改生产检索、读取、恢复、检查点或预算。
+- #479 精确 HEAD `9086a708`、CI `44499513153` 成功且无审阅阻断，已合并 `main@bab64534`。#517 在 `main@77caf8b6` 上的精确 HEAD `fe1fcbf8`、CI `44511142471` 已全绿且无审阅阻断；随后 #522/#525 推进主线至 `main@56e2f23e`，使原 PR 再次无法合并。本次重挂保留主线 P1 附件/SSE/真实服务栈回归交接与代码，仅迁移测试去重增量；须按新精确 HEAD 独立验收。读取/选源影响集 **37 passed**，此前跨恢复、检查点、模型预算、发布、选源和读取组合影响集 **151 passed**，Ruff、差异检查通过。`priority=P3`，`loop=static`，`owner=orchestration-contract`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`。下一步精确 CI、审阅无阻断后合并 #517；此后只按明确耦合收益开启下一小片。
+
+### 2026-11-19 选源窗口诊断职责整合（#479 已合并）
 
 - #481 精确 HEAD `b1f2729b` 的 CI `44497014870` 全绿、无审阅阻断，已 squash 合并到 `main@82399918`。#479 基于这条主线重新挂载；`research_selection_observability.record_selection_authority()` 接管选源输入指纹、候选变化数、排除状态变化、独立的开始/结束时钟采样与最近 40 条记录。`active_research_runtime` 仍负责模型准入、选源、退化与实时 context 回读；不转移检索策略或模型预算所有权。
-- 专项负控覆盖连续波次输入变化、两个独立计时采样以及损坏历史记录后的 40 条上限。本地相同代码组合影响集 **112 passed**、Ruff 和差异检查通过，mypy **115/125** 无新增。此批 `priority=P3`、`loop=static`、`owner=orchestration-observability`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`；必须等待新精确 #479 HEAD CI 全绿再合并。其后才把测试去重 #517 挂到最新主线。
+- 专项负控覆盖连续波次输入变化、两个独立计时采样以及损坏历史记录后的 40 条上限。本地相同代码组合影响集 **112 passed**、Ruff 和差异检查通过，mypy **115/125** 无新增。此批 `priority=P3`、`loop=static`、`owner=orchestration-observability`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`；精确 HEAD `9086a708`、CI `44499513153` 成功，已合并 `main@bab64534`。
 
 ### 2026-11-19 失败终态发布上下文整合（#481 已合并）
 

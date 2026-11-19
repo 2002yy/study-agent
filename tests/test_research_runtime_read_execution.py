@@ -5,28 +5,12 @@ from types import SimpleNamespace
 
 from src.application.research_runtime_read_execution import ActiveReadExecutionContext
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
-from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.chain_executor import ChainRun, ChainStepResult
 from src.web.research.runtime import RuntimeReadOutcome
+from tests.research_read_candidate_factory import read_candidate
 
 
 BACKENDS = ("native_http", "wigolo_http")
-
-
-def _candidate() -> CandidatePoolItem:
-    return CandidatePoolItem(
-        id="target",
-        url="https://example.org/article",
-        canonical_url="https://example.org/article",
-        title="article",
-        snippet="",
-        source="",
-        published_at="",
-        query_ids=(),
-        intents=(),
-        providers=(),
-        first_seen_rank=0,
-    )
 
 
 def _dispatch() -> ActiveReadDispatchContext:
@@ -111,7 +95,7 @@ def test_default_chain_uses_fresh_attempt_history_and_shared_executor_factory() 
     )
     result, steps = execution.run_candidate(
         context=first_context,
-        candidate=_candidate(),
+        candidate=read_candidate(),
         source_limit=1200,
         outer_attempt_number=2,
         read_outcomes=first,
@@ -129,7 +113,7 @@ def test_default_chain_uses_fresh_attempt_history_and_shared_executor_factory() 
     )
     execution.run_candidate(
         context=resumed_context,
-        candidate=_candidate(),
+        candidate=read_candidate(),
         source_limit=1200,
         outer_attempt_number=2,
         read_outcomes=resumed,
@@ -170,7 +154,7 @@ def test_usable_specialist_short_circuits_default_backend_factory() -> None:
     )
     result, steps = execution.run_candidate(
         context=current_context,
-        candidate=_candidate(),
+        candidate=read_candidate(),
         source_limit=900,
         outer_attempt_number=3,
         read_outcomes=(),
