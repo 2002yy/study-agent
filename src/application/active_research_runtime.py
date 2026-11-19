@@ -950,10 +950,8 @@ class ActiveResearchRuntimeExecutor:
             chain_runner=run_chain,
         )
 
-        model_attempt_context = ActiveModelAttemptContext(
-            current_state=live.current_state,
-            current_cursor=live.current_cursor,
-            set_cursor=live.set_cursor,
+        model_attempt_context = ActiveModelAttemptContext.for_live_values(
+            live,
             ensure_active=ensure_active,
             ensure_budget=execution_guard.ensure_budget,
             checkpoint=checkpoint,
