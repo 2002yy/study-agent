@@ -67,7 +67,7 @@ User query
 - Bing Web RSS: `https://www.bing.com/search?q={query}&format=rss`
 - RSSHub: Configurable domestic sources
 - 600-second article cache per query
-- Feed health state: `logs/news_feed_state.json` (runtime, ignored by git), including success/error status, item count, ETag, Last-Modified, and seen entry keys
+- Feed health state: `logs/news_feed_state.json` (runtime, ignored by git), including success/error status, item count, ETag, and Last-Modified. Historical `seen_entries` data is ignored; deduplication happens within each query by canonical URL, not across past searches.
 
 If `config/news_feeds.json` exists, it can override the built-in feed list:
 

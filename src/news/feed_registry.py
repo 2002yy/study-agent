@@ -49,10 +49,9 @@ class FeedHealth:
 
 @dataclass(frozen=True)
 class FeedState:
-    """Persisted state for feed polling and lightweight dedup."""
+    """Persisted source health; per-query dedup lives in rss_fetcher."""
 
     health: dict[str, FeedHealth] = field(default_factory=dict)
-    seen_entries: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -60,7 +59,6 @@ class FeedState:
                 key: asdict(value)
                 for key, value in sorted(self.health.items(), key=lambda item: item[0])
             },
-            "seen_entries": dict(sorted(self.seen_entries.items())),
         }
 
 
@@ -162,12 +160,7 @@ def load_feed_state(path: Path = FEED_STATE_FILE) -> FeedState:
         except Exception:
             continue
 
-    seen_entries = {
-        str(key): float(value)
-        for key, value in (raw.get("seen_entries") or {}).items()
-        if isinstance(value, int | float)
-    }
-    return FeedState(health=health, seen_entries=seen_entries)
+    return FeedState(health=health)
 
 
 def save_feed_state(state: FeedState, path: Path = FEED_STATE_FILE) -> None:
@@ -198,38 +191,6 @@ def record_feed_result(
         etag=etag,
         modified=modified,
     )
-    next_state = FeedState(health=health, seen_entries=state.seen_entries)
+    next_state = FeedState(health=health)
     save_feed_state(next_state, path)
     return next_state
-
-
-def entry_key(item: dict) -> str:
-    return (
-        item.get("canonical_url")
-        or item.get("resolved_link")
-        or item.get("link")
-        or item.get("title")
-        or ""
-    ).strip().lower()
-
-
-def mark_seen_entries(
-    items: list[dict],
-    *,
-    path: Path = FEED_STATE_FILE,
-    now: float | None = None,
-) -> FeedState:
-    state = load_feed_state(path)
-    seen = dict(state.seen_entries)
-    timestamp = time.time() if now is None else now
-    for item in items:
-        key = entry_key(item)
-        if key:
-            seen[key] = timestamp
-    next_state = FeedState(health=state.health, seen_entries=seen)
-    save_feed_state(next_state, path)
-    return next_state
-
-
-def filter_unseen_entries(items: list[dict], state: FeedState) -> list[dict]:
-    return [item for item in items if entry_key(item) not in state.seen_entries]

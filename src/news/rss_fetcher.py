@@ -17,11 +17,7 @@ from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
 from src.news.domain_policy import annotate_domain_policy, news_sort_score
-from src.news.feed_registry import (
-    mark_seen_entries,
-    record_feed_result,
-    registered_feed_urls,
-)
+from src.news.feed_registry import record_feed_result, registered_feed_urls
 from src.news.link_resolver import (
     _has_direct_article_link,
     _news_item_url,
@@ -750,12 +746,4 @@ def fetch_news_items(
     )
 
     _NEWS_CACHE[cache_key] = (now, items)
-    try:
-        mark_seen_entries(items, now=now)
-    except Exception:
-        pass
     return items
-
-
-def fetch_latest_news_items(max_items: int = 10) -> list[dict]:
-    return fetch_news_items(DEFAULT_NEWS_QUERY, max_items=max_items)

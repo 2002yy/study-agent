@@ -185,6 +185,13 @@
 - **证据**：改动前两项真实执行器累计/共享来源簇回归 **2 passed**；改动后覆盖专项及研究执行/恢复/检查点/预算/读取关联测试 **131 passed**，Ruff、差异检查、mypy **115/125（无新增）**通过。基线 `main@56e2f23e`；单独分支 `codex/research-read-coverage-20261119`，与正在等候精确 CI 的 #517 测试去重 PR **没有代码依赖**。`priority=P3`，`loop=static`，`owner=retrieval/read-planning`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`。无真实付费模型/浏览器/外部搜索或产品动态对比。
 - **下一执行片**：完成本独立片的干净提交、PR 推送及精确 HEAD CI 记录；仅当该 SHA CI 全绿、审阅无阻断且无冲突才合并。#517 仍按其独立精确 CI 完成收口，不能复用其它提交的绿色结果。
 
+### 2026-11-20 无效新闻已读条目持久化链退役（P3 静态减负）
+
+- **证据**：`fetch_news_items()` 在每轮搜索后调用 `mark_seen_entries()` 把历史 URL 写入 `logs/news_feed_state.json`；但生产调用方从未读取 `seen_entries` 决定候选、排序、去重或结果，`filter_unseen_entries()` 的仅有调用是自身 2 项测试。结果是新闻历史键随检索增长，文件写入却无实际效果。
+- **成组删除**：去掉每轮无效写入、`FeedState.seen_entries` 持久化字段、读/写转发、`entry_key`、`mark_seen_entries`、`filter_unseen_entries`、2 项独占测试，以及零调用方的 `fetch_latest_news_items` 单行历史包装入口。不保留新兼容方法，也无专属配置/CI 项；旧状态中的 `seen_entries` 被宽容忽略并在后续健康状态写入时淘汰，其他字段仍按原 schema 读取。
+- **保留**：SearXNG/RSS 搜索及单次检索的标题、规范 URL 去重与缓存；有实际消费方的 feed 健康成功/失败、错误、ETag、Last-Modified 记录、重试与警告，以及正式 `NewsService`。健康写入测试继续校验有效字段，并核对输出仅含 `health`；不更改返回的新闻项目、模型、检索预算、checkpoint 或研究证据发布。
+- **基线/边界**：基于已合并 #549、#551、#550 的 `main@c5174e19`，独立 `codex/retire-news-seen-state-20261120`；另有 #552 精确 CI 已成功但仍须核对可合并性，#553/#554 在本轮首次 CI 查询时尚在运行。`priority=P3`、`loop=static`、`owner=news/feed-state`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；精确候选 CI/审阅待验，不发起真实 RSS/付费模型。
+
 ### 2026-11-19 旧迁移路线图展示组件退役（独立减负片）
 
 - `frontend/src/features/migration/RoadmapPanel.tsx` 只被自己的两项组件测试引用；

@@ -3,11 +3,8 @@ from __future__ import annotations
 import json
 
 from src.news.feed_registry import (
-    FeedState,
-    filter_unseen_entries,
     load_feed_registry,
     load_feed_state,
-    mark_seen_entries,
     record_feed_result,
     registered_feed_urls,
 )
@@ -76,27 +73,4 @@ def test_record_feed_result_persists_health(tmp_path):
     assert rows[0].message == "bad xml"
     assert rows[0].etag == '"abc"'
     assert rows[0].modified == "Wed, 03 Jun 2026 10:00:00 GMT"
-
-
-def test_mark_seen_and_filter_unseen_entries(tmp_path):
-    path = tmp_path / "state.json"
-    seen_item = {"canonical_url": "https://example.com/a", "title": "A"}
-    new_item = {"canonical_url": "https://example.com/b", "title": "B"}
-
-    mark_seen_entries([seen_item], path=path, now=123.0)
-    state = load_feed_state(path)
-
-    assert state.seen_entries == {"https://example.com/a": 123.0}
-    assert filter_unseen_entries([seen_item, new_item], state) == [new_item]
-
-
-def test_filter_unseen_entries_uses_existing_state():
-    state = FeedState(seen_entries={"https://example.com/a": 123.0})
-
-    assert filter_unseen_entries(
-        [
-            {"link": "https://example.com/a"},
-            {"link": "https://example.com/b"},
-        ],
-        state,
-    ) == [{"link": "https://example.com/b"}]
+    assert set(json.loads(path.read_text(encoding="utf-8"))) == {"health"}
