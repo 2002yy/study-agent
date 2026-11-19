@@ -75,16 +75,11 @@ STATE_COOLDOWN = "cooldown"
 #: The primary reader used by the runtime read path.
 NATIVE_HTTP_BACKEND = "native_http"
 
-#: Sentinel host for a legacy, host-less mark. It lives *inside* the same state
-#: model (one authority, just a broader key) rather than becoming a second one.
-WILDCARD_HOST = "*"
-
 TRANSITION_CLOSED_TO_OPEN = "failures_reached_threshold"
 TRANSITION_OPEN_TO_HALF_OPEN = "open_window_elapsed"
 TRANSITION_COOLDOWN_TO_HALF_OPEN = "cooldown_elapsed"
 TRANSITION_PROBE_SUCCESS = "probe_succeeded"
 TRANSITION_PROBE_FAILURE = "probe_failed"
-TRANSITION_LEGACY_MARK = "legacy_mark_circuit_open"
 TRANSITION_HEALTHY_OBSERVATION = "healthy_observation_reset"
 
 
@@ -307,30 +302,13 @@ class PerRunBreaker:
             record.eligible_probe_at_ms = None
             record.note(TRANSITION_COOLDOWN_TO_HALF_OPEN, now_ms=now_ms)
 
-    def _active(self, backend: str, host: str) -> tuple[HealthRecord, bool]:
-        """The exact key, or the backend's wildcard key when it is the one open.
-
-        A legacy host-less mark must still be able to refuse, and it does so
-        through the same model rather than a parallel flag.
-        """
-
-        exact = self._record(backend, host)
-        if exact.state != STATE_CLOSED:
-            return exact, False
-        if str(host) == WILDCARD_HOST:
-            return exact, False
-        wildcard = self._records.get(health_key(backend, WILDCARD_HOST))
-        if wildcard is not None and wildcard.state != STATE_CLOSED:
-            return wildcard, True
-        return exact, False
-
     # --------------------------------------------------------------------- public
 
     def allow(self, *, backend: str, host: str) -> BreakerDecision:
         """Decide whether one attempt may be sent, advancing time-based states."""
 
         now_ms = float(self._now_ms())
-        record, via_wildcard = self._active(backend, host)
+        record = self._record(backend, host)
         self._advance(record, now_ms)
         state_before = record.state
         allowed = True
@@ -361,7 +339,7 @@ class PerRunBreaker:
             is_probe=is_probe,
             skip_reason=skip_reason,
             eligible_probe_at_ms=record.eligible_probe_at_ms,
-            legacy=bool(record.legacy or via_wildcard),
+            legacy=bool(record.legacy),
         )
 
     def record(
@@ -370,7 +348,7 @@ class PerRunBreaker:
         """Feed one observed outcome back into the state machine."""
 
         now_ms = float(self._now_ms())
-        record, via_wildcard = self._active(backend, host)
+        record = self._record(backend, host)
         self._advance(record, now_ms)
         state_before = record.state
         counts = counts_towards_health(state, attempted=attempted)
@@ -419,39 +397,7 @@ class PerRunBreaker:
             is_probe=False,
             skip_reason="",
             eligible_probe_at_ms=record.eligible_probe_at_ms,
-            legacy=bool(record.legacy or via_wildcard),
-        )
-
-    def mark_open(
-        self, *, backend: str, host: str = WILDCARD_HOST, legacy: bool = True
-    ) -> BreakerDecision:
-        """Compatibility shell for the legacy ``mark_circuit_open()``.
-
-        With no host the mark lands on the backend's wildcard key - still one
-        authority, just a broader key - and is flagged ``legacy`` so provenance
-        can tell the two apart.
-        """
-
-        now_ms = float(self._now_ms())
-        record = self._record(backend, host)
-        record.state = STATE_OPEN
-        record.opened_at_ms = now_ms
-        record.eligible_probe_at_ms = now_ms + float(self.policy.open_seconds) * 1000.0
-        record.legacy = bool(legacy)
-        record.note(TRANSITION_LEGACY_MARK, now_ms=now_ms)
-        return BreakerDecision(
-            allowed=False,
-            health_key=record.key,
-            backend=record.backend,
-            host=record.host,
-            state_before=STATE_OPEN,
-            state_after=STATE_OPEN,
-            failure_streak=int(record.failure_streak),
-            probe_index=int(record.probe_index),
-            is_probe=False,
-            skip_reason=SKIP_REASON_CIRCUIT_OPEN,
-            eligible_probe_at_ms=record.eligible_probe_at_ms,
-            legacy=True,
+            legacy=bool(record.legacy),
         )
 
     def snapshot(self) -> list[dict[str, Any]]:
@@ -462,7 +408,7 @@ class PerRunBreaker:
     def state_for(self, *, backend: str, host: str) -> str:
         """Current state without advancing it (diagnostics only)."""
 
-        record, _ = self._active(backend, host)
+        record = self._record(backend, host)
         return record.state
 
 
@@ -489,7 +435,6 @@ __all__ = [
     "STATE_COOLDOWN",
     "STATE_HALF_OPEN",
     "STATE_OPEN",
-    "WILDCARD_HOST",
     "BreakerDecision",
     "HealthRecord",
     "PerRunBreaker",
