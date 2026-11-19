@@ -6,6 +6,15 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 读取链逐步账本转移归入 ActiveReadAttemptContext（独立 P3 静态片）
+
+- **范围**：将执行器中每个实际 reader-chain step 的外部尝试标记、游标 outcome、失败投影与读取观测，收归 `ActiveReadAttemptContext.record_chain_attempts()`。上下文只持有 per-run breaker/观测依赖；每一步都通过显式回调将新游标交还给调用方，不捕获旧 cursor/context。
+- **冻结契约**：逐步保持 `begin external → finish external → append outcome → observe → append failure` 顺序；诊断失败时，调用方游标已包含本次 outcome。Wigolo escalation signal 仍在所有 step 记录后产生，原有时钟采样次数不变。**不改** specialist/default chain 选择、调度、checkpoint 时点、预算结算、来源投影、证据提取或发布。
+- **边界**：`ActiveResearchRuntimeExecutor` 仍负责 ensure-active、每候选 checkpoint、预算、selected_sources、projection 和持久化；本片只归拢真实链步骤的审计/观测转移。
+- **测试**：新增独立纯单元测试覆盖双 backend 的标记/游标/失败/escalation 顺序，以及观测异常时游标先发布的负控；本地读取上下文与执行器影响集 **86 passed**。原精确 HEAD `728ce16e` 的 CI `44535451124` 五个作业全部通过，但主线随后前移，不将旧 CI 复用为重挂后提交的验收证据。
+- **基线**：`main@37dc889b`；独立分支 `codex/read-attempt-cursor-context-20261119`。本片不依赖仍在验收的 #533。
+- **重挂**：相同的运行时代码与测试重挂到 `main@57f0ad1e`；只合并此节交接文字与主线已有的 P1 空白答复、旧面板清理记录，保持和 #533 代码独立。重挂后须取得自己的精确 HEAD CI 与审阅验收，才能按顺序合并。
+
 ### 2026-11-19 P1 聊天空白终态防护（独立候选）
 
 - **真实历史样本与当前缺口分开归因**：`docs/research_quality/ANSWER_AB.md` 的
