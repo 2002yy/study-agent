@@ -20,6 +20,19 @@
   能力加载断言。没有更改在用实验室、路由/权限、运行配置或 E2E 注册；
   这是 P3 离线测试减负，不是体验改善结论，精确 PR CI 另行验收。
 
+### 2026-11-19 未挂载的旧回答检查器退役（独立 UI 减负片）
+
+- `frontend/src/features/route/RoutePanel.tsx` 的唯一组件调用方为自己的
+  `RoutePanel.test.tsx`；当前 App、路由及其它组件没有挂载该旧“回答检查器”。
+  2026-07 的界面设计文档已要求将展示职责收敛到 EvidenceTrail，不再独立
+  挂载旧面板；本片只删除从未呈现的遗留 UI，不重新设计现行诊断展示。
+- 将该组件与 6 项专属组件测试、仅用于它的 `.route-grid` 样式、
+  `AppBoundary` 中已无意义的禁用导入名称、CI 前端目录清单的 `route` 项
+  一并退役；保留 `ToolPanel` 使用的 `.metric-row`、EvidenceTrail、
+  正式后端 route 元数据与其现行安全/诊断测试。
+- 无专属 API、适配层或运行时配置；只跑静态离线门禁，精确 PR HEAD 的 CI
+  和审阅仍须单独通过，不能以本地删除结果宣称真实回答质量提升。
+
 ### 2026-11-19 读取计划的累计来源簇覆盖职责提取（独立 P3 静态片）
 
 - **范围**：从 `active_research_runtime.execute()` 的读取计划阶段提取 `merge_covered_clusters(context, selected_sources)` 至 `research_runtime_read_coverage.py`；执行器只传递当前持久化上下文与实际来源列表，覆盖合并及排序回写由读取覆盖模块负责。原 `ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY` 在执行器中继续可导入，持久化键值不变。
