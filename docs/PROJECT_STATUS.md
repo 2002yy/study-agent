@@ -31,6 +31,10 @@
   CI 与审阅是合并前的剩余门。后续最小产品验证仍应在用户授权的真实
   运行环境检查一次最终消息确实可见，并对历史真实失败任务做零费回放。
 
+### 2026-11-19 持久化上下文所有权与检查点顺序重新整合（重新验收候选）
+
+- 基于已合并 #510 的 `main@a63e9440` 和重新挂载的 #511，重新应用 #512。冲突点为检查点内的 `nonlocal context`，统一回绑 `live.state/live.context`，但保留 `ActiveRuntimeCheckpointContext.prepare_and_persist` 的准备、回绑、持久化顺序。该候选需独立精确 HEAD CI。
+
 ### 2026-11-19 游标单一持有与检查点整合（重新验收候选）
 
 - #510 已以精确 HEAD `36a377e4`、CI `44375838320` 成功验收并合入 `main@a63e9440`。#511 原 HEAD `3d361a39` 的 CI 已成功，但因主线推进产生冲突，基于当前 `main@a63e9440` 重新应用游标所有权变更；恢复与检查点的现有实现保持 #510 语义，重新验证精确 HEAD 后才允许合并。
@@ -40,6 +44,12 @@
 - 后续本地补强：检查点专项测试共用统一构造器，新增成功路径顺序负控，明确 `bind_prepared` 必须先于仓库 `checkpoint`；检查点、实时状态、波次结算和守卫专项集 **10 passed**，未触及生产代码。此补强仍属于未推送的同一候选，不能代替 L3 或远端 CI。
 - 基于上一状态单一持有候选 `e13960c8`，分支 `codex/research-cursor-context-20261119`。将主动执行器检查点内的 `prepare → finally 回绑状态/上下文 → persist` 提取为 `ActiveRuntimeCheckpointContext.prepare_and_persist`，明确准备异常后仍回绑已投影的内存值，同时禁止失败后继续持久化；执行器仍唯一持有实时状态、游标和持久化上下文，后两者不作双份镜像。
 - 专属负控冻结 Claim Engine 序列化异常时预算投影与游标上下文保留、仓库不写入；检查点、实时状态、波次结算、守卫与主动执行影响集 **93 passed**，Ruff、差异检查及 mypy 基线 **115/125（无新增）**通过。全量 L3 已启动但观察到首 1% 用时较长，为避免无界后台执行而中断，**尚未通过**；远端精确提交 CI 待验收。真实搜索、付费模型与动态比较 `not_run`，预算授权 `not_applicable`。属 P3 / static / orchestration-contract / engineering-only。下一片在主线整合后处理游标、持久化上下文的单一所有权，不在本片同时迁移。
+
+### 2026-11-19 持久化上下文单一持有（叠加候选，待验证）
+
+- 在游标单一持有候选之上，分支 `codex/research-context-single-owner-20261119` 将一次 `execute()` 的持久化 `research_context` 交由同一 `ActiveRuntimeLiveValues.context` 持有；不留与其并行的局部字典。Deep 预检、游标恢复、steering 刷新、规划、检索/读取、模型回调、证据整理和波次交接通过该持有者读取当前上下文。
+- **冻结契约**：检查点仍是 `prepare → finally 回绑 state/context → persist → 持久化 context 回读`；波次交接仍一次性回绑 state/cursor/context；模型尝试、预算结算、证据发布、Deep 预检和持久化结构均不增删动作。负控覆盖检查点/波次替换后回调读取最新字典、不同执行默认上下文隔离。本片属 P3 / static / orchestration-contract / engineering-only；动态模型与真实搜索 `not_run`，预算授权 `not_applicable`。
+- 此片依赖游标候选；检查点顺序独立 PR #510 尚未整合时，不在本片同时改变检查点实现。验证结果以本分支精确 HEAD 和后续 PR CI 为准。
 
 ### 2026-11-19 运行期游标单一持有（当前独立候选）
 

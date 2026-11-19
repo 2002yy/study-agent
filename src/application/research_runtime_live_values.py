@@ -5,14 +5,15 @@ steering and evidence projection may each produce a *new* ResearchState.
 The owner persists for the whole execution, so callbacks can read its current
 value after a recovery or checkpoint rebind instead of holding a stale state.
 
-State and cursor are replaceable values with a shared execution lifetime.
-Persisted context remains an executor local until its separate migration;
-never mirror that mutable dictionary into this owner.
+State, cursor and persisted context share an execution lifetime. Each can be
+replaced by checkpoint, recovery, steering or wave settlement; readers must
+resolve the latest value from this owner instead of capturing an old dict.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from src.web.research.contracts import ResearchState
 from src.web.research.runtime import ResearchRuntimeCursor
@@ -22,6 +23,7 @@ from src.web.research.runtime import ResearchRuntimeCursor
 class ActiveRuntimeLiveValues:
     state: ResearchState
     cursor: ResearchRuntimeCursor = field(default_factory=ResearchRuntimeCursor)
+    context: dict[str, Any] = field(default_factory=dict)
 
     def current_state(self) -> ResearchState:
         """Observe the latest state, including a checkpoint/recovery rebind."""
@@ -35,6 +37,11 @@ class ActiveRuntimeLiveValues:
 
     def set_cursor(self, cursor: ResearchRuntimeCursor) -> None:
         self.cursor = cursor
+
+    def current_context(self) -> dict[str, Any]:
+        """Observe the latest durable research context after a rebind."""
+
+        return self.context
 
     def hard_timeout_seconds(self) -> float:
         """Budget clock reads the same live state as model admission."""
