@@ -4,7 +4,27 @@
 >
 > **产品目标**：体验接近 ChatGPT 的通用聊天与研究 Agent，覆盖自然聊天、自主研究、持续交互、智能 UI、多模态和工具执行；教学是专业场景。**部署仍限可信环境的单用户**；多用户身份/数据/费用隔离未实现。
 
-## 0. Current Handoff（2026-11-19，冷启动）
+## 0. Current Handoff（2026-11-20，冷启动）
+
+### 2026-11-20 发现与深页定向诊断写入集中到实时上下文（独立 P3 静态片）
+
+- **范围**：新增 `ActiveDiscoveryDiagnosticsContext`，将执行器中分散的 lead-discovery 计数、deeper targeting 策略/页面意图/最近记录写入归为一个诊断所有者。上下文仅持有本次执行的 `ActiveRuntimeLiveValues`，每次写入都从 `current_context()` 读取最新持久化字典，绝不缓存可能被恢复/检查点替换的指标引用；执行器不再保留 `_lead_metrics`、`_bump_lead_metric`、`_record_deeper_targeting` 的另一套实现。
+- **冻结契约**：`metrics.lead_discovery` 各字段的计数、负增量不扣减，`metrics.deeper_targeting` 策略/意图计数、字段裁剪与最近 8 条保留完全不变；不改变模型/读取调用、额度、选源、定向策略、游标、持久化键、checkpoint 时点/顺序、证据发布与外部诊断。专门负控检查上下文替换、无 gap、策略计数及最近记录边界。
+- **静态验证**：新增三项诊断上下文负控均通过；主动研究执行器、深页定向、读取观测和检查点影响集 **116 passed**，全库 Ruff、编译、差异检查和 mypy **115/125、无新增**。本片只重定位诊断写入，并显式依附可替换的 live context，没有任何付费或在线验证。
+- **基线/边界**：独立 `codex/discovery-diagnostics-context-20261120` 分支基于 `main@45efaaff`，与仍在 CI 的 #544 视觉附着和 #545 读取测试场景去重无生产逻辑依赖。`priority=P3`、`loop=static`、`owner=diagnostics/discovery`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；无真实付费模型、外部搜索或产品动态比较。须在本地影响集、Ruff、mypy 基线通过后提交独立 PR，并以精确 PR HEAD CI 与审阅收口。
+
+### 2026-11-19 读取来源记录与视觉附着顺序收归显式上下文（独立 P3 静态片）
+
+- **范围**：新增 `ReadSourceEvidenceContext`，在读取投影成功/失败后统一执行 `upsert_selected_source(record)`；仅成功正文再读取声明式视觉证据，并把视觉单元附着到同一 `record`。该上下文持有结果缓冲区及视觉读取入口，调用时显式接收最新 `context`、`state` 和候选规范 URL，不捕获可被恢复/检查点替换的旧状态。
+- **冻结契约**：原有顺序“来源 upsert → 成功时尝试视觉读取并追加诊断 → 更新运行预算 → 记录读取历史 → checkpoint”不变。失败正文不触发视觉，视觉空结果不增加字段；视觉读取 helper 的异常隔离、视觉预算门和诊断记录位置不变，持久化键、调用次数、模型/检索策略及发布规则均不改变。新增纯单元负控检查上载前别名、失败/空结果、状态/上下文替换，以及原真实执行器视觉影响测试。
+- **证据**：新增三项纯单元负控并覆盖原真实执行器视觉影响集；来源投影、发布、读取额度与主动研究执行器合计 **105 passed**，全库 Ruff、编译、差异检查及 mypy **115/125、无新增**。均为静态离线验证，不将它们描述为真实模型或图像质量证据。
+- **依赖/交接**：本片以 `#542` 的来源 upsert 所有权为前置，在 `codex/read-source-visual-context-20261119` 单独分支开发；允许先以 #542 分支为临时 base 建立**仅含视觉附着差异**的堆叠 PR，待 #542 精确 CI 全绿并安全合入主线后，才将本片重挂到最新 `main` 并以更新后的精确 HEAD 单独验收。`priority=P3`、`loop=static`、`owner=evidence/visual-read`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；没有真实模型、付费视觉或外网读取。
+
+### 2026-11-20 无调用方手工熔断兼容入口退役（P3 静态减负）
+
+- 旧 `PerRunBreaker.mark_open()` 是向后兼容的人工“后端全域熔断”入口，其唯一仓内调用方为 `test_health_breaker.py` 中 3 项专属兼容测试；从无实际 reader/执行器/配置/CI 调用。Wigolo provider 的 `mark_circuit_open()` 也没有任何仓内调用者，内部 `_circuit_open` 初始为假且仅由该孤儿方法改写，故其 `fetch()` 分支不可达。
+- 成组删除两个手动熔断方法、Wigolo 不可达分支、breaker 的通配 host 回退/常量/旧转移标记，以及 3 项仅证明旧入口自身可用的测试；不添加替代兼容层。现行 `PerRunBreaker` 的每 `(backend, host)` 真实失败计数、关闭/打开/半开/冷却转换与 deadline 拒绝仍保留，后端预检与读取失败形态不变。
+- 为冻结运行诊断字段形状，仍保留 `retrieval_policy` / breaker snapshot 中原有 `legacy: false` 键（现行路径一直为 false）；不变更持久化 schema、预算、checkpoint、真实调用量或可见结果。没有与旧手工入口绑定的环境开关、配置或阶段门条目需要删除。`priority=P3`、`loop=static`、`owner=retrieval/health-breaker`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；候选须以其精确 HEAD CI 与审阅验收。
 
 ### 2026-11-19 来源记录写入收敛至结果缓冲区（独立 P3 静态片）
 
@@ -12,6 +32,12 @@
 - **状态与恢复契约**：`selected_sources` 仍只由 `ActiveResearchResultBuffers` 持有并被 checkpoint/publisher 共享；列表身份、原位置替换、新候选追加和记录本身的对象身份全部保留。特别冻结“来源先 upsert，视觉证据后附着到同一个 `record`”的顺序；后续附着的 `visual_units` 必须能从该列表读取。没有引入副本、第二持有者、新的持久化键、额外 checkpoint 或模型/读取调用。
 - **验证与边界**：新增结果缓冲区回归，验证同候选替换顺序、列表/记录别名、视觉挂载后可见性；已有 Deep 材料化、证据投影、发布、波次结算与研究执行完整影响集 **120 passed**；Ruff、差异检查和 mypy **115/125、无新增**通过。分支 `codex/research-source-write-owner-20261119`，基线 `main@a1875ee1`；`priority=P3`、`loop=static`、`owner=evidence/source-records`，`dynamic_evidence=not_run`、`budget_authorization=not_applicable`。不修改来源读取内容、证据评分、最终发布规则或昂贵的真实模型/搜索链路。仍须以精确 PR HEAD CI 和审阅独立验收。
 - **后续最小片**：再拆分读取成功后的视觉单元附着与其诊断，保持来源写入完成后才调用视觉读取，并保留视觉失败不影响成功正文的语义。
+
+### 2026-11-19 读取选择器与视觉读点测试场景去重（独立 P3 静态片）
+
+- **范围**：`test_read_site_selector.py` 和 `test_read_site_visual_evidence.py` 原先各自通过 `importlib` 动态加载同一大型执行器测试模块，重复创建相同的 SQLite 运行、结构化假模型、短文读取网关和升级后端。新增 `tests/research_read_site_scenarios.py` 中的 `run_read_site_scenario()`，共用一次模块导入及完全相同的离线执行构造；各测试仍独立设置 hint/vision 开关、上下文和 SQLite 文件并保留原断言。
+- **冻结契约**：只重构测试搭建，不改研究运行时、模型、读取路由、视觉预算、持久化、检查点、证据发布或外部调用。原 selector + visual 测试按原名收集 **20 项**；连同完整主动研究执行器影响集 **104 passed**。全库 Ruff、编译和差异检查通过；没有付费模型、真实搜索/视觉或动态比较。本片 `priority=P3`、`loop=static`、`owner=tests/read-site`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+- **基线与收口**：最初基于 `main@34edd8a4` 的独立 `codex/read-site-test-scenario-20261119` 分支；#542 合并后整合到 `main@45efaaff`，仅交接顶部并列新增节出现文本冲突，保留两节内容。与仍在验收的视觉上下文 #544 没有生产代码依赖。新精确 PR HEAD 的 CI 和审阅须独立验收；不能拿旧 CI 或本地静态回归替代。
 
 ### 2026-11-19 移动端与输入框历史 CSS 字符串测试退役（P3 静态减负）
 

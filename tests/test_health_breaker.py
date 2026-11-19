@@ -19,7 +19,6 @@ from src.web.research.health_breaker import (
     STATE_COOLDOWN,
     STATE_HALF_OPEN,
     STATE_OPEN,
-    WILDCARD_HOST,
     PerRunBreaker,
     breaker_policy_from_env,
     deadline_preflight,
@@ -308,39 +307,6 @@ def test_a_different_host_for_the_same_backend_is_unaffected() -> None:
 def test_health_keys_are_case_normalised() -> None:
     assert host_of("HTTPS://Example.COM/path?q=1") == "example.com"
     assert host_of("") == ""
-
-
-# ------------------------------------------------------ legacy compatibility shell
-
-
-def test_legacy_mark_open_uses_the_same_authority() -> None:
-    """No second breaker state: the host-less mark lands in the same model."""
-
-    breaker, _clock = _breaker(threshold=3)
-    decision = breaker.mark_open(backend=NATIVE_HTTP_BACKEND)
-    assert decision.legacy is True
-    assert decision.health_key == f"{NATIVE_HTTP_BACKEND}::{WILDCARD_HOST}"
-    # It refuses through the model, and it is visible as legacy.
-    refused = breaker.allow(backend=NATIVE_HTTP_BACKEND, host="any.example")
-    assert refused.allowed is False
-    assert refused.skip_reason == SKIP_REASON_CIRCUIT_OPEN
-    assert refused.legacy is True
-
-
-def test_legacy_mark_with_a_host_stays_specific() -> None:
-    breaker, _clock = _breaker(threshold=3)
-    breaker.mark_open(backend=NATIVE_HTTP_BACKEND, host="only.example", legacy=False)
-    assert breaker.allow(backend=NATIVE_HTTP_BACKEND, host="only.example").allowed is False
-    assert breaker.allow(backend=NATIVE_HTTP_BACKEND, host="other.example").allowed is True
-
-
-def test_legacy_mark_expires_into_half_open() -> None:
-    breaker, clock = _breaker(threshold=3, open_seconds=10.0)
-    breaker.mark_open(backend=NATIVE_HTTP_BACKEND)
-    clock.advance(10.0)
-    decision = breaker.allow(backend=NATIVE_HTTP_BACKEND, host="any.example")
-    assert decision.allowed is True
-    assert decision.is_probe is True
 
 
 # --------------------------------------------------------------------- snapshot
