@@ -106,10 +106,6 @@ class CompactAssessmentGainSignalCodeError(CompactAssessmentCodeError):
     """Compact gain-signal code is unknown or malformed."""
 
 
-class CompactAssessmentGainSignalDuplicateError(CompactAssessmentCodeError):
-    """Legacy subtype retained for compatibility with older diagnostics."""
-
-
 @dataclass(frozen=True)
 class CandidateAssessmentRequest:
     schema_version: str
@@ -397,7 +393,6 @@ __all__ = [
     "CompactAssessmentCodeError",
     "CompactAssessmentDomainError",
     "CompactAssessmentGainSignalCodeError",
-    "CompactAssessmentGainSignalDuplicateError",
     "CompactAssessmentRelevanceCodeError",
     "CompactAssessmentSourceRoleCodeError",
     "CompactAssessmentEnvelopeError",
