@@ -48,7 +48,6 @@ describe("App shell boundary", () => {
       "StatusDot",
       "MemoryPanel",
       "SourcesPanel",
-      "RoutePanel",
       "SessionsPanel",
       "ToolPanel",
       "WechatPanel",
