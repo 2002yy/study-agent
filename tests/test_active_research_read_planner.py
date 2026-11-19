@@ -12,6 +12,7 @@ from src.application.active_research_runtime import (
     _bounded_assessment_candidates,
     _fair_read_plan,
 )
+from src.application.research_runtime_read_plan_context import FairReadPlanContext
 from src.web.research.candidate_assessment import CandidateSemanticAssessment
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.candidate_ranking import RankedCandidate
@@ -102,6 +103,36 @@ def _two_claim_state() -> ResearchState:
         reference_date="2026-08-28",
         known_evidence_ids=(),
     )
+
+
+def test_each_read_plan_owns_fresh_bindings_without_mutating_prior_coverage() -> None:
+    state = _two_claim_state()
+    rankings = {
+        "claim_A": (
+            _ranked("old", "cluster_old", 1),
+            _ranked("fresh", "cluster_fresh", 2),
+        )
+    }
+    durable_coverage = {"claim_A": {"cluster_old"}}
+    first = FairReadPlanContext(
+        state=state,
+        rankings=rankings,
+        covered_cluster_ids_by_claim=durable_coverage,
+    )
+    first_plan = first.build(state.claims)
+    second = FairReadPlanContext(
+        state=state,
+        rankings=rankings,
+        covered_cluster_ids_by_claim=durable_coverage,
+    )
+    second_plan = second.build(state.claims)
+
+    assert first_plan == second_plan
+    assert [record["candidate_id"] for record in first_plan[0]] == ["fresh"]
+    assert durable_coverage == {"claim_A": {"cluster_old"}}
+    assert first.claim_clusters["claim_A"] == {"cluster_old", "cluster_fresh"}
+    assert first.physical is not second.physical
+    assert first.targets is not second.targets
 
 
 def test_assessment_window_is_read_bounded_and_cluster_diverse() -> None:

@@ -6,6 +6,14 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 公平读取规划共享状态收归上下文（独立 P3 静态片）
+
+- **范围**：将 `_fair_read_plan()` 内约 210 行的读槽/claim 绑定/来源簇/冲突预留排程逻辑收进 `research_runtime_read_plan_context.FairReadPlanContext`；原函数仅保留调用接口与确定性 claim 顺序。两个原本隐式捕获外围可变集合的内部函数改为上下文方法；每个波次创建新实例，历史簇映射先复制，禁止回写调用方持有的簇集合。
+- **冻结契约**：一份候选物理读取一次、多个 claim 可绑定各自提取目标；历史簇不可重复耗读槽；critical→major→conflict 排程和无冲突时预留返还、硬读额度及现有 trace/diagnostics 调用顺序不变。**不改**检查点时点/顺序、预算结算、模型次数、恢复游标/持久化字段、证据整理和发布。
+- **静态证据**：改动前纯读取规划/冲突预留/调度 **16 passed**；改动后新增状态隔离负控，纯调度 **17 passed**、完整主动执行影响模块 **84 passed**、其余读取/恢复/检查点/模型尝试/预算相关模块 **96 passed**，均为当前候选树，组合 **180 passed**。Ruff、差异检查及 mypy 基线 **115/125、无新增**。一次过宽组合测试因环境明显变慢而中断，后拆成等价的不重复模块集逐项通过；不宣称本地 L3 全量测试完成。
+- **基线/下一步**：`main@9fa4e3f6`（包含已合并 #527/#529 和其他窗口 #526/#528），分支 `codex/research-fair-read-plan-context-20261119`。#528 只改前端迁移面板、样式、CI 分类及主线交接，研究代码无冲突；该主线的内容已经保留。本片 `priority=P3`，`loop=static`，`owner=retrieval/read-planning`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`；未运行付费模型、真实搜索或动态产品比较。完成干净提交与独立 PR 后须以该精确 HEAD CI 和审阅收口，不借用之前主线 CI。
+- **主线重整合**：#533 旧 HEAD `dbc757cd` 的 CI `44533206436` 已全部通过，但随后主线新增 #516/#520 等独立变更，导致交接文档冲突。仅将本片运行时代码、独立测试及此节交接增量重挂到 `main@57f0ad1e`，保留主线其他交接及 P1 空白终态防护。重挂后的精确 PR HEAD 必须重新取得 CI 全绿、无阻断审阅和可合并结果后才能合并；旧 CI 不可复用。
+
 ### 2026-11-19 读取链逐步账本转移归入 ActiveReadAttemptContext（独立 P3 静态片）
 
 - **范围**：将执行器中每个实际 reader-chain step 的外部尝试标记、游标 outcome、失败投影与读取观测，收归 `ActiveReadAttemptContext.record_chain_attempts()`。上下文只持有 per-run breaker/观测依赖；每一步都通过显式回调将新游标交还给调用方，不捕获旧 cursor/context。
@@ -14,6 +22,13 @@
 - **测试**：新增独立纯单元测试覆盖双 backend 的标记/游标/失败/escalation 顺序，以及观测异常时游标先发布的负控；本地读取上下文与执行器影响集 **86 passed**。原精确 HEAD `728ce16e` 的 CI `44535451124` 五个作业全部通过，但主线随后前移，不将旧 CI 复用为重挂后提交的验收证据。
 - **基线**：`main@37dc889b`；独立分支 `codex/read-attempt-cursor-context-20261119`。本片不依赖仍在验收的 #533。
 - **重挂**：相同的运行时代码与测试重挂到 `main@57f0ad1e`；只合并此节交接文字与主线已有的 P1 空白答复、旧面板清理记录，保持和 #533 代码独立。重挂后须取得自己的精确 HEAD CI 与审阅验收，才能按顺序合并。
+
+
+### 2026-11-19 伪量化 Golden Journey 预算测试退役（P3 测试减负）
+
+- `frontend/src/product-flow/goldenJourneyAudit.ts` 仅供测试使用，没有运行时消费者。其中“产品界面数量”“恢复前决策次数”等并非读取组件或浏览器实际状态，而是在测试里赋固定整数后与同模块中的固定预算比较；末尾测试甚至只检查这些静态预算常量本身，不能证明交互摩擦达标。
+- 整体删除此伪量化测试配置和自证式预算测试，并同步清除 `githubEvidenceBoundary.test.ts` 对其中文描述常量的存在性断言。保留 `goldenJourneys.test.tsx` 的五个真实组件场景、文案与无内部术语检查；首次提问直接断言零下拉配置项，研究恢复直接断言唯一操作按钮。当前代码的行为检查因此仍然可执行，不再汇报虚假的产品预算合格。
+- 不改变组件、路由、会话、模型、检索、持久化和预算逻辑。定向 Vitest **4 files / 12 tests passed**（`goldenJourneys`、`githubEvidenceBoundary`、`ChatPanelBoundary`、`FireflyLessonBoundary`），`npm run build` 通过，`git diff --check` 通过；远端 CI 待核。分类为 `priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 
 ### 2026-11-19 P1 聊天空白终态防护（独立候选）
 
@@ -67,6 +82,19 @@
 - 无专属 API、适配层或运行时配置；只跑静态离线门禁，精确 PR HEAD 的 CI
   和审阅仍须单独通过，不能以本地删除结果宣称真实回答质量提升。
 
+### GitHub PR 历史静态回放评估链退役（2026-11-19，独立减负片）
+
+- `record_github_replay.py` / `evaluate_github_replay.py`、三份专属
+  `github_pr_review_{recording,replay,evaluation}` 模块及其专项测试，
+  只在彼此之间调用；正式 API、`studyctl`、现行 CI/阶段门、前端均不依赖。
+  17 份已录制的 PR 上下文及配套 manifest 仅被这条手工回放测试链读取。
+- 此回放统计的是**固定 JSON 快照**的符号映射/CI 关联精确率，
+  并不重新执行当前审查实现，历史分数不应被当成当前产品的回归门禁。
+  本片连同静态测试数据整体退役，不另立兼容入口；归档报告仍可供历史核对。
+- **保留** `GitHubPRReviewContextService`、GitHub Provider 分页和现行
+  `test_github_pr_review_context*` / `test_github_provider_pagination.py`，
+  真实 API 审查、固定 SHA、预算边界与缓存行为不变；不发起外部 GitHub 请求。
+
 ### 2026-11-19 读取计划的累计来源簇覆盖职责提取（独立 P3 静态片）
 
 - **范围**：从 `active_research_runtime.execute()` 的读取计划阶段提取 `merge_covered_clusters(context, selected_sources)` 至 `research_runtime_read_coverage.py`；执行器只传递当前持久化上下文与实际来源列表，覆盖合并及排序回写由读取覆盖模块负责。原 `ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY` 在执行器中继续可导入，持久化键值不变。
@@ -88,6 +116,12 @@
   后续连同这项死配置一并删除，保留前端目录清单的完整性校验，不放宽门禁。
   本批不改应用布局、真实聊天/研究功能、迁移机制或运行时配置；新候选
   必须重新取得精确 HEAD CI 成功。历史设计文档继续保留归档。
+
+### 2026-11-19 历史会话导航适配壳退役（独立 P3 静态片）
+
+- 已核实 `WorkspaceView` 的侧栏与抽屉均直接挂载 `SessionNavigator`，不再引用 `SessionsPanel` / `SessionSidebar`；组件、生产入口、E2E、注册表都没有其它调用。两只旧壳只被自己的源码结构测试和重导出测试维持。
+- 一并删除两个兼容包装、只验证包装存在的 `SessionNavigatorBoundary.test.ts`、`SessionsPanel.test.ts` 和 `AppBoundary` 对旧类名的禁用断言；原 `sessionIdFromRow` 三种解析场景迁入正式 `sessionNavigation.test.ts`，继续保护实际导航使用的解析函数。保留 `SessionNavigator` 两种展示模式及其真实交互测试、所有在用会话 API 和共用样式。
+- 本批只减少过时兼容与重复测试，不改变数据格式、恢复、模型、预算和显示逻辑；定向导航/App 边界 **13 passed**，生产 TypeScript/Vite 构建通过；默认高并发全量 Vitest 曾受资源争用影响，出现 2 个超时与 worker 启动错误，限制为 `--maxWorkers=2` 后完整前端 **126 files / 740 passed**。`git diff --check` 通过；仓库 Ruff 由精确 PR CI 再验。`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 
 ### P1 SSE 终态正文与界面一致性（2026-11-19，独立静态片）
 

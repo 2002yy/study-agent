@@ -14,7 +14,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from functools import partial
-from math import ceil, isfinite
+from math import isfinite
 import re
 import sys
 import time
@@ -139,12 +139,9 @@ from src.web.research.runtime import (
     recover_interrupted_model_attempt,
 )
 from src.web.research.scheduler import (
-    ReadSchedulerPolicy,
     ReadSchedulingCancelled,
     _restore_completed_read_targets as _restore_completed_read_targets,
-    is_schedulable_candidate,
     is_schedulable_lead,
-    plan_read_wave,
 )
 from src.web.research.llm_proposal import (
     DISCOVERY_METHOD_LLM_PROPOSED,
@@ -262,6 +259,7 @@ from src.application.research_runtime_failure_projection import (
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
 from src.application.research_runtime_read_execution import ActiveReadExecutionContext
+from src.application.research_runtime_read_plan_context import FairReadPlanContext
 from src.application.research_runtime_read_coverage import (
     ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY as ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY,
     merge_covered_clusters,
@@ -4488,209 +4486,19 @@ def _fair_read_plan(
     trace: SelectionTraceCollector | None = None,
     diagnostics: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """Return ``(physical_reads, extraction_targets)`` for the read stage.
+    """Preserve fair-read planning behind a per-plan mutable state owner.
 
-    B5-H3: deduplicate reads, not claim-evidence bindings. Physical reads are
-    unique per candidate and bounded by the shared read budget; extraction
-    targets bind ``(candidate_id, claim_id)`` pairs so one physical read can
-    serve evidence extraction for multiple claims. Read-budget exhaustion
-    never blocks binding an already-planned candidate to another claim: the
-    budget only limits new physical candidates, not extraction-only reuse.
-
-    §41 Read Reserve Reclaim: the conflict reserve exists to protect conflict
-    resolution. When no conflict gap is open, the unused reserve returns to
-    ordinary scheduling **within the existing hard read budget** - the hard
-    cap (``max_reads - reads_used``) and every ranking/eligibility rule stay
-    exactly as they were. With an open conflict the behaviour is unchanged.
+    Physical reads spend the shared budget once per candidate; extraction
+    targets retain every eligible (candidate, claim) binding, with conflict
+    reserve reclaimed only when no conflict is open.
     """
-    claims = {claim.id: claim for claim in state.claims}
-    physical: list[dict[str, str]] = []
-    targets: list[dict[str, str]] = []
-    physical_ids: set[str] = set()
-    target_pairs: set[tuple[str, str]] = set()
-    # H8: cluster diversity must span every wave of a claim, including
-    # selections already bound through reusable candidates, so the fresh
-    # acceptance loop skips clusters this claim already covers.
-    claim_clusters: dict[str, set[str]] = {
-        claim_id: set(cluster_ids)
-        for claim_id, cluster_ids in (covered_cluster_ids_by_claim or {}).items()
-    }
-    open_conflict_claim_ids = {
-        conflict.claim_id
-        for conflict in state.conflict_gaps
-        if conflict.state in {"open", "searching"}
-    }
-    reserve = ceil(state.budget.max_reads / 3)
-    if open_conflict_claim_ids:
-        reclaimed = 0
-        reclaim_reason = "open_conflicts_present"
-    else:
-        reclaimed = reserve
-        reclaim_reason = "no_open_conflicts"
-    normal_limit = max(
-        0,
-        state.budget.max_reads - state.budget.reads_used - reserve + reclaimed,
-    )
-    if diagnostics is not None:
-        diagnostics["read_reserve"] = {
-            "configured": reserve,
-            "reclaimed": reclaimed,
-            "reclaim_reason": reclaim_reason,
-            "hard_cap": state.budget.max_reads,
-            "reads_used": state.budget.reads_used,
-        }
-
-    def _bind(candidate_id: str, claim_id: str, item: RankedCandidate) -> None:
-        pair = (candidate_id, claim_id)
-        if pair in target_pairs:
-            return
-        target_pairs.add(pair)
-        claim_clusters.setdefault(claim_id, set()).add(item.assessment.cluster_id)
-        targets.append(
-            {
-                "candidate_id": candidate_id,
-                "claim_id": claim_id,
-                "cluster_id": item.assessment.cluster_id,
-                "source_role": item.assessment.source_role,
-            }
-        )
-
-    def schedule(claim_ids: list[str], wave_size: int, *, allow_reserve: bool = False) -> None:
-        for claim_id in claim_ids:
-            ranked = tuple(
-                item
-                for item in rankings.get(claim_id, ())
-                if (item.candidate.id, claim_id) not in target_pairs
-            )
-            if not ranked:
-                continue
-            # Reusable candidates must obey the same scheduler eligibility
-            # predicate as fresh ones (H9): lead_only candidates without a
-            # provenance-grade gain signal are never schedulable, even when
-            # their physical read already exists.
-            reusable = tuple(
-                item
-                for item in ranked
-                if item.candidate.id in physical_ids and is_schedulable_candidate(item)
-            )
-            # Remove clusters covered by a prior successful wave before the
-            # bounded scheduler truncates the claim's wave. Otherwise a major
-            # claim (wave size 1) can select covered Q(X), discard it later,
-            # and lose the independent backfill R(Y) entirely.
-            covered_clusters = claim_clusters.get(claim_id, set())
-            fresh = tuple(
-                item
-                for item in ranked
-                if item.candidate.id not in physical_ids
-                and item.assessment.cluster_id not in covered_clusters
-            )
-            remaining = state.budget.max_reads - state.budget.reads_used - len(physical)
-            budget_open = remaining > 0 and (allow_reserve or len(physical) < normal_limit)
-            if trace is not None:
-                fresh_ids = {item.candidate.id for item in fresh}
-                for item in ranked:
-                    if item.candidate.id in physical_ids or item.candidate.id in fresh_ids:
-                        continue
-                    # Observed exclusion: the claim's cluster coverage already
-                    # contains this candidate's cluster before scheduling.
-                    trace.note_scheduler(
-                        item.candidate.canonical_url,
-                        decision="rejected",
-                        reason="covered_cluster",
-                    )
-                    trace.note_scheduler_rejected(
-                        item.candidate.canonical_url, stage="covered_cluster"
-                    )
-                if not budget_open:
-                    for item in fresh:
-                        trace.note_scheduler_rejected(
-                            item.candidate.canonical_url, stage="budget"
-                        )
-
-            conflict_open = claim_id in open_conflict_claim_ids or any(
-                "new_contradiction" in item.assessment.expected_gain_signals
-                for item in ranked
-            )
-            policy = ReadSchedulerPolicy(
-                critical_wave_size=wave_size,
-                major_wave_size=wave_size,
-                context_wave_size=0,
-            )
-            fresh_selected: list[str] = []
-            by_id: dict[str, RankedCandidate] = {}
-            if budget_open and fresh:
-                budget = replace(state.budget, reads_used=state.budget.reads_used + len(physical))
-                plan = plan_read_wave(
-                    fresh,
-                    claim=claims[claim_id],
-                    budget=budget,
-                    policy=policy,
-                    conflict_open=conflict_open,
-                    # §41: the reserve is only held when a conflict gap is
-                    # actually open; otherwise ordinary scheduling reclaims it
-                    # within the same hard read budget.
-                    preserve_conflict_reserve=(
-                        not allow_reserve and bool(open_conflict_claim_ids)
-                    ),
-                )
-                by_id = {item.candidate.id: item for item in fresh}
-                fresh_selected = [
-                    candidate_id
-                    for candidate_id in plan.selected_candidate_ids
-                    if candidate_id in by_id
-                ]
-
-            # Reusable bindings first (rank order, cluster-diverse within the
-            # claim across waves); remaining wave slots go to new physical
-            # reads, skipping clusters this claim already covers (H8) without
-            # wasting slots on the skipped entries.
-            slots = wave_size
-            for item in reusable:
-                if slots <= 0:
-                    break
-                if item.assessment.cluster_id in claim_clusters.get(claim_id, set()):
-                    continue
-                _bind(item.candidate.id, claim_id, item)
-                slots -= 1
-            for candidate_id in fresh_selected:
-                if slots <= 0:
-                    break
-                item = by_id[candidate_id]
-                if item.assessment.cluster_id in claim_clusters.get(claim_id, set()):
-                    continue
-                _bind(candidate_id, claim_id, item)
-                if candidate_id not in physical_ids:
-                    physical_ids.add(candidate_id)
-                    physical.append(
-                        {
-                            "candidate_id": candidate_id,
-                            "claim_id": claim_id,
-                            "cluster_id": item.assessment.cluster_id,
-                            "source_role": item.assessment.source_role,
-                        }
-                    )
-                slots -= 1
-
-    critical = [claim.id for claim in _ordered_claims(state) if claim.priority == "critical"]
-    major = [claim.id for claim in _ordered_claims(state) if claim.priority == "major"]
-    schedule(critical, 1)
-    schedule(critical, 2)
-    schedule(major, 1)
-    conflict_claims = [
-        claim.id
-        for claim in _ordered_claims(state)
-        if claim.priority != "context"
-        and (
-            claim.id in open_conflict_claim_ids
-            or any(
-                "new_contradiction" in item.assessment.expected_gain_signals
-                for item in rankings.get(claim.id, ())
-            )
-        )
-    ]
-    schedule(conflict_claims, reserve, allow_reserve=True)
-    read_cap = max(0, state.budget.max_reads - state.budget.reads_used)
-    return physical[:read_cap], targets
+    return FairReadPlanContext(
+        state=state,
+        rankings=rankings,
+        covered_cluster_ids_by_claim=covered_cluster_ids_by_claim,
+        trace=trace,
+        diagnostics=diagnostics,
+    ).build(_ordered_claims(state))
 
 
 def _claim_lacks_primary_evidence(

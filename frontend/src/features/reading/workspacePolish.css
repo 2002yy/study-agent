@@ -54,7 +54,7 @@
 .reading-layout .message.user > .avatar, .reading-layout .message.user > .message-header { display: none; }
 .reading-layout .message.user .message-body { padding: 0; background: transparent; }
 .reading-layout .message.user .message-bubble { border: 0; border-radius: 18px; background: #f3f3f3; padding: 12px 18px; }
-.reading-layout .markdown-message { font-size: 17px; line-height: 1.85; overflow-wrap: anywhere; }
+.reading-layout .markdown-message { font-family: var(--font-reading); font-size: 17px; line-height: 1.85; overflow-wrap: anywhere; }
 .reading-layout .markdown-message :is(h1,h2,h3) { font-family: var(--font-reading); letter-spacing: -.02em; }
 .reading-layout .markdown-message blockquote { background: #f7f7f7; border-left-color: #b7b7b7; }
 .reading-layout .message-body > .evidence-trail { margin-top: 12px; border-top: 0; }

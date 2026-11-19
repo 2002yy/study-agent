@@ -1,5 +1,8 @@
 .app-shell[data-typography="sans"] { --font-display: var(--font-interface); }
 .app-shell[data-typography="serif"] { --font-reading: var(--font-display); }
+.app-shell[data-typography="kaiti"] { --font-display: "KaiTi", "Kaiti SC", "STKaiti", "DFKai-SB", "Noto Serif CJK SC", serif; --font-reading: var(--font-display); }
+.app-shell[data-typography="fangsong"] { --font-display: "FangSong", "STFangsong", "FangSong_GB2312", "Noto Serif SC", serif; --font-reading: var(--font-display); }
+.app-shell[data-typography="mono"] { --font-display: "Sarasa Mono SC", "Noto Sans Mono CJK SC", "Consolas", "Microsoft YaHei", monospace; --font-reading: var(--font-display); }
 .document-paper { font-family: var(--font-reading); }
 .reading-layout .message-copy-button { width: auto; justify-self: start; display: inline-flex; border: 0; background: transparent; color: var(--muted); }
 .reading-layout .message-copy-button:hover { background: var(--surface-strong); color: var(--accent); }
