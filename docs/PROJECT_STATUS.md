@@ -6,11 +6,14 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
-### 2026-11-19 旧答案实验室独立预览退役（P3 静态减负）
+### 2026-11-19 公平读取规划共享状态收归上下文（独立 P3 静态片）
 
-- 删除仅在 `frontend/answer-labs.html` 自身挂载、且仅于 DEV 环境运行的 `AnswerLabsPreview.tsx` 与专属 `answerLabsPreview.css`；项目正式首页、现行 Playwright 用例、生产 Vite 构建入口均不调用此预览。
-- 当前 `frontend/e2e/answer-labs.spec.ts` 通过固定 `study-ui` 卡片直接在聊天工作区验证交互、用户草稿与窄屏布局。保留真实使用的 `AnswerLabs.tsx`、`AnswerCardView.tsx`、单元测试、这条浏览器测试和 CI scope 的有效映射，不削弱验证强度。更新交互设计说明，不再误报可访问旧预览 URL。
-- 本片无后台 API、持久化/恢复、检索、模型、预算及数据格式变化。现行交互卡/协议定向测试 **3 files / 24 passed**，TypeScript/Vite 生产构建通过，源码引用清理和 `git diff --check` 通过；浏览器 E2E 未本地运行，精确 PR HEAD CI 待验。`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+- **范围**：将 `_fair_read_plan()` 内约 210 行的读槽/claim 绑定/来源簇/冲突预留排程逻辑收进 `research_runtime_read_plan_context.FairReadPlanContext`；原函数仅保留调用接口与确定性 claim 顺序。两个原本隐式捕获外围可变集合的内部函数改为上下文方法；每个波次创建新实例，历史簇映射先复制，禁止回写调用方持有的簇集合。
+- **冻结契约**：一份候选物理读取一次、多个 claim 可绑定各自提取目标；历史簇不可重复耗读槽；critical→major→conflict 排程和无冲突时预留返还、硬读额度及现有 trace/diagnostics 调用顺序不变。**不改**检查点时点/顺序、预算结算、模型次数、恢复游标/持久化字段、证据整理和发布。
+- **静态证据**：改动前纯读取规划/冲突预留/调度 **16 passed**；改动后新增状态隔离负控，纯调度 **17 passed**、完整主动执行影响模块 **84 passed**、其余读取/恢复/检查点/模型尝试/预算相关模块 **96 passed**，均为当前候选树，组合 **180 passed**。Ruff、差异检查及 mypy 基线 **115/125、无新增**。一次过宽组合测试因环境明显变慢而中断，后拆成等价的不重复模块集逐项通过；不宣称本地 L3 全量测试完成。
+- **基线/下一步**：`main@9fa4e3f6`（包含已合并 #527/#529 和其他窗口 #526/#528），分支 `codex/research-fair-read-plan-context-20261119`。#528 只改前端迁移面板、样式、CI 分类及主线交接，研究代码无冲突；该主线的内容已经保留。本片 `priority=P3`，`loop=static`，`owner=retrieval/read-planning`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`；未运行付费模型、真实搜索或动态产品比较。完成干净提交与独立 PR 后须以该精确 HEAD CI 和审阅收口，不借用之前主线 CI。
+- **主线重整合**：#533 旧 HEAD `dbc757cd` 的 CI `44533206436` 已全部通过，但随后主线新增 #516/#520 等独立变更，导致交接文档冲突。仅将本片运行时代码、独立测试及此节交接增量重挂到 `main@57f0ad1e`，保留主线其他交接及 P1 空白终态防护。重挂后的精确 PR HEAD 必须重新取得 CI 全绿、无阻断审阅和可合并结果后才能合并；旧 CI 不可复用。
+
 
 ### 2026-11-19 伪量化 Golden Journey 预算测试退役（P3 测试减负）
 
@@ -49,12 +52,6 @@
   `main@3d048553f6c16305677a55aa95fb49d49d0c3541`；精确 PR-head
   CI 与审阅是合并前的剩余门。后续最小产品验证仍应在用户授权的真实
   运行环境检查一次最终消息确实可见，并对历史真实失败任务做零费回放。
-
-### 2026-11-19 阅读字体扩充（独立前端片）
-
-- 保留原有黑体/宋体的三个排版预设、`study-agent:typography:v1` 持久键和本机即时切换；新增楷体、仿宋、等宽阅读三项。字形优先采用系统已安装字体，缺失时自动回退，不增加远程 CDN、字体包、后端设置或用户数据格式。
-- `--font-reading` 同时用于资料页与聊天 Markdown 正文，设置/按钮等操作界面继续使用黑体；排版预览与实际标题/正文使用同一组变量。前端定向影响集 **26 passed**、TypeScript/Vite 生产构建通过；因浏览器无法访问此执行环境的本地预览端口，实际页面截图及移动端视觉验证 **not_run**，不冒充视觉验收。
-- 这是 P3 / static / UI / engineering-only 的可回滚单片，模型、搜索、付费调用和动态产品效果 `not_run`。合并前仍须验收 PR 精确 HEAD 的 CI 与审阅状态。
 
 ### 2026-11-19 实验室入口重复源码断言收敛（独立测试减负片）
 
@@ -117,6 +114,12 @@
   后续连同这项死配置一并删除，保留前端目录清单的完整性校验，不放宽门禁。
   本批不改应用布局、真实聊天/研究功能、迁移机制或运行时配置；新候选
   必须重新取得精确 HEAD CI 成功。历史设计文档继续保留归档。
+
+### 2026-11-19 历史会话导航适配壳退役（独立 P3 静态片）
+
+- 已核实 `WorkspaceView` 的侧栏与抽屉均直接挂载 `SessionNavigator`，不再引用 `SessionsPanel` / `SessionSidebar`；组件、生产入口、E2E、注册表都没有其它调用。两只旧壳只被自己的源码结构测试和重导出测试维持。
+- 一并删除两个兼容包装、只验证包装存在的 `SessionNavigatorBoundary.test.ts`、`SessionsPanel.test.ts` 和 `AppBoundary` 对旧类名的禁用断言；原 `sessionIdFromRow` 三种解析场景迁入正式 `sessionNavigation.test.ts`，继续保护实际导航使用的解析函数。保留 `SessionNavigator` 两种展示模式及其真实交互测试、所有在用会话 API 和共用样式。
+- 本批只减少过时兼容与重复测试，不改变数据格式、恢复、模型、预算和显示逻辑；定向导航/App 边界 **13 passed**，生产 TypeScript/Vite 构建通过；默认高并发全量 Vitest 曾受资源争用影响，出现 2 个超时与 worker 启动错误，限制为 `--maxWorkers=2` 后完整前端 **126 files / 740 passed**。`git diff --check` 通过；仓库 Ruff 由精确 PR CI 再验。`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 
 ### P1 SSE 终态正文与界面一致性（2026-11-19，独立静态片）
 
@@ -296,27 +299,6 @@
 - 将 `SelectionTraceCollector` 的历史指标恢复、运行期状态持有和指标刷新交给 `research_selection_observability.ResearchSelectionTraceContext`；执行器只在原有位置初始化一次，并在原波次位置调用 `flush(live.context)`。原 `_flush_selection_trace` 私有包装与仅依赖它的测试调用一起删除，测试转为验证新上下文。**不改**选源排序/过滤、trace 字段、指标键、保留上限、恢复游标、模型预算、检查点或发布契约。
 - 新负控验证恢复后指标回读、检查点回绑新 context 后的写回、旧映射不被改写、损坏指标与空追踪时无副作用。本地同树选源/执行/读取观测/恢复/检查点/预算组合影响集 **154 passed**，专项测试及 Ruff、差异检查、mypy **115/125（无新增）**通过。基于 `main@964a52cd` 的独立分支 `codex/research-selection-trace-context-20261119`，与待验收 #527 无代码依赖。`priority=P3`，`loop=static`，`owner=observability`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`，未进行付费模型、搜索或动态对比。
 - **下一执行片**：单独推送本批 PR，精确 HEAD CI、审阅和主线无冲突后才能合并；#527 仍须以自己的精确提交 CI 收口。
-
-### 开发缺口跟踪与首个可交付试点（2026-11-19）
-
-本表是本次讨论的**待验证假设**，并非已观测到的生产缺陷或另一份产品路线图。遵循 `PRODUCT_ITERATION_POLICY.md` 的 Static/Dynamic 双环；不能用 CI 绿色宣称真实用户任务成功。
-
-| 优先级 / 所有者 | 待验证的风险 | 关闭所需证据 | 当前决定 |
-| --- | --- | --- | --- |
-| P0 / infrastructure | 跨进程费用账本、重试幂等、设置并发写入及数据迁移存在部署边界 | 多 worker 重复提交、数据库损坏/恢复、额度耗尽负控 | 不扩部署；单独安全/持久化批次 |
-| P0 / orchestration + retrieval | 外部页面/文档指令注入与工具权限混淆 | 不可信正文不能改变工具权限或泄漏数据的离线负控 | 先盘现有防护与失败样本，再定缺口 |
-| P1 / orchestration + UI | 最终答案为空、附件丢失、取消和恢复后“已完成”误报 | 真实失败轨迹复现 + 端到端最终可见内容、附件身份与恢复契约测试 | 复用已有恢复链，不另造执行器 |
-| P2 / UI + infrastructure | 当前聊天缺少明确的本地文本取回路径，不能在离线时留存当前内容 | 用户点击时本地下载；含当前已加载文本及未完成片段；不泄漏系统指令、排队草稿；明确不等于全量备份 | **本 PR 的第一个实现片** |
-| P2 / UI | 200% 缩放、窄屏、中文字体回退与读屏交互 | 关键流程键盘/屏幕阅读器与 320px/200% 重排实测 | 字体扩展在独立 PR；此片不交叉改动 |
-| P2 / frontend | 长会话渲染、流式事件与资源包体积 | 固定设备/对话规模的 INP、内存、首屏实测与阈值 | 先采集基线，不能仅凭构建警告推定用户卡顿 |
-| P2 / product evidence | 用户纠错和真实任务成功无法关联可审核的结果 | 经用户同意、脱敏的任务/答案/失败反馈关联；受控动态对照 | 模型和外部搜索试验另行授权费用与隐私 |
-| P3 / engineering | 过时功能、兼容层、重复验证和 CI 耗时 | 静态调用方盘点、保留关键负控、净减维护量和现行门禁通过 | 按独立清理 PR 继续，不混入功能片 |
-
-**试点界限**：这次只增加前端“导出当前对话 Markdown”按钮和静态负控，输出用户与助手正文，隐藏运行时系统消息及尚未提交的队列问题，保存中断的可恢复片段；附件原文件、PDF/网页正文、完整服务端历史、交互控件状态不在导出范围。纯浏览器本地文件，不增加后端 API、云端分享或自动传输。它是**用户可移植性改善的工程试点**，不是经过真实用户验证的备份机制。
-
-**静态验收与限制**：`chatTranscriptExport`、`ChatPanel.copy` 与 `ChatPanel` 影响集 **49 passed**，邻接边界/旅程测试 **9 passed**，`tsc -b && vite build` 成功，构建仍有原有的大包体警告。当前容器启动 Vite 时发生 Node 系统接口错误（`uv_interface_addresses`），浏览器连接 `127.0.0.1:4175` 报 `ERR_CONNECTION_REFUSED`；真实下载交互、移动端排版及浏览器权限实测 **not_run**，不将 jsdom 模拟当真实浏览器通过，也不将连通失败单独归因于网络隔离。动态模型/搜索/用户任务 **not_run**，费用授权 `not_applicable`；该片属于 P2 / static / UI / engineering-only。后继最小片按优先级收集真实失败轨迹，查明最终答案/附件/恢复在哪层丢失；预算未授权时只做离线回放。
-
-**2026-11-19 主线整合**：与 #520 已合并的空白终态防护同树整合，仅保留本片导出相关四个前端文件的差异；聊天/导出/边界/旅程影响集 **6 files / 60 passed**、生产 TS/Vite 构建及差异检查成功。新精确 PR HEAD 的 CI 未完成前不复用旧绿色结果。
 
 ### 2026-11-19 读取候选测试搭建去重（#517 已合并）
 
