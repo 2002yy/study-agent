@@ -6,6 +6,10 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 模型尝试实时状态绑定（重新验收候选）
+
+- 在检查点顺序、游标、持久化上下文、波次交接与检查点回绑的最新组合上重挂模型审计绑定；必须以新精确 HEAD 的 CI 验收，不沿用旧提交的结果。
+
 ### 2026-11-19 检查点准备回绑单一持有（重新验收候选）
 
 - #510 已在主线，因此本批只保留 `live.bind_prepared_checkpoint` 对 `prepare_and_persist` 的回绑：移除多余内部函数，保证准备抛异常时 state/context 同时回绑。原 #514 的双父合并历史不再重复带入已合并的 #510 内容；新树需精确 HEAD CI。
@@ -27,6 +31,10 @@
 - 后续本地补强：检查点专项测试共用统一构造器，新增成功路径顺序负控，明确 `bind_prepared` 必须先于仓库 `checkpoint`；检查点、实时状态、波次结算和守卫专项集 **10 passed**，未触及生产代码。此补强仍属于未推送的同一候选，不能代替 L3 或远端 CI。
 - 基于上一状态单一持有候选 `e13960c8`，分支 `codex/research-cursor-context-20261119`。将主动执行器检查点内的 `prepare → finally 回绑状态/上下文 → persist` 提取为 `ActiveRuntimeCheckpointContext.prepare_and_persist`，明确准备异常后仍回绑已投影的内存值，同时禁止失败后继续持久化；执行器仍唯一持有实时状态、游标和持久化上下文，后两者不作双份镜像。
 - 专属负控冻结 Claim Engine 序列化异常时预算投影与游标上下文保留、仓库不写入；检查点、实时状态、波次结算、守卫与主动执行影响集 **93 passed**，Ruff、差异检查及 mypy 基线 **115/125（无新增）**通过。全量 L3 已启动但观察到首 1% 用时较长，为避免无界后台执行而中断，**尚未通过**；远端精确提交 CI 待验收。真实搜索、付费模型与动态比较 `not_run`，预算授权 `not_applicable`。属 P3 / static / orchestration-contract / engineering-only。下一片在主线整合后处理游标、持久化上下文的单一所有权，不在本片同时迁移。
+### 2026-11-19 模型审计与实时状态绑定（独立叠加候选，待验证）
+
+- `ActiveModelAttemptContext.for_live_values(live, ...)` 以最小 `LiveModelAttemptValues` 协议统一绑定当次研究的实时状态/游标；执行器不再分别拼接三个状态读取/回写回调。新负控覆盖恢复后状态替换的预算检查、检查点后波次游标替换时审计写回最新游标。
+- **冻结契约**：开始审计仍按 `ensure_active → ensure_budget(current_state) → begin_model_attempt → checkpoint`，结束审计仍只在内存完成并在 `ensure_active` 后交还控制；模型网关、真实调用次数、超时预算采样、结算和后续语义检查点均不变。影响集 **104 passed**，Ruff、差异检查及 mypy 基线 **115/125** 通过。本片 P3 / static / orchestration-contract / engineering-only；真实模型/搜索 `not_run`，预算授权 `not_applicable`。依赖前述整合候选，不能直接合并主线。
 
 ### 2026-11-19 检查点顺序与实时状态持有者整合演练（本地，待验证）
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from src.web.research.contracts import ResearchState
 from src.web.research.model_gateway import (
@@ -22,6 +22,16 @@ from src.web.research.runtime import (
 )
 
 
+class LiveModelAttemptValues(Protocol):
+    """Only the live state and cursor capabilities needed by model auditing."""
+
+    def current_state(self) -> ResearchState: ...
+
+    def current_cursor(self) -> ResearchRuntimeCursor: ...
+
+    def set_cursor(self, cursor: ResearchRuntimeCursor) -> None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class ActiveModelAttemptContext:
     """Keep model attempt order without retaining stale cursor or budget state."""
@@ -32,6 +42,26 @@ class ActiveModelAttemptContext:
     ensure_active: Callable[[], None]
     ensure_budget: Callable[[ResearchState], None]
     checkpoint: Callable[[], Any]
+
+    @classmethod
+    def for_live_values(
+        cls,
+        live: LiveModelAttemptValues,
+        *,
+        ensure_active: Callable[[], None],
+        ensure_budget: Callable[[ResearchState], None],
+        checkpoint: Callable[[], Any],
+    ) -> ActiveModelAttemptContext:
+        """Observe rebound state/cursor through one explicit per-run owner."""
+
+        return cls(
+            current_state=live.current_state,
+            current_cursor=live.current_cursor,
+            set_cursor=live.set_cursor,
+            ensure_active=ensure_active,
+            ensure_budget=ensure_budget,
+            checkpoint=checkpoint,
+        )
 
     def started(self, marker: ResearchModelAttemptStart) -> None:
         """Persist inflight *before* the model gateway can reserve and send."""
