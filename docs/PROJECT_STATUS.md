@@ -910,6 +910,30 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
   `dynamic_evidence=not_run`、`budget_authorization=not_applicable`、
   `decision=engineering-only`。
 
+### 2026-11-19 RQ1-C 双重 `_impl` 兼容转发层退役（P3 静态减负）
+
+- 正式限定资格入口 `run_rq1c_bounded_qualification.py` 与确定性协议探针入口
+  `run_rq1c_protocol_probes.py` 原先均经过仅转发符号、CLI 参数和结果的
+  `_impl` 兼容模块再进入 `_core`。仓内消费者只有上述正式入口及针对旧层级的
+  防绕过专项测试；生产研究、当前 CI/阶段门、发布和运行配置均不引用这两层。
+- 删除两个 `_impl.py`，将原有 CLI 参数、输出、退出码保留在正式入口，直接
+  调用原 `_core`；资格入口的预算上限、provider monkeypatch 注入点及
+  binding-row 默认解析仍由原 guardrails 维护。核心实现、12 个 holdout、
+  六个协议探针、失败即 NO-GO 的评估器和运行产物格式均不改变。
+- 同步将旧适配层的执行/导入/脏工作树校验迁至正式入口和 `_core` 双边，
+  保留精确 HEAD 不匹配、脏跟踪文件时禁止运行的负控，测试文件重命名为
+  `test_rq1c_exact_head_entrypoints.py`。无需新适配层或配置；现行
+  `tests/stage_gates.json`、`tools/ci_scope.py` 无旧文件显式注册。
+- 本地已完成 Python 编译检查、零遗留调用检索与差异检查；执行环境无
+  pytest/ruff 离线依赖，完整资格/预算测试与 CI 需在此候选精确 HEAD 验收。
+  首轮 CI 发现 4 项预算用例仍经由已删除的 `_impl` 取 guardrails/binding
+  provider，且 1 项精确 HEAD 负控仍把私有 `_run_case` 当作公开入口导出；
+  已改为直接验证真实 guardrails/core 所有者，公开 `run_qualification` 的
+  精确 HEAD 拒绝负控仍保留，不恢复无产品调用方的私有兼容转发。
+  本片 `priority=P3`、`loop=static`、`owner=qualification/tooling`、
+  `dynamic_evidence=not_run`、`budget_authorization=not_applicable`、
+  `decision=engineering-only`，没有调用任何付费模型或外部检索。
+
 ## 0A. 已冻结研究路线（摘要）
 
 `Lookup → VERIFIED / SAFE_ABSTAIN / ESCALATE_STANDARD`；Standard 的多源/比较/冲突和 Deep 的计划/缺口/收益/暂停恢复复用既有 `ActiveResearchRuntimeExecutor`，不另起第二套研究引擎。`usable/read_backed/relevant` 不能等同逐条 claim 支持；默认 `simple` 只验证引用 URL 属于已读来源，不标逐条 verified。
