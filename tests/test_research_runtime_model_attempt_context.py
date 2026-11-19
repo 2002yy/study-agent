@@ -14,7 +14,11 @@ from src.web.research.model_gateway import (
     ResearchModelAttemptStart,
     ResearchModelCallAudit,
 )
-from src.web.research.runtime import ResearchRuntimeCursor
+from src.web.research.runtime import (
+    ResearchRuntimeCursor,
+    RuntimeFailure,
+    _ModelAttemptBudgetExhausted,
+)
 
 
 def _marker() -> ResearchModelAttemptStart:
@@ -210,3 +214,32 @@ def test_model_callbacks_budget_check_reads_rebound_state_at_send_boundary() -> 
     assert slot["budget_state_seen"] is rebound
     assert order.index("ensure_budget") < order.index("set_cursor")
     assert order.index("checkpoint") > order.index("set_cursor")
+
+
+def test_attempt_number_admission_uses_current_recovered_cursor_without_side_effects() -> None:
+    live = ActiveRuntimeLiveValues(state=cast(ResearchState, object()))
+    events: list[str] = []
+    callbacks = ActiveModelAttemptContext.for_live_values(
+        live,
+        ensure_active=lambda: events.append("ensure_active"),
+        ensure_budget=lambda _state: events.append("ensure_budget"),
+        checkpoint=lambda: events.append("checkpoint"),
+    )
+    assert callbacks.next_attempt_number("claim:1") == 1
+
+    # A crash has changed the live cursor. It consumes attempt one even
+    # without an audit, so resumption may only issue attempt two.
+    interrupted_one = RuntimeFailure(
+        code="interrupted_unknown", phase="planning", item_id="claim:1:attempt:1"
+    )
+    live.cursor = replace(live.cursor, failures=(interrupted_one,))
+    assert callbacks.next_attempt_number("claim:1") == 2
+
+    interrupted_two = replace(interrupted_one, item_id="claim:1:attempt:2")
+    live.cursor = replace(live.cursor, failures=(interrupted_one, interrupted_two))
+    before = live.cursor
+    with pytest.raises(_ModelAttemptBudgetExhausted):
+        callbacks.next_attempt_number("claim:1")
+
+    assert live.cursor is before
+    assert events == [], "number admission must not send, charge or checkpoint"

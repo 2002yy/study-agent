@@ -12,6 +12,14 @@
 - 整体删除该 43 行历史源码测试，不留只验证旧文件已被删除的空壳。保留 `workspaceReducer.test.ts` 的真实状态转换、SettingsPanel 组件测试、`onboarding-settings.spec.ts` 的实际菜单与设置操作，以及 `AppBoundary.test.ts` 中仍在使用的应用/布局职责约束。当前没有专属适配层、配置或 CI 显式注册需要联动删除；生产组件、路由与状态逻辑不变。
 - `priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本片只减少重复/过时测试，精确 PR HEAD CI 验收前不宣称产品质量改善。
 
+### 2026-11-20 模型尝试编号由实时审计上下文统一计算（独立 P3 静态片）
+
+- **范围**：`ActiveModelAttemptContext.next_attempt_number(logical_call_id)` 每次从当前 `ActiveRuntimeLiveValues.current_cursor()` 取得恢复后游标，调用既有 `_model_attempt_start` 计算下一编号。`execute()` 内规划、候选评估、证据提取三处原来直接读取外围 `live.cursor` 的调用改为上下文委托；别处显式传游标的独立 helper 不受影响。原 `started/finished` 回调、硬预算检查与“发送前 checkpoint、完成后仅内存记账”顺序不变。
+- **冻结契约**：按完整 `logical_call_id` 读取已完成审计和恢复后的 `interrupted_unknown`，单逻辑调用最多两次；第三次在模型 I/O 前抛 `_ModelAttemptBudgetExhausted`，异常仍由各阶段原分支处理。计算编号本身不修改游标、不预占预算、不持久化、不调用模型；不更改检查点次数/顺序、恢复格式、检索读取、证据发布或任何外部可见结果。
+- **证据/交接**：新增“恢复后中断尝试仍消耗编号、第三次拒绝且无副作用”负控，先失败于上下文缺失方法、实现后模型上下文专项 **8 passed**；主动研究/预算/恢复/Deep 主影响集 **216 passed**，基础运行时与失败契约相邻集 **50 passed**，两组不重复合计 **266 passed**。全库 Ruff、差异检查和 mypy **115/125、无新增**。基于 `main@7a5f0461` 的 `codex/model-attempt-number-live-20261120` 独立分支；#548、#550 仍在各自精确 CI 验收，不借用其结果。`priority=P3`、`loop=static`、`owner=model/attempt-budget`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；未产生真实模型调用或付费。
+- **主线重挂（#548 合并后）**：原读重试诊断 PR #548 已合入 `main@ff619094`；本片源代码自动合并，保留两批交接记录，并将本段置顶以降低后续 #550 独立交接的冲突风险。新候选的模型/主动研究/预算/Deep/读取重试影响集 **228 passed**，基础运行时与失败契约 **50 passed**，合计 **278 passed**。新精确 PR HEAD CI 必须独立成功，旧运行号 `44573181445` 不作新 SHA 验收依据。
+- **最新整合**：#549、#550、#551、#554 均已合入 `main@a1dd6159`；本批 #552 仅将交接文档的并列新增节合并到主线，模型尝试实现与负控无额外修改。旧 `c263a0b0` 的绿色 CI 不替代重挂后精确 HEAD 验收。
+
 ### 2026-11-20 读取重试与 inventory 诊断聚合提取（独立 P3 静态片）
 
 - **范围**：将主动研究执行器的 `_inventory_fetch_with_retry` 和 `_accumulate_fetch_metrics` 归到 `research_runtime_fetch_retry_observation`，统一负责 sitemap/inventory 的四元组→可重试 payload 适配，以及原生读取/清单读取分别写入 `read_retry`、`inventory_fetch` 的有界诊断聚合。执行器仍通过原函数名称兼容导入，网关路径和域定向路径的调用点不变。没有新建可变状态持有者；每次调用显式接收当前上下文与剩余时间。
