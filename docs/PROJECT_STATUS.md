@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 合格提取结果的证据接纳顺序收归显式上下文（独立 P3 静态片）
+
+- **范围**：新增 `ExtractedEvidenceAcceptanceContext`，在抽取器返回已验证的 `ExtractedEvidenceLink` 后，接管同一来源记录的逐 claim 提取摘要、首条合格的旧单项摘要、基于当前 selected/rejected 缓冲区的证据 ID 解析，以及最新 `ResearchState` 和读取游标的绑定。执行器仅显式传入 `source_record/candidate_id/claim_id/link` 并在接纳返回后原位 `checkpoint()`；上下文只引用现有的 `ActiveRuntimeLiveValues` / `ActiveResearchResultBuffers` 所有者，不缓存可能被恢复替换的状态快照。
+- **冻结契约**：严格维持 `extractions[claim] → extraction（首条合格保留）→ evidence ID → ResearchState evidence link → read_outcomes evidence_id → checkpoint`，来源字典和结果列表的对象别名不变，多个 claim 仍能共用同一已读来源。若证据 ID 解析或状态投影抛异常，保留原有先写来源摘要的部分内存效果，尚未进行的状态或游标更新不得提前发生；异常由原执行器故障处理接管。不改恢复持久化字段、checkpoint 次数与时点、读取/模型预算结算、Evidence Gate、发布或实际外部调用。
+- **验证与交接**：新增四项直接测试覆盖来源别名和更新次序、恢复后的状态/游标替换、多 claim 单项摘要保留、证据 ID 及状态投影失败后的部分效果。完整主动研究执行器、证据投影、来源附着与 checkpoint 影响集 **114 passed**，随后新增的一项失败负控在直接测试文件 **4 passed**，合计不重复 **115** 项；全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。`priority=P3`、`loop=static`、`owner=evidence/acceptance`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；仅工程静态验证，无付费模型、真实读取或产品质量对比。分支 `codex/extracted-evidence-acceptance-20261120`，由 `main@c5174e19` 重挂至 `main@a1dd6159`（#554 News 清理，运行时代码无交集），与 #556 读取预算投影及其他待验收 PR 分离；候选精确 HEAD 的 CI、审阅和合并门禁仍待确认。
+- **下一片**：在本片的精确 HEAD 门禁收口后，优先清点相邻提取失败分支的重复测试造景，避免把失败归档与证据接纳一起扩大成一次语义迁移。
+
 ### 2026-11-20 前端旧布局状态收敛源码快照测试退役（P3 静态减负）
 
 - `frontendStateConsolidation.test.ts` 两项测试只扫描 `workspaceReducer`、`WorkspaceView`、SettingsPanel 与学习会话源码，证明旧 `selectedPanel` / `START_NEW_CHAT_SESSION` / `Sidebar` / `Inspector` 字符串和已删除文件不再出现。它们不执行 reducer 或渲染界面，属于已完成布局迁移的防回退专项。
