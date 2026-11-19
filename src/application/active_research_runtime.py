@@ -66,7 +66,6 @@ from src.web.research.deep_runtime import (
     materialization_provenance,
     materialized_content,
     seed_candidate_identity,
-    seed_char_charge,
     seed_sources_by_url,
 )
 from src.web.research.page_intent import (
@@ -263,6 +262,7 @@ from src.application.research_runtime_read_attempt_context import ActiveReadAtte
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
 from src.application.research_runtime_read_execution import ActiveReadExecutionContext
 from src.application.research_runtime_read_plan_context import FairReadPlanContext
+from src.application.research_runtime_read_quota_context import ReadWaveQuotaContext
 from src.application.research_runtime_read_coverage import (
     ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY as ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY,
     merge_covered_clusters,
@@ -1728,12 +1728,11 @@ class ActiveResearchRuntimeExecutor:
                     )
 
                 # Read and checkpoint each selected source under the shared character budget.
-                used_chars = sum(
-                    int(item.get("content_chars") or 0)
-                    for item in live.context.get(ACTIVE_RESEARCH_METRICS_KEY, {}).get("reads", [])
-                    if isinstance(item, Mapping)
-                ) + seed_char_charge(selected_sources)
-                successful_reads = live.state.budget.reads_used
+                read_quota = ReadWaveQuotaContext.restore(
+                    budget_reads_used=live.state.budget.reads_used,
+                    context=live.context,
+                    selected_sources=selected_sources,
+                )
                 read_loop_stop_reason = ""
                 dispatched_read_ids: set[str] = set()
                 for plan_item in physical_reads:
@@ -1768,11 +1767,13 @@ class ActiveResearchRuntimeExecutor:
                                 candidate=_deep_candidate,
                                 plan_item=plan_item,
                                 seed_source=_seed_source,
-                                source_limit=live.state.budget.max_total_chars - used_chars,
+                                source_limit=read_quota.remaining_chars(
+                                    max_total_chars=live.state.budget.max_total_chars
+                                ),
                                 selected_sources=selected_sources,
                             )
                             if _materialized is not None:
-                                used_chars += len(
+                                read_quota.charge_materialization(
                                     str((_materialized.get("read") or {}).get("content") or "")
                                 )
                                 # 0 reads_used: no physical read happened.
@@ -1780,12 +1781,15 @@ class ActiveResearchRuntimeExecutor:
                                     live.state,
                                     live.cursor,
                                     elapsed_seconds=elapsed(),
-                                    reads_used=successful_reads,
+                                    reads_used=read_quota.successful_reads,
                                 )
                                 _record_read_history(live.context, live.cursor.read_outcomes)
                                 checkpoint()
                             continue
-                    if successful_reads >= live.state.budget.max_reads or used_chars >= live.state.budget.max_total_chars:
+                    if read_quota.exhausted(
+                        max_reads=live.state.budget.max_reads,
+                        max_total_chars=live.state.budget.max_total_chars,
+                    ):
                         read_loop_stop_reason = "read_budget_exhausted"
                         break
                     if research_seconds_left() < MIN_READ_SECONDS:
@@ -1824,7 +1828,9 @@ class ActiveResearchRuntimeExecutor:
                         break
                     execution_guard.ensure_budget(live.state)
                     candidate = _candidate_by_id(live.cursor, candidate_id)
-                    source_limit = min(6000, live.state.budget.max_total_chars - used_chars)
+                    source_limit = read_quota.source_limit(
+                        max_total_chars=live.state.budget.max_total_chars
+                    )
                     # §100 A2c: pre-attempt scheduling. A candidate whose only
                     # reader is currently unavailable is not planned at all this
                     # wave - no attempt, and no read outcome, because nothing was
@@ -1935,8 +1941,7 @@ class ActiveResearchRuntimeExecutor:
                     )
                     ok, content = projection.ok, projection.content
                     if ok:
-                        successful_reads += 1
-                        used_chars += len(content)
+                        read_quota.charge_read(content)
                     record = projection.record
                     results.upsert_selected_source(record)
                     if ok:
@@ -1955,7 +1960,7 @@ class ActiveResearchRuntimeExecutor:
                         live.state,
                         live.cursor,
                         elapsed_seconds=elapsed(),
-                        reads_used=successful_reads,
+                        reads_used=read_quota.successful_reads,
                     )
                     # §98 A2a: the single lifecycle view is diagnostics only;
                     # candidate_resolution remains the pure state authority.
@@ -2025,9 +2030,9 @@ class ActiveResearchRuntimeExecutor:
                 for lead_item in lead_plan:
                     if len(live.cursor.lead_read_ids) >= MAX_LEAD_READS_PER_RUN:
                         break
-                    if (
-                        successful_reads >= live.state.budget.max_reads
-                        or used_chars >= live.state.budget.max_total_chars
+                    if read_quota.exhausted(
+                        max_reads=live.state.budget.max_reads,
+                        max_total_chars=live.state.budget.max_total_chars,
                     ):
                         break
                     if research_seconds_left() < MIN_READ_SECONDS:
@@ -2042,8 +2047,8 @@ class ActiveResearchRuntimeExecutor:
                     lead_candidate_id = lead_candidate.id
                     ensure_active()
                     execution_guard.ensure_budget(live.state)
-                    lead_source_limit = min(
-                        6000, live.state.budget.max_total_chars - used_chars
+                    lead_source_limit = read_quota.source_limit(
+                        max_total_chars=live.state.budget.max_total_chars
                     )
                     lead_attempt = _attempt_number(
                         live.cursor, f"lead:{lead_candidate_id}"
@@ -2108,13 +2113,12 @@ class ActiveResearchRuntimeExecutor:
                         _bump_lead_metric(live.context, "lead_read_failed")
                         checkpoint()
                         continue
-                    successful_reads += 1
-                    used_chars += len(lead_content)
+                    read_quota.charge_read(lead_content)
                     live.state = updated_runtime_budget(
                         live.state,
                         live.cursor,
                         elapsed_seconds=elapsed(),
-                        reads_used=successful_reads,
+                        reads_used=read_quota.successful_reads,
                     )
                     checkpoint()
                     lead_categories = (
