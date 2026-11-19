@@ -4,13 +4,42 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.selection_authority import SelectionAuthorityDiagnostics
+from src.web.research.selection_trace import SelectionTraceCollector
+from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 
 
 SELECTION_RECORD_LIMIT = 40
+
+
+@dataclass(slots=True)
+class ResearchSelectionTraceContext:
+    """Own one run's mutable selection trace without caching a durable context.
+
+    Checkpoint/recovery may replace the context mapping. Hydration reads only
+    the current payload; flushing always writes to the mapping supplied then.
+    """
+
+    trace: SelectionTraceCollector
+
+    @classmethod
+    def from_context(cls, context: Mapping[str, Any]) -> ResearchSelectionTraceContext:
+        metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
+        previous = metrics.get("selection_trace") if isinstance(metrics, Mapping) else None
+        return cls(trace=SelectionTraceCollector.from_payload(previous))
+
+    def flush(self, context: dict[str, Any]) -> None:
+        """Publish diagnostics only, never update a cursor or selection rule."""
+
+        if len(self.trace) == 0:
+            return
+        metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+        if isinstance(metrics, dict):
+            metrics["selection_trace"] = self.trace.to_payload()
 
 
 def _fingerprint(values: Iterable[Any]) -> str:

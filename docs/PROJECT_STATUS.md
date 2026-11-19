@@ -186,10 +186,16 @@
   假 Provider 做“上传 → 选中 → 发送 → 模型可见材料”的离线跨层负控；
   同时审计原会话切换与队列发送期间的附件选择隔离，不开付费 API。
 
-### 2026-11-19 读取候选测试搭建去重（#517 最新主线候选）
+### 2026-11-19 选源追踪上下文所有权（独立 P3 静态片）
+
+- 将 `SelectionTraceCollector` 的历史指标恢复、运行期状态持有和指标刷新交给 `research_selection_observability.ResearchSelectionTraceContext`；执行器只在原有位置初始化一次，并在原波次位置调用 `flush(live.context)`。原 `_flush_selection_trace` 私有包装与仅依赖它的测试调用一起删除，测试转为验证新上下文。**不改**选源排序/过滤、trace 字段、指标键、保留上限、恢复游标、模型预算、检查点或发布契约。
+- 新负控验证恢复后指标回读、检查点回绑新 context 后的写回、旧映射不被改写、损坏指标与空追踪时无副作用。本地同树选源/执行/读取观测/恢复/检查点/预算组合影响集 **154 passed**，专项测试及 Ruff、差异检查、mypy **115/125（无新增）**通过。基于 `main@964a52cd` 的独立分支 `codex/research-selection-trace-context-20261119`，与待验收 #527 无代码依赖。`priority=P3`，`loop=static`，`owner=observability`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`，未进行付费模型、搜索或动态对比。
+- **下一执行片**：单独推送本批 PR，精确 HEAD CI、审阅和主线无冲突后才能合并；#527 仍须以自己的精确提交 CI 收口。
+
+### 2026-11-19 读取候选测试搭建去重（#517 已合并）
 
 - `tests/research_read_candidate_factory.py` 合并读取调度、执行、投影测试内三份重复的 `CandidatePoolItem` 构造；保留 ID、URL、标题和来源场景原值，不改生产检索、读取、恢复、检查点或预算。
-- #479 精确 HEAD `9086a708`、CI `44499513153` 成功且无审阅阻断，已合并 `main@bab64534`。#517 在 `main@77caf8b6` 上的精确 HEAD `fe1fcbf8`、CI `44511142471` 已全绿且无审阅阻断；随后 #522/#525 推进主线至 `main@56e2f23e`，使原 PR 再次无法合并。本次重挂保留主线 P1 附件/SSE/真实服务栈回归交接与代码，仅迁移测试去重增量；须按新精确 HEAD 独立验收。读取/选源影响集 **37 passed**，此前跨恢复、检查点、模型预算、发布、选源和读取组合影响集 **151 passed**，Ruff、差异检查通过。`priority=P3`，`loop=static`，`owner=orchestration-contract`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`。下一步精确 CI、审阅无阻断后合并 #517；此后只按明确耦合收益开启下一小片。
+- #479 精确 HEAD `9086a708`、CI `44499513153` 成功且无审阅阻断，已合并 `main@bab64534`。#517 保留 P1 附件/SSE/真实服务栈回归主线内容，仅迁移测试场景去重；新精确 HEAD `4bd57091`、CI `44515032318` 成功、无审阅阻断，已 squash 合并为 `main@964a52cd`。读取/选源影响集 **37 passed**，此前跨恢复、检查点、模型预算、发布、选源和读取组合影响集 **151 passed**，Ruff、差异检查通过。`priority=P3`，`loop=static`，`owner=orchestration-contract`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`。
 
 ### 2026-11-19 选源窗口诊断职责整合（#479 已合并）
 

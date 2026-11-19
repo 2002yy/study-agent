@@ -277,7 +277,10 @@ from src.application.research_runtime_read_site import (
     specialist_chain_run as specialist_chain_run,
 )
 from src.application.research_runtime_budget_clock import ResearchBudgetClock
-from src.application.research_selection_observability import record_selection_authority
+from src.application.research_selection_observability import (
+    ResearchSelectionTraceContext,
+    record_selection_authority,
+)
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_search_execution import (
     ActiveSearchQueryExecution,
@@ -1085,13 +1088,10 @@ class ActiveResearchRuntimeExecutor:
             # decisions the existing pipeline already makes; it never changes
             # ordering, budgets or the cursor, and its payload lives in the run
             # metrics (resume-safe hydration from a previous process payload).
-            raw_metrics = live.context.get(ACTIVE_RESEARCH_METRICS_KEY)
-            previous_trace = (
-                raw_metrics.get("selection_trace")
-                if isinstance(raw_metrics, Mapping)
-                else None
+            selection_trace_context = ResearchSelectionTraceContext.from_context(
+                live.context
             )
-            selection_trace = SelectionTraceCollector.from_payload(previous_trace)
+            selection_trace = selection_trace_context.trace
             while True:                # Research Window Deadline Hardening: the research window is an
                 # absolute boundary. Once it is exhausted the tail belongs to
                 # finalization (Gate, answer synthesis, claim binding,
@@ -2051,7 +2051,7 @@ class ActiveResearchRuntimeExecutor:
                             dispatched=False,
                             skip_reason=read_loop_stop_reason,
                         )
-                _flush_selection_trace(live.context, selection_trace)
+                selection_trace_context.flush(live.context)
 
                 # Slice 1: bounded lead discovery. A lead read is a discovery
                 # action, never an evidence read: it runs strictly after the
@@ -4877,23 +4877,6 @@ def _bump_lead_metric(
 ) -> None:
     state = _lead_metrics(context)
     state[key] = int(state.get(key) or 0) + max(0, int(amount))
-
-
-def _flush_selection_trace(
-    context: dict[str, Any], trace: SelectionTraceCollector
-) -> None:
-    """§37B-selection: publish the diagnostic payload into run metrics only.
-
-    Never touches the runtime cursor; the payload is rebuilt (derived terminal
-    reasons) on every flush, so later observations are reflected without
-    re-deriving any selection decision.
-    """
-
-    if len(trace) == 0:
-        return
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if isinstance(metrics, dict):
-        metrics["selection_trace"] = trace.to_payload()
 
 
 def _record_deeper_targeting(
