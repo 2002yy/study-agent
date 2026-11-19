@@ -13,6 +13,13 @@
 - **测试与交接**：新增结果缓冲区直接测试 **12 passed**，覆盖同源引用、未读来源不写入、逐 claim 完成/重试、旧单项兼容与重复候选的首次匹配；主动研究执行器、恢复、证据接纳、checkpoint、波次结算及发布合计 **121 passed / 103.38s**（包含上述 12 项）。全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。初始基线 `main@76b42a5`，PR 创建时因独立前端 #560 合并，已重挂至 `main@6fdc6cc`；分支 `codex/research-extraction-target-admission-20261120`。`priority=P3`、`loop=static`、`owner=evidence/extraction-admission`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。精确 PR HEAD CI 尚待核验；不将离线静态回归宣称为真实研究质量改善。
 - **下一片**：待此片完成精确 CI 与审阅后，再沿已有的提取成功/失败上下文逐步清理失败归档中的隐式写入；不与仍待独立收口的提取失败归档 PR 混合。
 
+### 2026-11-20 研究波次基线的恢复状态收归显式上下文（独立 P3 静态片）
+
+- **现状/范围**：执行器每波开始时原先直接连续读写 `live.cursor.wave_id/active_gap_ids`、`live.context[claim_engine_wave_baseline]`，随后调用 checkpoint 并解析持久化基线。新增 `ActiveWaveBaselineContext`，只接收唯一 `ActiveRuntimeLiveValues` 和既有有序 gap 选择器；`begin_if_needed()` 负责波次身份与初始状态快照，`restore()` 总从最新 live context 读取并按原证据 ID 允许表还原状态。执行器仍在原条件下、原位置调用一次 checkpoint，诊断调用者标签也不变；不缓存 checkpoint/恢复/steering 可能重绑的旧字典。
+- **冻结契约**：新波写入顺序仍是 `wave_id + active_gap_ids → 基线序列化 → checkpoint → 基线反序列化`；同一波恢复绝不覆盖读/提取前基线（防止崩溃后 Evidence Gain 假阴性），缺失或无效基线仍抛 `ValueError`。序列化失败时 cursor 已更新、context 尚未写基线的部分效果保持一致。没有第二个预算/状态/持久化权威；模型与搜索/读取次数、checkpoint 次数/时点、预算结算、Evidence Gate 与发布均不变。
+- **静态证据**：新增 5 项可直接运行的波次边界负控（初始/重复波、checkpoint context 重绑、缺损基线和序列化部分失败），`python -m unittest discover -s tests -p test_research_runtime_wave_baseline.py` **5 passed**。既有 `test_crash_after_extraction_preserves_wave_baseline_and_gain` 继续负责真实 SQLite 崩溃恢复/读取次数集成验证，需由精确 PR HEAD CI 覆盖。`priority=P3`、`loop=static`、`owner=research/state-recovery`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+- **交接/下一片**：独立于 #556 读取预算投影、#561 提取失败记录、#562 late-tail 诊断的执行区段；待精确 HEAD CI 与审阅通过后再合并。下一步继续检查波次恢复和调度之间的可变值边界，不扩大为 schema 或 checkpoint 语义迁移。
+
 ### 2026-11-20 研究崩溃恢复测试场景搭建去重（独立 P3 静态测试片）
 
 - **范围**：`test_active_research_runtime.py` 中规划模型成功后崩溃、双 claim 提取中断、评估模型中断、提取第 2 次尝试后进程死亡四项恢复回归，各自重复创建 `ActiveResearchGateway`、`ActiveResearchRuntimeExecutor` 与 `ClaimEngineDispatchWebLookupService`。新增测试专用 `_service_with_runtime_components()`，显式接收既有模型网关、可选故障注入组件和搜索后端；四项测试仅替换重复工厂构造，保留原有自定义故障包装器、持久化 SQLite、恢复重试与全部断言。

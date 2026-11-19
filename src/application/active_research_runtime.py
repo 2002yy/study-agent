@@ -252,6 +252,10 @@ from src.application.research_runtime_wave_settlement import (
     ActiveWaveSettlementHandoff,
     ActiveWaveSettlementSnapshot,
 )
+from src.application.research_runtime_wave_baseline import (
+    ACTIVE_RESEARCH_WAVE_BASELINE_KEY as ACTIVE_RESEARCH_WAVE_BASELINE_KEY,
+    ActiveWaveBaselineContext,
+)
 from src.application.research_runtime_failure_projection import (
     with_appended_runtime_failure,
 )
@@ -318,7 +322,6 @@ from src.application.research_runtime_read_observability import (
 
 ACTIVE_RESEARCH_ASSESSMENTS_KEY = "claim_engine_assessments"
 ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY = "claim_engine_assessment_inputs"
-ACTIVE_RESEARCH_WAVE_BASELINE_KEY = "claim_engine_wave_baseline"
 ACTIVE_RESEARCH_READ_PLAN_KEY = "claim_engine_read_plan"
 ACTIVE_RESEARCH_BRIEF_KEY = "claim_engine_evidence_brief"
 TIER2_PROPOSED_CLAIMS_KEY = "tier2_proposed_claim_ids"
@@ -973,6 +976,9 @@ class ActiveResearchRuntimeExecutor:
         on_model_finished = model_attempt_context.finished
 
         wave_handoff = ActiveWaveSettlementHandoff.for_live_values(live)
+        wave_baseline_context = ActiveWaveBaselineContext(
+            live=live, actionable_gaps=_ordered_gaps
+        )
 
         def settle_completed_wave(
             snapshot: ActiveWaveSettlementSnapshot,
@@ -1150,27 +1156,9 @@ class ActiveResearchRuntimeExecutor:
                 # checkpoint resumes the same wave with an intact baseline, so
                 # extraction persisted before a crash can never be lost to a
                 # reset baseline (no false no-gain).
-                if live.cursor.wave_id != wave_id:
-                    active_gap_ids = tuple(gap.id for gap in _ordered_gaps(live.state))
-                    live.cursor = replace(
-                        live.cursor,
-                        wave_id=wave_id,
-                        active_gap_ids=active_gap_ids,
-                    )
-                    live.context[ACTIVE_RESEARCH_WAVE_BASELINE_KEY] = live.state.to_dict()
+                if wave_baseline_context.begin_if_needed(wave_id):
                     checkpoint()
-                baseline_raw = live.context.get(ACTIVE_RESEARCH_WAVE_BASELINE_KEY)
-                if not isinstance(baseline_raw, Mapping):
-                    raise ValueError("active wave baseline is unavailable")
-                wave_baseline = ResearchState.from_dict(
-                    baseline_raw,
-                    known_evidence_ids=tuple(
-                        item["evidence_id"]
-                        for item in baseline_raw.get("evidence", [])
-                        if isinstance(item, Mapping)
-                        and isinstance(item.get("evidence_id"), str)
-                    ),
-                )
+                wave_baseline = wave_baseline_context.restore()
                 # Semantic query identity is stable across waves. Re-entering a
                 # wave or reaching a later wave must not re-search the same text;
                 # no new query space is handled as a no-gain batch by Saturation.
