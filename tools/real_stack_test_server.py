@@ -70,6 +70,7 @@ from src.application.runtime_repository import (  # noqa: E402
     get_memory_service,
     get_pedagogy_eval_repository,
     get_runtime_repository,
+    get_session_attachment_service,
     get_session_service,
     reset_runtime_repository_cache,
     runtime_database_path,
@@ -162,6 +163,11 @@ CORRECT_REPLY = "这段解释已经通过理解验证；下一步把减半过程
 MATERIAL_REPLY = (
     "根据刚上传的资料，目标值大于中点值时，左边界更新为 mid + 1。"
     "请解释为什么不能仍把 mid 留在候选区间。"
+)
+ATTACHMENT_CONTENT_MARKERS = ("AX7-2048", "BY9-4096")
+ATTACHMENT_DELIVERY_REPLY = (
+    "已读取两份本轮附件：AX7-2048 与 BY9-4096；"
+    "这两个编号来自附件正文，并已用于本次回答。"
 )
 INTERRUPT_QUESTION = "请生成一段可中断的二分查找边界讲解"
 INTERRUPT_REPLY = (
@@ -276,6 +282,11 @@ def _continuation_partial(messages: list[dict[str, Any]]) -> str:
 def _reply_for(messages: list[dict[str, Any]]) -> str:
     user_input = _last_user_message(messages).strip()
     joined = "\n".join(str(message.get("content") or "") for message in messages)
+    if (
+        "【本轮所选附件的已读取内容】" in joined
+        and all(marker in joined for marker in ATTACHMENT_CONTENT_MARKERS)
+    ):
+        return ATTACHMENT_DELIVERY_REPLY
     if DEEP_OBSERVATION_MARKER in joined:
         return DEEP_ANSWER_REPLY
     if user_input.startswith(DEEP_QUESTION_PREFIX):
@@ -421,6 +432,12 @@ def _real_stack_closure_service() -> LearningClosureService:
 app.dependency_overrides[get_chat_service] = _real_stack_chat_service
 app.dependency_overrides[get_learning_closure_service] = _real_stack_closure_service
 
+# The real attachment routes run in this fixture too; keep their stored files
+# and temporary index inside the same disposable test root as SQLite and RAG.
+_attachment_service = get_session_attachment_service()
+_attachment_service.attachment_root = E2E_ROOT / "session_attachments"
+_attachment_service.temp_index_path = E2E_ROOT / "session_attachment_index.json"
+
 
 def _remove_runtime_database() -> None:
     # Request draining closes repository connection contexts before Windows
@@ -434,11 +451,13 @@ def _remove_runtime_database() -> None:
 def _reset_filesystem_state() -> None:
     RAG_INDEX_PATH.unlink(missing_ok=True)
     FRONTEND_SETTINGS_PATH.unlink(missing_ok=True)
+    _attachment_service.temp_index_path.unlink(missing_ok=True)
     for directory in (
         E2E_ROOT / "current",
         E2E_ROOT / "archive",
         RAG_UPLOAD_DIR,
         MEMORY_DIR,
+        _attachment_service.attachment_root,
     ):
         shutil.rmtree(directory, ignore_errors=True)
     memory_module._read_text_file_cached.cache_clear()
