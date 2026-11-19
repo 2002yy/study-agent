@@ -13,8 +13,7 @@ from typing import Any, Iterator
 
 from src.domain.runtime_entities import WebLookupRun
 from src.web.research.failure_contracts import is_research_stop_reason
-from src.web.research.persistent_memory import known_research_evidence_ids
-from src.web.research.state import load_claim_engine_state
+from src.web.research.state import known_research_evidence_ids, load_claim_engine_state
 
 MAX_DATABASE_BYTES = 64 * 1024 * 1024
 MAX_CONTEXT_BYTES = 2 * 1024 * 1024
