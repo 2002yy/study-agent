@@ -236,6 +236,9 @@ from src.application.research_runtime_result_buffers import (
 from src.application.research_runtime_source_evidence_context import (
     ReadSourceEvidenceContext,
 )
+from src.application.research_runtime_evidence_acceptance import (
+    ExtractedEvidenceAcceptanceContext,
+)
 from src.application.research_runtime_model_policy import (
     ACTIVE_RESEARCH_POLICY_AUDITS_KEY,
     RuntimeModelPolicyContext,
@@ -299,9 +302,7 @@ from src.application.active_research_evidence_projection import (
     _bounded_retrieval_policy as _bounded_retrieval_policy,
     _bounded_text,
     _source_record,
-    _add_extracted_evidence,
     _evidence_brief,
-    _evidence_id_for_record,
     _state_after_gate,
 )
 from src.application.research_runtime_read_observability import (
@@ -808,6 +809,9 @@ class ActiveResearchRuntimeExecutor:
         source_evidence = ReadSourceEvidenceContext(
             results=results,
             visual_reader=_read_visual_evidence_for_candidate,
+        )
+        evidence_acceptance = ExtractedEvidenceAcceptanceContext(
+            run_id=run_id, live=live, results=results
         )
         known_evidence_ids = partial(results.known_evidence_ids, run_id)
         publisher = ActiveResearchPublisher(
@@ -2337,37 +2341,11 @@ class ActiveResearchRuntimeExecutor:
                         checkpoint()
                         continue
                     link = extracted.extraction
-                    extraction_summary = {
-                        "status": "eligible",
-                        "claim_id": link.claim_id,
-                        "relation": link.relation,
-                        "strength": link.strength,
-                        "locator": link.locator,
-                        "anchored_spans": list(link.anchored_spans),
-                        "caveats": list(link.caveats),
-                        "source_role": link.source_role,
-                        "source_cluster_id": link.source_cluster_id,
-                        "published_at": link.published_at,
-                    }
-                    extractions[claim_id] = dict(extraction_summary)
-                    # Keep the singular field as a backward-compatible summary of
-                    # the first eligible extraction for existing consumers.
-                    current_summary = source_record.get("extraction")
-                    if not (
-                        isinstance(current_summary, Mapping)
-                        and current_summary.get("status") == "eligible"
-                    ):
-                        source_record["extraction"] = extraction_summary
-                    evidence_id = _evidence_id_for_record(run_id, source_record, selected_sources, rejected_sources)
-                    live.state = _add_extracted_evidence(live.state, evidence_id=evidence_id, link=link)
-                    live.cursor = replace(
-                        live.cursor,
-                        read_outcomes=tuple(
-                            replace(outcome, evidence_id=evidence_id)
-                            if outcome.candidate_id == candidate_id
-                            else outcome
-                            for outcome in live.cursor.read_outcomes
-                        ),
+                    evidence_id = evidence_acceptance.accept(
+                        record=source_record,
+                        candidate_id=candidate_id,
+                        claim_id=claim_id,
+                        link=link,
                     )
                     checkpoint()
 
