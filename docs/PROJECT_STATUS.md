@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 研究波次增益与发现进度结算收归实时上下文（独立 P3 静态片）
+
+- **范围**：新增 `ActiveWaveProgressContext`，将 `execute()` 尾部交错的 Evidence Gain、逐 claim/gap 饱和计数、lead 发现增量判定和 `metrics.wave_progress` 有界记账统一收归单一执行上下文。读取前的三个计数保存为只含整数的 `DiscoveryProgressSnapshot`，结算时重新读取唯一 `ActiveRuntimeLiveValues` 的最新 state/cursor/context，沿用原 `_wave_gap_provenance` 来源归因；删除执行器重复的 `_is_discovery_candidate`，执行器仅保留两次显式调用。与 `ActiveWaveSettlementContext` 的后续 steering/停止决定明确分工。
+- **冻结契约**：以持久化波次开始时的原 state 为 gain baseline、以 `active_gap_ids` 为处理目标；新候选/域线索只能延迟本波饱和，**不能假冒证据增益，也不能重置既有 no-gain 计数**。无进展时逐 claim/gap 只增加一次，增益历史总是追加；诊断字段、最近 `MAX_RESEARCH_WAVES` 条截断、旧列表别名和 checkpoint 前写入顺序均保留。执行器原 `checkpoint() → research-window end → checkpoint() → timing flush → wave settlement` 调用位置完全不动；不改变恢复 schema、读取/模型/预算结算、证据门禁及发布资格。
+- **验证**：新增 7 项直接负控，覆盖无进展饱和、三种发现信号、真实证据进展、跨 checkpoint live 重绑与有界诊断、归因异常前不写入；初始 6 项与主动研究执行器、波次基线/停止/settlement、checkpoint 会话及预算影响集 **119 passed / 98.19s**，随后补充异常负控并单独运行新专项 **7 passed**。全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。本片 `priority=P3`、`loop=static`、`owner=research/wave-progress`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；无真实搜索或付费模型，不能据此声称用户回答质量提升。
+- **交接**：起点 `main@472cc7b`，独立分支 `codex/research-wave-progress-context-20261120`。此改动仅创建清晰的可变状态所有权、未迁移持久化权威；须以新 PR 的精确 HEAD CI 与无阻断审阅验收。#570 读取链测试、#562 late-tail 诊断、#571 旧研究记忆退役各有独立 PR，不挪用其未合代码。下一片优先收口开放 PR，再看 assessment 结果缓存与外部调度的可变状态交界，不扩张为模型预算重写。
+
 ### 2026-11-20 主动研究四阶段取消回归共用场景搭建（独立 P3 静态测试片）
 
 - **范围**：原 `test_active_research_runtime.py` 的 claim 规划、搜索后端、读网关、证据提取四项取消测试分别重建 SQLite 仓库、pending 研究运行、测试客户端和服务，再执行同一个取消终态断言。现在使用 `stage=model/search/read/extract` 参数化保留四项独立场景及各自唯一 run ID/数据库，按阶段只注入对应的取消回调。测试净删 **36 行**，无新辅助层、无删减四种中断时机。
