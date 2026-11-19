@@ -375,7 +375,9 @@ export function useChatController(options: ControllerOptions) {
     options.setOperationError("");
     setIsSending(true);
     let streamedReply = "";
-    let fullReply = "";
+    // Null means the server has not published a final reply. An explicitly
+    // empty final reply must never fall back to unverified streamed tokens.
+    let fullReply: string | null = null;
     let streamedRoute: Record<string, unknown> = {};
     let streamedRag: ChatResponse["rag"] | null = null;
     let activeSessionId = state.activeChatThreadId ?? "";
@@ -409,10 +411,10 @@ export function useChatController(options: ControllerOptions) {
           if (index === assistantIndex) {
             return {
               ...message,
-              content: partial !== undefined && partial !== "" ? partial : message.content,
+              content: partial !== undefined ? partial : message.content,
               transient: true,
               turnId: activeTurnId || message.turnId,
-              turnStatus: partial ? "interrupted" : status,
+              turnStatus: status,
               cancelNotice: notice,
             };
           }
@@ -580,10 +582,10 @@ export function useChatController(options: ControllerOptions) {
             const partial = typeof data.partial === "string" ? data.partial : "";
             cancelledSettledRef.current = true;
             stopCancelPolling();
-            const fullPartial =
-              extraOpts.partialReply && !extraOpts.partialReply.includes(streamedReply)
-                ? extraOpts.partialReply + streamedReply
-                : streamedReply || partial;
+            // The SSE partial is the server's publishable suffix. A resumed
+            // turn retains its already-persisted prefix; browser tokens are
+            // only provisional and must not leak into recovery/continuation.
+            const fullPartial = `${extraOpts.partialReply ?? ""}${partial}`;
             // The recovery card stays available after a cooperative stop:
             // retry creates a fresh operation with full retrieval (decision 8).
             setStreamRecovery({
@@ -593,7 +595,7 @@ export function useChatController(options: ControllerOptions) {
               sessionId: activeSessionId || undefined,
               turnId: activeTurnId || null,
             });
-            cancelMarkRef.current?.(partial ? "interrupted" : "cancelled", partial || undefined);
+            cancelMarkRef.current?.(fullPartial ? "interrupted" : "cancelled", fullPartial);
           },
           onToken: (token) => {
             if (!isCurrent()) return;
@@ -660,8 +662,16 @@ export function useChatController(options: ControllerOptions) {
       activeSessionId = response.session_id;
       activeTurnId = response.turn_id ?? activeTurnId;
       setThreadId(response.session_id);
-      const effectiveReply = fullReply || response.reply;
-      setLastChat(fullReply ? { ...response, reply: effectiveReply } : response);
+      if (cancelledSettledRef.current) {
+        // onCancelled already applied the persisted terminal state and
+        // recoverable partial. The success path below would overwrite that
+        // visible text with whatever tokens happened to reach this browser.
+        setLastChat(response);
+        await options.refresh();
+        return;
+      }
+      const effectiveReply = fullReply ?? response.reply;
+      setLastChat(fullReply !== null ? { ...response, reply: effectiveReply } : response);
       options.setOperationError("");
       if (shouldConsumeWebLookup) options.setUseWebLookup(false);
       setMessages((current) =>

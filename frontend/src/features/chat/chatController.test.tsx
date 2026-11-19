@@ -120,6 +120,98 @@ describe("continuous research conversation", () => {
     }));
   });
 
+  it("renders the final published answer instead of an earlier streamed draft", async () => {
+    apiMocks.sendChatStream.mockImplementation(async (_q, _h, _o, callbacks) => {
+      callbacks.onSession("chat-final", { turnId: "turn-final" });
+      callbacks.onToken("unverified draft");
+      callbacks.onDone({ session_id: "chat-final", turn_id: "turn-final", reply: "verified final answer" });
+      return { reply: "unverified draft", session_id: "chat-final", turn_id: "turn-final", route: {}, rag: {} };
+    });
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-final" });
+    await act(async () => { await result.current.send("verify my answer"); });
+    const last = result.current.messages[result.current.messages.length - 1];
+    expect(last?.content).toBe("verified final answer");
+    expect(last?.turnStatus).toBe("completed");
+  });
+
+  it("does not resurrect streamed candidate text when the final publication is empty", async () => {
+    apiMocks.sendChatStream.mockImplementation(async (_q, _h, _o, callbacks) => {
+      callbacks.onSession("chat-empty-final", { turnId: "turn-empty" });
+      callbacks.onToken("unpublished candidate");
+      callbacks.onDone({ session_id: "chat-empty-final", turn_id: "turn-empty", reply: "" });
+      return { reply: "unpublished candidate", session_id: "chat-empty-final", turn_id: "turn-empty", route: {}, rag: {} };
+    });
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-empty-final" });
+    await act(async () => { await result.current.send("verify my answer"); });
+    expect(result.current.messages[result.current.messages.length - 1]?.content).toBe("");
+  });
+
+  it("keeps the saved cancellation partial visible even with zero delivered tokens", async () => {
+    apiMocks.sendChatStream.mockImplementation(async (_q, _h, _o, callbacks) => {
+      callbacks.onSession("chat-cancel", { turnId: "turn-cancel" });
+      callbacks.onCancelled({ turn_id: "turn-cancel", stage: "generation", partial: "saved partial" });
+      return { reply: "", session_id: "chat-cancel", turn_id: "turn-cancel", route: {}, rag: {} };
+    });
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-cancel" });
+    await act(async () => { await result.current.send("interruptible task"); });
+    const last = result.current.messages[result.current.messages.length - 1];
+    expect(last?.content).toBe("saved partial");
+    expect(last?.turnStatus).toBe("interrupted");
+  });
+
+  it("uses the persisted cancellation partial for the visible answer and recovery, not stale tokens", async () => {
+    apiMocks.sendChatStream.mockImplementation(async (_q, _h, _o, callbacks) => {
+      callbacks.onSession("chat-cancel-stale", { turnId: "turn-cancel-stale" });
+      callbacks.onToken("transient tokens that did not persist");
+      callbacks.onCancelled({ turn_id: "turn-cancel-stale", stage: "generation", partial: "saved truth" });
+      return { reply: "transient tokens that did not persist", session_id: "chat-cancel-stale", turn_id: "turn-cancel-stale", route: {}, rag: {} };
+    });
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-cancel-stale" });
+    await act(async () => { await result.current.send("stop this task"); });
+    const last = result.current.messages[result.current.messages.length - 1];
+    expect(last?.content).toBe("saved truth");
+    expect(last?.turnStatus).toBe("interrupted");
+    expect(result.current.streamRecovery?.reply).toBe("saved truth");
+  });
+
+  it("removes an unpublished draft when cancellation persisted no text", async () => {
+    apiMocks.sendChatStream.mockImplementation(async (_q, _h, _o, callbacks) => {
+      callbacks.onSession("chat-cancel-empty", { turnId: "turn-cancel-empty" });
+      callbacks.onToken("unpublished draft");
+      callbacks.onCancelled({ turn_id: "turn-cancel-empty", stage: "generation", partial: "" });
+      return { reply: "unpublished draft", session_id: "chat-cancel-empty", turn_id: "turn-cancel-empty", route: {}, rag: {} };
+    });
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-cancel-empty" });
+    await act(async () => { await result.current.send("stop this task"); });
+    const last = result.current.messages[result.current.messages.length - 1];
+    expect(last?.content).toBe("");
+    expect(last?.turnStatus).toBe("cancelled");
+    expect(result.current.streamRecovery?.reply).toBe("");
+  });
+
+  it("rebuilds a cancelled continuation from its saved prefix and server suffix", async () => {
+    apiMocks.sendChatStream.mockImplementation(async (_q, _h, _o, callbacks) => {
+      callbacks.onSession("chat-resume-stop", { turnId: "turn-resume-stop" });
+      callbacks.onToken("browser-only suffix");
+      callbacks.onCancelled({ turn_id: "turn-resume-stop", stage: "generation", partial: " saved suffix" });
+      return { reply: "browser-only suffix", session_id: "chat-resume-stop", turn_id: "turn-resume-stop", route: {}, rag: {} };
+    });
+    const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-resume-stop" });
+    await act(async () => {
+      await result.current.send(
+        "resume",
+        [
+          { role: "user", content: "resume" },
+          { role: "assistant", content: "saved prefix", avatarRole: "auto" },
+        ],
+        { continuationOfTurnId: "turn-resume-stop", partialReply: "saved prefix" },
+      );
+    });
+    const last = result.current.messages[result.current.messages.length - 1];
+    expect(last?.content).toBe("saved prefix saved suffix");
+    expect(result.current.streamRecovery?.reply).toBe("saved prefix saved suffix");
+  });
+
   it("submits into the same run, keeps streaming to the assistant, and reflects application", async () => {
     const { result } = controllerHarness(undefined, { activeChatThreadId: "chat-live" });
     let stream: ReturnType<typeof result.current.send>;
