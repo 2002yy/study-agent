@@ -41,6 +41,16 @@
 - **主线重挂（#548 合并后）**：原读重试诊断 PR #548 已合入 `main@ff619094`；本片源代码自动合并，保留两批交接记录，并将本段置顶以降低后续 #550 独立交接的冲突风险。新候选的模型/主动研究/预算/Deep/读取重试影响集 **228 passed**，基础运行时与失败契约 **50 passed**，合计 **278 passed**。新精确 PR HEAD CI 必须独立成功，旧运行号 `44573181445` 不作新 SHA 验收依据。
 - **最新整合**：#549、#550、#551、#554 均已合入 `main@a1dd6159`；本批 #552 仅将交接文档的并列新增节合并到主线，模型尝试实现与负控无额外修改。旧 `c263a0b0` 的绿色 CI 不替代重挂后精确 HEAD 验收。
 
+### 2026-11-20 三类读取共享波次预算投影上下文（独立 P3 静态片）
+
+- **范围**：新增 `ReadWaveBudgetContext`，将 Deep 本地材料化、普通证据读取和 lead 读取三处重复的 `updated_runtime_budget(state, cursor, elapsed_seconds, reads_used)` 调用收敛为 `read_budget.project()`。每波绑定同一个既有 `ReadWaveQuotaContext`、运行期唯一的 `ActiveRuntimeLiveValues` 与预算时钟，调用时读取最新 state/cursor，不缓存 checkpoint/steering 恢复前快照。投影只返回新 `ResearchState`，执行器仍独占 `live.state` 回写、读取历史及持久化。
+- **冻结契约**：Deep 材料化只计字符、不计读槽，投影→读取历史→checkpoint；普通物理读取在成功时计槽与字符、来源 upsert/视觉附着后投影→带 resolution 的读取历史→checkpoint；lead 成功读取计槽与字符、投影→checkpoint 后才做政策及模型发现。失败读取不增加槽；读取准入逐次取当前额度上限。`updated_runtime_budget` 的候选计数上限、读数、耗时算法不变；不更改任何 checkpoint 调用点/顺序、恢复 schema、模型及外部读取次数、发布资格、读取历史或诊断键。
+- **验证**：新增预算投影正/负控，连同 Deep seed/续接、lead 发现、完整主动研究执行器、读取额度/预算时钟、checkpoint 与读取投影影响集在原候选 **173 passed**；重挂至 `main@c5174e1`、纳入 #550 新 checkpoint 会话和 #551 真实执行器场景后 **174 passed**。新候选全仓 Ruff、编译和差异检查通过，mypy **115/125、无新增**。未触发共享 schema 或生产权威切换，不运行 L3 全量；相关验证均为离线静态证据。
+- **边界**：该上下文没有第二份预算/游标/持久化权威，也不接管 checkpoint；硬预算终止仍走执行器既有不带 reads_used 覆盖的通用投影。新增纯单元负控验证旧状态不变、恢复后 state/cursor 双重重绑定、Deep 零读槽、物理与 lead 共享计数、只采样一次 elapsed、不写诊断/游标。最初基于 `main@ff619094`；在 #549/#551/#550 合并后，保留其全部代码和交接并重挂到 `main@c5174e1`，仅交接文档同一插入点冲突；与开放中的 #552/#553 不叠加代码。独立分支 `codex/read-wave-budget-projection-20261120`。`priority=P3`、`loop=static`、`owner=read-budget/orchestration`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；没有真实搜索或付费模型调用。
+
+- **主线整理**：#556 原 HEAD `56e6b964` 的精确 CI `44580739112` 已成功；主线随后新增 #552/#553/#555/#557/#558/#559/#560。只合并 `PROJECT_STATUS.md` 的并列交接节，运行时代码自动重挂至 `main@6fdc6cc`。重挂后完整执行器、Deep、lead、读取额度/时钟/投影及 checkpoint 影响集 **174 passed / 101.04s**，全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。旧 CI 不适用于新的 HEAD，必须重新核验。
+- **再次重挂**：#565 提取目标准入合入 `main@3b6e6ad` 后，本片代码和交接记录再次自动重挂，无冲突。提取准入的更改不涉及读取预算三处写入；叠加后读取预算、来源准入、完整主动执行器和 checkpoint 影响集 **102 passed / 93.79s**，Ruff、编译与差异检查通过。新 PR HEAD 仍需独立 CI，原 174 项回归只能作为此前基线证据。
+
 ### 2026-11-20 读取重试与 inventory 诊断聚合提取（独立 P3 静态片）
 
 - **范围**：将主动研究执行器的 `_inventory_fetch_with_retry` 和 `_accumulate_fetch_metrics` 归到 `research_runtime_fetch_retry_observation`，统一负责 sitemap/inventory 的四元组→可重试 payload 适配，以及原生读取/清单读取分别写入 `read_retry`、`inventory_fetch` 的有界诊断聚合。执行器仍通过原函数名称兼容导入，网关路径和域定向路径的调用点不变。没有新建可变状态持有者；每次调用显式接收当前上下文与剩余时间。
