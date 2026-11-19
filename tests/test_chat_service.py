@@ -644,6 +644,35 @@ def test_chat_service_non_stream_failure_moves_turn_to_failed(tmp_path):
     assert failed.status == "failed"
 
 
+@pytest.mark.parametrize("empty_reply", ["", " \n\t "])
+def test_empty_model_reply_is_not_a_completed_chat_turn(tmp_path, empty_reply):
+    service, repository = _service(tmp_path, chat=lambda *args, **kwargs: empty_reply)
+    prepared = service.start_turn(
+        ChatCommand(user_input="请给出一个解释", thread_id="chat-empty-final")
+    )
+
+    with pytest.raises(RuntimeError, match="没有可发布的回答正文"):
+        service.generate(prepared)
+
+    failed = repository.get_chat_turn(prepared.turn.id)
+    thread = repository.get_chat_thread(prepared.thread.id)
+    assert failed is not None and failed.status == "failed"
+    assert failed.assistant_message == ""
+    assert failed.route_snapshot["generation"]["status"] == "error"
+    assert thread is not None and thread.active_operation_id is None
+
+    # The zero-token terminal must remain recoverable after a fresh operation.
+    service.dependencies = replace(
+        service.dependencies, chat=lambda *args, **kwargs: "重新生成的回答"
+    )
+    retry = service.start_turn(ChatCommand(
+        user_input="重新生成", thread_id="chat-empty-final",
+        retry_of_turn_id=prepared.turn.id,
+    ))
+    assert service.generate(retry) == "重新生成的回答"
+    assert repository.get_chat_turn(prepared.turn.id).status == "superseded"
+
+
 def test_chat_service_retry_records_parent_and_supersedes_it_on_success(tmp_path):
     service, repository = _service(tmp_path)
     first = service.start_turn(
