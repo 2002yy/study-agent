@@ -781,7 +781,7 @@ def _chat_command(
             attachment_service = get_session_attachment_service()
         if not request.session_id:
             raise ValueError("附件需要先有会话：请先在会话中发送，再添加附件")
-        _, problems = attachment_service.validate_selection(
+        selected_ids, problems = attachment_service.validate_selection(
             request.session_id, request.attachment_ids
         )
         if problems:
@@ -789,6 +789,8 @@ def _chat_command(
         attachment_refs = attachment_service.selection_refs(
             request.session_id, request.attachment_ids
         )
+        if {ref["attachment_id"] for ref in attachment_refs} != set(selected_ids):
+            raise ValueError("附件状态已变化，请重新选择")
     web_context = request.web_context
     web_context_run_id = request.web_context_run_id
     research_sources: dict[str, Any] | None = None

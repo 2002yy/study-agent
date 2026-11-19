@@ -25,12 +25,12 @@ from src.application.chat_service import (
     _preferred_partial_reply,
     _previous_assistant_role,
     _research_resume_requested,
+    require_turn_attachment_material,
     inline_research_validation_plan,
     attachment_context_block,
     _route_generation_calls,
     _session_settings,
     _tool_context,
-    _turn_attachment_material,
     _web_context_provenance,
 )
 from src.application.helpers import load_frontend_settings, resolve_context_mode
@@ -430,6 +430,11 @@ class ExternalDataPolicyChatService(ChatService):
         base_reply = ""
         try:
             cancel_check("route")
+            selected_attachment_material = (
+                require_turn_attachment_material(self.repository, turn_id)
+                if command.attachment_refs or (existing and existing.attachment_refs)
+                else []
+            )
             skill_instruction, skill_record = selected_skill_context(
                 command.selected_skill_ids,
                 allowed=effective_cloud_context_policy == "allow_local_evidence",
@@ -569,7 +574,7 @@ class ExternalDataPolicyChatService(ChatService):
                     ),
                     owner_thread_id=thread.id,
                     owner_turn_id=turn_id,
-                    attachment_material=_turn_attachment_material(self.repository, turn_id),
+                    attachment_material=selected_attachment_material,
                     research_intent=task_contract.task_intent == "research",
                     history_allowed=decision.history_allowed,
                     deep_requested=False,  # Explicit research is selected by the request text.
@@ -679,7 +684,9 @@ class ExternalDataPolicyChatService(ChatService):
                 context_blocks.append(disclosed.private_context)
             if disclosed.context:
                 context_blocks.append(disclosed.context)
-            attachment_block = attachment_context_block(self.repository, turn_id)
+            attachment_block = attachment_context_block(
+                self.repository, turn_id, material=selected_attachment_material
+            )
             if attachment_block:
                 context_blocks.append(attachment_block)
             restore = resolve_command_restore(self.repository, thread.id, command)

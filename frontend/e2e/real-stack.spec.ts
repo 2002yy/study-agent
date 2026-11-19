@@ -19,6 +19,9 @@ const MATERIAL_QUESTION =
   "请根据刚上传的资料，带我系统学习二分查找边界，并先完整讲解：目标值大于中点值时左边界如何更新？";
 const MATERIAL_REPLY =
   "根据刚上传的资料，目标值大于中点值时，左边界更新为 mid + 1。请解释为什么不能仍把 mid 留在候选区间。";
+const ATTACHMENT_DELIVERY_QUESTION = "请从本轮选择的两份附件中读取并列出两个项目编号。";
+const ATTACHMENT_DELIVERY_REPLY =
+  "已读取两份本轮附件：AX7-2048 与 BY9-4096；这两个编号来自附件正文，并已用于本次回答。";
 
 type DurableState = {
   database_path: string;
@@ -35,6 +38,7 @@ type DurableState = {
     status: string;
     user_message: string;
     assistant_message: string;
+    attachment_refs?: Array<{ attachment_id: string; content_hash: string }>;
     rag_snapshot?: Record<string, unknown>;
   }>;
   summary: {
@@ -196,6 +200,51 @@ test("first learning turn crosses React, FastAPI and SQLite then restores", asyn
   const restored = await durableState(page, sessionId);
   expect(restored.turns).toEqual(stored.turns);
   expect(restored.thread.learning_state).toEqual(stored.thread.learning_state);
+});
+
+test("selected attachment bodies reach the model and its final answer survives reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.locator('.composer-attachments input[type="file"]').setInputFiles([
+    {
+      name: "first-evidence.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("项目 A 的编号是 AX7-2048。请只根据文档事实回答。"),
+    },
+    {
+      name: "second-evidence.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("项目 B 的编号是 BY9-4096。请与另一份文档交叉核对。"),
+    },
+  ]);
+
+  for (const filename of ["first-evidence.txt", "second-evidence.txt"]) {
+    await expect(
+      page.getByRole("button", { name: `取消选择附件 ${filename}`, exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+  }
+
+  await send(page, ATTACHMENT_DELIVERY_QUESTION);
+  // The fake provider emits this only when both decoded attachment bodies
+  // reached the actual model-message assembly, not merely the upload API.
+  await expect(assistantMessage(page, ATTACHMENT_DELIVERY_REPLY)).toBeVisible();
+
+  const sessionId = await activeSessionId(page);
+  const stored = await durableState(page, sessionId);
+  expect(stored.turns).toHaveLength(1);
+  expect(stored.turns[0]).toMatchObject({
+    status: "completed",
+    user_message: ATTACHMENT_DELIVERY_QUESTION,
+    assistant_message: ATTACHMENT_DELIVERY_REPLY,
+  });
+  expect(stored.turns[0].attachment_refs).toHaveLength(2);
+  expect(new Set(stored.turns[0].attachment_refs?.map(ref => ref.attachment_id)).size).toBe(2);
+
+  await page.reload();
+  await expect(assistantMessage(page, ATTACHMENT_DELIVERY_REPLY)).toBeVisible();
+  const restored = await durableState(page, sessionId);
+  expect(restored.turns).toEqual(stored.turns);
 });
 
 test("bare understanding is rejected before a reasoned claim commits", async ({

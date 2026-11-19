@@ -901,6 +901,11 @@ export async function sendChatStream(
     }
     if (message.event === "done") {
       terminalReceived = true;
+      // This is the text persisted by the server's publication gate. Streamed
+      // tokens may be a draft, or absent entirely for a buffered answer.
+      if (typeof message.data.reply === "string") {
+        reply = message.data.reply;
+      }
       if (message.data.generation && typeof message.data.generation === "object") {
         route = { ...route, generation: message.data.generation };
       }
@@ -915,6 +920,11 @@ export async function sendChatStream(
     }
     if (message.event === "cancelled") {
       terminalReceived = true;
+      // Cancellation's partial is the durable server truth, even if the client
+      // never received the final token chunk before the stop was accepted.
+      if (typeof message.data.partial === "string") {
+        reply = message.data.partial;
+      }
       route = { ...route, generation: { status: "cancelled", finish_reason: "unknown" } };
       handlers.onCancelled?.(message.data);
       return;

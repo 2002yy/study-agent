@@ -98,6 +98,34 @@ describe("sendChatStream", () => {
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ generation: { status: "connection_error", finish_reason: "unknown" } }));
   });
 
+  it("returns the committed done.reply rather than streamed unpublished candidate text", async () => {
+    const onDone = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async () => sseResponse([
+      'event: token\ndata: {"text":"unverified draft"}\n\n',
+      'event: done\ndata: {"session_id":"s","turn_id":"t","reply":"verified final answer"}\n\n',
+    ])));
+
+    const response = await sendChatStream(
+      "test", [], { ragEnabled: false, chatSettings, ragSettings }, { onDone }
+    );
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ reply: "verified final answer" }));
+    expect(response.reply).toBe("verified final answer");
+  });
+
+  it("returns the durable cancelled partial even when no token reached the browser", async () => {
+    const onCancelled = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async () => sseResponse([
+      'event: session\ndata: {"session_id":"s","turn_id":"t"}\n\n',
+      'event: cancelled\ndata: {"partial":"saved partial","turn_id":"t"}\n\n',
+    ])));
+
+    const response = await sendChatStream(
+      "test", [], { ragEnabled: false, chatSettings, ragSettings }, { onCancelled }
+    );
+    expect(onCancelled).toHaveBeenCalledWith(expect.objectContaining({ partial: "saved partial" }));
+    expect(response.reply).toBe("saved partial");
+  });
+
   it("sends the chosen older version once and never on the next message", async () => {
     setPendingRestoreTarget({ id: "orders", revision: 2, title: "库存探索" });
     const fetchMock = vi.fn(async () => sseResponse(['event: done\ndata: {"session_id":"s","reply":"ok"}\n\n']));

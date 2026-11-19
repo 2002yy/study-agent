@@ -15,6 +15,7 @@ from src.application.research_runtime_wave_settlement import (
 )
 from src.application.research_runtime_publication import ActiveResearchPublisher
 from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.web.research.contracts import ResearchState
 from src.web.research.evidence_gate import EvidenceGateResult
 from src.web.research.runtime import ResearchRuntimeCursor
@@ -24,28 +25,15 @@ class _InterruptedWave(BaseException):
     pass
 
 
-def _live_wave_handoff() -> tuple[SimpleNamespace, ActiveWaveSettlementHandoff]:
-    """One shared live-local model for both checkpoint interruption boundaries."""
+def _live_wave_handoff() -> tuple[ActiveRuntimeLiveValues, ActiveWaveSettlementHandoff]:
+    """Use the production live owner for both checkpoint interruption cases."""
 
-    live = SimpleNamespace(
+    live = ActiveRuntimeLiveValues(
         state=cast(ResearchState, object()),
         cursor=ResearchRuntimeCursor(wave_index=1),
         context={"before": True},
     )
-
-    def bind(snapshot: ActiveWaveSettlementSnapshot) -> None:
-        live.state, live.cursor, live.context = (
-            snapshot.state,
-            snapshot.cursor,
-            snapshot.context,
-        )
-
-    return live, ActiveWaveSettlementHandoff(
-        capture=lambda: ActiveWaveSettlementSnapshot(
-            live.state, live.cursor, live.context
-        ),
-        bind=bind,
-    )
+    return live, ActiveWaveSettlementHandoff.for_live_values(live)
 
 
 def test_wave_handoff_rebinds_mutated_state_when_settlement_raises() -> None:

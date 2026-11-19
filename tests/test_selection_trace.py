@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from src.application.research_selection_observability import ResearchSelectionTraceContext
 from src.web.research.candidate_pool import (
     CandidatePoolItem,
     execute_candidate_pool_batch,
@@ -204,14 +205,47 @@ def test_trace_does_not_change_selection_or_budget() -> None:
 
 # 11: the payload lives in metrics only; it never enters any cursor contract.
 def test_payload_stays_out_of_cursor_contract() -> None:
-    from src.application.active_research_runtime import _flush_selection_trace
-
     trace = SelectionTraceCollector()
     trace.note_seen(CASES)
     context: dict = {}
-    _flush_selection_trace(context, trace)
+    ResearchSelectionTraceContext(trace=trace).flush(context)
     assert set(context) == {"claim_engine_metrics"}
     assert "selection_trace" in context["claim_engine_metrics"]
+
+
+def test_trace_hydration_and_flush_follow_rebound_context() -> None:
+    previous = SelectionTraceCollector()
+    previous.note_seen(CASES)
+    original = {"claim_engine_metrics": {"selection_trace": previous.to_payload()}}
+    owner = ResearchSelectionTraceContext.from_context(original)
+    owner.trace.note_scheduler_rank(CASES, rank=2)
+
+    rebound = {"claim_engine_metrics": {"unrelated": "preserved"}}
+    owner.flush(rebound)
+
+    assert rebound["claim_engine_metrics"]["unrelated"] == "preserved"
+    assert rebound["claim_engine_metrics"]["selection_trace"] == owner.trace.to_payload()
+    assert original["claim_engine_metrics"]["selection_trace"] == previous.to_payload()
+    assert owner.trace.to_payload() != previous.to_payload()
+
+
+def test_empty_and_malformed_trace_do_not_replace_unrelated_diagnostics() -> None:
+    for old in (
+        {},
+        {"claim_engine_metrics": "legacy"},
+        {"claim_engine_metrics": {"selection_trace": "invalid"}},
+    ):
+        owner = ResearchSelectionTraceContext.from_context(old)
+        assert len(owner.trace) == 0
+        target = {"claim_engine_metrics": {"other": True}}
+        owner.flush(target)
+        assert target == {"claim_engine_metrics": {"other": True}}
+
+    owner = ResearchSelectionTraceContext(trace=SelectionTraceCollector())
+    owner.trace.note_seen(CASES)
+    legacy_metrics = {"claim_engine_metrics": "legacy"}
+    owner.flush(legacy_metrics)
+    assert legacy_metrics == {"claim_engine_metrics": "legacy"}
 
 
 # 12: same input -> identical payload, and terminal vocabulary is frozen.

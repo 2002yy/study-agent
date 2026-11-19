@@ -1,5 +1,6 @@
 """Model attempt callbacks preserve durable-before-send and in-memory finish."""
 
+from dataclasses import replace
 from typing import Any, cast
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from src.application.research_runtime_model_attempt_context import (
     ActiveModelAttemptContext,
 )
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.web.research.contracts import ResearchState
 from src.web.research.model_gateway import (
     ResearchModelAttemptStart,
@@ -102,6 +104,38 @@ def _callbacks(
         slot,
         order,
     )
+
+
+def test_live_binding_reads_recovered_state_and_rebound_cursor() -> None:
+    """Attempt callbacks cannot retain a state/cursor from before recovery."""
+    original_state = cast(ResearchState, object())
+    recovered_state = cast(ResearchState, object())
+    live = ActiveRuntimeLiveValues(state=original_state)
+    checked: list[ResearchState] = []
+    checkpoints: list[ResearchRuntimeCursor] = []
+    callbacks = ActiveModelAttemptContext.for_live_values(
+        live,
+        ensure_active=lambda: None,
+        ensure_budget=checked.append,
+        checkpoint=lambda: checkpoints.append(live.cursor),
+    )
+
+    live.state = recovered_state
+    live.cursor = replace(live.cursor, wave_index=2)
+    marker = _marker()
+    callbacks.started(marker)
+    assert checked == [recovered_state]
+    assert checkpoints == [live.cursor]
+    assert live.cursor.wave_index == 2
+
+    # A wave handoff may replace the cursor after the checkpoint.
+    post_checkpoint = replace(live.cursor, phase="searching")
+    live.cursor = post_checkpoint
+    callbacks.finished(_audit(marker))
+    assert live.cursor is not post_checkpoint
+    assert live.cursor.inflight_model_call is None
+    assert len(live.cursor.model_calls) == 1
+    assert len(checkpoints) == 1
 
 
 def test_model_callbacks_checkpoint_start_before_finish_and_never_flush_audit() -> None:
