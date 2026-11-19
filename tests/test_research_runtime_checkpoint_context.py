@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
 
 import pytest
 
-from src.application.research_runtime_checkpoint import ActiveRuntimeCheckpointContext
+from src.application.research_runtime_checkpoint import (
+    ActiveRuntimeCheckpointContext,
+    ActiveRuntimeCheckpointSession,
+)
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import ResearchBudget, build_research_state
@@ -142,3 +148,88 @@ def test_prepare_derives_evidence_ids_from_live_result_buffers(
 
     assert ids_at_prepare == [(), ("research-1:first",)]
     assert checkpoint.state.budget.elapsed_seconds == 2.0
+
+
+def test_checkpoint_session_reloads_live_values_and_rebinds_repository_context() -> (
+    None
+):
+    repository = Mock(spec=WebLookupRepository)
+    initial = _checkpoint(repository)
+    live = ActiveRuntimeLiveValues(
+        state=initial.state,
+        cursor=initial.cursor,
+        context={"before": "original"},
+    )
+    seen_contexts: list[dict[str, Any]] = []
+
+    def persist(*_args: Any, **kwargs: Any) -> SimpleNamespace:
+        assert kwargs["research_context"] is live.context
+        seen_contexts.append(kwargs["research_context"])
+        return SimpleNamespace(
+            research_context={
+                **kwargs["research_context"],
+                "steering_from_repository": len(seen_contexts),
+            }
+        )
+
+    repository.checkpoint.side_effect = persist
+    session = ActiveRuntimeCheckpointSession(
+        repository=repository,
+        run_id="research-1",
+        operation_id="operation-1",
+        live=live,
+        results=initial.results,
+        elapsed=lambda: 7.0,
+        elapsed_ms=lambda: 0.0,
+    )
+    first = session.checkpoint(stage=None, diagnostics={})
+    assert first.research_context["steering_from_repository"] == 1
+    assert live.context is not first.research_context
+    assert live.context["steering_from_repository"] == 1
+    assert live.state.budget.elapsed_seconds == 7.0
+
+    # A wave handoff replaces the cursor and durable context; the next
+    # checkpoint must consume those newest values, not the first snapshot.
+    live.cursor = replace(live.cursor, phase="reading")
+    live.state = replace(live.state, budget=replace(live.state.budget, max_reads=3))
+    live.context = {"after_wave": True}
+    session.checkpoint(stage=None, diagnostics={})
+
+    assert len(seen_contexts) == 2
+    assert seen_contexts[1]["after_wave"] is True
+    assert "before" not in seen_contexts[1]
+    assert seen_contexts[1]["claim_engine_runtime"]["phase"] == "reading"
+    assert seen_contexts[1]["claim_engine"]["budget"]["max_reads"] == 3
+    assert live.context["steering_from_repository"] == 2
+    assert repository.checkpoint.call_count == 2
+
+
+def test_checkpoint_session_keeps_partial_live_projection_on_prepare_failure(
+    monkeypatch: Any,
+) -> None:
+    repository = Mock(spec=WebLookupRepository)
+    initial = _checkpoint(repository)
+    live = ActiveRuntimeLiveValues(state=initial.state, cursor=initial.cursor)
+    session = ActiveRuntimeCheckpointSession(
+        repository=repository,
+        run_id="research-1",
+        operation_id="operation-1",
+        live=live,
+        results=initial.results,
+        elapsed=lambda: 9.0,
+        elapsed_ms=lambda: 0.0,
+    )
+
+    def fail_serialization(*_args: Any, **_kwargs: Any) -> None:
+        raise ValueError("serialization failed")
+
+    monkeypatch.setattr(
+        "src.application.research_runtime_checkpoint.attach_claim_engine_state",
+        fail_serialization,
+    )
+    with pytest.raises(ValueError, match="serialization failed"):
+        session.checkpoint(stage=None, diagnostics={})
+
+    assert live.state.budget.elapsed_seconds == 9.0
+    assert "claim_engine_runtime" in live.context
+    repository.checkpoint.assert_not_called()

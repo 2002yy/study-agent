@@ -229,7 +229,7 @@ from src.application.research_stop_gate import (
     ResearchStopSignal,
 )
 from src.application.research_runtime_checkpoint import (
-    ActiveRuntimeCheckpointContext,
+    ActiveRuntimeCheckpointSession,
     updated_runtime_budget,
 )
 from src.application.research_runtime_result_buffers import (
@@ -854,31 +854,24 @@ class ActiveResearchRuntimeExecutor:
             policy_check=self.policy_check,
             utc_now=self.utc_now,
         )
+        checkpoint_session = ActiveRuntimeCheckpointSession(
+            repository=self.repository,
+            run_id=run_id,
+            operation_id=operation_id,
+            live=live,
+            results=results,
+            elapsed=elapsed,
+            elapsed_ms=elapsed_ms,
+        )
 
         def checkpoint(*, stage: str | None = None) -> WebLookupRun:
             diagnostics: dict[str, Any] = {}
             _checkpoint_started = elapsed_ms()
             try:
-                snapshot = ActiveRuntimeCheckpointContext(
-                    repository=self.repository,
-                    run_id=run_id,
-                    operation_id=operation_id,
-                    context=live.context,
-                    state=live.state,
-                    cursor=live.cursor,
-                    results=results,
-                )
-                persisted = snapshot.prepare_and_persist(
+                return checkpoint_session.checkpoint(
                     stage=stage,
-                    elapsed=elapsed,
-                    bind_prepared=live.bind_prepared_checkpoint,
                     diagnostics=diagnostics,
-                    elapsed_ms=elapsed_ms,
                 )
-                # A concurrent steering entry may be merged by the repository;
-                # carry the durable result into the next wave boundary.
-                live.context = dict(persisted.research_context)
-                return persisted
             finally:
                 timing_ledger.record_checkpoint(elapsed_ms() - _checkpoint_started)
                 _record_checkpoint_timing(

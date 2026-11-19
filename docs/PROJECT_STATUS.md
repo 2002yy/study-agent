@@ -11,6 +11,12 @@
 - **范围**：将主动研究执行器的 `_inventory_fetch_with_retry` 和 `_accumulate_fetch_metrics` 归到 `research_runtime_fetch_retry_observation`，统一负责 sitemap/inventory 的四元组→可重试 payload 适配，以及原生读取/清单读取分别写入 `read_retry`、`inventory_fetch` 的有界诊断聚合。执行器仍通过原函数名称兼容导入，网关路径和域定向路径的调用点不变。没有新建可变状态持有者；每次调用显式接收当前上下文与剩余时间。
 - **冻结契约**：读取重试的 `off`/`window_aware` 准入、每次 12 秒和 1,500,000 字节的 inventory 入场参数、transport 异常与空正文映射、最终四元组返回、retry/backoff/timing 指标的逐次舍入、8 条原因截断，及两类独立诊断键均保持原规则。**不改**真实重试次数、读槽/研究预算、模型次数、检查点时点/顺序、恢复游标与证据发布；此模块也不决定任何模型预算。
 - **验证与边界**：新增负控检查上下文替换后计数互不污染、诊断长度和逐次舍入；原重试准入专项 **12 passed**，连同完整主动研究执行器、域定向、读取升级与选择器影响集不重复合计 **163 passed**。全库 Ruff、编译和差异检查通过；mypy 当前 **115** 项既有问题，低于基线 **125**，无新增。基于 `main@7a5f0461` 的独立 `codex/fetch-retry-observation-owner-20261120` 分支；`priority=P3`、`loop=static`、`owner=retrieval/fetch-observation`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`，未运行真实搜索、视觉或付费模型。
+### 2026-11-20 检查点会话显式依赖与最新状态绑定（独立 P3 静态片）
+
+- **范围**：新增 `ActiveRuntimeCheckpointSession`，在一次研究执行中持有仓库操作标识、结果缓冲、预算时钟回调与唯一 `ActiveRuntimeLiveValues`；每次 checkpoint 现场读取最新 `state/cursor/context`，即时构造 `ActiveRuntimeCheckpointContext`，按原逻辑准备/绑定/持久化并仅在写入成功后采用仓库返回的上下文。执行器的内部 `checkpoint()` 继续保留原计时边界、`_checkpoint_caller()` 栈深及异常 `finally` 记录，不移动实际调用点。
+- **冻结契约**：保持 `stage → budget → runtime cursor → claim state → metrics → repository write → durable context rebind` 顺序；准备失败仍绑定已经完成的部分状态但禁止持久化，写入失败不采用新的仓库上下文。保留 repo-CAS/steering 合并、checkpoint 次数和时点、观测字段、预算/模型/读取次数、恢复持久化形状、Evidence Gate 与最终发布。**唯一可变状态所有者仍是 `ActiveRuntimeLiveValues`**，会话不缓存任何旧快照。
+- **证据/交接**：新增两项负控覆盖跨 checkpoint 的三种实时值替换、仓库 steering 合并及序列化故障后部分投影；`test_research_runtime_checkpoint_context.py` **5 passed**，主动执行/恢复/预算/波次等影响集 **153 passed**，Deep 续接/steering/窗口诊断相邻集 **101 passed**，两组不重复合计 **254 passed**。全库 Ruff、差异检查与 mypy **115/125、无新增**。基于 `main@7a5f0461` 独立 `codex/checkpoint-persistence-session-20261120`，与尚在 CI 的 #548 读取重试诊断拆分不同职责；须取得此分支精确 PR HEAD CI 和审阅门禁才能合并。`priority=P3`、`loop=static`、`owner=research/checkpoint-recovery`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；未运行真实搜索、付费模型或动态产品比较。
+- **主线重挂（#548 合并后）**：#548 的精确 CI 五项成功，已 squash 至 `main@ff619094`。本片仅顶部交接段落存在冲突，保留两批记录，运行时源代码自动合并。新候选含 #548 的读取重试模块，主动研究/恢复/预算/波次及读取重试 **165 passed**，Deep 续接/steering/窗口诊断 **101 passed**，合计 **266 passed**；mypy **115/125、无新增**。须按重挂后的精确 PR HEAD 重新验证远端 CI，旧运行号 `44571779039` 不作新 SHA 门禁依据。
 
 ### 2026-11-20 发现与深页定向诊断写入集中到实时上下文（独立 P3 静态片）
 

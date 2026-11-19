@@ -16,6 +16,7 @@ from src.application.research_runtime_result_buffers import (
     _dedupe,
     _eligible_items,
 )
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.domain.runtime_entities import WebLookupRun
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import ResearchState
@@ -127,6 +128,48 @@ class ActiveRuntimeCheckpointContext:
         )
         if isinstance(diagnostics, dict):
             diagnostics["repo_call_ms"] = round(elapsed_ms() - started, 1)
+        return persisted
+
+
+@dataclass(slots=True)
+class ActiveRuntimeCheckpointSession:
+    """Resolve fresh live values for every checkpoint in one execution.
+
+    The snapshot remains short-lived: steering, recovery, and wave settlement
+    can replace the cursor, state, and durable context between checkpoints.
+    Timing observation remains at the executor's original call boundary.
+    """
+
+    repository: WebLookupRepository
+    run_id: str
+    operation_id: str
+    live: ActiveRuntimeLiveValues
+    results: ActiveResearchResultBuffers
+    elapsed: Callable[[], float]
+    elapsed_ms: Callable[[], float]
+
+    def checkpoint(
+        self, *, stage: str | None, diagnostics: dict[str, Any]
+    ) -> WebLookupRun:
+        snapshot = ActiveRuntimeCheckpointContext(
+            repository=self.repository,
+            run_id=self.run_id,
+            operation_id=self.operation_id,
+            context=self.live.current_context(),
+            state=self.live.current_state(),
+            cursor=self.live.current_cursor(),
+            results=self.results,
+        )
+        persisted = snapshot.prepare_and_persist(
+            stage=stage,
+            elapsed=self.elapsed,
+            bind_prepared=self.live.bind_prepared_checkpoint,
+            diagnostics=diagnostics,
+            elapsed_ms=self.elapsed_ms,
+        )
+        # A concurrent steering entry can be merged in the repository.
+        # Only a successful persistence result may replace the live context.
+        self.live.context = dict(persisted.research_context)
         return persisted
 
 
