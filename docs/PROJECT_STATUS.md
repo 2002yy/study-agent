@@ -123,6 +123,12 @@
 - **主线重挂**：首次本地候选 `f6718638` 后主线又合入前端实验室清理与 GitHub 静态回放退役（`main@1ce267a5`）；仅交接文档顶部有冲突，保留两项独立清理记录。读取运行时代码、新额度上下文与测试均无交叉修改；新精确 PR HEAD 的 CI 与审阅仍须独立验收，不借用前一候选测试作远端 CI 结论。
 - **下一片**：本片独立通过完整门禁、主线整合后，再考虑从执行器拆分来源记录及视觉附件写回；不要同时把 `selected_sources` 的发布所有权移出 `ActiveResearchResultBuffers`。
 
+### 2026-11-20 GitHub 证据与学习会话旧源码归属快照测试退役（P3 静态减负）
+
+- 两份 App 层测试 `githubEvidenceBoundary.test.ts`（2 项）和 `learningSessionViewBoundary.test.ts`（2 项）只读取 TS/TSX 源码，查某些函数名/字面量是否存在、某些历史变量名是否缺席；不执行真实 API、证据归一化、会话切换或渲染，且代码重命名即可引发误报。
+- 直接删除合计 82 行的旧源码归属快照，没有独占运行时函数、适配层、开关或显式 CI 注册需要保留。**保留** `evidenceHelpers.test.ts` 对服务器证据契约/来源 ID 的实际归一化测试、`EvidenceTrail.test.tsx` 的可见证据状态、`learningSessionViewModel.test.ts` 对当前 thread 与恢复摘要优先级的选择结果，以及 `evidence-journeys.spec.ts` / `closure-session-journeys.spec.ts` 实际浏览器旅程。
+- 不删除有独特运行契约的 Firefly 教学、聊天恢复/控制器边界测试；不更改任何生产 UI、恢复、研究执行、模型预算、checkpoint 或证据发布。基线 `main@a1dd6159`，独立 `codex/retire-source-owner-boundary-tests-20261120`，`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；以精确 PR HEAD CI 验收，不宣称真实浏览器质量提升。
+
 ### 2026-11-19 Firefly/Doupo 历史源码文案测试退役（P3 静态减负）
 
 - 旧 `FireflyCopyStyle.test.ts` 的 5 项测试读取六个 TS/TSX **源码字符串**，禁止某些历史词或要求常量字面量存在。它们无法证明这些内容实际呈现在界面，且与正式 `FireflyDefaultLesson.test.tsx`、`DoupoDefaultLesson.test.tsx`、`LearningStrip.doupo.test.tsx` 的真实组件断言多处重复。
