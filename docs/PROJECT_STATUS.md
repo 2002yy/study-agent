@@ -17,6 +17,13 @@
 - `frontend/src/product-flow/goldenJourneyAudit.ts` 仅供测试使用，没有运行时消费者。其中“产品界面数量”“恢复前决策次数”等并非读取组件或浏览器实际状态，而是在测试里赋固定整数后与同模块中的固定预算比较；末尾测试甚至只检查这些静态预算常量本身，不能证明交互摩擦达标。
 - 整体删除此伪量化测试配置和自证式预算测试，并同步清除 `githubEvidenceBoundary.test.ts` 对其中文描述常量的存在性断言。保留 `goldenJourneys.test.tsx` 的五个真实组件场景、文案与无内部术语检查；首次提问直接断言零下拉配置项，研究恢复直接断言唯一操作按钮。当前代码的行为检查因此仍然可执行，不再汇报虚假的产品预算合格。
 - 不改变组件、路由、会话、模型、检索、持久化和预算逻辑。定向 Vitest **4 files / 12 tests passed**（`goldenJourneys`、`githubEvidenceBoundary`、`ChatPanelBoundary`、`FireflyLessonBoundary`），`npm run build` 通过，`git diff --check` 通过；远端 CI 待核。分类为 `priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+### 2026-11-19 每波读取额度共享状态归入 ReadWaveQuotaContext（独立 P3 静态片）
+
+- **范围**：把 `execute()` 内原本跨证据读取、Deep 本地材料化与线索读取共享的 `successful_reads`、`used_chars` 归入每波新建的 `ReadWaveQuotaContext`；初始化仍复用原读取诊断与已保存 Deep seed 的一次性字符计费。物理成功读取耗一读槽并按最终正文长度计费，材料化仅耗字符、不耗读槽；线索读取与证据读取共用两项额度。
+- **冻结契约**：每次入场仍读取当前 `live.state.budget.max_reads/max_total_chars`，绝不缓存恢复/steering 后的额度上限。Deep 材料化仍可使用全部剩余字符，真实 reader 与 lead 仍以 6000 字符为单次上限；零/负额度按原算式返回，由原入场判断拦截。更新 `ResearchState`、诊断、检查点及其顺序、外部调用、来源 upsert/视觉材料、证据发布和持久化格式均保持在原执行器原位置。
+- **验证/交接**：新增纯单元回归验证历史读取加 seed 去重恢复、两个波次对象互不污染、动态更改预算上限、材料化/证据/线索共享计数与负额度不钳制的负控。当前候选基于 `main@5ce868e9`，分支 `codex/read-quota-context-20261119`；本地读取额度/投影/完整主动执行影响集 **91 passed**，相邻 Deep/恢复/预算/检查点/调度集 **54 passed**，两组合计 **145 passed**；Ruff、差异检查及 mypy **115/125、无新增**通过。远端精确 HEAD CI 仍须收口。`priority=P3`、`loop=static`、`owner=read-quota-accounting`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`。无真实付费模型或在线搜索。
+- **主线重挂**：首次本地候选 `f6718638` 后主线又合入前端实验室清理与 GitHub 静态回放退役（`main@1ce267a5`）；仅交接文档顶部有冲突，保留两项独立清理记录。读取运行时代码、新额度上下文与测试均无交叉修改；新精确 PR HEAD 的 CI 与审阅仍须独立验收，不借用前一候选测试作远端 CI 结论。
+- **下一片**：本片独立通过完整门禁、主线整合后，再考虑从执行器拆分来源记录及视觉附件写回；不要同时把 `selected_sources` 的发布所有权移出 `ActiveResearchResultBuffers`。
 
 ### 2026-11-19 P1 聊天空白终态防护（独立候选）
 
