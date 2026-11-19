@@ -1,5 +1,5 @@
 import { Loader2, Paperclip, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
   deleteSessionAttachment,
@@ -32,12 +32,13 @@ export function ComposerAttachments({
   selectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
 }) {
-  const [attachments, setAttachments] = useState<SessionAttachmentInfo[]>([]);
-  const [maxFiles, setMaxFiles] = useState(0);
+  const [listing, setListing] = useState<{session: string; generation: number; attachments: SessionAttachmentInfo[]; maxFiles: number}>({
+    session: "", generation: 0, attachments: [], maxFiles: 0,
+  });
   const [resolvedSession, setResolvedSession] = useState(sessionId ?? "");
-  const [isUploading, setIsUploading] = useState(false);
+  const [uploadingSessions, setUploadingSessions] = useState<Set<string>>(() => new Set());
   const [busyId, setBusyId] = useState("");
-  const [error, setError] = useState("");
+  const [errorState, setErrorState] = useState({session: sessionId ?? "", message: ""});
   const inputRef = useRef<HTMLInputElement>(null);
   // Async uploads/deletions must consult the latest parent-controlled selection.
   const selectedIdsRef = useRef(selectedIds);
@@ -47,26 +48,44 @@ export function ComposerAttachments({
     setResolvedSession(sessionId ?? "");
   }, [sessionId]);
 
-  const activeSession = resolvedSession || sessionId || "";
+  // Explicit navigation wins over the session created by an earlier upload.
+  const activeSession = sessionId || resolvedSession || "";
+  const sessionRef = useRef({id: activeSession, generation: 0});
+  useLayoutEffect(() => {
+    if (sessionRef.current.id !== activeSession) {
+      sessionRef.current = {id: activeSession, generation: sessionRef.current.generation + 1};
+    }
+  }, [activeSession]);
+  const isCurrent = (session: string, generation: number) =>
+    sessionRef.current.id === session && sessionRef.current.generation === generation;
+  const listingIsCurrent = listing.session === activeSession && listing.generation === sessionRef.current.generation;
+  const attachments = listingIsCurrent ? listing.attachments : [];
+  const maxFiles = listingIsCurrent ? listing.maxFiles : 0;
+  const isUploading = uploadingSessions.has(activeSession);
+  const error = errorState.session === activeSession ? errorState.message : "";
+  const setError = (message: string, session = activeSession) => setErrorState({session, message});
 
   const refresh = useCallback(async (session = activeSession) => {
+    const generation = sessionRef.current.generation;
+    if (!isCurrent(session, generation)) return;
     if (!session) {
-      setAttachments([]);
-      setMaxFiles(0);
+      setListing({session: "", generation, attachments: [], maxFiles: 0});
       return;
     }
     try {
-      const listing = await listSessionAttachments(session);
-      setAttachments(listing.attachments);
-      setMaxFiles(listing.max_files_per_thread);
-      setError("");
+      const result = await listSessionAttachments(session);
+      // A late response from another session (or an earlier visit to this
+      // session) cannot replace the current list or prune its selection.
+      if (!isCurrent(session, generation)) return;
+      setListing({session, generation, attachments: result.attachments, maxFiles: result.max_files_per_thread});
+      setErrorState({session, message: ""});
       // A previous selection can outlive a refresh or session navigation.
       // Never let a known-unreadable file reach the next chat request.
-      const unreadable = new Set(listing.attachments.filter(item => !isAttachmentReadable(item)).map(item => item.id));
+      const unreadable = new Set(result.attachments.filter(item => !isAttachmentReadable(item)).map(item => item.id));
       const current = selectedIdsRef.current;
       const next = current.filter(id => !unreadable.has(id));
       if (next.length !== current.length && onSelectionChange) onSelectionChange(next);
-      return listing.attachments;
+      return result.attachments;
     } catch {
       // The sources panel surfaces detailed load errors; the composer stays quiet.
     }
@@ -84,29 +103,41 @@ export function ComposerAttachments({
     if (!files?.length) return;
     let session = activeSession;
     if (!session && onEnsureSession) {
-      session = (await onEnsureSession()) ?? "";
-      if (session) setResolvedSession(session);
+      const originGeneration = sessionRef.current.generation;
+      const ensured = (await onEnsureSession()) ?? "";
+      // Creating the new session may update the parent before this promise
+      // settles. That is safe only when it is the same session id.
+      if (!isCurrent(activeSession, originGeneration) && sessionRef.current.id !== ensured) return;
+      session = ensured;
+      if (session && sessionRef.current.id !== session) {
+        sessionRef.current = {id: session, generation: sessionRef.current.generation + 1};
+        setResolvedSession(session);
+      }
     }
     if (!session) {
       setError("无法创建会话，附件未上传");
       return;
     }
-    setIsUploading(true);
-    setError("");
+    const generation = sessionRef.current.generation;
+    setUploadingSessions(current => new Set(current).add(session));
+    setError("", session);
     try {
       const uploaded: string[] = [];
       const notReadable: SessionAttachmentInfo[] = [];
       const warnings: string[] = [];
       for (const file of Array.from(files)) {
+        if (!isCurrent(session, generation)) return;
         if (file.size > MAX_FILE_BYTES) {
           warnings.push(`${file.name} 超过 ${formatBytes(MAX_FILE_BYTES)} 上限`);
           continue;
         }
         const created = await uploadSessionAttachment(session, file);
+        if (!isCurrent(session, generation)) return;
         if (isAttachmentReadable(created)) uploaded.push(created.id);
         else notReadable.push(created);
       }
       const currentAttachments = await refresh(session);
+      if (!isCurrent(session, generation)) return;
       // Only confirmed-readable uploads join this message automatically.
       const nowUnreadable = new Set([
         ...notReadable.map(item => item.id),
@@ -120,12 +151,16 @@ export function ComposerAttachments({
         ])));
       }
       if (notReadable.length) warnings.push(attachmentSelectionHint(notReadable[0]));
-      if (warnings.length) setError(warnings.join("；"));
+      if (warnings.length) setError(warnings.join("；"), session);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "附件上传失败");
+      if (isCurrent(session, generation)) setError(cause instanceof Error ? cause.message : "附件上传失败", session);
     } finally {
-      setIsUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
+      setUploadingSessions(current => {
+        const remaining = new Set(current);
+        remaining.delete(session);
+        return remaining;
+      });
+      if (isCurrent(session, generation) && inputRef.current) inputRef.current.value = "";
     }
   };
 
@@ -139,9 +174,12 @@ export function ComposerAttachments({
   };
 
   const handleRemove = async (attachmentId: string) => {
+    const session = activeSession;
+    const generation = sessionRef.current.generation;
     setBusyId(attachmentId);
     try {
       await deleteSessionAttachment(attachmentId);
+      if (!isCurrent(session, generation)) return;
       // A deleted attachment must not remain in this message's selection.
       const currentSelection = selectedIdsRef.current;
       if (onSelectionChange && currentSelection.includes(attachmentId)) {
@@ -149,9 +187,9 @@ export function ComposerAttachments({
       }
       await refresh();
     } catch {
-      setError("附件删除失败");
+      if (isCurrent(session, generation)) setError("附件删除失败", session);
     } finally {
-      setBusyId("");
+      if (isCurrent(session, generation)) setBusyId("");
     }
   };
 
