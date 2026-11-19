@@ -456,8 +456,10 @@ class SessionAttachmentService:
     ) -> tuple[list[str], list[str]]:
         """Return (accepted_ids, problems) for a message-level attachment selection.
 
-        An attachment is accepted only when it exists, belongs to *this* thread
-        and is ``ready``; the client's ids are never trusted on their own.
+        An attachment is accepted only when it belongs to *this* thread, is
+        ``ready``, and has content that can actually enter the model context.
+        An image saved without vision description can be ready for storage but
+        is not readable for a message; the client's ids are never trusted.
         """
 
         accepted: list[str] = []
@@ -479,7 +481,27 @@ class SessionAttachmentService:
                 problems.append(f"attachment_not_ready:{attachment_id}:{attachment.status}")
                 continue
             accepted.append(attachment_id)
-        return accepted, problems
+        if not accepted:
+            return accepted, problems
+
+        # Check the indexed material, not merely the upload status. The index
+        # can be missing after upload, and images with vision disabled have no
+        # decoded text. Both must fail before the chat/research model call.
+        readable = {
+            str(item.get("attachment_id") or "")
+            for item in self.attachment_material(thread_id, accepted)
+        }
+        usable: list[str] = []
+        for attachment_id in accepted:
+            if attachment_id in readable:
+                usable.append(attachment_id)
+                continue
+            attachment = self.repository.get(attachment_id)
+            if attachment and Path(attachment.filename).suffix.lower() in IMAGE_EXTENSIONS:
+                problems.append(f"图片尚未识别，请开启视觉识别后重新上传：{attachment.filename}")
+            else:
+                problems.append(f"附件正文无法读取，请重新上传：{attachment_id}")
+        return usable, problems
 
     def selection_refs(
         self, thread_id: str, attachment_ids: Sequence[str]
@@ -511,7 +533,8 @@ class SessionAttachmentService:
         attachment_ids: Sequence[str],
         *,
         max_chars: int = 4_000,
-        max_attachments: int = 4,
+        max_attachments: int = MAX_FILES_PER_THREAD,
+        max_total_chars: int = 12_000,
     ) -> list[dict[str, Any]]:
         """Bounded extracted text for exactly the selected attachments.
 
@@ -519,9 +542,13 @@ class SessionAttachmentService:
         attachment from another thread can never contribute material here.
         """
 
-        wanted = [str(item) for item in attachment_ids][:max_attachments]
+        wanted = list(dict.fromkeys(str(item) for item in attachment_ids))[:max_attachments]
         if not wanted:
             return []
+        # Preserve a bounded excerpt of *every* selected file. The old default
+        # of four files silently discarded the fifth even though the composer
+        # and durable binding allowed up to ten per thread.
+        per_item_chars = min(max_chars, max_total_chars // len(wanted))
         try:
             index = load_rag_index(self.temp_index_path)
         except FileNotFoundError:
@@ -549,7 +576,8 @@ class SessionAttachmentService:
                     "attachment_id": attachment.id,
                     "filename": attachment.filename,
                     "content_hash": attachment.content_hash,
-                    "text": text[:max_chars],
+                    "text": text[:per_item_chars],
+                    "truncated": len(text) > per_item_chars,
                 }
             )
         return material

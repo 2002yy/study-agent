@@ -51,6 +51,38 @@ def _request(session_id, attachment_ids):
     return ChatRequest(user_input="比较两个配置", session_id=session_id, attachment_ids=attachment_ids)
 
 
+def _model_service(repository, sent, service_class="base"):
+    from src.application.chat_service import ChatDependencies, ChatService
+    from src.application.policy_chat_service import ExternalDataPolicyChatService
+    from src.context_builder import build_messages
+    from src.mode_manager import RuntimeModes
+    from src.task_contract import TaskAwarePedagogyEngine, TaskAwarePedagogyEvaluationService
+    from src.tools.web_agent import WebToolTrace
+
+    def fake_chat(messages, **_kwargs):
+        sent.extend(messages)
+        return "Attached material acknowledged"
+
+    class EmptyRag:
+        def to_dict(self):
+            return {"status": "empty", "context": "", "result_count": 0, "results": []}
+
+    deps = ChatDependencies(
+        load_runtime_modes=lambda: RuntimeModes(memory_mode="preview", performance_mode="standard"),
+        read_memory_bundle=lambda _mode: {},
+        build_role_prompt=lambda _role, **_kw: "role prompt",
+        route_request=lambda **_kw: {"role": "nahida", "mode": "普通", "model_profile": "flash"},
+        retrieve_local_knowledge=lambda *_args, **_kw: EmptyRag(),
+        build_messages=build_messages,
+        chat=fake_chat,
+        resolve_web_tools=lambda *_args, **_kw: WebToolTrace(enabled=False),
+        pedagogy_engine=TaskAwarePedagogyEngine(),
+        pedagogy_evaluation=TaskAwarePedagogyEvaluationService(),
+    )
+    service = ChatService if service_class == "base" else ExternalDataPolicyChatService
+    return service(repository, deps)
+
+
 def test_plain_text_turn_carries_no_attachment_refs(tmp_path):
     _, attachments = _context(tmp_path)
     command = _chat_command(_request("thread-a", []), None, attachments)
@@ -90,6 +122,71 @@ def test_not_ready_attachment_is_refused(tmp_path):
     )
     with pytest.raises(ValueError, match="attachment_not_ready"):
         _chat_command(_request("thread-a", [pending.id]), None, attachments)
+
+
+def test_ready_image_without_vision_cannot_silently_reach_the_model(tmp_path):
+    _, attachments = _context(tmp_path)
+    image = attachments.upload("thread-a", "diagram.png", b"\x89PNG\r\nimage", content_type="image/png")
+    assert image.status == "ready"  # Stored successfully, but no description exists.
+    assert attachments.attachment_material("thread-a", [image.id]) == []
+
+    with pytest.raises(ValueError, match="图片尚未识别"):
+        _chat_command(_request("thread-a", [image.id]), None, attachments)
+
+
+def test_ready_document_without_its_index_cannot_silently_reach_the_model(tmp_path):
+    _, attachments = _context(tmp_path)
+    ready = _ready(attachments)
+    attachments.temp_index_path.unlink()  # Simulate an index lost after upload.
+
+    with pytest.raises(ValueError, match="附件正文无法读取"):
+        _chat_command(_request("thread-a", [ready.id]), None, attachments)
+
+
+def test_material_disappearing_between_validation_and_binding_is_rejected(tmp_path, monkeypatch):
+    _, attachments = _context(tmp_path)
+    ready = _ready(attachments)
+    monkeypatch.setattr(attachments, "selection_refs", lambda *_args: [])
+
+    with pytest.raises(ValueError, match="附件状态已变化"):
+        _chat_command(_request("thread-a", [ready.id]), None, attachments)
+
+
+@pytest.mark.parametrize("service_class", ["base", "policy"])
+def test_bound_attachment_disappearing_before_preparation_fails_before_model(tmp_path, monkeypatch, service_class):
+    repository, attachments = _context(tmp_path)
+    ready = _ready(attachments)
+    command = _chat_command(_request("thread-a", [ready.id]), None, attachments)
+    attachments.temp_index_path.unlink()  # After binding, before model preparation.
+    import src.application.runtime_repository as runtime_repository
+
+    monkeypatch.setattr(runtime_repository, "get_session_attachment_service", lambda: attachments)
+    sent = []
+    service = _model_service(repository, sent, service_class)
+
+    with pytest.raises(ValueError, match="本轮所选附件正文无法读取"):
+        service.start_turn(command)
+    assert sent == []
+    turns = repository.list_chat_turns("thread-a")
+    assert len(turns) == 1 and turns[0].status == "failed"
+
+
+@pytest.mark.parametrize("service_class", ["base", "policy"])
+def test_bound_attachment_hash_change_fails_before_model(tmp_path, monkeypatch, service_class):
+    repository, attachments = _context(tmp_path)
+    ready = _ready(attachments)
+    command = _chat_command(_request("thread-a", [ready.id]), None, attachments)
+    command.attachment_refs[0]["content_hash"] = "outdated"
+    import src.application.runtime_repository as runtime_repository
+
+    monkeypatch.setattr(runtime_repository, "get_session_attachment_service", lambda: attachments)
+    sent = []
+    service = _model_service(repository, sent, service_class)
+
+    with pytest.raises(ValueError, match="本轮所选附件正文无法读取"):
+        service.start_turn(command)
+    assert sent == []
+    assert repository.list_chat_turns("thread-a")[0].status == "failed"
 
 
 def test_selection_requires_a_session(tmp_path):
@@ -165,6 +262,35 @@ def test_prompt_block_carries_attachment_text_for_a_plain_turn(tmp_path, monkeyp
     assert len(block) <= ATTACHMENT_BLOCK_MAX_CHARS + 400
     assert attachment_context_block(repository, None) == ""
     assert attachment_context_block(repository, "turn-without-attachments") == ""
+
+
+@pytest.mark.parametrize("service_class", ["base", "policy"])
+def test_five_selected_attachments_all_reach_the_model_with_a_bounded_excerpt(tmp_path, monkeypatch, service_class):
+    repository, attachments = _context(tmp_path)
+    selected = [
+        attachments.upload(
+            "thread-a", f"part-{index}.md",
+            (f"FILE_{index}_PRESENT\n" + "details " * 850).encode(),
+            content_type="text/markdown",
+        )
+        for index in range(5)
+    ]
+    command = _chat_command(_request("thread-a", [item.id for item in selected]), None, attachments)
+    assert len(command.attachment_refs) == 5
+    import src.application.runtime_repository as runtime_repository
+
+    monkeypatch.setattr(runtime_repository, "get_session_attachment_service", lambda: attachments)
+    sent: list[dict] = []
+    service = _model_service(repository, sent, service_class)
+    prepared = service.start_turn(command)
+    service.generate(prepared)
+
+    model_input = "\n".join(str(item["content"]) for item in sent)
+    for index in range(5):
+        assert f"FILE_{index}_PRESENT" in model_input
+    block = attachment_context_block(repository, prepared.turn.id)
+    assert len(block) <= ATTACHMENT_BLOCK_MAX_CHARS + 600
+    assert "截断" in block  # Do not imply the entire original was included.
 
 
 def test_retry_does_not_replace_a_stored_binding(tmp_path):
