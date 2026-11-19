@@ -3,7 +3,7 @@
  *
  * The composer sends the whole message on the next submit, so the choice has to
  * survive between the click and that submit. It is consumed by the request
- * builder, exactly like the per-turn task-intent override, and never persisted
+ * builder for exactly one turn, and never persisted
  * as conversation text.
  */
 export type RestoreTarget = { id: string; revision: number; title: string };

@@ -136,6 +136,12 @@
 - 直接删除合计 82 行的旧源码归属快照，没有独占运行时函数、适配层、开关或显式 CI 注册需要保留。**保留** `evidenceHelpers.test.ts` 对服务器证据契约/来源 ID 的实际归一化测试、`EvidenceTrail.test.tsx` 的可见证据状态、`learningSessionViewModel.test.ts` 对当前 thread 与恢复摘要优先级的选择结果，以及 `evidence-journeys.spec.ts` / `closure-session-journeys.spec.ts` 实际浏览器旅程。
 - 不删除有独特运行契约的 Firefly 教学、聊天恢复/控制器边界测试；不更改任何生产 UI、恢复、研究执行、模型预算、checkpoint 或证据发布。基线 `main@a1dd6159`，独立 `codex/retire-source-owner-boundary-tests-20261120`，`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；以精确 PR HEAD CI 验收，不宣称真实浏览器质量提升。
 
+### 2026-11-20 已下线的手动任务意图选择器整链退役（P3 静态减负）
+
+- **调用证据**：现行 ChatPanel 只有「对话/搜索」两个输入模式；全前端没有 `setPendingTaskIntentOverride()` 的生产调用，`TURN_TASK_INTENT_OPTIONS` 仅供旧测试读取。旧全局一次性覆盖变量只会在 API 请求构造时被消费，值恒为 `undefined`，旧请求因此恒发送 `task_intent: null`。服务端 `ChatRequest.task_intent` 默认为 `None`，去掉这个前端字段不改变自动任务判定；保留服务端供其它直接调用者使用的显式意图契约与已持久化 route 的显示逻辑。
+- **成组删除**：旧选项表、全局 set/consume/clear 状态及调用、没有真实 UI 操作对象的 `taskIntentApi.test.ts` 两项人工覆盖传输专项、`taskContract.test.ts` 中选项/消费两项专项，及独立样式文件 `task-intent-selector.css` 和入口 CSS 导入；去掉 ChatPanel 测试针对不存在的芯片和覆盖状态的旧断言。原专项中独有的「流式无响应体时复用相同请求」契约迁至正式 `api.test.ts`，增加附件 ID 不丢失检查。旧 CSS 中唯一仍在用的 `.composer-main` 网格布局迁至 `styles.css`，保留触屏/无障碍响应式覆盖及实用的恢复/搜索行为测试。没有相关环境配置、阶段门或 CI 明确注册。
+- **冻结/非范围**：正式任务分类、服务端 `task_intent` 可选 API 字段、学习/研究收束按钮、会话恢复、消息发送/重试/附件/预算/证据发布均不改；仅从浏览器移除未接线的人工覆盖管道。`priority=P3`、`loop=static`、`owner=UI/task-intent`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；本地差异检查与精确 PR HEAD CI 分别记录，不声称真实模型或浏览器体验已经验证。
+
 ### 2026-11-19 Firefly/Doupo 历史源码文案测试退役（P3 静态减负）
 
 - 旧 `FireflyCopyStyle.test.ts` 的 5 项测试读取六个 TS/TSX **源码字符串**，禁止某些历史词或要求常量字面量存在。它们无法证明这些内容实际呈现在界面，且与正式 `FireflyDefaultLesson.test.tsx`、`DoupoDefaultLesson.test.tsx`、`LearningStrip.doupo.test.tsx` 的真实组件断言多处重复。

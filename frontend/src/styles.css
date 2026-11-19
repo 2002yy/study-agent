@@ -864,6 +864,13 @@ button {
   background: #fbfcfc;
 }
 
+.composer-main {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
 .restore-target {
   grid-column: 1 / -1;
   display: flex;

@@ -8,10 +8,6 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ChatMessage, ChatResponse, ChatResearchProgress, ChatResearchReply } from "../../types";
-import {
-  clearPendingTaskIntentOverride,
-  consumePendingTaskIntentOverride,
-} from "../task/taskContract";
 import { clearRepairTarget, consumePendingRepairTarget, setPendingRepairTarget } from "../answer-ui/repairTarget";
 import { WorkspaceActions } from "./WorkspaceActions";
 import { ChatPanel, searchMessage } from "./ChatPanel";
@@ -424,7 +420,6 @@ describe("ChatPanel learning product boundary", () => {
     const {container}=renderPanel();
     expect(Array.from(container.querySelectorAll('.composer-modes button')).map(button=>button.textContent)).toEqual(["对话","搜索"]);
     expect(container.querySelector('.workspace-menu')).toBeNull();
-    expect(container.querySelector('.turn-intent-chip-menu')).toBeNull();
     expect(container.textContent).not.toContain("系统学习");
     expect(container.textContent).toContain("今天想了解什么？");
   });
@@ -443,21 +438,19 @@ describe("ChatPanel learning product boundary", () => {
     fireEvent.click(container.querySelectorAll('.composer-modes button')[1]);
     await act(async()=>fireEvent.submit(container.querySelector('.composer')!));
     expect(submit).toHaveBeenCalledWith(expect.anything(),"帮我搜索：注意力机制");
-    expect(consumePendingTaskIntentOverride()).toBeUndefined();
     expect(searchMessage("帮我搜索：注意力机制")).toBe("帮我搜索：注意力机制");
   });
-  it("passes an identical search request in chat mode without a task override",async()=>{
+  it("passes the same literal request unchanged in chat mode",async()=>{
     const submit=vi.fn();const {container}=renderPanel({input:"帮我搜索：注意力机制",onSubmit:submit});
     await act(async()=>fireEvent.submit(container.querySelector('.composer')!));
     expect(submit).toHaveBeenCalledWith(expect.anything(),"帮我搜索：注意力机制");
-    expect(consumePendingTaskIntentOverride()).toBeUndefined();
   });
   it("keeps interrupted-turn retry independent of the input mode",()=>{
-    clearPendingTaskIntentOverride();const retry=vi.fn();
+    const retry=vi.fn();
     const {container}=renderPanel({onRetry:retry,streamRecovery:{question:"原问题",reply:"部分回答",reason:"网络中断",turnId:"turn-1"}});
     fireEvent.click(container.querySelectorAll('.composer-modes button')[1]);
     fireEvent.click(Array.from(container.querySelectorAll('button')).find(button=>button.textContent?.includes("重新生成"))!);
-    expect(retry).toHaveBeenCalledTimes(1);expect(consumePendingTaskIntentOverride()).toBeUndefined();
+    expect(retry).toHaveBeenCalledTimes(1);
   });
 
   it("keeps four role choices inside a collapsed conversation setting",()=>{

@@ -62,6 +62,30 @@ function sseResponse(chunks: string[]): Response {
 }
 
 describe("sendChatStream", () => {
+  it("reuses the same message payload when SSE falls back to non-stream chat", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({ reply: "fallback", session_id: "session-fallback", route: {}, rag: null }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await sendChatStream(
+      "原问题", [],
+      { ragEnabled: false, chatSettings, ragSettings, attachmentIds: ["att-1"] }
+    );
+
+    expect(response.reply).toBe("fallback");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [, firstInit] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const [, secondInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    const payload = JSON.parse(String(firstInit.body));
+    expect(JSON.parse(String(secondInit.body))).toEqual(payload);
+    expect(payload.attachment_ids).toEqual(["att-1"]);
+    expect(payload).not.toHaveProperty("task_intent");
+  });
+
   it("binds repair identity to its session and consumes it even after network failure", async () => {
     const fetchMock = vi.fn().mockRejectedValueOnce(new Error("offline"))
       .mockImplementation(async () => sseResponse(['event: done\ndata: {"session_id":"s","reply":"ok"}\n\n']));

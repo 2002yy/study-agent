@@ -46,10 +46,7 @@ import type {
 import { EvidenceTrail } from "../evidence/EvidenceTrail";
 import { roleLabel } from "../roles/roleCatalog";
 import type { SemanticSessionRow } from "../sessions/sessionNavigation";
-import {
-  clearPendingTaskIntentOverride,
-  type TaskIntent,
-} from "../task/taskContract";
+import type { TaskIntent } from "../task/taskContract";
 import { ChatResearchRecovery, ResearchReadPreview } from "../web-lookup/ChatResearchRecovery";
 import { replyHeading, replyIsProvisional, replyStatusNote } from "../web-lookup/researchReplies";
 import type { ResearchLookupResponse } from "../web-lookup/researchApi";
@@ -426,7 +423,6 @@ export function ChatPanel(props: ChatPanelProps) {
       followLatestRef.current = true;
       setIsAtBottom(true);
     }
-    clearPendingTaskIntentOverride();
     if (isSending && busyInputMode === "queue") { await props.onQueue?.(input.trim()); return; }
     try {
       await onSubmit(event, !isSending && composerMode === "search" ? searchMessage(input) : input.trim());
@@ -494,10 +490,8 @@ export function ChatPanel(props: ChatPanelProps) {
     // should display its newest turn rather than inherit that scroll lock.
     setIsAtBottom(true);
     followLatestRef.current = true;
-    clearPendingTaskIntentOverride();
     setComposerMode("chat");
     setRoleSettingsOpen(false);
-    return clearPendingTaskIntentOverride;
   }, [sessionId]);
 
   const restoreCard=<RestoreCard
