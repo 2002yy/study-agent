@@ -277,23 +277,28 @@ def _runtime_claim():
     )
 
 
-def _runtime_window(model_gateway, *, context: dict, candidates=None, live_context=None):
+def _runtime_window(
+    model_gateway, *, context: dict, candidates=None, live_context=None, **overrides
+):
     """Shared runtime scenario; callers vary only the model and state boundary."""
     from src.application.active_research_runtime import _select_assessment_window
 
+    params = {
+        "claim": _runtime_claim(),
+        "assignments": {},
+        "max_reads": 2,
+        "excluded_candidate_ids": frozenset(),
+        "trace": None,
+        "context": context,
+        "live_context": live_context,
+        "model_gateway": model_gateway,
+        "run_id": "run_1",
+        "wave_index": 1,
+        "timeout_seconds": 5.0,
+    }
+    params.update(overrides)
     return _select_assessment_window(
-        _runtime_candidates() if candidates is None else candidates,
-        claim=_runtime_claim(),
-        assignments={},
-        max_reads=2,
-        excluded_candidate_ids=frozenset(),
-        trace=None,
-        context=context,
-        live_context=live_context,
-        model_gateway=model_gateway,
-        run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
+        _runtime_candidates() if candidates is None else candidates, **params
     )
 
 
@@ -417,6 +422,76 @@ def test_runtime_unavailable_model_can_never_empty_the_window(
     assert record["unusable_reason"] == "call_unavailable"
     assert record["selection_source"] == "legacy_fallback"
     assert record["fallback_picks"]
+
+
+def test_runtime_selection_diagnostics_preserve_changes_and_two_clock_samples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(SELECTION_AUTHORITY_ENV, "model")
+    candidates = _runtime_candidates()
+    ticks = iter([10.123, 20.456, 30.123, 40.456, 50.123, 60.456])
+
+    class _FirstCandidateModel:
+        def complete_structured(self, **kwargs):
+            return _Result(
+                status="completed",
+                value=[kwargs["audit_payload"]["candidates"][0]["url"]],
+            )
+
+    context: dict = {}
+    gateway = _FirstCandidateModel()
+    first = _runtime_window(
+        gateway, context=context, candidates=candidates[:2], now_ms=lambda: next(ticks)
+    )
+    second = _runtime_window(
+        gateway,
+        context=context,
+        candidates=candidates[1:],
+        excluded_candidate_ids=frozenset({candidates[1].id}),
+        wave_index=2,
+        now_ms=lambda: next(ticks),
+    )
+    third = _runtime_window(
+        gateway,
+        context=context,
+        candidates=candidates[1:],
+        excluded_candidate_ids=frozenset({candidates[1].id}),
+        wave_index=3,
+        now_ms=lambda: next(ticks),
+    )
+
+    assert [item.id for item in first] == [candidates[0].id]
+    assert [item.id for item in second] == [candidates[2].id]
+    assert [item.id for item in third] == [candidates[2].id]
+    records = context["claim_engine_metrics"]["selection_authority"]
+    assert len(records) == 3
+    assert context["claim_engine_metrics"]["orchestration_model_calls"] == 3
+    assert [(record["t_started_ms"], record["t_ended_ms"]) for record in records] == [
+        (10.1, 20.5),
+        (30.1, 40.5),
+        (50.1, 60.5),
+    ]
+    assert (records[1]["new_candidate_count"], records[1]["removed_candidate_count"]) == (1, 2)
+    assert records[1]["input_changed"] is True
+    assert records[1]["assessment_state_changed"] is True
+    assert (records[2]["new_candidate_count"], records[2]["removed_candidate_count"]) == (0, 0)
+    assert records[2]["input_changed"] is False
+    assert records[2]["assessment_state_changed"] is False
+
+
+def test_runtime_selection_diagnostics_keep_only_the_latest_forty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(SELECTION_AUTHORITY_ENV, "model")
+    context: dict = {"claim_engine_metrics": {"selection_authority": "corrupt"}}
+    for wave in range(1, 43):
+        assert not _runtime_window(
+            _ExplodingGateway(), context=context, max_reads=0, wave_index=wave
+        )
+
+    records = context["claim_engine_metrics"]["selection_authority"]
+    assert len(records) == 40
+    assert [record["wave_index"] for record in records] == list(range(3, 43))
 
 
 @dataclass

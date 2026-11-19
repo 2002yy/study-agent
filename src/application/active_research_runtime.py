@@ -18,7 +18,7 @@ from math import ceil, isfinite
 import re
 import sys
 import time
-from typing import Any, Iterable, cast
+from typing import Any, cast
 from urllib.parse import urlsplit
 
 from src.domain.runtime_entities import WebLookupRun, new_id
@@ -262,6 +262,10 @@ from src.application.research_runtime_failure_projection import (
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
 from src.application.research_runtime_read_execution import ActiveReadExecutionContext
+from src.application.research_runtime_read_coverage import (
+    ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY as ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY,
+    merge_covered_clusters,
+)
 from src.application.research_runtime_read_observation import ActiveReadObservationContext
 from src.application.research_runtime_read_projection import project_read_chain
 from src.application.research_runtime_read_site import (
@@ -273,6 +277,10 @@ from src.application.research_runtime_read_site import (
     specialist_chain_run as specialist_chain_run,
 )
 from src.application.research_runtime_budget_clock import ResearchBudgetClock
+from src.application.research_selection_observability import (
+    ResearchSelectionTraceContext,
+    record_selection_authority,
+)
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_search_execution import (
     ActiveSearchQueryExecution,
@@ -292,7 +300,6 @@ from src.application.active_research_evidence_projection import (
     _add_extracted_evidence,
     _evidence_brief,
     _evidence_id_for_record,
-    _evidence_snapshot,
     _state_after_gate,
 )
 from src.application.research_runtime_read_observability import (
@@ -309,7 +316,6 @@ ACTIVE_RESEARCH_ASSESSMENTS_KEY = "claim_engine_assessments"
 ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY = "claim_engine_assessment_inputs"
 ACTIVE_RESEARCH_WAVE_BASELINE_KEY = "claim_engine_wave_baseline"
 ACTIVE_RESEARCH_READ_PLAN_KEY = "claim_engine_read_plan"
-ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY = "claim_engine_covered_clusters"
 ACTIVE_RESEARCH_BRIEF_KEY = "claim_engine_evidence_brief"
 TIER2_PROPOSED_CLAIMS_KEY = "tier2_proposed_claim_ids"
 DOMAIN_TARGETED_CLAIMS_KEY = "domain_targeted_claim_ids"
@@ -852,13 +858,10 @@ class ActiveResearchRuntimeExecutor:
                     cursor=live.cursor,
                     results=results,
                 )
-                def bind_prepared(state: ResearchState, prepared_context: dict[str, Any]) -> None:
-                    live.state, live.context = state, prepared_context
-
                 persisted = snapshot.prepare_and_persist(
                     stage=stage,
                     elapsed=elapsed,
-                    bind_prepared=bind_prepared,
+                    bind_prepared=live.bind_prepared_checkpoint,
                     diagnostics=diagnostics,
                     elapsed_ms=elapsed_ms,
                 )
@@ -953,10 +956,8 @@ class ActiveResearchRuntimeExecutor:
             chain_runner=run_chain,
         )
 
-        model_attempt_context = ActiveModelAttemptContext(
-            current_state=live.current_state,
-            current_cursor=live.current_cursor,
-            set_cursor=live.set_cursor,
+        model_attempt_context = ActiveModelAttemptContext.for_live_values(
+            live,
             ensure_active=ensure_active,
             ensure_budget=execution_guard.ensure_budget,
             checkpoint=checkpoint,
@@ -966,13 +967,7 @@ class ActiveResearchRuntimeExecutor:
         # semantic result. A crash first leaves durable inflight for recovery.
         on_model_finished = model_attempt_context.finished
 
-        def bind_wave_snapshot(snapshot: ActiveWaveSettlementSnapshot) -> None:
-            live.state, live.cursor, live.context = snapshot.state, snapshot.cursor, snapshot.context
-
-        wave_handoff = ActiveWaveSettlementHandoff(
-            capture=lambda: ActiveWaveSettlementSnapshot(live.state, live.cursor, live.context),
-            bind=bind_wave_snapshot,
-        )
+        wave_handoff = ActiveWaveSettlementHandoff.for_live_values(live)
 
         def settle_completed_wave(
             snapshot: ActiveWaveSettlementSnapshot,
@@ -1015,15 +1010,10 @@ class ActiveResearchRuntimeExecutor:
                         detail="blocked_by_policy",
                     )
                     return self._terminal_unavailable(
-                        run_id,
-                        operation_id=operation_id,
                         context=live.context,
                         cursor=live.cursor,
                         state=live.state,
-                        query_attempts=query_attempts,
-                        selected_sources=selected_sources,
-                        rejected_sources=rejected_sources,
-                        warnings=warnings,
+                        publisher=publisher,
                         reason="claim_planning_blocked_by_policy",
                     )
                 planning_logical_call_id = f"research_claim_plan:{run.id}:1"
@@ -1043,15 +1033,10 @@ class ActiveResearchRuntimeExecutor:
                     )
                     checkpoint()
                     return self._terminal_unavailable(
-                        run_id,
-                        operation_id=operation_id,
                         context=live.context,
                         cursor=live.cursor,
                         state=live.state,
-                        query_attempts=query_attempts,
-                        selected_sources=selected_sources,
-                        rejected_sources=rejected_sources,
-                        warnings=warnings,
+                        publisher=publisher,
                         reason="claim_plan_unavailable",
                     )
                 bootstrap = self.claim_planner.plan(
@@ -1082,15 +1067,10 @@ class ActiveResearchRuntimeExecutor:
                     )
                     checkpoint()
                     return self._terminal_unavailable(
-                        run_id,
-                        operation_id=operation_id,
                         context=live.context,
                         cursor=live.cursor,
                         state=live.state,
-                        query_attempts=query_attempts,
-                        selected_sources=selected_sources,
-                        rejected_sources=rejected_sources,
-                        warnings=warnings,
+                        publisher=publisher,
                         reason="claim_plan_unavailable",
                     )
                 live.state = bootstrap.state
@@ -1108,13 +1088,10 @@ class ActiveResearchRuntimeExecutor:
             # decisions the existing pipeline already makes; it never changes
             # ordering, budgets or the cursor, and its payload lives in the run
             # metrics (resume-safe hydration from a previous process payload).
-            raw_metrics = live.context.get(ACTIVE_RESEARCH_METRICS_KEY)
-            previous_trace = (
-                raw_metrics.get("selection_trace")
-                if isinstance(raw_metrics, Mapping)
-                else None
+            selection_trace_context = ResearchSelectionTraceContext.from_context(
+                live.context
             )
-            selection_trace = SelectionTraceCollector.from_payload(previous_trace)
+            selection_trace = selection_trace_context.trace
             while True:                # Research Window Deadline Hardening: the research window is an
                 # absolute boundary. Once it is exhausted the tail belongs to
                 # finalization (Gate, answer synthesis, claim binding,
@@ -1658,44 +1635,9 @@ class ActiveResearchRuntimeExecutor:
                 # extraction map holds every claim actually bound to it, so
                 # coverage must merge the owner claim AND all extraction-map
                 # keys, or a secondary claim forgets the cluster (H8).
-                raw_covered = live.context.get(ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY)
-                covered_clusters_by_claim: dict[str, set[str]] = {}
-                if isinstance(raw_covered, Mapping):
-                    for claim_id, cluster_ids in raw_covered.items():
-                        if isinstance(cluster_ids, (list, tuple, set)):
-                            covered_clusters_by_claim[str(claim_id)] = {
-                                str(item) for item in cluster_ids
-                            }
-                for covered_record in selected_sources:
-                    if covered_record.get("read_status") != "read":
-                        continue
-                    assessment = covered_record.get("assessment")
-                    if not isinstance(assessment, Mapping):
-                        continue
-                    bound_cluster = assessment.get("source_cluster_id")
-                    if not bound_cluster:
-                        continue
-                    bound_claims: set[str] = set()
-                    owner_claim = assessment.get("claim_id")
-                    if owner_claim:
-                        bound_claims.add(str(owner_claim))
-                    extraction_map = covered_record.get("extractions")
-                    if isinstance(extraction_map, Mapping):
-                        bound_claims.update(
-                            str(item)
-                            for item in extraction_map
-                            if isinstance(item, str)
-                        )
-                    for claim_id in bound_claims:
-                        covered_clusters_by_claim.setdefault(
-                            claim_id, set()
-                        ).add(str(bound_cluster))
-                live.context[ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY] = {
-                    claim_id: sorted(cluster_ids)
-                    for claim_id, cluster_ids in sorted(
-                        covered_clusters_by_claim.items()
-                    )
-                }
+                covered_clusters_by_claim = merge_covered_clusters(
+                    live.context, selected_sources
+                )
                 # Deep-2 §29/§7: bytes already durable - fetched by a reader chain or
                 # materialized from a seed - must not be planned for a physical read at all.
                 # Skipping them later in the read loop would still have consumed a scheduler
@@ -2109,7 +2051,7 @@ class ActiveResearchRuntimeExecutor:
                             dispatched=False,
                             skip_reason=read_loop_stop_reason,
                         )
-                _flush_selection_trace(live.context, selection_trace)
+                selection_trace_context.flush(live.context)
 
                 # Slice 1: bounded lead discovery. A lead read is a discovery
                 # action, never an evidence read: it runs strictly after the
@@ -2929,40 +2871,25 @@ class ActiveResearchRuntimeExecutor:
                     final_status="partial",
                 )
             else:
-                result = self.repository.fail(
-                    run_id,
-                    "active research unavailable",
-                    research_context=live.context,
-                    query_attempts=query_attempts,
-                    provider_status=stop.provider_status,
-                    stop_reason=stop.reason,
-                    operation_id=operation_id,
-                )
+                result = publisher.fail(context=live.context, stop=stop)
             if raise_on_error:
                 raise
             return result
 
     def _terminal_unavailable(
         self,
-        run_id: str,
         *,
-        operation_id: str,
         context: dict[str, Any],
         cursor: ResearchRuntimeCursor,
         state: ResearchState,
-        query_attempts: list[dict[str, Any]],
-        selected_sources: list[dict[str, Any]],
-        rejected_sources: list[dict[str, Any]],
-        warnings: list[str],
+        publisher: ActiveResearchPublisher,
         reason: str,
     ) -> WebLookupRun:
         context = attach_runtime_cursor(context, replace(cursor, phase="unavailable"))
         context = attach_claim_engine_state(
             context,
             state,
-            known_evidence_ids=tuple(
-                ref.id for ref in _evidence_snapshot(run_id, selected_sources, rejected_sources).refs
-            ),
+            known_evidence_ids=publisher.buffers.known_evidence_ids(publisher.run_id),
         )
         # P1-C batch 3: the canonical stop reason flows through the gate.
         stop = ResearchStopGate.evaluate(
@@ -2976,15 +2903,7 @@ class ActiveResearchRuntimeExecutor:
                 unavailable_reason=reason,
             )
         )
-        return self.repository.fail(
-            run_id,
-            "active research unavailable",
-            research_context=context,
-            query_attempts=query_attempts,
-            provider_status=stop.provider_status,
-            stop_reason=stop.reason,
-            operation_id=operation_id,
-        )
+        return publisher.fail(context=context, stop=stop)
 
     def _required(self, run_id: str) -> WebLookupRun:
         run = self.repository.get(run_id)
@@ -3494,14 +3413,6 @@ def _tier2_proposal_step(
     return replace(cursor, candidates=(*cursor.candidates, *new_items))
 
 
-
-
-def _fingerprint(values: Iterable[Any]) -> str:
-    """Stable, order-independent fingerprint of a candidate/URL set."""
-
-    items = sorted(str(item) for item in values)
-    digest = hashlib.sha1("|".join(items).encode("utf-8")).hexdigest()
-    return digest[:16]
 
 
 def _b1_critical_path_ms(
@@ -4447,57 +4358,17 @@ def _select_assessment_window(
     )
     metrics = metric_context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
     if isinstance(metrics, dict):
-        records = metrics.get("selection_authority")
-        if not isinstance(records, list):
-            records = []
-        previous = next(
-            (
-                item
-                for item in reversed(records)
-                if isinstance(item, Mapping)
-                and str(item.get("claim_id") or "") == claim.id
-            ),
-            None,
+        record_selection_authority(
+            metrics,
+            claim_id=claim.id,
+            candidates=ordered,
+            excluded_candidate_ids=excluded_candidate_ids,
+            window_limit=limit,
+            wave_index=wave_index,
+            orchestration_model_call=1 if (limit > 0 and ordered) else 0,
+            diagnostics=diagnostics,
+            now_ms=now_ms,
         )
-        input_ids = sorted(item.id for item in ordered)
-        input_urls = sorted(item.canonical_url for item in ordered)
-        excluded_ids = sorted(str(item) for item in excluded_candidate_ids)
-        fingerprint = _fingerprint([*input_ids, *input_urls])
-        previous_ids = (
-            set(previous.get("input_ids") or []) if isinstance(previous, Mapping) else set()
-        )
-        previous_fingerprint = (
-            str(previous.get("input_fingerprint") or "")
-            if isinstance(previous, Mapping)
-            else ""
-        )
-        previous_excluded = (
-            str(previous.get("excluded_fingerprint") or "")
-            if isinstance(previous, Mapping)
-            else ""
-        )
-        records.append(
-            {
-                "wave_index": wave_index,
-                "claim_id": claim.id,
-                "window_limit": limit,
-                "orchestration_model_call": 1 if (limit > 0 and ordered) else 0,
-                # §70/B5-S1 anatomy: what actually changed between calls
-                "input_fingerprint": fingerprint,
-                "previous_input_fingerprint": previous_fingerprint,
-                "input_changed": fingerprint != previous_fingerprint,
-                "input_ids": input_ids,
-                "new_candidate_count": len(set(input_ids) - previous_ids),
-                "removed_candidate_count": len(previous_ids - set(input_ids)),
-                "excluded_fingerprint": _fingerprint(excluded_ids),
-                "assessment_state_changed": _fingerprint(excluded_ids)
-                != previous_excluded,
-                "t_started_ms": round(float(now_ms()), 1) if now_ms else None,
-                "t_ended_ms": round(float(now_ms()), 1) if now_ms else None,
-                **diagnostics.to_dict(),
-            }
-        )
-        metrics["selection_authority"] = records[-40:]
     return final_items
 
 
@@ -5006,23 +4877,6 @@ def _bump_lead_metric(
 ) -> None:
     state = _lead_metrics(context)
     state[key] = int(state.get(key) or 0) + max(0, int(amount))
-
-
-def _flush_selection_trace(
-    context: dict[str, Any], trace: SelectionTraceCollector
-) -> None:
-    """§37B-selection: publish the diagnostic payload into run metrics only.
-
-    Never touches the runtime cursor; the payload is rebuilt (derived terminal
-    reasons) on every flush, so later observations are reflected without
-    re-deriving any selection decision.
-    """
-
-    if len(trace) == 0:
-        return
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if isinstance(metrics, dict):
-        metrics["selection_trace"] = trace.to_payload()
 
 
 def _record_deeper_targeting(

@@ -57,6 +57,21 @@ def test_queue_binding_survives_checkpoint_reload_and_later_turn(queued_context)
     assert delivered.research_context["conversation_queue"][0]["status"] == "completed"
 
 
+def test_queue_does_not_accept_a_ready_but_unreadable_image(queued_context):
+    _, attachments, repository, service, run = queued_context
+    image = attachments.upload("thread-a", "diagram.png", b"\x89PNG\r\nimage", content_type="image/png")
+    assert image.status == "ready"
+    with pytest.raises(HTTPException) as error:
+        queue_research_followup(
+            run.id,
+            ResearchQueueRequest(content="请分析图中的数据", request_id="q-image", attachment_ids=[image.id]),
+            service,
+        )
+    assert error.value.status_code == 409
+    assert "图片尚未识别" in str(error.value.detail)
+    assert repository.pending_followups("thread-a") == []
+
+
 @pytest.mark.parametrize("invalid", ["foreign", "deleted", "not-ready", "unknown"])
 def test_queue_rejects_invalid_selection_without_saving_text_only(queued_context, invalid):
     runtime, attachments, repository, service, run = queued_context

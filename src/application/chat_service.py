@@ -156,13 +156,42 @@ def _turn_attachment_material(
         return []
 
 
-ATTACHMENT_BLOCK_HEADING = "【本轮用户上传的附件原文】"
+def require_turn_attachment_material(
+    repository: Any, turn_id: str
+) -> list[dict[str, Any]]:
+    """Fail closed if a durable selection lost readable content before use.
+
+    This also protects retries/continuations whose attachment identities come
+    from a previous turn rather than a fresh HTTP selection validation.
+    """
+
+    turn = repository.get_chat_turn(turn_id)
+    if turn is None:
+        raise ValueError(f"会话消息已失效：{turn_id}")
+    refs = getattr(turn, "attachment_refs", ()) or ()
+    if not refs:
+        return []
+    material = _turn_attachment_material(repository, turn_id)
+    expected = {
+        str(ref.get("attachment_id") or ""): str(ref.get("content_hash") or "")
+        for ref in refs
+    }
+    received = {
+        str(item.get("attachment_id") or ""): str(item.get("content_hash") or "")
+        for item in material
+    }
+    if expected != received:
+        raise ValueError("本轮所选附件正文无法读取，请重新上传或重新选择附件")
+    return material
+
+
+ATTACHMENT_BLOCK_HEADING = "【本轮所选附件的已读取内容】"
 ATTACHMENT_BLOCK_MAX_CHARS = 12_000
 ATTACHMENT_ITEM_MAX_CHARS = 4_000
 
 
 def attachment_context_block(
-    repository: Any, turn_id: str | None
+    repository: Any, turn_id: str | None, *, material: list[dict[str, Any]] | None = None
 ) -> str:
     """The decoded attachment text a turn's model call must actually see.
 
@@ -172,7 +201,8 @@ def attachment_context_block(
     spent from the same token budget as every other context block.
     """
 
-    material = _turn_attachment_material(repository, turn_id)
+    if material is None:
+        material = _turn_attachment_material(repository, turn_id)
     parts: list[str] = []
     remaining = ATTACHMENT_BLOCK_MAX_CHARS
     for item in material or []:
@@ -184,13 +214,19 @@ def attachment_context_block(
         name = str(item.get("filename") or item.get("name") or "附件").strip()
         clipped = body[: min(ATTACHMENT_ITEM_MAX_CHARS, remaining)]
         remaining -= len(clipped)
-        parts.append(f"--- {name} ---\n{clipped}")
+        excerpt_note = (
+            "\n【正文因上下文限额已截断】"
+            if item.get("truncated") or len(body) > len(clipped)
+            else ""
+        )
+        parts.append(f"--- {name} ---\n{clipped}{excerpt_note}")
     if not parts:
         return ""
     return (
         f"{ATTACHMENT_BLOCK_HEADING}\n"
         + "\n\n".join(parts)
-        + "\n\n以上是这个用户刚刚上传的文件原文，可以直接据此回答。"
+        + "\n\n以上是本轮所选附件的可读取内容；长文件仅提供节选，"
+        "图片可能是视觉模型生成的描述，不能声称已读取未呈现的细节。"
         "数值保持原样与原始单位，不要估算或改写；字段确实缺失时说明缺失，"
         "不要用其他数字填补。"
     )
@@ -640,6 +676,11 @@ class ChatService:
         base_reply = ""
         try:
             cancel_check("route")
+            selected_attachment_material = (
+                require_turn_attachment_material(self.repository, turn_id)
+                if command.attachment_refs or (existing and existing.attachment_refs)
+                else []
+            )
             skill_instruction, skill_record = selected_skill_context(
                 command.selected_skill_ids,
                 allowed=load_frontend_settings().get("cloud_context_policy", "allow_local_evidence") == "allow_local_evidence",
@@ -791,7 +832,7 @@ class ChatService:
                     conversation_context=_tool_context(command.chat_history),
                     owner_thread_id=thread.id,
                     owner_turn_id=turn_id,
-                    attachment_material=_turn_attachment_material(self.repository, turn_id),
+                    attachment_material=selected_attachment_material,
                     research_intent=bool(
                         (route.get("task_contract") or {}).get("task_intent") == "research"
                     ),
@@ -850,7 +891,9 @@ class ChatService:
                 context_blocks.append(disclosed.private_context)
             if disclosed.context:
                 context_blocks.append(disclosed.context)
-            attachment_block = attachment_context_block(self.repository, turn_id)
+            attachment_block = attachment_context_block(
+                self.repository, turn_id, material=selected_attachment_material
+            )
             if attachment_block:
                 context_blocks.append(attachment_block)
             restore = resolve_command_restore(self.repository, thread.id, command)

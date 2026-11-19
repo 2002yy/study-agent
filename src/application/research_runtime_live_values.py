@@ -43,6 +43,13 @@ class ActiveRuntimeLiveValues:
 
         return self.context
 
+    def bind_prepared_checkpoint(
+        self, state: ResearchState, context: dict[str, Any]
+    ) -> None:
+        """Adopt checkpoint projections even if preparation subsequently fails."""
+
+        self.state, self.context = state, context
+
     def hard_timeout_seconds(self) -> float:
         """Budget clock reads the same live state as model admission."""
 
