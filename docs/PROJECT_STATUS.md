@@ -6,6 +6,12 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 前端旧布局状态收敛源码快照测试退役（P3 静态减负）
+
+- `frontendStateConsolidation.test.ts` 两项测试只扫描 `workspaceReducer`、`WorkspaceView`、SettingsPanel 与学习会话源码，证明旧 `selectedPanel` / `START_NEW_CHAT_SESSION` / `Sidebar` / `Inspector` 字符串和已删除文件不再出现。它们不执行 reducer 或渲染界面，属于已完成布局迁移的防回退专项。
+- 整体删除该 43 行历史源码测试，不留只验证旧文件已被删除的空壳。保留 `workspaceReducer.test.ts` 的真实状态转换、SettingsPanel 组件测试、`onboarding-settings.spec.ts` 的实际菜单与设置操作，以及 `AppBoundary.test.ts` 中仍在使用的应用/布局职责约束。当前没有专属适配层、配置或 CI 显式注册需要联动删除；生产组件、路由与状态逻辑不变。
+- `priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本片只减少重复/过时测试，精确 PR HEAD CI 验收前不宣称产品质量改善。
+
 ### 2026-11-20 发现与深页定向诊断写入集中到实时上下文（独立 P3 静态片）
 
 - **范围**：新增 `ActiveDiscoveryDiagnosticsContext`，将执行器中分散的 lead-discovery 计数、deeper targeting 策略/页面意图/最近记录写入归为一个诊断所有者。上下文仅持有本次执行的 `ActiveRuntimeLiveValues`，每次写入都从 `current_context()` 读取最新持久化字典，绝不缓存可能被恢复/检查点替换的指标引用；执行器不再保留 `_lead_metrics`、`_bump_lead_metric`、`_record_deeper_targeting` 的另一套实现。
