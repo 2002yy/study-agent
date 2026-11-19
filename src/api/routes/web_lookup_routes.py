@@ -302,11 +302,15 @@ def steer_research_run(
 
             attachment_service = get_session_attachment_service()
             thread_id = run.owner_thread_id or ""
-            _, problems = attachment_service.validate_selection(thread_id, request.attachment_ids)
+            selected_ids, problems = attachment_service.validate_selection(thread_id, request.attachment_ids)
             if problems:
                 raise ValueError("附件不可用：" + "、".join(problems[:3]))
             attachment_refs = attachment_service.selection_refs(thread_id, request.attachment_ids)
+            if {ref["attachment_id"] for ref in attachment_refs} != set(selected_ids):
+                raise ValueError("附件状态已变化，请重新选择")
             attachment_material = attachment_service.attachment_material(thread_id, request.attachment_ids)
+            if {item["attachment_id"] for item in attachment_material} != set(selected_ids):
+                raise ValueError("附件正文已失效，请重新选择")
         return _response(service.steer(
             run_id,
             content=request.content,
