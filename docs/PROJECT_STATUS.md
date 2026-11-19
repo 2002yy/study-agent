@@ -14,6 +14,15 @@
 - **基线/下一步**：`main@9fa4e3f6`（包含已合并 #527/#529 和其他窗口 #526/#528），分支 `codex/research-fair-read-plan-context-20261119`。#528 只改前端迁移面板、样式、CI 分类及主线交接，研究代码无冲突；该主线的内容已经保留。本片 `priority=P3`，`loop=static`，`owner=retrieval/read-planning`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`；未运行付费模型、真实搜索或动态产品比较。完成干净提交与独立 PR 后须以该精确 HEAD CI 和审阅收口，不借用之前主线 CI。
 - **主线重整合**：#533 旧 HEAD `dbc757cd` 的 CI `44533206436` 已全部通过，但随后主线新增 #516/#520 等独立变更，导致交接文档冲突。仅将本片运行时代码、独立测试及此节交接增量重挂到 `main@57f0ad1e`，保留主线其他交接及 P1 空白终态防护。重挂后的精确 PR HEAD 必须重新取得 CI 全绿、无阻断审阅和可合并结果后才能合并；旧 CI 不可复用。
 
+### 2026-11-19 读取链逐步账本转移归入 ActiveReadAttemptContext（独立 P3 静态片）
+
+- **范围**：将执行器中每个实际 reader-chain step 的外部尝试标记、游标 outcome、失败投影与读取观测，收归 `ActiveReadAttemptContext.record_chain_attempts()`。上下文只持有 per-run breaker/观测依赖；每一步都通过显式回调将新游标交还给调用方，不捕获旧 cursor/context。
+- **冻结契约**：逐步保持 `begin external → finish external → append outcome → observe → append failure` 顺序；诊断失败时，调用方游标已包含本次 outcome。Wigolo escalation signal 仍在所有 step 记录后产生，原有时钟采样次数不变。**不改** specialist/default chain 选择、调度、checkpoint 时点、预算结算、来源投影、证据提取或发布。
+- **边界**：`ActiveResearchRuntimeExecutor` 仍负责 ensure-active、每候选 checkpoint、预算、selected_sources、projection 和持久化；本片只归拢真实链步骤的审计/观测转移。
+- **测试**：新增独立纯单元测试覆盖双 backend 的标记/游标/失败/escalation 顺序，以及观测异常时游标先发布的负控；本地读取上下文与执行器影响集 **86 passed**。原精确 HEAD `728ce16e` 的 CI `44535451124` 五个作业全部通过，但主线随后前移，不将旧 CI 复用为重挂后提交的验收证据。
+- **基线**：`main@37dc889b`；独立分支 `codex/read-attempt-cursor-context-20261119`。本片不依赖仍在验收的 #533。
+- **重挂**：相同的运行时代码与测试重挂到 `main@57f0ad1e`；只合并此节交接文字与主线已有的 P1 空白答复、旧面板清理记录，保持和 #533 代码独立。重挂后须取得自己的精确 HEAD CI 与审阅验收，才能按顺序合并。
+
 
 ### 2026-11-19 伪量化 Golden Journey 预算测试退役（P3 测试减负）
 
@@ -880,6 +889,20 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
 - 本片没有独占适配层、配置或专属测试可删除；历史文档不追溯改写。
   仅属无调用方实验工具减负，真实模型/搜索与费用支出均未发生。
 
+### 2026-11-19 候选评估旧诊断异常及自证测试退役（P3 静态减负）
+
+- `CompactAssessmentGainSignalDuplicateError` 明确标注只为旧诊断兼容保留；
+  仓内从未抛出或捕获，仅由一项测试导入并检查继承关系。删除此孤儿异常和
+  `__all__` 导出，连同只断言 Python 类继承关系的四项自证断言一起退役。
+- 保留当前真实解析会抛出的 `CompactAssessmentCodeError`、relevance/role/gain
+  分类异常、非法枚举与重复/无序响应的 fail-closed 解析，以及直接验证
+  这些失败行为的参数化测试。无需适配层或配置调整；生产模型、候选排序、
+  恢复与预算逻辑均不变。
+- 仅静态验证 Python 编译、全仓孤儿引用和 diff；新精确 PR CI 才能证明
+  完整回归。`priority=P3`、`loop=static`、`owner=retrieval/candidate-assessment`、
+  `dynamic_evidence=not_run`、`budget_authorization=not_applicable`、
+  `decision=engineering-only`。
+
 ### 2026-11-19 RQ1-C 双重 `_impl` 兼容转发层退役（P3 静态减负）
 
 - 正式限定资格入口 `run_rq1c_bounded_qualification.py` 与确定性协议探针入口
@@ -896,6 +919,10 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
   `tests/stage_gates.json`、`tools/ci_scope.py` 无旧文件显式注册。
 - 本地已完成 Python 编译检查、零遗留调用检索与差异检查；执行环境无
   pytest/ruff 离线依赖，完整资格/预算测试与 CI 需在此候选精确 HEAD 验收。
+  首轮 CI 发现 4 项预算用例仍经由已删除的 `_impl` 取 guardrails/binding
+  provider，且 1 项精确 HEAD 负控仍把私有 `_run_case` 当作公开入口导出；
+  已改为直接验证真实 guardrails/core 所有者，公开 `run_qualification` 的
+  精确 HEAD 拒绝负控仍保留，不恢复无产品调用方的私有兼容转发。
   本片 `priority=P3`、`loop=static`、`owner=qualification/tooling`、
   `dynamic_evidence=not_run`、`budget_authorization=not_applicable`、
   `decision=engineering-only`，没有调用任何付费模型或外部检索。

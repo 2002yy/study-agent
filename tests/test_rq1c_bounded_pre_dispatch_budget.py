@@ -186,13 +186,13 @@ def test_research_truth_reserves_binder_capacity_only_when_binding_rows_exist(
     )
     budget = runner._AnswerStageBudget(started_at=time.monotonic())
 
-    monkeypatch.setattr(runner._impl, "research_binding_rows", lambda run: [])
+    monkeypatch.setattr(runner._core, "research_binding_rows", lambda run: [])
     budget.set_research_truth(completed)
     assert budget.research_model_calls == 4
     assert budget.required_answer_calls == 1
 
     monkeypatch.setattr(
-        runner._impl,
+        runner._core,
         "research_binding_rows",
         lambda run: [{"claim_id": "c1", "evidence_id": "e1"}],
     )
@@ -258,7 +258,7 @@ def test_diagnostic_limits_widen_only_the_measurement_window(
         return "ok"
 
     monkeypatch.setattr(runner, "_production_chat", fake_chat)
-    guardrails = runner._impl._core
+    guardrails = runner._guardrails
     guarded = guardrails.make_guarded_run_case(
         raw_run_case=lambda **kwargs: {
             "case_id": "case-x",
@@ -296,7 +296,7 @@ def test_qualification_guard_reports_no_diagnostic_limits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(runner, "_production_chat", lambda *a, **k: "ok")
-    guardrails = runner._impl._core
+    guardrails = runner._guardrails
     guarded = guardrails.make_guarded_run_case(
         raw_run_case=lambda **kwargs: {
             "case_id": "case-x",
@@ -369,7 +369,7 @@ def test_call_records_expose_deadline_invariant_and_prompt_size(
 def test_guarded_run_case_attaches_finalization_breakdown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    guardrails = runner._impl._core  # same module object as the guardrails module
+    guardrails = runner._guardrails
 
     def fake_chat(messages: list[dict], **kwargs: object) -> str:
         time.sleep(0.05)

@@ -199,18 +199,9 @@ def test_imported_qualification_entrypoints_cannot_bypass_exact_head_guard(
     assert not output.exists()
 
 
-@pytest.mark.parametrize(
-    "module_name",
-    [
-        "tools.run_rq1c_bounded_qualification",
-        "tools.run_rq1c_bounded_qualification_core",
-    ],
-)
-def test_imported_qualification_case_hook_cannot_bypass_exact_head_guard(
-    module_name: str,
-) -> None:
+def test_imported_qualification_case_hook_cannot_bypass_exact_head_guard() -> None:
     completed = _run_imported_call(
-        module_name=module_name,
+        module_name="tools.run_rq1c_bounded_qualification_core",
         call_source=(
             "target._run_case(case={}, repository=None, service=None, "
             "chat_service=None, reference_date='2026-09-05')"
