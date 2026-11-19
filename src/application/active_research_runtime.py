@@ -239,7 +239,10 @@ from src.application.research_runtime_checkpoint import (
     ActiveRuntimeCheckpointContext,
     updated_runtime_budget,
 )
-from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
+from src.application.research_runtime_result_buffers import (
+    ActiveResearchResultBuffers,
+    upsert_source_record,
+)
 from src.application.research_runtime_model_policy import (
     ACTIVE_RESEARCH_POLICY_AUDITS_KEY,
     RuntimeModelPolicyContext,
@@ -1872,7 +1875,7 @@ class ActiveResearchRuntimeExecutor:
                                 "content": "",
                             },
                         )
-                        _upsert_source(selected_sources, record)
+                        results.upsert_selected_source(record)
                         _record_read_history(live.context, live.cursor.read_outcomes)
                         checkpoint()
                         continue
@@ -1935,7 +1938,7 @@ class ActiveResearchRuntimeExecutor:
                         successful_reads += 1
                         used_chars += len(content)
                     record = projection.record
-                    _upsert_source(selected_sources, record)
+                    results.upsert_selected_source(record)
                     if ok:
                         # Multimodal Reader v1 (default-inert): declared visual
                         # metadata may yield provenance-anchored visual units.
@@ -3176,7 +3179,7 @@ def _deep_seed_materialization(
         materialized_content=content,
         full_body_length=len(str(seed_source.get("content") or "")),
     )
-    _upsert_source(selected_sources, record)
+    upsert_source_record(selected_sources, record)
     return record
 
 
@@ -5193,15 +5196,6 @@ def _accumulate_fetch_metrics(
         str(item)[:80] for item in (diagnostics.get("admission_reasons") or [])[:4]
     )
     entry["admission_reasons"] = admission_reasons[-8:]
-
-
-def _upsert_source(records: list[dict[str, Any]], record: dict[str, Any]) -> None:
-    candidate_id = record.get("candidate_id")
-    for index, current in enumerate(records):
-        if current.get("candidate_id") == candidate_id:
-            records[index] = record
-            return
-    records.append(record)
 
 
 def _source_by_candidate(records: list[dict[str, Any]], candidate_id: str) -> dict[str, Any] | None:

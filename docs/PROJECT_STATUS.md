@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 来源记录写入收敛至结果缓冲区（独立 P3 静态片）
+
+- **范围**：将执行器内两个物理读取/耗尽路径的 `_upsert_source(selected_sources, record)` 改为唯一结果缓冲区 `ActiveResearchResultBuffers.upsert_selected_source(record)`；把原候选 ID 去重/原位置替换算法移入 `research_runtime_result_buffers.upsert_source_record`，供现有 Deep 本地材料化保持同样的显式列表写回。执行器不再定义另一份 `_upsert_source`。
+- **状态与恢复契约**：`selected_sources` 仍只由 `ActiveResearchResultBuffers` 持有并被 checkpoint/publisher 共享；列表身份、原位置替换、新候选追加和记录本身的对象身份全部保留。特别冻结“来源先 upsert，视觉证据后附着到同一个 `record`”的顺序；后续附着的 `visual_units` 必须能从该列表读取。没有引入副本、第二持有者、新的持久化键、额外 checkpoint 或模型/读取调用。
+- **验证与边界**：新增结果缓冲区回归，验证同候选替换顺序、列表/记录别名、视觉挂载后可见性；已有 Deep 材料化、证据投影、发布、波次结算与研究执行完整影响集 **120 passed**；Ruff、差异检查和 mypy **115/125、无新增**通过。分支 `codex/research-source-write-owner-20261119`，基线 `main@a1875ee1`；`priority=P3`、`loop=static`、`owner=evidence/source-records`，`dynamic_evidence=not_run`、`budget_authorization=not_applicable`。不修改来源读取内容、证据评分、最终发布规则或昂贵的真实模型/搜索链路。仍须以精确 PR HEAD CI 和审阅独立验收。
+- **后续最小片**：再拆分读取成功后的视觉单元附着与其诊断，保持来源写入完成后才调用视觉读取，并保留视觉失败不影响成功正文的语义。
+
 ### 2026-11-19 公平读取规划共享状态收归上下文（独立 P3 静态片）
 
 - **范围**：将 `_fair_read_plan()` 内约 210 行的读槽/claim 绑定/来源簇/冲突预留排程逻辑收进 `research_runtime_read_plan_context.FairReadPlanContext`；原函数仅保留调用接口与确定性 claim 顺序。两个原本隐式捕获外围可变集合的内部函数改为上下文方法；每个波次创建新实例，历史簇映射先复制，禁止回写调用方持有的簇集合。
