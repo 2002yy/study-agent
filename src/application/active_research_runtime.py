@@ -259,6 +259,7 @@ from src.application.research_runtime_read_attempt_context import ActiveReadAtte
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
 from src.application.research_runtime_read_execution import ActiveReadExecutionContext
 from src.application.research_runtime_read_plan_context import FairReadPlanContext
+from src.application.research_runtime_read_budget_context import ReadWaveBudgetContext
 from src.application.research_runtime_read_quota_context import ReadWaveQuotaContext
 from src.application.research_runtime_read_coverage import (
     ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY as ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY,
@@ -1734,6 +1735,9 @@ class ActiveResearchRuntimeExecutor:
                     context=live.context,
                     selected_sources=selected_sources,
                 )
+                read_budget = ReadWaveBudgetContext(
+                    live=live, quota=read_quota, elapsed=elapsed
+                )
                 read_loop_stop_reason = ""
                 dispatched_read_ids: set[str] = set()
                 for plan_item in physical_reads:
@@ -1778,12 +1782,7 @@ class ActiveResearchRuntimeExecutor:
                                     str((_materialized.get("read") or {}).get("content") or "")
                                 )
                                 # 0 reads_used: no physical read happened.
-                                live.state = updated_runtime_budget(
-                                    live.state,
-                                    live.cursor,
-                                    elapsed_seconds=elapsed(),
-                                    reads_used=read_quota.successful_reads,
-                                )
+                                live.state = read_budget.project()
                                 _record_read_history(live.context, live.cursor.read_outcomes)
                                 checkpoint()
                             continue
@@ -1953,12 +1952,7 @@ class ActiveResearchRuntimeExecutor:
                         state=live.state,
                         canonical_url=candidate.canonical_url,
                     )
-                    live.state = updated_runtime_budget(
-                        live.state,
-                        live.cursor,
-                        elapsed_seconds=elapsed(),
-                        reads_used=read_quota.successful_reads,
-                    )
+                    live.state = read_budget.project()
                     # §98 A2a: the single lifecycle view is diagnostics only;
                     # candidate_resolution remains the pure state authority.
                     _record_read_history(
@@ -2110,12 +2104,7 @@ class ActiveResearchRuntimeExecutor:
                         checkpoint()
                         continue
                     read_quota.charge_read(lead_content)
-                    live.state = updated_runtime_budget(
-                        live.state,
-                        live.cursor,
-                        elapsed_seconds=elapsed(),
-                        reads_used=read_quota.successful_reads,
-                    )
+                    live.state = read_budget.project()
                     checkpoint()
                     lead_categories = (
                         "public_research_candidate_metadata",

@@ -1,0 +1,98 @@
+"""Read budget projection follows live state and shared wave charges."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
+from src.application.research_runtime_read_budget_context import ReadWaveBudgetContext
+from src.application.research_runtime_read_quota_context import ReadWaveQuotaContext
+from src.web.research.contracts import (
+    ResearchBudget,
+    ResearchState,
+    build_research_state,
+)
+from src.web.research.runtime import ResearchRuntimeCursor, RuntimeCandidate
+
+
+def _state(*, max_candidates: int, reads_used: int = 0) -> ResearchState:
+    return build_research_state(
+        mode="active",
+        questions=(),
+        claims=(),
+        evidence=(),
+        evidence_links=(),
+        source_clusters=(),
+        gaps=(),
+        conflict_gaps=(),
+        budget=ResearchBudget(
+            max_candidates=max_candidates,
+            max_reads=max_candidates,
+            reads_used=reads_used,
+            max_total_chars=100,
+            soft_timeout_seconds=10,
+            hard_timeout_seconds=20,
+        ),
+        known_evidence_ids=(),
+    )
+
+
+def test_projection_uses_rebound_state_cursor_and_shared_read_charges() -> None:
+    original_state = _state(max_candidates=5, reads_used=1)
+    live = ActiveRuntimeLiveValues(state=original_state)
+    quota = ReadWaveQuotaContext(successful_reads=1, used_chars=0)
+    elapsed_samples: list[float] = []
+    current_time = [1.5]
+
+    def elapsed() -> float:
+        elapsed_samples.append(current_time[0])
+        return current_time[0]
+
+    budget = ReadWaveBudgetContext(live=live, quota=quota, elapsed=elapsed)
+    seed_state = budget.project()
+    assert seed_state.budget.reads_used == 1
+    assert seed_state.budget.elapsed_seconds == 1.5
+    assert live.state is original_state  # projection is not a hidden writer
+
+    # Checkpoint/steering can replace both live inputs between two read paths.
+    recovered = _state(max_candidates=3, reads_used=1)
+    live.state = recovered
+    live.cursor = ResearchRuntimeCursor(
+        candidates=(
+            RuntimeCandidate(id="a", url="https://a.test", title="A"),
+            RuntimeCandidate(id="b", url="https://b.test", title="B"),
+            RuntimeCandidate(id="c", url="https://c.test", title="C"),
+            RuntimeCandidate(id="d", url="https://d.test", title="D"),
+        )
+    )
+    quota.charge_materialization("seed")  # characters, but no read slot
+    quota.charge_read("evidence")
+    quota.charge_read("lead")
+    current_time[0] = 4.0
+
+    projected = budget.project()
+    assert projected.budget.reads_used == 3
+    assert projected.budget.candidates_used == 3  # latest max_candidates
+    assert projected.budget.elapsed_seconds == 4.0
+    assert (quota.successful_reads, quota.used_chars) == (3, 16)
+    assert live.state is recovered
+    assert recovered.budget.reads_used == 1
+    assert elapsed_samples == [1.5, 4.0]
+
+
+def test_projection_does_not_change_cursor_or_context_when_no_read_succeeds() -> None:
+    live = ActiveRuntimeLiveValues(
+        state=_state(max_candidates=3, reads_used=1), context={"untouched": True}
+    )
+    cursor = replace(live.cursor, phase="reading")
+    live.cursor = cursor
+    quota = ReadWaveQuotaContext(successful_reads=1, used_chars=12)
+    projection = ReadWaveBudgetContext(live, quota, lambda: 2.0)
+
+    result = projection.project()
+
+    assert result.budget.reads_used == 1
+    assert result.budget.elapsed_seconds == 2.0
+    assert live.state.budget.elapsed_seconds != 2.0
+    assert live.cursor is cursor
+    assert live.context == {"untouched": True}
