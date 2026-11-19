@@ -6,6 +6,20 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 实验室入口重复源码断言收敛（独立测试减负片）
+
+- 前端实验室入口拥有三层验证：`extensionLabBoundary.test.ts`、
+  `extensionViewBoundary.test.ts` 和 `useExtensionRuntimeBoundary.test.ts`，
+  其中菜单唯一入口、延迟加载分支和三种能力选择多次按源码字符串重复断言。
+- 保留真实浏览器 `extension-lab-journeys.spec.ts`（直接菜单中只有实验室、
+  三种选项可见、选择前零扩展请求、选择后正确读取、返回焦点恢复），以及
+  `useExtensionRuntimeBoundary.test.ts` 的控制器归属、恢复、按需加载和协调权威
+  负控；`extensionViewBoundary.test.ts` 继续验证组件绑定和宿主隔离。
+- 删除全为旧入口快照断言的 `extensionLabBoundary.test.ts`（4 项），并删除
+  `extensionViewBoundary.test.ts` 中已经由运行期边界测试保护的 1 项重复
+  能力加载断言。没有更改在用实验室、路由/权限、运行配置或 E2E 注册；
+  这是 P3 离线测试减负，不是体验改善结论，精确 PR CI 另行验收。
+
 ### 2026-11-19 读取计划的累计来源簇覆盖职责提取（独立 P3 静态片）
 
 - **范围**：从 `active_research_runtime.execute()` 的读取计划阶段提取 `merge_covered_clusters(context, selected_sources)` 至 `research_runtime_read_coverage.py`；执行器只传递当前持久化上下文与实际来源列表，覆盖合并及排序回写由读取覆盖模块负责。原 `ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY` 在执行器中继续可导入，持久化键值不变。
