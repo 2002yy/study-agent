@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   groupSessions,
   matchesSessionSearch,
+  sessionIdFromRow,
   sessionSubtitle,
   sessionTitle,
   summaryLabel,
@@ -37,6 +38,31 @@ const base: SemanticSessionRow = {
 };
 
 describe("semantic session navigation", () => {
+  it("resolves current and archived session IDs at the actual navigation owner", () => {
+    expect(sessionIdFromRow({
+      session_id: "chat_with_underscores",
+      kind: "archived",
+      name: "2026_session_chat_with_underscores_archived.md",
+      path: "",
+      size_bytes: 0,
+      mtime_ns: 0,
+    })).toBe("chat_with_underscores");
+    expect(sessionIdFromRow({
+      kind: "current",
+      name: "abc123.md",
+      path: "",
+      size_bytes: 10,
+      mtime_ns: 1,
+    })).toBe("abc123");
+    expect(sessionIdFromRow({
+      kind: "archived",
+      name: "2026-06-16_10-00-00_session_deadbeef_keqing_pro.md",
+      path: "",
+      size_bytes: 10,
+      mtime_ns: 1,
+    })).toBe("deadbeef");
+  });
+
   it("prefers manual title and semantic subtitle", () => {
     expect(sessionTitle(base)).toBe("二分查找复习");
     expect(sessionSubtitle(base)).toBe("理解二分查找");
