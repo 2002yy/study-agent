@@ -284,3 +284,41 @@ def test_read_and_inventory_metrics_stay_separate() -> None:
     assert metrics["inventory_fetch"]["skipped_due_to_budget"] == 1
     assert metrics["read_retry"]["fetches"] == 1
     assert metrics["inventory_fetch"]["fetches"] == 1
+
+
+def test_fetch_retry_diagnostics_follow_rebound_context_and_keep_bounds() -> None:
+    from src.application.research_runtime_fetch_retry_observation import (
+        _accumulate_fetch_metrics,
+    )
+
+    original: dict = {}
+    current: dict = {}
+    first = {
+        "attempts": 2,
+        "retries": 1,
+        "retry_backoff_ms": 2.24,
+        "retry_fetch_ms": 12.35,
+        "retry_reasons": ["first"],
+        "admission_reasons": ["admitted"],
+    }
+    _accumulate_fetch_metrics(original, "read_retry", first)
+    _accumulate_fetch_metrics(
+        current,
+        "read_retry",
+        {
+            **first,
+            "retry_reasons": [f"r{i}" for i in range(12)],
+            "admission_reasons": [f"a{i}" for i in range(12)],
+        },
+    )
+    _accumulate_fetch_metrics(current, "read_retry", first)
+
+    old = original["claim_engine_metrics"]["read_retry"]
+    latest = current["claim_engine_metrics"]["read_retry"]
+    assert old["fetches"] == 1 and old["retries"] == 1
+    assert latest["fetches"] == 2 and latest["retries"] == 2
+    assert latest["retry_backoff_ms"] == 4.4
+    # Legacy metrics round after each update, including binary-float ties.
+    assert latest["retry_fetch_ms"] == 24.6
+    assert latest["retry_reasons"] == ["r0", "r1", "r2", "r3", "first"]
+    assert latest["admission_reasons"] == ["a0", "a1", "a2", "a3", "admitted"]
