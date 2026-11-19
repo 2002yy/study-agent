@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 读取计划的累计来源簇覆盖职责提取（独立 P3 静态片）
+
+- **范围**：从 `active_research_runtime.execute()` 的读取计划阶段提取 `merge_covered_clusters(context, selected_sources)` 至 `research_runtime_read_coverage.py`；执行器只传递当前持久化上下文与实际来源列表，覆盖合并及排序回写由读取覆盖模块负责。原 `ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY` 在执行器中继续可导入，持久化键值不变。
+- **冻结契约**：已有波次的累计簇覆盖不能丢失；一份物理读取的来源簇同时归属 assessment 所有者及 extraction map 绑定的其他 claim；失败读取及缺少合法 assessment 的记录不新增覆盖，旧数据格式的宽容处理与稳定排序保留。**不改**候选选择、读取额度、恢复游标、模型尝试/预算、检查点位置/顺序或证据发布。
+- **证据**：改动前两项真实执行器累计/共享来源簇回归 **2 passed**；改动后覆盖专项及研究执行/恢复/检查点/预算/读取关联测试 **131 passed**，Ruff、差异检查、mypy **115/125（无新增）**通过。基线 `main@56e2f23e`；单独分支 `codex/research-read-coverage-20261119`，与正在等候精确 CI 的 #517 测试去重 PR **没有代码依赖**。`priority=P3`，`loop=static`，`owner=retrieval/read-planning`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`。无真实付费模型/浏览器/外部搜索或产品动态对比。
+- **下一执行片**：完成本独立片的干净提交、PR 推送及精确 HEAD CI 记录；仅当该 SHA CI 全绿、审阅无阻断且无冲突才合并。#517 仍按其独立精确 CI 完成收口，不能复用其它提交的绿色结果。
+
 ### P1 SSE 终态正文与界面一致性（2026-11-19，独立静态片）
 
 - **等级/归属**：P1 预防性修复，UI/传输发布契约；未从真实用户
