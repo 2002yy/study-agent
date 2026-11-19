@@ -26,6 +26,15 @@
 - **验证/交接**：修改前四项恢复场景 **4 passed**；修改后完整主动研究执行器模块 **83 passed**（包含原四项），重挂到最新主线后再次 **83 passed / 164.20s**；全库 Ruff、测试模块编译、差异检查通过，mypy **115/125、无新增**。工厂定义与四处调用净删约 23 行，保留每种崩溃时序独立断言。独立分支 `codex/research-crash-test-fixture-20261120`，从 `main@a1dd6159` 重挂至 `main@18c852a8`，包含已合并的 #552/#553/#555/#557/#558，未修改上述 PR 的生产代码。`priority=P3`、`loop=static`、`owner=research/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；不以测试去重宣称用户体验改善，尚须精确 PR HEAD CI 与审阅验收。
 - **下一片**：本片精确 CI 与审阅收口后，再检查提取失败与成功归档之间剩余的共享状态写入；checkpoint 和预算结算仍保持执行器的原边界。
 
+### 2026-11-20 证据提取失败状态与游标归档收归上下文（独立 P3 静态片）
+
+- **范围**：新增 `ExtractionFailureContext`，把执行器三条提取失败分支重复的“同一来源记录的逐 claim `extractor_failed` 摘要 → 最新游标追加规范化失败记录”集中为一次明确操作。其依赖仅为执行期唯一 `ActiveRuntimeLiveValues`，每次现场读取 `current_cursor()/current_context()`，不缓存可被恢复或 checkpoint 替换的引用；源记录仍由原 `ActiveResearchResultBuffers` 及执行器持有，调用时显式传入。
+- **冻结契约**：策略禁止仍是 `policy_blocked` 和 `policy:{logical_call_id}`，调用前模型尝试耗尽仍是 `model_attempts_exhausted`，提取器未完成仍按原 reason 映射 `extraction_failed`/`model_attempts_exhausted`；三者 phase 均为 `extracting`，item 为 candidate ID，detail 保持原原因。严格保留 **来源摘要先写 → 失败审计追加游标 → 立即 checkpoint → 跳过当前绑定** 的顺序；审计投影失败时保留已写来源摘要但不提前改游标。多 claim 的其他摘要、旧单项 `extraction`、Evidence Gate、source ID、模型重试上限、计费/持久化形状和 checkpoint 次数与时点不变。错误分类、模型准入、实际 checkpoint 和异常处理仍由执行器负责。
+- **验证/交接**：新增六项真实 failure projection 单元负控覆盖三类错误与提取器特殊理由、去重审计 ID、来源别名、恢复后的最新游标/运行轮次以及审计异常的部分效果；完整主动研究执行器、模型策略/尝试、checkpoint、证据接纳及失败投影影响集 **118 passed / 112.00s**。全库 Ruff、编译和差异检查通过，mypy **115/125、无新增**。`priority=P3`、`loop=static`、`owner=evidence/failure-audit`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；未运行真实搜索或付费模型。独立分支 `codex/research-extraction-failure-context-20261120`，基于 `main@18c852a8`，与 #559 测试工厂去重的生产代码零交集；仍需精确 PR HEAD CI、审阅和合并门禁。
+- **主线整理**：#561 原 HEAD `b14b7159` 的精确 PR CI `44589370461` 已成功，但主线新增 #559/#560；本批只解决 `PROJECT_STATUS.md` 同位置交接文字冲突，保留两项独立记录并重挂至 `main@6fdc6cc`。重挂后提取失败、完整主动研究执行器、模型策略/尝试、checkpoint、证据接纳及失败投影/契约扩展影响集 **137 passed / 104.32s**；全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。旧 CI 不作新 HEAD 验收依据，须按新精确 HEAD 独立核验。
+- **#565 合并后的交叉修正**：`main@3b6e6ad` 已由 `ActiveResearchResultBuffers.admit_extraction_target()` 初始化逐 claim 摘要；本片三条失败分支改用 `ExtractionFailureContext.record()` 后，执行器原本保留的局部 `extractions = source_record["extractions"]` 变为未使用，Ruff 明确报 F841。只删除这一行死赋值，不修改映射初始化的原时点及任何恢复、预算、失败归档或 checkpoint 契约。叠加后的失败归档、结果缓冲、完整执行器、checkpoint、证据接纳和失败投影影响集 **113 passed / 116.20s**，全库 Ruff、编译、差异检查通过。仍须新精确 HEAD CI 验收。
+- **下一片**：检查提取阶段的 `claim/candidate` 绑定与恢复跳过判定是否仍有隐式共享依赖；如状态转移已清楚，则继续清理相邻测试中的重复故障造景。
+
 ### 2026-11-20 合格提取结果的证据接纳顺序收归显式上下文（独立 P3 静态片）
 
 - **范围**：新增 `ExtractedEvidenceAcceptanceContext`，在抽取器返回已验证的 `ExtractedEvidenceLink` 后，接管同一来源记录的逐 claim 提取摘要、首条合格的旧单项摘要、基于当前 selected/rejected 缓冲区的证据 ID 解析，以及最新 `ResearchState` 和读取游标的绑定。执行器仅显式传入 `source_record/candidate_id/claim_id/link` 并在接纳返回后原位 `checkpoint()`；上下文只引用现有的 `ActiveRuntimeLiveValues` / `ActiveResearchResultBuffers` 所有者，不缓存可能被恢复替换的状态快照。
