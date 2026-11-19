@@ -1,3 +1,5 @@
+"""Exact-head and dirty-checkout safety at public and core CLI boundaries."""
+
 from __future__ import annotations
 
 import json
@@ -139,11 +141,11 @@ def _dirty_local_clone(tmp_path: Path) -> tuple[Path, dict[str, str]]:
 @pytest.mark.parametrize(
     "script_name",
     [
-        "run_rq1c_bounded_qualification_impl.py",
+        "run_rq1c_bounded_qualification.py",
         "run_rq1c_bounded_qualification_core.py",
     ],
 )
-def test_direct_qualification_internal_execution_cannot_bypass_guard(
+def test_direct_qualification_entrypoints_cannot_bypass_guard(
     tmp_path: Path,
     script_name: str,
 ) -> None:
@@ -159,7 +161,7 @@ def test_direct_qualification_internal_execution_cannot_bypass_guard(
             str(output),
         ],
         cwd=REPO_ROOT,
-        env=_stale_sha_env(),
+        env=_with_repo_pythonpath(_stale_sha_env()),
         capture_output=True,
         text=True,
         timeout=15,
@@ -174,11 +176,11 @@ def test_direct_qualification_internal_execution_cannot_bypass_guard(
 @pytest.mark.parametrize(
     "module_name",
     [
-        "tools.run_rq1c_bounded_qualification_impl",
+        "tools.run_rq1c_bounded_qualification",
         "tools.run_rq1c_bounded_qualification_core",
     ],
 )
-def test_imported_qualification_run_cannot_bypass_exact_head_guard(
+def test_imported_qualification_entrypoints_cannot_bypass_exact_head_guard(
     tmp_path: Path,
     module_name: str,
 ) -> None:
@@ -197,18 +199,9 @@ def test_imported_qualification_run_cannot_bypass_exact_head_guard(
     assert not output.exists()
 
 
-@pytest.mark.parametrize(
-    "module_name",
-    [
-        "tools.run_rq1c_bounded_qualification_impl",
-        "tools.run_rq1c_bounded_qualification_core",
-    ],
-)
-def test_imported_qualification_case_hook_cannot_bypass_exact_head_guard(
-    module_name: str,
-) -> None:
+def test_imported_qualification_case_hook_cannot_bypass_exact_head_guard() -> None:
     completed = _run_imported_call(
-        module_name=module_name,
+        module_name="tools.run_rq1c_bounded_qualification_core",
         call_source=(
             "target._run_case(case={}, repository=None, service=None, "
             "chat_service=None, reference_date='2026-09-05')"
@@ -223,11 +216,11 @@ def test_imported_qualification_case_hook_cannot_bypass_exact_head_guard(
 @pytest.mark.parametrize(
     "script_name",
     [
-        "run_rq1c_protocol_probes_impl.py",
+        "run_rq1c_protocol_probes.py",
         "run_rq1c_protocol_probes_core.py",
     ],
 )
-def test_direct_protocol_internal_execution_cannot_bypass_exact_head_guard(
+def test_direct_protocol_entrypoints_cannot_bypass_exact_head_guard(
     tmp_path: Path,
     script_name: str,
 ) -> None:
@@ -269,7 +262,7 @@ def test_direct_protocol_internal_execution_cannot_bypass_exact_head_guard(
 @pytest.mark.parametrize(
     "module_name",
     [
-        "tools.run_rq1c_protocol_probes_impl",
+        "tools.run_rq1c_protocol_probes",
         "tools.run_rq1c_protocol_probes_core",
     ],
 )
@@ -317,7 +310,7 @@ def test_dirty_tracked_checkout_blocks_imported_internal_artifact_writes(
     )
 
     for module_name in (
-        "tools.run_rq1c_bounded_qualification_impl",
+        "tools.run_rq1c_bounded_qualification",
         "tools.run_rq1c_bounded_qualification_core",
     ):
         output = tmp_path / f"runtime-{module_name.rsplit('.', 1)[-1]}.json"
@@ -347,7 +340,7 @@ def test_dirty_tracked_checkout_blocks_imported_internal_artifact_writes(
         encoding="utf-8",
     )
     for module_name in (
-        "tools.run_rq1c_protocol_probes_impl",
+        "tools.run_rq1c_protocol_probes",
         "tools.run_rq1c_protocol_probes_core",
     ):
         output = tmp_path / f"protocol-{module_name.rsplit('.', 1)[-1]}.json"

@@ -33,6 +33,12 @@ describe("FireflyDefaultLesson", () => {
     expect(within(container).getByText("换一条韧性，再算一次")).toBeInTheDocument();
     expect(within(container).getByText("手里只有一金")).toBeInTheDocument();
     expect(container.textContent).toContain("12次强化战技");
+    const upgradeCard = within(container).getByRole("heading", { name: "配队怎么升级" }).closest("article");
+    expect(upgradeCard).not.toBeNull();
+    for (const stage of ["起步", "低金", "老牌配置", "高配"]) {
+      expect(within(upgradeCard!).getByText(stage)).toBeInTheDocument();
+    }
+    expect(container).not.toHaveTextContent("数据库索引");
     expect(
       within(container).queryByRole("button", { name: "暂时收起默认示例" }),
     ).toBeNull();
