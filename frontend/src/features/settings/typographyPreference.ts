@@ -5,7 +5,10 @@ const CHANGE_EVENT = "study-agent:typography-change";
 export const TYPOGRAPHY_OPTIONS = [
   { value: "balanced", label: "黑体正文 · 宋体标题", description: "正文清晰，标题保留书页感" },
   { value: "sans", label: "统一黑体", description: "界面、标题和正文都使用黑体" },
-  { value: "serif", label: "宋体阅读", description: "资料正文使用宋体，操作界面保持黑体" },
+  { value: "serif", label: "宋体阅读", description: "资料和回答正文使用宋体，操作界面保持黑体" },
+  { value: "kaiti", label: "楷体阅读", description: "适合中文长文，标题和正文使用楷体" },
+  { value: "fangsong", label: "仿宋阅读", description: "传统书稿风格，适合连续阅读" },
+  { value: "mono", label: "等宽阅读", description: "英文与数字等宽，方便对照技术资料" },
 ] as const;
 export type TypographyPreset = typeof TYPOGRAPHY_OPTIONS[number]["value"];
 let volatilePreference: TypographyPreset | null = null;

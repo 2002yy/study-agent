@@ -44,4 +44,14 @@ describe("device typography preferences", () => {
     act(() => window.dispatchEvent(new StorageEvent("storage", { key: TYPOGRAPHY_KEY })));
     expect(view.container.querySelector(".app-shell")).toHaveAttribute("data-typography", "sans");
   });
+  it.each([
+    ["kaiti", "楷体阅读"],
+    ["fangsong", "仿宋阅读"],
+    ["mono", "等宽阅读"],
+  ] as const)("applies and saves the %s reading font", (value, label) => {
+    const view = render(<Harness/>);
+    fireEvent.click(screen.getByRole("radio", { name: new RegExp(label) }));
+    expect(view.container.querySelector(".app-shell")).toHaveAttribute("data-typography", value);
+    expect(window.localStorage.getItem(TYPOGRAPHY_KEY)).toBe(value);
+  });
 });
