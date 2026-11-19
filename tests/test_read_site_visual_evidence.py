@@ -12,27 +12,11 @@ invariants under test are the ones that make the insertion safe to ship:
 
 from __future__ import annotations
 
-import importlib.util
-from pathlib import Path
-
 from src.application import active_research_runtime as runtime
 from src.application.research_vision_adapter import build_research_vision_adapter
 from src.news.url_normalizer import canonicalize_url
 from src.web.research.visual_read_budget import MAX_VISION_CALLS_ENV
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_TEST = REPO_ROOT / "tests" / "test_active_research_runtime.py"
-
-
-def _load_test_module():
-    spec = importlib.util.spec_from_file_location("_art_visual", RUNTIME_TEST)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-ART = _load_test_module()
+from tests.research_read_site_scenarios import ART, run_read_site_scenario
 
 _PNG = b"\x89PNG\r\n\x1a\n" + b"v" * 40
 _METADATA = {
@@ -52,26 +36,14 @@ def _execute(monkeypatch, tmp_path, *, extra=None, vision_calls=None, tag="visua
     else:
         monkeypatch.setenv(MAX_VISION_CALLS_ENV, str(vision_calls))
 
-    repository = ART._TrackingRepository(ART.RuntimeDatabase(tmp_path / f"{tag}.sqlite"))
     context = ART._active_context()
     context.update(extra or {})
-    run = repository.create(
-        ART.WebLookupRun(
-            id=f"run_{tag}",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=context,
-            max_items=5,
-        )
+    return run_read_site_scenario(
+        tmp_path=tmp_path,
+        sqlite_name=f"{tag}.sqlite",
+        run_id=f"run_{tag}",
+        context=context,
     )
-    service = ART._service(
-        repository,
-        ART._StructuredClient(),
-        read_gateway=ART._ShortNativeReadGateway(text="z" * 1200),
-        escalation_backend=ART._CutoverEscalationBackend("y" * 1200),
-    )
-    return service.execute(run.id, raise_on_error=True)
 
 
 def _shape(completed):

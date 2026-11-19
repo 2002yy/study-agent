@@ -9,14 +9,12 @@ run context only.
 
 from __future__ import annotations
 
-import importlib.util
 import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_TEST = REPO_ROOT / "tests" / "test_active_research_runtime.py"
 
 #: A genuinely executable, absolute interpreter. Pointing CRAWL4AI_PYTHON at the
 #: test file itself made config_ok platform-dependent (os.access X_OK is true for
@@ -32,17 +30,7 @@ from src.application.reader_hint_routing import (  # noqa: E402
 )
 from src.web.research.chain_executor import ChainStepResult  # noqa: E402
 from src.web.research.candidate_pool import CandidatePoolItem  # noqa: E402
-
-
-def _load_test_module():
-    spec = importlib.util.spec_from_file_location("_art_selector", RUNTIME_TEST)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-ART = _load_test_module()
+from tests.research_read_site_scenarios import ART, run_read_site_scenario  # noqa: E402
 
 
 def _enable_specialist(monkeypatch) -> None:
@@ -104,24 +92,12 @@ def _run_with_hint(monkeypatch, tmp_path, *, capabilities, specialist):
         specialist,
     )
 
-    repository = ART._TrackingRepository(ART.RuntimeDatabase(tmp_path / "selector.sqlite"))
-    run = repository.create(
-        ART.WebLookupRun(
-            id="run_selector",
-            query="What is the verified current release date?",
-            stage="planned",
-            status="pending",
-            research_context=_hint_context(*capabilities),
-            max_items=5,
-        )
+    return run_read_site_scenario(
+        tmp_path=tmp_path,
+        sqlite_name="selector.sqlite",
+        run_id="run_selector",
+        context=_hint_context(*capabilities),
     )
-    service = ART._service(
-        repository,
-        ART._StructuredClient(),
-        read_gateway=ART._ShortNativeReadGateway(text="z" * 1200),
-        escalation_backend=ART._CutoverEscalationBackend("y" * 1200),
-    )
-    return service.execute(run.id, raise_on_error=True)
 
 
 def _usable_specialist(*, url, **kwargs):
