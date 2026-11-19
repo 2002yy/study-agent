@@ -966,13 +966,7 @@ class ActiveResearchRuntimeExecutor:
         # semantic result. A crash first leaves durable inflight for recovery.
         on_model_finished = model_attempt_context.finished
 
-        def bind_wave_snapshot(snapshot: ActiveWaveSettlementSnapshot) -> None:
-            live.state, live.cursor, live.context = snapshot.state, snapshot.cursor, snapshot.context
-
-        wave_handoff = ActiveWaveSettlementHandoff(
-            capture=lambda: ActiveWaveSettlementSnapshot(live.state, live.cursor, live.context),
-            bind=bind_wave_snapshot,
-        )
+        wave_handoff = ActiveWaveSettlementHandoff.for_live_values(live)
 
         def settle_completed_wave(
             snapshot: ActiveWaveSettlementSnapshot,
