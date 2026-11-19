@@ -2229,21 +2229,10 @@ class ActiveResearchRuntimeExecutor:
                 for extraction_target in extraction_targets:
                     candidate_id = extraction_target["candidate_id"]
                     claim_id = extraction_target["claim_id"]
-                    source_record = _source_by_candidate(selected_sources, candidate_id)
-                    if source_record is None or _read_status(source_record) != "read":
+                    source_record = results.admit_extraction_target(candidate_id, claim_id)
+                    if source_record is None:
                         continue
-                    extractions = source_record.setdefault("extractions", {})
-                    prior = extractions.get(claim_id)
-                    if isinstance(prior, Mapping) and prior.get("status") in {"eligible", "extractor_failed"}:
-                        continue
-                    legacy = source_record.get("extraction")
-                    if (
-                        prior is None
-                        and isinstance(legacy, Mapping)
-                        and legacy.get("status") in {"eligible", "extractor_failed"}
-                        and legacy.get("claim_id") == claim_id
-                    ):
-                        continue
+                    extractions = source_record["extractions"]
                     ensure_active()
                     execution_guard.ensure_budget(live.state)
                     extraction_categories = (
@@ -4929,17 +4918,6 @@ def _count_orchestration_call(
         by_purpose = {}
     by_purpose[purpose] = int(by_purpose.get(purpose) or 0) + int(calls)
     metrics["orchestration_model_calls_by_purpose"] = by_purpose
-
-
-def _source_by_candidate(records: list[dict[str, Any]], candidate_id: str) -> dict[str, Any] | None:
-    return next((item for item in records if item.get("candidate_id") == candidate_id), None)
-
-
-def _read_status(record: Mapping[str, Any]) -> str:
-    read = record.get("read")
-    return str(read.get("status") or "") if isinstance(read, Mapping) else ""
-
-
 
 
 def _utc_now() -> str:

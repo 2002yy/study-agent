@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 提取目标恢复准入归入现有结果缓冲区（独立 P3 静态片）
+
+- **范围**：`ActiveResearchResultBuffers.admit_extraction_target()` 从已有的 `selected_sources` 活记录查找候选，核对实际读取成功状态，再检查逐 claim 的 `eligible` / `extractor_failed` 完成标记和旧单项 `extraction` 兼容标记。执行器的提取循环只请求符合条件的来源，随后保持原有模型预算检查、提取、归档和 checkpoint 操作；删去只在此处使用的 `_source_by_candidate`、`_read_status` 两个孤立 helper。**未新增上下文类或第二份来源快照**。
+- **冻结契约**：保持首次匹配候选的查找语义、同一来源字典的对象别名和 `read.status == read` 限制；成功读取后即使某 claim 被跳过，也仍在任何模型调用前创建原 `extractions` 映射。已有逐 claim 成功/失败不重复提取，未完成状态可重试；仅当本 claim 没有逐项记录时才考虑旧单项摘要，并且仅对同 claim 的成功/失败跳过。**不改**恢复游标格式、检查点数量/时点、预算入账/结算、模型尝试编号、外部检索读取、证据资格与发布。
+- **测试与交接**：新增结果缓冲区直接测试 **12 passed**，覆盖同源引用、未读来源不写入、逐 claim 完成/重试、旧单项兼容与重复候选的首次匹配；主动研究执行器、恢复、证据接纳、checkpoint、波次结算及发布合计 **121 passed / 103.38s**（包含上述 12 项）。全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。初始基线 `main@76b42a5`，PR 创建时因独立前端 #560 合并，已重挂至 `main@6fdc6cc`；分支 `codex/research-extraction-target-admission-20261120`。`priority=P3`、`loop=static`、`owner=evidence/extraction-admission`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。精确 PR HEAD CI 尚待核验；不将离线静态回归宣称为真实研究质量改善。
+- **下一片**：待此片完成精确 CI 与审阅后，再沿已有的提取成功/失败上下文逐步清理失败归档中的隐式写入；不与仍待独立收口的提取失败归档 PR 混合。
+
 ### 2026-11-20 研究崩溃恢复测试场景搭建去重（独立 P3 静态测试片）
 
 - **范围**：`test_active_research_runtime.py` 中规划模型成功后崩溃、双 claim 提取中断、评估模型中断、提取第 2 次尝试后进程死亡四项恢复回归，各自重复创建 `ActiveResearchGateway`、`ActiveResearchRuntimeExecutor` 与 `ClaimEngineDispatchWebLookupService`。新增测试专用 `_service_with_runtime_components()`，显式接收既有模型网关、可选故障注入组件和搜索后端；四项测试仅替换重复工厂构造，保留原有自定义故障包装器、持久化 SQLite、恢复重试与全部断言。
