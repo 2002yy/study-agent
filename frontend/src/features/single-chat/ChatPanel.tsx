@@ -5,6 +5,7 @@ import {
   BookOpen,
   Clipboard,
   Clock,
+  Download,
   Leaf,
   Search,
   MessageSquare,
@@ -55,6 +56,7 @@ import type { ResearchLookupResponse } from "../web-lookup/researchApi";
 import { RestoreCard } from "./RestoreCard";
 import { ChatRoleSettings } from "./ChatRoleSettings";
 import { ComposerAttachments } from "./ComposerAttachments";
+import { buildChatTranscript, canExportChatTranscript, downloadChatTranscript } from "./chatTranscriptExport";
 
 // A search is an explicit chat request; no separate retrieval or task override.
 export function searchMessage(input: string): string {
@@ -294,6 +296,20 @@ export function ChatPanel(props: ChatPanelProps) {
             !message.turnId
           ),
       );
+  const hasTranscript = canExportChatTranscript(displayMessages, streamRecovery);
+  const exportConversation = () => {
+    const transcript = buildChatTranscript(displayMessages, streamRecovery);
+    if (!transcript) {
+      setCopyAnnouncement("当前没有可导出的对话正文。");
+      return;
+    }
+    try {
+      downloadChatTranscript(transcript);
+      setCopyAnnouncement("当前已加载的对话已导出为 Markdown；附件和资料原文未包含。");
+    } catch {
+      setCopyAnnouncement("导出失败，请检查浏览器下载权限后重试。");
+    }
+  };
   // Research progress lives in the conversation timeline; once the run's status
   // is on screen inline, the standalone recovery surface must not repeat it.
   const inlineResearchShown = Boolean(
@@ -501,6 +517,7 @@ export function ChatPanel(props: ChatPanelProps) {
             <h1>{reading?.target ? "伴读对话" : displayMessages.length ? "对话" : "新对话"}</h1>
           </div>
           <div className="topbar-actions">
+            <button aria-label="导出当前对话 Markdown" className="icon-button" disabled={!hasTranscript} onClick={exportConversation} title="仅导出当前已加载的对话正文，不含附件" type="button"><Download size={18} /></button>
             <button aria-label="打开会话历史" className="icon-button session-dock-button" onClick={()=>onOpenDrawer("sessions")} title="会话历史" type="button"><BookOpen size={18}/></button>
             <button aria-label={props.sourcesOpen ? "收起资料与来源" : "打开资料与来源"}
               aria-expanded={props.sourcesOpen ?? false} aria-haspopup="dialog" className="icon-button sources-dock-button"

@@ -6,6 +6,12 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 旧答案实验室独立预览退役（P3 静态减负）
+
+- 删除仅在 `frontend/answer-labs.html` 自身挂载、且仅于 DEV 环境运行的 `AnswerLabsPreview.tsx` 与专属 `answerLabsPreview.css`；项目正式首页、现行 Playwright 用例、生产 Vite 构建入口均不调用此预览。
+- 当前 `frontend/e2e/answer-labs.spec.ts` 通过固定 `study-ui` 卡片直接在聊天工作区验证交互、用户草稿与窄屏布局。保留真实使用的 `AnswerLabs.tsx`、`AnswerCardView.tsx`、单元测试、这条浏览器测试和 CI scope 的有效映射，不削弱验证强度。更新交互设计说明，不再误报可访问旧预览 URL。
+- 本片无后台 API、持久化/恢复、检索、模型、预算及数据格式变化。现行交互卡/协议定向测试 **3 files / 24 passed**，TypeScript/Vite 生产构建通过，源码引用清理和 `git diff --check` 通过；浏览器 E2E 未本地运行，精确 PR HEAD CI 待验。`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+
 ### 2026-11-19 伪量化 Golden Journey 预算测试退役（P3 测试减负）
 
 - `frontend/src/product-flow/goldenJourneyAudit.ts` 仅供测试使用，没有运行时消费者。其中“产品界面数量”“恢复前决策次数”等并非读取组件或浏览器实际状态，而是在测试里赋固定整数后与同模块中的固定预算比较；末尾测试甚至只检查这些静态预算常量本身，不能证明交互摩擦达标。
@@ -264,6 +270,27 @@
 - 将 `SelectionTraceCollector` 的历史指标恢复、运行期状态持有和指标刷新交给 `research_selection_observability.ResearchSelectionTraceContext`；执行器只在原有位置初始化一次，并在原波次位置调用 `flush(live.context)`。原 `_flush_selection_trace` 私有包装与仅依赖它的测试调用一起删除，测试转为验证新上下文。**不改**选源排序/过滤、trace 字段、指标键、保留上限、恢复游标、模型预算、检查点或发布契约。
 - 新负控验证恢复后指标回读、检查点回绑新 context 后的写回、旧映射不被改写、损坏指标与空追踪时无副作用。本地同树选源/执行/读取观测/恢复/检查点/预算组合影响集 **154 passed**，专项测试及 Ruff、差异检查、mypy **115/125（无新增）**通过。基于 `main@964a52cd` 的独立分支 `codex/research-selection-trace-context-20261119`，与待验收 #527 无代码依赖。`priority=P3`，`loop=static`，`owner=observability`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`，未进行付费模型、搜索或动态对比。
 - **下一执行片**：单独推送本批 PR，精确 HEAD CI、审阅和主线无冲突后才能合并；#527 仍须以自己的精确提交 CI 收口。
+
+### 开发缺口跟踪与首个可交付试点（2026-11-19）
+
+本表是本次讨论的**待验证假设**，并非已观测到的生产缺陷或另一份产品路线图。遵循 `PRODUCT_ITERATION_POLICY.md` 的 Static/Dynamic 双环；不能用 CI 绿色宣称真实用户任务成功。
+
+| 优先级 / 所有者 | 待验证的风险 | 关闭所需证据 | 当前决定 |
+| --- | --- | --- | --- |
+| P0 / infrastructure | 跨进程费用账本、重试幂等、设置并发写入及数据迁移存在部署边界 | 多 worker 重复提交、数据库损坏/恢复、额度耗尽负控 | 不扩部署；单独安全/持久化批次 |
+| P0 / orchestration + retrieval | 外部页面/文档指令注入与工具权限混淆 | 不可信正文不能改变工具权限或泄漏数据的离线负控 | 先盘现有防护与失败样本，再定缺口 |
+| P1 / orchestration + UI | 最终答案为空、附件丢失、取消和恢复后“已完成”误报 | 真实失败轨迹复现 + 端到端最终可见内容、附件身份与恢复契约测试 | 复用已有恢复链，不另造执行器 |
+| P2 / UI + infrastructure | 当前聊天缺少明确的本地文本取回路径，不能在离线时留存当前内容 | 用户点击时本地下载；含当前已加载文本及未完成片段；不泄漏系统指令、排队草稿；明确不等于全量备份 | **本 PR 的第一个实现片** |
+| P2 / UI | 200% 缩放、窄屏、中文字体回退与读屏交互 | 关键流程键盘/屏幕阅读器与 320px/200% 重排实测 | 字体扩展在独立 PR；此片不交叉改动 |
+| P2 / frontend | 长会话渲染、流式事件与资源包体积 | 固定设备/对话规模的 INP、内存、首屏实测与阈值 | 先采集基线，不能仅凭构建警告推定用户卡顿 |
+| P2 / product evidence | 用户纠错和真实任务成功无法关联可审核的结果 | 经用户同意、脱敏的任务/答案/失败反馈关联；受控动态对照 | 模型和外部搜索试验另行授权费用与隐私 |
+| P3 / engineering | 过时功能、兼容层、重复验证和 CI 耗时 | 静态调用方盘点、保留关键负控、净减维护量和现行门禁通过 | 按独立清理 PR 继续，不混入功能片 |
+
+**试点界限**：这次只增加前端“导出当前对话 Markdown”按钮和静态负控，输出用户与助手正文，隐藏运行时系统消息及尚未提交的队列问题，保存中断的可恢复片段；附件原文件、PDF/网页正文、完整服务端历史、交互控件状态不在导出范围。纯浏览器本地文件，不增加后端 API、云端分享或自动传输。它是**用户可移植性改善的工程试点**，不是经过真实用户验证的备份机制。
+
+**静态验收与限制**：`chatTranscriptExport`、`ChatPanel.copy` 与 `ChatPanel` 影响集 **49 passed**，邻接边界/旅程测试 **9 passed**，`tsc -b && vite build` 成功，构建仍有原有的大包体警告。当前容器启动 Vite 时发生 Node 系统接口错误（`uv_interface_addresses`），浏览器连接 `127.0.0.1:4175` 报 `ERR_CONNECTION_REFUSED`；真实下载交互、移动端排版及浏览器权限实测 **not_run**，不将 jsdom 模拟当真实浏览器通过，也不将连通失败单独归因于网络隔离。动态模型/搜索/用户任务 **not_run**，费用授权 `not_applicable`；该片属于 P2 / static / UI / engineering-only。后继最小片按优先级收集真实失败轨迹，查明最终答案/附件/恢复在哪层丢失；预算未授权时只做离线回放。
+
+**2026-11-19 主线整合**：与 #520 已合并的空白终态防护同树整合，仅保留本片导出相关四个前端文件的差异；聊天/导出/边界/旅程影响集 **6 files / 60 passed**、生产 TS/Vite 构建及差异检查成功。新精确 PR HEAD 的 CI 未完成前不复用旧绿色结果。
 
 ### 2026-11-19 读取候选测试搭建去重（#517 已合并）
 
