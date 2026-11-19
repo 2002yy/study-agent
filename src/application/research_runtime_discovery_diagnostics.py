@@ -39,6 +39,22 @@ class ActiveDiscoveryDiagnosticsContext:
             metrics["lead_discovery"] = state
         state[key] = int(state.get(key) or 0) + max(0, int(amount))
 
+    def record_lead_candidate_ids(self) -> None:
+        """Project lead-discovered IDs from the current durable cursor.
+
+        Only call this after new candidates have been appended, as before.
+        Neither cached cursor references nor a separate candidate list are kept.
+        """
+
+        metrics = self.live.current_context().setdefault(
+            ACTIVE_RESEARCH_METRICS_KEY, {}
+        )
+        metrics["lead_discovered_candidate_ids"] = [
+            item.id
+            for item in self.live.current_cursor().candidates
+            if item.discovery_method == "lead_url"
+        ]
+
     def record_targeting(
         self,
         *,

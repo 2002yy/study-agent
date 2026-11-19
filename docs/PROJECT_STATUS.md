@@ -95,6 +95,14 @@
 - **重挂**：相同的运行时代码与测试重挂到 `main@57f0ad1e`；只合并此节交接文字与主线已有的 P1 空白答复、旧面板清理记录，保持和 #533 代码独立。重挂后须取得自己的精确 HEAD CI 与审阅验收，才能按顺序合并。
 
 
+### 2026-11-20 主动研究实时值回调与 lead 候选诊断归属（独立 P3 静态片）
+
+- **范围**：执行器将读取观测的 `context/cursor` getter、评估/提案/域定向/晚到候选的 `live_context` 以及读链的 cursor 回写，统一绑定到既有 `ActiveRuntimeLiveValues.current_context/current_cursor/set_cursor`；不再让这些调用点各自定义等价匿名闭包。lead 新候选 ID 的诊断投影从执行器移入既有 `ActiveDiscoveryDiagnosticsContext.record_lead_candidate_ids()`；每次读取最新 cursor，并向最新 context 写入相同 ID 列表。新负控在替换 cursor 与 context 后检查旧字典不被污染、当前列表顺序不变且不修改游标。
+- **冻结契约**：`ActiveRuntimeLiveValues` 仍是运行期状态、游标、持久化上下文的唯一可变所有者，诊断上下文不缓存旧值；lead 仅在确实追加新候选后记录，键 `claim_engine_metrics.lead_discovered_candidate_ids`、来源过滤 `discovery_method == lead_url` 与既有顺序保持不变。没有修改模型/真实读取调用次数、预算结算/波次额度、恢复格式、checkpoint 时点或调用栈观测、证据资格和发布。通用阶段计时回调仍在执行器原位置，没有不合职责地迁入读取观测。
+- **验证**：完整主动研究/模型尝试/读取观测及诊断影响集 **118 passed**；晚到候选、域定向、模型提案、选源权威、单一读取链、检查点与波次结算相邻影响集 **88 passed**，合计 **206 passed**；全库 Ruff、编译、差异检查通过；mypy **115/125，无新增**。均为离线静态验证，未运行 L3 全量。
+- **状态**：基线 `main@ff619094`，独立分支 `codex/live-observer-bindings-20261120`；不依赖开放中的 #549–#552，尤其不触碰 #550 的 checkpoint 会话和 #552 的模型尝试编号。`priority=P3`、`loop=static`、`owner=orchestration/diagnostics`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。静态影响集与精确 PR HEAD CI 验收独立记录；未发起真实搜索或付费模型调用。
+- **重挂收口（#553）**：在已合入 #549/#550/#551/#554 的 `main@a1dd6159` 上复用原运行时代码和负控，解决顶部交接插入冲突并将本节放入稳定历史位置。旧 `50fdf132` CI 成功不可代替新 HEAD 的独立验收。
+
 ### 2026-11-19 伪量化 Golden Journey 预算测试退役（P3 测试减负）
 
 - `frontend/src/product-flow/goldenJourneyAudit.ts` 仅供测试使用，没有运行时消费者。其中“产品界面数量”“恢复前决策次数”等并非读取组件或浏览器实际状态，而是在测试里赋固定整数后与同模块中的固定预算比较；末尾测试甚至只检查这些静态预算常量本身，不能证明交互摩擦达标。
