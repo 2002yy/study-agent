@@ -6,6 +6,12 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 研究 steering 旧测试转发入口与重复幂等测试退役（P3 静态减负）
+
+- `active_research_runtime.py` 仅为历史测试重导出的 `_apply_pending_active_steering` 没有生产调用；真正实现属于 `src.web.research.steering`，运行时经 `ActiveResearchSteeringContext.apply_pending()` 使用。删除这个测试专用入口，同时删除同文件中未被运行时/测试调用的 `_steering_graph_ids`、`_checkpoint_now_ms` 导入；不动上游实现或真实 steering 流程。
+- 删除 `test_active_research_runtime.py` 中直接调用旧导出、模拟重复执行的 43 行专项；其幂等行为仍由真实执行器的下波应用测试及 checkpoint 前/后崩溃恢复双场景验证。为保留“同一波两条不同用户指令”的独有覆盖，将实际执行器测试强化为一次接收两条指令，并断言每条恰好一份 user claim、critical gap 与对应 ID。
+- 无专属环境开关、CI 单独入口、兼容适配文件或配置引用；研究预算、持久化、checkpoint、用户指令和模型/搜索调用不改。`priority=P3`、`loop=static`、`owner=orchestration/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本地无 pytest/ruff；候选精确 HEAD CI 及审阅未验收。不以工程减负宣称产品质量提升。
+
 ### 2026-11-20 发现与深页定向诊断写入集中到实时上下文（独立 P3 静态片）
 
 - **范围**：新增 `ActiveDiscoveryDiagnosticsContext`，将执行器中分散的 lead-discovery 计数、deeper targeting 策略/页面意图/最近记录写入归为一个诊断所有者。上下文仅持有本次执行的 `ActiveRuntimeLiveValues`，每次写入都从 `current_context()` 读取最新持久化字典，绝不缓存可能被恢复/检查点替换的指标引用；执行器不再保留 `_lead_metrics`、`_bump_lead_metric`、`_record_deeper_targeting` 的另一套实现。

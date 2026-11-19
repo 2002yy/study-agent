@@ -2841,6 +2841,10 @@ def test_pending_steering_forces_next_wave_and_applies_exactly_once(
                 run.id,
                 content="Focus on the 2026 release notes",
             ) is not None
+            assert repository.append_steering(
+                run.id,
+                content="Also check the announcement page",
+            ) is not None
 
     completed = _service(
         repository,
@@ -2850,12 +2854,12 @@ def test_pending_steering_forces_next_wave_and_applies_exactly_once(
 
     assert completed.status in {"completed", "partial"}
     entries = active_steering_entries(completed.research_context)
-    assert len(entries) == 1
-    assert entries[0]["status"] == "applied"
-    assert entries[0]["applied_wave"] is not None
-    assert entries[0]["applied_wave"] >= 2
-    assert entries[0]["late_reason"] == ""
-    assert entries[0]["claim_id"].startswith("claim_steering_")
+    assert len(entries) == 2
+    assert all(entry["status"] == "applied" for entry in entries)
+    assert all(entry["applied_wave"] is not None for entry in entries)
+    assert all(entry["applied_wave"] >= 2 for entry in entries)
+    assert all(entry["late_reason"] == "" for entry in entries)
+    assert all(entry["claim_id"].startswith("claim_steering_") for entry in entries)
 
     raw_state = completed.research_context[CLAIM_ENGINE_CONTEXT_KEY]
     rebuilt = ResearchState.from_dict(
@@ -2868,14 +2872,17 @@ def test_pending_steering_forces_next_wave_and_applies_exactly_once(
         ),
     )
     user_claims = [item for item in rebuilt.claims if item.created_by == "user"]
-    assert len(user_claims) == 1
-    assert user_claims[0].priority == "critical"
-    assert user_claims[0].created_reason == "active_steering:" + entries[0]["id"]
-    assert any(item.gap_type == "user_steering" for item in rebuilt.gaps)
-    assert any(
-        item.id == entries[0]["gap_id"] and item.claim_id == entries[0]["claim_id"]
-        for item in rebuilt.gaps
-    )
+    assert len(user_claims) == 2
+    assert {item.id for item in user_claims} == {entry["claim_id"] for entry in entries}
+    assert all(item.priority == "critical" for item in user_claims)
+    assert {item.created_reason for item in user_claims} == {
+        "active_steering:" + entry["id"] for entry in entries
+    }
+    user_gaps = [item for item in rebuilt.gaps if item.gap_type == "user_steering"]
+    assert len(user_gaps) == 2
+    assert {(item.id, item.claim_id) for item in user_gaps} == {
+        (entry["gap_id"], entry["claim_id"]) for entry in entries
+    }
 
 
 def test_pending_steering_goes_late_when_hard_budget_exhausted(
@@ -2940,49 +2947,6 @@ def test_pending_steering_goes_late_when_hard_budget_exhausted(
     assert entries[0]["claim_id"] == ""
     assert entries[0]["late_reason"] == "hard_budget_exhausted"
 
-
-def test_apply_pending_steering_is_idempotent_for_same_entry() -> None:
-    """P1-C batch 3 / steering 3A acceptance: a crash/resume that re-runs the
-    apply step must never create a second user claim or gap for one entry."""
-    import src.application.active_research_runtime as art_mod
-    from src.web.research.steering import append_active_steering
-
-    state = _two_gap_state()
-    context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
-    context = append_active_steering(
-        context,
-        entry_id="steering_1",
-        content="Focus on the 2026 release notes",
-        received_at="2026-08-31T00:00:00+00:00",
-    )
-    context = append_active_steering(
-        context,
-        entry_id="steering_2",
-        content="Also check the announcement page",
-        received_at="2026-08-31T00:00:01+00:00",
-    )
-    first_state, first_context, first_ids = art_mod._apply_pending_active_steering(
-        state,
-        context,
-        run_id="run_id",
-        wave_index=2,
-        applied_at="2026-08-31T00:00:02+00:00",
-        known_evidence_ids=(),
-    )
-    second_state, second_context, second_ids = art_mod._apply_pending_active_steering(
-        first_state,
-        first_context,
-        run_id="run_id",
-        wave_index=2,
-        applied_at="2026-08-31T00:00:02+00:00",
-        known_evidence_ids=(),
-    )
-    assert first_ids == ("steering_1", "steering_2")
-    assert second_ids == ()
-    assert second_state == first_state
-    assert second_context == first_context
-    user_claims = [item for item in first_state.claims if item.created_by == "user"]
-    assert len(user_claims) == 2
 
 def test_checkpoint_race_merges_concurrent_steering_without_losing_mutation(
     tmp_path: Any,
