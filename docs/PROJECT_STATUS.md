@@ -6,6 +6,20 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 实验室入口重复源码断言收敛（独立测试减负片）
+
+- 前端实验室入口拥有三层验证：`extensionLabBoundary.test.ts`、
+  `extensionViewBoundary.test.ts` 和 `useExtensionRuntimeBoundary.test.ts`，
+  其中菜单唯一入口、延迟加载分支和三种能力选择多次按源码字符串重复断言。
+- 保留真实浏览器 `extension-lab-journeys.spec.ts`（直接菜单中只有实验室、
+  三种选项可见、选择前零扩展请求、选择后正确读取、返回焦点恢复），以及
+  `useExtensionRuntimeBoundary.test.ts` 的控制器归属、恢复、按需加载和协调权威
+  负控；`extensionViewBoundary.test.ts` 继续验证组件绑定和宿主隔离。
+- 删除全为旧入口快照断言的 `extensionLabBoundary.test.ts`（4 项），并删除
+  `extensionViewBoundary.test.ts` 中已经由运行期边界测试保护的 1 项重复
+  能力加载断言。没有更改在用实验室、路由/权限、运行配置或 E2E 注册；
+  这是 P3 离线测试减负，不是体验改善结论，精确 PR CI 另行验收。
+
 ### 2026-11-19 未挂载的旧回答检查器退役（独立 UI 减负片）
 
 - `frontend/src/features/route/RoutePanel.tsx` 的唯一组件调用方为自己的
@@ -25,6 +39,21 @@
 - **冻结契约**：已有波次的累计簇覆盖不能丢失；一份物理读取的来源簇同时归属 assessment 所有者及 extraction map 绑定的其他 claim；失败读取及缺少合法 assessment 的记录不新增覆盖，旧数据格式的宽容处理与稳定排序保留。**不改**候选选择、读取额度、恢复游标、模型尝试/预算、检查点位置/顺序或证据发布。
 - **证据**：改动前两项真实执行器累计/共享来源簇回归 **2 passed**；改动后覆盖专项及研究执行/恢复/检查点/预算/读取关联测试 **131 passed**，Ruff、差异检查、mypy **115/125（无新增）**通过。基线 `main@56e2f23e`；单独分支 `codex/research-read-coverage-20261119`，与正在等候精确 CI 的 #517 测试去重 PR **没有代码依赖**。`priority=P3`，`loop=static`，`owner=retrieval/read-planning`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`。无真实付费模型/浏览器/外部搜索或产品动态对比。
 - **下一执行片**：完成本独立片的干净提交、PR 推送及精确 HEAD CI 记录；仅当该 SHA CI 全绿、审阅无阻断且无冲突才合并。#517 仍按其独立精确 CI 完成收口，不能复用其它提交的绿色结果。
+
+### 2026-11-19 旧迁移路线图展示组件退役（独立减负片）
+
+- `frontend/src/features/migration/RoadmapPanel.tsx` 只被自己的两项组件测试引用；
+  应用入口、路由、构建入口、其它功能和 E2E 均未挂载该组件。原静态内容仍在
+  叙述已完成的 Streamlit→React 迁移，并非在用产品功能。
+- 连同 `RoadmapPanel.test.tsx` 和 `styles.css` 中仅服务该面板的
+  `.roadmap-list` 样式一起退役；保留与之共用原选择器的 `.session-list`、
+  `.session-row` 样式。历史设计文档已允许移除旧面板，仍按原文归档。
+- 首次 PR CI `44518827611` 前端与构建通过，但全量后端测试
+  `test_every_frontend_feature_directory_is_registered_or_declared` 发现
+  `tools/ci_scope.py` 仍将已不存在的 `migration` 目录列为“未注册”特例。
+  后续连同这项死配置一并删除，保留前端目录清单的完整性校验，不放宽门禁。
+  本批不改应用布局、真实聊天/研究功能、迁移机制或运行时配置；新候选
+  必须重新取得精确 HEAD CI 成功。历史设计文档继续保留归档。
 
 ### P1 SSE 终态正文与界面一致性（2026-11-19，独立静态片）
 
@@ -692,10 +721,11 @@
   旧专项测试的两处重复引用；旧测试的浏览器是否升级/壁垒分类行为现由
   `test_chain_executor.py`、`test_progressive_routing.py` 与当时的
   `test_wigolo_browser_executor.py` 验证（后者已在后续独立片退役，
-  现行共享安全不变量迁至 `test_browser_honesty.py`）。Crawl4AI cohort v2 **仍调用**
-  `browser_bakeoff.py` 的结果构造/校验与旧 manifest，故保留该模块、
-  manifest 和共用 fixture 服务，将原专项测试中不可替代的结果真实性负控
-  合并进 `test_browser_bakeoff_contract.py`。不修改真实浏览器读取逻辑，
+  现行共享安全不变量迁至 `test_browser_honesty.py`）。当时 Crawl4AI cohort v2
+  尚调用 `browser_bakeoff.py` 的结果构造/校验与旧 manifest，故暂留旧合同与
+  共享 fixture 服务；**后续 §118/§120 整链退役时**，唯一消费者一并移除，
+  旧合同、专属测试、manifest 和阶段门注册也同步退役。共用 fixture 服务
+  因仍被现行超时/读取测试调用而保留。不修改真实浏览器读取逻辑，
   不执行外部浏览器或付费模型调用。
 
 - **2026-11-19 未注册 Wigolo 后端整体退役（独立片）**：现行
@@ -800,6 +830,21 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
 保留 M4-C 测量链路及 M4-D 增量修改基础；M4-E 受控修复须带版本/源码哈希及明确错误判据，失败保留旧版本；M4-F Three/WebGL 在受控沙箱执行，禁止加载任意第三方脚本；M4-G 根据问题选文字、静图、动画、交互或 3D。默认局部修改、修复成功率和媒介选择质量需真实任务验证。
 
 ## 历史原文与追踪
+
+- **2026-11-19 §118/§120 Crawl4AI 历史资格工具整链退役（独立片）**：
+  `tools/run_crawl4ai_qualification.py` 曾在固定端口启动浏览器夹具和 worker，
+  串行执行四项手工门，随后可选调用唯一后继
+  `tools/run_crawl4ai_cohort_v2.py` 运行冻结前置状态的 12 行 cohort。
+  前者无现行消费者，后者除前者外也没有生产、测试、CI、阶段门、活跃文档
+  或其他工具调用方。两份旧脚本成组删除后，历史 bakeoff 结果合同及
+  六类冻结 manifest 仅被自己的专属测试引用；故再移除
+  `src/web/research/browser_bakeoff.py`、`tests/test_browser_bakeoff_contract.py`、
+  旧 manifest、两处阶段门注册及 README 中过时的当前维护承诺。
+  不留孤儿 CLI、兼容入口、假产品负控或配置。原始资格观测仍在 Git 历史/归档。
+  **保留**真实 Crawl4AI 专家读取、仍被当前超时/集成测试使用的
+  `browser_bakeoff_fixture_server.py`，以及 shutdown、安全、预算/读取调度负控。
+  本片仅执行离线影响测试，
+  不改变生产浏览器路径；真实浏览器资格重跑和付费模型 `not_run`。
 
 - **2026-11-19 无调用方的游标/新鲜度辅助函数退役**：
   `src/web/research/runtime.py::_counter_mapping` 与

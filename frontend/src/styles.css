@@ -1113,16 +1113,14 @@ button {
   font-size: 12px;
 }
 
-.session-list,
-.roadmap-list {
+.session-list {
   display: grid;
   gap: 8px;
   margin: 0;
   padding: 0;
 }
 
-.session-row,
-.roadmap-list li {
+.session-row {
   border: 1px solid #edf1f2;
   border-radius: 8px;
   background: #fbfcfc;
@@ -1151,10 +1149,6 @@ button {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
-}
-
-.roadmap-list {
-  list-style: none;
 }
 
 .timeline {
