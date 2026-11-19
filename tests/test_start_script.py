@@ -9,6 +9,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "start-study-agent.ps1"
 IDENTITY_HELPER = ROOT / "tools" / "frontend-identity.ps1"
+ARGUMENT_HELPER = ROOT / "tools" / "child-arguments.ps1"
 FRONTEND_ENTRY = ROOT / "frontend" / "index.html"
 
 FOREIGN_PAGES = {
@@ -197,3 +198,53 @@ def test_frontend_identity_rejects_a_page_that_only_copies_the_title(tmp_path):
     )
 
     assert judge_frontend_page(page, tmp_path) == "rejected"
+
+
+def test_start_script_quotes_child_arguments_with_spaces():
+    """`Start-Process -ArgumentList <array>` joins with spaces and drops quotes.
+
+    With this repository checked out under a path containing a space, the Vite
+    entry point arrived as two arguments (`Cannot find module
+    'C:\\Users\\Zhang\\Desktop\\study'`). The launcher must build the command
+    line through the shared helper instead of handing the raw array over.
+    """
+
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "child-arguments.ps1" in text
+    assert "ConvertTo-ChildArgumentLine" in text
+    assert "-ArgumentList $Arguments" not in text
+
+
+def test_child_argument_line_quotes_a_path_with_spaces(tmp_path):
+    powershell = powershell_exe()
+    if powershell is None:
+        pytest.skip("PowerShell is not available on this machine")
+
+    harness = tmp_path / "child-arguments-probe.ps1"
+    harness.write_text(
+        ". '" + str(ARGUMENT_HELPER).replace("'", "''") + "'\n"
+        "ConvertTo-ChildArgumentLine @(\n"
+        "  'C:\\Users\\Zhang\\Desktop\\study agent\\frontend\\node_modules\\vite\\bin\\vite.js',\n"
+        "  '--host',\n"
+        "  '127.0.0.1'\n"
+        ")\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        powershell_arguments(powershell, harness),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert result.returncode == 0, result.stderr
+    line = result.stdout.strip().splitlines()[-1]
+    # The spaced path is one quoted argument; plain arguments stay untouched.
+    assert '"C:\\Users\\Zhang\\Desktop\\study agent\\frontend\\node_modules\\vite\\bin\\vite.js"' in line
+    assert "--host 127.0.0.1" in line
+    # Negative control: the raw join is exactly the shape that broke Node.
+    assert line != (
+        "C:\\Users\\Zhang\\Desktop\\study agent\\frontend\\node_modules\\vite\\bin\\vite.js"
+        " --host 127.0.0.1"
+    )
