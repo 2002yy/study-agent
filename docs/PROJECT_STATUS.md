@@ -6,11 +6,11 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
-### 2026-11-19 历史会话导航适配壳退役（独立 P3 静态片）
+### 2026-11-19 旧答案实验室独立预览退役（P3 静态减负）
 
-- 已核实 `WorkspaceView` 的侧栏与抽屉均直接挂载 `SessionNavigator`，不再引用 `SessionsPanel` / `SessionSidebar`；组件、生产入口、E2E、注册表都没有其它调用。两只旧壳只被自己的源码结构测试和重导出测试维持。
-- 一并删除两个兼容包装、只验证包装存在的 `SessionNavigatorBoundary.test.ts`、`SessionsPanel.test.ts` 和 `AppBoundary` 对旧类名的禁用断言；原 `sessionIdFromRow` 三种解析场景迁入正式 `sessionNavigation.test.ts`，继续保护实际导航使用的解析函数。保留 `SessionNavigator` 两种展示模式及其真实交互测试、所有在用会话 API 和共用样式。
-- 本批只减少过时兼容与重复测试，不改变数据格式、恢复、模型、预算和显示逻辑；定向导航/App 边界 **13 passed**，生产 TypeScript/Vite 构建通过；默认高并发全量 Vitest 曾受资源争用影响，出现 2 个超时与 worker 启动错误，限制为 `--maxWorkers=2` 后完整前端 **126 files / 740 passed**。`git diff --check` 通过；仓库 Ruff 由精确 PR CI 再验。`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+- 删除仅在 `frontend/answer-labs.html` 自身挂载、且仅于 DEV 环境运行的 `AnswerLabsPreview.tsx` 与专属 `answerLabsPreview.css`；项目正式首页、现行 Playwright 用例、生产 Vite 构建入口均不调用此预览。
+- 当前 `frontend/e2e/answer-labs.spec.ts` 通过固定 `study-ui` 卡片直接在聊天工作区验证交互、用户草稿与窄屏布局。保留真实使用的 `AnswerLabs.tsx`、`AnswerCardView.tsx`、单元测试、这条浏览器测试和 CI scope 的有效映射，不削弱验证强度。更新交互设计说明，不再误报可访问旧预览 URL。
+- 本片无后台 API、持久化/恢复、检索、模型、预算及数据格式变化。现行交互卡/协议定向测试 **3 files / 24 passed**，TypeScript/Vite 生产构建通过，源码引用清理和 `git diff --check` 通过；浏览器 E2E 未本地运行，精确 PR HEAD CI 待验。`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 
 ### 2026-11-19 P1 聊天空白终态防护（独立候选）
 
@@ -85,6 +85,12 @@
   后续连同这项死配置一并删除，保留前端目录清单的完整性校验，不放宽门禁。
   本批不改应用布局、真实聊天/研究功能、迁移机制或运行时配置；新候选
   必须重新取得精确 HEAD CI 成功。历史设计文档继续保留归档。
+
+### 2026-11-19 历史会话导航适配壳退役（独立 P3 静态片）
+
+- 已核实 `WorkspaceView` 的侧栏与抽屉均直接挂载 `SessionNavigator`，不再引用 `SessionsPanel` / `SessionSidebar`；组件、生产入口、E2E、注册表都没有其它调用。两只旧壳只被自己的源码结构测试和重导出测试维持。
+- 一并删除两个兼容包装、只验证包装存在的 `SessionNavigatorBoundary.test.ts`、`SessionsPanel.test.ts` 和 `AppBoundary` 对旧类名的禁用断言；原 `sessionIdFromRow` 三种解析场景迁入正式 `sessionNavigation.test.ts`，继续保护实际导航使用的解析函数。保留 `SessionNavigator` 两种展示模式及其真实交互测试、所有在用会话 API 和共用样式。
+- 本批只减少过时兼容与重复测试，不改变数据格式、恢复、模型、预算和显示逻辑；定向导航/App 边界 **13 passed**，生产 TypeScript/Vite 构建通过；默认高并发全量 Vitest 曾受资源争用影响，出现 2 个超时与 worker 启动错误，限制为 `--maxWorkers=2` 后完整前端 **126 files / 740 passed**。`git diff --check` 通过；仓库 Ruff 由精确 PR CI 再验。`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 
 ### P1 SSE 终态正文与界面一致性（2026-11-19，独立静态片）
 
