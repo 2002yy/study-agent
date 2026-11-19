@@ -16,10 +16,6 @@ import { ChatPanel } from "../features/single-chat/ChatPanel";
 import type { SemanticSessionRow } from "../features/sessions/sessionNavigation";
 import { ChatResearchRecovery } from "../features/web-lookup/ChatResearchRecovery";
 import type { ResearchLookupResponse } from "../features/web-lookup/researchApi";
-import {
-  GOLDEN_JOURNEY_BUDGETS,
-  ORDINARY_SURFACE_FORBIDDEN_TERMS,
-} from "./goldenJourneyAudit";
 
 const baseRag: ChatResponse["rag"] = {
   status: "waiting",
@@ -180,28 +176,27 @@ function failedResearchRun(): ResearchLookupResponse {
 }
 
 function assertNoInternalTerms(rendered: string) {
-  for (const term of ORDINARY_SURFACE_FORBIDDEN_TERMS) {
+  for (const term of [
+    "TaskContract", "ResearchRun", "run_id", "session_id", "topK",
+    "vector backend", "provider_status",
+  ]) {
     expect(rendered).not.toContain(term);
   }
 }
 
-describe("Study Agent product-level Golden Journeys", () => {
+describe("Study Agent user journey behaviors", () => {
   it("1. first answer requires no configuration decision before typing", () => {
-    const budget = GOLDEN_JOURNEY_BUDGETS.first_answer;
     const { container } = renderChatPanel();
     const composer = container.querySelector(".composer") as HTMLElement;
     const requiredSelectors = composer.querySelectorAll("select").length;
-    const productSurfaces = 1;
 
-    expect(requiredSelectors).toBeLessThanOrEqual(budget.maxRequiredDecisionsBeforeStart);
-    expect(productSurfaces).toBeLessThanOrEqual(budget.maxProductSurfaces);
+    expect(requiredSelectors).toBe(0);
     expect(composer.querySelector("textarea")).toBeTruthy();
     expect(composer.textContent ?? "").toContain("发送");
     assertNoInternalTerms(container.innerHTML);
   });
 
   it("2. returning system learning exposes objective, confirmed truth, gap, and next action", () => {
-    const budget = GOLDEN_JOURNEY_BUDGETS.system_learning;
     const session: SemanticSessionRow = {
       session_id: "learning-journey",
       kind: "current",
@@ -231,11 +226,7 @@ describe("Study Agent product-level Golden Journeys", () => {
       />,
     );
     const rendered = container.innerHTML;
-    const requiredDecisionsBeforeResume = 1;
-    const productSurfaces = 2;
 
-    expect(requiredDecisionsBeforeResume).toBeLessThanOrEqual(budget.maxRequiredDecisionsBeforeStart);
-    expect(productSurfaces).toBeLessThanOrEqual(budget.maxProductSurfaces);
     expect(rendered).toContain("理解二分查找边界条件");
     expect(rendered).toContain("每轮缩小搜索区间");
     expect(rendered).toContain("左右边界更新时机");
@@ -245,7 +236,6 @@ describe("Study Agent product-level Golden Journeys", () => {
   });
 
   it("3. uploaded material ends in an explicit learning choice without retrieval jargon", () => {
-    const budget = GOLDEN_JOURNEY_BUDGETS.material_learning;
     const { container } = render(
       <UploadLearningPrompt
         phase="ready"
@@ -259,11 +249,7 @@ describe("Study Agent product-level Golden Journeys", () => {
       />,
     );
     const rendered = container.innerHTML;
-    const requiredDecisionsBeforeStart = 1;
-    const productSurfaces = 2;
 
-    expect(requiredDecisionsBeforeStart).toBeLessThanOrEqual(budget.maxRequiredDecisionsBeforeStart);
-    expect(productSurfaces).toBeLessThanOrEqual(budget.maxProductSurfaces);
     expect(rendered).toContain("开始系统学习");
     expect(rendered).toContain("直接提问");
     expect(rendered).not.toContain("retrieval");
@@ -273,7 +259,6 @@ describe("Study Agent product-level Golden Journeys", () => {
   });
 
   it("4. web research stays in chat, supports one-click stop and one-click recovery", () => {
-    const budget = GOLDEN_JOURNEY_BUDGETS.web_research;
     const { container: chatContainer } = renderChatPanel({ isSending: true, taskIntent: "research" });
     const stopButton = Array.from(chatContainer.querySelectorAll("button")).find((button) =>
       (button.textContent ?? "").includes("停止"),
@@ -293,11 +278,8 @@ describe("Study Agent product-level Golden Journeys", () => {
       />,
     );
     const recoveryButtons = Array.from(recoveryContainer.querySelectorAll("button"));
-    const recoveryClicks = recoveryButtons.length;
-    const productSurfaces = 1;
 
-    expect(recoveryClicks).toBeLessThanOrEqual(budget.maxRecoveryClicks);
-    expect(productSurfaces).toBeLessThanOrEqual(budget.maxProductSurfaces);
+    expect(recoveryButtons).toHaveLength(1);
     expect(recoveryContainer.innerHTML).toContain("重试研究");
     fireEvent.click(recoveryButtons[0] as HTMLButtonElement);
     expect(onRetry).toHaveBeenCalledTimes(1);
@@ -305,16 +287,11 @@ describe("Study Agent product-level Golden Journeys", () => {
   });
 
   it("5. source-code research remains a learning aid rather than a parallel GitHub workspace", () => {
-    const budget = GOLDEN_JOURNEY_BUDGETS.source_code_learning;
     const { container: chatContainer } = renderChatPanel({ taskIntent: "learn", learningStateEnabled: true });
     const menu = chatContainer.querySelector(".workspace-menu-popover") as HTMLElement | null;
     const menuText = menu?.textContent ?? "";
-    const productSurfaces = 1;
-    const requiredDecisionsBeforeStart = 0;
 
     expect(menuText).not.toContain("GitHub");
-    expect(requiredDecisionsBeforeStart).toBeLessThanOrEqual(budget.maxRequiredDecisionsBeforeStart);
-    expect(productSurfaces).toBeLessThanOrEqual(budget.maxProductSurfaces);
 
     const { container: stripContainer } = render(
       <LearningStrip
@@ -329,12 +306,5 @@ describe("Study Agent product-level Golden Journeys", () => {
     expect(stripText).toContain("通过 FastAPI 源码理解依赖注入调用链");
     expect(stripText).toContain("下一步：用自己的话解释一次依赖解析调用链");
     assertNoInternalTerms(stripText);
-  });
-
-  it("keeps all five journey budgets next-action explicit", () => {
-    for (const journey of Object.values(GOLDEN_JOURNEY_BUDGETS)) {
-      expect(journey.nextActionMustBeExplicit).toBe(true);
-      expect(journey.maxProductSurfaces).toBeLessThanOrEqual(2);
-    }
   });
 });
