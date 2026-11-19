@@ -20,6 +20,7 @@ $StartedProcessIds = @()
 # The frontend identity probe lives in its own file so the tests can exercise
 # the same code the launcher runs.
 . (Join-Path $PSScriptRoot "frontend-identity.ps1")
+. (Join-Path $PSScriptRoot "child-arguments.ps1")
 
 function Fail([string]$Message) {
     Write-Host "启动失败：$Message" -ForegroundColor Red
@@ -101,7 +102,7 @@ function Start-ServiceProcess([string]$Name, [string]$FilePath, [string[]]$Argum
     # Launch the service executable directly: the recorded PID is the process a
     # stop request must end, and its output lands in the launcher logs without a
     # hidden PowerShell hop swallowing it.
-    $process = Start-Process -FilePath $FilePath -ArgumentList $Arguments `
+    $process = Start-Process -FilePath $FilePath -ArgumentList (ConvertTo-ChildArgumentLine $Arguments) `
         -WorkingDirectory $WorkingDirectory -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $LaunchLogDirectory "$Name.stdout.log") `
         -RedirectStandardError (Join-Path $LaunchLogDirectory "$Name.stderr.log")
