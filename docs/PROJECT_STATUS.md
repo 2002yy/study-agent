@@ -701,6 +701,19 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
 
 **唯一下一收口动作**：完成上述候选的读取栈阶段门、差异范围核对与精确 HEAD CI，审阅通过后独立合并；之后再按真实测试调用方清理重复造景，不重新建立模型、恢复或发布权威。#404 测试造景由另一窗口处理；原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
 
+### 2026-11-19 一次性实验账本演示退役（独立 P2 减负片）
+
+- `tools/check_experiment_spend_ledger.py` 只在自身 CLI 使用示例和历史
+  `CL_M1_REBIND_PREVIEW.md` 快照中出现；现行应用、`studyctl`、CI、阶段门、
+  配置及测试没有调用。它模拟两次预留、一次超限与子进程读数，属于
+  早期账本能力展示，不承担产品准入或当前人工预检。
+- 整体移除该演示入口（109 行），**不**删除生产 `llm_spend_guard`、
+  SQLite 实验账本、费用预留/结算、`precheck_sample_budget.py`，
+  也**不**删除真实跨进程持久性/超限负控测试。当前正式验收文档仍引用
+  `check_llm_spend_guard.py`，因此那条实际预检入口保留。
+- 本片没有独占适配层、配置或专属测试可删除；历史文档不追溯改写。
+  仅属无调用方实验工具减负，真实模型/搜索与费用支出均未发生。
+
 ## 0A. 已冻结研究路线（摘要）
 
 `Lookup → VERIFIED / SAFE_ABSTAIN / ESCALATE_STANDARD`；Standard 的多源/比较/冲突和 Deep 的计划/缺口/收益/暂停恢复复用既有 `ActiveResearchRuntimeExecutor`，不另起第二套研究引擎。`usable/read_backed/relevant` 不能等同逐条 claim 支持；默认 `simple` 只验证引用 URL 属于已读来源，不标逐条 verified。
