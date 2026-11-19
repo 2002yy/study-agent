@@ -14,7 +14,6 @@ from src.web.research.candidate_assessment import (
     CANDIDATE_ASSESSMENT_WIRE_SCHEMA_VERSION,
     CompactAssessmentCodeError,
     CompactAssessmentGainSignalCodeError,
-    CompactAssessmentGainSignalDuplicateError,
     CompactAssessmentRelevanceCodeError,
     CompactAssessmentSourceRoleCodeError,
     build_candidate_assessment_request,
@@ -244,13 +243,6 @@ def test_compact_parser_deduplicates_legal_gain_signals_in_order() -> None:
         "new_primary",
         "new_independent_cluster",
     )
-
-
-def test_compact_code_subclasses_preserve_fail_closed_base_contract() -> None:
-    assert issubclass(CompactAssessmentRelevanceCodeError, CompactAssessmentCodeError)
-    assert issubclass(CompactAssessmentSourceRoleCodeError, CompactAssessmentCodeError)
-    assert issubclass(CompactAssessmentGainSignalCodeError, CompactAssessmentCodeError)
-    assert issubclass(CompactAssessmentGainSignalDuplicateError, CompactAssessmentCodeError)
 
 
 @pytest.mark.parametrize("indexes", [(1, 0), (0, 0), (0, 2), (0,)])

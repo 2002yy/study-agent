@@ -880,6 +880,20 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
 - 本片没有独占适配层、配置或专属测试可删除；历史文档不追溯改写。
   仅属无调用方实验工具减负，真实模型/搜索与费用支出均未发生。
 
+### 2026-11-19 候选评估旧诊断异常及自证测试退役（P3 静态减负）
+
+- `CompactAssessmentGainSignalDuplicateError` 明确标注只为旧诊断兼容保留；
+  仓内从未抛出或捕获，仅由一项测试导入并检查继承关系。删除此孤儿异常和
+  `__all__` 导出，连同只断言 Python 类继承关系的四项自证断言一起退役。
+- 保留当前真实解析会抛出的 `CompactAssessmentCodeError`、relevance/role/gain
+  分类异常、非法枚举与重复/无序响应的 fail-closed 解析，以及直接验证
+  这些失败行为的参数化测试。无需适配层或配置调整；生产模型、候选排序、
+  恢复与预算逻辑均不变。
+- 仅静态验证 Python 编译、全仓孤儿引用和 diff；新精确 PR CI 才能证明
+  完整回归。`priority=P3`、`loop=static`、`owner=retrieval/candidate-assessment`、
+  `dynamic_evidence=not_run`、`budget_authorization=not_applicable`、
+  `decision=engineering-only`。
+
 ## 0A. 已冻结研究路线（摘要）
 
 `Lookup → VERIFIED / SAFE_ABSTAIN / ESCALATE_STANDARD`；Standard 的多源/比较/冲突和 Deep 的计划/缺口/收益/暂停恢复复用既有 `ActiveResearchRuntimeExecutor`，不另起第二套研究引擎。`usable/read_backed/relevant` 不能等同逐条 claim 支持；默认 `simple` 只验证引用 URL 属于已读来源，不标逐条 verified。
