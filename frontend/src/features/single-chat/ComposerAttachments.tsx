@@ -7,7 +7,10 @@ import {
   uploadSessionAttachment,
   type SessionAttachmentInfo,
 } from "../../api";
-import { ACCEPTED_EXTENSIONS, MAX_FILE_BYTES, attachmentStatusLabel, formatBytes } from "../rag/attachmentRules";
+import {
+  ACCEPTED_EXTENSIONS, MAX_FILE_BYTES, attachmentSelectionHint, attachmentStatusLabel,
+  formatBytes, isAttachmentReadable,
+} from "../rag/attachmentRules";
 
 /**
  * Unified multimodal input: the chat composer owns attaching files to the
@@ -46,21 +49,28 @@ export function ComposerAttachments({
 
   const activeSession = resolvedSession || sessionId || "";
 
-  const refresh = useCallback(async () => {
-    if (!activeSession) {
+  const refresh = useCallback(async (session = activeSession) => {
+    if (!session) {
       setAttachments([]);
       setMaxFiles(0);
       return;
     }
     try {
-      const listing = await listSessionAttachments(activeSession);
+      const listing = await listSessionAttachments(session);
       setAttachments(listing.attachments);
       setMaxFiles(listing.max_files_per_thread);
       setError("");
+      // A previous selection can outlive a refresh or session navigation.
+      // Never let a known-unreadable file reach the next chat request.
+      const unreadable = new Set(listing.attachments.filter(item => !isAttachmentReadable(item)).map(item => item.id));
+      const current = selectedIdsRef.current;
+      const next = current.filter(id => !unreadable.has(id));
+      if (next.length !== current.length && onSelectionChange) onSelectionChange(next);
+      return listing.attachments;
     } catch {
       // The sources panel surfaces detailed load errors; the composer stays quiet.
     }
-  }, [activeSession]);
+  }, [activeSession, onSelectionChange]);
 
   useEffect(() => {
     void refresh();
@@ -85,19 +95,32 @@ export function ComposerAttachments({
     setError("");
     try {
       const uploaded: string[] = [];
+      const notReadable: SessionAttachmentInfo[] = [];
+      const warnings: string[] = [];
       for (const file of Array.from(files)) {
         if (file.size > MAX_FILE_BYTES) {
-          setError(`${file.name} 超过 ${formatBytes(MAX_FILE_BYTES)} 上限`);
+          warnings.push(`${file.name} 超过 ${formatBytes(MAX_FILE_BYTES)} 上限`);
           continue;
         }
         const created = await uploadSessionAttachment(session, file);
-        uploaded.push(created.id);
+        if (isAttachmentReadable(created)) uploaded.push(created.id);
+        else notReadable.push(created);
       }
-      await refresh();
-      // A freshly uploaded file is part of this message by default.
-      if (uploaded.length && onSelectionChange) {
-        onSelectionChange(Array.from(new Set([...selectedIdsRef.current, ...uploaded])));
+      const currentAttachments = await refresh(session);
+      // Only confirmed-readable uploads join this message automatically.
+      const nowUnreadable = new Set([
+        ...notReadable.map(item => item.id),
+        ...(currentAttachments ?? []).filter(item => !isAttachmentReadable(item)).map(item => item.id),
+      ]);
+      const readyUploads = uploaded.filter(id => !nowUnreadable.has(id));
+      if (readyUploads.length && onSelectionChange) {
+        onSelectionChange(Array.from(new Set([
+          ...selectedIdsRef.current.filter(id => !nowUnreadable.has(id)),
+          ...readyUploads,
+        ])));
       }
+      if (notReadable.length) warnings.push(attachmentSelectionHint(notReadable[0]));
+      if (warnings.length) setError(warnings.join("；"));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "附件上传失败");
     } finally {
@@ -107,7 +130,7 @@ export function ComposerAttachments({
   };
 
   const toggleSelection = (attachmentId: string) => {
-    if (!onSelectionChange) return;
+    if (!onSelectionChange || !attachments.some(item => item.id === attachmentId && isAttachmentReadable(item))) return;
     onSelectionChange(
       selectedIds.includes(attachmentId)
         ? selectedIds.filter(item => item !== attachmentId)
@@ -157,22 +180,27 @@ export function ComposerAttachments({
         <ul className="composer-attachment-chips">
           {attachments.map((attachment) => {
             const selected = selectedIds.includes(attachment.id);
+            const readable = isAttachmentReadable(attachment);
             return (
               <li key={attachment.id} className={selected ? "is-selected" : undefined}>
                 <button
                   aria-label={`${selected ? "取消选择" : "选择"}附件 ${attachment.filename}`}
+                  aria-describedby={!readable ? `attachment-hint-${attachment.id}` : undefined}
                   aria-pressed={selected}
                   className="composer-attachment-pick"
-                  disabled={attachment.status !== "ready" || !onSelectionChange}
+                  disabled={!readable || !onSelectionChange}
                   onClick={() => toggleSelection(attachment.id)}
-                  title={attachment.status !== "ready" ? "附件尚未就绪" : selected ? "取消本次选择" : "加入本条消息"}
+                  title={readable && selected ? "取消本次选择" : attachmentSelectionHint(attachment)}
                   type="button"
                 >
                   <span className="composer-attachment-name">{attachment.filename}</span>
-                  <span className={`attachment-status attachment-status-${attachment.status}`}>
-                    {attachmentStatusLabel(attachment.status)}
+                  <span className={`attachment-status attachment-status-${attachment.status === "ready" && !readable ? "unreadable" : attachment.status}`}>
+                    {attachmentStatusLabel(attachment)}
                   </span>
                 </button>
+                {!readable ? <span className="visually-hidden" id={`attachment-hint-${attachment.id}`}>
+                  {attachmentSelectionHint(attachment)}
+                </span> : null}
                 <button
                   aria-label={`移除附件 ${attachment.filename}`}
                   disabled={busyId === attachment.id}

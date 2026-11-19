@@ -246,6 +246,7 @@
 }
 
 .attachment-status-ready { color: #16794f; }
+.attachment-status-unreadable { color: #9a6b00; }
 .attachment-status-failed { color: #b3261e; }
 .attachment-status-parsing,
 .attachment-status-chunking,
