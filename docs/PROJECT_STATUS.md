@@ -6,6 +6,31 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 P1 聊天空白终态防护（独立候选）
+
+- **真实历史样本与当前缺口分开归因**：`docs/research_quality/ANSWER_AB.md` 的
+  N16（2026-10-30）记录了研究结果 `completed` 但 `source_block_chars=0`、用户
+  无最终答案；现行 `WebLookupRepository.complete` 已将“尝试读取且全部失败、无正文”
+  改为 `partial`，`tests/test_web_lookup_run.py` 已有负控，不重复更改该修复。
+  这条历史样本**不是**本片聊天模型空白输出的直接复现。
+- **本片独立静态复现**：普通聊天模型返回 `""` / 纯空白，以及 SSE 无 token /
+  只有空白 token，修复前四项负控均失败：后端持久化 `completed`，SSE 发送
+  `done` 且无可见回答。`ChatService._complete_turn` 现在在真正完成写入前
+  拒绝空白发布内容，写入 `failed` 与 generation `error`，释放操作所有权，
+  让现有重试逻辑可在新 operation 下成功；SSE 发 `error` 而非 `done`。
+- **边界**：不改已有非空答复、资料绑定、研究证据发布、预算、数据库结构、
+  取消优先级或续写契约。原始负控 **4 failed**，修复后 **4 passed**；
+  完整聊天/发布/中断/恢复影响集 **238 passed**，历史研究终态对照
+  **3 passed**，全库 Ruff 与差异检查通过；mypy 已有债务基线
+  **115/125（无新增）**。
+  priority **P1**（无有效终态），loop **static**，owner **orchestration-contract**；
+  dynamic_evidence **not_run**，budget_authorization **not_applicable**，
+  decision **engineering-only**，不能据此宣称真实模型端到端答案质量改善。
+- 独立分支 `codex/p1-empty-chat-final-20261119` 基于
+  `main@3d048553f6c16305677a55aa95fb49d49d0c3541`；精确 PR-head
+  CI 与审阅是合并前的剩余门。后续最小产品验证仍应在用户授权的真实
+  运行环境检查一次最终消息确实可见，并对历史真实失败任务做零费回放。
+
 ### 2026-11-19 游标单一持有与检查点整合（重新验收候选）
 
 - #510 已以精确 HEAD `36a377e4`、CI `44375838320` 成功验收并合入 `main@a63e9440`。#511 原 HEAD `3d361a39` 的 CI 已成功，但因主线推进产生冲突，基于当前 `main@a63e9440` 重新应用游标所有权变更；恢复与检查点的现有实现保持 #510 语义，重新验证精确 HEAD 后才允许合并。

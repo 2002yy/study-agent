@@ -1894,6 +1894,14 @@ class ChatService:
         reply = validate_repair_output(
             reply, prepared.route, self.repository, prepared.thread.id
         )
+        # A provider can finish normally after yielding zero (or whitespace-only)
+        # tokens.  Persisting that as "completed" makes the user see no answer
+        # and prevents the normal failed-turn retry/recovery path on reload.
+        if not reply.strip():
+            failure = RuntimeError("模型本轮没有可发布的回答正文；请重试。")
+            prepared.route["generation"] = error_outcome(failure)
+            self.fail_turn(prepared)
+            raise failure
         evaluation = self.dependencies.pedagogy_engine.evaluate_response(
             reply,
             plan=prepared.pedagogy_plan,
