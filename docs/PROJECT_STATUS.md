@@ -140,6 +140,13 @@
 - 无专属 API、适配层或运行时配置；只跑静态离线门禁，精确 PR HEAD 的 CI
   和审阅仍须单独通过，不能以本地删除结果宣称真实回答质量提升。
 
+### 2026-11-20 旧单体新闻执行与审计产物整链退役（P3 静态减负）
+
+- **调用核对**：旧 `wechat_service.run_news_round()` / `RuntimeContext` 与搜索、正文读取包装函数只有 `test_wechat_service.py` 中 4 项专项测试调用；正式 API 的新闻流程由 `NewsService` 经 `NewsRepository` 分阶段提交搜索、读取、摘要与讨论，调用的是仍在使用的 `run_digest_stage`、`run_discussion_stage`，不是单体入口。
+- **成组删除**：旧单体 runner、独占的 `src/news/audit.py` JSON/Markdown 审计落盘器、`build_pipeline_trace` 整轮汇总/Markdown 展示及 `feed_health_rows` 适配、专属 `test_wechat_service.py` 和 `test_news_audit.py`。原 pipeline 测试中仅服务旧整轮报告的 3 项一并删除；保留并改名为 `test_news_item_trace.py` 的 2 项仍验证在线源块使用的逐条证据、域名策略与跳转链。仓内无该旧链专用 CI、阶段门或运行时开关需要额外清理。
+- **保留的现行契约**：`format_news_source_block` → `build_item_trace`、摘要覆盖率与警告、群聊状态同步、`NewsService` 失败回滚/重试/持久化以及活跃的 API、群聊与来源追溯测试不变；不更改查询/读文章预算、模型次数、checkpoint、对外接口或证据展示。同步修正 `docs/NEWS_PIPELINE.md` 对已不存在审计文件的描述。
+- `priority=P3`、`loop=static`、`owner=news/legacy-audit`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本地静态检查及精确 PR HEAD CI、审阅单独记录；无真实检索或付费模型实测。
+
 ### GitHub PR 历史静态回放评估链退役（2026-11-19，独立减负片）
 
 - `record_github_replay.py` / `evaluate_github_replay.py`、三份专属
@@ -631,7 +638,7 @@
   （安全模式持久化已由 `test_news_service.py` 覆盖），以及仅断言后端返回
   搜索词、却声称验证前端按钮失效的旧测试；保留能实证正文传入摘要的链路检查。
   另删除手工创建却没有撤销补丁、可能污染后续用例的群聊会话标记专项检查：
-  对应标记和群聊隔离已由 `test_wechat_service.py`、`test_api.py` 分别覆盖。
+  对应标记和群聊隔离已由 `test_wechat_service_news_flow.py`、`test_api.py` 分别覆盖。
   只调整测试与交接，不更改运行时；验证状态以对应 PR 为准。
 
 - **2026-11-18 交互历史阶段一报告脚本退役（独立片）**：

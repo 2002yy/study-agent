@@ -242,19 +242,13 @@ After each news round, a source block is appended to the group chat transcript:
 
 This ensures all discussion claims are traceable to their sources and makes redirect/canonical dedup behavior visible during debugging.
 
-For programmatic audit, `src/news/pipeline.py` exposes:
-
-- `build_item_trace(item)` — one item with evidence level, domain policy, redirect hop count, and unsafe redirect flag
-- `build_pipeline_trace(query, news_items, feed_warnings)` — round-level counts for article-text coverage, title-only items, blocked items, unsafe redirects, source counts, and resolution counts
-- `format_pipeline_trace_markdown(trace)` — compact markdown report for debugging/logging
-- `format_feed_health_markdown(rows)` — compact source-health report from `feed_registry.feed_health_rows()`
-
-`src/news/audit.py` persists Codex-style run artifacts under `logs/news_audit/`:
-
-- `{run_id}.json` — machine-readable query, coverage, warnings, source block, digest, pipeline trace, and feed health
-- `{run_id}.md` — human-readable audit report with source block, trace summary, feed warnings, and feed health
-
-`run_news_round()` returns the audit paths as `audit_markdown_path` and `audit_json_path`.
+The active `src/news/digest.py:format_news_source_block()` calls
+`src/news/pipeline.py:build_item_trace(item)` for item-level source evidence,
+including evidence level, domain policy, redirect hops, and unsafe redirects.
+The server-owned `NewsService` separately persists search, enrichment, digest,
+and discussion stages through `NewsRepository` and `GroupChatService`. The old
+monolithic news runner and its standalone JSON/Markdown audit files were
+retired; they are not part of the current API workflow.
 
 ## Concurrency and failure isolation
 
