@@ -13,7 +13,17 @@
 - **证据/边界**：改动前五个用例 **5 passed / 6.13s**；改动后完整主动研究执行器、读取链单一权威、升级配置与读取调度影响集 **110 passed / 94.67s**（包含原五例）。测试文件 **+32/-56，净删 24 行**；全库 Ruff、编译、差异检查及 mypy 基线 **115/125、无新增**。本片只收敛测试造景，`priority=P3`、`loop=static`、`owner=retrieval/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；不能由静态测试净减行数推断真实研究质量提升。独立分支 `codex/read-chain-test-scenario-reuse-20261120`，基于 `main@d12766b`；精确 PR HEAD CI 和审阅仍须单独验收。
 - **主线整合更新**：原 PR HEAD `ecc742da` 的精确 CI `44599153892` 已成功，但 #556、#569、#563、#561 进入主线后旧 HEAD 不再可合并。现重挂至 `main@2c58833`，仅并列保留 handoff 文本，测试代码无冲突；重新验证主动研究执行器、读取链单一权威、HTTP 升级与读取调度 **110 passed / 95.29s**，全库 Ruff、编译及差异检查通过，仍须新精确 HEAD CI 和审阅验收。
 - **波次恢复基线后续重挂**：提交前 `main` 又合并 #564，已将本片重挂至 `main@cc82b44`（测试代码依然零冲突）；在该组合下补测本片五项读取链、波次恢复上下文五项、真实崩溃恢复及单一读取权威，共 **17 passed / 11.19s**。此前 110 项影响集属于 #564 之前的基线，不能单独充当最新主线的完整验证；以本 PR 新精确 HEAD CI 补齐门禁。
+- **#566/#567 主线整合**：#567 检索结果上下文与 #566 四阶段取消回归进入 `main@472cc7b` 后，本片再次重挂；仅 `PROJECT_STATUS.md` 的顶部交接发生并列新增冲突，已保留三批交接，执行器测试代码自动合并。主动研究执行器、检索结果、读取链单一权威、读取调度、恢复波次基线及 checkpoint 会话联合影响集 **111 passed / 96.73s**；全库 Ruff、编译和差异检查通过，mypy **115/125、无新增**。重挂后的精确 PR HEAD 必须重新等待 CI 和审阅收口，旧 CI 不再适用。
 - **下一片**：先收口开放的恢复/预算/搜索上下文 PR；下次只清理剩余有明确重复的数据搭建，不重新包装已独立拥有的上下文。
+
+### 2026-11-20 主动研究四阶段取消回归共用场景搭建（独立 P3 静态测试片）
+
+- **范围**：原 `test_active_research_runtime.py` 的 claim 规划、搜索后端、读网关、证据提取四项取消测试分别重建 SQLite 仓库、pending 研究运行、测试客户端和服务，再执行同一个取消终态断言。现在使用 `stage=model/search/read/extract` 参数化保留四项独立场景及各自唯一 run ID/数据库，按阶段只注入对应的取消回调。测试净删 **36 行**，无新辅助层、无删减四种中断时机。
+- **冻结契约**：模型规划依然在第一次模型调用中取消；搜索场景依然在 `search_exact()` 内取消后返回原搜索结果；读取场景依然在读网关入口取消；提取场景只在第三次结构化模型调用中取消。四种路径都经过真实 `ClaimEngineDispatchWebLookupService.execute()` 和持久化 SQLite，继续核对 `cancelled` 状态/阶段、`user_cancelled` 原因及模型/外部尝试 inflight 清空。**不更改**生产代码、注入时点、恢复游标、checkpoint、预算入账、证据或发布；不把四种取消语义折叠成单一测试。
+- **交接**：原四项 **4 passed**，参数化后四项仍 **4 passed**；完整主动研究执行器、研究取消、浏览器断联取消及 PR143 取消栅栏影响集 **97 passed / 87.00s**。全库 Ruff、测试编译和差异检查通过，mypy **115/125、无新增**。基于 `main@6fdc6cc`，独立分支 `codex/research-cancel-stage-fixture-20261120`；`priority=P3`、`loop=static`、`owner=research/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。不宣称真实研究质量改善；独立 PR 的精确 HEAD CI 与审阅为合并门禁。
+- **主线整合更新**：原 PR HEAD `ebc9b312` 的精确 CI `44593124965` 已全绿；随着 #556、#569、#563、#561 合并，重挂到 `main@2c58833`。唯一冲突是本 handoff 同位置插入段落，已同时保留主线和本片记录，取消测试代码无冲突；重新跑完整执行器及四组取消相邻集 **97 passed / 88.40s**，全库 Ruff、编译及差异检查通过。旧 HEAD 绿灯不得替代重挂后的精确 PR HEAD CI。
+- **#564 交叉验证**：随后恢复波次基线上下文 #564 合并，本片再次重挂到 `main@cc82b44`，测试代码仍无冲突；取消四阶段、真实崩溃恢复、波次基线上下文及取消栅栏相邻集 **22 passed / 5.42s**。之前 `main@2c58833` 的 97 项全模块验证与本次交叉负控各自限定基线；新精确 PR HEAD 的 CI 仍是最终合并门禁。
+- **下一片**：在研究提取准入与失败归档的并行 PR 独立收口后，再从执行器中已确认重复的成功/失败来源摘要写入找收敛机会，优先净删实际重复路径。
 
 ### 2026-11-20 G13 旧证据归一化包与专属测试成组退役（独立 P3 静态片）
 
@@ -34,6 +44,13 @@
 - **冻结契约**：新波写入顺序仍是 `wave_id + active_gap_ids → 基线序列化 → checkpoint → 基线反序列化`；同一波恢复绝不覆盖读/提取前基线（防止崩溃后 Evidence Gain 假阴性），缺失或无效基线仍抛 `ValueError`。序列化失败时 cursor 已更新、context 尚未写基线的部分效果保持一致。没有第二个预算/状态/持久化权威；模型与搜索/读取次数、checkpoint 次数/时点、预算结算、Evidence Gate 与发布均不变。
 - **静态证据**：新增 5 项可直接运行的波次边界负控（初始/重复波、checkpoint context 重绑、缺损基线和序列化部分失败），`python -m unittest discover -s tests -p test_research_runtime_wave_baseline.py` **5 passed**。既有 `test_crash_after_extraction_preserves_wave_baseline_and_gain` 继续负责真实 SQLite 崩溃恢复/读取次数集成验证，需由精确 PR HEAD CI 覆盖。`priority=P3`、`loop=static`、`owner=research/state-recovery`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 - **交接/下一片**：独立于 #556 读取预算投影、#561 提取失败记录、#562 late-tail 诊断的执行区段；待精确 HEAD CI 与审阅通过后再合并。下一步继续检查波次恢复和调度之间的可变值边界，不扩大为 schema 或 checkpoint 语义迁移。
+
+### 2026-11-20 检索结果与查询审计的共享写入收归显式上下文（独立 P3 静态片）
+
+- **现状/范围**：主动研究执行器的搜索循环里，外部尝试耗尽与普通搜索结果分别内联更新 canonical failure、`RuntimeQueryOutcome`、按 URL 去重的候选池及面向前端的 `query_attempts` 审计列表。新增 `ActiveSearchOutcomeContext`，显式绑定唯一 `ActiveRuntimeLiveValues`、唯一 `ActiveResearchResultBuffers`、run/operation 身份与本次选择轨迹。两种分支的写入均在这个上下文内依原顺序完成；原 `_merge_runtime_candidates` 算法原样迁至相邻模块，执行器主文件净移出约 150 行。仍通过最新 live owner 取预算、cursor 和 steering，绝不使用上次 checkpoint 前的快照。
+- **冻结契约**：尝试耗尽维持 `failure → unavailable query outcome → 审计列表 → checkpoint`；真实搜索维持 `外部尝试完成 checkpoint → ensure_active → (若 unavailable 则 failure) → query outcome + candidate merge → 查询审计列表 → checkpoint`。保留故障 logical call、`attempt_id`、provider code、`run_attempt`、operation ID、steering 归因、provider audit schema、URL 去重/容量与选择轨迹；候选合并或审计投影失败时，原先已写入内存的失败记录和游标状态仍保留，不提前提交后续步骤。不改任何模型、搜索、读取调用，外部尝试开始/结束标记、持久化 schema、checkpoint 次数/位置、预算结算、Evidence Gate 或发布。
+- **静态证据与 CI 修复**：新增 6 项直接运行的负控，覆盖尝试耗尽、正常/失败搜索、重绑后的最新额度与 context、相同 URL 合并和部分失败次序；`python -m unittest discover -s tests -p test_research_runtime_search_outcomes.py` **6 passed**。旧 HEAD `6fe3006` 的 backend CI 还发现 `test_selection_trace.py` 从已搬迁的执行器模块导入私有合并函数，以及新专项测试多余的 `typing.Any`（Ruff F401）。已让原选择轨迹测试直接导入现行搜索结果 owner、删去多余导入；单独执行该合并契约测试通过、编译和差异检查通过。既有 `test_active_research_runtime.py` 仍负责真实持久化操作、取消/恢复、搜索失败和多波调度的端到端回归，须由新 PR 精确 HEAD CI 验收。本地缺少 pytest/Ruff/openai，不冒称完整影响集通过。`priority=P3`、`loop=static`、`owner=research/search-orchestration`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+- **交接/下一片**：与 #556 读取预算、#561 提取失败、#562 late-tail、#564 波次基线、#565 提取目标准入各自位于不同执行区段；交接文档可能有顺序冲突。待本片单独完成 CI/审阅后合并；继续逐批抽离检索/读取调度交界面的共享写入，不迁移预算或恢复权威。
 
 ### 2026-11-20 研究崩溃恢复测试场景搭建去重（独立 P3 静态测试片）
 

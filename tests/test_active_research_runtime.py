@@ -1262,76 +1262,40 @@ def test_one_physical_read_serves_multiple_claims(tmp_path: Any) -> None:
     assert len(set(anchors.values())) == 2
 
 
-def test_active_cancel_during_claim_planning_settles_durably(tmp_path: Any) -> None:
-    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "cancel-model.sqlite"))
+@pytest.mark.parametrize("stage", ["model", "search", "read", "extract"])
+def test_active_cancel_during_stage_settles_durably(tmp_path: Any, stage: str) -> None:
+    """Keep four distinct cancellation points with one durable-run setup."""
+
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / f"cancel-{stage}.sqlite"))
     run = _pending_active_run(
         repository,
-        run_id="run_cancel_model",
+        run_id=f"run_cancel_{stage}",
         query="Research this",
         research_context=_active_context(),
     )
-    client = _StructuredClient(on_call=lambda _index: repository.request_cancel(run.id))
 
-    cancelled = _service(repository, client).execute(run.id, raise_on_error=True)
-
-    _assert_cancelled(cancelled)
-
-
-def test_active_cancel_during_search_settles_durably(tmp_path: Any) -> None:
-    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "cancel-search.sqlite"))
-    run = _pending_active_run(
-        repository,
-        run_id="run_cancel_search",
-        query="Research this",
-        research_context=_active_context(),
-    )
+    def cancel_on_model_call(index: int) -> None:
+        if stage == "model" or (stage == "extract" and index == 3):
+            repository.request_cancel(run.id)
 
     class CancellingSearch(_SearchBackend):
         def search_exact(self, query: str, *, max_results: int = 5) -> dict[str, Any]:
             repository.request_cancel(run.id)
             return super().search_exact(query, max_results=max_results)
 
-    cancelled = _service(
-        repository,
-        _StructuredClient(),
-        search_backend=CancellingSearch(),
-    ).execute(run.id, raise_on_error=True)
-
-    _assert_cancelled(cancelled)
-
-
-def test_active_cancel_during_read_settles_durably(tmp_path: Any) -> None:
-    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "cancel-read.sqlite"))
-    run = _pending_active_run(
-        repository,
-        run_id="run_cancel_read",
-        query="Research this",
-        research_context=_active_context(),
-    )
-    reader = _ReadGateway(on_read=lambda: repository.request_cancel(run.id))
-
-    cancelled = _service(
-        repository,
-        _StructuredClient(),
-        read_gateway=reader,
-    ).execute(run.id, raise_on_error=True)
-
-    _assert_cancelled(cancelled)
-
-
-def test_active_cancel_during_extraction_settles_durably(tmp_path: Any) -> None:
-    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "cancel-extract.sqlite"))
-    run = _pending_active_run(
-        repository,
-        run_id="run_cancel_extract",
-        query="Research this",
-        research_context=_active_context(),
-    )
     client = _StructuredClient(
-        on_call=lambda index: repository.request_cancel(run.id) if index == 3 else None
+        on_call=cancel_on_model_call if stage in {"model", "extract"} else None
     )
-
-    cancelled = _service(repository, client).execute(run.id, raise_on_error=True)
+    cancelled = _service(
+        repository,
+        client,
+        search_backend=CancellingSearch() if stage == "search" else None,
+        read_gateway=(
+            _ReadGateway(on_read=lambda: repository.request_cancel(run.id))
+            if stage == "read"
+            else None
+        ),
+    ).execute(run.id, raise_on_error=True)
 
     _assert_cancelled(cancelled)
 

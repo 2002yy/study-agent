@@ -288,7 +288,7 @@ def test_resume_hydration_preserves_observed_drops() -> None:
 
 
 def test_runtime_merge_records_duplicate_and_cap() -> None:
-    from src.application.active_research_runtime import _merge_runtime_candidates
+    from src.application.research_runtime_search_outcomes import _merge_runtime_candidates
     from src.web.research.runtime import RuntimeCandidate
 
     existing = (
