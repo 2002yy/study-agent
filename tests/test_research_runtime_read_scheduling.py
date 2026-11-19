@@ -3,28 +3,12 @@
 from dataclasses import fields
 
 from src.application import research_runtime_read_scheduling as read_scheduling
-from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.runtime import RuntimeReadOutcome
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
+from tests.research_read_candidate_factory import read_candidate
 
 
 BACKENDS = ("native_http", "wigolo_http")
-
-
-def _candidate(candidate_id: str) -> CandidatePoolItem:
-    return CandidatePoolItem(
-        id=candidate_id,
-        url="https://example.org/article",
-        canonical_url="https://example.org/article",
-        title="article",
-        snippet="",
-        source="",
-        published_at="",
-        query_ids=(),
-        intents=(),
-        providers=(),
-        first_seen_rank=0,
-    )
 
 
 def _schedule(
@@ -135,7 +119,7 @@ def test_dispatch_context_uses_current_context_and_attempts_after_rebinding() ->
         ),
     )
     decision = dispatch.schedule(
-        candidate=_candidate("target"),
+        candidate=read_candidate("target"),
         read_outcomes=initial_history,
         context=original_context,
     )
@@ -151,7 +135,7 @@ def test_dispatch_context_uses_current_context_and_attempts_after_rebinding() ->
     )
     resumed_context: dict = {}
     decision = dispatch.schedule(
-        candidate=_candidate("target"),
+        candidate=read_candidate("target"),
         read_outcomes=resumed_history,
         context=resumed_context,
     )
