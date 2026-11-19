@@ -6,6 +6,12 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 前端旧布局状态收敛源码快照测试退役（P3 静态减负）
+
+- `frontendStateConsolidation.test.ts` 两项测试只扫描 `workspaceReducer`、`WorkspaceView`、SettingsPanel 与学习会话源码，证明旧 `selectedPanel` / `START_NEW_CHAT_SESSION` / `Sidebar` / `Inspector` 字符串和已删除文件不再出现。它们不执行 reducer 或渲染界面，属于已完成布局迁移的防回退专项。
+- 整体删除该 43 行历史源码测试，不留只验证旧文件已被删除的空壳。保留 `workspaceReducer.test.ts` 的真实状态转换、SettingsPanel 组件测试、`onboarding-settings.spec.ts` 的实际菜单与设置操作，以及 `AppBoundary.test.ts` 中仍在使用的应用/布局职责约束。当前没有专属适配层、配置或 CI 显式注册需要联动删除；生产组件、路由与状态逻辑不变。
+- `priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本片只减少重复/过时测试，精确 PR HEAD CI 验收前不宣称产品质量改善。
+
 ### 2026-11-20 读取重试与 inventory 诊断聚合提取（独立 P3 静态片）
 
 - **范围**：将主动研究执行器的 `_inventory_fetch_with_retry` 和 `_accumulate_fetch_metrics` 归到 `research_runtime_fetch_retry_observation`，统一负责 sitemap/inventory 的四元组→可重试 payload 适配，以及原生读取/清单读取分别写入 `read_retry`、`inventory_fetch` 的有界诊断聚合。执行器仍通过原函数名称兼容导入，网关路径和域定向路径的调用点不变。没有新建可变状态持有者；每次调用显式接收当前上下文与剩余时间。
