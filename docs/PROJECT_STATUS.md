@@ -19,6 +19,20 @@
   `test_github_pr_review_context*` / `test_github_provider_pagination.py`，
   真实 API 审查、固定 SHA、预算边界与缓存行为不变；不发起外部 GitHub 请求。
 
+### 2026-11-19 实验室入口重复源码断言收敛（独立测试减负片）
+
+- 前端实验室入口拥有三层验证：`extensionLabBoundary.test.ts`、
+  `extensionViewBoundary.test.ts` 和 `useExtensionRuntimeBoundary.test.ts`，
+  其中菜单唯一入口、延迟加载分支和三种能力选择多次按源码字符串重复断言。
+- 保留真实浏览器 `extension-lab-journeys.spec.ts`（直接菜单中只有实验室、
+  三种选项可见、选择前零扩展请求、选择后正确读取、返回焦点恢复），以及
+  `useExtensionRuntimeBoundary.test.ts` 的控制器归属、恢复、按需加载和协调权威
+  负控；`extensionViewBoundary.test.ts` 继续验证组件绑定和宿主隔离。
+- 删除全为旧入口快照断言的 `extensionLabBoundary.test.ts`（4 项），并删除
+  `extensionViewBoundary.test.ts` 中已经由运行期边界测试保护的 1 项重复
+  能力加载断言。没有更改在用实验室、路由/权限、运行配置或 E2E 注册；
+  这是 P3 离线测试减负，不是体验改善结论，精确 PR CI 另行验收。
+
 ### 2026-11-19 读取计划的累计来源簇覆盖职责提取（独立 P3 静态片）
 
 - **范围**：从 `active_research_runtime.execute()` 的读取计划阶段提取 `merge_covered_clusters(context, selected_sources)` 至 `research_runtime_read_coverage.py`；执行器只传递当前持久化上下文与实际来源列表，覆盖合并及排序回写由读取覆盖模块负责。原 `ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY` 在执行器中继续可导入，持久化键值不变。
@@ -707,10 +721,11 @@
   旧专项测试的两处重复引用；旧测试的浏览器是否升级/壁垒分类行为现由
   `test_chain_executor.py`、`test_progressive_routing.py` 与当时的
   `test_wigolo_browser_executor.py` 验证（后者已在后续独立片退役，
-  现行共享安全不变量迁至 `test_browser_honesty.py`）。Crawl4AI cohort v2 **仍调用**
-  `browser_bakeoff.py` 的结果构造/校验与旧 manifest，故保留该模块、
-  manifest 和共用 fixture 服务，将原专项测试中不可替代的结果真实性负控
-  合并进 `test_browser_bakeoff_contract.py`。不修改真实浏览器读取逻辑，
+  现行共享安全不变量迁至 `test_browser_honesty.py`）。当时 Crawl4AI cohort v2
+  尚调用 `browser_bakeoff.py` 的结果构造/校验与旧 manifest，故暂留旧合同与
+  共享 fixture 服务；**后续 §118/§120 整链退役时**，唯一消费者一并移除，
+  旧合同、专属测试、manifest 和阶段门注册也同步退役。共用 fixture 服务
+  因仍被现行超时/读取测试调用而保留。不修改真实浏览器读取逻辑，
   不执行外部浏览器或付费模型调用。
 
 - **2026-11-19 未注册 Wigolo 后端整体退役（独立片）**：现行
@@ -815,6 +830,21 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
 保留 M4-C 测量链路及 M4-D 增量修改基础；M4-E 受控修复须带版本/源码哈希及明确错误判据，失败保留旧版本；M4-F Three/WebGL 在受控沙箱执行，禁止加载任意第三方脚本；M4-G 根据问题选文字、静图、动画、交互或 3D。默认局部修改、修复成功率和媒介选择质量需真实任务验证。
 
 ## 历史原文与追踪
+
+- **2026-11-19 §118/§120 Crawl4AI 历史资格工具整链退役（独立片）**：
+  `tools/run_crawl4ai_qualification.py` 曾在固定端口启动浏览器夹具和 worker，
+  串行执行四项手工门，随后可选调用唯一后继
+  `tools/run_crawl4ai_cohort_v2.py` 运行冻结前置状态的 12 行 cohort。
+  前者无现行消费者，后者除前者外也没有生产、测试、CI、阶段门、活跃文档
+  或其他工具调用方。两份旧脚本成组删除后，历史 bakeoff 结果合同及
+  六类冻结 manifest 仅被自己的专属测试引用；故再移除
+  `src/web/research/browser_bakeoff.py`、`tests/test_browser_bakeoff_contract.py`、
+  旧 manifest、两处阶段门注册及 README 中过时的当前维护承诺。
+  不留孤儿 CLI、兼容入口、假产品负控或配置。原始资格观测仍在 Git 历史/归档。
+  **保留**真实 Crawl4AI 专家读取、仍被当前超时/集成测试使用的
+  `browser_bakeoff_fixture_server.py`，以及 shutdown、安全、预算/读取调度负控。
+  本片仅执行离线影响测试，
+  不改变生产浏览器路径；真实浏览器资格重跑和付费模型 `not_run`。
 
 - **2026-11-19 无调用方的游标/新鲜度辅助函数退役**：
   `src/web/research/runtime.py::_counter_mapping` 与
