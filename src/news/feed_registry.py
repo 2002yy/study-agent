@@ -233,9 +233,3 @@ def mark_seen_entries(
 
 def filter_unseen_entries(items: list[dict], state: FeedState) -> list[dict]:
     return [item for item in items if entry_key(item) not in state.seen_entries]
-
-
-def feed_health_rows(path: Path = FEED_STATE_FILE) -> list[dict[str, Any]]:
-    state = load_feed_state(path)
-    rows = [asdict(item) for item in state.health.values()]
-    return sorted(rows, key=lambda row: (row["source"], row["url"]))
