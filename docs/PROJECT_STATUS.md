@@ -6,6 +6,15 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 读取链五组集成测试复用现有执行场景（独立 P3 静态减负片）
+
+- **范围**：将 `test_active_research_runtime.py` 中五组历史 cutover 测试的重复环境变量、SQLite 仓库、待运行任务、模型/读取网关组装，统一复用同文件既有的 `_a2e_run()` 真实执行器场景。保留五个独立用例及全部断言，分别覆盖 HTTP tier 回退后单源、原生读取足够时不回退、tier 禁用、Wigolo 真实调用按次结算、候选/后端审计唯一性。原执行器路径和 run ID 保持不变，不再重复维护同一套场景搭建。
+- **冻结契约**：测试专用工厂仍对每例使用独立 SQLite 和 `_TrackingRepository`、原 `_StructuredClient`、原生读取模拟与 Wigolo backend；明确保留禁用 tier 的 `escalation=None`、调用前清空 HTTP envelope 的次序及全部后续计费断言。工厂额外关闭未在这些用例中开启的 breaker 开关，避免测试受前序环境泄露影响。**不改生产代码**，不改研究状态/恢复、checkpoint 次数或顺序、外部调用、预算结算、证据门禁与发布。
+- **证据/边界**：改动前五个用例 **5 passed / 6.13s**；改动后完整主动研究执行器、读取链单一权威、升级配置与读取调度影响集 **110 passed / 94.67s**（包含原五例）。测试文件 **+32/-56，净删 24 行**；全库 Ruff、编译、差异检查及 mypy 基线 **115/125、无新增**。本片只收敛测试造景，`priority=P3`、`loop=static`、`owner=retrieval/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；不能由静态测试净减行数推断真实研究质量提升。独立分支 `codex/read-chain-test-scenario-reuse-20261120`，基于 `main@d12766b`；精确 PR HEAD CI 和审阅仍须单独验收。
+- **主线整合更新**：原 PR HEAD `ecc742da` 的精确 CI `44599153892` 已成功，但 #556、#569、#563、#561 进入主线后旧 HEAD 不再可合并。现重挂至 `main@2c58833`，仅并列保留 handoff 文本，测试代码无冲突；重新验证主动研究执行器、读取链单一权威、HTTP 升级与读取调度 **110 passed / 95.29s**，全库 Ruff、编译及差异检查通过，仍须新精确 HEAD CI 和审阅验收。
+- **波次恢复基线后续重挂**：提交前 `main` 又合并 #564，已将本片重挂至 `main@cc82b44`（测试代码依然零冲突）；在该组合下补测本片五项读取链、波次恢复上下文五项、真实崩溃恢复及单一读取权威，共 **17 passed / 11.19s**。此前 110 项影响集属于 #564 之前的基线，不能单独充当最新主线的完整验证；以本 PR 新精确 HEAD CI 补齐门禁。
+- **下一片**：先收口开放的恢复/预算/搜索上下文 PR；下次只清理剩余有明确重复的数据搭建，不重新包装已独立拥有的上下文。
+
 ### 2026-11-20 G13 旧证据归一化包与专属测试成组退役（独立 P3 静态片）
 
 - **可达性与范围**：`src/evidence/evidence_ref.py` 仅被 `tests/test_evidence_ref.py` 导入；其 `normalize_evidence`、RAG/工具/研究归一化、去重和过滤函数在现行 `src/`、`tools/`、前端与 CI 中均无调用。删除整份 195 行旧实现、106 行专属测试及空 `src/evidence/__init__.py`；无现行路由、导出适配层、配置项或阶段门条目需要保留。历史 RQCE 任务书仍只作为当时入口快照，不作为当前可用模块清单。
