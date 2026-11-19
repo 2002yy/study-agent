@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 来源记录写入收敛至结果缓冲区（独立 P3 静态片）
+
+- **范围**：将执行器内两个物理读取/耗尽路径的 `_upsert_source(selected_sources, record)` 改为唯一结果缓冲区 `ActiveResearchResultBuffers.upsert_selected_source(record)`；把原候选 ID 去重/原位置替换算法移入 `research_runtime_result_buffers.upsert_source_record`，供现有 Deep 本地材料化保持同样的显式列表写回。执行器不再定义另一份 `_upsert_source`。
+- **状态与恢复契约**：`selected_sources` 仍只由 `ActiveResearchResultBuffers` 持有并被 checkpoint/publisher 共享；列表身份、原位置替换、新候选追加和记录本身的对象身份全部保留。特别冻结“来源先 upsert，视觉证据后附着到同一个 `record`”的顺序；后续附着的 `visual_units` 必须能从该列表读取。没有引入副本、第二持有者、新的持久化键、额外 checkpoint 或模型/读取调用。
+- **验证与边界**：新增结果缓冲区回归，验证同候选替换顺序、列表/记录别名、视觉挂载后可见性；已有 Deep 材料化、证据投影、发布、波次结算与研究执行完整影响集 **120 passed**；Ruff、差异检查和 mypy **115/125、无新增**通过。分支 `codex/research-source-write-owner-20261119`，基线 `main@a1875ee1`；`priority=P3`、`loop=static`、`owner=evidence/source-records`，`dynamic_evidence=not_run`、`budget_authorization=not_applicable`。不修改来源读取内容、证据评分、最终发布规则或昂贵的真实模型/搜索链路。仍须以精确 PR HEAD CI 和审阅独立验收。
+- **后续最小片**：再拆分读取成功后的视觉单元附着与其诊断，保持来源写入完成后才调用视觉读取，并保留视觉失败不影响成功正文的语义。
+
 ### 2026-11-19 移动端与输入框历史 CSS 字符串测试退役（P3 静态减负）
 
 - 删除 `mobileLayoutContract.test.ts`（2 项）和 `composerLayoutContract.test.ts`（2 项）。两者只读取 CSS 文本，查 `flex-wrap`、`44px`、`grid-row` 等固定声明；CSS 换一种等价写法也会误报，实际渲染不正确却保留这些字面量时也会漏报。
@@ -42,6 +49,12 @@
 - **验证/交接**：新增纯单元回归验证历史读取加 seed 去重恢复、两个波次对象互不污染、动态更改预算上限、材料化/证据/线索共享计数与负额度不钳制的负控。当前候选基于 `main@5ce868e9`，分支 `codex/read-quota-context-20261119`；本地读取额度/投影/完整主动执行影响集 **91 passed**，相邻 Deep/恢复/预算/检查点/调度集 **54 passed**，两组合计 **145 passed**；Ruff、差异检查及 mypy **115/125、无新增**通过。远端精确 HEAD CI 仍须收口。`priority=P3`、`loop=static`、`owner=read-quota-accounting`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`。无真实付费模型或在线搜索。
 - **主线重挂**：首次本地候选 `f6718638` 后主线又合入前端实验室清理与 GitHub 静态回放退役（`main@1ce267a5`）；仅交接文档顶部有冲突，保留两项独立清理记录。读取运行时代码、新额度上下文与测试均无交叉修改；新精确 PR HEAD 的 CI 与审阅仍须独立验收，不借用前一候选测试作远端 CI 结论。
 - **下一片**：本片独立通过完整门禁、主线整合后，再考虑从执行器拆分来源记录及视觉附件写回；不要同时把 `selected_sources` 的发布所有权移出 `ActiveResearchResultBuffers`。
+
+### 2026-11-19 Firefly/Doupo 历史源码文案测试退役（P3 静态减负）
+
+- 旧 `FireflyCopyStyle.test.ts` 的 5 项测试读取六个 TS/TSX **源码字符串**，禁止某些历史词或要求常量字面量存在。它们无法证明这些内容实际呈现在界面，且与正式 `FireflyDefaultLesson.test.tsx`、`DoupoDefaultLesson.test.tsx`、`LearningStrip.doupo.test.tsx` 的真实组件断言多处重复。
+- 删除这份源码文字扫描专项测试，不再用硬编码文风禁词充当产品质量指标。将仍有价值的用户可见契约收进真实渲染测试：默认流萤卡展示起步/低金/老牌配置/高配四阶段、旧数据库索引教材不出现；斗破循环确实展示“公开硬证据”。现有 10 张内容卡、交互、实际爽点循环、叙事节奏与信息呈现测试全部保留。
+- 没有运行时功能、接口、配置或 CI 单独入口需要删除。只属 `priority=P3`、`loop=static`、`owner=UI/tests` 的工程减负，不声明产品体验实测改善；精确 PR HEAD 的前端 Vitest/TypeScript/Vite CI 待验，付费模型与真实浏览器 `not_run`。
 
 ### 2026-11-19 P1 聊天空白终态防护（独立候选）
 
@@ -915,6 +928,30 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
   完整回归。`priority=P3`、`loop=static`、`owner=retrieval/candidate-assessment`、
   `dynamic_evidence=not_run`、`budget_authorization=not_applicable`、
   `decision=engineering-only`。
+
+### 2026-11-19 RQ1-C 双重 `_impl` 兼容转发层退役（P3 静态减负）
+
+- 正式限定资格入口 `run_rq1c_bounded_qualification.py` 与确定性协议探针入口
+  `run_rq1c_protocol_probes.py` 原先均经过仅转发符号、CLI 参数和结果的
+  `_impl` 兼容模块再进入 `_core`。仓内消费者只有上述正式入口及针对旧层级的
+  防绕过专项测试；生产研究、当前 CI/阶段门、发布和运行配置均不引用这两层。
+- 删除两个 `_impl.py`，将原有 CLI 参数、输出、退出码保留在正式入口，直接
+  调用原 `_core`；资格入口的预算上限、provider monkeypatch 注入点及
+  binding-row 默认解析仍由原 guardrails 维护。核心实现、12 个 holdout、
+  六个协议探针、失败即 NO-GO 的评估器和运行产物格式均不改变。
+- 同步将旧适配层的执行/导入/脏工作树校验迁至正式入口和 `_core` 双边，
+  保留精确 HEAD 不匹配、脏跟踪文件时禁止运行的负控，测试文件重命名为
+  `test_rq1c_exact_head_entrypoints.py`。无需新适配层或配置；现行
+  `tests/stage_gates.json`、`tools/ci_scope.py` 无旧文件显式注册。
+- 本地已完成 Python 编译检查、零遗留调用检索与差异检查；执行环境无
+  pytest/ruff 离线依赖，完整资格/预算测试与 CI 需在此候选精确 HEAD 验收。
+  首轮 CI 发现 4 项预算用例仍经由已删除的 `_impl` 取 guardrails/binding
+  provider，且 1 项精确 HEAD 负控仍把私有 `_run_case` 当作公开入口导出；
+  已改为直接验证真实 guardrails/core 所有者，公开 `run_qualification` 的
+  精确 HEAD 拒绝负控仍保留，不恢复无产品调用方的私有兼容转发。
+  本片 `priority=P3`、`loop=static`、`owner=qualification/tooling`、
+  `dynamic_evidence=not_run`、`budget_authorization=not_applicable`、
+  `decision=engineering-only`，没有调用任何付费模型或外部检索。
 
 ## 0A. 已冻结研究路线（摘要）
 
