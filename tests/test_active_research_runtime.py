@@ -534,6 +534,42 @@ def _service(
     )
 
 
+def _service_with_runtime_components(
+    repository: WebLookupRepository,
+    *,
+    model_gateway: ResearchModelGateway,
+    claim_planner: Any | None = None,
+    candidate_assessor: Any | None = None,
+    evidence_extractor: Any | None = None,
+    search_backend: Any | None = None,
+) -> ClaimEngineDispatchWebLookupService:
+    """Keep the same injected crash wrapper across execute/resume calls."""
+
+    def runtime_factory(
+        repo: WebLookupRepository,
+        gateway: ActiveResearchGateway,
+    ) -> ActiveResearchRuntimeExecutor:
+        return ActiveResearchRuntimeExecutor(
+            repo,
+            gateway,
+            model_gateway=model_gateway,
+            claim_planner=claim_planner,
+            candidate_assessor=candidate_assessor,
+            evidence_extractor=evidence_extractor,
+        )
+
+    return ClaimEngineDispatchWebLookupService(
+        repository,
+        active_gateway_factory=lambda: ActiveResearchGateway(
+            search_backend=(
+                search_backend if search_backend is not None else _SearchBackend()
+            ),
+            read_gateway=_ReadGateway(),
+        ),
+        active_runtime_factory=runtime_factory,
+    )
+
+
 def _pending_active_run(
     repository: WebLookupRepository,
     *,
@@ -965,24 +1001,8 @@ def test_model_crash_after_success_before_semantic_persist_recovers_via_new_atte
         repository,
     )
 
-    def runtime_factory(
-        repo: WebLookupRepository,
-        gateway: ActiveResearchGateway,
-    ) -> ActiveResearchRuntimeExecutor:
-        return ActiveResearchRuntimeExecutor(
-            repo,
-            gateway,
-            model_gateway=model,
-            claim_planner=crash_planner,
-        )
-
-    service = ClaimEngineDispatchWebLookupService(
-        repository,
-        active_gateway_factory=lambda: ActiveResearchGateway(
-            search_backend=_SearchBackend(),
-            read_gateway=_ReadGateway(),
-        ),
-        active_runtime_factory=runtime_factory,
+    service = _service_with_runtime_components(
+        repository, model_gateway=model, claim_planner=crash_planner
     )
 
     with pytest.raises(RuntimeError, match="simulated crash"):
@@ -1879,24 +1899,11 @@ def test_resume_restores_missing_claim_binding_after_extraction_crash(
     crashing_model = _RMG(client=_StructuredClient(claims_count=2), model_name="test-model", timeout_seconds=20)
     crashing_extractor = _CrashOnSecondExtraction(_REE(crashing_model))
 
-    def crashing_runtime_factory(
-        repo: WebLookupRepository,
-        gateway: ActiveResearchGateway,
-    ) -> ActiveResearchRuntimeExecutor:
-        return ActiveResearchRuntimeExecutor(
-            repo,
-            gateway,
-            model_gateway=crashing_model,
-            evidence_extractor=crashing_extractor,
-        )
-
-    service = ClaimEngineDispatchWebLookupService(
+    service = _service_with_runtime_components(
         repository,
-        active_gateway_factory=lambda: ActiveResearchGateway(
-            search_backend=_ProvenanceSearchBackend(),
-            read_gateway=_ReadGateway(),
-        ),
-        active_runtime_factory=crashing_runtime_factory,
+        model_gateway=crashing_model,
+        evidence_extractor=crashing_extractor,
+        search_backend=_ProvenanceSearchBackend(),
     )
 
     with pytest.raises(RuntimeError, match="simulated extraction crash"):
@@ -1983,24 +1990,10 @@ def test_assessment_identity_stable_across_crash_resume(tmp_path: Any) -> None:
     )
     crashing_assessor = _CrashOnFirstAssessment(_RCA(crashing_model))
 
-    def crashing_runtime_factory(
-        repo: WebLookupRepository,
-        gateway: ActiveResearchGateway,
-    ) -> ActiveResearchRuntimeExecutor:
-        return ActiveResearchRuntimeExecutor(
-            repo,
-            gateway,
-            model_gateway=crashing_model,
-            candidate_assessor=crashing_assessor,
-        )
-
-    service = ClaimEngineDispatchWebLookupService(
+    service = _service_with_runtime_components(
         repository,
-        active_gateway_factory=lambda: ActiveResearchGateway(
-            search_backend=_SearchBackend(),
-            read_gateway=_ReadGateway(),
-        ),
-        active_runtime_factory=crashing_runtime_factory,
+        model_gateway=crashing_model,
+        candidate_assessor=crashing_assessor,
     )
 
     with pytest.raises(RuntimeError, match="simulated assessment crash"):
@@ -2202,24 +2195,8 @@ def test_extraction_attempt_exhaustion_crash_is_claim_local(tmp_path: Any) -> No
 
     crash_extractor = _CrashAfterAttemptTwoFinished(_REE3(crash_model))
 
-    def crash_runtime_factory(
-        repo: WebLookupRepository,
-        gateway: ActiveResearchGateway,
-    ) -> ActiveResearchRuntimeExecutor:
-        return ActiveResearchRuntimeExecutor(
-            repo,
-            gateway,
-            model_gateway=crash_model,
-            evidence_extractor=crash_extractor,
-        )
-
-    crash_service = ClaimEngineDispatchWebLookupService(
-        repository,
-        active_gateway_factory=lambda: ActiveResearchGateway(
-            search_backend=_SearchBackend(),
-            read_gateway=_ReadGateway(),
-        ),
-        active_runtime_factory=crash_runtime_factory,
+    crash_service = _service_with_runtime_components(
+        repository, model_gateway=crash_model, evidence_extractor=crash_extractor
     )
 
     # Execute 1: attempt 1 malformed -> gateway retries attempt 2 (valid) ->
