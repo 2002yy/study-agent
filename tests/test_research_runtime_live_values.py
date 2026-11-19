@@ -85,3 +85,45 @@ def test_live_values_owns_independent_default_cursors() -> None:
     second = ActiveRuntimeLiveValues(state=_state(10.0))
     assert isinstance(first.cursor, ResearchRuntimeCursor)
     assert first.cursor is not second.cursor
+
+
+def test_checkpoint_and_wave_observers_follow_rebound_persisted_context() -> None:
+    """Read/model callbacks must not keep the context from before a reload."""
+    original = {"run_attempt": 1, "steering": "old"}
+    live = ActiveRuntimeLiveValues(state=_state(20.0), context=original)
+    read_context = live.current_context
+    model_context = live.current_context
+
+    assert read_context() is original
+    checkpoint_reloaded = {"run_attempt": 1, "steering": "concurrent"}
+    live.context = checkpoint_reloaded
+    assert model_context() is checkpoint_reloaded
+
+    wave_reloaded = {"run_attempt": 2, "steering": "applied"}
+    live.context = wave_reloaded
+    assert read_context() is wave_reloaded
+    read_context()["observed"] = True
+    assert live.context["observed"] is True
+    assert original == {"run_attempt": 1, "steering": "old"}
+
+
+def test_live_values_owns_independent_default_contexts() -> None:
+    first = ActiveRuntimeLiveValues(state=_state(10.0))
+    second = ActiveRuntimeLiveValues(state=_state(10.0))
+    first.context["run_attempt"] = 1
+    assert second.context == {}
+    assert first.context is not second.context
+
+
+def test_prepared_checkpoint_rebinds_state_and_context_together() -> None:
+    """A failed prepare still exposes both latest projections to callbacks."""
+    live = ActiveRuntimeLiveValues(state=_state(10.0), context={"attempt": 1})
+    state_reader = live.current_state
+    context_reader = live.current_context
+    projected = _state(30.0)
+    projected_context = {"attempt": 1, "partially_prepared": True}
+
+    live.bind_prepared_checkpoint(projected, projected_context)
+
+    assert state_reader() is projected
+    assert context_reader() is projected_context

@@ -78,11 +78,19 @@ class FakeGateway:
 
 # --- D1 -------------------------------------------------------------------
 
-def test_policy_service_persists_message_attachment_refs(runtime_test_context):
+def test_policy_service_persists_message_attachment_refs(runtime_test_context, monkeypatch):
     repository = runtime_test_context.repository
     service = ExternalDataPolicyChatService(repository, _deps())
     repository.create_chat_thread(ChatThread(id="thread-d1", status="active"))
     refs = [{"attachment_id": "att_x", "content_hash": "hash_x", "filename": "shot.png"}]
+    # Persistence is the subject of this test. Supply genuinely readable
+    # material so the separate fail-closed attachment gate remains active.
+    monkeypatch.setattr(
+        "src.application.chat_service._turn_attachment_material",
+        lambda _repository, _turn_id: [
+            {"attachment_id": "att_x", "content_hash": "hash_x", "filename": "shot.png", "text": "识别后的正文"}
+        ],
+    )
 
     prepared = service.start_turn(
         PolicyChatCommand(user_input="比较两个配置", thread_id="thread-d1", attachment_refs=refs)

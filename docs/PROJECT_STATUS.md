@@ -25,6 +25,252 @@
 
 **静态验收与限制**：`chatTranscriptExport`、`ChatPanel.copy` 与 `ChatPanel` 影响集 **49 passed**，邻接边界/旅程测试 **9 passed**，`tsc -b && vite build` 成功，构建仍有原有的大包体警告。当前容器启动 Vite 时发生 Node 系统接口错误（`uv_interface_addresses`），浏览器连接 `127.0.0.1:4175` 报 `ERR_CONNECTION_REFUSED`；真实下载交互、移动端排版及浏览器权限实测 **not_run**，不将 jsdom 模拟当真实浏览器通过，也不将连通失败单独归因于网络隔离。动态模型/搜索/用户任务 **not_run**，费用授权 `not_applicable`；该片属于 P2 / static / UI / engineering-only。后继最小片按优先级收集真实失败轨迹，查明最终答案/附件/恢复在哪层丢失；预算未授权时只做离线回放。
 
+### 2026-11-19 实验室入口重复源码断言收敛（独立测试减负片）
+
+- 前端实验室入口拥有三层验证：`extensionLabBoundary.test.ts`、
+  `extensionViewBoundary.test.ts` 和 `useExtensionRuntimeBoundary.test.ts`，
+  其中菜单唯一入口、延迟加载分支和三种能力选择多次按源码字符串重复断言。
+- 保留真实浏览器 `extension-lab-journeys.spec.ts`（直接菜单中只有实验室、
+  三种选项可见、选择前零扩展请求、选择后正确读取、返回焦点恢复），以及
+  `useExtensionRuntimeBoundary.test.ts` 的控制器归属、恢复、按需加载和协调权威
+  负控；`extensionViewBoundary.test.ts` 继续验证组件绑定和宿主隔离。
+- 删除全为旧入口快照断言的 `extensionLabBoundary.test.ts`（4 项），并删除
+  `extensionViewBoundary.test.ts` 中已经由运行期边界测试保护的 1 项重复
+  能力加载断言。没有更改在用实验室、路由/权限、运行配置或 E2E 注册；
+  这是 P3 离线测试减负，不是体验改善结论，精确 PR CI 另行验收。
+
+### 2026-11-19 读取计划的累计来源簇覆盖职责提取（独立 P3 静态片）
+
+- **范围**：从 `active_research_runtime.execute()` 的读取计划阶段提取 `merge_covered_clusters(context, selected_sources)` 至 `research_runtime_read_coverage.py`；执行器只传递当前持久化上下文与实际来源列表，覆盖合并及排序回写由读取覆盖模块负责。原 `ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY` 在执行器中继续可导入，持久化键值不变。
+- **冻结契约**：已有波次的累计簇覆盖不能丢失；一份物理读取的来源簇同时归属 assessment 所有者及 extraction map 绑定的其他 claim；失败读取及缺少合法 assessment 的记录不新增覆盖，旧数据格式的宽容处理与稳定排序保留。**不改**候选选择、读取额度、恢复游标、模型尝试/预算、检查点位置/顺序或证据发布。
+- **证据**：改动前两项真实执行器累计/共享来源簇回归 **2 passed**；改动后覆盖专项及研究执行/恢复/检查点/预算/读取关联测试 **131 passed**，Ruff、差异检查、mypy **115/125（无新增）**通过。基线 `main@56e2f23e`；单独分支 `codex/research-read-coverage-20261119`，与正在等候精确 CI 的 #517 测试去重 PR **没有代码依赖**。`priority=P3`，`loop=static`，`owner=retrieval/read-planning`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`。无真实付费模型/浏览器/外部搜索或产品动态对比。
+- **下一执行片**：完成本独立片的干净提交、PR 推送及精确 HEAD CI 记录；仅当该 SHA CI 全绿、审阅无阻断且无冲突才合并。#517 仍按其独立精确 CI 完成收口，不能复用其它提交的绿色结果。
+
+### 2026-11-19 旧迁移路线图展示组件退役（独立减负片）
+
+- `frontend/src/features/migration/RoadmapPanel.tsx` 只被自己的两项组件测试引用；
+  应用入口、路由、构建入口、其它功能和 E2E 均未挂载该组件。原静态内容仍在
+  叙述已完成的 Streamlit→React 迁移，并非在用产品功能。
+- 连同 `RoadmapPanel.test.tsx` 和 `styles.css` 中仅服务该面板的
+  `.roadmap-list` 样式一起退役；保留与之共用原选择器的 `.session-list`、
+  `.session-row` 样式。历史设计文档已允许移除旧面板，仍按原文归档。
+- 首次 PR CI `44518827611` 前端与构建通过，但全量后端测试
+  `test_every_frontend_feature_directory_is_registered_or_declared` 发现
+  `tools/ci_scope.py` 仍将已不存在的 `migration` 目录列为“未注册”特例。
+  后续连同这项死配置一并删除，保留前端目录清单的完整性校验，不放宽门禁。
+  本批不改应用布局、真实聊天/研究功能、迁移机制或运行时配置；新候选
+  必须重新取得精确 HEAD CI 成功。历史设计文档继续保留归档。
+
+### P1 SSE 终态正文与界面一致性（2026-11-19，独立静态片）
+
+- **等级/归属**：P1 预防性修复，UI/传输发布契约；未从真实用户
+  任务轨迹归因，故仅为 `static / engineering-only`。假 SSE 负控先红：
+  ① 服务端 `done.reply` 已发布修订答案，但前端请求层仍返回先前 token 草稿；
+  ② 服务端 `cancelled.partial` 是持久化部分正文，但浏览器没收到 token
+  时，请求层返回空串且聊天控制器在取消回调后再次清空已恢复的内容；
+  ③ 服务端明确发布空正文时，控制器的 `||` 回退会重新显示未发布草稿。
+- **实施**：独立分支 `codex/p1-sse-final-authority-20261119`，基线
+  `main@c6e8e6c4af37fd4731d109da584b2914015cbb7c`。SSE `done.reply`
+  以服务端最终正文为权威返回值，`cancelled.partial` 以服务端持久化部分为
+  权威；控制器保留已结算的取消状态和恢复卡，使用 `null` 区分“没有终态”
+  与“终态明确为空”，拒绝草稿回流。仅改前端传输与控制器、相应测试；
+  不改后端生成/存储、研究证据门、成本或模型调用。
+- **证据/限制**：四项终态负控及相邻影响集与 TS/Vite 构建见对应 PR；
+  默认 Playwright 用例尝试时缺少所需 Chromium，系统 Chromium 又因执行
+  环境拒绝创建 socket 而退出，故真实浏览器可见性 `not_run`，需要在
+  具备浏览器权限的 CI/人工环境再验；真实模型、搜索、付费比较 `not_run`，
+  预算授权 `not_applicable`，不据此宣称实际用户体验已验证。
+- **主线重新整合**：基于 `main@3ac77fd6` 将 #522 重挂；唯一冲突为本
+  交接文档，保留主线检查点修复记录和当前 SSE 契约记录，未改变实现范围。
+  前端相邻影响集 **95 passed / 7 files**，TS/Vite 生产构建、全仓 Ruff、
+  差异检查与 mypy 基线 **115/125（无新增）**通过；新 HEAD 的远端 CI
+  仍须独立验收，不能复用旧提交结果。
+- **进一步主线整合**：上一 HEAD `3ee86fb8` 的 CI `44491085376` 已
+  成功，但 `main` 又加入模型审计与失败终态发布改动；以 `main@82399918`
+  重新挂载 #522，只保留其前端传输、控制器与测试修改。冲突仅为本交接
+  文档，已保留研究终态发布记录；新 HEAD 仍需独立 CI 和审阅验收。
+- **本轮终态补强**：已核对正式后端的 `finish_cancelled_turn`：SSE
+  `cancelled.partial` 只包含本次生成的可发布后缀，续写时会与此前已保存
+  的前缀一起持久化。浏览器旧实现却优先拿临时 token 充当恢复正文，
+  即使服务端保存为空也残留未发布草稿。三条负控（临时 token 与服务端
+  partial 不一致、服务端明确空 partial、续写时前缀 + 服务端后缀）
+  先失败后修复；恢复与可见正文现在均从服务端部分正文构造，临时 token
+  只用于执行中的预览。属于 P1 静态交付一致性，不宣称实际模型体验已验证。
+- **当前整合**：基于 `main@bab64534` 保留 #479 选源观测、#481
+  已合并交接记录，唯一冲突仍为本状态文件；#522 前端修复与新增负控
+  一起进入精确候选，需在新的 HEAD 上重新跑 CI 才可合并。
+- **2026-11-19 收口进度**：上一精确 HEAD `a23c3bba` 的 CI
+  `44504307978` 成功、无审阅阻断；随后主线合入 #523 与 #521。
+  现重新整合至 `main@77caf8b6`，唯一冲突是本交接标题，保留主线
+  附件材料与可读性契约，不改变本 PR 前端 SSE 生产代码；新的精确
+  HEAD 必须重新跑 CI，不能沿用上一绿色结果。
+- **下一独立片**：#522 与 #524 完成合并后，用 Fake Provider 核验
+  附件进入模型入参与用户界面最终交付的完整链路；真实模型和搜索
+  需独立授权与预算上限。
+- **合并收口**：#522 最新精确 HEAD `fe50537c` 的 CI `44509211830`
+  成功，审阅线程为空，已按预期 HEAD 合入 `main@f133aebf`。
+
+### P1 附件异步请求的会话归属（2026-11-19，#524 独立片）
+
+- **等级/归属**：P1 数据归属与消息选中安全，`UI / session-bound async result`；
+  基于现有代码与先红负控的工程风险，未从真实用户轨迹归因，属于
+  `static / engineering-only`。独立增量分支
+  `codex/p1-attachment-session-selection-20261119` 以 #523 的已验证树为
+  前置依赖，不把叠加结果误报为直接基于 `main` 的合并资格。
+- **根因与修复**：原 Composer 的旧会话附件列表、上传、首次自动建会话、
+  删除请求在等待网络结果期间可能遇到导航切换；完成回调仍能写入
+  当前附件列表、误选当前消息，或让新会话持续显示旧上传的 busy。
+  现在用 `session id + visit generation` 约束异步回写，阻断“切走又
+  切回同一 ID”的过期响应；列表、错误与上传忙状态都按所属会话展示。
+  首次上传创建的会话如已被父级接管，只有返回同一 ID 才继续上传；
+  旧会话删除完成不得清理当前选择。服务端存储与鉴权未更改。
+- **离线负控**：旧列表晚返回、旧上传完成后会话变化、首次建会话
+  晚返回、父级接管同一新会话、回到同 ID 的旧请求、旧删除晚返回均有
+  专属前端用例；先红 3 项，修复后 Composer 与相邻 UI 影响集
+  **77 passed / 7 files**，TypeScript/Vite 生产构建、全仓 Ruff、
+  差异检查和 mypy 基线 **115/125（零新增）**通过，无 Python 代码变更。
+  已再次重挂到 #523 修复浏览器夹具后的精确 HEAD `c94f8f5f`
+  （其基线 `main@82399918`），仅带入 #524 的三文件增量；此新树重验
+  **77 passed / 7 files**、TS/Vite 构建、Ruff 与 mypy 115/125 通过。
+  新 HEAD 的 CI 仍须独立验收，不能借用 #523 或旧 #524 的结论。
+  实际浏览器、付费模型、云视觉、搜索与动态竞品对比 `not_run`，
+  预算授权 `not_applicable`。
+- **后续**：#521 服务端材料绑定与 #523 前端可读性验收合入后，
+  用 Fake Provider 完整核验上传→选择→发送→模型收到正文；叠加 PR
+  须在前置 #523 合入后重新挂到主线，重新验证精确 HEAD CI。
+- **主线收口（2026-11-19）**：#523 精确 HEAD `c6ea4987` 的 CI
+  `44502846780` 成功、无审查阻断，已 squash 合并到 `main@2ae50fc7`。
+  本片保留原 3 文件会话归属增量，直接重挂到这一最新主线，不再把
+  #523 的可读性代码作为 PR 差异；本次本地验收及新精确 HEAD CI
+  需分别记录，不能借用叠加分支的绿色结果。下一步是按精确新 HEAD
+  验收并合并 #524，再做附件→模型可见材料的零付费闭环。
+- **进一步整合（2026-11-19）**：#521 后端可读材料校验的精确 CI
+  `44506118129` 成功并合入 `main@77caf8b6`；#524 保持独立 3 文件
+  增量，重挂该主线。唯一冲突为本交接记录，前端会话所有权实现未改；
+  由于上次在叠加 PR 阶段更新 HEAD、后切换 base 至 `main`，新 HEAD
+  未观察到 PR CI，因此本次以正式 `main` 为 base 再发布精确提交，
+  必须等待真正针对该提交的 CI 验收。
+- **最新整合**：原 HEAD `e877c669` 的精确 CI `44509511046` 成功且
+  审阅无阻断，但 #522 合入后交接文档产生唯一冲突；保留两片记录，
+  在 `main@f133aebf` 上重新生成本片候选。新提交仍须独立精确 CI。
+
+### P1 本轮附件真正进入模型请求（2026-11-19，独立静态片）
+
+- **等级/归属**：P1，编排契约与附件读取层；无本轮真实用户失败轨迹。
+  静态负控复现：① 未开视觉识别的图片为 `ready`，选中后却没有可读内容；
+  ② 已就绪文档的临时索引丢失，选中后仍被接受；③ 消息绑定 5 份附件，
+  原读取默认只取前 4 份，模型看不到第五份；④ 入口验证通过后附件绑定
+  或正文失效，以及重试绑定内容哈希变化，可能不被检测到。
+- **本片**：`codex/p1-attachment-visible-material-20261119`，基线
+  `main@e5ec70059d35c9e209768d8461b2440ece6da83c`。消息/研究队列/
+  研究 steering 选择必须有实际可读的索引内容，否则返回可解释的冲突并阻止提交；
+  聊天进入模型/研究工具前再检查已保存的 ID 与内容哈希，并复用同一份
+  快照到提示词和研究工具。每条消息最多 10 份的全部已选内容按 12,000
+  字符总预算公平节选，不再默默丢失第五份；明确标示截断以及图片描述不等于原图。
+  原有存储 `ready` 状态不改：它只证明上传/存储完成，不保证模型可读取。
+- **证据边界**：负控旧行为先红后绿，假模型实际入参逐份包含五个附件的标记；
+  本地离线 Ruff、相关 L1、mypy 基线和 diff 范围核验见对应 PR。
+  未调用付费模型、视觉 API 或真实浏览器，**不宣称真实图片理解或用户任务已成功**。
+  不含前端“已就绪”徽标语义调整和完整 SSE 可视化验收。
+- **2026-11-19 主线重挂**：主线推进到 `main@3ac77fd6ca2f33c34f639d84993dd6c07361236a`
+  （#514 检查点回绑），原 #521 的唯一冲突是本节与 #514 的交接标题。
+  两条现状均保留，附件与研究运行期生产代码无语义冲突；更新候选
+  在 13 个直接影响模块 **141 passed**，全库 Ruff、差异检查和 mypy
+  **115/125（无新增）**通过。新远端 HEAD 须独立通过精确提交 CI，
+  上一 SHA 的结果不能替代；真实模型与浏览器 `not_run`。
+- **失败 CI 修复与新主线整合**：旧 HEAD `be5f4769` 的 CI `44490460070`
+  完成 **6769 passed / 1 failed**；失败只在历史 D1 持久化测试将附件引用
+  当作可读取正文，触发新验证器正确拒绝。已在该测试夹具补充与引用哈希
+  一致的可读取材料，保留生产 fail-closed 逻辑与负控；受影响后端测试
+  **52 passed**。再次整合 `main@82399918` 时仅交接文档有冲突，保留
+  主线终态发布记录；Ruff、差异检查、mypy **115/125** 通过。
+  浏览器和动态模型调用 `not_run`，新精确 HEAD CI 尚待独立验证。
+- **主线收口（2026-11-19）**：原精确 HEAD `41c46fc4` 的 CI
+  `44499999149` **success**，无审阅阻断；主线已合入 #479 和 #523，
+  此次重挂到 `main@2ae50fc7`。冲突仅涉及本交接章节，保留附件 UI
+  可读性与研究观测记录，不改变后端材料验证行为。新的精确 HEAD
+  须重新 CI 验收，不能复用旧绿色结果。
+- **下一独立片**：#521 合并后，以 Fake Provider 验证“上传→选择→发送→
+  模型实际收到全部可读材料→界面显示发布答案”；真实付费模型、视觉和
+  搜索需要另外授权，不把离线证明当作动态产品结论。
+
+### P1 附件保存状态与消息可读性分离（2026-11-19，独立静态片）
+
+- **等级/归属**：P1 防止用户把不可用文件当成已交给模型的附件；
+  `UI / attachment-readability contract`，仅由服务处理记录与离线
+  负控证明，未归因于真实用户轨迹，标记为 `static / engineering-only`。
+  基线 `main@c6e8e6c4af37fd4731d109da584b2914015cbb7c`，独立分支
+  `codex/p1-attachment-readability-ui-20261119`，不叠加未合并的 #521/#522。
+- **证据与修复**：服务端对未启用云端图片理解的图片会写入
+  `status=ready`（保存/流程结束）及 `indexing.retrievable=false`
+  （无可用正文）。原 Composer 只检验 `ready`，会显示“已就绪”、
+  允许手动选中并在上传后自动选入消息。现在只接受末次 indexing
+  明确 `completed + retrievable=true` 的附件；无记录时保守拒绝。
+  上传混合可用/不可用文件只选可用项，刷新时移除已有不可读选择，
+  保留并发上传期间其它有效选择；图片显示“已保存·未识别”并提示
+  开启云端图片理解后重新上传。来源面板共用状态判定，不再展示
+  不可读正文的阅读入口；文件大小提示在刷新后不被清除。
+- **静态门禁**：先红的负控覆盖未识别图片自动/手动选择、混合上传、
+  历史选择清理与来源面板不可读正文；重挂 `main@b677d74c` 后的
+  前端相邻影响集 **71 passed / 7 files**，TypeScript/Vite 构建、
+  全仓 Ruff、`git diff --check` 和 mypy 基线 **115/125（零新增）**通过。
+  重挂时唯一冲突为本交接文档，保留主线的模型审计/检查点记录；
+  新精确 HEAD 的 CI 仍须独立验收，不能沿用旧提交通过结果。
+  真实浏览器、真实图片模型、搜索或付费动态对比 `not_run`，不得据此
+  宣称用户任务端到端完成。
+- **失败浏览器 CI 修复与新主线整合**：旧 HEAD `2d5c0f59` 的 CI
+  `44496632775` 仅在连续研究会话的桌面/移动 Chromium 用例失败：
+  `notes.txt` 测试夹具虽为 `ready`，却没有 completed/retrievable 的
+  indexing 记录，新 UI 因此正确地拒绝自动选中。已仅修复夹具，
+  不放宽生产可读性门。重新整合 `main@82399918`，唯一冲突仍为交接
+  文档；相邻前端测试 **71 passed / 7 files**，TS/Vite 构建、Ruff、
+  差异检查和 mypy **115/125** 通过。Playwright 用例清单已解析，
+  真正浏览器执行仍须在新精确 HEAD 的 CI 重新验收。
+- **合并收口重挂**：修复夹具后的 HEAD `c94f8f5f`，CI `44499994030`
+  已成功且审阅线程为空。主线随后合入 #479（`main@bab64534`），
+  因交接标题冲突无法直接合并；本次保留主线 #479 诊断与 #481 已合并
+  记录，仅将 #523 的原 UI/测试增量重挂，新精确 HEAD 必须重新 CI 验收。
+- **下一独立片**：待 #521 的服务端选中正文契约验收合入后，使用
+  假 Provider 做“上传 → 选中 → 发送 → 模型可见材料”的离线跨层负控；
+  同时审计原会话切换与队列发送期间的附件选择隔离，不开付费 API。
+
+### 2026-11-19 选源追踪上下文所有权（独立 P3 静态片）
+
+- 将 `SelectionTraceCollector` 的历史指标恢复、运行期状态持有和指标刷新交给 `research_selection_observability.ResearchSelectionTraceContext`；执行器只在原有位置初始化一次，并在原波次位置调用 `flush(live.context)`。原 `_flush_selection_trace` 私有包装与仅依赖它的测试调用一起删除，测试转为验证新上下文。**不改**选源排序/过滤、trace 字段、指标键、保留上限、恢复游标、模型预算、检查点或发布契约。
+- 新负控验证恢复后指标回读、检查点回绑新 context 后的写回、旧映射不被改写、损坏指标与空追踪时无副作用。本地同树选源/执行/读取观测/恢复/检查点/预算组合影响集 **154 passed**，专项测试及 Ruff、差异检查、mypy **115/125（无新增）**通过。基于 `main@964a52cd` 的独立分支 `codex/research-selection-trace-context-20261119`，与待验收 #527 无代码依赖。`priority=P3`，`loop=static`，`owner=observability`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`，未进行付费模型、搜索或动态对比。
+- **下一执行片**：单独推送本批 PR，精确 HEAD CI、审阅和主线无冲突后才能合并；#527 仍须以自己的精确提交 CI 收口。
+
+### 2026-11-19 读取候选测试搭建去重（#517 已合并）
+
+- `tests/research_read_candidate_factory.py` 合并读取调度、执行、投影测试内三份重复的 `CandidatePoolItem` 构造；保留 ID、URL、标题和来源场景原值，不改生产检索、读取、恢复、检查点或预算。
+- #479 精确 HEAD `9086a708`、CI `44499513153` 成功且无审阅阻断，已合并 `main@bab64534`。#517 保留 P1 附件/SSE/真实服务栈回归主线内容，仅迁移测试场景去重；新精确 HEAD `4bd57091`、CI `44515032318` 成功、无审阅阻断，已 squash 合并为 `main@964a52cd`。读取/选源影响集 **37 passed**，此前跨恢复、检查点、模型预算、发布、选源和读取组合影响集 **151 passed**，Ruff、差异检查通过。`priority=P3`，`loop=static`，`owner=orchestration-contract`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`。
+
+### 2026-11-19 选源窗口诊断职责整合（#479 已合并）
+
+- #481 精确 HEAD `b1f2729b` 的 CI `44497014870` 全绿、无审阅阻断，已 squash 合并到 `main@82399918`。#479 基于这条主线重新挂载；`research_selection_observability.record_selection_authority()` 接管选源输入指纹、候选变化数、排除状态变化、独立的开始/结束时钟采样与最近 40 条记录。`active_research_runtime` 仍负责模型准入、选源、退化与实时 context 回读；不转移检索策略或模型预算所有权。
+- 专项负控覆盖连续波次输入变化、两个独立计时采样以及损坏历史记录后的 40 条上限。本地相同代码组合影响集 **112 passed**、Ruff 和差异检查通过，mypy **115/125** 无新增。此批 `priority=P3`、`loop=static`、`owner=orchestration-observability`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`；精确 HEAD `9086a708`、CI `44499513153` 成功，已合并 `main@bab64534`。
+
+### 2026-11-19 失败终态发布上下文整合（#481 已合并）
+
+- 旧 #481 在当前 #512—#515 整合树上重新实现：`ActiveResearchPublisher.fail` 统一持有无证据终态的 repository 调用，三处规划失败与异常无证据路径不再传递四个共享结果列表。`_terminal_unavailable` 从当前结果缓冲区读取证据 ID，仍在原位附加游标、Claim Engine 状态、执行 Stop Gate，再发布；检查点、模型计费、恢复格式、读取策略均不变。
+- 新负控固定恢复后 `research_context`、实时查询尝试列表、操作租约与失败原因；本批属于 `priority=P3`、`loop=static`、`owner=orchestration-contract`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`。精确 HEAD `b1f2729b` 的 CI `44497014870` 成功，已合并 `main@82399918`。
+
+### 2026-11-19 模型尝试实时状态绑定（重新验收候选）
+
+- 在检查点顺序、游标、持久化上下文、波次交接与检查点回绑的最新组合上重挂模型审计绑定；必须以新精确 HEAD 的 CI 验收，不沿用旧提交的结果。
+
+### 2026-11-19 检查点准备回绑单一持有（重新验收候选）
+
+- #510 已在主线，因此本批只保留 `live.bind_prepared_checkpoint` 对 `prepare_and_persist` 的回绑：移除多余内部函数，保证准备抛异常时 state/context 同时回绑。原 #514 的双父合并历史不再重复带入已合并的 #510 内容；新树需精确 HEAD CI。
+
+### 2026-11-19 波次绑定重挂检查点整合树（重新验收候选）
+
+- 将 #513 的波次交接绑定协议重挂在已更新的 #512 上。保留 #510 的检查点顺序和 #511/#512 的单一运行期状态所有权；此候选需要新的精确 HEAD CI，不能沿用旧的绿色结果。
+
+### 2026-11-19 持久化上下文所有权与检查点顺序重新整合（重新验收候选）
+
+- 基于已合并 #510 的 `main@a63e9440` 和重新挂载的 #511，重新应用 #512。冲突点为检查点内的 `nonlocal context`，统一回绑 `live.state/live.context`，但保留 `ActiveRuntimeCheckpointContext.prepare_and_persist` 的准备、回绑、持久化顺序。该候选需独立精确 HEAD CI。
+
 ### 2026-11-19 游标单一持有与检查点整合（重新验收候选）
 
 - #510 已以精确 HEAD `36a377e4`、CI `44375838320` 成功验收并合入 `main@a63e9440`。#511 原 HEAD `3d361a39` 的 CI 已成功，但因主线推进产生冲突，基于当前 `main@a63e9440` 重新应用游标所有权变更；恢复与检查点的现有实现保持 #510 语义，重新验证精确 HEAD 后才允许合并。
@@ -34,11 +280,36 @@
 - 后续本地补强：检查点专项测试共用统一构造器，新增成功路径顺序负控，明确 `bind_prepared` 必须先于仓库 `checkpoint`；检查点、实时状态、波次结算和守卫专项集 **10 passed**，未触及生产代码。此补强仍属于未推送的同一候选，不能代替 L3 或远端 CI。
 - 基于上一状态单一持有候选 `e13960c8`，分支 `codex/research-cursor-context-20261119`。将主动执行器检查点内的 `prepare → finally 回绑状态/上下文 → persist` 提取为 `ActiveRuntimeCheckpointContext.prepare_and_persist`，明确准备异常后仍回绑已投影的内存值，同时禁止失败后继续持久化；执行器仍唯一持有实时状态、游标和持久化上下文，后两者不作双份镜像。
 - 专属负控冻结 Claim Engine 序列化异常时预算投影与游标上下文保留、仓库不写入；检查点、实时状态、波次结算、守卫与主动执行影响集 **93 passed**，Ruff、差异检查及 mypy 基线 **115/125（无新增）**通过。全量 L3 已启动但观察到首 1% 用时较长，为避免无界后台执行而中断，**尚未通过**；远端精确提交 CI 待验收。真实搜索、付费模型与动态比较 `not_run`，预算授权 `not_applicable`。属 P3 / static / orchestration-contract / engineering-only。下一片在主线整合后处理游标、持久化上下文的单一所有权，不在本片同时迁移。
+### 2026-11-19 模型审计与实时状态绑定（独立叠加候选，待验证）
+
+- `ActiveModelAttemptContext.for_live_values(live, ...)` 以最小 `LiveModelAttemptValues` 协议统一绑定当次研究的实时状态/游标；执行器不再分别拼接三个状态读取/回写回调。新负控覆盖恢复后状态替换的预算检查、检查点后波次游标替换时审计写回最新游标。
+- **冻结契约**：开始审计仍按 `ensure_active → ensure_budget(current_state) → begin_model_attempt → checkpoint`，结束审计仍只在内存完成并在 `ensure_active` 后交还控制；模型网关、真实调用次数、超时预算采样、结算和后续语义检查点均不变。影响集 **104 passed**，Ruff、差异检查及 mypy 基线 **115/125** 通过。本片 P3 / static / orchestration-contract / engineering-only；真实模型/搜索 `not_run`，预算授权 `not_applicable`。依赖前述整合候选，不能直接合并主线。
+
+### 2026-11-19 检查点顺序与实时状态持有者整合演练（本地，待验证）
+
+- 将 #510 检查点 `prepare_and_persist` 与 #511—#513 的 `ActiveRuntimeLiveValues` 在独立演练分支组合。冲突点是旧 #510 的 `nonlocal context` 绑定闭包；改为 `live.bind_prepared_checkpoint` 绑定方法，保证准备阶段异常时仍先回绑最新 state/context，不重引入双重上下文所有权。整合影响集 **123 passed**，Ruff、差异检查及 mypy 基线 **115/125** 通过；真实模型和检索 `not_run`，本地 L3 `not_run`。该演练不代表任何现有 PR 已合并，也不替代精确远端 HEAD CI。
+
+### 2026-11-19 波次交接绑定协议（叠加候选，待验证）
+
+- 在 #512 的上下文单一持有之后，`ActiveWaveSettlementHandoff.for_live_values()` 显式接受仅含 `state/cursor/context` 的 `LiveWaveValues` 协议，负责捕获和回绑快照；`execute()` 不再定义 `bind_wave_snapshot` 内部函数或快照捕获 lambda。测试使用真实 `ActiveRuntimeLiveValues` 构建波次场景，删除测试自己维护的重复绑定逻辑。
+- **冻结契约**：`settle()` 的 `try/finally` 回绑、检查点失败后的最新投影回读、steering 处理与发布顺序保持不变；没有更改持久化格式、预算/模型调用、检索策略。本片属 P3 / static / orchestration-contract / engineering-only；真实模型与搜索 `not_run`，预算授权 `not_applicable`。此片是叠加 PR，必须等前序 #511/#512 验收后再重挂主线。
+
+### 2026-11-19 持久化上下文单一持有（叠加候选，待验证）
+
+- 在游标单一持有候选之上，分支 `codex/research-context-single-owner-20261119` 将一次 `execute()` 的持久化 `research_context` 交由同一 `ActiveRuntimeLiveValues.context` 持有；不留与其并行的局部字典。Deep 预检、游标恢复、steering 刷新、规划、检索/读取、模型回调、证据整理和波次交接通过该持有者读取当前上下文。
+- **冻结契约**：检查点仍是 `prepare → finally 回绑 state/context → persist → 持久化 context 回读`；波次交接仍一次性回绑 state/cursor/context；模型尝试、预算结算、证据发布、Deep 预检和持久化结构均不增删动作。负控覆盖检查点/波次替换后回调读取最新字典、不同执行默认上下文隔离。本片属 P3 / static / orchestration-contract / engineering-only；动态模型与真实搜索 `not_run`，预算授权 `not_applicable`。
+- 此片依赖游标候选；检查点顺序独立 PR #510 尚未整合时，不在本片同时改变检查点实现。验证结果以本分支精确 HEAD 和后续 PR CI 为准。
 
 ### 2026-11-19 运行期游标单一持有（当前独立候选）
 
 - 基于 #508 已合并的 `main@455e1105`，分支 `codex/research-cursor-single-owner-20261119`；与仍待 CI 的检查点顺序 PR #510 分开，不提前合并两批语义。`ActiveRuntimeLiveValues` 除 `ResearchState` 外开始唯一持有 `ResearchRuntimeCursor`：执行器内的游标赋值、恢复后替换、外部调用审计、读取观测、模型回调、波次结算与检查点都使用 `live.cursor`；移除专为模型回调回写外围游标而存在的 `set_model_cursor` 闭包。
 - **冻结契约**：持久化 `context` 仍只在执行器持有；不复制游标到其他可变持有者。两次中断尝试恢复、模型开始与完成审计、查询开始与结束、波次交接与检查点的位置和次数不变；`ResearchRuntimeCursor` 持久化结构与预算结算不变。新负控覆盖模型/读取回调跨游标替换读取最新值，以及不同运行不共享默认游标。真实检索、付费模型和动态比对 `not_run`。属于 P3 / static / orchestration-contract / engineering-only；整合及 CI 以候选精确 HEAD 为准。
+
+### 2026-11-19 检查点准备与持久化顺序封装（当前候选）
+
+- 后续本地补强：检查点专项测试共用统一构造器，新增成功路径顺序负控，明确 `bind_prepared` 必须先于仓库 `checkpoint`；检查点、实时状态、波次结算和守卫专项集 **10 passed**，未触及生产代码。此补强仍属于未推送的同一候选，不能代替 L3 或远端 CI。
+- 基于上一状态单一持有候选 `e13960c8`，分支 `codex/research-cursor-context-20261119`。将主动执行器检查点内的 `prepare → finally 回绑状态/上下文 → persist` 提取为 `ActiveRuntimeCheckpointContext.prepare_and_persist`，明确准备异常后仍回绑已投影的内存值，同时禁止失败后继续持久化；执行器仍唯一持有实时状态、游标和持久化上下文，后两者不作双份镜像。
+- 专属负控冻结 Claim Engine 序列化异常时预算投影与游标上下文保留、仓库不写入；检查点、实时状态、波次结算、守卫与主动执行影响集 **93 passed**，Ruff、差异检查及 mypy 基线 **115/125（无新增）**通过。全量 L3 已启动但观察到首 1% 用时较长，为避免无界后台执行而中断，**尚未通过**；远端精确提交 CI 待验收。真实搜索、付费模型与动态比较 `not_run`，预算授权 `not_applicable`。属 P3 / static / orchestration-contract / engineering-only。下一片在主线整合后处理游标、持久化上下文的单一所有权，不在本片同时迁移。
 
 ### 2026-11-19 研究状态单一持有（新独立候选）
 
@@ -456,10 +727,11 @@
   旧专项测试的两处重复引用；旧测试的浏览器是否升级/壁垒分类行为现由
   `test_chain_executor.py`、`test_progressive_routing.py` 与当时的
   `test_wigolo_browser_executor.py` 验证（后者已在后续独立片退役，
-  现行共享安全不变量迁至 `test_browser_honesty.py`）。Crawl4AI cohort v2 **仍调用**
-  `browser_bakeoff.py` 的结果构造/校验与旧 manifest，故保留该模块、
-  manifest 和共用 fixture 服务，将原专项测试中不可替代的结果真实性负控
-  合并进 `test_browser_bakeoff_contract.py`。不修改真实浏览器读取逻辑，
+  现行共享安全不变量迁至 `test_browser_honesty.py`）。当时 Crawl4AI cohort v2
+  尚调用 `browser_bakeoff.py` 的结果构造/校验与旧 manifest，故暂留旧合同与
+  共享 fixture 服务；**后续 §118/§120 整链退役时**，唯一消费者一并移除，
+  旧合同、专属测试、manifest 和阶段门注册也同步退役。共用 fixture 服务
+  因仍被现行超时/读取测试调用而保留。不修改真实浏览器读取逻辑，
   不执行外部浏览器或付费模型调用。
 
 - **2026-11-19 未注册 Wigolo 后端整体退役（独立片）**：现行
@@ -542,6 +814,19 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
 
 **唯一下一收口动作**：完成上述候选的读取栈阶段门、差异范围核对与精确 HEAD CI，审阅通过后独立合并；之后再按真实测试调用方清理重复造景，不重新建立模型、恢复或发布权威。#404 测试造景由另一窗口处理；原 #369 零模型社区覆盖探针仍待真实浏览器与 SearXNG 验证，不构成当前结构片动态 PASS。
 
+### 2026-11-19 一次性实验账本演示退役（独立 P2 减负片）
+
+- `tools/check_experiment_spend_ledger.py` 只在自身 CLI 使用示例和历史
+  `CL_M1_REBIND_PREVIEW.md` 快照中出现；现行应用、`studyctl`、CI、阶段门、
+  配置及测试没有调用。它模拟两次预留、一次超限与子进程读数，属于
+  早期账本能力展示，不承担产品准入或当前人工预检。
+- 整体移除该演示入口（109 行），**不**删除生产 `llm_spend_guard`、
+  SQLite 实验账本、费用预留/结算、`precheck_sample_budget.py`，
+  也**不**删除真实跨进程持久性/超限负控测试。当前正式验收文档仍引用
+  `check_llm_spend_guard.py`，因此那条实际预检入口保留。
+- 本片没有独占适配层、配置或专属测试可删除；历史文档不追溯改写。
+  仅属无调用方实验工具减负，真实模型/搜索与费用支出均未发生。
+
 ## 0A. 已冻结研究路线（摘要）
 
 `Lookup → VERIFIED / SAFE_ABSTAIN / ESCALATE_STANDARD`；Standard 的多源/比较/冲突和 Deep 的计划/缺口/收益/暂停恢复复用既有 `ActiveResearchRuntimeExecutor`，不另起第二套研究引擎。`usable/read_backed/relevant` 不能等同逐条 claim 支持；默认 `simple` 只验证引用 URL 属于已读来源，不标逐条 verified。
@@ -551,6 +836,21 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
 保留 M4-C 测量链路及 M4-D 增量修改基础；M4-E 受控修复须带版本/源码哈希及明确错误判据，失败保留旧版本；M4-F Three/WebGL 在受控沙箱执行，禁止加载任意第三方脚本；M4-G 根据问题选文字、静图、动画、交互或 3D。默认局部修改、修复成功率和媒介选择质量需真实任务验证。
 
 ## 历史原文与追踪
+
+- **2026-11-19 §118/§120 Crawl4AI 历史资格工具整链退役（独立片）**：
+  `tools/run_crawl4ai_qualification.py` 曾在固定端口启动浏览器夹具和 worker，
+  串行执行四项手工门，随后可选调用唯一后继
+  `tools/run_crawl4ai_cohort_v2.py` 运行冻结前置状态的 12 行 cohort。
+  前者无现行消费者，后者除前者外也没有生产、测试、CI、阶段门、活跃文档
+  或其他工具调用方。两份旧脚本成组删除后，历史 bakeoff 结果合同及
+  六类冻结 manifest 仅被自己的专属测试引用；故再移除
+  `src/web/research/browser_bakeoff.py`、`tests/test_browser_bakeoff_contract.py`、
+  旧 manifest、两处阶段门注册及 README 中过时的当前维护承诺。
+  不留孤儿 CLI、兼容入口、假产品负控或配置。原始资格观测仍在 Git 历史/归档。
+  **保留**真实 Crawl4AI 专家读取、仍被当前超时/集成测试使用的
+  `browser_bakeoff_fixture_server.py`，以及 shutdown、安全、预算/读取调度负控。
+  本片仅执行离线影响测试，
+  不改变生产浏览器路径；真实浏览器资格重跑和付费模型 `not_run`。
 
 - **2026-11-19 无调用方的游标/新鲜度辅助函数退役**：
   `src/web/research/runtime.py::_counter_mapping` 与

@@ -49,13 +49,6 @@ describe("Extension view ownership boundary", () => {
     }
   });
 
-  it("uses an explicit capability contract and does not load the lab home", () => {
-    expect(extensionRuntimeSource).toContain("selectExtensionSurface(state.activeDrawer)");
-    expect(extensionRuntimeSource).toContain("if (!activeCapability) return;");
-    expect(extensionRuntimeSource).toContain("EXTENSION_DRAWER_CONFIG[activeCapability]");
-    expect(extensionRuntimeSource).not.toContain('["group", "tools", "timeline"].includes');
-  });
-
   it("isolates experimental choices behind one laboratory launcher", () => {
     expect(launcherSource).toContain("export function ExtensionLauncher");
     expect(launcherSource).toContain("onOpen(LAB_DRAWER");

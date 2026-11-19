@@ -9,21 +9,12 @@ from src.application.research_runtime_read_projection import project_read_chain
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.chain_executor import ChainRun, ChainStepResult
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
+from tests.research_read_candidate_factory import read_candidate
 
 
 def _candidate() -> CandidatePoolItem:
-    return CandidatePoolItem(
-        id="candidate-a",
-        url="https://example.org/report",
-        canonical_url="https://example.org/report",
-        title="Report",
-        snippet="",
-        source="search",
-        published_at="",
-        query_ids=(),
-        intents=(),
-        providers=(),
-        first_seen_rank=0,
+    return read_candidate(
+        "candidate-a", url="https://example.org/report", title="Report", source="search"
     )
 
 
