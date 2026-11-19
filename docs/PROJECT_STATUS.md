@@ -194,6 +194,12 @@
 - **整组退役**：删除唯一存在于 `frontend/src/product-flow/` 的旧 310 行综合渲染测试及其重复的情景工厂和文本断言，不补空壳或兼容重导出；无专用功能、API、CSS、环境变量、测试阶段注册或 CI 豁免需要保留。正式组件、真实浏览器 Golden Journey、状态恢复、源证据展示、预算与发布逻辑一律不动。
 - `priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本地差异检查与精确 PR HEAD CI 分别验收，不能把删除测试说成用户体验改善。
 
+### 2026-11-20 晚到候选诊断状态与终态写入显式化（独立 P3 静态片）
+
+- **范围**：将研究执行器 `_late_admission_tail` 中的 `_live` / `_store` 隐式闭包及 `§70/B5` / `§71A` 六个仅用于该路径的诊断 helper 收归 `research_runtime_late_tail_diagnostics.py`。一个 `LateTailDiagnosticsContext` 明确持有本次评估的原始上下文、实时上下文提供者、预算时钟、截止时间及诊断 invocation；`begin/phase/store/finish` 操作都在原业务分支的相同位置调用，实时重新获取指标映射，不缓存被 steering/checkpoint 更换的字典。
+- **冻结不变量**：无晚到候选时先记 `no_late_ids`；读槽/时限/政策/模型拒绝及失败时记相同 `skipped_reason`，异常路径写 `aborted:<type>`；正常评估的 `late_assessment_tail` / `late_tail_invocations` / `b1_critical_path` 键、长度上限、时钟采样和四舍五入、`recovered`/映射 identity 差异均保持原位置与算法。绝不重排模型尝试、阶段计时、已评估候选写回、预算结算或检查点，不改持久化 schema、来源阅读次数和证据 Gate/发布。
+- **验证与交接**：新增三项直接离线负控（上下文替换、两个终态、只读指标映射）**3 passed**；两份源码编译和 `git diff --check` 通过。原有 `test_late_admission_tail.py` 的成功/拒绝/中止/替换/只读状态行为及研究执行器影响集必须由候选**精确 HEAD CI** 运行；本地缺少 pytest、Ruff 和 openai 运行依赖，未谎称完成整合测试。`priority=P3`、`loop=static`、`owner=diagnostics/late-tail`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`，未发起真实搜索、模型、付费实验。
+
 ### 2026-11-19 Firefly/Doupo 历史源码文案测试退役（P3 静态减负）
 
 - 旧 `FireflyCopyStyle.test.ts` 的 5 项测试读取六个 TS/TSX **源码字符串**，禁止某些历史词或要求常量字面量存在。它们无法证明这些内容实际呈现在界面，且与正式 `FireflyDefaultLesson.test.tsx`、`DoupoDefaultLesson.test.tsx`、`LearningStrip.doupo.test.tsx` 的真实组件断言多处重复。
