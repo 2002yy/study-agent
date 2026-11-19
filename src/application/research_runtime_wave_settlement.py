@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, Protocol
 
 from src.application.research_runtime_publication import ActiveResearchPublisher
 from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
@@ -34,11 +34,19 @@ class ActiveWaveSettlementSnapshot:
     context: dict[str, Any]
 
 
+class LiveWaveValues(Protocol):
+    """The minimal mutable live values needed at the wave boundary."""
+
+    state: ResearchState
+    cursor: ResearchRuntimeCursor
+    context: dict[str, Any]
+
+
 @dataclass(frozen=True, slots=True)
 class ActiveWaveSettlementHandoff:
     """Transfer live values to/from settlement, even on checkpoint failure.
 
-    The executor still owns the mutable locals and the physical checkpoint.
+    The executor still owns the live values and the physical checkpoint.
     This boundary only defines the rebind protocol: settlement changes must
     return to the executor, and a partially prepared checkpoint must return
     its latest in-memory projection to the settlement snapshot.
@@ -46,6 +54,22 @@ class ActiveWaveSettlementHandoff:
 
     capture: Callable[[], ActiveWaveSettlementSnapshot]
     bind: Callable[[ActiveWaveSettlementSnapshot], None]
+
+    @classmethod
+    def for_live_values(cls, live: LiveWaveValues) -> ActiveWaveSettlementHandoff:
+        """Bind a single live owner without executor-local snapshot closures."""
+
+        def capture() -> ActiveWaveSettlementSnapshot:
+            return ActiveWaveSettlementSnapshot(live.state, live.cursor, live.context)
+
+        def bind(snapshot: ActiveWaveSettlementSnapshot) -> None:
+            live.state, live.cursor, live.context = (
+                snapshot.state,
+                snapshot.cursor,
+                snapshot.context,
+            )
+
+        return cls(capture=capture, bind=bind)
 
     def refresh_after_checkpoint(self, snapshot: ActiveWaveSettlementSnapshot) -> None:
         live = self.capture()
