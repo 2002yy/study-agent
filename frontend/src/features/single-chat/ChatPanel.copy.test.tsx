@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ChatResponse } from "../../types";
+import type { ChatMessage, ChatResponse } from "../../types";
 import { ChatPanel } from "./ChatPanel";
 
 if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = () => {};
@@ -10,9 +10,9 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 const rag = { status: "waiting", query: "", retrieval_mode: "", reason: "", context: "", sources: "", result_count: 0, results: [], debug: {}, attempts: [], rewritten_query: "" };
 
-function view(copyInterrupted: () => Promise<void> | void = vi.fn(), recovery: { question: string; reply: string; reason: string; turnId: string } | null = null, content = "回答正文") {
+function view(copyInterrupted: () => Promise<void> | void = vi.fn(), recovery: { question: string; reply: string; reason: string; turnId: string } | null = null, content = "回答正文", messages?: ChatMessage[]) {
   return render(<ChatPanel
-    messages={[{ role: "assistant", content, avatarRole: "auto" }]}
+    messages={messages ?? [{ role: "assistant", content, avatarRole: "auto" }]}
     sessionId="session-1" sessionNavigation={null} input="" setInput={vi.fn()}
     isSending={false} onSubmit={vi.fn()} onStop={vi.fn()} streamRecovery={recovery}
     onContinueInterruptedReply={vi.fn()} onRetry={vi.fn()} onAbandonInterruptedReply={vi.fn()}
@@ -47,5 +47,30 @@ describe("ChatPanel copy feedback", () => {
     fireEvent.click(button);
     await waitFor(() => expect(button).toHaveTextContent("复制失败"));
     expect(screen.getByRole("status")).toHaveTextContent("复制失败");
+  });
+
+  it("exports only after an explicit click, announces the file, and disables empty exports", () => {
+    const createUrl = vi.fn(() => "blob:export");
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = createUrl;
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    try {
+      const { rerender } = view();
+      const button = screen.getByRole("button", { name: "导出当前对话 Markdown" });
+      expect(button).toBeEnabled();
+      expect(createUrl).not.toHaveBeenCalled();
+      fireEvent.click(button);
+      expect(createUrl).toHaveBeenCalledOnce();
+      expect(screen.getByRole("status")).toHaveTextContent("当前已加载的对话已导出");
+      rerender(<div />);
+    } finally {
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+    }
+    cleanup();
+    view(vi.fn(), null, "", []);
+    expect(screen.getByRole("button", { name: "导出当前对话 Markdown" })).toBeDisabled();
   });
 });
