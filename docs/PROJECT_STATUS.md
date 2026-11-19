@@ -6,6 +6,12 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 G13 旧证据归一化包与专属测试成组退役（独立 P3 静态片）
+
+- **可达性与范围**：`src/evidence/evidence_ref.py` 仅被 `tests/test_evidence_ref.py` 导入；其 `normalize_evidence`、RAG/工具/研究归一化、去重和过滤函数在现行 `src/`、`tools/`、前端与 CI 中均无调用。删除整份 195 行旧实现、106 行专属测试及空 `src/evidence/__init__.py`；无现行路由、导出适配层、配置项或阶段门条目需要保留。历史 RQCE 任务书仍只作为当时入口快照，不作为当前可用模块清单。
+- **权威与负控**：正式 ChatTurn 证据事实与选择/拒绝原因仍由 `src/domain/evidence.py` 的 `EvidenceRefV1`/`EvidenceSnapshotV1` 及其现行回归测试拥有；研究证据验收、SourceEvidence、引用发布和预算均不变。本次只去掉孤立的历史归一化实现，不删除任何实用数据路径，也不引入兼容壳。`priority=P3`、`loop=static`、`owner=evidence/legacy-projection`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+- **验收边界**：验证现行 `test_evidence_snapshot*`、`test_chat_turn_evidence_snapshot.py`、`test_active_research_evidence_projection.py` 和 `test_verified_citation_projection.py`，并由精确 PR HEAD CI 守护全库无旧模块引用；不宣称研究质量提升。
+
 ### 2026-11-20 提取目标恢复准入归入现有结果缓冲区（独立 P3 静态片）
 
 - **范围**：`ActiveResearchResultBuffers.admit_extraction_target()` 从已有的 `selected_sources` 活记录查找候选，核对实际读取成功状态，再检查逐 claim 的 `eligible` / `extractor_failed` 完成标记和旧单项 `extraction` 兼容标记。执行器的提取循环只请求符合条件的来源，随后保持原有模型预算检查、提取、归档和 checkpoint 操作；删去只在此处使用的 `_source_by_candidate`、`_read_status` 两个孤立 helper。**未新增上下文类或第二份来源快照**。
