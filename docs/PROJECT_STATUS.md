@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 读取来源记录与视觉附着顺序收归显式上下文（独立 P3 静态片）
+
+- **范围**：新增 `ReadSourceEvidenceContext`，在读取投影成功/失败后统一执行 `upsert_selected_source(record)`；仅成功正文再读取声明式视觉证据，并把视觉单元附着到同一 `record`。该上下文持有结果缓冲区及视觉读取入口，调用时显式接收最新 `context`、`state` 和候选规范 URL，不捕获可被恢复/检查点替换的旧状态。
+- **冻结契约**：原有顺序“来源 upsert → 成功时尝试视觉读取并追加诊断 → 更新运行预算 → 记录读取历史 → checkpoint”不变。失败正文不触发视觉，视觉空结果不增加字段；视觉读取 helper 的异常隔离、视觉预算门和诊断记录位置不变，持久化键、调用次数、模型/检索策略及发布规则均不改变。新增纯单元负控检查上载前别名、失败/空结果、状态/上下文替换，以及原真实执行器视觉影响测试。
+- **证据**：新增三项纯单元负控并覆盖原真实执行器视觉影响集；来源投影、发布、读取额度与主动研究执行器合计 **105 passed**，全库 Ruff、编译、差异检查及 mypy **115/125、无新增**。均为静态离线验证，不将它们描述为真实模型或图像质量证据。
+- **依赖/交接**：本片以 `#542` 的来源 upsert 所有权为前置，在 `codex/read-source-visual-context-20261119` 单独分支开发；允许先以 #542 分支为临时 base 建立**仅含视觉附着差异**的堆叠 PR，待 #542 精确 CI 全绿并安全合入主线后，才将本片重挂到最新 `main` 并以更新后的精确 HEAD 单独验收。`priority=P3`、`loop=static`、`owner=evidence/visual-read`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；没有真实模型、付费视觉或外网读取。
+
 ### 2026-11-19 来源记录写入收敛至结果缓冲区（独立 P3 静态片）
 
 - **范围**：将执行器内两个物理读取/耗尽路径的 `_upsert_source(selected_sources, record)` 改为唯一结果缓冲区 `ActiveResearchResultBuffers.upsert_selected_source(record)`；把原候选 ID 去重/原位置替换算法移入 `research_runtime_result_buffers.upsert_source_record`，供现有 Deep 本地材料化保持同样的显式列表写回。执行器不再定义另一份 `_upsert_source`。

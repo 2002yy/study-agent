@@ -242,6 +242,9 @@ from src.application.research_runtime_result_buffers import (
     ActiveResearchResultBuffers,
     upsert_source_record,
 )
+from src.application.research_runtime_source_evidence_context import (
+    ReadSourceEvidenceContext,
+)
 from src.application.research_runtime_model_policy import (
     ACTIVE_RESEARCH_POLICY_AUDITS_KEY,
     RuntimeModelPolicyContext,
@@ -802,6 +805,10 @@ class ActiveResearchRuntimeExecutor:
             selected_sources=selected_sources,
             rejected_sources=rejected_sources,
             warnings=warnings,
+        )
+        source_evidence = ReadSourceEvidenceContext(
+            results=results,
+            visual_reader=_read_visual_evidence_for_candidate,
         )
         known_evidence_ids = partial(results.known_evidence_ids, run_id)
         publisher = ActiveResearchPublisher(
@@ -1943,19 +1950,15 @@ class ActiveResearchRuntimeExecutor:
                     if ok:
                         read_quota.charge_read(content)
                     record = projection.record
-                    results.upsert_selected_source(record)
-                    if ok:
-                        # Multimodal Reader v1 (default-inert): declared visual
-                        # metadata may yield provenance-anchored visual units.
-                        # It never changes ok/content/reads_used/the chain, and a
-                        # visual failure can never fail a successful text read.
-                        visual_units = _read_visual_evidence_for_candidate(
-                            context=live.context,
-                            state=live.state,
-                            canonical_url=candidate.canonical_url,
-                        )
-                        if visual_units:
-                            record["visual_units"] = visual_units
+                    # Multimodal Reader v1 (default-inert): publish the source
+                    # first, then enrich that same record only on text success.
+                    source_evidence.record_projection(
+                        record,
+                        ok=ok,
+                        context=live.context,
+                        state=live.state,
+                        canonical_url=candidate.canonical_url,
+                    )
                     live.state = updated_runtime_budget(
                         live.state,
                         live.cursor,
