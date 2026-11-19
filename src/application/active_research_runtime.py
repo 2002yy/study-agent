@@ -292,7 +292,6 @@ from src.application.active_research_evidence_projection import (
     _add_extracted_evidence,
     _evidence_brief,
     _evidence_id_for_record,
-    _evidence_snapshot,
     _state_after_gate,
 )
 from src.application.research_runtime_read_observability import (
@@ -1004,15 +1003,10 @@ class ActiveResearchRuntimeExecutor:
                         detail="blocked_by_policy",
                     )
                     return self._terminal_unavailable(
-                        run_id,
-                        operation_id=operation_id,
                         context=live.context,
                         cursor=live.cursor,
                         state=live.state,
-                        query_attempts=query_attempts,
-                        selected_sources=selected_sources,
-                        rejected_sources=rejected_sources,
-                        warnings=warnings,
+                        publisher=publisher,
                         reason="claim_planning_blocked_by_policy",
                     )
                 planning_logical_call_id = f"research_claim_plan:{run.id}:1"
@@ -1032,15 +1026,10 @@ class ActiveResearchRuntimeExecutor:
                     )
                     checkpoint()
                     return self._terminal_unavailable(
-                        run_id,
-                        operation_id=operation_id,
                         context=live.context,
                         cursor=live.cursor,
                         state=live.state,
-                        query_attempts=query_attempts,
-                        selected_sources=selected_sources,
-                        rejected_sources=rejected_sources,
-                        warnings=warnings,
+                        publisher=publisher,
                         reason="claim_plan_unavailable",
                     )
                 bootstrap = self.claim_planner.plan(
@@ -1071,15 +1060,10 @@ class ActiveResearchRuntimeExecutor:
                     )
                     checkpoint()
                     return self._terminal_unavailable(
-                        run_id,
-                        operation_id=operation_id,
                         context=live.context,
                         cursor=live.cursor,
                         state=live.state,
-                        query_attempts=query_attempts,
-                        selected_sources=selected_sources,
-                        rejected_sources=rejected_sources,
-                        warnings=warnings,
+                        publisher=publisher,
                         reason="claim_plan_unavailable",
                     )
                 live.state = bootstrap.state
@@ -2918,40 +2902,25 @@ class ActiveResearchRuntimeExecutor:
                     final_status="partial",
                 )
             else:
-                result = self.repository.fail(
-                    run_id,
-                    "active research unavailable",
-                    research_context=live.context,
-                    query_attempts=query_attempts,
-                    provider_status=stop.provider_status,
-                    stop_reason=stop.reason,
-                    operation_id=operation_id,
-                )
+                result = publisher.fail(context=live.context, stop=stop)
             if raise_on_error:
                 raise
             return result
 
     def _terminal_unavailable(
         self,
-        run_id: str,
         *,
-        operation_id: str,
         context: dict[str, Any],
         cursor: ResearchRuntimeCursor,
         state: ResearchState,
-        query_attempts: list[dict[str, Any]],
-        selected_sources: list[dict[str, Any]],
-        rejected_sources: list[dict[str, Any]],
-        warnings: list[str],
+        publisher: ActiveResearchPublisher,
         reason: str,
     ) -> WebLookupRun:
         context = attach_runtime_cursor(context, replace(cursor, phase="unavailable"))
         context = attach_claim_engine_state(
             context,
             state,
-            known_evidence_ids=tuple(
-                ref.id for ref in _evidence_snapshot(run_id, selected_sources, rejected_sources).refs
-            ),
+            known_evidence_ids=publisher.buffers.known_evidence_ids(publisher.run_id),
         )
         # P1-C batch 3: the canonical stop reason flows through the gate.
         stop = ResearchStopGate.evaluate(
@@ -2965,15 +2934,7 @@ class ActiveResearchRuntimeExecutor:
                 unavailable_reason=reason,
             )
         )
-        return self.repository.fail(
-            run_id,
-            "active research unavailable",
-            research_context=context,
-            query_attempts=query_attempts,
-            provider_status=stop.provider_status,
-            stop_reason=stop.reason,
-            operation_id=operation_id,
-        )
+        return publisher.fail(context=context, stop=stop)
 
     def _required(self, run_id: str) -> WebLookupRun:
         run = self.repository.get(run_id)
