@@ -70,6 +70,19 @@
 - 无专属 API、适配层或运行时配置；只跑静态离线门禁，精确 PR HEAD 的 CI
   和审阅仍须单独通过，不能以本地删除结果宣称真实回答质量提升。
 
+### GitHub PR 历史静态回放评估链退役（2026-11-19，独立减负片）
+
+- `record_github_replay.py` / `evaluate_github_replay.py`、三份专属
+  `github_pr_review_{recording,replay,evaluation}` 模块及其专项测试，
+  只在彼此之间调用；正式 API、`studyctl`、现行 CI/阶段门、前端均不依赖。
+  17 份已录制的 PR 上下文及配套 manifest 仅被这条手工回放测试链读取。
+- 此回放统计的是**固定 JSON 快照**的符号映射/CI 关联精确率，
+  并不重新执行当前审查实现，历史分数不应被当成当前产品的回归门禁。
+  本片连同静态测试数据整体退役，不另立兼容入口；归档报告仍可供历史核对。
+- **保留** `GitHubPRReviewContextService`、GitHub Provider 分页和现行
+  `test_github_pr_review_context*` / `test_github_provider_pagination.py`，
+  真实 API 审查、固定 SHA、预算边界与缓存行为不变；不发起外部 GitHub 请求。
+
 ### 2026-11-19 读取计划的累计来源簇覆盖职责提取（独立 P3 静态片）
 
 - **范围**：从 `active_research_runtime.execute()` 的读取计划阶段提取 `merge_covered_clusters(context, selected_sources)` 至 `research_runtime_read_coverage.py`；执行器只传递当前持久化上下文与实际来源列表，覆盖合并及排序回写由读取覆盖模块负责。原 `ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY` 在执行器中继续可导入，持久化键值不变。
