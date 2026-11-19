@@ -6,6 +6,15 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 主动研究四阶段取消回归共用场景搭建（独立 P3 静态测试片）
+
+- **范围**：原 `test_active_research_runtime.py` 的 claim 规划、搜索后端、读网关、证据提取四项取消测试分别重建 SQLite 仓库、pending 研究运行、测试客户端和服务，再执行同一个取消终态断言。现在使用 `stage=model/search/read/extract` 参数化保留四项独立场景及各自唯一 run ID/数据库，按阶段只注入对应的取消回调。测试净删 **36 行**，无新辅助层、无删减四种中断时机。
+- **冻结契约**：模型规划依然在第一次模型调用中取消；搜索场景依然在 `search_exact()` 内取消后返回原搜索结果；读取场景依然在读网关入口取消；提取场景只在第三次结构化模型调用中取消。四种路径都经过真实 `ClaimEngineDispatchWebLookupService.execute()` 和持久化 SQLite，继续核对 `cancelled` 状态/阶段、`user_cancelled` 原因及模型/外部尝试 inflight 清空。**不更改**生产代码、注入时点、恢复游标、checkpoint、预算入账、证据或发布；不把四种取消语义折叠成单一测试。
+- **交接**：原四项 **4 passed**，参数化后四项仍 **4 passed**；完整主动研究执行器、研究取消、浏览器断联取消及 PR143 取消栅栏影响集 **97 passed / 87.00s**。全库 Ruff、测试编译和差异检查通过，mypy **115/125、无新增**。基于 `main@6fdc6cc`，独立分支 `codex/research-cancel-stage-fixture-20261120`；`priority=P3`、`loop=static`、`owner=research/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。不宣称真实研究质量改善；独立 PR 的精确 HEAD CI 与审阅为合并门禁。
+- **主线整合更新**：原 PR HEAD `ebc9b312` 的精确 CI `44593124965` 已全绿；随着 #556、#569、#563、#561 合并，重挂到 `main@2c58833`。唯一冲突是本 handoff 同位置插入段落，已同时保留主线和本片记录，取消测试代码无冲突；重新跑完整执行器及四组取消相邻集 **97 passed / 88.40s**，全库 Ruff、编译及差异检查通过。旧 HEAD 绿灯不得替代重挂后的精确 PR HEAD CI。
+- **#564 交叉验证**：随后恢复波次基线上下文 #564 合并，本片再次重挂到 `main@cc82b44`，测试代码仍无冲突；取消四阶段、真实崩溃恢复、波次基线上下文及取消栅栏相邻集 **22 passed / 5.42s**。之前 `main@2c58833` 的 97 项全模块验证与本次交叉负控各自限定基线；新精确 PR HEAD 的 CI 仍是最终合并门禁。
+- **下一片**：在研究提取准入与失败归档的并行 PR 独立收口后，再从执行器中已确认重复的成功/失败来源摘要写入找收敛机会，优先净删实际重复路径。
+
 ### 2026-11-20 G13 旧证据归一化包与专属测试成组退役（独立 P3 静态片）
 
 - **可达性与范围**：`src/evidence/evidence_ref.py` 仅被 `tests/test_evidence_ref.py` 导入；其 `normalize_evidence`、RAG/工具/研究归一化、去重和过滤函数在现行 `src/`、`tools/`、前端与 CI 中均无调用。删除整份 195 行旧实现、106 行专属测试及空 `src/evidence/__init__.py`；无现行路由、导出适配层、配置项或阶段门条目需要保留。历史 RQCE 任务书仍只作为当时入口快照，不作为当前可用模块清单。
