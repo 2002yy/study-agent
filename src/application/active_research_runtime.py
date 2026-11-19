@@ -262,6 +262,10 @@ from src.application.research_runtime_failure_projection import (
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
 from src.application.research_runtime_read_execution import ActiveReadExecutionContext
+from src.application.research_runtime_read_coverage import (
+    ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY as ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY,
+    merge_covered_clusters,
+)
 from src.application.research_runtime_read_observation import ActiveReadObservationContext
 from src.application.research_runtime_read_projection import project_read_chain
 from src.application.research_runtime_read_site import (
@@ -309,7 +313,6 @@ ACTIVE_RESEARCH_ASSESSMENTS_KEY = "claim_engine_assessments"
 ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY = "claim_engine_assessment_inputs"
 ACTIVE_RESEARCH_WAVE_BASELINE_KEY = "claim_engine_wave_baseline"
 ACTIVE_RESEARCH_READ_PLAN_KEY = "claim_engine_read_plan"
-ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY = "claim_engine_covered_clusters"
 ACTIVE_RESEARCH_BRIEF_KEY = "claim_engine_evidence_brief"
 TIER2_PROPOSED_CLAIMS_KEY = "tier2_proposed_claim_ids"
 DOMAIN_TARGETED_CLAIMS_KEY = "domain_targeted_claim_ids"
@@ -1632,44 +1635,9 @@ class ActiveResearchRuntimeExecutor:
                 # extraction map holds every claim actually bound to it, so
                 # coverage must merge the owner claim AND all extraction-map
                 # keys, or a secondary claim forgets the cluster (H8).
-                raw_covered = live.context.get(ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY)
-                covered_clusters_by_claim: dict[str, set[str]] = {}
-                if isinstance(raw_covered, Mapping):
-                    for claim_id, cluster_ids in raw_covered.items():
-                        if isinstance(cluster_ids, (list, tuple, set)):
-                            covered_clusters_by_claim[str(claim_id)] = {
-                                str(item) for item in cluster_ids
-                            }
-                for covered_record in selected_sources:
-                    if covered_record.get("read_status") != "read":
-                        continue
-                    assessment = covered_record.get("assessment")
-                    if not isinstance(assessment, Mapping):
-                        continue
-                    bound_cluster = assessment.get("source_cluster_id")
-                    if not bound_cluster:
-                        continue
-                    bound_claims: set[str] = set()
-                    owner_claim = assessment.get("claim_id")
-                    if owner_claim:
-                        bound_claims.add(str(owner_claim))
-                    extraction_map = covered_record.get("extractions")
-                    if isinstance(extraction_map, Mapping):
-                        bound_claims.update(
-                            str(item)
-                            for item in extraction_map
-                            if isinstance(item, str)
-                        )
-                    for claim_id in bound_claims:
-                        covered_clusters_by_claim.setdefault(
-                            claim_id, set()
-                        ).add(str(bound_cluster))
-                live.context[ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY] = {
-                    claim_id: sorted(cluster_ids)
-                    for claim_id, cluster_ids in sorted(
-                        covered_clusters_by_claim.items()
-                    )
-                }
+                covered_clusters_by_claim = merge_covered_clusters(
+                    live.context, selected_sources
+                )
                 # Deep-2 §29/§7: bytes already durable - fetched by a reader chain or
                 # materialized from a seed - must not be planned for a physical read at all.
                 # Skipping them later in the read loop would still have consumed a scheduler
