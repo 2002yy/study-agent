@@ -1,8 +1,8 @@
-"""Terminal evidence publication for an active research execution.
+"""Terminal evidence publication and no-evidence failure for an active run.
 
 The executor owns *when* a run is terminal: steering, the stop gate, and the
 final checkpoint must all happen before this context is called.  This context
-owns the completed payload only; it never advances a wave or charges a model.
+owns terminal repository payloads; it never advances a wave or charges a model.
 """
 
 from __future__ import annotations
@@ -89,3 +89,18 @@ class ActiveResearchPublisher:
                 state_for_exception, None, self.buffers.selected_sources
             )
         return _format_evidence_brief(brief)
+
+    def fail(
+        self, *, context: dict[str, Any], stop: ResearchStopDecision
+    ) -> WebLookupRun:
+        """Persist a no-evidence failure using the current query attempt buffer."""
+
+        return self.repository.fail(
+            self.run_id,
+            "active research unavailable",
+            research_context=context,
+            query_attempts=self.buffers.query_attempts,
+            provider_status=stop.provider_status,
+            stop_reason=stop.reason,
+            operation_id=self.operation_id,
+        )

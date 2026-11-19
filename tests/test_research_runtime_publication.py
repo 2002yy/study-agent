@@ -22,6 +22,10 @@ class _RecordingRepository:
         self.calls.append((run_id, kwargs))
         return kwargs
 
+    def fail(self, run_id: str, message: str, **kwargs: Any) -> Any:
+        self.calls.append((run_id, {"message": message, **kwargs}))
+        return self.calls[-1][1]
+
 
 def _publisher() -> tuple[ActiveResearchPublisher, _RecordingRepository]:
     repository = _RecordingRepository()
@@ -157,3 +161,29 @@ def test_missing_evidence_brief_fails_without_terminal_write() -> None:
     with pytest.raises(ValueError, match="terminal evidence brief is unavailable"):
         publisher.complete(context={}, stop=_stop())
     assert repository.calls == []
+
+
+def test_no_evidence_failure_uses_live_attempts_and_operation_lease() -> None:
+    publisher, repository = _publisher()
+    original_context = {"attempt": 1}
+    restored_context = {"attempt": 2}
+    publisher.buffers.query_attempts.append({"query": "after-recovery"})
+    stop = ResearchStopDecision(
+        decision="unavailable",
+        reason="claim_plan_unavailable",
+        provider_status="unavailable",
+        final_status="failed",
+    )
+
+    returned = publisher.fail(context=restored_context, stop=stop)
+
+    assert len(repository.calls) == 1
+    assert repository.calls[0][0] == "run-a"
+    assert returned["research_context"] is restored_context
+    assert returned["research_context"] is not original_context
+    assert returned["query_attempts"] is publisher.buffers.query_attempts
+    assert returned["query_attempts"][-1] == {"query": "after-recovery"}
+    assert returned["operation_id"] == "lease-a"
+    assert returned["stop_reason"] == "claim_plan_unavailable"
+    assert returned["provider_status"] == "unavailable"
+    assert returned["message"] == "active research unavailable"
