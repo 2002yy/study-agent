@@ -127,7 +127,7 @@
 ### 2026-11-19 伪量化 Golden Journey 预算测试退役（P3 测试减负）
 
 - `frontend/src/product-flow/goldenJourneyAudit.ts` 仅供测试使用，没有运行时消费者。其中“产品界面数量”“恢复前决策次数”等并非读取组件或浏览器实际状态，而是在测试里赋固定整数后与同模块中的固定预算比较；末尾测试甚至只检查这些静态预算常量本身，不能证明交互摩擦达标。
-- 整体删除此伪量化测试配置和自证式预算测试，并同步清除 `githubEvidenceBoundary.test.ts` 对其中文描述常量的存在性断言。保留 `goldenJourneys.test.tsx` 的五个真实组件场景、文案与无内部术语检查；首次提问直接断言零下拉配置项，研究恢复直接断言唯一操作按钮。当前代码的行为检查因此仍然可执行，不再汇报虚假的产品预算合格。
+- 当时整体删除此伪量化测试配置和自证式预算测试，并同步清除 `githubEvidenceBoundary.test.ts` 对其中文描述常量的存在性断言。该次验收仍保留 `goldenJourneys.test.tsx` 的五个组件场景；**这是 11-19 的历史范围，不代表当前仍保留该文件**：11-20 的独立组件/E2E 去重片将其正式退役，见下文。本次没有汇报虚假的产品预算合格。
 - 不改变组件、路由、会话、模型、检索、持久化和预算逻辑。定向 Vitest **4 files / 12 tests passed**（`goldenJourneys`、`githubEvidenceBoundary`、`ChatPanelBoundary`、`FireflyLessonBoundary`），`npm run build` 通过，`git diff --check` 通过；远端 CI 待核。分类为 `priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 ### 2026-11-19 每波读取额度共享状态归入 ReadWaveQuotaContext（独立 P3 静态片）
 
@@ -148,6 +148,12 @@
 - **调用证据**：现行 ChatPanel 只有「对话/搜索」两个输入模式；全前端没有 `setPendingTaskIntentOverride()` 的生产调用，`TURN_TASK_INTENT_OPTIONS` 仅供旧测试读取。旧全局一次性覆盖变量只会在 API 请求构造时被消费，值恒为 `undefined`，旧请求因此恒发送 `task_intent: null`。服务端 `ChatRequest.task_intent` 默认为 `None`，去掉这个前端字段不改变自动任务判定；保留服务端供其它直接调用者使用的显式意图契约与已持久化 route 的显示逻辑。
 - **成组删除**：旧选项表、全局 set/consume/clear 状态及调用、没有真实 UI 操作对象的 `taskIntentApi.test.ts` 两项人工覆盖传输专项、`taskContract.test.ts` 中选项/消费两项专项，及独立样式文件 `task-intent-selector.css` 和入口 CSS 导入；去掉 ChatPanel 测试针对不存在的芯片和覆盖状态的旧断言。原专项中独有的「流式无响应体时复用相同请求」契约迁至正式 `api.test.ts`，增加附件 ID 不丢失检查。旧 CSS 中唯一仍在用的 `.composer-main` 网格布局迁至 `styles.css`，保留触屏/无障碍响应式覆盖及实用的恢复/搜索行为测试。没有相关环境配置、阶段门或 CI 明确注册。
 - **冻结/非范围**：正式任务分类、服务端 `task_intent` 可选 API 字段、学习/研究收束按钮、会话恢复、消息发送/重试/附件/预算/证据发布均不改；仅从浏览器移除未接线的人工覆盖管道。`priority=P3`、`loop=static`、`owner=UI/task-intent`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；本地差异检查与精确 PR HEAD CI 分别记录，不声称真实模型或浏览器体验已经验证。
+
+### 2026-11-20 旧 Vitest Golden Journey 重复造景退役（独立 P3 静态片）
+
+- **重复层级核实**：`frontend/src/product-flow/goldenJourneys.test.tsx` 的 5 项“旅程”实质是分别渲染 ChatPanel、RestoreCard、UploadLearningPrompt、ChatResearchRecovery 和 LearningStrip 的离线 DOM 快照，没有发送消息、持久化恢复、跨轮跳转或真实浏览器交互。五条行为均已有更直接的组件契约测试；其中首轮零配置、返回学习继续、失败研究恢复等由正式 `frontend/e2e/golden-journeys.spec.ts` 实测浏览器动作、刷新恢复和可交付产物，E2E 的两个 Playwright 项目配置继续运行。上传行动、研究重试及 durable 学习内容也各有组件直接交互测试。
+- **整组退役**：删除唯一存在于 `frontend/src/product-flow/` 的旧 310 行综合渲染测试及其重复的情景工厂和文本断言，不补空壳或兼容重导出；无专用功能、API、CSS、环境变量、测试阶段注册或 CI 豁免需要保留。正式组件、真实浏览器 Golden Journey、状态恢复、源证据展示、预算与发布逻辑一律不动。
+- `priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本地差异检查与精确 PR HEAD CI 分别验收，不能把删除测试说成用户体验改善。
 
 ### 2026-11-19 Firefly/Doupo 历史源码文案测试退役（P3 静态减负）
 
