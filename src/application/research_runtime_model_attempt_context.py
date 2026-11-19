@@ -17,6 +17,7 @@ from src.web.research.model_gateway import (
 )
 from src.web.research.runtime import (
     ResearchRuntimeCursor,
+    _model_attempt_start,
     begin_model_attempt,
     finish_model_attempt,
 )
@@ -62,6 +63,16 @@ class ActiveModelAttemptContext:
             ensure_budget=ensure_budget,
             checkpoint=checkpoint,
         )
+
+    def next_attempt_number(self, logical_call_id: str) -> int:
+        """Admit from the latest recovered cursor, before any physical model I/O.
+
+        Recovery may add an interrupted attempt or a completed audit after
+        this context was created. Keep the existing two-attempt ceiling and
+        leave budget checks and persistence to the ``started`` callback.
+        """
+
+        return _model_attempt_start(self.current_cursor(), logical_call_id)
 
     def started(self, marker: ResearchModelAttemptStart) -> None:
         """Persist inflight *before* the model gateway can reserve and send."""

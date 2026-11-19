@@ -1018,9 +1018,8 @@ class ActiveResearchRuntimeExecutor:
                     )
                 planning_logical_call_id = f"research_claim_plan:{run.id}:1"
                 try:
-                    planning_attempt_start = _model_attempt_start(
-                        live.cursor,
-                        planning_logical_call_id,
+                    planning_attempt_start = model_attempt_context.next_attempt_number(
+                        planning_logical_call_id
                     )
                 except _ModelAttemptBudgetExhausted:
                     live.cursor = with_appended_runtime_failure(
@@ -1436,9 +1435,8 @@ class ActiveResearchRuntimeExecutor:
                         checkpoint()
                         continue
                     try:
-                        assessment_attempt_start = _model_attempt_start(
-                            live.cursor,
-                            assessment_logical_call_id,
+                        assessment_attempt_start = model_attempt_context.next_attempt_number(
+                            assessment_logical_call_id
                         )
                     except _ModelAttemptBudgetExhausted:
                         # Both attempts for this exact durable assessment may
@@ -2277,9 +2275,8 @@ class ActiveResearchRuntimeExecutor:
                     claim = claims_by_id[extraction_target["claim_id"]]
                     read = cast(Mapping[str, Any], source_record["read"])
                     try:
-                        extraction_attempt_start = _model_attempt_start(
-                            live.cursor,
-                            extraction_logical_call_id,
+                        extraction_attempt_start = model_attempt_context.next_attempt_number(
+                            extraction_logical_call_id
                         )
                     except _ModelAttemptBudgetExhausted:
                         # Both durable attempts for this exact (candidate,
