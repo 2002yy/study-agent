@@ -927,8 +927,8 @@ class ActiveResearchRuntimeExecutor:
 
         phase_timing = RuntimePhaseTiming(ledger=timing_ledger, now=self.monotonic)
         read_observation = ActiveReadObservationContext(
-            current_context=lambda: live.context,
-            current_cursor=lambda: live.cursor,
+            current_context=live.current_context,
+            current_cursor=live.current_cursor,
             phase_timing=phase_timing,
             timing_ledger=timing_ledger,
         )
@@ -1399,7 +1399,7 @@ class ActiveResearchRuntimeExecutor:
                         ),
                         trace=selection_trace,
                         context=live.context,
-                        live_context=lambda: live.context,
+                        live_context=live.current_context,
                         model_gateway=timed_gateway,
                         run_id=run_id,
                         wave_index=live.cursor.wave_index,
@@ -1538,7 +1538,7 @@ class ActiveResearchRuntimeExecutor:
                             wave_index=live.cursor.wave_index,
                             timeout_seconds=remaining_timeout(),
                             proposed_claim_ids=proposed_claim_ids,
-                            live_context=lambda: live.context,
+                            live_context=live.current_context,
                         )
                         phase_timing.end("tier2_proposal", context=live.context)
                     # §63 Tier-1.5 (default off): official-domain site search
@@ -1562,7 +1562,7 @@ class ActiveResearchRuntimeExecutor:
                             timeout_seconds=remaining_timeout(),
                             targeted_claim_ids=targeted_claim_ids,
                             seconds_left=research_seconds_left,
-                            live_context=lambda: live.context,
+                            live_context=live.current_context,
                             now_ms=elapsed_ms,
                         )
                         phase_timing.end("domain_targeted", context=live.context)
@@ -1596,7 +1596,7 @@ class ActiveResearchRuntimeExecutor:
                             live.state.budget.hard_timeout_seconds
                             - RESEARCH_WINDOW_RESERVE_SECONDS
                         ),
-                        live_context=lambda: live.context,
+                        live_context=live.current_context,
                     )
                     phase_timing.end("late_tail", context=live.context)
                     checkpoint()
@@ -1922,7 +1922,7 @@ class ActiveResearchRuntimeExecutor:
                         run_id=run_id,
                         attempt_number=attempt,
                         utc_now=self.utc_now,
-                        on_cursor_change=lambda cursor: setattr(live, "cursor", cursor),
+                        on_cursor_change=live.set_cursor,
                         research_seconds_left=research_seconds_left,
                         hard_timeout_seconds=live.state.budget.hard_timeout_seconds,
                         elapsed=elapsed,
@@ -2200,13 +2200,7 @@ class ActiveResearchRuntimeExecutor:
                                 "discovered_candidate_added",
                                 len(discovered),
                             )
-                            live.context.setdefault(
-                                ACTIVE_RESEARCH_METRICS_KEY, {}
-                            )["lead_discovered_candidate_ids"] = [
-                                item.id
-                                for item in live.cursor.candidates
-                                if item.discovery_method == "lead_url"
-                            ]
+                            discovery_diagnostics.record_lead_candidate_ids()
                     else:
                         discovery_diagnostics.bump_lead("lead_discovery_failed")
                         live.cursor = with_appended_runtime_failure(
