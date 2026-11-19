@@ -12,7 +12,6 @@ const runtimeSources = [
 ];
 const evidenceHelpers = read("../features/evidence/evidenceHelpers.ts");
 const evidenceTrail = read("../features/evidence/EvidenceTrail.tsx");
-const journeyAudit = read("../product-flow/goldenJourneyAudit.ts");
 
 describe("GitHub source-learning evidence boundary", () => {
   it("keeps source learning on the generic server evidence contract", () => {
@@ -21,7 +20,6 @@ describe("GitHub source-learning evidence boundary", () => {
     );
     expect(evidenceHelpers).toContain("function serverEvidenceRefs(");
     expect(evidenceTrail).toContain("normalizeEvidence(evidence)");
-    expect(journeyAudit).toContain("GitHub 源码学习 -> 阅读源码 -> 回到学习目标");
   });
 
   it("does not create a second GitHub-specific runtime or durable owner", () => {

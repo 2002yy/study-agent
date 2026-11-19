@@ -12,6 +12,12 @@
 - 当前 `frontend/e2e/answer-labs.spec.ts` 通过固定 `study-ui` 卡片直接在聊天工作区验证交互、用户草稿与窄屏布局。保留真实使用的 `AnswerLabs.tsx`、`AnswerCardView.tsx`、单元测试、这条浏览器测试和 CI scope 的有效映射，不削弱验证强度。更新交互设计说明，不再误报可访问旧预览 URL。
 - 本片无后台 API、持久化/恢复、检索、模型、预算及数据格式变化。现行交互卡/协议定向测试 **3 files / 24 passed**，TypeScript/Vite 生产构建通过，源码引用清理和 `git diff --check` 通过；浏览器 E2E 未本地运行，精确 PR HEAD CI 待验。`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 
+### 2026-11-19 伪量化 Golden Journey 预算测试退役（P3 测试减负）
+
+- `frontend/src/product-flow/goldenJourneyAudit.ts` 仅供测试使用，没有运行时消费者。其中“产品界面数量”“恢复前决策次数”等并非读取组件或浏览器实际状态，而是在测试里赋固定整数后与同模块中的固定预算比较；末尾测试甚至只检查这些静态预算常量本身，不能证明交互摩擦达标。
+- 整体删除此伪量化测试配置和自证式预算测试，并同步清除 `githubEvidenceBoundary.test.ts` 对其中文描述常量的存在性断言。保留 `goldenJourneys.test.tsx` 的五个真实组件场景、文案与无内部术语检查；首次提问直接断言零下拉配置项，研究恢复直接断言唯一操作按钮。当前代码的行为检查因此仍然可执行，不再汇报虚假的产品预算合格。
+- 不改变组件、路由、会话、模型、检索、持久化和预算逻辑。定向 Vitest **4 files / 12 tests passed**（`goldenJourneys`、`githubEvidenceBoundary`、`ChatPanelBoundary`、`FireflyLessonBoundary`），`npm run build` 通过，`git diff --check` 通过；远端 CI 待核。分类为 `priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+
 ### 2026-11-19 P1 聊天空白终态防护（独立候选）
 
 - **真实历史样本与当前缺口分开归因**：`docs/research_quality/ANSWER_AB.md` 的
