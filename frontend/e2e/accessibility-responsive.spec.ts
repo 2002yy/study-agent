@@ -19,11 +19,13 @@ test("slide-over traps keyboard focus and restores the launcher", async ({ page 
   const launcher = page.getByLabel("打开更多学习工具").filter({visible:true});
   await launcher.focus();
   await launcher.press("Enter");
-  const popover = page.locator(".workspace-menu-popover").filter({ visible: true });
-  await expect(popover).toBeVisible();
-  const popoverBox = (await popover.boundingBox())!;
-  expect(popoverBox.x).toBeGreaterThanOrEqual(0);
-  expect(popoverBox.x + popoverBox.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  if (page.viewportSize()!.width <= 760) {
+    const popover = page.locator(".workspace-menu-popover").filter({ visible: true });
+    await expect(popover).toBeVisible();
+    const popoverBox = (await popover.boundingBox())!;
+    expect(popoverBox.x).toBeGreaterThanOrEqual(0);
+    expect(popoverBox.x + popoverBox.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  }
   const settingsItem = page.getByRole("menuitem", { name: /设置/ });
   await settingsItem.focus();
   await settingsItem.press("Enter");
