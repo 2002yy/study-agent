@@ -852,13 +852,10 @@ class ActiveResearchRuntimeExecutor:
                     cursor=live.cursor,
                     results=results,
                 )
-                def bind_prepared(state: ResearchState, prepared_context: dict[str, Any]) -> None:
-                    live.state, live.context = state, prepared_context
-
                 persisted = snapshot.prepare_and_persist(
                     stage=stage,
                     elapsed=elapsed,
-                    bind_prepared=bind_prepared,
+                    bind_prepared=live.bind_prepared_checkpoint,
                     diagnostics=diagnostics,
                     elapsed_ms=elapsed_ms,
                 )

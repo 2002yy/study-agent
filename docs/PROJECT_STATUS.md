@@ -6,6 +6,10 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 检查点准备回绑单一持有（重新验收候选）
+
+- #510 已在主线，因此本批只保留 `live.bind_prepared_checkpoint` 对 `prepare_and_persist` 的回绑：移除多余内部函数，保证准备抛异常时 state/context 同时回绑。原 #514 的双父合并历史不再重复带入已合并的 #510 内容；新树需精确 HEAD CI。
+
 ### 2026-11-19 波次绑定重挂检查点整合树（重新验收候选）
 
 - 将 #513 的波次交接绑定协议重挂在已更新的 #512 上。保留 #510 的检查点顺序和 #511/#512 的单一运行期状态所有权；此候选需要新的精确 HEAD CI，不能沿用旧的绿色结果。
@@ -24,6 +28,10 @@
 - 基于上一状态单一持有候选 `e13960c8`，分支 `codex/research-cursor-context-20261119`。将主动执行器检查点内的 `prepare → finally 回绑状态/上下文 → persist` 提取为 `ActiveRuntimeCheckpointContext.prepare_and_persist`，明确准备异常后仍回绑已投影的内存值，同时禁止失败后继续持久化；执行器仍唯一持有实时状态、游标和持久化上下文，后两者不作双份镜像。
 - 专属负控冻结 Claim Engine 序列化异常时预算投影与游标上下文保留、仓库不写入；检查点、实时状态、波次结算、守卫与主动执行影响集 **93 passed**，Ruff、差异检查及 mypy 基线 **115/125（无新增）**通过。全量 L3 已启动但观察到首 1% 用时较长，为避免无界后台执行而中断，**尚未通过**；远端精确提交 CI 待验收。真实搜索、付费模型与动态比较 `not_run`，预算授权 `not_applicable`。属 P3 / static / orchestration-contract / engineering-only。下一片在主线整合后处理游标、持久化上下文的单一所有权，不在本片同时迁移。
 
+### 2026-11-19 检查点顺序与实时状态持有者整合演练（本地，待验证）
+
+- 将 #510 检查点 `prepare_and_persist` 与 #511—#513 的 `ActiveRuntimeLiveValues` 在独立演练分支组合。冲突点是旧 #510 的 `nonlocal context` 绑定闭包；改为 `live.bind_prepared_checkpoint` 绑定方法，保证准备阶段异常时仍先回绑最新 state/context，不重引入双重上下文所有权。整合影响集 **123 passed**，Ruff、差异检查及 mypy 基线 **115/125** 通过；真实模型和检索 `not_run`，本地 L3 `not_run`。该演练不代表任何现有 PR 已合并，也不替代精确远端 HEAD CI。
+
 ### 2026-11-19 波次交接绑定协议（叠加候选，待验证）
 
 - 在 #512 的上下文单一持有之后，`ActiveWaveSettlementHandoff.for_live_values()` 显式接受仅含 `state/cursor/context` 的 `LiveWaveValues` 协议，负责捕获和回绑快照；`execute()` 不再定义 `bind_wave_snapshot` 内部函数或快照捕获 lambda。测试使用真实 `ActiveRuntimeLiveValues` 构建波次场景，删除测试自己维护的重复绑定逻辑。
@@ -39,6 +47,12 @@
 
 - 基于 #508 已合并的 `main@455e1105`，分支 `codex/research-cursor-single-owner-20261119`；与仍待 CI 的检查点顺序 PR #510 分开，不提前合并两批语义。`ActiveRuntimeLiveValues` 除 `ResearchState` 外开始唯一持有 `ResearchRuntimeCursor`：执行器内的游标赋值、恢复后替换、外部调用审计、读取观测、模型回调、波次结算与检查点都使用 `live.cursor`；移除专为模型回调回写外围游标而存在的 `set_model_cursor` 闭包。
 - **冻结契约**：持久化 `context` 仍只在执行器持有；不复制游标到其他可变持有者。两次中断尝试恢复、模型开始与完成审计、查询开始与结束、波次交接与检查点的位置和次数不变；`ResearchRuntimeCursor` 持久化结构与预算结算不变。新负控覆盖模型/读取回调跨游标替换读取最新值，以及不同运行不共享默认游标。真实检索、付费模型和动态比对 `not_run`。属于 P3 / static / orchestration-contract / engineering-only；整合及 CI 以候选精确 HEAD 为准。
+
+### 2026-11-19 检查点准备与持久化顺序封装（当前候选）
+
+- 后续本地补强：检查点专项测试共用统一构造器，新增成功路径顺序负控，明确 `bind_prepared` 必须先于仓库 `checkpoint`；检查点、实时状态、波次结算和守卫专项集 **10 passed**，未触及生产代码。此补强仍属于未推送的同一候选，不能代替 L3 或远端 CI。
+- 基于上一状态单一持有候选 `e13960c8`，分支 `codex/research-cursor-context-20261119`。将主动执行器检查点内的 `prepare → finally 回绑状态/上下文 → persist` 提取为 `ActiveRuntimeCheckpointContext.prepare_and_persist`，明确准备异常后仍回绑已投影的内存值，同时禁止失败后继续持久化；执行器仍唯一持有实时状态、游标和持久化上下文，后两者不作双份镜像。
+- 专属负控冻结 Claim Engine 序列化异常时预算投影与游标上下文保留、仓库不写入；检查点、实时状态、波次结算、守卫与主动执行影响集 **93 passed**，Ruff、差异检查及 mypy 基线 **115/125（无新增）**通过。全量 L3 已启动但观察到首 1% 用时较长，为避免无界后台执行而中断，**尚未通过**；远端精确提交 CI 待验收。真实搜索、付费模型与动态比较 `not_run`，预算授权 `not_applicable`。属 P3 / static / orchestration-contract / engineering-only。下一片在主线整合后处理游标、持久化上下文的单一所有权，不在本片同时迁移。
 
 ### 2026-11-19 研究状态单一持有（新独立候选）
 
