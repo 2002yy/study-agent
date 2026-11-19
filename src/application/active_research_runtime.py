@@ -239,6 +239,9 @@ from src.application.research_runtime_source_evidence_context import (
 from src.application.research_runtime_evidence_acceptance import (
     ExtractedEvidenceAcceptanceContext,
 )
+from src.application.research_runtime_extraction_failure import (
+    ExtractionFailureContext,
+)
 from src.application.research_runtime_model_policy import (
     ACTIVE_RESEARCH_POLICY_AUDITS_KEY,
     RuntimeModelPolicyContext,
@@ -813,6 +816,7 @@ class ActiveResearchRuntimeExecutor:
         evidence_acceptance = ExtractedEvidenceAcceptanceContext(
             run_id=run_id, live=live, results=results
         )
+        extraction_failures = ExtractionFailureContext(live)
         known_evidence_ids = partial(results.known_evidence_ids, run_id)
         publisher = ActiveResearchPublisher(
             repository=self.repository,
@@ -2232,7 +2236,6 @@ class ActiveResearchRuntimeExecutor:
                     source_record = results.admit_extraction_target(candidate_id, claim_id)
                     if source_record is None:
                         continue
-                    extractions = source_record["extractions"]
                     ensure_active()
                     execution_guard.ensure_budget(live.state)
                     extraction_categories = (
@@ -2247,14 +2250,13 @@ class ActiveResearchRuntimeExecutor:
                     if not model_policy.allowed(
                         live.context, "research_evidence_extraction", extraction_categories
                     ):
-                        extractions[claim_id] = {"status": "extractor_failed", "reason": "blocked_by_policy"}
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
-                            "policy_blocked",
-                            "extracting",
+                        extraction_failures.record(
+                            source_record=source_record,
+                            claim_id=claim_id,
+                            candidate_id=candidate_id,
+                            reason="blocked_by_policy",
+                            failure_code="policy_blocked",
                             logical_call_id=f"policy:{extraction_logical_call_id}",
-                            item_id=candidate_id,
-                            detail="blocked_by_policy",
                         )
                         checkpoint()
                         continue
@@ -2274,17 +2276,13 @@ class ActiveResearchRuntimeExecutor:
                         # extractor_failed, record the failure, checkpoint and
                         # continue the wave - never a whole-runtime failure and
                         # never a third physical model call.
-                        extractions[claim_id] = {
-                            "status": "extractor_failed",
-                            "reason": "model_call_attempts_exhausted",
-                        }
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
-                            "model_attempts_exhausted",
-                            "extracting",
+                        extraction_failures.record(
+                            source_record=source_record,
+                            claim_id=claim_id,
+                            candidate_id=candidate_id,
+                            reason="model_call_attempts_exhausted",
+                            failure_code="model_attempts_exhausted",
                             logical_call_id=extraction_logical_call_id,
-                            item_id=candidate_id,
-                            detail="model_call_attempts_exhausted",
                         )
                         checkpoint()
                         continue
@@ -2310,22 +2308,18 @@ class ActiveResearchRuntimeExecutor:
                     ensure_active()
                     if extracted.status != "completed" or extracted.extraction is None:
                         extraction_reason = extracted.reason or "extractor_unavailable"
-                        extractions[claim_id] = {
-                            "status": "extractor_failed",
-                            "reason": extraction_reason,
-                        }
                         extraction_code: ResearchFailureCode = (
                             "model_attempts_exhausted"
                             if extraction_reason == "model_call_attempts_exhausted"
                             else "extraction_failed"
                         )
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
-                            extraction_code,
-                            "extracting",
+                        extraction_failures.record(
+                            source_record=source_record,
+                            claim_id=claim_id,
+                            candidate_id=candidate_id,
+                            reason=extraction_reason,
+                            failure_code=extraction_code,
                             logical_call_id=extraction_logical_call_id,
-                            item_id=candidate_id,
-                            detail=extraction_reason,
                         )
                         checkpoint()
                         continue
