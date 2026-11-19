@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 研究崩溃恢复测试场景搭建去重（独立 P3 静态测试片）
+
+- **范围**：`test_active_research_runtime.py` 中规划模型成功后崩溃、双 claim 提取中断、评估模型中断、提取第 2 次尝试后进程死亡四项恢复回归，各自重复创建 `ActiveResearchGateway`、`ActiveResearchRuntimeExecutor` 与 `ClaimEngineDispatchWebLookupService`。新增测试专用 `_service_with_runtime_components()`，显式接收既有模型网关、可选故障注入组件和搜索后端；四项测试仅替换重复工厂构造，保留原有自定义故障包装器、持久化 SQLite、恢复重试与全部断言。
+- **冻结契约**：相同模型网关及故障注入组件仍跨 `service.execute()` 调用复用；默认每次网关创建独立 `_SearchBackend` / `_ReadGateway`，双 claim 场景仍显式使用原 `_ProvenanceSearchBackend` 对象。所有故障发生位置、异常类型、重试的逻辑调用 ID、attempt 次数、恢复游标、持久化状态及预算结算均由原测试继续核对。**不改任何生产代码、持久化 schema、CI 注册、真实模型/检索调用或产品行为**，不删除四项具有不同契约的恢复测试。
+- **验证/交接**：修改前四项恢复场景 **4 passed**；修改后完整主动研究执行器模块 **83 passed**（包含原四项），重挂到最新主线后再次 **83 passed / 164.20s**；全库 Ruff、测试模块编译、差异检查通过，mypy **115/125、无新增**。工厂定义与四处调用净删约 23 行，保留每种崩溃时序独立断言。独立分支 `codex/research-crash-test-fixture-20261120`，从 `main@a1dd6159` 重挂至 `main@18c852a8`，包含已合并的 #552/#553/#555/#557/#558，未修改上述 PR 的生产代码。`priority=P3`、`loop=static`、`owner=research/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；不以测试去重宣称用户体验改善，尚须精确 PR HEAD CI 与审阅验收。
+- **下一片**：本片精确 CI 与审阅收口后，再检查提取失败与成功归档之间剩余的共享状态写入；checkpoint 和预算结算仍保持执行器的原边界。
+
 ### 2026-11-20 合格提取结果的证据接纳顺序收归显式上下文（独立 P3 静态片）
 
 - **范围**：新增 `ExtractedEvidenceAcceptanceContext`，在抽取器返回已验证的 `ExtractedEvidenceLink` 后，接管同一来源记录的逐 claim 提取摘要、首条合格的旧单项摘要、基于当前 selected/rejected 缓冲区的证据 ID 解析，以及最新 `ResearchState` 和读取游标的绑定。执行器仅显式传入 `source_record/candidate_id/claim_id/link` 并在接纳返回后原位 `checkpoint()`；上下文只引用现有的 `ActiveRuntimeLiveValues` / `ActiveResearchResultBuffers` 所有者，不缓存可能被恢复替换的状态快照。
