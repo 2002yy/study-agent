@@ -122,7 +122,6 @@ from src.web.research.runtime import (
     RuntimeCandidate,
     RuntimeExternalAttemptStart,
     RuntimePlannedQuery,
-    RuntimeQueryOutcome,
     RuntimeReadOutcome,
     attach_runtime_cursor,
     begin_external_attempt,
@@ -262,6 +261,7 @@ from src.application.research_runtime_wave_baseline import (
 from src.application.research_runtime_failure_projection import (
     with_appended_runtime_failure,
 )
+from src.application.research_runtime_search_outcomes import ActiveSearchOutcomeContext
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
 from src.application.research_runtime_read_execution import ActiveReadExecutionContext
@@ -1106,6 +1106,13 @@ class ActiveResearchRuntimeExecutor:
                 live.context
             )
             selection_trace = selection_trace_context.trace
+            search_outcomes = ActiveSearchOutcomeContext(
+                live=live,
+                results=results,
+                run_id=run_id,
+                operation_id=operation_id,
+                trace=selection_trace,
+            )
             while True:                # Research Window Deadline Hardening: the research window is an
                 # absolute boundary. Once it is exhausted the tail belongs to
                 # finalization (Gate, answer synthesis, claim binding,
@@ -1202,48 +1209,7 @@ class ActiveResearchRuntimeExecutor:
                     try:
                         attempt = _attempt_number(live.cursor, planned.id)
                     except _ExternalAttemptBudgetExhausted:
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
-                            "search_failed",
-                            "searching",
-                            logical_call_id=(
-                                f"research_search:{run_id}:{planned.id}:attempts_exhausted"
-                            ),
-                            item_id=planned.id,
-                            detail="external_attempts_exhausted",
-                        )
-                        live.cursor = replace(
-                            live.cursor,
-                            query_outcomes=(
-                                *live.cursor.query_outcomes,
-                                RuntimeQueryOutcome(
-                                    query_id=planned.id,
-                                    status="unavailable",
-                                    result_count=0,
-                                    error_code="search_failed",
-                                ),
-                            ),
-                        )
-                        query_attempts.append(
-                            {
-                                "query": planned.query,
-                                "query_id": planned.id,
-                                "intent": planned.intent,
-                                "status": "unavailable",
-                                "reason": "external_attempts_exhausted",
-                                "result_count": 0,
-                                "providers_attempted": [],
-                                "provider_errors": [],
-                                "run_attempt": live.context["run_attempt"],
-                                "operation_id": operation_id,
-                                "influenced_by_steering": bool(
-                                    _steering_ids_for_claim(live.context, planned.claim_id)
-                                ),
-                                "steering_ids": list(
-                                    _steering_ids_for_claim(live.context, planned.claim_id)
-                                ),
-                            }
-                        )
+                        search_outcomes.record_exhausted(planned)
                         checkpoint()
                         continue
                     marker = RuntimeExternalAttemptStart(
@@ -1286,70 +1252,11 @@ class ActiveResearchRuntimeExecutor:
                         live.cursor = finish_external_attempt(live.cursor, call_id=marker.call_id)
                         checkpoint()
                     ensure_active()
-                    outcome = batch_result.outcomes[0]
-                    if outcome.status == "unavailable":
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
-                            "search_failed",
-                            "searching",
-                            logical_call_id=marker.call_id,
-                            item_id=planned.id,
-                            detail=outcome.reason or "search_unavailable",
-                            provider_code=";".join(outcome.provider_errors),
-                            attempt_id=marker.call_id,
-                        )
-                    live.cursor = replace(
-                        live.cursor,
-                        query_outcomes=(
-                            *live.cursor.query_outcomes,
-                            RuntimeQueryOutcome(
-                                query_id=planned.id,
-                                status=_runtime_query_status(outcome.status),
-                                result_count=outcome.result_count,
-                                providers=outcome.providers_attempted,
-                                error_code=(
-                                    "search_failed"
-                                    if outcome.status == "unavailable"
-                                    else ""
-                                ),
-                            ),
-                        ),
-                        candidates=_merge_runtime_candidates(
-                            live.cursor.candidates,
-                            batch_result.candidates,
-                            max_candidates=live.state.budget.max_candidates,
-                            trace=selection_trace,
-                        ),
-                    )
-                    query_attempts.append(
-                        {
-                            "query": planned.query,
-                            "query_id": planned.id,
-                            "intent": planned.intent,
-                            "status": outcome.status,
-                            "reason": outcome.reason,
-                            "result_count": outcome.result_count,
-                            "providers_attempted": list(outcome.providers_attempted),
-                            "provider_errors": list(outcome.provider_errors),
-                            "run_attempt": live.context["run_attempt"],
-                            "operation_id": operation_id,
-                            "influenced_by_steering": bool(
-                                _steering_ids_for_claim(live.context, planned.claim_id)
-                            ),
-                            "steering_ids": list(
-                                _steering_ids_for_claim(live.context, planned.claim_id)
-                            ),
-                            **(
-                                {
-                                    "provider_audit": {
-                                        "schema_version": "research-provider-audit-v1",
-                                        **search_execution.audit,
-                                    }
-                                }
-                                if search_execution.audit
-                                else {}
-                            ),
-                        }
+                    search_outcomes.record_batch(
+                        planned,
+                        batch_result,
+                        call_id=marker.call_id,
+                        provider_audit=search_execution.audit,
                     )
                     checkpoint()
 
@@ -2882,61 +2789,6 @@ def _gap_query_batch(query: RuntimePlannedQuery) -> GapQueryBatch:
         focused_surface=query.query,
         queries=(planned,),
     )
-
-
-def _runtime_query_status(status: str) -> str:
-    return status if status in {"ok", "empty", "unavailable"} else "unavailable"
-
-
-def _merge_runtime_candidates(
-    existing: tuple[RuntimeCandidate, ...],
-    incoming: tuple[CandidatePoolItem, ...],
-    *,
-    max_candidates: int,
-    trace: SelectionTraceCollector | None = None,
-) -> tuple[RuntimeCandidate, ...]:
-    merged = list(existing)
-    by_url = {item.url: index for index, item in enumerate(merged)}
-    for item in incoming:
-        index = by_url.get(item.canonical_url)
-        if index is not None:
-            if trace is not None:
-                trace.note_duplicate(item.canonical_url)
-            current = merged[index]
-            merged[index] = replace(
-                current,
-                title=item.title if len(item.title) > len(current.title) else current.title,
-                snippet=item.snippet if len(item.snippet) > len(current.snippet) else current.snippet,
-                query_ids=tuple(dict.fromkeys((*current.query_ids, *item.query_ids))),
-                intents=tuple(dict.fromkeys((*current.intents, *(intent.value for intent in item.intents)))),
-                providers=tuple(dict.fromkeys((*current.providers, *item.providers))),
-            )
-            continue
-        if len(merged) >= max_candidates:
-            if trace is not None:
-                trace.note_cap_excluded(item.canonical_url, stage="runtime_merge")
-            continue
-        by_url[item.canonical_url] = len(merged)
-        merged.append(
-            RuntimeCandidate(
-                id=item.id,
-                url=item.canonical_url,
-                title=item.title,
-                snippet=item.snippet,
-                source=item.source,
-                published_at=item.published_at,
-                query_ids=item.query_ids,
-                intents=tuple(intent.value for intent in item.intents),
-                providers=item.providers,
-                first_seen_rank=item.first_seen_rank,
-                parent_lead_candidate_id=item.parent_lead_candidate_id,
-                discovery_method=item.discovery_method,
-                discovery_depth=item.discovery_depth,
-            )
-        )
-        if trace is not None:
-            trace.note_materialized(item.canonical_url)
-    return tuple(merged)
 
 
 def _candidate_item(item: RuntimeCandidate) -> CandidatePoolItem:

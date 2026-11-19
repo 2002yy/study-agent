@@ -26,6 +26,13 @@
 - **静态证据**：新增 5 项可直接运行的波次边界负控（初始/重复波、checkpoint context 重绑、缺损基线和序列化部分失败），`python -m unittest discover -s tests -p test_research_runtime_wave_baseline.py` **5 passed**。既有 `test_crash_after_extraction_preserves_wave_baseline_and_gain` 继续负责真实 SQLite 崩溃恢复/读取次数集成验证，需由精确 PR HEAD CI 覆盖。`priority=P3`、`loop=static`、`owner=research/state-recovery`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 - **交接/下一片**：独立于 #556 读取预算投影、#561 提取失败记录、#562 late-tail 诊断的执行区段；待精确 HEAD CI 与审阅通过后再合并。下一步继续检查波次恢复和调度之间的可变值边界，不扩大为 schema 或 checkpoint 语义迁移。
 
+### 2026-11-20 检索结果与查询审计的共享写入收归显式上下文（独立 P3 静态片）
+
+- **现状/范围**：主动研究执行器的搜索循环里，外部尝试耗尽与普通搜索结果分别内联更新 canonical failure、`RuntimeQueryOutcome`、按 URL 去重的候选池及面向前端的 `query_attempts` 审计列表。新增 `ActiveSearchOutcomeContext`，显式绑定唯一 `ActiveRuntimeLiveValues`、唯一 `ActiveResearchResultBuffers`、run/operation 身份与本次选择轨迹。两种分支的写入均在这个上下文内依原顺序完成；原 `_merge_runtime_candidates` 算法原样迁至相邻模块，执行器主文件净移出约 150 行。仍通过最新 live owner 取预算、cursor 和 steering，绝不使用上次 checkpoint 前的快照。
+- **冻结契约**：尝试耗尽维持 `failure → unavailable query outcome → 审计列表 → checkpoint`；真实搜索维持 `外部尝试完成 checkpoint → ensure_active → (若 unavailable 则 failure) → query outcome + candidate merge → 查询审计列表 → checkpoint`。保留故障 logical call、`attempt_id`、provider code、`run_attempt`、operation ID、steering 归因、provider audit schema、URL 去重/容量与选择轨迹；候选合并或审计投影失败时，原先已写入内存的失败记录和游标状态仍保留，不提前提交后续步骤。不改任何模型、搜索、读取调用，外部尝试开始/结束标记、持久化 schema、checkpoint 次数/位置、预算结算、Evidence Gate 或发布。
+- **静态证据与 CI 修复**：新增 6 项直接运行的负控，覆盖尝试耗尽、正常/失败搜索、重绑后的最新额度与 context、相同 URL 合并和部分失败次序；`python -m unittest discover -s tests -p test_research_runtime_search_outcomes.py` **6 passed**。旧 HEAD `6fe3006` 的 backend CI 还发现 `test_selection_trace.py` 从已搬迁的执行器模块导入私有合并函数，以及新专项测试多余的 `typing.Any`（Ruff F401）。已让原选择轨迹测试直接导入现行搜索结果 owner、删去多余导入；单独执行该合并契约测试通过、编译和差异检查通过。既有 `test_active_research_runtime.py` 仍负责真实持久化操作、取消/恢复、搜索失败和多波调度的端到端回归，须由新 PR 精确 HEAD CI 验收。本地缺少 pytest/Ruff/openai，不冒称完整影响集通过。`priority=P3`、`loop=static`、`owner=research/search-orchestration`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+- **交接/下一片**：与 #556 读取预算、#561 提取失败、#562 late-tail、#564 波次基线、#565 提取目标准入各自位于不同执行区段；交接文档可能有顺序冲突。待本片单独完成 CI/审阅后合并；继续逐批抽离检索/读取调度交界面的共享写入，不迁移预算或恢复权威。
+
 ### 2026-11-20 研究崩溃恢复测试场景搭建去重（独立 P3 静态测试片）
 
 - **范围**：`test_active_research_runtime.py` 中规划模型成功后崩溃、双 claim 提取中断、评估模型中断、提取第 2 次尝试后进程死亡四项恢复回归，各自重复创建 `ActiveResearchGateway`、`ActiveResearchRuntimeExecutor` 与 `ClaimEngineDispatchWebLookupService`。新增测试专用 `_service_with_runtime_components()`，显式接收既有模型网关、可选故障注入组件和搜索后端；四项测试仅替换重复工厂构造，保留原有自定义故障包装器、持久化 SQLite、恢复重试与全部断言。
