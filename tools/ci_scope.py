@@ -245,7 +245,6 @@ _FRONTEND_E2E_UNREGISTERED = frozenset(
         "pedagogy",
         "rag",
         "roles",
-        "route",
         "settings",
         "task",
         "tools",

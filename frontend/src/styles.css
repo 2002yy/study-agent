@@ -1113,11 +1113,6 @@ button {
   font-size: 12px;
 }
 
-.route-grid {
-  display: grid;
-  gap: 0;
-}
-
 .session-list,
 .roadmap-list {
   display: grid;
