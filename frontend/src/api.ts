@@ -30,7 +30,6 @@ import type {
   RuntimeSettingsResponse,
   SearchProviderHealthResponse
 } from "./types";
-import { consumePendingTaskIntentOverride } from "./features/task/taskContract";
 import { consumePendingRestoreTarget } from "./features/answer-ui/restoreTarget";
 import { consumePendingSkillSelection } from "./features/skills/skillSelection";
 import { authHeaders } from "./apiToken";
@@ -137,7 +136,7 @@ type SseMessage = {
 
 function buildChatPayload(userInput: string, history: ChatMessage[], options: ChatRequestOptions): Record<string, unknown> {
   // Identity only: the server resolves the source from saved turns, and the
-  // choice belongs to this one message (like the task-intent override).
+  // choice belongs to this one message.
   const restore = consumePendingRestoreTarget();
   const repair = consumePendingRepairTarget(userInput, options.sessionId);
   return {
@@ -168,7 +167,6 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     web_context: options.webContext ?? "",
     web_context_run_id: options.webContextRunId ?? null,
     memory_consent: options.memoryConsent ?? false,
-    task_intent: consumePendingTaskIntentOverride() ?? null,
     continuation_of_turn_id: options.continuationOfTurnId ?? null,
     retry_of_turn_id: options.retryOfTurnId ?? null,
     partial_reply: options.partialReply ?? "",
