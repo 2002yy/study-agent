@@ -6,10 +6,15 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
-### 2026-11-19 失败终态发布上下文整合（本地候选，待精确 CI）
+### 2026-11-19 选源窗口诊断职责整合（#479 最新主线候选）
+
+- #481 精确 HEAD `b1f2729b` 的 CI `44497014870` 全绿、无审阅阻断，已 squash 合并到 `main@82399918`。#479 基于这条主线重新挂载；`research_selection_observability.record_selection_authority()` 接管选源输入指纹、候选变化数、排除状态变化、独立的开始/结束时钟采样与最近 40 条记录。`active_research_runtime` 仍负责模型准入、选源、退化与实时 context 回读；不转移检索策略或模型预算所有权。
+- 专项负控覆盖连续波次输入变化、两个独立计时采样以及损坏历史记录后的 40 条上限。本地相同代码组合影响集 **112 passed**、Ruff 和差异检查通过，mypy **115/125** 无新增。此批 `priority=P3`、`loop=static`、`owner=orchestration-observability`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`；必须等待新精确 #479 HEAD CI 全绿再合并。其后才把测试去重 #517 挂到最新主线。
+
+### 2026-11-19 失败终态发布上下文整合（#481 已合并）
 
 - 旧 #481 在当前 #512—#515 整合树上重新实现：`ActiveResearchPublisher.fail` 统一持有无证据终态的 repository 调用，三处规划失败与异常无证据路径不再传递四个共享结果列表。`_terminal_unavailable` 从当前结果缓冲区读取证据 ID，仍在原位附加游标、Claim Engine 状态、执行 Stop Gate，再发布；检查点、模型计费、恢复格式、读取策略均不变。
-- 新负控固定恢复后 `research_context`、实时查询尝试列表、操作租约与失败原因；本批属于 `priority=P3`、`loop=static`、`owner=orchestration-contract`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`。在 #512—#515 未完成精确 CI 前，不将此候选提前合入主线，完成本地回归后仅作为审阅候选推送。
+- 新负控固定恢复后 `research_context`、实时查询尝试列表、操作租约与失败原因；本批属于 `priority=P3`、`loop=static`、`owner=orchestration-contract`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`。精确 HEAD `b1f2729b` 的 CI `44497014870` 成功，已合并 `main@82399918`。
 
 ### 2026-11-19 模型尝试实时状态绑定（重新验收候选）
 

@@ -18,7 +18,7 @@ from math import ceil, isfinite
 import re
 import sys
 import time
-from typing import Any, Iterable, cast
+from typing import Any, cast
 from urllib.parse import urlsplit
 
 from src.domain.runtime_entities import WebLookupRun, new_id
@@ -273,6 +273,7 @@ from src.application.research_runtime_read_site import (
     specialist_chain_run as specialist_chain_run,
 )
 from src.application.research_runtime_budget_clock import ResearchBudgetClock
+from src.application.research_selection_observability import record_selection_authority
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_search_execution import (
     ActiveSearchQueryExecution,
@@ -3446,14 +3447,6 @@ def _tier2_proposal_step(
 
 
 
-def _fingerprint(values: Iterable[Any]) -> str:
-    """Stable, order-independent fingerprint of a candidate/URL set."""
-
-    items = sorted(str(item) for item in values)
-    digest = hashlib.sha1("|".join(items).encode("utf-8")).hexdigest()
-    return digest[:16]
-
-
 def _b1_critical_path_ms(
     record: Mapping[str, Any], *, deadline_seconds: float
 ) -> dict[str, Any]:
@@ -4397,57 +4390,17 @@ def _select_assessment_window(
     )
     metrics = metric_context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
     if isinstance(metrics, dict):
-        records = metrics.get("selection_authority")
-        if not isinstance(records, list):
-            records = []
-        previous = next(
-            (
-                item
-                for item in reversed(records)
-                if isinstance(item, Mapping)
-                and str(item.get("claim_id") or "") == claim.id
-            ),
-            None,
+        record_selection_authority(
+            metrics,
+            claim_id=claim.id,
+            candidates=ordered,
+            excluded_candidate_ids=excluded_candidate_ids,
+            window_limit=limit,
+            wave_index=wave_index,
+            orchestration_model_call=1 if (limit > 0 and ordered) else 0,
+            diagnostics=diagnostics,
+            now_ms=now_ms,
         )
-        input_ids = sorted(item.id for item in ordered)
-        input_urls = sorted(item.canonical_url for item in ordered)
-        excluded_ids = sorted(str(item) for item in excluded_candidate_ids)
-        fingerprint = _fingerprint([*input_ids, *input_urls])
-        previous_ids = (
-            set(previous.get("input_ids") or []) if isinstance(previous, Mapping) else set()
-        )
-        previous_fingerprint = (
-            str(previous.get("input_fingerprint") or "")
-            if isinstance(previous, Mapping)
-            else ""
-        )
-        previous_excluded = (
-            str(previous.get("excluded_fingerprint") or "")
-            if isinstance(previous, Mapping)
-            else ""
-        )
-        records.append(
-            {
-                "wave_index": wave_index,
-                "claim_id": claim.id,
-                "window_limit": limit,
-                "orchestration_model_call": 1 if (limit > 0 and ordered) else 0,
-                # §70/B5-S1 anatomy: what actually changed between calls
-                "input_fingerprint": fingerprint,
-                "previous_input_fingerprint": previous_fingerprint,
-                "input_changed": fingerprint != previous_fingerprint,
-                "input_ids": input_ids,
-                "new_candidate_count": len(set(input_ids) - previous_ids),
-                "removed_candidate_count": len(previous_ids - set(input_ids)),
-                "excluded_fingerprint": _fingerprint(excluded_ids),
-                "assessment_state_changed": _fingerprint(excluded_ids)
-                != previous_excluded,
-                "t_started_ms": round(float(now_ms()), 1) if now_ms else None,
-                "t_ended_ms": round(float(now_ms()), 1) if now_ms else None,
-                **diagnostics.to_dict(),
-            }
-        )
-        metrics["selection_authority"] = records[-40:]
     return final_items
 
 
