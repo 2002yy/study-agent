@@ -19,6 +19,31 @@
   `test_github_pr_review_context*` / `test_github_provider_pagination.py`，
   真实 API 审查、固定 SHA、预算边界与缓存行为不变；不发起外部 GitHub 请求。
 
+### 2026-11-19 P1 聊天空白终态防护（独立候选）
+
+- **真实历史样本与当前缺口分开归因**：`docs/research_quality/ANSWER_AB.md` 的
+  N16（2026-10-30）记录了研究结果 `completed` 但 `source_block_chars=0`、用户
+  无最终答案；现行 `WebLookupRepository.complete` 已将“尝试读取且全部失败、无正文”
+  改为 `partial`，`tests/test_web_lookup_run.py` 已有负控，不重复更改该修复。
+  这条历史样本**不是**本片聊天模型空白输出的直接复现。
+- **本片独立静态复现**：普通聊天模型返回 `""` / 纯空白，以及 SSE 无 token /
+  只有空白 token，修复前四项负控均失败：后端持久化 `completed`，SSE 发送
+  `done` 且无可见回答。`ChatService._complete_turn` 现在在真正完成写入前
+  拒绝空白发布内容，写入 `failed` 与 generation `error`，释放操作所有权，
+  让现有重试逻辑可在新 operation 下成功；SSE 发 `error` 而非 `done`。
+- **边界**：不改已有非空答复、资料绑定、研究证据发布、预算、数据库结构、
+  取消优先级或续写契约。原始负控 **4 failed**，修复后 **4 passed**；
+  完整聊天/发布/中断/恢复影响集 **238 passed**，历史研究终态对照
+  **3 passed**，全库 Ruff 与差异检查通过；mypy 已有债务基线
+  **115/125（无新增）**。
+  priority **P1**（无有效终态），loop **static**，owner **orchestration-contract**；
+  dynamic_evidence **not_run**，budget_authorization **not_applicable**，
+  decision **engineering-only**，不能据此宣称真实模型端到端答案质量改善。
+- 独立分支 `codex/p1-empty-chat-final-20261119` 基于
+  `main@3d048553f6c16305677a55aa95fb49d49d0c3541`；精确 PR-head
+  CI 与审阅是合并前的剩余门。后续最小产品验证仍应在用户授权的真实
+  运行环境检查一次最终消息确实可见，并对历史真实失败任务做零费回放。
+
 ### 2026-11-19 实验室入口重复源码断言收敛（独立测试减负片）
 
 - 前端实验室入口拥有三层验证：`extensionLabBoundary.test.ts`、
@@ -32,6 +57,19 @@
   `extensionViewBoundary.test.ts` 中已经由运行期边界测试保护的 1 项重复
   能力加载断言。没有更改在用实验室、路由/权限、运行配置或 E2E 注册；
   这是 P3 离线测试减负，不是体验改善结论，精确 PR CI 另行验收。
+
+### 2026-11-19 未挂载的旧回答检查器退役（独立 UI 减负片）
+
+- `frontend/src/features/route/RoutePanel.tsx` 的唯一组件调用方为自己的
+  `RoutePanel.test.tsx`；当前 App、路由及其它组件没有挂载该旧“回答检查器”。
+  2026-07 的界面设计文档已要求将展示职责收敛到 EvidenceTrail，不再独立
+  挂载旧面板；本片只删除从未呈现的遗留 UI，不重新设计现行诊断展示。
+- 将该组件与 6 项专属组件测试、仅用于它的 `.route-grid` 样式、
+  `AppBoundary` 中已无意义的禁用导入名称、CI 前端目录清单的 `route` 项
+  一并退役；保留 `ToolPanel` 使用的 `.metric-row`、EvidenceTrail、
+  正式后端 route 元数据与其现行安全/诊断测试。
+- 无专属 API、适配层或运行时配置；只跑静态离线门禁，精确 PR HEAD 的 CI
+  和审阅仍须单独通过，不能以本地删除结果宣称真实回答质量提升。
 
 ### 2026-11-19 读取计划的累计来源簇覆盖职责提取（独立 P3 静态片）
 

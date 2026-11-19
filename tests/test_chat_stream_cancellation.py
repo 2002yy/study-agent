@@ -66,6 +66,27 @@ def test_generation_outcome_reaches_sse_and_saved_turn(runtime_test_context, rea
     assert saved.assistant_message == "partial answer"
 
 
+@pytest.mark.parametrize("empty_chunk", [None, " \n"])
+def test_empty_stream_final_emits_error_and_saves_failed_turn(runtime_test_context, empty_chunk):
+    async def tokens(*args, **kwargs):
+        if empty_chunk is not None:
+            yield empty_chunk
+
+    service = _service(runtime_test_context, tokens)
+    body = asyncio.run(_consume_stream(
+        service, runtime_test_context.web_lookup_service, ConnectedRequest(),
+        "empty-generation-session",
+    ))
+
+    assert "event: done" not in body
+    assert "event: error" in body
+    assert "没有可发布的回答正文" in body
+    turn = service.repository.list_chat_turns("empty-generation-session")[0]
+    thread = service.repository.get_chat_thread("empty-generation-session")
+    assert turn.status == "failed"
+    assert thread is not None and thread.active_operation_id is None
+
+
 def test_timeout_preserves_partial_and_reports_typed_outcome(runtime_test_context):
     async def tokens(*args, **kwargs):
         yield "partial answer"
