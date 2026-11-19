@@ -171,7 +171,6 @@ from src.web.research.timing_ledger import (
     RuntimePhaseTiming,
     TimedGateway,
     TimingLedger,
-    _checkpoint_now_ms as _checkpoint_now_ms,
     _record_checkpoint_timing,
 )
 from src.web.research.health_breaker import (
@@ -218,9 +217,7 @@ from src.web.research.source_cluster import (
 )
 from src.web.research.state import attach_claim_engine_state
 from src.web.research.steering import (
-    _apply_pending_active_steering as _apply_pending_active_steering,  # legacy test import
     _pending_active_steering_ids as _pending_active_steering_ids,
-    _steering_graph_ids as _steering_graph_ids,
     _steering_ids_for_claim as _steering_ids_for_claim,
     _unapplied_steering_blocks_completion as _unapplied_steering_blocks_completion,
 )

@@ -18,6 +18,12 @@
 - **冻结契约**：读取重试的 `off`/`window_aware` 准入、每次 12 秒和 1,500,000 字节的 inventory 入场参数、transport 异常与空正文映射、最终四元组返回、retry/backoff/timing 指标的逐次舍入、8 条原因截断，及两类独立诊断键均保持原规则。**不改**真实重试次数、读槽/研究预算、模型次数、检查点时点/顺序、恢复游标与证据发布；此模块也不决定任何模型预算。
 - **验证与边界**：新增负控检查上下文替换后计数互不污染、诊断长度和逐次舍入；原重试准入专项 **12 passed**，连同完整主动研究执行器、域定向、读取升级与选择器影响集不重复合计 **163 passed**。全库 Ruff、编译和差异检查通过；mypy 当前 **115** 项既有问题，低于基线 **125**，无新增。基于 `main@7a5f0461` 的独立 `codex/fetch-retry-observation-owner-20261120` 分支；`priority=P3`、`loop=static`、`owner=retrieval/fetch-observation`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`，未运行真实搜索、视觉或付费模型。
 
+### 2026-11-20 研究 steering 旧测试转发入口与重复幂等测试退役（P3 静态减负）
+
+- `active_research_runtime.py` 仅为历史测试重导出的 `_apply_pending_active_steering` 没有生产调用；真正实现属于 `src.web.research.steering`，运行时经 `ActiveResearchSteeringContext.apply_pending()` 使用。删除这个测试专用入口，同时删除同文件中未被运行时/测试调用的 `_steering_graph_ids`、`_checkpoint_now_ms` 导入；不动上游实现或真实 steering 流程。
+- 删除 `test_active_research_runtime.py` 中直接调用旧导出、模拟重复执行的 43 行专项；其幂等行为仍由真实执行器的下波应用测试及 checkpoint 前/后崩溃恢复双场景验证。为保留“同一波两条不同用户指令”的独有覆盖，将实际执行器测试强化为一次接收两条指令，并断言每条恰好一份 user claim、critical gap 与对应 ID。
+- 无专属环境开关、CI 单独入口、兼容适配文件或配置引用；研究预算、持久化、checkpoint、用户指令和模型/搜索调用不改。`priority=P3`、`loop=static`、`owner=orchestration/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本地无 pytest/ruff；候选精确 HEAD CI 及审阅未验收。不以工程减负宣称产品质量提升。
+
 ### 2026-11-20 发现与深页定向诊断写入集中到实时上下文（独立 P3 静态片）
 
 - **范围**：新增 `ActiveDiscoveryDiagnosticsContext`，将执行器中分散的 lead-discovery 计数、deeper targeting 策略/页面意图/最近记录写入归为一个诊断所有者。上下文仅持有本次执行的 `ActiveRuntimeLiveValues`，每次写入都从 `current_context()` 读取最新持久化字典，绝不缓存可能被恢复/检查点替换的指标引用；执行器不再保留 `_lead_metrics`、`_bump_lead_metric`、`_record_deeper_targeting` 的另一套实现。
