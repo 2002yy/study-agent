@@ -241,7 +241,6 @@ _FRONTEND_E2E_UNREGISTERED = frozenset(
         "group-chat",
         "learning",
         "learning-memory",
-        "migration",
         "pedagogy",
         "rag",
         "roles",

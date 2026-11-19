@@ -13,6 +13,21 @@
 - **证据**：改动前两项真实执行器累计/共享来源簇回归 **2 passed**；改动后覆盖专项及研究执行/恢复/检查点/预算/读取关联测试 **131 passed**，Ruff、差异检查、mypy **115/125（无新增）**通过。基线 `main@56e2f23e`；单独分支 `codex/research-read-coverage-20261119`，与正在等候精确 CI 的 #517 测试去重 PR **没有代码依赖**。`priority=P3`，`loop=static`，`owner=retrieval/read-planning`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`。无真实付费模型/浏览器/外部搜索或产品动态对比。
 - **下一执行片**：完成本独立片的干净提交、PR 推送及精确 HEAD CI 记录；仅当该 SHA CI 全绿、审阅无阻断且无冲突才合并。#517 仍按其独立精确 CI 完成收口，不能复用其它提交的绿色结果。
 
+### 2026-11-19 旧迁移路线图展示组件退役（独立减负片）
+
+- `frontend/src/features/migration/RoadmapPanel.tsx` 只被自己的两项组件测试引用；
+  应用入口、路由、构建入口、其它功能和 E2E 均未挂载该组件。原静态内容仍在
+  叙述已完成的 Streamlit→React 迁移，并非在用产品功能。
+- 连同 `RoadmapPanel.test.tsx` 和 `styles.css` 中仅服务该面板的
+  `.roadmap-list` 样式一起退役；保留与之共用原选择器的 `.session-list`、
+  `.session-row` 样式。历史设计文档已允许移除旧面板，仍按原文归档。
+- 首次 PR CI `44518827611` 前端与构建通过，但全量后端测试
+  `test_every_frontend_feature_directory_is_registered_or_declared` 发现
+  `tools/ci_scope.py` 仍将已不存在的 `migration` 目录列为“未注册”特例。
+  后续连同这项死配置一并删除，保留前端目录清单的完整性校验，不放宽门禁。
+  本批不改应用布局、真实聊天/研究功能、迁移机制或运行时配置；新候选
+  必须重新取得精确 HEAD CI 成功。历史设计文档继续保留归档。
+
 ### P1 SSE 终态正文与界面一致性（2026-11-19，独立静态片）
 
 - **等级/归属**：P1 预防性修复，UI/传输发布契约；未从真实用户
