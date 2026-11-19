@@ -16,6 +16,8 @@ import {
   MAX_FILE_BYTES,
   attachmentStatusLabel as statusLabel,
   formatBytes,
+  isAttachmentReadable,
+  isImageAttachment,
 } from "./attachmentRules";
 
 function stageLine(entry: SessionAttachmentInfo["stage_history"][number]): string {
@@ -171,8 +173,8 @@ export function SessionAttachments({ sessionId }: { sessionId?: string | null })
               <strong>{attachment.filename}</strong>
               <span>
                 {formatBytes(attachment.size_bytes)} ·{" "}
-                <em className={`attachment-status attachment-status-${attachment.status}`}>
-                  {statusLabel(attachment.status)}
+                <em className={`attachment-status attachment-status-${attachment.status === "ready" && !isAttachmentReadable(attachment) ? "unreadable" : attachment.status}`}>
+                  {statusLabel(attachment)}
                 </em>
                 {attachment.retry_count > 0 ? ` · 已重试 ${attachment.retry_count} 次` : ""}
                 {attachment.promoted_rag_run_id ? " · 已转正" : ""}
@@ -186,7 +188,7 @@ export function SessionAttachments({ sessionId }: { sessionId?: string | null })
                 </ul>
               </details>
               <div className="inline-actions">
-                {reading && attachment.status === "ready" && !/\.(png|jpe?g|gif|webp)$/i.test(attachment.filename) ? (
+                {reading && isAttachmentReadable(attachment) && !isImageAttachment(attachment.filename) ? (
                   <button className="ghost-action compact" type="button"
                     onClick={() => reading.open({scope:"session",threadId:sessionId ?? undefined,attachmentId:attachment.id})}>
                     阅读正文

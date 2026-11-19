@@ -148,7 +148,8 @@ test("two supplements and one queued task stay in one continuous research conver
     const attachment = {
       id: "att1", thread_id: "chat-live", filename: "notes.txt", content_hash: "h",
       mime_type: "text/plain", size_bytes: 8, status: "ready", stage_error: "",
-      stage_history: [], retry_count: 0, promoted_rag_run_id: "", external_calls: [],
+      stage_history: [{ stage: "indexing", status: "completed", retrievable: true }],
+      retry_count: 0, promoted_rag_run_id: "", external_calls: [],
       created_at: "", updated_at: "",
     };
     let attached = false;

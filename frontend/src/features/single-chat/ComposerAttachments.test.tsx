@@ -27,7 +27,7 @@ function attachment(overrides: Partial<SessionAttachmentInfo> = {}): SessionAtta
   return {
     id: "a1", thread_id: "s1", filename: "notes.pdf", content_hash: "h",
     mime_type: "application/pdf", size_bytes: 2048, status: "ready", stage_error: "",
-    stage_history: [], retry_count: 0, promoted_rag_run_id: "", external_calls: [],
+    stage_history: [{stage: "indexing", status: "completed", retrievable: true}], retry_count: 0, promoted_rag_run_id: "", external_calls: [],
     created_at: "", updated_at: "", ...overrides,
   };
 }
@@ -97,6 +97,8 @@ describe("ComposerAttachments", () => {
     selectFiles(document.querySelector('input[type="file"]') as HTMLInputElement, [big]);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("超过 20.0 MB 上限");
+    await waitFor(() => expect(listSessionAttachments).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("alert")).toHaveTextContent("超过 20.0 MB 上限");
     expect(uploadSessionAttachment).not.toHaveBeenCalled();
   });
 
@@ -151,6 +153,90 @@ describe("ComposerAttachments", () => {
     ]);
     await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith(["a3"]));
     expect(await screen.findByRole("button", { name: "选择附件 pending.pdf" })).toBeDisabled();
+  });
+
+  it("does not select a ready but unrecognized image on upload or manual click", async () => {
+    const storedImage = attachment({
+      id: "photo", filename: "photo.png", mime_type: "image/png",
+      stage_history: [
+        {stage: "parsing", status: "completed", detail: "image_stored_without_description"},
+        {stage: "indexing", status: "completed", retrievable: false},
+      ],
+    });
+    uploadSessionAttachment.mockResolvedValue(storedImage);
+    listSessionAttachments.mockResolvedValue({
+      attachments: [storedImage], max_files_per_thread: 5, total_bytes: 2048,
+    });
+    const onSelectionChange = vi.fn();
+    render(<ComposerAttachments sessionId="s1" selectedIds={[]} onSelectionChange={onSelectionChange} />);
+    await screen.findByText("photo.png");
+    const pick = screen.getByRole("button", {name: "选择附件 photo.png"});
+    expect(pick).toBeDisabled();
+    expect(pick).toHaveAttribute("title", expect.stringContaining("开启云端图片理解"));
+    expect(screen.getByText("已保存·未识别")).toBeVisible();
+    fireEvent.click(pick);
+    expect(onSelectionChange).not.toHaveBeenCalled();
+
+    selectFiles(document.querySelector('input[type="file"]') as HTMLInputElement, [
+      new File(["binary"], "photo.png", {type: "image/png"}),
+    ]);
+    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalled());
+    expect(await screen.findByRole("alert")).toHaveTextContent("开启云端图片理解");
+    expect(onSelectionChange).not.toHaveBeenCalled();
+  });
+
+  it("auto-selects only readable files in a mixed upload, preserving existing selection", async () => {
+    const storedImage = attachment({
+      id: "photo", filename: "photo.png", mime_type: "image/png",
+      stage_history: [{stage: "indexing", status: "completed", retrievable: false}],
+    });
+    const uploadedText = attachment({id: "doc", filename: "new.md"});
+    uploadSessionAttachment.mockResolvedValueOnce(storedImage).mockResolvedValueOnce(uploadedText);
+    listSessionAttachments.mockResolvedValue({
+      attachments: [storedImage, uploadedText], max_files_per_thread: 5, total_bytes: 4096,
+    });
+    const onSelectionChange = vi.fn();
+    render(<ComposerAttachments sessionId="s1" selectedIds={["prior"]} onSelectionChange={onSelectionChange} />);
+    await screen.findByText("photo.png");
+    selectFiles(document.querySelector('input[type="file"]') as HTMLInputElement, [
+      new File(["binary"], "photo.png", {type: "image/png"}),
+      new File(["text"], "new.md", {type: "text/markdown"}),
+    ]);
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith(["prior", "doc"]));
+    expect(onSelectionChange).not.toHaveBeenCalledWith(expect.arrayContaining(["photo"]));
+  });
+
+  it("removes a previously selected attachment once refresh proves it unreadable", async () => {
+    const unreadable = attachment({
+      stage_history: [{stage: "indexing", status: "completed", retrievable: false}],
+    });
+    listSessionAttachments.mockResolvedValue({
+      attachments: [unreadable, attachment({id: "a2", filename: "readable.pdf"})], max_files_per_thread: 5, total_bytes: 4096,
+    });
+    const onSelectionChange = vi.fn();
+    render(<ComposerAttachments sessionId="s1" selectedIds={["a1", "a2"]} onSelectionChange={onSelectionChange} />);
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith(["a2"]));
+    expect(screen.getByRole("button", {name: "取消选择附件 notes.pdf"})).toBeDisabled();
+  });
+
+  it("does not re-introduce a stale unreadable selection when another upload finishes", async () => {
+    const stale = attachment({
+      id: "stale", filename: "old.png", mime_type: "image/png",
+      stage_history: [{stage: "indexing", status: "completed", retrievable: false}],
+    });
+    const incoming = attachment({id: "new", filename: "new.md"});
+    listSessionAttachments.mockResolvedValue({
+      attachments: [stale, incoming], max_files_per_thread: 5, total_bytes: 4096,
+    });
+    uploadSessionAttachment.mockResolvedValue(incoming);
+    const onSelectionChange = vi.fn();
+    render(<ComposerAttachments sessionId="s1" selectedIds={["stale"]} onSelectionChange={onSelectionChange} />);
+    await screen.findByText("old.png");
+    selectFiles(document.querySelector('input[type="file"]') as HTMLInputElement, [
+      new File(["text"], "new.md", {type: "text/markdown"}),
+    ]);
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith(["new"]));
+    expect(onSelectionChange).not.toHaveBeenCalledWith(["stale", "new"]);
   });
 
   it("keeps the latest selection when an in-flight upload completes", async () => {
