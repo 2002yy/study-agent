@@ -287,6 +287,6 @@ PS 7 的 `Start-Process` 还会把其模块路径原样传给 PS 5，导致 Get-
 
 `frontend/src/features/answer-ui/AnswerLabs.tsx` 是状态与计算所有者；同名unit测试和 `frontend/e2e/answer-labs.spec.ts` 验证连续操作、数学边界、观点/反例、草稿及320px布局。UI上下文说明增加三种格式，复用已有瞬时envelope，API/后端搜索/数据库契约没有改变。
 
-开发预览：`http://127.0.0.1:5188/answer-labs.html`。`frontend/answer-labs.html` + AnswerLabsPreview.tsx + answerLabsPreview.css提供确定性可操作样例，入口受import.meta.env.DEV限制；默认生产构建不包含此预览入口。会话内组件使用同一实现；预览不发聊天/研究请求，不写用户资料，也不代表真实模型已自动生成这些实验。
+早期开发曾使用 `frontend/answer-labs.html`、`AnswerLabsPreview.tsx` 和 `answerLabsPreview.css` 提供独立演示页；该 DEV-only 入口已于 2026-11-19 退役。现行 `frontend/e2e/answer-labs.spec.ts` 直接加载真实聊天工作区，以固定的 `study-ui` 回答卡验证操作状态、草稿保留及窄屏布局；实际组件仍由 `AnswerCardView` 渲染。该固定用例不代表真实模型已自动生成这些实验。
 
 第三层真实数据连接仍需服务器拥有的数据快照/来源身份/核验状态绑定，局部“假设选择”与正式纳入/撤回应分别显示。不得从模型JSON的自报标签获得真实verified状态。下一步围绕真实研究snapshot设计绑定合同，保持研究执行与正式发布由另一窗口拥有。

@@ -6,18 +6,11 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
-### GitHub PR 历史静态回放评估链退役（2026-11-19，独立减负片）
+### 2026-11-19 旧答案实验室独立预览退役（P3 静态减负）
 
-- `record_github_replay.py` / `evaluate_github_replay.py`、三份专属
-  `github_pr_review_{recording,replay,evaluation}` 模块及其专项测试，
-  只在彼此之间调用；正式 API、`studyctl`、现行 CI/阶段门、前端均不依赖。
-  17 份已录制的 PR 上下文及配套 manifest 仅被这条手工回放测试链读取。
-- 此回放统计的是**固定 JSON 快照**的符号映射/CI 关联精确率，
-  并不重新执行当前审查实现，历史分数不应被当成当前产品的回归门禁。
-  本片连同静态测试数据整体退役，不另立兼容入口；归档报告仍可供历史核对。
-- **保留** `GitHubPRReviewContextService`、GitHub Provider 分页和现行
-  `test_github_pr_review_context*` / `test_github_provider_pagination.py`，
-  真实 API 审查、固定 SHA、预算边界与缓存行为不变；不发起外部 GitHub 请求。
+- 删除仅在 `frontend/answer-labs.html` 自身挂载、且仅于 DEV 环境运行的 `AnswerLabsPreview.tsx` 与专属 `answerLabsPreview.css`；项目正式首页、现行 Playwright 用例、生产 Vite 构建入口均不调用此预览。
+- 当前 `frontend/e2e/answer-labs.spec.ts` 通过固定 `study-ui` 卡片直接在聊天工作区验证交互、用户草稿与窄屏布局。保留真实使用的 `AnswerLabs.tsx`、`AnswerCardView.tsx`、单元测试、这条浏览器测试和 CI scope 的有效映射，不削弱验证强度。更新交互设计说明，不再误报可访问旧预览 URL。
+- 本片无后台 API、持久化/恢复、检索、模型、预算及数据格式变化。现行交互卡/协议定向测试 **3 files / 24 passed**，TypeScript/Vite 生产构建通过，源码引用清理和 `git diff --check` 通过；浏览器 E2E 未本地运行，精确 PR HEAD CI 待验。`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 
 ### 2026-11-19 P1 聊天空白终态防护（独立候选）
 
@@ -70,6 +63,19 @@
   正式后端 route 元数据与其现行安全/诊断测试。
 - 无专属 API、适配层或运行时配置；只跑静态离线门禁，精确 PR HEAD 的 CI
   和审阅仍须单独通过，不能以本地删除结果宣称真实回答质量提升。
+
+### GitHub PR 历史静态回放评估链退役（2026-11-19，独立减负片）
+
+- `record_github_replay.py` / `evaluate_github_replay.py`、三份专属
+  `github_pr_review_{recording,replay,evaluation}` 模块及其专项测试，
+  只在彼此之间调用；正式 API、`studyctl`、现行 CI/阶段门、前端均不依赖。
+  17 份已录制的 PR 上下文及配套 manifest 仅被这条手工回放测试链读取。
+- 此回放统计的是**固定 JSON 快照**的符号映射/CI 关联精确率，
+  并不重新执行当前审查实现，历史分数不应被当成当前产品的回归门禁。
+  本片连同静态测试数据整体退役，不另立兼容入口；归档报告仍可供历史核对。
+- **保留** `GitHubPRReviewContextService`、GitHub Provider 分页和现行
+  `test_github_pr_review_context*` / `test_github_provider_pagination.py`，
+  真实 API 审查、固定 SHA、预算边界与缓存行为不变；不发起外部 GitHub 请求。
 
 ### 2026-11-19 读取计划的累计来源簇覆盖职责提取（独立 P3 静态片）
 
