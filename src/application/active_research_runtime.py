@@ -280,6 +280,10 @@ from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_discovery_diagnostics import (
     ActiveDiscoveryDiagnosticsContext,
 )
+from src.application.research_runtime_fetch_retry_observation import (
+    _accumulate_fetch_metrics as _accumulate_fetch_metrics,
+    _inventory_fetch_with_retry as _inventory_fetch_with_retry,
+)
 from src.application.research_runtime_search_execution import (
     ActiveSearchQueryExecution,
     _lead_hints_for_claim as _lead_hints_for_claim,
@@ -4938,77 +4942,6 @@ def _deadline_skip_payload(url: str, decision: Any) -> dict[str, Any]:
     }
 
 
-def _inventory_fetch_with_retry(
-    url: str,
-    *,
-    context: dict[str, Any],
-    remaining_seconds: Any,
-    fetch: Any = None,
-) -> tuple[str, str, str, str]:
-    """§63 + §50/B2: bounded, window-aware inventory fetch for sitemaps.
-
-    Shares the retry admission policy with page reads but keeps its own
-    diagnostics channel (``inventory_fetch``) and its own payload adapter: the
-    fetch layer raises on transport failures and returns a 4-tuple, while the
-    retry loop speaks in ``{"ok": ...}`` mappings.
-    """
-
-    if fetch is None:
-        from src.news.article_fetcher import _fetch_text_payload
-
-        fetch = _fetch_text_payload
-
-    def _inner(target: str) -> Mapping[str, Any]:
-        try:
-            text, final_url, content_type, reason = fetch(
-                target, timeout=12, max_bytes=1_500_000
-            )
-        except Exception as exc:  # transport exceptions are retryable
-            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-        if not text:
-            return {
-                "ok": False,
-                "reason": str(reason or "empty_response"),
-                "content_type": content_type,
-            }
-        return {
-            "ok": True,
-            "text": text,
-            "final_url": final_url,
-            "content_type": content_type,
-        }
-
-    mode = read_retry_mode()
-    if mode == "off":
-        payload = dict(_inner(url))
-    else:
-        admission = None
-        if mode == "window_aware":
-            admission = make_window_admission(remaining_seconds=remaining_seconds)
-        payload = read_with_bounded_retry(
-            url,
-            read_fn=_inner,
-            admission=admission,
-            diagnostics_key="inventory_fetch",
-        )
-        _accumulate_fetch_metrics(
-            context, "inventory_fetch", payload.get("inventory_fetch")
-        )
-    if payload.get("ok") is True:
-        return (
-            str(payload.get("text") or ""),
-            str(payload.get("final_url") or url),
-            str(payload.get("content_type") or ""),
-            "",
-        )
-    return (
-        "",
-        "",
-        "",
-        str(payload.get("error") or payload.get("reason") or "fetch_failed"),
-    )
-
-
 def _count_orchestration_call(
     context: dict[str, Any], purpose: str, *, calls: int = 1
 ) -> None:
@@ -5034,68 +4967,6 @@ def _count_orchestration_call(
         by_purpose = {}
     by_purpose[purpose] = int(by_purpose.get(purpose) or 0) + int(calls)
     metrics["orchestration_model_calls_by_purpose"] = by_purpose
-
-
-def _accumulate_fetch_metrics(
-    context: dict[str, Any], key: str, diagnostics: Any
-) -> None:
-    """§50/B2: aggregate per-fetch retry diagnostics into run metrics.
-
-    ``read_retry`` and ``inventory_fetch`` are accumulated under their own keys
-    so the two I/O classes stay separable; both use the same retry policy.
-    """
-
-    if not isinstance(diagnostics, Mapping):
-        return
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if not isinstance(metrics, dict):
-        return
-    entry = metrics.get(key)
-    if not isinstance(entry, dict):
-        entry = {
-            "fetches": 0,
-            "attempts": 0,
-            "retries": 0,
-            "skipped_due_to_budget": 0,
-            "retry_reasons": [],
-            "admission_reasons": [],
-        }
-        metrics[key] = entry
-    entry["fetches"] = int(entry.get("fetches") or 0) + 1
-    entry["attempts"] = int(entry.get("attempts") or 0) + int(
-        diagnostics.get("attempts") or 0
-    )
-    entry["retries"] = int(entry.get("retries") or 0) + int(
-        diagnostics.get("retries") or 0
-    )
-    entry["skipped_due_to_budget"] = int(
-        entry.get("skipped_due_to_budget") or 0
-    ) + int(diagnostics.get("skipped_due_to_budget") or 0)
-    # F2-O1: keep the cost side of retries in the aggregate too
-    entry["retry_backoff_ms"] = round(
-        float(entry.get("retry_backoff_ms") or 0.0)
-        + float(diagnostics.get("retry_backoff_ms") or 0.0),
-        1,
-    )
-    entry["retry_fetch_ms"] = round(
-        float(entry.get("retry_fetch_ms") or 0.0)
-        + float(diagnostics.get("retry_fetch_ms") or 0.0),
-        1,
-    )
-    reasons = entry.get("retry_reasons")
-    if not isinstance(reasons, list):
-        reasons = []
-    reasons.extend(
-        str(item)[:160] for item in (diagnostics.get("retry_reasons") or [])[:4]
-    )
-    entry["retry_reasons"] = reasons[-8:]
-    admission_reasons = entry.get("admission_reasons")
-    if not isinstance(admission_reasons, list):
-        admission_reasons = []
-    admission_reasons.extend(
-        str(item)[:80] for item in (diagnostics.get("admission_reasons") or [])[:4]
-    )
-    entry["admission_reasons"] = admission_reasons[-8:]
 
 
 def _source_by_candidate(records: list[dict[str, Any]], candidate_id: str) -> dict[str, Any] | None:

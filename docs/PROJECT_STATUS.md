@@ -6,6 +6,12 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 读取重试与 inventory 诊断聚合提取（独立 P3 静态片）
+
+- **范围**：将主动研究执行器的 `_inventory_fetch_with_retry` 和 `_accumulate_fetch_metrics` 归到 `research_runtime_fetch_retry_observation`，统一负责 sitemap/inventory 的四元组→可重试 payload 适配，以及原生读取/清单读取分别写入 `read_retry`、`inventory_fetch` 的有界诊断聚合。执行器仍通过原函数名称兼容导入，网关路径和域定向路径的调用点不变。没有新建可变状态持有者；每次调用显式接收当前上下文与剩余时间。
+- **冻结契约**：读取重试的 `off`/`window_aware` 准入、每次 12 秒和 1,500,000 字节的 inventory 入场参数、transport 异常与空正文映射、最终四元组返回、retry/backoff/timing 指标的逐次舍入、8 条原因截断，及两类独立诊断键均保持原规则。**不改**真实重试次数、读槽/研究预算、模型次数、检查点时点/顺序、恢复游标与证据发布；此模块也不决定任何模型预算。
+- **验证与边界**：新增负控检查上下文替换后计数互不污染、诊断长度和逐次舍入；原重试准入专项 **12 passed**，连同完整主动研究执行器、域定向、读取升级与选择器影响集不重复合计 **163 passed**。全库 Ruff、编译和差异检查通过；mypy 当前 **115** 项既有问题，低于基线 **125**，无新增。基于 `main@7a5f0461` 的独立 `codex/fetch-retry-observation-owner-20261120` 分支；`priority=P3`、`loop=static`、`owner=retrieval/fetch-observation`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`，未运行真实搜索、视觉或付费模型。
+
 ### 2026-11-20 研究 steering 旧测试转发入口与重复幂等测试退役（P3 静态减负）
 
 - `active_research_runtime.py` 仅为历史测试重导出的 `_apply_pending_active_steering` 没有生产调用；真正实现属于 `src.web.research.steering`，运行时经 `ActiveResearchSteeringContext.apply_pending()` 使用。删除这个测试专用入口，同时删除同文件中未被运行时/测试调用的 `_steering_graph_ids`、`_checkpoint_now_ms` 导入；不动上游实现或真实 steering 流程。
@@ -44,6 +50,12 @@
 - **范围**：`test_read_site_selector.py` 和 `test_read_site_visual_evidence.py` 原先各自通过 `importlib` 动态加载同一大型执行器测试模块，重复创建相同的 SQLite 运行、结构化假模型、短文读取网关和升级后端。新增 `tests/research_read_site_scenarios.py` 中的 `run_read_site_scenario()`，共用一次模块导入及完全相同的离线执行构造；各测试仍独立设置 hint/vision 开关、上下文和 SQLite 文件并保留原断言。
 - **冻结契约**：只重构测试搭建，不改研究运行时、模型、读取路由、视觉预算、持久化、检查点、证据发布或外部调用。原 selector + visual 测试按原名收集 **20 项**；连同完整主动研究执行器影响集 **104 passed**。全库 Ruff、编译和差异检查通过；没有付费模型、真实搜索/视觉或动态比较。本片 `priority=P3`、`loop=static`、`owner=tests/read-site`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 - **基线与收口**：最初基于 `main@34edd8a4` 的独立 `codex/read-site-test-scenario-20261119` 分支；#542 合并后整合到 `main@45efaaff`，仅交接顶部并列新增节出现文本冲突，保留两节内容。与仍在验收的视觉上下文 #544 没有生产代码依赖。新精确 PR HEAD 的 CI 和审阅须独立验收；不能拿旧 CI 或本地静态回归替代。
+
+### 2026-11-19 移动端与输入框历史 CSS 字符串测试退役（P3 静态减负）
+
+- 删除 `mobileLayoutContract.test.ts`（2 项）和 `composerLayoutContract.test.ts`（2 项）。两者只读取 CSS 文本，查 `flex-wrap`、`44px`、`grid-row` 等固定声明；CSS 换一种等价写法也会误报，实际渲染不正确却保留这些字面量时也会漏报。
+- 产品契约改由既有 Playwright 真实布局验证承接：`composer-layout.spec.ts` 覆盖导航的 3 个操作按钮尺寸、发送按钮框内位置和窄屏水平溢出；`chat-role-settings.spec.ts` 验证角色面板位于输入框上方、输入和发送可见；`accessibility-responsive.spec.ts` 验证视口收缩后输入/发送可达、触控尺寸与键盘焦点。额外将“更多”弹出层**左右边界确实处于当前视口内**接到现有浏览器用例，不再断言 CSS 原字符串。
+- 不改运行时 CSS、布局、控制器或业务行为；旧测试无独占 helper、适配层、配置或显式 CI 注册，无需保留空壳。仅工程性减负，`priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；精确 PR HEAD CI 验收前不宣称产品改进。
 
 ### 2026-11-19 公平读取规划共享状态收归上下文（独立 P3 静态片）
 
