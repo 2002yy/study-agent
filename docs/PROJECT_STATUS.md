@@ -6,11 +6,18 @@
 
 ## 0. Current Handoff（2026-11-19，冷启动）
 
+### 2026-11-19 来源记录写入收敛至结果缓冲区（独立 P3 静态片）
+
+- **范围**：将执行器内两个物理读取/耗尽路径的 `_upsert_source(selected_sources, record)` 改为唯一结果缓冲区 `ActiveResearchResultBuffers.upsert_selected_source(record)`；把原候选 ID 去重/原位置替换算法移入 `research_runtime_result_buffers.upsert_source_record`，供现有 Deep 本地材料化保持同样的显式列表写回。执行器不再定义另一份 `_upsert_source`。
+- **状态与恢复契约**：`selected_sources` 仍只由 `ActiveResearchResultBuffers` 持有并被 checkpoint/publisher 共享；列表身份、原位置替换、新候选追加和记录本身的对象身份全部保留。特别冻结“来源先 upsert，视觉证据后附着到同一个 `record`”的顺序；后续附着的 `visual_units` 必须能从该列表读取。没有引入副本、第二持有者、新的持久化键、额外 checkpoint 或模型/读取调用。
+- **验证与边界**：新增结果缓冲区回归，验证同候选替换顺序、列表/记录别名、视觉挂载后可见性；已有 Deep 材料化、证据投影、发布、波次结算与研究执行完整影响集 **120 passed**；Ruff、差异检查和 mypy **115/125、无新增**通过。分支 `codex/research-source-write-owner-20261119`，基线 `main@a1875ee1`；`priority=P3`、`loop=static`、`owner=evidence/source-records`，`dynamic_evidence=not_run`、`budget_authorization=not_applicable`。不修改来源读取内容、证据评分、最终发布规则或昂贵的真实模型/搜索链路。仍须以精确 PR HEAD CI 和审阅独立验收。
+- **后续最小片**：再拆分读取成功后的视觉单元附着与其诊断，保持来源写入完成后才调用视觉读取，并保留视觉失败不影响成功正文的语义。
+
 ### 2026-11-19 读取选择器与视觉读点测试场景去重（独立 P3 静态片）
 
 - **范围**：`test_read_site_selector.py` 和 `test_read_site_visual_evidence.py` 原先各自通过 `importlib` 动态加载同一大型执行器测试模块，重复创建相同的 SQLite 运行、结构化假模型、短文读取网关和升级后端。新增 `tests/research_read_site_scenarios.py` 中的 `run_read_site_scenario()`，共用一次模块导入及完全相同的离线执行构造；各测试仍独立设置 hint/vision 开关、上下文和 SQLite 文件并保留原断言。
 - **冻结契约**：只重构测试搭建，不改研究运行时、模型、读取路由、视觉预算、持久化、检查点、证据发布或外部调用。原 selector + visual 测试按原名收集 **20 项**；连同完整主动研究执行器影响集 **104 passed**。全库 Ruff、编译和差异检查通过；没有付费模型、真实搜索/视觉或动态比较。本片 `priority=P3`、`loop=static`、`owner=tests/read-site`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
-- **基线与收口**：基于 `main@34edd8a4` 的独立 `codex/read-site-test-scenario-20261119` 分支，与仍在验收的来源/视觉上下文 #542/#544 没有生产代码依赖。精确 PR HEAD 的 CI 和审阅须独立验收；不能拿这次本地静态回归替代远端 CI。
+- **基线与收口**：最初基于 `main@34edd8a4` 的独立 `codex/read-site-test-scenario-20261119` 分支；#542 合并后整合到 `main@45efaaff`，仅交接顶部并列新增节出现文本冲突，保留两节内容。与仍在验收的视觉上下文 #544 没有生产代码依赖。新精确 PR HEAD 的 CI 和审阅须独立验收；不能拿旧 CI 或本地静态回归替代。
 
 ### 2026-11-19 公平读取规划共享状态收归上下文（独立 P3 静态片）
 
