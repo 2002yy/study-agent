@@ -59,7 +59,7 @@ def _stop() -> ResearchStopDecision:
 def test_completion_uses_current_context_and_shared_result_lists() -> None:
     publisher, repository = _publisher()
     assert publisher.buffers.known_evidence_ids("run-a") == ()
-    publisher.buffers.selected_sources.append(
+    publisher.buffers.upsert_selected_source(
         {"item": {"url": "https://read.example"}, "extraction": {"status": "eligible"}}
     )
     assert len(publisher.buffers.known_evidence_ids("run-a")) == 1
@@ -82,6 +82,29 @@ def test_completion_uses_current_context_and_shared_result_lists() -> None:
     assert returned["stop_reason"] == "evidence_gate_pass"
     assert returned["answer_confidence"] == "high"
     assert returned["final_status"] == "completed"
+
+
+def test_source_upsert_preserves_publication_list_order_and_record_aliases() -> None:
+    publisher, _ = _publisher()
+    selected = publisher.buffers.selected_sources
+    original = {"candidate_id": "a", "read_status": "failed"}
+    second = {"candidate_id": "b", "read_status": "read"}
+    selected.extend([original, second])
+
+    replacement = {"candidate_id": "a", "read_status": "read"}
+    publisher.buffers.upsert_selected_source(replacement)
+    assert publisher.buffers.selected_sources is selected
+    assert selected == [replacement, second]
+    assert selected[0] is replacement
+
+    # The executor adds visual units after the original upsert, and the
+    # stored source must still observe that same record's later mutation.
+    replacement["visual_units"] = [{"url": "https://read.example/image.png"}]
+    assert selected[0]["visual_units"] is replacement["visual_units"]
+
+    third = {"candidate_id": "c", "read_status": "read"}
+    publisher.buffers.upsert_selected_source(third)
+    assert selected == [replacement, second, third]
 
 
 def test_hard_budget_keeps_exception_path_confidence_override() -> None:
