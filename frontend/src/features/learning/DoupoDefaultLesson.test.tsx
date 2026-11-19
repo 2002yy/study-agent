@@ -44,6 +44,7 @@ describe("Doupo delight-loop analysis", () => {
     expect(container.querySelectorAll(".firefly-card")).toHaveLength(10);
     expect(container.textContent).toContain("《斗破苍穹》的爽点循环怎么转起来");
     expect(container.textContent).toContain("爽点循环总图 · 看一笔账怎么从欠下滚到下一轮");
+    expect(container.textContent).toContain("公开硬证据");
     expect(container.textContent).toContain("人物认知差 · 同一事实不会同时到达所有人");
     expect(container.textContent).toContain("估值滞后曲线 · 真实价值先涨，社会价格后追");
     expect(container.textContent).toContain("双账户并账 · 看过去怎么被一起重算");

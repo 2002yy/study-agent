@@ -37,6 +37,12 @@
 - **主线重挂**：首次本地候选 `f6718638` 后主线又合入前端实验室清理与 GitHub 静态回放退役（`main@1ce267a5`）；仅交接文档顶部有冲突，保留两项独立清理记录。读取运行时代码、新额度上下文与测试均无交叉修改；新精确 PR HEAD 的 CI 与审阅仍须独立验收，不借用前一候选测试作远端 CI 结论。
 - **下一片**：本片独立通过完整门禁、主线整合后，再考虑从执行器拆分来源记录及视觉附件写回；不要同时把 `selected_sources` 的发布所有权移出 `ActiveResearchResultBuffers`。
 
+### 2026-11-19 Firefly/Doupo 历史源码文案测试退役（P3 静态减负）
+
+- 旧 `FireflyCopyStyle.test.ts` 的 5 项测试读取六个 TS/TSX **源码字符串**，禁止某些历史词或要求常量字面量存在。它们无法证明这些内容实际呈现在界面，且与正式 `FireflyDefaultLesson.test.tsx`、`DoupoDefaultLesson.test.tsx`、`LearningStrip.doupo.test.tsx` 的真实组件断言多处重复。
+- 删除这份源码文字扫描专项测试，不再用硬编码文风禁词充当产品质量指标。将仍有价值的用户可见契约收进真实渲染测试：默认流萤卡展示起步/低金/老牌配置/高配四阶段、旧数据库索引教材不出现；斗破循环确实展示“公开硬证据”。现有 10 张内容卡、交互、实际爽点循环、叙事节奏与信息呈现测试全部保留。
+- 没有运行时功能、接口、配置或 CI 单独入口需要删除。只属 `priority=P3`、`loop=static`、`owner=UI/tests` 的工程减负，不声明产品体验实测改善；精确 PR HEAD 的前端 Vitest/TypeScript/Vite CI 待验，付费模型与真实浏览器 `not_run`。
+
 ### 2026-11-19 P1 聊天空白终态防护（独立候选）
 
 - **真实历史样本与当前缺口分开归因**：`docs/research_quality/ANSWER_AB.md` 的
