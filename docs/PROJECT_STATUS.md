@@ -14,6 +14,15 @@
 - **基线/下一步**：`main@9fa4e3f6`（包含已合并 #527/#529 和其他窗口 #526/#528），分支 `codex/research-fair-read-plan-context-20261119`。#528 只改前端迁移面板、样式、CI 分类及主线交接，研究代码无冲突；该主线的内容已经保留。本片 `priority=P3`，`loop=static`，`owner=retrieval/read-planning`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`；未运行付费模型、真实搜索或动态产品比较。完成干净提交与独立 PR 后须以该精确 HEAD CI 和审阅收口，不借用之前主线 CI。
 - **主线重整合**：#533 旧 HEAD `dbc757cd` 的 CI `44533206436` 已全部通过，但随后主线新增 #516/#520 等独立变更，导致交接文档冲突。仅将本片运行时代码、独立测试及此节交接增量重挂到 `main@57f0ad1e`，保留主线其他交接及 P1 空白终态防护。重挂后的精确 PR HEAD 必须重新取得 CI 全绿、无阻断审阅和可合并结果后才能合并；旧 CI 不可复用。
 
+### 2026-11-19 读取链逐步账本转移归入 ActiveReadAttemptContext（独立 P3 静态片）
+
+- **范围**：将执行器中每个实际 reader-chain step 的外部尝试标记、游标 outcome、失败投影与读取观测，收归 `ActiveReadAttemptContext.record_chain_attempts()`。上下文只持有 per-run breaker/观测依赖；每一步都通过显式回调将新游标交还给调用方，不捕获旧 cursor/context。
+- **冻结契约**：逐步保持 `begin external → finish external → append outcome → observe → append failure` 顺序；诊断失败时，调用方游标已包含本次 outcome。Wigolo escalation signal 仍在所有 step 记录后产生，原有时钟采样次数不变。**不改** specialist/default chain 选择、调度、checkpoint 时点、预算结算、来源投影、证据提取或发布。
+- **边界**：`ActiveResearchRuntimeExecutor` 仍负责 ensure-active、每候选 checkpoint、预算、selected_sources、projection 和持久化；本片只归拢真实链步骤的审计/观测转移。
+- **测试**：新增独立纯单元测试覆盖双 backend 的标记/游标/失败/escalation 顺序，以及观测异常时游标先发布的负控；本地读取上下文与执行器影响集 **86 passed**。原精确 HEAD `728ce16e` 的 CI `44535451124` 五个作业全部通过，但主线随后前移，不将旧 CI 复用为重挂后提交的验收证据。
+- **基线**：`main@37dc889b`；独立分支 `codex/read-attempt-cursor-context-20261119`。本片不依赖仍在验收的 #533。
+- **重挂**：相同的运行时代码与测试重挂到 `main@57f0ad1e`；只合并此节交接文字与主线已有的 P1 空白答复、旧面板清理记录，保持和 #533 代码独立。重挂后须取得自己的精确 HEAD CI 与审阅验收，才能按顺序合并。
+
 
 ### 2026-11-19 伪量化 Golden Journey 预算测试退役（P3 测试减负）
 

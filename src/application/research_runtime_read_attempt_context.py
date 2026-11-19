@@ -7,10 +7,14 @@ at the call site because checkpoints and steering can replace that mapping.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
+from src.application.active_research_evidence_projection import _bounded_text
+from src.application.research_runtime_failure_projection import (
+    with_appended_runtime_failure,
+)
 from src.application.research_runtime_read_observability import (
     _record_backend_health,
     _record_escalation_diagnostics,
@@ -18,18 +22,25 @@ from src.application.research_runtime_read_observability import (
 )
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.chain_executor import ChainStepResult
-from src.web.research.health_breaker import PerRunBreaker, host_of
-from src.web.research.runtime import ResearchRuntimeCursor, RuntimeReadOutcome
+from src.web.research.health_breaker import NATIVE_HTTP_BACKEND, PerRunBreaker, host_of
+from src.web.research.runtime import (
+    ResearchRuntimeCursor,
+    RuntimeExternalAttemptStart,
+    RuntimeReadOutcome,
+    begin_external_attempt,
+    finish_external_attempt,
+)
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
+from src.web.research.wigolo_http_executor import WIGOLO_HTTP_BACKEND
 
 
 @dataclass(slots=True)
 class ActiveReadAttemptContext:
     """Group real reader-attempt transitions and their derived observations.
 
-    Deliberately split ``append_outcome`` from ``observe_step``: the executor
-    must assign its new cursor *before* recording diagnostics. If observation
-    fails, the in-memory cursor must still contain the attempted read.
+    Cursor publication is explicit: every durable transition is sent back to
+    the caller before any diagnostic observation. If observation fails, the
+    caller's in-memory cursor still contains the attempted read.
     """
 
     breaker: PerRunBreaker | None
@@ -98,6 +109,100 @@ class ActiveReadAttemptContext:
             },
             backend=str(step.backend),
         )
+
+    def record_chain_attempts(
+        self,
+        cursor: ResearchRuntimeCursor,
+        context: dict[str, Any],
+        *,
+        candidate: CandidatePoolItem,
+        chain_steps: Sequence[ChainStepResult],
+        run_id: str,
+        attempt_number: int,
+        utc_now: Callable[[], str],
+        on_cursor_change: Callable[[ResearchRuntimeCursor], None],
+        research_seconds_left: Callable[[], float],
+        hard_timeout_seconds: float,
+        elapsed: Callable[[], float],
+    ) -> ResearchRuntimeCursor:
+        """Record each real backend attempt before observing its side effects.
+
+        The callback is intentionally required. Publishing the cursor after
+        begin/finish/outcome/failure transitions preserves crash and diagnostic
+        failure semantics while keeping cursor ownership with the runtime.
+        """
+        if not chain_steps:
+            raise ValueError("cannot record an empty reader chain")
+
+        native_step = next(
+            (item for item in chain_steps if item.backend == NATIVE_HTTP_BACKEND),
+            None,
+        )
+        wigolo_step = next(
+            (item for item in chain_steps if item.backend == WIGOLO_HTTP_BACKEND),
+            None,
+        )
+        for step in chain_steps:
+            marker = RuntimeExternalAttemptStart(
+                call_id=(
+                    f"research_read:{run_id}:{candidate.id}"
+                    f":attempt:{attempt_number}:{step.backend}"
+                ),
+                purpose="read",
+                item_id=candidate.id,
+                attempt=attempt_number,
+                started_at=utc_now(),
+            )
+            cursor = begin_external_attempt(cursor, marker)
+            on_cursor_change(cursor)
+            cursor = finish_external_attempt(cursor, call_id=marker.call_id)
+            on_cursor_change(cursor)
+            cursor = self.append_outcome(cursor, candidate, step)
+            on_cursor_change(cursor)
+            self.observe_step(
+                context,
+                candidate=candidate,
+                step=step,
+                wave_index=cursor.wave_index,
+            )
+            if not step.usable_content:
+                step_cost = step.cost if isinstance(step.cost, Mapping) else {}
+                step_error = str(
+                    step_cost.get("error") or step_cost.get("error_type") or ""
+                )
+                cursor = with_appended_runtime_failure(
+                    cursor,
+                    context,
+                    "read_failed",
+                    "reading",
+                    logical_call_id=marker.call_id,
+                    item_id=candidate.id,
+                    detail=_bounded_text(
+                        step_error or step.adequacy_reason or "read_failed",
+                        2000,
+                    ),
+                    provider_code=_bounded_text(
+                        str(step.policy.get("skip_reason") or "")
+                        if isinstance(step.policy, Mapping)
+                        else "",
+                        200,
+                    ),
+                    exception_type=step_error,
+                    attempt_id=marker.call_id,
+                )
+                on_cursor_change(cursor)
+
+        self.record_escalation_signal(
+            context,
+            candidate=candidate,
+            native_step=native_step,
+            wigolo_step=wigolo_step,
+            wave_index=cursor.wave_index,
+            research_seconds_left=research_seconds_left,
+            hard_timeout_seconds=hard_timeout_seconds,
+            elapsed=elapsed,
+        )
+        return cursor
 
     def record_escalation_signal(
         self,

@@ -1909,85 +1909,18 @@ class ActiveResearchRuntimeExecutor:
                             candidate.canonical_url, dispatched=False
                         )
                         continue
-                    native_step = next(
-                        (
-                            item
-                            for item in chain_steps
-                            if item.backend == NATIVE_HTTP_BACKEND
-                        ),
-                        None,
-                    )
-                    wigolo_step = next(
-                        (
-                            item
-                            for item in chain_steps
-                            if item.backend == WIGOLO_HTTP_BACKEND
-                        ),
-                        None,
-                    )
                     selection_trace.note_read(candidate.canonical_url, dispatched=True)
                     dispatched_read_ids.add(candidate_id)
                     ensure_active()
-                    for step in chain_steps:
-                        # §104: one marker per real backend attempt (audit grain),
-                        # all sharing this candidate's single outer read-slot.
-                        marker = RuntimeExternalAttemptStart(
-                            call_id=(
-                                f"research_read:{run_id}:{candidate_id}"
-                                f":attempt:{attempt}:{step.backend}"
-                            ),
-                            purpose="read",
-                            item_id=candidate_id,
-                            attempt=attempt,
-                            started_at=self.utc_now(),
-                        )
-                        live.cursor = begin_external_attempt(live.cursor, marker)
-                        live.cursor = finish_external_attempt(live.cursor, call_id=marker.call_id)
-                        # Keep the durable cursor transition before any
-                        # diagnostic side effect, including on failure.
-                        live.cursor = read_attempt_context.append_outcome(
-                            live.cursor, candidate, step
-                        )
-                        read_attempt_context.observe_step(
-                            live.context,
-                            candidate=candidate,
-                            step=step,
-                            wave_index=live.cursor.wave_index,
-                        )
-                        if not step.usable_content:
-                            step_cost = (
-                                step.cost if isinstance(step.cost, Mapping) else {}
-                            )
-                            step_error = str(
-                                step_cost.get("error")
-                                or step_cost.get("error_type")
-                                or ""
-                            )
-                            live.cursor = with_appended_runtime_failure(
-                                live.cursor, live.context,
-                                "read_failed",
-                                "reading",
-                                logical_call_id=marker.call_id,
-                                item_id=candidate_id,
-                                detail=_bounded_text(
-                                    step_error or step.adequacy_reason or "read_failed",
-                                    2000,
-                                ),
-                                provider_code=_bounded_text(
-                                    str(step.policy.get("skip_reason") or "")
-                                    if isinstance(step.policy, Mapping)
-                                    else "",
-                                    200,
-                                ),
-                                exception_type=step_error,
-                                attempt_id=marker.call_id,
-                            )
-                    read_attempt_context.record_escalation_signal(
+                    read_attempt_context.record_chain_attempts(
+                        live.cursor,
                         live.context,
                         candidate=candidate,
-                        native_step=native_step,
-                        wigolo_step=wigolo_step,
-                        wave_index=live.cursor.wave_index,
+                        chain_steps=chain_steps,
+                        run_id=run_id,
+                        attempt_number=attempt,
+                        utc_now=self.utc_now,
+                        on_cursor_change=lambda cursor: setattr(live, "cursor", cursor),
                         research_seconds_left=research_seconds_left,
                         hard_timeout_seconds=live.state.budget.hard_timeout_seconds,
                         elapsed=elapsed,
