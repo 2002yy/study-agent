@@ -20,6 +20,12 @@
 - **证据**：新增三项纯单元负控并覆盖原真实执行器视觉影响集；来源投影、发布、读取额度与主动研究执行器合计 **105 passed**，全库 Ruff、编译、差异检查及 mypy **115/125、无新增**。均为静态离线验证，不将它们描述为真实模型或图像质量证据。
 - **依赖/交接**：本片以 `#542` 的来源 upsert 所有权为前置，在 `codex/read-source-visual-context-20261119` 单独分支开发；允许先以 #542 分支为临时 base 建立**仅含视觉附着差异**的堆叠 PR，待 #542 精确 CI 全绿并安全合入主线后，才将本片重挂到最新 `main` 并以更新后的精确 HEAD 单独验收。`priority=P3`、`loop=static`、`owner=evidence/visual-read`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；没有真实模型、付费视觉或外网读取。
 
+### 2026-11-20 无调用方手工熔断兼容入口退役（P3 静态减负）
+
+- 旧 `PerRunBreaker.mark_open()` 是向后兼容的人工“后端全域熔断”入口，其唯一仓内调用方为 `test_health_breaker.py` 中 3 项专属兼容测试；从无实际 reader/执行器/配置/CI 调用。Wigolo provider 的 `mark_circuit_open()` 也没有任何仓内调用者，内部 `_circuit_open` 初始为假且仅由该孤儿方法改写，故其 `fetch()` 分支不可达。
+- 成组删除两个手动熔断方法、Wigolo 不可达分支、breaker 的通配 host 回退/常量/旧转移标记，以及 3 项仅证明旧入口自身可用的测试；不添加替代兼容层。现行 `PerRunBreaker` 的每 `(backend, host)` 真实失败计数、关闭/打开/半开/冷却转换与 deadline 拒绝仍保留，后端预检与读取失败形态不变。
+- 为冻结运行诊断字段形状，仍保留 `retrieval_policy` / breaker snapshot 中原有 `legacy: false` 键（现行路径一直为 false）；不变更持久化 schema、预算、checkpoint、真实调用量或可见结果。没有与旧手工入口绑定的环境开关、配置或阶段门条目需要删除。`priority=P3`、`loop=static`、`owner=retrieval/health-breaker`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；候选须以其精确 HEAD CI 与审阅验收。
+
 ### 2026-11-19 来源记录写入收敛至结果缓冲区（独立 P3 静态片）
 
 - **范围**：将执行器内两个物理读取/耗尽路径的 `_upsert_source(selected_sources, record)` 改为唯一结果缓冲区 `ActiveResearchResultBuffers.upsert_selected_source(record)`；把原候选 ID 去重/原位置替换算法移入 `research_runtime_result_buffers.upsert_source_record`，供现有 Deep 本地材料化保持同样的显式列表写回。执行器不再定义另一份 `_upsert_source`。

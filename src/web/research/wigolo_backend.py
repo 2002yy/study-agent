@@ -121,7 +121,6 @@ class WigoloShadowReadBackend:
             self.force_refresh = bool(force_refresh)
         else:
             self.force_refresh = self.tier == TIER_BROWSER
-        self._circuit_open = False
         self._preflight_status = ""
 
     # ------------------------------------------------------------------ setup
@@ -156,21 +155,8 @@ class WigoloShadowReadBackend:
         self._preflight_status = PREFLIGHT_READY if healthy else PREFLIGHT_UNAVAILABLE
         return self._preflight_status
 
-    def mark_circuit_open(self) -> None:
-        """Called by the caller after an unrecoverable failure (defensive)."""
-
-        self._circuit_open = True
-
     # ------------------------------------------------------------------ fetch
     def fetch(self, request: ReadRequest) -> RawReadArtifact:
-        if self._circuit_open:
-            return self._failure(
-                request.url,
-                time.monotonic(),
-                state="unsupported",
-                detail="circuit_open",
-                tier=self.tier,
-            )
         if self.preflight() != PREFLIGHT_READY:
             return self._failure(
                 request.url,
