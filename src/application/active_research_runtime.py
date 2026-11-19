@@ -44,13 +44,9 @@ from src.web.research.candidate_ranking import (
 )
 from src.web.research.claim_planner import RuntimeClaimPlanner
 from src.web.research.deeper_targeting import (
-    AUTHORITY_OFFICIAL,
-    AUTHORITY_TUTORIAL,
     GapHint,
-    authority_class,
     gap_from_extraction,
     rank_targeting_candidates,
-    target_path_hit,
     targeted_query_terms,
 )
 from src.web.research.deep_runtime import (
@@ -69,10 +65,8 @@ from src.web.research.deep_runtime import (
     seed_sources_by_url,
 )
 from src.web.research.page_intent import (
-    PageIntent,
     infer_page_intent,
     query_variants,
-    selection_reason,
 )
 from src.web.research.contracts import (
     EvidenceGap,
@@ -286,6 +280,9 @@ from src.application.research_selection_observability import (
     record_selection_authority,
 )
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
+from src.application.research_runtime_discovery_diagnostics import (
+    ActiveDiscoveryDiagnosticsContext,
+)
 from src.application.research_runtime_search_execution import (
     ActiveSearchQueryExecution,
     _lead_hints_for_claim as _lead_hints_for_claim,
@@ -777,6 +774,7 @@ class ActiveResearchRuntimeExecutor:
             stale_after_seconds=stale_after_seconds,
         )
         live = ActiveRuntimeLiveValues(state=initial_state, context=dict(run.research_context))
+        discovery_diagnostics = ActiveDiscoveryDiagnosticsContext(live)
         live.context["run_attempt"] = int(live.context.get("run_attempt") or 0) + 1
         # Deep-2: durable seed bytes by canonical URL. Empty for every non-Deep run, so the
         # ordinary path is untouched. The seed is data, never semantic authority.
@@ -2024,8 +2022,7 @@ class ActiveResearchRuntimeExecutor:
                     else frozenset(),
                 )
                 if not lead_plan:
-                    _bump_lead_metric(
-                        live.context,
+                    discovery_diagnostics.bump_lead(
                         "insufficient_budget"
                         if not lead_budget_available
                         else "no_lead_candidate",
@@ -2067,7 +2064,7 @@ class ActiveResearchRuntimeExecutor:
                         started_at=self.utc_now(),
                     )
                     live.cursor = begin_external_attempt(live.cursor, lead_marker)
-                    _bump_lead_metric(live.context, "lead_read_started")
+                    discovery_diagnostics.bump_lead("lead_read_started")
                     checkpoint()
                     lead_read_exception = ""
                     try:
@@ -2113,7 +2110,7 @@ class ActiveResearchRuntimeExecutor:
                             exception_type=lead_read_exception,
                             attempt_id=lead_marker.call_id,
                         )
-                        _bump_lead_metric(live.context, "lead_read_failed")
+                        discovery_diagnostics.bump_lead("lead_read_failed")
                         checkpoint()
                         continue
                     read_quota.charge_read(lead_content)
@@ -2141,7 +2138,7 @@ class ActiveResearchRuntimeExecutor:
                             item_id=lead_candidate_id,
                             detail="blocked_by_policy",
                         )
-                        _bump_lead_metric(live.context, "policy_blocked")
+                        discovery_diagnostics.bump_lead("policy_blocked")
                         checkpoint()
                         continue
                     phase_timing.begin("discovery")
@@ -2161,7 +2158,7 @@ class ActiveResearchRuntimeExecutor:
                         discovery.status == "completed"
                         and discovery.discovery is not None
                     ):
-                        _bump_lead_metric(live.context, "lead_discovery_succeeded")
+                        discovery_diagnostics.bump_lead("lead_discovery_succeeded")
                         live.cursor = replace(
                             live.cursor,
                             lead_discoveries=(
@@ -2197,16 +2194,15 @@ class ActiveResearchRuntimeExecutor:
                         )
                         for stats_key, stats_value in discovery_stats.items():
                             if stats_key != "added" and stats_value:
-                                _bump_lead_metric(
-                                    live.context, stats_key, int(stats_value)
+                                discovery_diagnostics.bump_lead(
+                                    stats_key, int(stats_value)
                                 )
                         if discovered:
                             live.cursor = replace(
                                 live.cursor,
                                 candidates=(*live.cursor.candidates, *discovered),
                             )
-                            _bump_lead_metric(
-                                live.context,
+                            discovery_diagnostics.bump_lead(
                                 "discovered_candidate_added",
                                 len(discovered),
                             )
@@ -2218,7 +2214,7 @@ class ActiveResearchRuntimeExecutor:
                                 if item.discovery_method == "lead_url"
                             ]
                     else:
-                        _bump_lead_metric(live.context, "lead_discovery_failed")
+                        discovery_diagnostics.bump_lead("lead_discovery_failed")
                         live.cursor = with_appended_runtime_failure(
                             live.cursor, live.context,
                             "extraction_failed",
@@ -2418,27 +2414,26 @@ class ActiveResearchRuntimeExecutor:
                             or len(live.cursor.evidence_lead_followups)
                             >= MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN
                         ):
-                            _bump_lead_metric(
-                                live.context, "evidence_lead_followup_cap_reached"
+                            discovery_diagnostics.bump_lead(
+                                "evidence_lead_followup_cap_reached"
                             )
                         elif (
                             remaining_seconds
                             < EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS
                         ):
-                            _bump_lead_metric(
-                                live.context,
+                            discovery_diagnostics.bump_lead(
                                 "evidence_lead_followup_skipped_insufficient_budget",
                             )
                         elif (
                             claim_support_topology(live.state, claim)[0]
                             >= claim.evidence_requirement.min_independent_sources
                         ):
-                            _bump_lead_metric(
-                                live.context, "evidence_lead_followup_no_support_gap"
+                            discovery_diagnostics.bump_lead(
+                                "evidence_lead_followup_no_support_gap"
                             )
                         else:
-                            _bump_lead_metric(
-                                live.context, "evidence_lead_followup_started"
+                            discovery_diagnostics.bump_lead(
+                                "evidence_lead_followup_started"
                             )
                             parent_candidate = next(
                                 (
@@ -2453,14 +2448,13 @@ class ActiveResearchRuntimeExecutor:
                                 for token in query_terms(claim.text)
                             )[:8]
                             if gap is None:
-                                _bump_lead_metric(
-                                    live.context, "deeper_targeting_gap_unavailable"
+                                discovery_diagnostics.bump_lead(
+                                    "deeper_targeting_gap_unavailable"
                                 )
                                 intent = None
                                 variants: tuple[str, ...] = ()
                             else:
-                                _bump_lead_metric(
-                                    live.context,
+                                discovery_diagnostics.bump_lead(
                                     f"deeper_targeting_{gap.targeting_strategy}",
                                 )
                                 # §36B slice 1: infer the kind of page that would
@@ -2491,8 +2485,7 @@ class ActiveResearchRuntimeExecutor:
                             )
                             for stats_key, stats_value in followup_stats.items():
                                 if stats_key != "added" and stats_value:
-                                    _bump_lead_metric(
-                                        live.context,
+                                    discovery_diagnostics.bump_lead(
                                         f"evidence_lead_{stats_key}",
                                         int(stats_value),
                                     )
@@ -2501,8 +2494,7 @@ class ActiveResearchRuntimeExecutor:
                                     live.cursor,
                                     candidates=(*live.cursor.candidates, *discovered),
                                 )
-                                _bump_lead_metric(
-                                    live.context,
+                                discovery_diagnostics.bump_lead(
                                     "evidence_lead_candidate_added",
                                     len(discovered),
                                 )
@@ -2553,8 +2545,7 @@ class ActiveResearchRuntimeExecutor:
                                     },
                                 ),
                             )
-                            _record_deeper_targeting(
-                                live.context,
+                            discovery_diagnostics.record_targeting(
                                 gap=gap,
                                 source_url=candidate.url,
                                 selected_url=(discovered[0].url if discovered else ""),
@@ -4610,101 +4601,6 @@ def _lead_read_plan(
                 ]
             seen.add(candidate_id)
     return []
-
-
-def _lead_metrics(context: dict[str, Any]) -> dict[str, int]:
-    """Bounded lead-discovery counters for the run audit (Slice 3B)."""
-
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    state = metrics.get("lead_discovery")
-    if not isinstance(state, dict):
-        state = {}
-        metrics["lead_discovery"] = state
-    return state
-
-
-def _bump_lead_metric(
-    context: dict[str, Any], key: str, amount: int = 1
-) -> None:
-    state = _lead_metrics(context)
-    state[key] = int(state.get(key) or 0) + max(0, int(amount))
-
-
-def _record_deeper_targeting(
-    context: dict[str, Any],
-    *,
-    gap: GapHint | None,
-    source_url: str,
-    selected_url: str,
-    selected_depth: int,
-    intent: PageIntent | None = None,
-    variants: tuple[str, ...] = (),
-) -> None:
-    """§36A/§36B diagnostics (audit only; never qualification semantics).
-
-    Recorded in ``metrics["deeper_targeting"]`` instead of the durable cursor
-    record on purpose: the cursor codec strictly validates the follow-up key set,
-    and discovery provenance must not become part of the frozen runtime contract.
-    """
-
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    state = metrics.get("deeper_targeting")
-    if not isinstance(state, dict):
-        state = {"gap_unavailable": 0, "strategy_counts": {}, "recent": []}
-        metrics["deeper_targeting"] = state
-    if gap is None:
-        state["gap_unavailable"] = int(state.get("gap_unavailable") or 0) + 1
-    else:
-        counts = state.get("strategy_counts")
-        if not isinstance(counts, dict):
-            counts = {}
-            state["strategy_counts"] = counts
-        key = gap.targeting_strategy
-        counts[key] = int(counts.get(key) or 0) + 1
-        if intent is not None:
-            intent_counts = state.get("page_intent_counts")
-            if not isinstance(intent_counts, dict):
-                intent_counts = {}
-                state["page_intent_counts"] = intent_counts
-            intent_counts[intent.kind] = int(intent_counts.get(intent.kind) or 0) + 1
-    recent = state.get("recent")
-    if not isinstance(recent, list):
-        recent = []
-        state["recent"] = recent
-    source_authority = gap.source_authority_class if gap else ""
-    selected_authoritative = bool(
-        gap is not None
-        and selected_url
-        and authority_class(selected_url) != AUTHORITY_TUTORIAL
-        and (
-            gap.source_authority_class == AUTHORITY_OFFICIAL
-            or target_path_hit(selected_url)
-        )
-    )
-    recent.append(
-        {
-            "followup_reason": (
-                "missing_target_fact" if gap is not None else "lead_without_usable_gap"
-            ),
-            "source_candidate_url": str(source_url or "")[:300],
-            "source_authority_class": source_authority,
-            "targeting_strategy": gap.targeting_strategy if gap else "unspecified",
-            "gap_hint": gap.to_dict() if gap else {},
-            # §36B slice 1 diagnostics: what kind of page was inferred, which
-            # bounded variants were derived, and which one fed the hints.
-            "page_intent": intent.to_dict() if intent is not None else {},
-            "query_variants": list(variants[:3]),
-            "selected_query_variant": variants[0] if variants else "",
-            "selection_reason": selection_reason(
-                authoritative=selected_authoritative,
-                title_match=0,
-                intent_match=len(intent.path_terms) if intent is not None else 0,
-            ),
-            "selected_candidate_url": str(selected_url or "")[:300],
-            "selected_candidate_depth": int(selected_depth or 0),
-        }
-    )
-    del recent[:-8]
 
 
 def _domain_of(url: str) -> str:
