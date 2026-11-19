@@ -4,7 +4,14 @@
 >
 > **产品目标**：体验接近 ChatGPT 的通用聊天与研究 Agent，覆盖自然聊天、自主研究、持续交互、智能 UI、多模态和工具执行；教学是专业场景。**部署仍限可信环境的单用户**；多用户身份/数据/费用隔离未实现。
 
-## 0. Current Handoff（2026-11-19，冷启动）
+## 0. Current Handoff（2026-11-20，冷启动）
+
+### 2026-11-20 发现与深页定向诊断写入集中到实时上下文（独立 P3 静态片）
+
+- **范围**：新增 `ActiveDiscoveryDiagnosticsContext`，将执行器中分散的 lead-discovery 计数、deeper targeting 策略/页面意图/最近记录写入归为一个诊断所有者。上下文仅持有本次执行的 `ActiveRuntimeLiveValues`，每次写入都从 `current_context()` 读取最新持久化字典，绝不缓存可能被恢复/检查点替换的指标引用；执行器不再保留 `_lead_metrics`、`_bump_lead_metric`、`_record_deeper_targeting` 的另一套实现。
+- **冻结契约**：`metrics.lead_discovery` 各字段的计数、负增量不扣减，`metrics.deeper_targeting` 策略/意图计数、字段裁剪与最近 8 条保留完全不变；不改变模型/读取调用、额度、选源、定向策略、游标、持久化键、checkpoint 时点/顺序、证据发布与外部诊断。专门负控检查上下文替换、无 gap、策略计数及最近记录边界。
+- **静态验证**：新增三项诊断上下文负控均通过；主动研究执行器、深页定向、读取观测和检查点影响集 **116 passed**，全库 Ruff、编译、差异检查和 mypy **115/125、无新增**。本片只重定位诊断写入，并显式依附可替换的 live context，没有任何付费或在线验证。
+- **基线/边界**：独立 `codex/discovery-diagnostics-context-20261120` 分支基于 `main@45efaaff`，与仍在 CI 的 #544 视觉附着和 #545 读取测试场景去重无生产逻辑依赖。`priority=P3`、`loop=static`、`owner=diagnostics/discovery`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；无真实付费模型、外部搜索或产品动态比较。须在本地影响集、Ruff、mypy 基线通过后提交独立 PR，并以精确 PR HEAD CI 与审阅收口。
 
 ### 2026-11-19 来源记录写入收敛至结果缓冲区（独立 P3 静态片）
 
