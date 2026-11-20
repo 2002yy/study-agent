@@ -6,7 +6,7 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572–#585 已先后合入；#585 精确 HEAD `c8db91628aa3b4bc57dea710e0e05dab7595de62` 的 CI `44792588785` 成功，审阅/讨论线程无阻断，以 SHA 保护 squash 合入 `main@9bb47844b65b4339ce6024c09d7e005fdf894c8e`。#588 RQCE Shadow 与 #590 早期 Quality Gates 是独立待合并片，必须各自重挂新主线并通过精确 HEAD CI。
+> **当前收口**：#572–#585 已先后合入；#588 RQCE 历史 Shadow 退役的精确 HEAD `2fb035003008620a6d8a3b426b1ddc2f3faaac21` 经 CI `44797083430` 完整成功、审阅/讨论线程无阻断，以 SHA 保护 squash 合入 `main@13d4e3cda8fc1f2dba3f3d191bbe3b845aadd9c4`。仅 #590 早期 Quality Gates 退役片仍待合并；其旧 HEAD CI 不适用于重挂后候选，必须重新取得精确 HEAD CI 和审阅结论。
 
 ### 2026-11-21 News 旧式读取包装与闲置重定向执行器整链退役（独立 P3 静态减负片）
 
@@ -25,6 +25,20 @@
 - **#584 合并后重挂复核**：已合并课后旧生成器 #584 的 `main@000f4efb508b792698416e6002c96a8a9b00694e` 仅在本 handoff 出现并列新增冲突，双方记录均保留；旧 Shadow 的实现、测试、公开导出和阶段门删除内容没有源代码冲突。重挂后 Claim-Evidence/Conflict/Coverage、Evidence Gate、研究摘要、Release Benchmark、阶段门以及 #584 正式学习收束组合 **109 passed / 8.56s**；全库 Ruff、编译、diff-check 与 mypy **115/125** 通过。旧 #588 HEAD 的 CI 不得借给重挂后新 SHA。
 
 - **#585 合并后最终组合复核**：#585 News 的精确 HEAD `c8db91628aa3b4bc57dea710e0e05dab7595de62` CI `44792588785` 成功且审阅/线程无阻断，SHA 保护 squash 合入 `main@9bb47844b65b4339ce6024c09d7e005fdf894c8e`。本 Shadow 退役片只与新闻交接文档冲突，保留双方完整记录；在该主线上完成 **完整主动研究执行器**、正式 Evidence Gate、Claim/Conflict/Coverage、Release Benchmark、阶段门与 News 安全/服务相关组合 **207 passed / 91.02s**，全仓 Ruff、编译、diff-check 及 mypy **115/125** 继续通过。重挂后新精确 PR HEAD 的 CI 和审阅为唯一合并门禁，先前 CI 全绿不直接转借。
+
+- **#588 最终合并验收**：重挂 #585 后的精确 HEAD `2fb035003008620a6d8a3b426b1ddc2f3faaac21`，PR CI `44797083430` 的分类、前端、完整后端、真实栈浏览器检查全部成功；审阅及未解决线程均为零，合并可行。以 `expected_head_sha` 保护执行 squash，已合入 `main@13d4e3cda8fc1f2dba3f3d191bbe3b845aadd9c4`。这是正式清理的工程证据，不代表真实模型动态质量实验。
+
+
+### 2026-11-21 旧离线 Quality Gates 评测套件及全部专属场景退役（独立 P3 静态减负片）
+
+- **精确调用关系**：`src/evals/quality_gates.py` 的 `evaluate_answer_grounding_case`、`evaluate_tool_routing_case`、`evaluate_workflow_event_case`、`evaluate_memory_safety_case`、`evaluate_url_safety_case` 和 `evaluate_pedagogy_dialogue_case`，只被两份旧专项测试及 `src/evals/__init__.py` 的兼容重导出引用；没有生产、CLI、发布质量验收或 CI 单独调用方。它使用字符串匹配与自定义工作流状态表再评价已有业务行为，属于早期离线模拟，不能代替真 Evidence Gate、工作流仓储或教学服务测试。
+- **成组删除**：移除该 241 行模拟实现、`tests/test_eval_quality_gates.py`、`tests/test_pedagogy_quality_gates.py`、其独占的六份 JSON 伪场景，及 `src/evals` 六个旧导出；同步移除 `teaching_voice` 阶段门对已删专项测试的注册。不保留第二套 eval 判定适配层，也不更改仍有真实调用方的 `src/evals/research_quality.py`、release benchmark、Quality-0 实际离线任务评分和持久化协议。
+- **保留真实契约**：教学的 `PedagogyEvaluationService`、真实聊天教学路由、`WorkflowStore` 事件记录、记忆写入权限、`is_public_http_url` 与域名策略、正式 RAG 工具检索与答案发布保护均保留各自直接或端到端负控。删除的是模拟器自己的评估逻辑及其测试，而不是这些正式业务规则。
+- **证据/下一片**：删除前旧套件与正式相邻影响集 **108 passed / 15.32s**；删除后正式教学、路由、工作流、记忆、URL/域名、发布与阶段门组合 **129 passed / 14.72s**。全仓 Ruff、Python 编译、diff-check 成功；mypy **115 current / 125 allowed，无新增**。基于已合并 #584 的 `main@000f4efb508b792698416e6002c96a8a9b00694e` 独立分支 `codex/retire-eval-quality-gates-20261121`，删除模块和专属测试/配置 11 文件 721 行（不含本交接）；`priority=P3`、`loop=static`、`owner=learning/retired-quality-harness`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。无付费模型/真实用户动态对比，不宣称学习质量提升。**下一片**：独立精确 HEAD CI/审阅；在 #585/#588 合并后按新主线重挂并复核，旧 CI 不转借。
+
+- **#588 并行候选预组合验证（未推送）**：在已合入 #585 的主线之上，临时把本质量门禁删除与 #588 的 Shadow Runner 删除叠加，`src/evals/__init__.py` 与 `tests/stage_gates.json` 均自动正确合并，唯一手工冲突为并列交接文字。教学/聊天/工作流/记忆/URL 安全/发布、正式 Evidence Gate、Claim/Conflict/Coverage、冻结评测/Release Benchmark 与 Quality-0 共 **235 passed / 24.49s**，Ruff、编译、diff-check、mypy **115/125** 均通过。这仅是本地组合负控，**不是**本 PR 的最终独立远端 HEAD；等 #588 经新 SHA CI 合入 main 后，必须将本片单独重挂和推送，不能将本地叠加的 #588 历史提交直接推到本 PR。
+
+- **#588 合并后独立重挂复核**：#588 按精确 HEAD 门禁合入 `main@13d4e3cda8fc1f2dba3f3d191bbe3b845aadd9c4` 后，仅重放本 #590 的质量门禁清理提交（不携带 #588 历史提交）；重挂自动完成、无冲突，12 个文件，代码与独占测试/场景删除 721 行（不含交接记录），原组合代码树 `6e544458ef14a8935216edd85a03d03ef3608502` 与重挂后复核树逐字节一致。正式教学、聊天、路由、Workflow、MemoryRun、URL/域名、LocalKnowledge、发布、Evidence Gate、Claim/Conflict/Coverage、Release Benchmark、Quality-0 与阶段门 **260 passed / 25.39s**；全库 Ruff、编译、diff-check 通过，mypy **115 current / 125 allowed**。`priority=P3`、`loop=static`、`owner=learning/retired-quality-harness`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。**下一片**：推送本独立 PR 的新精确 HEAD，经 CI 和无阻断审阅后以 SHA 保护合并；不复用旧 HEAD 的绿色结论。
 
 ### 2026-11-21 搜索候选池的取消探针归入唯一执行守卫（独立 P3 静态片）
 
