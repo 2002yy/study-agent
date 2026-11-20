@@ -137,6 +137,44 @@ def test_window_aware_mode_uses_real_bounded_retry_policy(monkeypatch) -> None:
     assert len(retries) == 1 and retries[0]["fetch_ms"] >= 0.0
 
 
+def test_retry_reads_fresh_live_context_and_window_after_rebind(monkeypatch) -> None:
+    """A retry must not inherit a detached cursor or an earlier time budget."""
+
+    monkeypatch.setenv(read_retry.READ_RETRY_ENV, "on")
+    monkeypatch.setattr(read_retry.time, "sleep", lambda _seconds: None)
+    first_context: dict[str, Any] = {}
+    live = {"context": first_context, "remaining": 30.0}
+
+    class _RebindingGateway(_FakeGateway):
+        def read(self, url: str, *, max_chars: int, timeout: float | None = None):
+            response = super().read(url, max_chars=max_chars, timeout=timeout)
+            if len(self.calls) == 1:
+                live["context"] = {}
+                live["remaining"] = 4.0
+            return response
+
+    gateway = _RebindingGateway(
+        [{"ok": False, "error": "timed out"}, {"ok": True, "text": "recovered"}]
+    )
+    reader = build_production_gateway_read(
+        gateway=gateway,
+        accepts_timeout=True,
+        get_context=lambda: live["context"],
+        research_seconds_left=lambda: live["remaining"],
+        hard_seconds_left=lambda: 40.0,
+        wave_index=lambda: 1,
+    )
+
+    assert reader("http://example.test/rebind", max_chars=80)["ok"] is True
+    assert [item["timeout"] for item in gateway.calls] == [
+        runtime.READ_TIMEOUT_CAP_SECONDS,
+        4.0,
+    ]
+    assert first_context[METRICS_KEY]["retrieval_attempt_seq"] == 1
+    assert live["context"][METRICS_KEY]["retrieval_attempt_seq"] == 1
+    assert live["context"][METRICS_KEY]["read_retry"]["attempts"] == 2
+
+
 def test_escalation_payload_routes_through_module_authority(monkeypatch) -> None:
     monkeypatch.delenv(read_retry.READ_RETRY_ENV, raising=False)
     context: dict[str, Any] = {METRICS_KEY: {"retrieval_attempts": []}}
