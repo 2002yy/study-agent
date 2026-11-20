@@ -6,6 +6,14 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 候选评估恢复缓存与排名归档收归显式上下文（独立 P3 静态片）
+
+- **范围**：新增 `ActiveAssessmentResultContext`，把每波原本散落在执行器内的既有评估缓存恢复、逐 claim 的历史排名复用、成功评估合并与两份缓存投影归为单一 wave-local 工作状态。原普通 assessment 与 `_late_admission_tail` 共用 `record_assessment_result()`，集中实现 `旧结果合并 → rank_candidate_pool → selection trace 排名 → claim_rankings → assessments 缓存 → assessed_inputs 缓存 → 持久化上下文字典键`。原 `_assessment_store`、`_assessment_inputs_store` 与 `_ranked_from_dict` 实现和两枚持久化键定义迁入新模块；执行器保留同名键的导入出口，避免外部引用形状变化。
+- **冻结契约**：在每波 `checkpoint(stage="assessing")` 后只恢复一次本波缓存副本，继续从 saved ranking 排除已评估 candidate；在可能的 checkpoint/context 重新绑定后，成功归档写入唯一 `ActiveRuntimeLiveValues.current_context()` 的最新字典；两个原有共享缓存和 `claim_rankings` 的对象引用仍由 late-tail、读取计划、lead 计划共同消费。原模型 policy/attempt/budget 准入、候选窗口筛选、普通/late-tail 模型调用、异常归档、checkpoint 时点/次数、候选排序、审计字段、来源与 Evidence Gate/发布完全不动；排名失败时不提前写入归档缓存。
+- **验证**：新增 6 项直接负控覆盖持久化排名恢复与 alias、跨 checkpoint context 重绑、普通与 late-tail 两入口同一投影、无效旧缓存、排名失败前无部分写入；完整主动研究执行器、late-tail、候选 pipeline/ranking、选择轨迹、checkpoint 和模型尝试影响集 **139 passed / 74.33s**，专项 **6 passed**。全库 Ruff、编译及差异检查通过，mypy **115/125、无新增**。本片 `priority=P3`、`loop=static`、`owner=research/assessment-results`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；无真实搜索、付费模型和质量动态比较。
+- **交接**：起点 `main@58b5894`，独立分支 `codex/research-assessment-results-context-20261120`；#572 波次进度 PR 的精确 HEAD CI `44696107007` 在本轮首次查询仍 `in_progress`，未合并，当前片不挪用其代码。该分支应独立取得精确 PR HEAD CI 与无阻断审阅，之后再与 #572 主线先后关系整合。下批先收口开放的上下文 PR，再考虑读计划与评估结果消费端的隐式参数，不扩大为模型预算/恢复 schema 迁移。
+- **#571 主线重挂**：旧研究记忆栈退役 #571 已入 `main@c58ed4e`；本片重挂无冲突，差异仍只包括评估结果上下文、执行器归档调用、专项测试和本交接。新基线下再次验证完整候选评估与运行时影响集 **139 passed / 77.93s**；全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。该本地新提交和后续远端精确 PR HEAD 仍须独立 CI 验收。
+
 ### 2026-11-20 读取链五组集成测试复用现有执行场景（独立 P3 静态减负片）
 
 - **范围**：将 `test_active_research_runtime.py` 中五组历史 cutover 测试的重复环境变量、SQLite 仓库、待运行任务、模型/读取网关组装，统一复用同文件既有的 `_a2e_run()` 真实执行器场景。保留五个独立用例及全部断言，分别覆盖 HTTP tier 回退后单源、原生读取足够时不回退、tier 禁用、Wigolo 真实调用按次结算、候选/后端审计唯一性。原执行器路径和 run ID 保持不变，不再重复维护同一套场景搭建。
