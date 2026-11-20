@@ -215,6 +215,7 @@ from src.application.research_stop_gate import (
     ResearchStopSignal,
 )
 from src.application.research_runtime_checkpoint import (
+    ActiveRuntimeCheckpointRecorder,
     ActiveRuntimeCheckpointSession,
     updated_runtime_budget,
 )
@@ -901,25 +902,6 @@ class ActiveResearchRuntimeExecutor:
             elapsed_ms=elapsed_ms,
         )
 
-        def checkpoint(*, stage: str | None = None) -> WebLookupRun:
-            diagnostics: dict[str, Any] = {}
-            _checkpoint_started = elapsed_ms()
-            try:
-                return checkpoint_session.checkpoint(
-                    stage=stage,
-                    diagnostics=diagnostics,
-                )
-            finally:
-                timing_ledger.record_checkpoint(elapsed_ms() - _checkpoint_started)
-                _record_checkpoint_timing(
-                    live.context,
-                    diagnostics,
-                    wall_ms=elapsed_ms() - _checkpoint_started,
-                    stage=stage,
-                    caller=_checkpoint_caller(),
-                    phase=timing_ledger.current_phase(),
-                )
-
         # §71B2: the HTTP envelope is per-run; a fresh run starts full.
         reset_http_envelope()
         # §111 A3-1R: each active execution tier gets its own run-scoped
@@ -930,6 +912,14 @@ class ActiveResearchRuntimeExecutor:
 
         # F2-S1: wave-scoped exclusive timing ledger (observation only).
         timing_ledger = TimingLedger(elapsed_ms)
+        checkpoint = ActiveRuntimeCheckpointRecorder(
+            session=checkpoint_session,
+            live=live,
+            elapsed_ms=elapsed_ms,
+            timing_ledger=timing_ledger,
+            caller_name=_checkpoint_caller,
+            record_timing=_record_checkpoint_timing,
+        ).checkpoint
         timed_gateway = TimedGateway(self.model_gateway, timing_ledger, elapsed_ms)
         steering_context = ActiveResearchSteeringContext(
             repository=self.repository,

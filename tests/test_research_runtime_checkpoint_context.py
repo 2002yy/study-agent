@@ -11,6 +11,7 @@ import pytest
 
 from src.application.research_runtime_checkpoint import (
     ActiveRuntimeCheckpointContext,
+    ActiveRuntimeCheckpointRecorder,
     ActiveRuntimeCheckpointSession,
 )
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
@@ -18,6 +19,7 @@ from src.application.research_runtime_result_buffers import ActiveResearchResult
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import ResearchBudget, build_research_state
 from src.web.research.runtime import ResearchRuntimeCursor
+from src.web.research.timing_ledger import TimingLedger
 
 
 def _checkpoint(
@@ -233,3 +235,68 @@ def test_checkpoint_session_keeps_partial_live_projection_on_prepare_failure(
     assert live.state.budget.elapsed_seconds == 9.0
     assert "claim_engine_runtime" in live.context
     repository.checkpoint.assert_not_called()
+
+
+@pytest.mark.parametrize("persist_fails", [False, True], ids=["success", "failure"])
+def test_checkpoint_recorder_observes_latest_live_state_after_persist_attempt(
+    persist_fails: bool,
+) -> None:
+    """A checkpoint's observation must follow the attempted write even on failure."""
+
+    initial = _checkpoint(Mock(spec=WebLookupRepository))
+    old_context = {"old": True}
+    latest_context = {"after_checkpoint": True}
+    live = ActiveRuntimeLiveValues(state=initial.state, context=old_context)
+    session = Mock(spec=ActiveRuntimeCheckpointSession)
+    ledger = Mock(spec=TimingLedger)
+    ledger.current_phase.return_value = "reading"
+    events: list[str] = []
+    observed: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    persisted = SimpleNamespace(research_context=latest_context)
+
+    def persist(*, stage: str | None, diagnostics: dict[str, Any]) -> Any:
+        events.append("persist")
+        assert stage == "reading"
+        assert diagnostics == {}
+        diagnostics["repo_call_ms"] = 3.5
+        live.context = latest_context
+        if persist_fails:
+            raise RuntimeError("checkpoint write failed")
+        return persisted
+
+    def record_timing(
+        context: dict[str, Any], diagnostics: dict[str, Any], **kwargs: Any
+    ) -> None:
+        events.append("timing")
+        observed.append((context, diagnostics, kwargs))
+
+    session.checkpoint.side_effect = persist
+    ledger.record_checkpoint.side_effect = lambda _ms: events.append("ledger")
+    times = iter((10.0, 16.0, 19.0))
+    recorder = ActiveRuntimeCheckpointRecorder(
+        session=session,
+        live=live,
+        elapsed_ms=lambda: next(times),
+        timing_ledger=ledger,
+        caller_name=lambda: "settle_completed_wave",
+        record_timing=record_timing,
+    )
+
+    if persist_fails:
+        with pytest.raises(RuntimeError, match="checkpoint write failed"):
+            recorder.checkpoint(stage="reading")
+    else:
+        assert recorder.checkpoint(stage="reading") is persisted
+
+    assert events == ["persist", "ledger", "timing"]
+    ledger.record_checkpoint.assert_called_once_with(6.0)
+    assert len(observed) == 1
+    context, diagnostics, kwargs = observed[0]
+    assert context is latest_context and context is not old_context
+    assert diagnostics == {"repo_call_ms": 3.5}
+    assert kwargs == {
+        "wall_ms": 9.0,
+        "stage": "reading",
+        "caller": "settle_completed_wave",
+        "phase": "reading",
+    }
