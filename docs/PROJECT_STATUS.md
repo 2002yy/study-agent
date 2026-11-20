@@ -6,7 +6,7 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572–#577 已先后合入。#577 精确 HEAD `0e5c174` CI `44728786933` 成功、无阻断审阅，以 SHA 保护 squash 合入 `main@46538fe`。#578 波次交接上下文片原 HEAD `660aa110` CI 不能替代合并 #577 后的候选；本片重挂至 `main@46538fe` 后仍须重新运行完整影响集、精确新 HEAD CI 和审阅门禁。#579 生产读取上下文片独立已推送，在主线推进后也须重挂。
+> **当前收口**：#572–#578 已先后合入；#577 精确 HEAD `0e5c174` CI `44728786933` 成功后合入 `main@46538fe`，#578 重挂 HEAD `0ba25204` CI `44732129799` 成功、无阻断审阅后以 SHA 保护合入 `main@53ebc65`。#579 生产读取上下文已重挂最新主线、组合测试 177 项通过，旧 HEAD `8e447d93` 的成功 CI 不能用于新组合；#580 检查点观察片随后也需重挂。
 
 ### 2026-11-20 未接线的对话回合宿主与费用闸门整链退役（独立 P3 静态片）
 
@@ -24,6 +24,14 @@
 
 - **#576 组合及状态所有权后续片**：`ActiveWaveSettlementHandoff` 原以 `capture` / `bind` 两个内部闭包捕获同一 `live` 实时状态，且 `for_live_values` 只为生成这些包装。现直接持有唯一 `LiveWaveValues` 引用，`capture()` / `bind()` 成为显式方法，执行器和测试直接构造 `ActiveWaveSettlementHandoff(live=live)`；没有复制 state/cursor/context，也没有新增可变 owner。新增「重绑 cursor/context 后仍捕获最新对象」回归，并与检查点成功/异常及 caller 标签测试并行。原 6 项专项变为 **7 passed / 3.28s**；重挂 #576 后波次结算、完整主动研究、checkpoint、预算时钟、steering、计时 ledger 与现行读取重试影响集 **156 passed / 102.69s**；全库 Ruff、编译、diff-check 通过，mypy **115/125、无新增**。
 - **#577 合并后的重新验证**：#577 已合入 `main@46538fe`，#578 的唯一冲突是 handoff 并列新增段落，两批记录均保留。重挂后波次结算/基线/进度、完整主动研究、checkpoint、预算时钟、steering、计时 ledger 和读取重试/准入共 **166 passed / 110.49s**，Ruff 与差异检查通过；重新提交的 #578 新 HEAD 仍须通过独立 CI 与审阅门禁。
+
+### 2026-11-20 生产读取重试与诊断依赖收归显式上下文（独立 P3 静态片）
+
+- **范围与边界**：`build_production_gateway_read()` 原先在 `gateway_read()` 内嵌单次读取和升级账本两个闭包，隐式捕获网关、超时支持、研究时钟、当前游标字典、波次及回调。新增冻结、带槽位的私有 `_ProductionGatewayReadContext`，明确绑定这些稳定依赖，统一承担 `read_once()`、`read()` 和升级诊断记录。生产入口签名和唯一 `gateway_read` 工厂不变；不新建预算、状态或持久化权威，不改模型调用、搜索、读取次数、checkpoint 顺序、预算结算、证据资格及发布。
+- **动态状态与负控**：上下文**只保存依赖回调，不缓存它们返回的字典、波次或剩余时间**。实际每次读取尝试前均重新获取最新 context/研究与硬时钟，维持独立 `retrieval_attempt_seq`、升级上下文设置及当次 timeout cap；重试的准入和剩余时间仍由现行 `read_with_bounded_retry()` 决定。新增一次读取失败后将 live context 整体重绑、研究窗口从 30 秒变为 4 秒的负控，确认第 2 次读取使用新 context 和 4 秒超时，且尝试序号分别写在两个实际 context 中。保留 phase start/end、重试诊断、升级账本和获取当前波次的原次序。
+- **静态证据与交接**：改动前共享读取语义/单一权威/重试及准入 **39 passed**，改动后加新增负控同组 **40 passed**；生产读取运行时、读取观测与预算、站点选择与视觉证据的 L1 相邻影响集 **177 passed / 126.02s**。全库 Ruff 通过，mypy 维持 **115 errors / 23 files（无新增）**，无付费模型或外部检索。基于 `main@2993aa9`，分支 `codex/gateway-read-context-20261120`；`priority=P3`、`loop=static`、`owner=retrieval/read-orchestration`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。待精确 PR HEAD CI 和审阅验收；如果 #577/#578 先合入须重挂、复测并重新走 HEAD 门禁。
+
+- **#578 合并后的组合复核**：#578 已合入 `main@53ebc65`；本片重挂时生产代码与测试自动合并，唯一冲突是并列 handoff，完整保留。重挂后生产读取语义/重试准入、完整主动研究、读取观察与预算、站点选择和视觉证据影响集 **177 passed / 117.99s**；全库 Ruff、差异检查通过，mypy 仍 **115 errors / 23 files**、无新增。新的精确 HEAD CI 与审阅是最终合并门禁，旧 HEAD `8e447d93` 的成功 CI 不可借用。
 
 ### 2026-11-20 仅由历史专项测试使用的研究兼容 helper 退役（独立 P3 静态减负片）
 

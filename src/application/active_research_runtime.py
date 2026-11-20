@@ -418,6 +418,95 @@ def build_read_chain_executors(
     }
 
 
+@dataclass(frozen=True, slots=True)
+class _ProductionGatewayReadContext:
+    """Bind one run's read dependencies without copying its changing state.
+
+    The current research window, wave and diagnostics are always read through
+    their supplied callbacks, including on each retry attempt.
+    """
+
+    gateway: Any
+    accepts_timeout: bool
+    get_context: Callable[[], dict[str, Any]]
+    research_seconds_left: Callable[[], float]
+    hard_seconds_left: Callable[[], float]
+    wave_index: Callable[[], int]
+    on_phase_start: Callable[[str], None] | None
+    on_phase_end: Callable[[str], None] | None
+    on_retry: Callable[..., None] | None
+
+    def read_once(self, target: str, *, max_chars: int) -> Mapping[str, Any]:
+        # Stamp each actual attempt before dispatch, never just each logical read.
+        context = self.get_context()
+        metrics_for_seq = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+        seq = int(metrics_for_seq.get("retrieval_attempt_seq") or 0) + 1
+        metrics_for_seq["retrieval_attempt_seq"] = seq
+        set_escalation_runtime_context(
+            attempt_seq=seq,
+            research_seconds_left=self.research_seconds_left(),
+            hard_seconds_left=self.hard_seconds_left(),
+        )
+        if self.accepts_timeout:
+            return (
+                self.gateway.read(
+                    target,
+                    max_chars=max_chars,
+                    timeout=min(
+                        READ_TIMEOUT_CAP_SECONDS,
+                        max(0.0, self.research_seconds_left()),
+                    ),
+                )
+                or {}
+            )
+        return self.gateway.read(target, max_chars=max_chars) or {}
+
+    def with_escalation_ledger(self, payload: dict[str, Any]) -> dict[str, Any]:
+        escalation = payload.get("escalation")
+        if isinstance(escalation, Mapping):
+            _record_escalation_diagnostics(
+                self.get_context(), escalation, wave_index=int(self.wave_index())
+            )
+        return payload
+
+    def read(self, url: str, *, max_chars: int) -> dict[str, Any]:
+        mode = read_retry_mode()
+        if self.on_phase_start is not None:
+            self.on_phase_start("read")
+
+        read_once = partial(self.read_once, max_chars=max_chars)
+        try:
+            if mode == "off":
+                return self.with_escalation_ledger(dict(read_once(url)))
+            admission = None
+            if mode == "window_aware":
+                # Inventory and page reads share the same admission formula.
+                admission = make_window_admission(
+                    remaining_seconds=self.research_seconds_left
+                )
+            payload = read_with_bounded_retry(
+                url,
+                read_fn=read_once,
+                admission=admission,
+                diagnostics_key="read_retry",
+                # Waiting and the next fetch must both fit the research window.
+                remaining_seconds=self.research_seconds_left,
+            )
+            _accumulate_fetch_metrics(
+                self.get_context(), "read_retry", payload.get("read_retry")
+            )
+            retry_diag = payload.get("read_retry")
+            if isinstance(retry_diag, Mapping) and self.on_retry is not None:
+                self.on_retry(
+                    wait_ms=float(retry_diag.get("retry_backoff_ms") or 0.0),
+                    fetch_ms=float(retry_diag.get("retry_fetch_ms") or 0.0),
+                )
+            return self.with_escalation_ledger(payload)
+        finally:
+            if self.on_phase_end is not None:
+                self.on_phase_end("read")
+
+
 def build_production_gateway_read(
     *,
     gateway: Any,
@@ -452,80 +541,21 @@ def build_production_gateway_read(
     ``gateway_read``; the read function is created here and nowhere else.
     """
 
+    reader = _ProductionGatewayReadContext(
+        gateway=gateway,
+        accepts_timeout=accepts_timeout,
+        get_context=get_context,
+        research_seconds_left=research_seconds_left,
+        hard_seconds_left=hard_seconds_left,
+        wave_index=wave_index,
+        on_phase_start=on_phase_start,
+        on_phase_end=on_phase_end,
+        on_retry=on_retry,
+    )
+
     def gateway_read(url: str, *, max_chars: int) -> dict[str, Any]:
-        """Read a page through the shared production read semantics."""
-
-        def _inner(target: str) -> Mapping[str, Any]:
-            # §71B/B1: stamp per-read scalars so the adapter-side escalation
-            # outcome carries the attempt order and the headroom at start.
-            context = get_context()
-            metrics_for_seq = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-            seq = int(metrics_for_seq.get("retrieval_attempt_seq") or 0) + 1
-            metrics_for_seq["retrieval_attempt_seq"] = seq
-            set_escalation_runtime_context(
-                attempt_seq=seq,
-                research_seconds_left=research_seconds_left(),
-                hard_seconds_left=hard_seconds_left(),
-            )
-            if accepts_timeout:
-                return (
-                    gateway.read(
-                        target,
-                        max_chars=max_chars,
-                        timeout=min(
-                            READ_TIMEOUT_CAP_SECONDS,
-                            max(0.0, research_seconds_left()),
-                        ),
-                    )
-                    or {}
-                )
-            return gateway.read(target, max_chars=max_chars) or {}
-
-        mode = read_retry_mode()
-        if on_phase_start is not None:
-            on_phase_start("read")
-
-        def _with_escalation_ledger(payload: dict[str, Any]) -> dict[str, Any]:
-            escalation = payload.get("escalation")
-            if isinstance(escalation, Mapping):
-                _record_escalation_diagnostics(
-                    get_context(), escalation, wave_index=int(wave_index())
-                )
-            return payload
-
-        try:
-            if mode == "off":
-                return _with_escalation_ledger(dict(_inner(url)))
-            admission = None
-            if mode == "window_aware":
-                # §50/B2: the same formula-based admission policy as the
-                # inventory channel; only the metrics channel differs.
-                admission = make_window_admission(
-                    remaining_seconds=research_seconds_left
-                )
-            payload = read_with_bounded_retry(
-                url,
-                read_fn=_inner,
-                admission=admission,
-                diagnostics_key="read_retry",
-                # F2-O1b B: deadline-preserving retry suppression - a retry
-                # is only issued when its wait plus the last attempt's own
-                # cost still fit the remaining research window.
-                remaining_seconds=research_seconds_left,
-            )
-            _accumulate_fetch_metrics(
-                get_context(), "read_retry", payload.get("read_retry")
-            )
-            _retry_diag = payload.get("read_retry")
-            if isinstance(_retry_diag, Mapping) and on_retry is not None:
-                on_retry(
-                    wait_ms=float(_retry_diag.get("retry_backoff_ms") or 0.0),
-                    fetch_ms=float(_retry_diag.get("retry_fetch_ms") or 0.0),
-                )
-            return _with_escalation_ledger(payload)
-        finally:
-            if on_phase_end is not None:
-                on_phase_end("read")
+        """Read through one explicit run context, with live per-attempt inputs."""
+        return reader.read(url, max_chars=max_chars)
 
     return gateway_read
 
