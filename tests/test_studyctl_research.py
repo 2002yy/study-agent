@@ -19,11 +19,11 @@ from src.web.research.contracts import (
     ResearchClaimEvidenceLink,
     ResearchEvidence,
     ResearchQuestion,
+    ResearchState,
     build_research_state,
 )
 from src.web.research.evidence_units import EvidenceUnit, RequiredUnit
 from src.web.research.state import known_research_evidence_ids, load_claim_engine_state
-from src.web.research.trace import append_research_trace
 from tests.test_studyctl import invoke, repo as repo
 from tools import studyctl, studyctl_research
 
@@ -102,22 +102,29 @@ def snapshot(tmp_path):
         run.research_context, known_evidence_ids=[evidence_id]
     ).state
     assert state is not None
-    for event_type, references in (
-        ("search_completed", {}),
-        ("read_completed", {"evidence_id": evidence_id}),
-        ("claim_linked", {"claim_id": "c1", "evidence_id": evidence_id}),
-        ("gate_evaluated", {"claim_id": "c1"}),
-        ("stop_allowed", {}),
-    ):
-        state = append_research_trace(
-            state,
-            timestamp="2026-10-21T00:00:00Z",
-            run_id=run.id,
-            event_type=event_type,
-            reason="recorded_fixture_reason",
-            known_evidence_ids=[evidence_id],
+    trace_records = [
+        {
+            "sequence": sequence,
+            "timestamp": "2026-10-21T00:00:00Z",
+            "run_id": run.id,
+            "event_type": event_type,
+            "reason": "recorded_fixture_reason",
             **references,
+        }
+        for sequence, (event_type, references) in enumerate(
+            (
+                ("search_completed", {}),
+                ("read_completed", {"evidence_id": evidence_id}),
+                ("claim_linked", {"claim_id": "c1", "evidence_id": evidence_id}),
+                ("gate_evaluated", {"claim_id": "c1"}),
+                ("stop_allowed", {}),
+            )
         )
+    ]
+    state = ResearchState.from_dict(
+        {**state.to_dict(), "trace": trace_records},
+        known_evidence_ids=[evidence_id],
+    )
     context = {
         **run.research_context,
         "claim_engine": state.to_dict(),

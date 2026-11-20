@@ -134,7 +134,6 @@ from src.web.research.research_brief_projection import (
     ResearchBriefProjection,
     brief_confidence,
     build_research_brief_projection,
-    safe_build_research_brief_projection,
 )
 from src.web.research.synthesis_assembler import (
     EvidencePayload,
@@ -156,11 +155,6 @@ from src.web.research.final_answer_auditor import (
     SemanticAssessment,
     abstaining_judge,
     audit_final_answer,
-)
-from src.web.research.trace import (
-    TraceAppendResult,
-    append_research_trace,
-    try_append_research_trace,
 )
 from src.web.research.stop_gate import (
     ShadowStopDecision,
@@ -316,7 +310,6 @@ __all__ = [
     "ResearchBriefProjection",
     "brief_confidence",
     "build_research_brief_projection",
-    "safe_build_research_brief_projection",
     "EvidencePayload",
     "SynthesisAssertion",
     "SynthesisCitation",
@@ -341,9 +334,6 @@ __all__ = [
     "record_visual_audit",
     "visual_audit_record",
     "visual_read_budget",
-    "TraceAppendResult",
-    "append_research_trace",
-    "try_append_research_trace",
     "ShadowStopDecision",
     "evaluate_shadow_stop",
     "DEFAULT_QUERIES_PER_GAP",

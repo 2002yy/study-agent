@@ -6,7 +6,7 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572–#579 已先后合入；#579 生产读取上下文的精确 HEAD `b923a1d4` CI `44764758284` 成功、无阻断审阅后以 SHA 保护 squash 合入 `main@1bceb43`。#580 检查点计时观察已重挂该主线，190 项组合回归通过，等待新精确 HEAD CI 与审阅；#581 历史 RQCE trace 清理待前序合并后再重挂。任何旧 HEAD 成功 CI 均不能替代重挂后组合提交的门禁。
+> **当前收口**：#572–#580 已先后合入；#580 检查点观察新精确 HEAD `2f41d355` 的 CI `44767605288` 成功，审阅无阻断，SHA 保护 squash 合入 `main@478f11f`。#581 历史 RQCE trace/brief 辅助链已重挂该主线、236 项组合验证通过；待更新 PR 新精确 HEAD 的 CI 与审阅后合并，旧 HEAD `ae23e26` 的结果不可借用。
 
 ### 2026-11-20 检查点持久化与计时观察解耦（独立 P3 静态片）
 
@@ -14,6 +14,15 @@
 - **冻结契约与负控**：原先顺序 `elapsed_ms → session.checkpoint(stage, diagnostics) → finally: TimingLedger.record_checkpoint → _record_checkpoint_timing` 完全不变；分别保留两次独立时间读取、原调用者栈层级与 `settle_completed_wave` 标签，成功和存储异常都写诊断。新参数化负控涵盖成功/异常、live context 整体重绑、同一个可变 diagnostics 字典、计时调用顺序及 6ms/9ms 的两个时间窗口；现行单波集成测试继续核实实际预算/checkpoint 序列和调用者标签。恢复 schema、波次交接、checkpoint 次数/位置、预算结算、检索/读取/模型调用、Evidence Gate 与发布都不改。
 - **静态验证/交接**：新增两种负控后，checkpoint session/波次结算/基线直接测试 **16 passed**，单波与计时 ledger 集成集 **14 passed**；完整主动研究、波次恢复、模型尝试、执行 guard、预算时钟、steering、重试准入与检查点观察 L1 影响集 **176 passed / 98.31s**。全库 Ruff 通过，mypy 仍是既有 **115 errors / 23 files**、无新增；未运行真实付费模型或外部检索。分支 `codex/checkpoint-observation-context-20261120`，初始基线 `main@46538fe`，本次重挂 `main@1bceb43` 后的组合复核见下；`priority=P3`、`loop=static`、`owner=research/checkpoint-observation`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本片仅为工程职责拆分，不宣称用户研究质量提升；待新精确 PR HEAD CI 和审阅成功后合入。
 - **#579 合并后组合复核**：重挂 `main@1bceb438d5e21d08a7e6b30789b50430c3eae3e0` 时生产代码自动合并，唯一冲突为并列新增交接段落，均已保留。检查点记录、完整主动研究、波次恢复/结算、预算时钟、模型尝试、steering、重试/准入以及 #579 生产读取语义/单一权威的 L1 组合 **190 passed / 96.66s**；Ruff、编译与差异检查通过。原 PR HEAD `0443a72` 的旧 CI 不可用于本次组合验收；待新精确 HEAD CI、审阅后合并。
+- **#580 精确门禁完成**：新 HEAD `2f41d3559771f69fb0c254b42336efc511de117a` 的 CI 运行 `44767605288` 全部成功、审阅及线程无阻断，以 SHA 保护 squash 合入 `main@478f11f426d116a53161b3094aadd1b68f9f9c3e`。此前“待 CI”的内容是当时交接快照，不是当前阻断。
+
+### 2026-11-20 RQCE 未接线 trace 追加器与摘要容错包装成组退役（独立 P3 静态减负片）
+
+- **生产可达性与删除范围**：完整扫描现行 `src/`、`tools/`、`tests/` 与 `.github/`，`src/web/research/trace.py` 的 `append_research_trace()` / `try_append_research_trace()`、`TraceAppendResult` 仅被历史 `test_research_quality_trace.py` 和 `test_studyctl_research.py` 的场景搭建使用；没有生产 trace writer、API 或工具入口调用。移除整份 147 行旧追加器及 192 行专属测试，并清理 `src/web/research/__init__.py` 三个 re-export 与 `tests/stage_gates.json` 的失效注册。`safe_build_research_brief_projection()` 仅供 `test_research_brief_projection.py` 的模拟抛错测试，移除该 fail-soft 包装、相应专项测试及 `__init__` / `__all__` 导出；无额外运行配置需要保留。
+- **仍在用的契约绝不删除**：`ResearchTraceEvent`、`ResearchState.trace` 的持久化 schema / 版本序列、`build_research_state()` 验证、跨 run ID/未知证据拒绝和 `studyctl research inspect` 对真实记录的只读校验保留。CLI 测试场景直接用 `ResearchState.from_dict()` 从显式 trace 事件字典建样本，使测试继续经过现行真正的 schema 验证；保留缺失事件、污染数据和跨 run ID 的真实 CLI 负控。不改恢复游标、checkpoint、模型/检索/读取、预算结算、Evidence Gate 或发布。
+- **静态验证与交接**：删除前 trace/brief/CLI/state/contract 直接测试 **83 passed / 8.64s**；删除后保留的四组直接测试 **72 passed / 7.73s**，再扩至包含 stop gate、离线研究评估与 studyctl 的相邻影响集 **111 passed / 11.59s**，阶段门/CI 范围与路由影响集 **112 passed / 9.72s**。全库 Ruff、编译、diff-check 与阶段门 JSON 校验通过；mypy 维持 **115 errors / 23 files（499 个源码文件，无新增）**。分支 `codex/retire-unwired-rqce-trace-20261120`，初始基线 `main@53ebc65`，现重挂已合入 #580 的 `main@478f11f`；`priority=P3`、`loop=static`、`owner=research/retired-compat-helper`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。未进行付费模型或真实搜索；新组合的精确 PR HEAD CI 和审阅仍是合并门禁。
+
+- **#580 合并后实际主线组合复核**：重挂已合入的 `main@478f11f426d116a53161b3094aadd1b68f9f9c3e`，生产删改、测试和阶段门自动合并；唯一冲突是并列状态文档，已保留 #580 与本片完整记录。现行 RQCE schema/CLI/研究质量、stop gate、stage/CI 路由及 #580 检查点 session/波次结算合计 **236 passed / 16.89s**。全库 Ruff、编译、diff-check 和阶段门 JSON 均通过；废弃符号在生产、工具、测试及 CI 注册中无残余引用。分支候选必须推送为新的精确 PR HEAD，并等待其独立 CI、审阅验收；不宣称真实用户研究质量提升。
 
 ### 2026-11-20 未接线的对话回合宿主与费用闸门整链退役（独立 P3 静态片）
 
