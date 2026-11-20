@@ -3,12 +3,11 @@ from __future__ import annotations
 from src.application.web_lookup_service import WebLookupService
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.web_lookup_repository import WebLookupRepository
-from src.web.research.contracts import ResearchBudget
+from src.web.research.contracts import ResearchBudget, ResearchState, build_research_state
 from src.web.research.state import (
     CLAIM_ENGINE_CONTEXT_KEY,
     attach_claim_engine_state,
     load_claim_engine_state,
-    new_empty_shadow_state,
 )
 
 
@@ -26,17 +25,25 @@ def _budget() -> ResearchBudget:
     )
 
 
-def test_empty_shadow_state_is_valid_but_not_runtime_activation() -> None:
-    state = new_empty_shadow_state(budget=_budget())
-
-    assert state.mode == "shadow"
-    assert state.claims == ()
-    assert state.evidence_links == ()
+def _empty_shadow_state() -> ResearchState:
+    """Persistence sample; only tests need a synthetic empty shadow state."""
+    return build_research_state(
+        mode="shadow",
+        questions=(),
+        claims=(),
+        evidence=(),
+        evidence_links=(),
+        source_clusters=(),
+        gaps=(),
+        conflict_gaps=(),
+        budget=_budget(),
+        known_evidence_ids=(),
+    )
 
 
 def test_attach_copies_context_and_loads_valid_state() -> None:
     original = {"research_mode": "deep", "candidate_items": []}
-    state = new_empty_shadow_state(budget=_budget())
+    state = _empty_shadow_state()
 
     updated = attach_claim_engine_state(
         original,
@@ -106,7 +113,7 @@ def test_repository_checkpoint_round_trip_keeps_single_owner(tmp_path) -> None:
     )
     context = attach_claim_engine_state(
         owned.research_context,
-        new_empty_shadow_state(budget=_budget()),
+        _empty_shadow_state(),
         known_evidence_ids=(),
     )
 
@@ -127,4 +134,4 @@ def test_repository_checkpoint_round_trip_keeps_single_owner(tmp_path) -> None:
     assert restored.active_operation_id == "op_claim_engine"
     loaded = load_claim_engine_state(restored.research_context, known_evidence_ids=())
     assert loaded.available is True
-    assert loaded.state == new_empty_shadow_state(budget=_budget())
+    assert loaded.state == _empty_shadow_state()

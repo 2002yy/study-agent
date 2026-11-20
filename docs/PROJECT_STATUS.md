@@ -4,9 +4,18 @@
 >
 > **产品目标**：体验接近 ChatGPT 的通用聊天与研究 Agent，覆盖自然聊天、自主研究、持续交互、智能 UI、多模态和工具执行；教学是专业场景。**部署仍限可信环境的单用户**；多用户身份/数据/费用隔离未实现。
 
-## 0. Current Handoff（2026-11-20，冷启动）
+## 0. Current Handoff（2026-11-21，冷启动）
 
-> **当前收口**：#572–#580 已先后合入；#580 检查点观察新精确 HEAD `2f41d355` 的 CI `44767605288` 成功，审阅无阻断，SHA 保护 squash 合入 `main@478f11f`。#581 历史 RQCE trace/brief 辅助链已重挂该主线、236 项组合验证通过；待更新 PR 新精确 HEAD 的 CI 与审阅后合并，旧 HEAD `ae23e26` 的结果不可借用。
+> **当前收口**：#572–#580 已先后合入；#580 精确 HEAD `2f41d355` CI `44767605288` 成功、无阻断审阅，SHA 保护 squash 合入 `main@478f11f`。#581 trace/brief 退役已推送新精确 HEAD `e492a7ca`、236 项通过；其前端及浏览器 CI 已成功，后端 pytest 仍在运行。新 Shadow State 工厂清理片先在本地叠加 #581 候选树做组合负控，等 #581 合入后重挂真实主线、复测并走新精确 HEAD 门禁。
+
+### 2026-11-21 测试独享 Shadow State 工厂与无调用方视觉别名退役（独立 P3 静态减负片）
+
+- **调用关系与删除**：`new_empty_shadow_state()` 没有生产、工具或 CLI 调用，唯一用户是 `test_research_quality_state.py` 的三个场景，其中空状态自测与现有 `test_research_quality_contracts.py` 的 Shadow schema 验证重叠。删除生产端 21 行构造器及 `src/web/research/__init__.py` 导出，原直接测试改为私有 `_empty_shadow_state()` 组装，专属空态自测随函数一起删除；保留实际 attach/load、版本拒绝和 SQLite checkpoint/恢复测试。`visual_to_evidence_unit` 与 `visual_prompt` 的包级转发无仓内使用者，收回两项 `__init__` re-export；多模态读取模块自身依旧在运行中调用 `to_evidence_unit()` / `visual_prompt()`，不删除真实函数与测试。
+- **安全边界**：研究恢复/schema、checkpoint 时点、预算结算、视觉调用和 provenance、检索/读取、Evidence Gate 与发布均未改变。现行包外直接使用 `src.web.research.multimodal_reader` 的测试及运行时代码保持可用；无专属环境变量、阶段门或配置需要删除，历史归档不改。此片减少无消费者的测试专属生产接口与过时公开别名，不主张质量提升。
+- **静态验证/交接**：空态/合同、multimodal、research stop gate、checkpoint context、brief/视觉读取、跨模态证据和 studyctl CLI 的 L1 影响集 **123 passed / 10.92s**；Ruff、编译、差异检查通过。起始主线 `main@478f11f`，独立分支 `codex/retire-test-only-shadow-factory-20261121`、已远端保存原 HEAD `f708c3cf`，此轮本地暂叠 #581 候选 HEAD `e492a7ca`；`priority=P3`、`loop=static`、`owner=research/retired-public-test-helper`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。#581 尚未合并，待重挂最终主线、精确 CI 和审阅后才可合并。
+
+- **#581 候选树的预先组合负控**：本地临时重挂到 #581 远端精确 HEAD `e492a7ca4d7bc1f37474b241812fb2b277aea6c8`，仅交接文档有并列冲突，`src/web/research/__init__.py` 的两批退役导出自动合并。Shadow State/真实 checkpoint、RQCE 合同与 CLI、视觉读取及多模态证据、stage gate/CI 范围路由共 **234 passed / 16.43s**，Ruff、JSON 与差异检查通过。此为 #581 未合入前的组合预演，待其合并后再重挂真实主线，不复用旧 PR HEAD 的 CI。
+- **排除误删的调用核查**：定向扫描 `src/web/research/*.py`、`src/application/*.py` 的生产跨文件模块引用，未找到可仅凭“没有生产 import”就安全删除的整模块；`crawl4ai_worker.py` 是潜在子进程入口，不能按普通导入关系误删。`official_doc_index` 与 `backup_query` 仍有运行时/恢复端间接进口；`tools/run_release_benchmark_frozen_pilot.py` 有发布基准手册明确命令入口，`tools/run_research_active_smoke.py` 仍供真实负控与专项测试使用。后续若清理这些人工入口，须另立产品价值和运行依赖的证据，不借此片扩大删除范围。
 
 ### 2026-11-20 检查点持久化与计时观察解耦（独立 P3 静态片）
 

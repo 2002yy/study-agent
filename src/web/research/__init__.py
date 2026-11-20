@@ -31,7 +31,6 @@ from src.web.research.state import (
     ClaimEngineLoadResult,
     attach_claim_engine_state,
     load_claim_engine_state,
-    new_empty_shadow_state,
 )
 from src.web.research.policy import (
     EvidencePolicy,
@@ -96,8 +95,6 @@ from src.web.research.multimodal_reader import (
     discover_visual_candidates,
     plan_visual_escalation,
     read_visual_candidates,
-    to_evidence_unit as visual_to_evidence_unit,
-    visual_prompt,
 )
 from src.web.research.visual_metadata import (
     MAX_VISUAL_METADATA_ENTRIES,
@@ -238,7 +235,6 @@ __all__ = [
     "ClaimEngineLoadResult",
     "attach_claim_engine_state",
     "load_claim_engine_state",
-    "new_empty_shadow_state",
     "EvidencePolicy",
     "EvidencePolicyProfile",
     "SourceRole",
@@ -289,8 +285,6 @@ __all__ = [
     "discover_visual_candidates",
     "plan_visual_escalation",
     "read_visual_candidates",
-    "visual_to_evidence_unit",
-    "visual_prompt",
     "MAX_VISUAL_METADATA_ENTRIES",
     "VISUAL_METADATA_KEY",
     "project_visual_metadata",

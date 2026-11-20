@@ -14,9 +14,7 @@ from src.domain.evidence import build_evidence_snapshot
 from src.domain.runtime_entities import WebLookupRun
 from src.web.research.contracts import (
     RESEARCH_STATE_SCHEMA_VERSION,
-    ResearchBudget,
     ResearchState,
-    build_research_state,
 )
 
 CLAIM_ENGINE_CONTEXT_KEY = "claim_engine"
@@ -35,25 +33,6 @@ class ClaimEngineLoadResult:
     @property
     def available(self) -> bool:
         return self.status == "available" and self.state is not None
-
-
-def new_empty_shadow_state(*, budget: ResearchBudget) -> ResearchState:
-    """Create a valid empty P0 state without enabling a runtime path."""
-
-    return build_research_state(
-        mode="shadow",
-        questions=(),
-        claims=(),
-        evidence=(),
-        evidence_links=(),
-        source_clusters=(),
-        gaps=(),
-        conflict_gaps=(),
-        budget=budget,
-        trace=(),
-        brief=None,
-        known_evidence_ids=(),
-    )
 
 
 def attach_claim_engine_state(
