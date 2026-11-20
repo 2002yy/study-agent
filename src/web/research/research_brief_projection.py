@@ -283,17 +283,6 @@ def build_research_brief_projection(state: ResearchState) -> ResearchBriefProjec
     )
 
 
-def safe_build_research_brief_projection(
-    state: ResearchState,
-) -> ResearchBriefProjection | None:
-    """Keep shadow observability available if the projection fails."""
-
-    try:
-        return build_research_brief_projection(state)
-    except Exception:  # noqa: BLE001 - a projection must never raise
-        return None
-
-
 def _source_map(
     state: ResearchState,
     referenced: dict[str, str],
@@ -363,5 +352,4 @@ __all__ = [
     "ResearchBriefProjection",
     "brief_confidence",
     "build_research_brief_projection",
-    "safe_build_research_brief_projection",
 ]

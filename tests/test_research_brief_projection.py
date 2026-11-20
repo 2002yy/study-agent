@@ -31,7 +31,6 @@ from src.web.research.research_brief_projection import (
     REASON_UNRESOLVED_CONFLICT,
     brief_confidence,
     build_research_brief_projection,
-    safe_build_research_brief_projection,
 )
 
 _ROLES = ("primary", "authoritative_secondary", "community")
@@ -398,16 +397,3 @@ def test_projection_is_not_part_of_the_persisted_state_schema() -> None:
         "source_map",
         "limitations",
     }
-
-
-def test_safe_wrapper_returns_none_when_the_projection_fails(monkeypatch) -> None:
-    state = _state(requirement=_requirement("u1"), evidence=(), links=())
-
-    def boom(_state: ResearchState):
-        raise RuntimeError("corrupt state")
-
-    monkeypatch.setattr(
-        "src.web.research.research_brief_projection.assess_claim_evidence", boom
-    )
-
-    assert safe_build_research_brief_projection(state) is None
