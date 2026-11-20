@@ -99,7 +99,7 @@ def test_chat_passes_extended_request_options(monkeypatch):
         timeout=12.5,
         response_format="json_object",
         provider_profile="openrouter",
-        task_name="after_session",
+        task_name="unconfigured_test_task",
     )
 
     assert result == "ok"

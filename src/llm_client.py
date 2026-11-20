@@ -48,12 +48,6 @@ _TASK_DEFAULTS: dict[str, dict[str, Any]] = {
         "timeout": 20.0,
         "response_format": "json_object",
     },
-    "after_session": {
-        "temperature": 0.3,
-        "max_tokens": 1200,
-        "timeout": 45.0,
-        "response_format": "json_object",
-    },
 }
 
 
