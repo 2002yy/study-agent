@@ -9,7 +9,6 @@ import pytest
 from src.application.active_research_runtime import (
     _ExternalAttemptBudgetExhausted,
     _attempt_number,
-    _model_attempt_start,
 )
 from src.web.research.claim_planner import (
     CLAIM_PLANNER_MAX_TOKENS,
@@ -33,6 +32,7 @@ from src.web.research.runtime import (
     RuntimePhase,
     RuntimePlannedQuery,
     RuntimeQueryOutcome,
+    _model_attempt_start,
     attach_runtime_cursor,
     begin_external_attempt,
     begin_model_attempt,
