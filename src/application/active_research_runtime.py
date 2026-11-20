@@ -84,12 +84,7 @@ from src.web.research.lead_discovery import (
     RuntimeLeadDiscoverer,
 )
 from src.news.url_normalizer import canonicalize_url
-from src.web.research.evidence_gain import (
-    GapBatchDelta,
-    SaturationState,
-    evaluate_evidence_gain,
-    update_saturation,
-)
+from src.web.research.evidence_gain import GapBatchDelta
 from src.web.research.failure_contracts import ResearchFailureCode
 from src.web.research.gap_planner import (
     GapQueryBatch,
@@ -258,6 +253,7 @@ from src.application.research_runtime_wave_baseline import (
     ACTIVE_RESEARCH_WAVE_BASELINE_KEY as ACTIVE_RESEARCH_WAVE_BASELINE_KEY,
     ActiveWaveBaselineContext,
 )
+from src.application.research_runtime_wave_progress import ActiveWaveProgressContext
 from src.application.research_runtime_failure_projection import (
     with_appended_runtime_failure,
 )
@@ -985,6 +981,11 @@ class ActiveResearchRuntimeExecutor:
         wave_handoff = ActiveWaveSettlementHandoff.for_live_values(live)
         wave_baseline_context = ActiveWaveBaselineContext(
             live=live, actionable_gaps=_ordered_gaps
+        )
+        wave_progress_context = ActiveWaveProgressContext(
+            live=live,
+            gap_provenance=_wave_gap_provenance,
+            max_research_waves=MAX_RESEARCH_WAVES,
         )
 
         def settle_completed_wave(
@@ -1891,13 +1892,7 @@ class ActiveResearchRuntimeExecutor:
                 # MAX_LEAD_READS_PER_RUN per run, and it spends the same shared
                 # read/model budget. Its output can never become eligible
                 # evidence (separate typed contract).
-                discovery_assets_before_lead = sum(
-                    1
-                    for item in live.cursor.candidates
-                    if _is_discovery_candidate(item)
-                )
-                discoveries_before_lead = len(live.cursor.lead_discoveries)
-                followups_before_lead = len(live.cursor.evidence_lead_followups)
+                discovery_before_lead = wave_progress_context.capture_before_lead()
                 lead_budget_available = (
                     len(live.cursor.lead_read_ids) < MAX_LEAD_READS_PER_RUN
                 )
@@ -2416,107 +2411,13 @@ class ActiveResearchRuntimeExecutor:
                 phase_timing.end("gating", context=live.context)
                 checkpoint()
 
-                # P1-C batch 2: wave-level Evidence Gain + Saturation using the
-                # frozen contracts. target gaps = the gaps frozen at wave start
-                # (active_gap_ids) — handled means "this wave's strategy ran
-                # for the gap", whether or not the planner found new queries or
-                # search produced anything new. The gain baseline is the
-                # durable wave-start snapshot, so extraction persisted before a
-                # crash is never lost to a reset baseline.
-                handled_gap_ids = tuple(live.cursor.active_gap_ids)
-                handled_claim_ids = tuple(
-                    dict.fromkeys(
-                        gap.claim_id
-                        for gap in live.state.gaps
-                        if gap.id in set(handled_gap_ids)
-                    )
+                # Gain/saturation projection is resume-safe and bounded. The
+                # physical checkpoint still follows at this original boundary.
+                wave_progress_context.record_after_gate(
+                    baseline=wave_baseline,
+                    gate=gate,
+                    before_lead=discovery_before_lead,
                 )
-                gain = evaluate_evidence_gain(
-                    wave_baseline,
-                    live.state,
-                    target_gap_ids=handled_gap_ids,
-                    gain_provenance_by_gap=_wave_gap_provenance(
-                        live.cursor, live.state, gate, handled_gap_ids
-                    ),
-                )
-                saturation = update_saturation(
-                    SaturationState(
-                        no_gain_batches_by_claim=dict(live.cursor.no_gain_batches_by_claim),
-                        no_gain_batches_by_gap=dict(live.cursor.no_gain_batches_by_gap),
-                    ),
-                    gain,
-                    handled_claim_ids=handled_claim_ids,
-                    handled_gap_ids=handled_gap_ids,
-                )
-                # Slice 3: explicit progress axes. Evidence progress is the
-                # frozen gain contract; discovery progress is new candidate /
-                # hint material produced by a bounded lead read. Discovery
-                # progress only DELAYS saturation for this batch - it never
-                # creates evidence gain and never resets the accumulated
-                # no-gain history (so weak leads cannot endlessly extend a run).
-                evidence_progress = bool(gain.substantive_gain)
-                discovered_candidates_after = sum(
-                    1
-                    for item in live.cursor.candidates
-                    if _is_discovery_candidate(item)
-                )
-                new_discovery_payloads = live.cursor.lead_discoveries[
-                    discoveries_before_lead:
-                ]
-                new_discovery_assets = any(
-                    bool(payload.get("discovered_urls"))
-                    or bool(payload.get("domains"))
-                    or bool(payload.get("organizations"))
-                    or bool(payload.get("primary_source_hints"))
-                    for payload in new_discovery_payloads
-                    if isinstance(payload, Mapping)
-                )
-                discovery_progress = (
-                    discovered_candidates_after > discovery_assets_before_lead
-                    or new_discovery_assets
-                    or any(
-                        str(item.get("hint_domain") or "")
-                        for item in live.cursor.evidence_lead_followups[
-                            followups_before_lead:
-                        ]
-                        if isinstance(item, Mapping)
-                    )
-                )
-                no_gain_incremented = not (evidence_progress or discovery_progress)
-                if no_gain_incremented:
-                    live.cursor = replace(
-                        live.cursor,
-                        gain_history=(*live.cursor.gain_history, gain.to_dict()),
-                        no_gain_batches_by_claim=dict(
-                            saturation.no_gain_batches_by_claim
-                        ),
-                        no_gain_batches_by_gap=dict(
-                            saturation.no_gain_batches_by_gap
-                        ),
-                    )
-                else:
-                    live.cursor = replace(
-                        live.cursor,
-                        gain_history=(*live.cursor.gain_history, gain.to_dict()),
-                    )
-                wave_metrics = live.context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-                wave_progress = wave_metrics.get("wave_progress")
-                if not isinstance(wave_progress, list):
-                    wave_progress = []
-                wave_progress.append(
-                    {
-                        "wave_index": live.cursor.wave_index,
-                        "evidence_progress": evidence_progress,
-                        "discovery_progress": discovery_progress,
-                        "discovered_candidates_added": max(
-                            0,
-                            discovered_candidates_after
-                            - discovery_assets_before_lead,
-                        ),
-                        "no_gain_incremented": no_gain_incremented,
-                    }
-                )
-                wave_metrics["wave_progress"] = wave_progress[-MAX_RESEARCH_WAVES:]
                 checkpoint()
                 research_window_diagnostics.record_end(
                     live.context,
@@ -4150,12 +4051,6 @@ def _domain_of(url: str) -> str:
         return (urlsplit(str(url or "")).netloc or "").casefold()
     except ValueError:
         return ""
-
-
-def _is_discovery_candidate(item: RuntimeCandidate) -> bool:
-    """Candidates produced by a bounded discovery path (Slice 2 + Follow-up)."""
-
-    return item.discovery_method in {"lead_url", "evidence_lead_url"}
 
 
 def _harvest_page_urls(
