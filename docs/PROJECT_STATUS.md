@@ -6,7 +6,13 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572–#580 已先后合入；#580 检查点观察新精确 HEAD `2f41d355` 的 CI `44767605288` 成功，审阅无阻断，SHA 保护 squash 合入 `main@478f11f`。#581 历史 RQCE trace/brief 辅助链已重挂该主线、236 项组合验证通过；待更新 PR 新精确 HEAD 的 CI 与审阅后合并，旧 HEAD `ae23e26` 的结果不可借用。
+> **当前收口**：#572–#581 已先后合入，最新确认主线 `main@a6ec0afb4a12d8c534b8dab32aeddb64a1c59be9`。本批全阶段观测上下文已从独立起点 `478f11f` 重挂该主线，待新的组合验证、精确 PR HEAD CI 与审阅；任何先前 HEAD 的 CI 均不能替代合并门禁。
+
+### 2026-11-21 全阶段计时诊断收归单一实时观测上下文（独立 P3 静态片）
+
+- **范围与职责**：主动研究执行器过去对 `assessment`、`tier2_proposal`、`domain_targeted`、`late_tail`、`ranking`、`discovery`、`extraction`、`gating` 各自调用底层 `phase_timing.end(..., context=live.context)`，晚到候选的内部子阶段另用 lambda 隐式捕获 `live`。将读取观测上下文提升为 `ActiveRuntimeObservationContext`，统一绑定运行时阶段起止、读取重试时间和最新波次标识；删除旧 read-only 命名和单独闭包，不设兼容转发层。底层 `RuntimePhaseTiming` 和 `TimingLedger` 仍是原有唯一计时权威，读取网关继续拥有重试及升级语义。
+- **冻结契约与负控**：所有阶段起止位置、`finally` 顺序、诊断字段/单位、模型与检索调用、预算预留/结算、恢复 schema、检查点与 Evidence Gate 均不变；阶段结束才读取当前 `live.context`，不会把检查点前的上下文快照写回来。新增跨五类阶段的重绑参数化负控及连续两阶段上下文替换负控，并保留现有读取重试与波次重绑测试。
+- **静态证据与交接**：最初基于 `main@478f11f`，运行时观测/读取/搜索、模型尝试、checkpoint、wave settlement、预算时钟、主动研究与 TimingLedger 影响集 **134 passed / 82.42s**；#581 合并后重挂 `main@a6ec0afb4a12d8c534b8dab32aeddb64a1c59be9`，加入 RQCE trace/brief/state/CLI 相邻负控的组合集 **186 passed / 84.50s**。全库 Ruff、Python 编译与差异检查通过；mypy 基线 **115 current / 125 allowed（无新增）**。`priority=P3`、`loop=static`、`owner=research/runtime-observation`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；没有运行真实模型或搜索，未声称产品答案质量改善。分支 `codex/unify-active-runtime-observation-20261121`；精确 PR HEAD CI/审阅待提交后验证。已合并 #581 的 RQCE trace 退役属独立职责，不重复删除其代码。**下一片**：先收口本片精确 HEAD 的 CI/审阅，再继续在当前执行器梳理读取调度与模型调用之间的共享状态，不放宽已冻结的恢复/预算契约。
 
 ### 2026-11-20 检查点持久化与计时观察解耦（独立 P3 静态片）
 

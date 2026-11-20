@@ -1,9 +1,10 @@
-"""Run-scoped read observation hooks bound to the live research snapshot.
+"""Run-scoped phase and read observation bound to the live research snapshot.
 
-The read gateway owns retry and escalation semantics. This context only
-exposes the phase/diagnostic callbacks it needs. It reads the current context
-and cursor for each observation, because a checkpoint can replace both during
-one active execution; it never owns either mutable value or a checkpoint.
+The gateway still owns retry and escalation semantics. This context binds
+phase timing, retry timing and wave-index observations to the same live run,
+so no caller needs to capture a mutable research context in a timing closure.
+Each observation reads the current context/cursor because a checkpoint can
+replace either; this context never owns that state or a checkpoint.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from src.web.research.timing_ledger import RuntimePhaseTiming, TimingLedger
 
 
 @dataclass(frozen=True, slots=True)
-class ActiveReadObservationContext:
+class ActiveRuntimeObservationContext:
     current_context: Callable[[], dict[str, Any]]
     current_cursor: Callable[[], ResearchRuntimeCursor]
     phase_timing: RuntimePhaseTiming
@@ -30,8 +31,8 @@ class ActiveReadObservationContext:
         self.phase_timing.begin(phase)
 
     def phase_end(self, phase: str) -> None:
-        # Do not hold the context seen at start: checkpoint recovery may have
-        # replaced it before this finally callback is invoked.
+        # A checkpoint may have rebound the context since phase_start, even
+        # for assessment/late-tail phases outside the read gateway.
         self.phase_timing.end(phase, context=self.current_context())
 
     def retry(self, *, wait_ms: float, fetch_ms: float) -> None:

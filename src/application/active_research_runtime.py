@@ -263,7 +263,7 @@ from src.application.research_runtime_read_coverage import (
     ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY as ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY,
     merge_covered_clusters,
 )
-from src.application.research_runtime_read_observation import ActiveReadObservationContext
+from src.application.research_runtime_observation import ActiveRuntimeObservationContext
 from src.application.research_runtime_read_projection import project_read_chain
 from src.application.research_runtime_read_site import (
     ActiveReadSiteContext,
@@ -956,7 +956,7 @@ class ActiveResearchRuntimeExecutor:
         )
 
         phase_timing = RuntimePhaseTiming(ledger=timing_ledger, now=self.monotonic)
-        read_observation = ActiveReadObservationContext(
+        runtime_observation = ActiveRuntimeObservationContext(
             current_context=live.current_context,
             current_cursor=live.current_cursor,
             phase_timing=phase_timing,
@@ -968,13 +968,13 @@ class ActiveResearchRuntimeExecutor:
         gateway_read = build_production_gateway_read(
             gateway=self.gateway,
             accepts_timeout=self.read_gateway_accepts_timeout,
-            get_context=read_observation.current_context,
+            get_context=runtime_observation.current_context,
             research_seconds_left=research_seconds_left,
             hard_seconds_left=budget_clock.hard_seconds_left,
-            wave_index=read_observation.wave_index,
-            on_phase_start=read_observation.phase_start,
-            on_phase_end=read_observation.phase_end,
-            on_retry=read_observation.retry,
+            wave_index=runtime_observation.wave_index,
+            on_phase_start=runtime_observation.phase_start,
+            on_phase_end=runtime_observation.phase_end,
+            on_retry=runtime_observation.retry,
         )
         read_execution = ActiveReadExecutionContext(
             gateway=self.gateway,
@@ -1364,7 +1364,7 @@ class ActiveResearchRuntimeExecutor:
                         )
                         checkpoint()
                         continue
-                    phase_timing.begin("assessment")
+                    runtime_observation.phase_start("assessment")
                     try:
                         assessed = self.candidate_assessor.assess(
                             run_id=run_id,
@@ -1381,7 +1381,7 @@ class ActiveResearchRuntimeExecutor:
                             attempt_start=assessment_attempt_start,
                         )
                     finally:
-                        phase_timing.end("assessment", context=live.context)
+                        runtime_observation.phase_end("assessment")
                     ensure_active()
                     if assessed.status != "completed" or not assessed.assessments:
                         assessment_reason = (
@@ -1415,7 +1415,7 @@ class ActiveResearchRuntimeExecutor:
                         TIER2_PROPOSED_CLAIMS_KEY, []
                     )
                     if isinstance(proposed_claim_ids, list):
-                        phase_timing.begin("tier2_proposal")
+                        runtime_observation.phase_start("tier2_proposal")
                         live.cursor = _tier2_proposal_step(
                             cursor=live.cursor,
                             state=live.state,
@@ -1430,14 +1430,14 @@ class ActiveResearchRuntimeExecutor:
                             proposed_claim_ids=proposed_claim_ids,
                             live_context=live.current_context,
                         )
-                        phase_timing.end("tier2_proposal", context=live.context)
+                        runtime_observation.phase_end("tier2_proposal")
                     # §63 Tier-1.5 (default off): official-domain site search
                     # as a second, deterministic discovery channel.
                     targeted_claim_ids = live.context.setdefault(
                         DOMAIN_TARGETED_CLAIMS_KEY, []
                     )
                     if isinstance(targeted_claim_ids, list):
-                        phase_timing.begin("domain_targeted")
+                        runtime_observation.phase_start("domain_targeted")
                         live.cursor = _domain_targeted_step(
                             cursor=live.cursor,
                             state=live.state,
@@ -1455,12 +1455,12 @@ class ActiveResearchRuntimeExecutor:
                             live_context=live.current_context,
                             now_ms=elapsed_ms,
                         )
-                        phase_timing.end("domain_targeted", context=live.context)
+                        runtime_observation.phase_end("domain_targeted")
                     # §69/B1-T5 R1': discovery channels can only admit after
                     # this wave's window was frozen; give those late candidates
                     # their own bounded assessment entry so the read plan can
                     # actually see them.
-                    phase_timing.begin("late_tail")
+                    runtime_observation.phase_start("late_tail")
                     live.cursor = _late_admission_tail(
                         cursor=live.cursor,
                         state=live.state,
@@ -1473,8 +1473,8 @@ class ActiveResearchRuntimeExecutor:
                         policy_context=model_policy,
                         on_model_started=on_model_started,
                         on_model_finished=on_model_finished,
-                        phase_begin=phase_timing.begin,
-                        phase_end=lambda phase: phase_timing.end(phase, context=live.context),
+                        phase_begin=runtime_observation.phase_start,
+                        phase_end=runtime_observation.phase_end,
                         remaining_timeout=remaining_timeout,
                         research_seconds_left=research_seconds_left,
                         trace=selection_trace,
@@ -1488,12 +1488,12 @@ class ActiveResearchRuntimeExecutor:
                         ),
                         live_context=live.current_context,
                     )
-                    phase_timing.end("late_tail", context=live.context)
+                    runtime_observation.phase_end("late_tail")
                     checkpoint()
 
                 live.cursor = replace(live.cursor, phase="ranking")
                 # F2-S1: the ranking/planning block gets its own span
-                phase_timing.begin("ranking")
+                runtime_observation.phase_start("ranking")
                 checkpoint(stage="assessing")
 
                 # P1-C batch 2: the read plan is recomputed at the start of every
@@ -1543,7 +1543,7 @@ class ActiveResearchRuntimeExecutor:
                     )
                     for claim_id, ranked in assessment_results.claim_rankings.items()
                 }
-                phase_timing.end("ranking", context=live.context)
+                runtime_observation.phase_end("ranking")
                 physical_reads, extraction_targets = _fair_read_plan(
                     live.state,
                     rankings_for_plan,
@@ -2007,7 +2007,7 @@ class ActiveResearchRuntimeExecutor:
                         discovery_diagnostics.bump_lead("policy_blocked")
                         checkpoint()
                         continue
-                    phase_timing.begin("discovery")
+                    runtime_observation.phase_start("discovery")
                     try:
                         discovery = self.lead_discoverer.discover(
                             run_id=run_id,
@@ -2018,7 +2018,7 @@ class ActiveResearchRuntimeExecutor:
                             on_attempt_finished=on_model_finished,
                         )
                     finally:
-                        phase_timing.end("discovery", context=live.context)
+                        runtime_observation.phase_end("discovery")
                     ensure_active()
                     if (
                         discovery.status == "completed"
@@ -2152,7 +2152,7 @@ class ActiveResearchRuntimeExecutor:
                         )
                         checkpoint()
                         continue
-                    phase_timing.begin("extraction")
+                    runtime_observation.phase_start("extraction")
                     try:
                         extracted = self.evidence_extractor.extract(
                             run_id=run_id,
@@ -2170,7 +2170,7 @@ class ActiveResearchRuntimeExecutor:
                             attempt_start=extraction_attempt_start,
                         )
                     finally:
-                        phase_timing.end("extraction", context=live.context)
+                        runtime_observation.phase_end("extraction")
                     ensure_active()
                     if extracted.status != "completed" or extracted.extraction is None:
                         extraction_reason = extracted.reason or "extractor_unavailable"
@@ -2383,7 +2383,7 @@ class ActiveResearchRuntimeExecutor:
                     )
 
                 live.cursor = replace(live.cursor, phase="gating")
-                phase_timing.begin("gating")
+                runtime_observation.phase_start("gating")
                 checkpoint(stage="gating")
                 gate = evaluate_evidence_gate(live.state)
                 live.state = _state_after_gate(live.state, gate)
@@ -2392,7 +2392,7 @@ class ActiveResearchRuntimeExecutor:
                 # §45 funnel: proposal -> added -> assessed -> read ->
                 # extracted -> gate-eligible, per llm_proposed candidate.
                 _record_tier2_funnel(live.context, live.cursor, brief, selected_sources)
-                phase_timing.end("gating", context=live.context)
+                runtime_observation.phase_end("gating")
                 checkpoint()
 
                 # Gain/saturation projection is resume-safe and bounded. The
