@@ -6,6 +6,17 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+> **当前收口**：#572 波次进度上下文已在精确 HEAD `6191d8f6`、CI `44696107007` 成功且无阻断审阅后合入 `main@93ec4c7`；#573 评估结果上下文原 HEAD `37df4222`、CI `44697525596` 同样成功，但主线变化造成文档并列插入冲突。已保留双方交接、将 #573 重挂到新主线并验证组合影响集 **155 passed / 89.70s**；仍须新精确 HEAD CI 才能合并。后续只在两个上下文都收口后开始新语义片。
+
+### 2026-11-20 研究波次增益与发现进度结算收归实时上下文（独立 P3 静态片）
+
+- **范围**：新增 `ActiveWaveProgressContext`，将 `execute()` 尾部交错的 Evidence Gain、逐 claim/gap 饱和计数、lead 发现增量判定和 `metrics.wave_progress` 有界记账统一收归单一执行上下文。lead 读取前的三个计数保存为只含整数的 `DiscoveryProgressSnapshot`，结算时重新读取唯一 `ActiveRuntimeLiveValues` 的最新 state/cursor/context，沿用原 `_wave_gap_provenance` 来源归因；删除执行器重复的 `_is_discovery_candidate`，执行器仅保留两次显式调用。与 `ActiveWaveSettlementContext` 的后续 steering/停止决定明确分工。
+- **冻结契约**：以持久化波次开始时的原 state 为 gain baseline、以 `active_gap_ids` 为处理目标；新候选/域线索只能延迟本波饱和，**不能假冒证据增益，也不能重置既有 no-gain 计数**。无进展时逐 claim/gap 只增加一次，增益历史总是追加；诊断字段、最近 `MAX_RESEARCH_WAVES` 条截断、旧列表别名和 checkpoint 前写入顺序均保留。执行器原 `checkpoint() → research-window end → checkpoint() → timing flush → wave settlement` 调用位置完全不动；不改变恢复 schema、读取/模型/预算结算、证据门禁及发布资格。
+- **验证**：新增 7 项直接负控，覆盖无进展饱和、三种发现信号、真实证据进展、跨 checkpoint live 重绑与有界诊断、归因异常前不写入；初始 6 项与主动研究执行器、波次基线/停止/settlement、checkpoint 会话及预算影响集 **119 passed / 98.19s**，随后补充异常负控并单独运行新专项 **7 passed**。全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。本片 `priority=P3`、`loop=static`、`owner=research/wave-progress`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；无真实搜索或付费模型，不能据此声称用户回答质量提升。
+- **交接**：起点 `main@472cc7b`，独立分支 `codex/research-wave-progress-context-20261120`。此改动仅创建清晰的可变状态所有权、未迁移持久化权威；须以新 PR 的精确 HEAD CI 与无阻断审阅验收。#570 读取链测试、#562 late-tail 诊断、#571 旧研究记忆退役各有独立 PR，不挪用其未合代码。下一片优先收口开放 PR，再看 assessment 结果缓存与外部调度的可变状态交界，不扩张为模型预算重写。
+- **主线整合复核**：原 PR HEAD `d0e9d3c4` 精确 CI `44611274220` 成功；随后 #570 和 #562 依次合入 `main@58b5894`。本片生产代码及专项测试自动合并，唯一冲突为 handoff 并列新增段落，已完整保留；组合下主动研究执行器、wave progress、late-tail 诊断、波次基线/settlement、checkpoint、读取链、检索结果 **119 passed / 77.84s**，全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。重挂后的精确 PR HEAD CI 尚须重新验收，不能沿用 `d0e9d3c4` 绿灯。
+- **最终合并**：PR #572 精确 HEAD `6191d8f6589b02e5bb9db2a77e44a8a2e0a4570f` 的 CI `44696107007` 成功、reviews/threads 均为空，使用 SHA 保护 squash 合并为 `main@93ec4c721cc4af673f223b5baf7bfd8ce4757040`。以上历史“尚须验收”已由此状态更新取代。
+
 ### 2026-11-20 候选评估恢复缓存与排名归档收归显式上下文（独立 P3 静态片）
 
 - **范围**：新增 `ActiveAssessmentResultContext`，把每波原本散落在执行器内的既有评估缓存恢复、逐 claim 的历史排名复用、成功评估合并与两份缓存投影归为单一 wave-local 工作状态。原普通 assessment 与 `_late_admission_tail` 共用 `record_assessment_result()`，集中实现 `旧结果合并 → rank_candidate_pool → selection trace 排名 → claim_rankings → assessments 缓存 → assessed_inputs 缓存 → 持久化上下文字典键`。原 `_assessment_store`、`_assessment_inputs_store` 与 `_ranked_from_dict` 实现和两枚持久化键定义迁入新模块；执行器保留同名键的导入出口，避免外部引用形状变化。
@@ -13,6 +24,8 @@
 - **验证**：新增 6 项直接负控覆盖持久化排名恢复与 alias、跨 checkpoint context 重绑、普通与 late-tail 两入口同一投影、无效旧缓存、排名失败前无部分写入；完整主动研究执行器、late-tail、候选 pipeline/ranking、选择轨迹、checkpoint 和模型尝试影响集 **139 passed / 74.33s**，专项 **6 passed**。全库 Ruff、编译及差异检查通过，mypy **115/125、无新增**。本片 `priority=P3`、`loop=static`、`owner=research/assessment-results`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；无真实搜索、付费模型和质量动态比较。
 - **交接**：起点 `main@58b5894`，独立分支 `codex/research-assessment-results-context-20261120`；#572 波次进度 PR 的精确 HEAD CI `44696107007` 在本轮首次查询仍 `in_progress`，未合并，当前片不挪用其代码。该分支应独立取得精确 PR HEAD CI 与无阻断审阅，之后再与 #572 主线先后关系整合。下批先收口开放的上下文 PR，再考虑读计划与评估结果消费端的隐式参数，不扩大为模型预算/恢复 schema 迁移。
 - **#571 主线重挂**：旧研究记忆栈退役 #571 已入 `main@c58ed4e`；本片重挂无冲突，差异仍只包括评估结果上下文、执行器归档调用、专项测试和本交接。新基线下再次验证完整候选评估与运行时影响集 **139 passed / 77.93s**；全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。该本地新提交和后续远端精确 PR HEAD 仍须独立 CI 验收。
+- **#572 后续主线重挂**：#573 原精确 HEAD `37df42227487707ab19d1b28373715dc1fc386fb` 的 CI `44697525596` 成功且无阻断审阅。#572 合并后主线为 `93ec4c7`，仅此 handoff 同位置插入冲突；生产代码自动合并。本批将保留两批已冻结契约，补跑组合后的主动研究执行器、波次结算与评估归档影响集；新的 PR HEAD 必须单独完成 CI 才可合并。
+- **组合验证完成**：基于 `main@93ec4c7` 重挂后的 #573 候选包含两组上下文；主动研究执行器、late-tail、候选 pipeline/ranking、选择轨迹、checkpoint、模型尝试、评估归档、wave progress/baseline/settlement 共 **155 passed / 89.70s**。全库 Ruff、编译和差异检查通过；mypy **115/125、无新增**。无真实模型/搜索或预算支出，`decision=engineering-only`。新远端 PR HEAD 的 CI 成功和无阻断审阅仍为最终合并门禁。
 
 ### 2026-11-20 读取链五组集成测试复用现有执行场景（独立 P3 静态减负片）
 
