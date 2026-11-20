@@ -291,6 +291,9 @@ from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_discovery_diagnostics import (
     ActiveDiscoveryDiagnosticsContext,
 )
+from src.application.research_runtime_late_tail_diagnostics import (
+    LateTailDiagnosticsContext,
+)
 from src.application.research_runtime_fetch_retry_observation import (
     _accumulate_fetch_metrics as _accumulate_fetch_metrics,
     _inventory_fetch_with_retry as _inventory_fetch_with_retry,
@@ -3120,199 +3123,6 @@ def _tier2_proposal_step(
     return replace(cursor, candidates=(*cursor.candidates, *new_items))
 
 
-
-
-def _b1_critical_path_ms(
-    record: Mapping[str, Any], *, deadline_seconds: float
-) -> dict[str, Any]:
-    """§70/B5-S1: B1 discovery -> admission -> tail gate, with headroom.
-
-    Diagnostic only: it reads timestamps already recorded in the run metrics and
-    never influences scheduling, budgets or the evidence chain.
-    """
-
-    def _num(key: str) -> float | None:
-        value = record.get(key)
-        return float(value) if isinstance(value, (int, float)) else None
-
-    admitted_ms = _num("t_admitted_ms")
-    selected_ms = _num("t_tail_selected_ms")
-    gate_ms = _num("t_tail_gate_ms")
-    out: dict[str, Any] = {
-        "t_started_ms": _num("t_started_ms"),
-        "t_admitted_ms": admitted_ms,
-        "t_tail_selected_ms": selected_ms,
-        "t_tail_gate_ms": gate_ms,
-        "deadline_seconds": round(float(deadline_seconds), 3),
-    }
-    if admitted_ms is not None:
-        out["admission_seconds"] = round(admitted_ms / 1000.0, 3)
-        out["headroom_at_admission_seconds"] = round(
-            float(deadline_seconds) - admitted_ms / 1000.0, 3
-        )
-    if gate_ms is not None:
-        out["gate_seconds"] = round(gate_ms / 1000.0, 3)
-        out["headroom_at_gate_seconds"] = round(
-            float(deadline_seconds) - gate_ms / 1000.0, 3
-        )
-    started_ms = out.get("t_started_ms")
-    if started_ms is not None and gate_ms is not None:
-        out["critical_path_ms"] = round(gate_ms - started_ms, 1)
-    return out
-
-
-
-def _resolve_live_metrics(context: dict[str, Any]) -> dict[str, Any] | None:
-    """§71A-1: always re-resolve the live run metrics mapping.
-
-    The runtime can replace ``context[ACTIVE_RESEARCH_METRICS_KEY]`` while a
-    step is executing, so a mapping captured at function entry may already be
-    stale at write time. Every read or write boundary resolves again instead of
-    trusting a cached sub-mapping. Resolution never changes behaviour: when no
-    writable mapping can be resolved the caller simply records nothing.
-    """
-
-    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
-    if isinstance(metrics, dict):
-        return metrics
-    if isinstance(metrics, Mapping):
-        # The runtime also hands out read-only views of the metrics mapping
-        # (persisted snapshots / guards). Diagnostics must not vanish there, so
-        # the context is rebound to a writable copy of the same content -
-        # business state stays whatever the live context says.
-        try:
-            writable = dict(metrics)
-            context[ACTIVE_RESEARCH_METRICS_KEY] = writable
-            return writable
-        except Exception:
-            return None
-    if metrics is None:
-        try:
-            created: dict[str, Any] = {}
-            context[ACTIVE_RESEARCH_METRICS_KEY] = created
-            return created
-        except Exception:
-            return None
-    return None
-
-
-def _metrics_identity(metrics: Mapping[str, Any] | None) -> str:
-    return f"{type(metrics).__name__}@{id(metrics):x}" if metrics is not None else ""
-
-
-def _note_late_tail_invocation(
-    context: dict[str, Any], *, claim_id: str, wave_index: int
-) -> dict[str, Any] | None:
-    """Bounded marker for every tail invocation, keyed for later upsert.
-
-    The tail has early returns that leave no record (no late ids, budget
-    refusal). A run showing no tail at all would then be ambiguous, so the
-    invocation is recorded first with a stable ``invocation_id`` and must reach
-    a terminal ``outcome`` before the function returns.
-    """
-
-    metrics = _resolve_live_metrics(context)
-    if metrics is None:
-        return None
-    invocations = metrics.get("late_tail_invocations")
-    if not isinstance(invocations, list):
-        invocations = []
-    sequence = (
-        sum(
-            1
-            for item in invocations
-            if isinstance(item, Mapping)
-            and str(item.get("claim_id") or "") == str(claim_id or "")
-            and int(item.get("wave_index") or 0) == int(wave_index)
-        )
-        + 1
-    )
-    entry: dict[str, Any] = {
-        "invocation_id": f"{claim_id}:{wave_index}:{sequence}",
-        "claim_id": str(claim_id or ""),
-        "wave_index": int(wave_index),
-        "late_ids": 0,
-        "outcome": "running",
-        "phase": "entered",
-        "metrics_identity": _metrics_identity(metrics),
-        "domain_records": len(metrics.get("domain_targeted") or []),
-    }
-    invocations.append(entry)
-    metrics["late_tail_invocations"] = invocations[-40:]
-    return entry
-
-
-def _finalize_late_tail_invocation(
-    context: dict[str, Any],
-    entry: Mapping[str, Any] | None,
-    *,
-    outcome: str,
-    late_ids: int = 0,
-) -> None:
-    """§71A-1: write the terminal state into the *live* mapping, by key.
-
-    If the entry only exists in a stale mapping it is upserted into the live one
-    under the same ``invocation_id`` (marked ``recovered``) rather than appended
-    again, so one invocation can never look like two. Identity drift is
-    recorded, never acted upon.
-    """
-
-    if entry is None:
-        return
-    if isinstance(entry, dict):
-        # never leave the in-memory entry in its initial state, even when no
-        # writable mapping can be resolved at store time
-        entry["outcome"] = str(outcome)
-        entry["phase"] = "stored"
-        entry["late_ids"] = int(late_ids)
-    live = _resolve_live_metrics(context)
-    if live is None:
-        return
-    invocations = live.get("late_tail_invocations")
-    if not isinstance(invocations, list):
-        invocations = []
-    target = next(
-        (
-            item
-            for item in invocations
-            if isinstance(item, dict)
-            and item.get("invocation_id") == entry.get("invocation_id")
-        ),
-        None,
-    )
-    if target is None:
-        target = dict(entry)
-        target["recovered"] = True
-        invocations.append(target)
-    target["outcome"] = str(outcome)
-    target["phase"] = "stored"
-    target["late_ids"] = int(late_ids)
-    target["store_metrics_identity"] = _metrics_identity(live)
-    target["metrics_identity_changed"] = (
-        target.get("metrics_identity") != target["store_metrics_identity"]
-    )
-    live["late_tail_invocations"] = invocations[-40:]
-
-
-def _record_b1_critical_path(
-    context: dict[str, Any],
-    record: Mapping[str, Any],
-    *,
-    deadline_seconds: float,
-) -> None:
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if not isinstance(metrics, dict):
-        return
-    records = metrics.get("b1_critical_path")
-    if not isinstance(records, list):
-        records = []
-    payload = dict(_b1_critical_path_ms(record, deadline_seconds=deadline_seconds))
-    payload["claim_id"] = str(record.get("claim_id") or "")
-    payload["wave_index"] = record.get("wave_index")
-    records.append(payload)
-    metrics["b1_critical_path"] = records[-40:]
-
-
 def _late_admission_tail(
     *,
     cursor: ResearchRuntimeCursor,
@@ -3351,18 +3161,17 @@ def _late_admission_tail(
     gone it records why it was skipped.
     """
 
-    def _live() -> dict[str, Any]:
-        # §71A-1: the steering refresh can replace the whole context dict while
-        # this step runs, so every read/write boundary resolves it again.
-        return live_context() if live_context is not None else context
-
-    metrics = _resolve_live_metrics(_live())
+    observation = LateTailDiagnosticsContext(
+        context=context,
+        current_context=live_context,
+        now_ms=now_ms,
+        deadline_seconds=deadline_seconds,
+    )
+    metrics = observation.metrics()
     if not isinstance(metrics, Mapping):
         return cursor
     late_ids: list[str] = []
-    invocation = _note_late_tail_invocation(
-        _live(), claim_id=claim.id, wave_index=wave_index
-    )
+    observation.begin(claim_id=claim.id, wave_index=wave_index)
     for entry in metrics.get("domain_targeted") or []:
         if not isinstance(entry, Mapping):
             continue
@@ -3375,10 +3184,9 @@ def _late_admission_tail(
             if text_id and text_id not in late_ids:
                 late_ids.append(text_id)
     try:
-        if invocation is not None:
-            invocation["phase"] = f"decided:{len(late_ids)}"
+        observation.phase(f"decided:{len(late_ids)}")
         if not late_ids:
-            _finalize_late_tail_invocation(_live(), invocation, outcome="no_late_ids")
+            observation.finish(outcome="no_late_ids")
             return cursor
 
         record: dict[str, Any] = {
@@ -3411,41 +3219,6 @@ def _late_admission_tail(
                         record[key] = float(value)
                 break
 
-        def _store() -> None:
-            if now_ms:
-                record["t_tail_gate_ms"] = round(float(now_ms()), 1)
-            if deadline_seconds and record.get("t_admitted_ms") is not None:
-                record["headroom_at_admission_seconds"] = round(
-                    float(deadline_seconds) - float(record["t_admitted_ms"]) / 1000.0,
-                    3,
-                )
-            if deadline_seconds and record.get("t_tail_gate_ms") is not None:
-                record["headroom_at_gate_seconds"] = round(
-                    float(deadline_seconds) - float(record["t_tail_gate_ms"]) / 1000.0,
-                    3,
-                )
-            _record_b1_critical_path(
-                _live(),
-                record,
-                deadline_seconds=float(deadline_seconds or 0.0),
-            )
-            target = _resolve_live_metrics(_live())
-            if target is None:
-                return
-            records = target.get("late_assessment_tail")
-            if not isinstance(records, list):
-                records = []
-            records.append(record)
-            target["late_assessment_tail"] = records[-40:]
-            _finalize_late_tail_invocation(
-                _live(),
-                invocation,
-                outcome=(
-                    record["skipped_reason"] or f"assessed:{len(record['assessed_ids'])}"
-                ),
-                late_ids=len(record["late_candidate_ids"]),
-            )
-
         already_ranked = {
             item.candidate.id for item in claim_rankings.get(claim.id, ())
         }
@@ -3458,7 +3231,7 @@ def _late_admission_tail(
         )
         if not late_items:
             record["skipped_reason"] = "no_late_candidates"
-            _store()
+            observation.store(record)
             return cursor
 
         clusters = cluster_candidate_sources(claim_candidates)
@@ -3473,26 +3246,25 @@ def _late_admission_tail(
         record["selected_ids"] = [item.id for item in selected]
         if now_ms:
             record["t_tail_selected_ms"] = round(float(now_ms()), 1)
-        if invocation is not None:
-            invocation["phase"] = f"selected:{len(selected)}"
+        observation.phase(f"selected:{len(selected)}")
         if not selected:
             record["skipped_reason"] = "no_read_slot_for_claim"
-            _store()
+            observation.store(record)
             return cursor
 
         floor_seconds = late_tail_floor_seconds()
         record["floor_seconds"] = floor_seconds
         if float(research_seconds_left()) < floor_seconds:
             record["skipped_reason"] = "time_budget_exhausted"
-            _store()
+            observation.store(record)
             return cursor
 
         categories = ("public_research_claim", "public_candidate_metadata")
         if not policy_context.allowed(
-            _live(), "research_candidate_assessment", categories
+            observation.live(), "research_candidate_assessment", categories
         ):
             record["skipped_reason"] = "policy_blocked"
-            _store()
+            observation.store(record)
             return cursor
 
         candidate_ids = tuple(sorted(item.id for item in selected))
@@ -3504,12 +3276,11 @@ def _late_admission_tail(
             attempt_start = _model_attempt_start(cursor, logical_call_id)
         except _ModelAttemptBudgetExhausted:
             record["skipped_reason"] = "model_call_budget_exceeded"
-            _store()
+            observation.store(record)
             return cursor
 
         assessment_assignments = {item.id: assignments[item.id] for item in selected}
-        if invocation is not None:
-            invocation["phase"] = "assessing"
+        observation.phase("assessing")
         phase_begin("assessment")
         try:
             assessed = assessor.assess(
@@ -3535,7 +3306,7 @@ def _late_admission_tail(
                 if str(getattr(assessed, "reason", "") or "") == "model_call_attempts_exhausted"
                 else "assessment_failed"
             )
-            _store()
+            observation.store(record)
             return cursor
 
         merged: dict[str, Any] = {
@@ -3564,14 +3335,10 @@ def _late_admission_tail(
         context[ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY] = assessed_inputs
         record["assessed_ids"] = sorted(assessed.assessments)
         record["ranked_after"] = len(ranked)
-        _store()
+        observation.store(record)
         return cursor
     except BaseException as exc:  # noqa: BLE001 - re-raised below
-        _finalize_late_tail_invocation(
-            _live(),
-            invocation,
-            outcome=f"aborted:{type(exc).__name__}",
-        )
+        observation.finish(outcome=f"aborted:{type(exc).__name__}")
         raise
 
 def _domain_targeted_step(
