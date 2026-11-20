@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable, Literal, Mapping
 
+from src.domain.evidence import build_evidence_snapshot
+from src.domain.runtime_entities import WebLookupRun
 from src.web.research.contracts import (
     RESEARCH_STATE_SCHEMA_VERSION,
     ResearchBudget,
@@ -69,6 +71,25 @@ def attach_claim_engine_state(
     updated = dict(research_context)
     updated[CLAIM_ENGINE_CONTEXT_KEY] = validated.to_dict()
     return updated
+
+
+def known_research_evidence_ids(run: WebLookupRun) -> tuple[str, ...]:
+    """Derive allowable evidence IDs from the server-owned run snapshot."""
+
+    snapshot = build_evidence_snapshot(
+        rag={
+            "research_sources": {
+                "run_id": run.id,
+                "provider_status": run.provider_status,
+                "source_truth_version": int(
+                    run.research_context.get("source_truth_version") or 0
+                ),
+                "selected_sources": run.selected_sources,
+                "rejected_sources": run.rejected_sources,
+            }
+        }
+    )
+    return tuple(ref.id for ref in snapshot.refs)
 
 
 def load_claim_engine_state(

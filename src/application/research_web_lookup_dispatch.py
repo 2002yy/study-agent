@@ -18,11 +18,14 @@ from typing import Any
 
 from src.application.web_lookup_service import WebLookupGateway, WebLookupService
 from src.application.active_research_runtime import ActiveResearchRuntimeExecutor
-from src.domain.evidence import build_evidence_snapshot
 from src.domain.runtime_entities import WebLookupRun
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.active_adapter import ActiveResearchGateway
-from src.web.research.state import ClaimEngineLoadResult, load_claim_engine_state
+from src.web.research.state import (
+    ClaimEngineLoadResult,
+    known_research_evidence_ids,
+    load_claim_engine_state,
+)
 from src.web.research.contracts import ResearchState
 
 _PROVIDER_AUDIT_SCHEMA_VERSION = "research-provider-audit-v1"
@@ -242,7 +245,7 @@ def claim_engine_load(run: WebLookupRun) -> ClaimEngineLoadResult:
     lets Deep separate those cases before dispatching without duplicating the validation.
     """
 
-    known_evidence_ids = _known_research_evidence_ids(run)
+    known_evidence_ids = known_research_evidence_ids(run)
     return load_claim_engine_state(
         run.research_context,
         known_evidence_ids=known_evidence_ids,
@@ -254,23 +257,6 @@ def _dispatch_state(run: WebLookupRun) -> ResearchState | None:
     if loaded.available and loaded.effective_mode == "active":
         return loaded.state
     return None
-
-
-def _known_research_evidence_ids(run: WebLookupRun) -> tuple[str, ...]:
-    snapshot = build_evidence_snapshot(
-        rag={
-            "research_sources": {
-                "run_id": run.id,
-                "provider_status": run.provider_status,
-                "source_truth_version": int(
-                    run.research_context.get("source_truth_version") or 0
-                ),
-                "selected_sources": run.selected_sources,
-                "rejected_sources": run.rejected_sources,
-            }
-        }
-    )
-    return tuple(ref.id for ref in snapshot.refs)
 
 
 __all__ = ["ClaimEngineDispatchWebLookupService"]

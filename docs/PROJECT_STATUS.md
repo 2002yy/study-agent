@@ -25,6 +25,12 @@
 - **#564 交叉验证**：随后恢复波次基线上下文 #564 合并，本片再次重挂到 `main@cc82b44`，测试代码仍无冲突；取消四阶段、真实崩溃恢复、波次基线上下文及取消栅栏相邻集 **22 passed / 5.42s**。之前 `main@2c58833` 的 97 项全模块验证与本次交叉负控各自限定基线；新精确 PR HEAD 的 CI 仍是最终合并门禁。
 - **下一片**：在研究提取准入与失败归档的并行 PR 独立收口后，再从执行器中已确认重复的成功/失败来源摘要写入找收敛机会，优先净删实际重复路径。
 
+### 2026-11-20 无生产调用方的历史研究记忆整链退役（独立 P3 静态片）
+
+- **调用图/范围**：`ResearchMemoryService` 无 `src/`、工具入口、API 路由或应用装配调用方；唯一实例化处是 `tests/test_research_memory.py`。移除该服务、专属 `ResearchMemoryRepository`、`persistent_memory.py` 的历史记录模型及整份专项测试，连同 `research_memory` impact set、`research-memory-stack` stage gate 和其余阶段门里对已删除测试的引用。现行研究状态、证据投影、恢复、发布没有调用这套持久化历史线索能力。
+- **仅保留真实调用**：离线 `studyctl research inspect` 原来从历史模型文件借用 `known_research_evidence_ids`；现在统一由现行 `src/web/research/state.py` 计算允许证据 ID，研究调度与离线诊断共用同一份权威快照映射，不保留历史记忆适配层。`test_studyctl_research.py` 的真实运行状态样例改在自己的测试内建立，不再跨测试导入已退役的专用场景。
+- **数据/冻结边界**：SQLite v24 迁移是已经发布的不可变历史，`research_memory_*` 旧表定义保留以维持旧库 schema 版本序列及现存数据，不引入 DROP TABLE、回填或迁移重排。没有新增产品入口、旧模块兼容导出或新配置。恢复检查点、预算结算、来源身份、证据权威与研究发布均不变。`priority=P3`、`loop=static`、`owner=research/retired-memory`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；以精确 PR HEAD CI 和审阅为合并门槛。
+
 ### 2026-11-20 G13 旧证据归一化包与专属测试成组退役（独立 P3 静态片）
 
 - **可达性与范围**：`src/evidence/evidence_ref.py` 仅被 `tests/test_evidence_ref.py` 导入；其 `normalize_evidence`、RAG/工具/研究归一化、去重和过滤函数在现行 `src/`、`tools/`、前端与 CI 中均无调用。删除整份 195 行旧实现、106 行专属测试及空 `src/evidence/__init__.py`；无现行路由、导出适配层、配置项或阶段门条目需要保留。历史 RQCE 任务书仍只作为当时入口快照，不作为当前可用模块清单。

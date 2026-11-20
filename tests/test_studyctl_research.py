@@ -7,20 +7,97 @@ import sqlite3
 
 import pytest
 
+from src.domain.evidence import ClaimEvidenceLinkV1
+from src.domain.runtime_entities import WebLookupRun
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.web_lookup_repository import WebLookupRepository
+from src.web.research.contracts import (
+    EvidenceCluster,
+    EvidenceRequirement,
+    ResearchBudget,
+    ResearchClaim,
+    ResearchClaimEvidenceLink,
+    ResearchEvidence,
+    ResearchQuestion,
+    build_research_state,
+)
+from src.web.research.evidence_units import EvidenceUnit, RequiredUnit
+from src.web.research.state import known_research_evidence_ids, load_claim_engine_state
 from src.web.research.trace import append_research_trace
-from tests.test_research_memory import _run
 from tests.test_studyctl import invoke, repo as repo
 from tools import studyctl, studyctl_research
 
 
+def _inspection_run() -> WebLookupRun:
+    selected = [
+        {
+            "item": {
+                "url": "https://example.org/primary",
+                "title": "Primary",
+                "published_at": "2026-09-25",
+            },
+            "assessment": {"url": "https://example.org/primary", "source_id": "source-1"},
+            "read_status": "read",
+        }
+    ]
+    run = WebLookupRun(
+        id="inspect-run",
+        status="completed",
+        selected_sources=selected,
+        provider_status="ok",
+        query="Is feature X supported?",
+        stop_reason="evidence_gate_pass",
+        completed_at="2026-09-27T00:00:00+00:00",
+    )
+    (evidence_id,) = known_research_evidence_ids(run)
+    state = build_research_state(
+        mode="active",
+        questions=[ResearchQuestion("q1", run.query, "critical")],
+        claims=[
+            ResearchClaim(
+                "c1", "q1", "Feature X is supported.", "factual", "critical", "searching",
+                EvidenceRequirement(
+                    source_roles=("primary",), required_units=(RequiredUnit("u1"),),
+                    max_age_days=7,
+                ),
+            )
+        ],
+        evidence=[
+            ResearchEvidence(
+                evidence_id,
+                locator="https://example.org/primary",
+                lifecycle_status="read",
+                extraction_status="eligible",
+                published_at="2026-09-25",
+                units=(
+                    EvidenceUnit(
+                        "u1", source="https://example.org/primary", content="example",
+                        supports=("c1",), provenance="read:primary",
+                    ),
+                ),
+            )
+        ],
+        evidence_links=[
+            ResearchClaimEvidenceLink(
+                ClaimEvidenceLinkV1("c1", evidence_id, "supports", 0.9),
+                source_role="primary", source_cluster_id="k1",
+                locator="https://example.org/primary",
+            )
+        ],
+        source_clusters=[EvidenceCluster("k1", (evidence_id,), "primary")],
+        gaps=[],
+        conflict_gaps=[],
+        budget=ResearchBudget(20, 8, 45, 60),
+        known_evidence_ids=(evidence_id,),
+        reference_date="2026-09-27",
+    )
+    return replace(run, research_context={"claim_engine": state.to_dict()})
+
+
 @pytest.fixture
 def snapshot(tmp_path):
-    run = replace(_run(""), id="inspect-run", stop_reason="evidence_gate_pass")
+    run = _inspection_run()
     evidence_id = run.research_context["claim_engine"]["evidence"][0]["evidence_id"]
-    from src.web.research.state import load_claim_engine_state
-
     state = load_claim_engine_state(
         run.research_context, known_evidence_ids=[evidence_id]
     ).state
