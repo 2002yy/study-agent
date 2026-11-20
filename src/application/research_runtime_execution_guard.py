@@ -28,10 +28,22 @@ class ActiveResearchExecutionGuard:
     operation_id: str
     elapsed: Callable[[], float]
 
+    def cancel_requested(self) -> bool:
+        """Probe the current operation without changing the caller's exception type.
+
+        The candidate pool raises ``CandidatePoolCancelled`` from its own
+        boundary; the runtime's direct guard raises ``ActiveResearchCancelled``.
+        Both must query the same repository operation on every check.
+        """
+
+        return bool(
+            self.repository.cancel_requested(
+                self.run_id, operation_id=self.operation_id
+            )
+        )
+
     def ensure_active(self) -> None:
-        if self.repository.cancel_requested(
-            self.run_id, operation_id=self.operation_id
-        ):
+        if self.cancel_requested():
             raise ActiveResearchCancelled("active research cancelled")
 
     def ensure_budget(self, state: ResearchState) -> None:

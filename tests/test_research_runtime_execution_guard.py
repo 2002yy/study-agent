@@ -19,7 +19,7 @@ from src.web.research.contracts import ResearchState
 
 def test_cancellation_queries_live_operation_owner() -> None:
     repository = Mock(spec=WebLookupRepository)
-    repository.cancel_requested.side_effect = [False, True]
+    repository.cancel_requested.side_effect = [False, True, False, True]
     guard = ActiveResearchExecutionGuard(
         repository=repository,
         run_id="run-1",
@@ -27,10 +27,13 @@ def test_cancellation_queries_live_operation_owner() -> None:
         elapsed=lambda: 0.0,
     )
 
+    # The candidate pool needs a bool probe, not the runtime exception.
+    assert guard.cancel_requested() is False
+    assert guard.cancel_requested() is True
     guard.ensure_active()
     with pytest.raises(ActiveResearchCancelled, match="active research cancelled"):
         guard.ensure_active()
-    assert repository.cancel_requested.call_count == 2
+    assert repository.cancel_requested.call_count == 4
     repository.cancel_requested.assert_called_with(
         "run-1", operation_id="operation-2"
     )

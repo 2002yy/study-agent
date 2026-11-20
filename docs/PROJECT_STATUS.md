@@ -6,13 +6,20 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572–#581 已先后合入，最新确认主线 `main@a6ec0afb4a12d8c534b8dab32aeddb64a1c59be9`。本批全阶段观测上下文已从独立起点 `478f11f` 重挂该主线，待新的组合验证、精确 PR HEAD CI 与审阅；任何先前 HEAD 的 CI 均不能替代合并门禁。
+> **当前收口**：#572–#582 已先后合入；#582 精确 HEAD `d87cadc` 的 CI `44781252749` 五项作业全部成功，审阅无阻断，以 SHA 保护 squash 合入 `main@8ed1430f92d43fa081ac206cd9cdd64b901add1b`。下一独立片将搜索候选池的取消检查归入现有执行守卫，必须以其自己的新 HEAD CI 与审阅为合并门禁。
+
+### 2026-11-21 搜索候选池的取消探针归入唯一执行守卫（独立 P3 静态片）
+
+- **职责与范围**：`execute_candidate_pool_batch(..., should_cancel=...)` 原来接收 `ActiveResearchRuntimeExecutor.execute()` 临时构造的仓储查询 lambda，和同一函数使用的 `ActiveResearchExecutionGuard.ensure_active()` 重复读同一个 `run_id/operation_id`。新增 `ActiveResearchExecutionGuard.cancel_requested()` 作为明确的无异常布尔探针，`ensure_active()` 复用它；搜索候选池直接绑定这一方法，不再在执行器捕获 `self`、`run_id`、`operation_id` 构造第二条取消读取入口。原 `CandidatePoolCancelled` 和 `ActiveResearchCancelled` 分层异常保持原位。
+- **冻结与负控**：每次检查仍向现有 repository 查询最新取消状态，不缓存标志、不追加一次检查，不改检查位置、物理查询上限、checkpoint、模型/检索调度、恢复、研究预算与结算。直接负控扩展为非抛异常的布尔取消探针与抛 `ActiveResearchCancelled` 的 guard 各自读取最新操作所有权，保留候选池前后检查及其取消异常专项测试。原基线直接测试 **11 passed / 0.86s**；重挂已合并 #582 的 `main@8ed1430` 后，取消守卫、候选池、搜索、主动研究、checkpoint、预算时钟、wave settlement、模型尝试及运行时观测组合 **130 passed / 82.15s**。全库 Ruff、Python 编译、差异检查通过；mypy 基线 **115 current / 125 allowed（无新增）**。
+- **交接**：分支 `codex/active-search-cancellation-guard-20261121`，`priority=P3`、`loop=static`、`owner=research/cancellation-orchestration`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；真实付费模型及外部检索均未运行。当前片只减少执行器隐式依赖，**不改变取消行为**；新精确 PR HEAD CI/审阅待提交后验证。**下一片**：收口本 PR，再继续梳理 `ActiveSearchQueryExecution`、read scheduling 与模型尝试在持久 checkpoint 边界的显式快照/实时值职责，禁止将已冻结游标误改为实时读取。
 
 ### 2026-11-21 全阶段计时诊断收归单一实时观测上下文（独立 P3 静态片）
 
 - **范围与职责**：主动研究执行器过去对 `assessment`、`tier2_proposal`、`domain_targeted`、`late_tail`、`ranking`、`discovery`、`extraction`、`gating` 各自调用底层 `phase_timing.end(..., context=live.context)`，晚到候选的内部子阶段另用 lambda 隐式捕获 `live`。将读取观测上下文提升为 `ActiveRuntimeObservationContext`，统一绑定运行时阶段起止、读取重试时间和最新波次标识；删除旧 read-only 命名和单独闭包，不设兼容转发层。底层 `RuntimePhaseTiming` 和 `TimingLedger` 仍是原有唯一计时权威，读取网关继续拥有重试及升级语义。
 - **冻结契约与负控**：所有阶段起止位置、`finally` 顺序、诊断字段/单位、模型与检索调用、预算预留/结算、恢复 schema、检查点与 Evidence Gate 均不变；阶段结束才读取当前 `live.context`，不会把检查点前的上下文快照写回来。新增跨五类阶段的重绑参数化负控及连续两阶段上下文替换负控，并保留现有读取重试与波次重绑测试。
 - **静态证据与交接**：最初基于 `main@478f11f`，运行时观测/读取/搜索、模型尝试、checkpoint、wave settlement、预算时钟、主动研究与 TimingLedger 影响集 **134 passed / 82.42s**；#581 合并后重挂 `main@a6ec0afb4a12d8c534b8dab32aeddb64a1c59be9`，加入 RQCE trace/brief/state/CLI 相邻负控的组合集 **186 passed / 84.50s**。全库 Ruff、Python 编译与差异检查通过；mypy 基线 **115 current / 125 allowed（无新增）**。`priority=P3`、`loop=static`、`owner=research/runtime-observation`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；没有运行真实模型或搜索，未声称产品答案质量改善。分支 `codex/unify-active-runtime-observation-20261121`；精确 PR HEAD CI/审阅待提交后验证。已合并 #581 的 RQCE trace 退役属独立职责，不重复删除其代码。**下一片**：先收口本片精确 HEAD 的 CI/审阅，再继续在当前执行器梳理读取调度与模型调用之间的共享状态，不放宽已冻结的恢复/预算契约。
+- **#582 精确门禁已完成**：PR HEAD `d87cadc90db20724567cea51318551653d144da4` 的 CI `44781252749` 中 classify、frontend、backend、browser、test 全部成功，审阅和讨论线程无阻断，SHA 保护 squash 合入 `main@8ed1430f92d43fa081ac206cd9cdd64b901add1b`。此前“待提交”的文本仅是当时的静态交接快照。
 
 ### 2026-11-20 检查点持久化与计时观察解耦（独立 P3 静态片）
 
