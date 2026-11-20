@@ -184,23 +184,6 @@ def assess_claim_conflict(
     )
 
 
-def assess_state_conflicts(
-    state: ResearchState,
-) -> tuple[ConflictAssessment, ...]:
-    return tuple(assess_claim_conflict(state, claim) for claim in state.claims)
-
-
-def safe_assess_state_conflicts(
-    state: ResearchState,
-) -> tuple[ConflictAssessment, ...]:
-    """Keep shadow observability available if the conflict assessor fails."""
-
-    try:
-        return assess_state_conflicts(state)
-    except Exception:  # noqa: BLE001 - shadow observation must never raise
-        return ()
-
-
 def _standings(
     links: list[ResearchClaimEvidenceLink],
     evidence_by_id: dict[str, ResearchEvidence],

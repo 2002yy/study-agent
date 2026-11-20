@@ -175,23 +175,6 @@ def assess_claim_evidence(
     )
 
 
-def assess_research_state(state: ResearchState) -> tuple[ClaimEvidenceAssessment, ...]:
-    """Assess every claim in the state (observability only, never mutating)."""
-
-    return tuple(assess_claim_evidence(state, claim) for claim in state.claims)
-
-
-def safe_assess_research_state(
-    state: ResearchState,
-) -> tuple[ClaimEvidenceAssessment, ...]:
-    """Keep shadow observability available if the assessor itself fails."""
-
-    try:
-        return assess_research_state(state)
-    except Exception:  # noqa: BLE001 - shadow observation must never raise
-        return ()
-
-
 def _split_units(
     required_units: tuple[RequiredUnit, ...],
     supports: list[ResearchClaimEvidenceLink],

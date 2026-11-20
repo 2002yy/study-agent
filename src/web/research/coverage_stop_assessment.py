@@ -140,20 +140,14 @@ def assess_coverage_stop(state: ResearchState) -> CoverageStopAssessment:
     reasons: list[str] = [REASON_VOLUME_NOT_USED]
     if no_requirement:
         reasons.append(REASON_NO_REQUIREMENT)
-    if any(
-        item.semantic_adequacy in BLOCKING_ADEQUACY for item in blocking
-    ):
+    if any(item.semantic_adequacy in BLOCKING_ADEQUACY for item in blocking):
         reasons.append(REASON_SEMANTIC_GAP)
     if unresolved_conflicts:
         reasons.append(REASON_CONFLICT_UNRESOLVED)
 
     if blocking:
         return CoverageStopAssessment(
-            status=(
-                "conflict_unresolved"
-                if unresolved_conflicts
-                else "gaps_remain"
-            ),
+            status=("conflict_unresolved" if unresolved_conflicts else "gaps_remain"),
             recommendation="continue_candidate",
             critical_claim_count=len(critical_claims),
             adequate_critical_claim_count=adequate_count,
@@ -171,12 +165,3 @@ def assess_coverage_stop(state: ResearchState) -> CoverageStopAssessment:
         evidence_count=evidence_count,
         reasons=tuple([*reasons, REASON_ALL_CRITICAL_COVERED]),
     )
-
-
-def safe_assess_coverage_stop(state: ResearchState) -> CoverageStopAssessment | None:
-    """Keep shadow observability available if the assessor fails."""
-
-    try:
-        return assess_coverage_stop(state)
-    except Exception:  # noqa: BLE001 - shadow observation must never raise
-        return None

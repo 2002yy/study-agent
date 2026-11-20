@@ -11,9 +11,7 @@ from src.web.research.claim_conflict_assessment import (
     REASON_NO_CONFLICT,
     REASON_TIED_AUTHORITY,
     assess_claim_conflict,
-    assess_state_conflicts,
     authority_rank,
-    safe_assess_state_conflicts,
 )
 from src.web.research.contracts import (
     EvidenceCluster,
@@ -26,8 +24,6 @@ from src.web.research.contracts import (
     ResearchState,
     build_research_state,
 )
-from src.web.research.evidence_gate import evaluate_evidence_gate
-from src.web.research.stop_gate import evaluate_shadow_stop
 
 _ROLES = (
     "primary",
@@ -72,7 +68,8 @@ def _state(
         evidence=evidence,
         evidence_links=links,
         source_clusters=tuple(
-            EvidenceCluster(link.source_cluster_id, (link.evidence_id,)) for link in links
+            EvidenceCluster(link.source_cluster_id, (link.evidence_id,))
+            for link in links
         ),
         gaps=(),
         conflict_gaps=(),
@@ -129,8 +126,15 @@ def test_tied_authority_stays_unresolved() -> None:
     state = _state(
         evidence=(_evidence("ev1"), _evidence("ev2")),
         links=(
-            _link("ev1", relation="supports", role="authoritative_secondary", cluster="c1"),
-            _link("ev2", relation="contradicts", role="authoritative_secondary", cluster="c2"),
+            _link(
+                "ev1", relation="supports", role="authoritative_secondary", cluster="c1"
+            ),
+            _link(
+                "ev2",
+                relation="contradicts",
+                role="authoritative_secondary",
+                cluster="c2",
+            ),
         ),
     )
 
@@ -218,7 +222,9 @@ def test_source_count_never_decides() -> None:
             _link("c3", relation="contradicts", role="community", cluster="k4"),
         ),
     )
-    mirror = assess_claim_conflict(three_weak_contradict, three_weak_contradict.claims[0])
+    mirror = assess_claim_conflict(
+        three_weak_contradict, three_weak_contradict.claims[0]
+    )
     assert mirror.preferred_side == "support"
     assert REASON_COUNT_NOT_USED in mirror.reasons
 
@@ -260,48 +266,3 @@ def test_assessment_is_pure_and_reports_standings() -> None:
     assert result.supporting[0].fresh is True
     assert result.contradicting[0].authority_rank == 3
     assert set(result.to_dict()) >= {"status", "preferred_side", "reasons"}
-
-
-def test_assess_state_conflicts_covers_every_claim() -> None:
-    state = _state()
-
-    results = assess_state_conflicts(state)
-
-    assert len(results) == len(state.claims)
-    assert results[0].claim_id == "claim1"
-
-
-def test_safe_wrapper_returns_empty_when_assessor_fails(monkeypatch) -> None:
-    state = _state()
-
-    def boom(_state: ResearchState):
-        raise RuntimeError("corrupt shadow projection")
-
-    monkeypatch.setattr(
-        "src.web.research.claim_conflict_assessment.assess_claim_conflict", boom
-    )
-
-    assert safe_assess_state_conflicts(state) == ()
-
-
-def test_shadow_stop_exposes_conflicts_without_changing_decisions() -> None:
-    state = _state(
-        evidence=(_evidence("ev1"), _evidence("ev2")),
-        links=(
-            _link("ev1", relation="supports", role="primary", cluster="c1"),
-            _link("ev2", relation="contradicts", role="community", cluster="c2"),
-        ),
-    )
-    gate = evaluate_evidence_gate(state)
-
-    result = evaluate_shadow_stop(state, legacy_would_stop=True)
-
-    assert result.shadow_status == gate.status
-    assert result.shadow_would_pass is (gate.status in {"pass", "partial"})
-    assert result.shadow_would_block is (gate.status == "block")
-    assert result.legacy_should_stop is True
-    assert result.gate_result is not None
-    assert result.gate_result.to_dict() == gate.to_dict()
-    assert len(result.claim_conflicts) == 1
-    assert result.claim_conflicts[0].preferred_side == "support"
-    assert "claim_conflicts" in result.to_dict()

@@ -10,8 +10,6 @@ from src.web.research.claim_evidence_assessment import (
     REASON_REQUIRED_UNITS_MISSING,
     REASON_STRUCTURE_MET,
     assess_claim_evidence,
-    assess_research_state,
-    safe_assess_research_state,
 )
 from src.web.research.contracts import (
     EvidenceCluster,
@@ -24,9 +22,7 @@ from src.web.research.contracts import (
     ResearchState,
     build_research_state,
 )
-from src.web.research.evidence_gate import evaluate_evidence_gate
 from src.web.research.evidence_units import EvidenceUnit, RequiredUnit
-from src.web.research.stop_gate import evaluate_shadow_stop
 
 _SOURCE_ROLES = ("primary", "authoritative_secondary", "independent_secondary")
 
@@ -329,7 +325,10 @@ def test_primary_requirement_shortfall_is_structure_short() -> None:
 def test_assessment_is_pure_and_does_not_mutate_state() -> None:
     state = _state(
         requirement=_requirement(required_units=(RequiredUnit("u1"),)),
-        evidence=(_evidence("ev1", units=(EvidenceUnit("u1", "text"),)), _evidence("ev2")),
+        evidence=(
+            _evidence("ev1", units=(EvidenceUnit("u1", "text"),)),
+            _evidence("ev2"),
+        ),
         links=(
             _support("ev1", cluster="c1", role="primary"),
             _support("ev2", cluster="c2"),
@@ -341,56 +340,3 @@ def test_assessment_is_pure_and_does_not_mutate_state() -> None:
     assess_claim_evidence(state, state.claims[0])
 
     assert state.to_dict() == before
-
-
-def test_assess_research_state_covers_every_claim() -> None:
-    state = _state(requirement=_requirement(min_sources=0), evidence=(), links=())
-
-    assessments = assess_research_state(state)
-
-    assert len(assessments) == len(state.claims)
-    assert assessments[0].claim_id == "claim1"
-
-
-def test_safe_assessment_returns_empty_when_assessor_fails(monkeypatch) -> None:
-    state = _state(requirement=_requirement(min_sources=0), evidence=(), links=())
-
-    def boom(_state: ResearchState):
-        raise RuntimeError("corrupt shadow projection")
-
-    monkeypatch.setattr(
-        "src.web.research.claim_evidence_assessment.assess_claim_evidence", boom
-    )
-
-    assert safe_assess_research_state(state) == ()
-
-
-def test_shadow_stop_exposes_assessments_without_changing_decisions() -> None:
-    state = _state(
-        requirement=_requirement(required_units=(RequiredUnit("u1", "feature X", "text"),)),
-        evidence=(_evidence("ev1"), _evidence("ev2")),
-        links=(
-            _support("ev1", cluster="c1", role="primary"),
-            _support("ev2", cluster="c2"),
-        ),
-        clusters=(EvidenceCluster("c1", ("ev1",)), EvidenceCluster("c2", ("ev2",))),
-    )
-    gate = evaluate_evidence_gate(state)
-
-    result = evaluate_shadow_stop(state, legacy_would_stop=True)
-
-    # Decision surface is untouched by RQ-A.
-    assert result.shadow_status == gate.status
-    assert result.shadow_would_pass is (gate.status in {"pass", "partial"})
-    assert result.shadow_would_block is (gate.status == "block")
-    assert result.legacy_should_stop is True
-    assert result.open_critical_claims == gate.open_critical_claims
-    assert result.gate_result is not None
-    assert result.gate_result.to_dict() == gate.to_dict()
-    # RQ-A observability is attached and reports the semantic gap.
-    assert len(result.claim_assessments) == 1
-    assert result.claim_assessments[0].semantic_adequacy == "insufficient"
-    assert result.claim_assessments[0].missing_units == (
-        RequiredUnit("u1", "feature X", "text"),
-    )
-    assert "claim_assessments" in result.to_dict()
