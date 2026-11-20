@@ -35,6 +35,30 @@ def test_security_refusal_is_fail_closed(monkeypatch):
     assert fired == []  # a refusal never reaches a weaker fallback
 
 
+def test_nonpublic_final_redirect_never_reaches_reader_fallback(monkeypatch):
+    monkeypatch.setattr(af, "_check_dns_target_safe", lambda host: host == "example.org")
+    monkeypatch.setattr(
+        af,
+        "safe_fetch_result",
+        lambda *_a, **_k: {
+            "final_url": "http://127.0.0.1/internal",
+            "content_type": "text/html",
+            "raw": b"fake body",
+            "content_encoding": "",
+        },
+    )
+    fired: list[str] = []
+    monkeypatch.setattr(af, "read_html_locally", lambda *a, **k: fired.append("local"))
+    monkeypatch.setattr(af, "_try_firecrawl", lambda *a, **k: fired.append("fc"))
+    monkeypatch.setattr(af, "_try_jina", lambda *a, **k: fired.append("jina"))
+
+    result = af.fetch_article_read_result("https://example.org/a")
+    assert result.ok is False
+    assert result.reason == "unsafe_redirect_target"
+    assert result.final_url == "http://127.0.0.1/internal"
+    assert fired == []
+
+
 def test_truncation_is_reported_as_failure(monkeypatch):
     _allow(monkeypatch)
     monkeypatch.setattr(

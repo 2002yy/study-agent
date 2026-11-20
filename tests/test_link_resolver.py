@@ -3,7 +3,7 @@ from __future__ import annotations
 from src.news.link_resolver import (
     _extract_resolved_url_from_google_news_html,
     _is_google_news_url,
-    resolve_news_link,
+    resolve_news_link_metadata,
     resolve_news_link_result,
 )
 
@@ -65,10 +65,30 @@ def test_google_news_host_detection_is_exact_enough():
     assert not _is_google_news_url("https://evilnews.google.com/rss/articles/abc")
 
 
-def test_resolve_news_link_does_not_return_unsafe_target():
-    wrapped = "https://news.example/redirect?url=http%3A%2F%2F127.0.0.1%2Fadmin"
+def test_non_google_url_keeps_original_metadata():
+    url = "https://example.com/a"
+    metadata = resolve_news_link_metadata(url)
+    assert metadata.resolution_status == "original"
+    assert metadata.resolved_url == url
 
-    assert resolve_news_link(wrapped) == wrapped
+
+def test_google_news_redirect_records_final_url(monkeypatch):
+    from src.news import link_resolver
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def geturl(self):
+            return "https://publisher.example.com/article"
+
+    monkeypatch.setattr(link_resolver, "urlopen", lambda *args, **kwargs: _FakeResponse())
+    metadata = resolve_news_link_metadata("https://news.google.com/rss/articles/abc")
+    assert metadata.resolution_status == "resolved"
+    assert metadata.resolved_url == "https://publisher.example.com/article"
 
 
 def test_resolve_news_link_result_records_query_parameter_hops():

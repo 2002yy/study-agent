@@ -271,19 +271,6 @@ def resolve_news_link_metadata(url: str, timeout: int = 6) -> UrlMetadata:
     return resolve_news_link_result(url, timeout=timeout).metadata
 
 
-def resolve_news_link(url: str, timeout: int = 6) -> str:
-    """
-    Try to resolve Google News RSS redirect links to a final article URL.
-    If resolution fails, return the original URL.
-    """
-    metadata = resolve_news_link_metadata(url, timeout=timeout)
-    if metadata.resolution_status in {"resolved", "original"} and is_public_http_url(
-        metadata.resolved_url
-    ):
-        return metadata.resolved_url
-    return url
-
-
 def _display_link_host(url: str) -> str:
     try:
         parsed = urlparse((url or "").strip())

@@ -1,7 +1,6 @@
 import pytest
 from pathlib import Path
 import threading
-import time
 from src import wechat_state
 from src.news.article_extractor import (
     clean_article_text as _clean_article_text,
@@ -9,11 +8,9 @@ from src.news.article_extractor import (
     extract_article_text as _extract_article_text,
 )
 from src.news.article_fetcher import (
-    _ARTICLE_CACHE,
     _article_fetch_priority,
     _is_fetchable_article_url,
     enrich_news_items_with_article_text,
-    fetch_article_text_with_method,
 )
 from src.news.digest import (
     _news_article_coverage_summary,
@@ -21,7 +18,6 @@ from src.news.digest import (
 )
 from src.news.link_resolver import (
     _extract_resolved_url_from_google_news_html,
-    resolve_news_link,
 )
 from src.news.rss_fetcher import (
     _dedupe_and_trim_news_items,
@@ -149,75 +145,6 @@ def test_enrich_news_items_falls_back_when_article_unavailable(monkeypatch):
 
     assert enriched[0]["article_excerpt"] == ""
     assert "正文不可用" in enriched[0]["article_status"]
-
-
-def test_resolve_news_link_returns_original_for_non_google_url():
-    url = "https://example.com/a"
-    assert resolve_news_link(url) == url
-
-
-def test_resolve_news_link_uses_final_redirect_url(monkeypatch):
-    from src.news import link_resolver
-
-    class _FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def geturl(self):
-            return "https://publisher.example.com/article"
-
-    monkeypatch.setattr(link_resolver, "urlopen", lambda *args, **kwargs: _FakeResponse())
-
-    resolved = resolve_news_link("https://news.google.com/rss/articles/abc")
-    assert resolved == "https://publisher.example.com/article"
-
-
-def test_fetch_article_text_with_method_uses_cached_method(monkeypatch):
-    monkeypatch.setattr(
-        "src.news.article_fetcher._check_dns_target_safe",
-        lambda host: host == "example.com",
-    )
-    _ARTICLE_CACHE.clear()
-    _ARTICLE_CACHE["https://example.com/a"] = (
-        time.time(),
-        "cached text",
-        "readability",
-        "",  # This cached source has no author metadata.
-    )
-
-    text, method = fetch_article_text_with_method("https://example.com/a")
-
-    assert text == "cached text"
-    assert method == "readability"
-
-
-def test_fetch_article_text_with_method_returns_empty_when_redirect_to_localhost(
-    monkeypatch,
-):
-    from src.news import article_fetcher
-
-    _ARTICLE_CACHE.clear()
-
-    class _FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def geturl(self):
-            return "http://127.0.0.1/a"
-
-    monkeypatch.setattr(
-        article_fetcher._SAFE_OPENER, "open", lambda *args, **kwargs: _FakeResponse()
-    )
-
-    text, method = fetch_article_text_with_method("https://example.com/a")
-    assert text == ""
-    assert method == ""
 
 
 def test_article_fetch_priority_prefers_openai_official_voice_news():

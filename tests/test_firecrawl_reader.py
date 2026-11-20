@@ -135,10 +135,10 @@ def test_article_fetcher_does_not_call_firecrawl_by_default(monkeypatch):
         lambda url, timeout, max_chars: calls.append(url) or ReaderResult(text="firecrawl text", method="firecrawl"),
     )
 
-    text, method = article_fetcher.fetch_article_text_with_method("https://example.com/story")
+    result = article_fetcher.fetch_article_read_result("https://example.com/story")
 
-    assert text == ""
-    assert method == ""
+    assert result.ok is False
+    assert result.reason == "all_backends_failed"
     assert calls == []
 
 
@@ -173,8 +173,9 @@ def test_article_fetcher_uses_firecrawl_before_jina_when_enabled(monkeypatch):
         lambda url, timeout, max_chars: calls.append("jina") or ReaderResult(text="jina text", method="jina_reader"),
     )
 
-    text, method = article_fetcher.fetch_article_text_with_method("https://example.com/story")
+    result = article_fetcher.fetch_article_read_result("https://example.com/story")
 
-    assert text == "firecrawl text"
-    assert method == "firecrawl"
+    assert result.ok is True
+    assert result.text == "firecrawl text"
+    assert result.method == "firecrawl"
     assert calls == ["firecrawl"]
