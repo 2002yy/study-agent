@@ -25,9 +25,7 @@ from src.application.research_runtime_read_observability import (
     _record_read_history,
     _record_read_timing,
 )
-from src.application.research_runtime_read_attempt_context import (
-    ActiveReadAttemptContext,
-)
+from tests.research_read_attempt_factory import read_attempt_recorder
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.chain_executor import ChainStepResult
 from src.web.research.candidate_resolution import resolution_summary
@@ -285,7 +283,7 @@ def test_backend_health_snapshot_does_not_affect_reader_state() -> None:
 
 
 def test_read_attempt_context_returns_new_cursor_before_observation() -> None:
-    recorder = ActiveReadAttemptContext(breaker=None)
+    recorder = read_attempt_recorder()
     original = ResearchRuntimeCursor(wave_index=2)
     failed_step = ChainStepResult(
         backend="native_http", retrieval_state="timeout", adequacy_reason="timeout"
@@ -328,7 +326,7 @@ def test_read_attempt_context_records_same_timing_and_breaker_order() -> None:
             observed.append(("snapshot",))
             return {"native_http": "closed"}
 
-    recorder = ActiveReadAttemptContext(breaker=_Breaker())  # type: ignore[arg-type]
+    recorder = read_attempt_recorder(breaker=_Breaker())
     context: dict = {}
     step = ChainStepResult(
         backend="native_http",
@@ -366,7 +364,7 @@ def test_escalation_context_passes_current_context_and_samples_clock_only_if_use
         clock_calls.append("elapsed")
         return 7.0
 
-    recorder = ActiveReadAttemptContext(breaker=None, escalation_recorder=capture)
+    recorder = read_attempt_recorder(escalation_recorder=capture)
     context = {ACTIVE_RESEARCH_METRICS_KEY: {"retrieval_attempt_seq": 13}}
     native = ChainStepResult(
         backend="native_http", retrieval_state="ok", usable_content=True,

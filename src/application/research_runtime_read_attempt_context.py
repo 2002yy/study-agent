@@ -1,8 +1,9 @@
 """Run-scoped read attempt recording without capturing the executor cursor.
 
 The caller owns the current durable cursor and passes it on every transition.
-The context owns only the per-run breaker; current research context is supplied
-at the call site because checkpoints and steering can replace that mapping.
+The context binds stable run identity, clocks, cursor publication and the
+breaker. Current research context, cursor and budget ceiling stay invocation
+inputs because checkpoints and steering can replace them.
 """
 
 from __future__ import annotations
@@ -44,6 +45,11 @@ class ActiveReadAttemptContext:
     """
 
     breaker: PerRunBreaker | None
+    run_id: str
+    utc_now: Callable[[], str]
+    on_cursor_change: Callable[[ResearchRuntimeCursor], None]
+    research_seconds_left: Callable[[], float]
+    elapsed: Callable[[], float]
     escalation_recorder: Callable[..., None] = _record_escalation_diagnostics
 
     def append_outcome(
@@ -117,19 +123,15 @@ class ActiveReadAttemptContext:
         *,
         candidate: CandidatePoolItem,
         chain_steps: Sequence[ChainStepResult],
-        run_id: str,
         attempt_number: int,
-        utc_now: Callable[[], str],
-        on_cursor_change: Callable[[ResearchRuntimeCursor], None],
-        research_seconds_left: Callable[[], float],
         hard_timeout_seconds: float,
-        elapsed: Callable[[], float],
     ) -> ResearchRuntimeCursor:
         """Record each real backend attempt before observing its side effects.
 
-        The callback is intentionally required. Publishing the cursor after
-        begin/finish/outcome/failure transitions preserves crash and diagnostic
-        failure semantics while keeping cursor ownership with the runtime.
+        The run-bound callback is intentionally required. Publishing the cursor
+        after begin/finish/outcome/failure transitions preserves crash and
+        diagnostic failure semantics while keeping cursor ownership with the
+        runtime. The supplied cursor/context are this attempt's snapshot.
         """
         if not chain_steps:
             raise ValueError("cannot record an empty reader chain")
@@ -145,20 +147,20 @@ class ActiveReadAttemptContext:
         for step in chain_steps:
             marker = RuntimeExternalAttemptStart(
                 call_id=(
-                    f"research_read:{run_id}:{candidate.id}"
+                    f"research_read:{self.run_id}:{candidate.id}"
                     f":attempt:{attempt_number}:{step.backend}"
                 ),
                 purpose="read",
                 item_id=candidate.id,
                 attempt=attempt_number,
-                started_at=utc_now(),
+                started_at=self.utc_now(),
             )
             cursor = begin_external_attempt(cursor, marker)
-            on_cursor_change(cursor)
+            self.on_cursor_change(cursor)
             cursor = finish_external_attempt(cursor, call_id=marker.call_id)
-            on_cursor_change(cursor)
+            self.on_cursor_change(cursor)
             cursor = self.append_outcome(cursor, candidate, step)
-            on_cursor_change(cursor)
+            self.on_cursor_change(cursor)
             self.observe_step(
                 context,
                 candidate=candidate,
@@ -190,7 +192,7 @@ class ActiveReadAttemptContext:
                     exception_type=step_error,
                     attempt_id=marker.call_id,
                 )
-                on_cursor_change(cursor)
+                self.on_cursor_change(cursor)
 
         self.record_escalation_signal(
             context,
@@ -198,9 +200,9 @@ class ActiveReadAttemptContext:
             native_step=native_step,
             wigolo_step=wigolo_step,
             wave_index=cursor.wave_index,
-            research_seconds_left=research_seconds_left,
+            research_seconds_left=self.research_seconds_left,
             hard_timeout_seconds=hard_timeout_seconds,
-            elapsed=elapsed,
+            elapsed=self.elapsed,
         )
         return cursor
 

@@ -1,6 +1,7 @@
 """Per-backend attempt transitions publish the live cursor before observation."""
 
 from dataclasses import fields
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,6 +13,7 @@ from src.web.research.health_breaker import NATIVE_HTTP_BACKEND
 from src.web.research.runtime import ResearchRuntimeCursor
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 from src.web.research.wigolo_http_executor import WIGOLO_HTTP_BACKEND
+from tests.research_read_attempt_factory import read_attempt_recorder
 from tests.research_read_candidate_factory import read_candidate
 
 
@@ -26,12 +28,22 @@ def test_record_chain_attempts_publishes_each_transition_and_escalation() -> Non
     def record_escalation(live_context, signal, *, wave_index):
         signals.append((live_context, signal, wave_index))
 
-    attempt_context = ActiveReadAttemptContext(
+    attempt_context = read_attempt_recorder(
         breaker=None,
+        run_id="run-1",
+        utc_now=lambda: next(timestamps),
+        on_cursor_change=published.append,
+        research_seconds_left=lambda: remaining_samples.append("sample") or 17.0,
+        elapsed=lambda: elapsed_samples.append("sample") or 4.0,
         escalation_recorder=record_escalation,
     )
     assert {field.name for field in fields(attempt_context)} == {
         "breaker",
+        "run_id",
+        "utc_now",
+        "on_cursor_change",
+        "research_seconds_left",
+        "elapsed",
         "escalation_recorder",
     }
     candidate = read_candidate("candidate-a")
@@ -57,13 +69,8 @@ def test_record_chain_attempts_publishes_each_transition_and_escalation() -> Non
         context,
         candidate=candidate,
         chain_steps=(native, wigolo),
-        run_id="run-1",
         attempt_number=2,
-        utc_now=lambda: next(timestamps),
-        on_cursor_change=published.append,
-        research_seconds_left=lambda: remaining_samples.append("sample") or 17.0,
         hard_timeout_seconds=60.0,
-        elapsed=lambda: elapsed_samples.append("sample") or 4.0,
     )
 
     native_call = f"research_read:run-1:candidate-a:attempt:2:{NATIVE_HTTP_BACKEND}"
@@ -122,7 +129,9 @@ def test_record_chain_attempts_publishes_each_transition_and_escalation() -> Non
 def test_cursor_is_published_before_read_observation_can_fail(monkeypatch) -> None:
     published: list[ResearchRuntimeCursor] = []
     candidate = read_candidate("candidate-a")
-    attempt_context = ActiveReadAttemptContext(breaker=None)
+    attempt_context = read_attempt_recorder(
+        run_id="run-1", on_cursor_change=published.append
+    )
 
     def fail_observation(self, context, *, candidate, step, wave_index):
         assert published[-1].read_outcomes[-1].backend == step.backend
@@ -143,16 +152,75 @@ def test_cursor_is_published_before_read_observation_can_fail(monkeypatch) -> No
                     content="already-read",
                 ),
             ),
-            run_id="run-1",
             attempt_number=1,
-            utc_now=lambda: "started",
-            on_cursor_change=published.append,
-            research_seconds_left=lambda: 10.0,
             hard_timeout_seconds=60.0,
-            elapsed=lambda: 1.0,
         )
 
     assert len(published) == 3
     assert published[-1].inflight_external_call is None
     assert len(published[-1].read_outcomes) == 1
     assert published[-1].failures == ()
+
+
+def test_run_bound_recorder_uses_new_cursor_and_context_after_rebind() -> None:
+    """Stable callbacks must not become a hidden snapshot of attempt state."""
+
+    first_context: dict = {}
+    live = SimpleNamespace(
+        cursor=ResearchRuntimeCursor(phase="reading", wave_index=1),
+        context=first_context,
+    )
+    published: list[ResearchRuntimeCursor] = []
+
+    def publish(cursor: ResearchRuntimeCursor) -> None:
+        live.cursor = cursor
+        published.append(cursor)
+
+    recorder = read_attempt_recorder(
+        run_id="stable-run",
+        on_cursor_change=publish,
+    )
+    step = ChainStepResult(
+        backend=NATIVE_HTTP_BACKEND,
+        retrieval_state="fetched",
+        usable_content=True,
+        content="body",
+    )
+    candidate = read_candidate("candidate-a")
+
+    recorder.record_chain_attempts(
+        live.cursor,
+        live.context,
+        candidate=candidate,
+        chain_steps=(step,),
+        attempt_number=1,
+        hard_timeout_seconds=30.0,
+    )
+    first_published_count = len(published)
+    assert first_published_count == 3
+    assert first_context[ACTIVE_RESEARCH_METRICS_KEY]["read_timing"][0][
+        "wave_index"
+    ] == 1
+
+    # Simulate a completed checkpoint replacing both values between reads.
+    live.cursor = ResearchRuntimeCursor(phase="reading", wave_index=4)
+    live.context = {}
+    recorder.record_chain_attempts(
+        live.cursor,
+        live.context,
+        candidate=candidate,
+        chain_steps=(step,),
+        attempt_number=2,
+        hard_timeout_seconds=20.0,
+    )
+
+    assert len(published) == first_published_count + 3
+    assert published[-3].inflight_external_call.call_id == (
+        f"research_read:stable-run:candidate-a:attempt:2:{NATIVE_HTTP_BACKEND}"
+    )
+    assert published[-1] is live.cursor
+    assert published[-1].read_outcomes[0].status == "success"
+    assert live.context[ACTIVE_RESEARCH_METRICS_KEY]["read_timing"][0][
+        "wave_index"
+    ] == 4
+    assert len(first_context[ACTIVE_RESEARCH_METRICS_KEY]["read_timing"]) == 1
