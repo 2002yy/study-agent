@@ -6,13 +6,19 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572 已合入 `main@93ec4c7`；#573 HEAD `d858a7c0` 的 CI `44700957122` 成功后合入 `main@d7ccfaf`；#574 HEAD `ad0dbb21` 的 CI `44706478257` 成功、无阻断审阅，以 SHA 保护 squash 合入 `main@8b3a03e`。本批继续清理确认仅被专项测试调用的旧研究兼容 helper；新候选仍须独立精确 CI 验收。
+> **当前收口**：#572、#573、#574 已分别合入 `main@93ec4c7`、`main@d7ccfaf`、`main@8b3a03e`。#575 精确 HEAD `adb9b9ee` 的 CI `44718784842` 成功、无阻断审阅后，以 SHA 保护 squash 合入 `main@510772d`。#576 的原 HEAD `b520f964` CI `44720300805` 成功，但不能将这份旧基线 CI 借给重挂后的新 HEAD；本片现正重挂并重新验证。
 
 ### 2026-11-20 仅由历史专项测试使用的研究兼容 helper 退役（独立 P3 静态减负片）
 
 - **调用图与范围**：`safe_evaluate_shadow_stop()` 在仓内仅被 `test_research_quality_stop_gate.py` 的模拟异常用例调用，现行离线评估 `src/evals/research_quality_runner.py` 直接使用 `evaluate_shadow_stop()`；删除这条未接线的 fail-soft 转发及其 1 项专属测试，并从 `src/web/research/__init__.py` 移除公开重导出。`is_research_failure_code()` 仅被失败码目录测试的两个断言使用，删除这个不参与生产准入的宽松谓词及 `__all__` 导出，同时保留并继续测试真正的 writer-side `require_research_failure_code()`。**保留** `is_research_stop_reason()`：两个 `studyctl` 工具仍在实际使用它。无相关 CI、阶段门、配置或 CLI 注册需要改动。
 - **冻结边界与验证**：不动 Shadow Gate 的真实 `evaluate_shadow_stop()`、Evidence Gate、失败码常量目录、正式写入校验、research-stop 判定或离线研究质量指标。不改模型/检索/读取调用、预算结算、恢复/schema、checkpoint 或发布。原两份专项测试合计 **14 passed / 0.66s**；修改后 Shadow Gate/失败码与真实离线评估、两个 studyctl 调用方、claim evidence/conflict/coverage、research-stop 和 Evidence Gate 影响集 **157 passed / 9.14s**。全库 Ruff、编译、差异检查通过；mypy **115/125、无新增**。本片不以未接线异常分支测试替代正式恢复负控。
-- **交接**：基于 `main@8b3a03edd6e5ab2d07ceb3d1b73a301d1f070508`，独立分支 `codex/retire-test-only-research-compat-20261120`；`priority=P3`、`loop=static`、`owner=research/retired-compat-exports`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。待本片精确 HEAD CI、无阻断审阅后合并。下一片继续从当前运行器和明确的调用图里找未接线功能，但不能仅凭静态 grep 认定子进程入口或持久兼容格式可删。
+- **交接**：基于 `main@8b3a03edd6e5ab2d07ceb3d1b73a301d1f070508`，独立分支 `codex/retire-test-only-research-compat-20261120`；`priority=P3`、`loop=static`、`owner=research/retired-compat-exports`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本片已通过精确 HEAD CI 和审阅门禁，于 #575 合入主线。下一片继续从当前运行器和明确的调用图里找未接线功能，但不能仅凭静态 grep 认定子进程入口或持久兼容格式可删。
+
+### 2026-11-20 读取重试的实验性门槛配置与孤儿接口成组退役（独立 P3 静态片）
+
+- **实际调用与删除范围**：`read_retry_enabled()` 仅被 `test_read_retry.py` 的两个自检断言调用，运行时由 `read_retry_mode()` 统一解析开关。`retry_window_floor_seconds()` 同样只有该文件内一项专项测试调用，随它一起删除从未被准入公式读取的 `RESEARCH_READ_RETRY_FLOOR_SECONDS` 环境变量名、18 秒历史默认常量、`__all__` 导出和旧配置边界专项测试。代码、测试、配置同批退役，不保留兼容薄壳；`docs/archive/` 中当时实验记录作为历史快照保留，不代表仍生效的运行配置。
+- **真正的准入契约保留**：`READ_RETRY_ENV` / `read_retry_mode()` 仍被现行执行器和读取观测装配使用；`make_window_admission()` 始终使用 `retry_window_requirement(retry_number)` 的动态公式（尝试预算 + 下一次退避 + 末段预留），不查已删除的历史 floor 环境变量。保留对 off/on/window_aware、两次重试及 1s/2s 退避、fetch-only 重试、拒绝准入与计时/预算的现行测试；不改 checkpoint、研究恢复、预算结算、Evidence Gate 或发布。
+- **验证与交接**：删除前本模块与准入专项 **29 passed / 2.60s**；删除后读取重试/准入、运行时读取观测、attempt context、读取预算、预算时钟和完整主动研究执行器影响集 **136 passed / 55.78s**。全库 Ruff、编译和差异检查通过。工作分支 `codex/retire-inert-read-retry-floor-20261120`，初始 `main@8b3a03e`；`priority=P3`、`loop=static`、`owner=research/read-retry`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。#575 已合并；本片已重挂 `main@510772d`，新精确 HEAD CI 与审阅仍是最终门禁。
 
 ### 2026-11-20 未接线的 RQ1-C Phase Budget 预估器与专属测试成组退役（独立 P3 静态减负片）
 

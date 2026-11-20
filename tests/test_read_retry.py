@@ -6,12 +6,9 @@ import pytest
 
 from src.web.research.read_retry import (
     READ_RETRY_ENV,
-    READ_RETRY_FLOOR_ENV,
     is_fetch_layer_failure,
-    read_retry_enabled,
     read_retry_mode,
     read_with_bounded_retry,
-    retry_window_floor_seconds,
 )
 
 FETCH_ERROR = {
@@ -24,24 +21,11 @@ POLICY_FAILURE = {"ok": False, "error": "unsafe_or_empty_url"}
 
 def test_flag_defaults_off(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(READ_RETRY_ENV, raising=False)
-    assert read_retry_enabled() is False
     assert read_retry_mode() == "off"
     monkeypatch.setenv(READ_RETRY_ENV, "on")
-    assert read_retry_enabled() is True
     assert read_retry_mode() == "unbounded"
     monkeypatch.setenv(READ_RETRY_ENV, "window_aware")
     assert read_retry_mode() == "window_aware"
-
-
-def test_window_floor_is_bounded_and_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv(READ_RETRY_FLOOR_ENV, raising=False)
-    assert retry_window_floor_seconds() == 18.0
-    monkeypatch.setenv(READ_RETRY_FLOOR_ENV, "25")
-    assert retry_window_floor_seconds() == 25.0
-    monkeypatch.setenv(READ_RETRY_FLOOR_ENV, "junk")
-    assert retry_window_floor_seconds() == 18.0
-    monkeypatch.setenv(READ_RETRY_FLOOR_ENV, "0.2")
-    assert retry_window_floor_seconds() == 1.0
 
 
 def test_fetch_layer_failure_detection() -> None:

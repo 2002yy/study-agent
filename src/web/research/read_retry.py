@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 READ_RETRY_ENV = "RESEARCH_READ_RETRY"
-READ_RETRY_FLOOR_ENV = "RESEARCH_READ_RETRY_FLOOR_SECONDS"
 MAX_READ_RETRIES = 2
 READ_RETRY_BACKOFF_SECONDS: tuple[float, ...] = (1.0, 2.0)
 # §50/B2: the window-aware admission rule is a *formula*, not a magic floor:
@@ -32,9 +31,6 @@ READ_RETRY_BACKOFF_SECONDS: tuple[float, ...] = (1.0, 2.0)
 # so the next characterization round calibrates the rule rather than the number.
 READ_RETRY_ATTEMPT_BUDGET_SECONDS = 12.0
 READ_RETRY_RESERVE_SECONDS = 5.0
-# Kept only as an experimental override (must not exceed the computed
-# requirement); it exists so §48/§49 runs remain reproducible.
-READ_RETRY_WINDOW_FLOOR_SECONDS = 18.0
 
 # Fetch-layer signatures only. Deliberately excludes shape/policy failures
 # such as "unsafe_or_empty_url", "non_html_resource" and any successful read.
@@ -57,11 +53,6 @@ FETCH_FAILURE_MARKERS = (
 )
 
 
-def read_retry_enabled() -> bool:
-    raw = (os.getenv(READ_RETRY_ENV) or "").strip().lower()
-    return raw in {"1", "true", "on", "yes"}
-
-
 def read_retry_mode() -> str:
     """``off`` (default) | ``unbounded`` | ``window_aware``.
 
@@ -76,15 +67,6 @@ def read_retry_mode() -> str:
     if raw in {"1", "true", "on", "yes", "unbounded"}:
         return "unbounded"
     return "off"
-
-
-def retry_window_floor_seconds() -> float:
-    raw = os.getenv(READ_RETRY_FLOOR_ENV)
-    try:
-        value = float(raw) if raw is not None and raw != "" else READ_RETRY_WINDOW_FLOOR_SECONDS
-    except (TypeError, ValueError):
-        value = READ_RETRY_WINDOW_FLOOR_SECONDS
-    return max(1.0, min(value, 120.0))
 
 
 def retry_window_requirement(
@@ -373,15 +355,11 @@ __all__ = [
     "READ_RETRY_ATTEMPT_BUDGET_SECONDS",
     "READ_RETRY_BACKOFF_SECONDS",
     "READ_RETRY_ENV",
-    "READ_RETRY_FLOOR_ENV",
     "READ_RETRY_RESERVE_SECONDS",
-    "READ_RETRY_WINDOW_FLOOR_SECONDS",
     "RetryAdmission",
     "is_fetch_layer_failure",
     "make_window_admission",
-    "read_retry_enabled",
     "read_retry_mode",
     "read_with_bounded_retry",
-    "retry_window_floor_seconds",
     "retry_window_requirement",
 ]
