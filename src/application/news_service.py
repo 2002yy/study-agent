@@ -7,17 +7,17 @@ from typing import Any, Callable
 
 from src.application.group_chat_service import GroupChatService
 from src.domain.runtime_entities import NewsRun, new_id
+from src.news.article_fetcher import enrich_news_items_with_article_text
+from src.news.rss_fetcher import fetch_news_items
 from src.repositories.news_repository import NewsRepository
-from src.web.article_reader import ArticleReader
-from src.web.gateway import WebSearchGateway
 
 
 def _search(query: str, *, max_items: int):
-    return WebSearchGateway().search(query, max_items=max_items)
+    return fetch_news_items(query_text=query, max_items=max_items)
 
 
 def _enrich(items, **kwargs):
-    return ArticleReader().enrich(items, **kwargs)
+    return enrich_news_items_with_article_text(items, **kwargs)
 
 
 def _digest(items, **kwargs):
