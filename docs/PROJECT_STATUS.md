@@ -6,6 +6,12 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-20 未接线的 RQ1-C Phase Budget 预估器与专属测试成组退役（独立 P3 静态减负片）
+
+- **可达性与范围**：`src/web/research/phase_budget.py` 的六类动作优先级、行动耗时/读槽/模型调用预估、`PhaseBudget`/`PhaseAdmission` 及 `admit_phase_action()` 没有生产或工具调用方；唯一生产引用是主动研究执行器借用其 `FINALIZATION_RESERVE_SECONDS=12.0` 常量。现将 **12.0** 明确归还给真实研究窗口所有者 `RESEARCH_WINDOW_RESERVE_SECONDS`，删除未接线的 214 行决策原型及仅验证该原型的 135 行专项测试，不保留兼容层。`DEEP_1_CONTRACT.md` 中两处失效引用同步更新；现行阶段门、CI、脚本和配置无专属注册需要改动。
+- **冻结/负控与验证**：真正的 research-window reserve 从未使用已退役的 `admit_phase_action()`，而是由执行器按统一剩余时间、12 秒预留、实际读取/模型额度作准入。保留现行集成测试 `test_research_window_stops_new_waves_before_the_hard_deadline`（原本已断言 reserve 为 12 秒）与 `test_read_never_starts_outside_research_window`；不变更恢复 schema、checkpoint 次序、预算结算、搜索/读取调用、Evidence Gate 或发布。改前原型 7 例加现行窗口 2 例 **9 passed / 2.08s**；改后完整主动执行器、窗口/预算、读取额度、wave settlement、Deep execution/seed/handoff 影响集 **203 passed / 107.10s**，含上述两项真实窗口负控。全库 Ruff、编译及差异检查通过；mypy **115/125、无新增**。本片仓库净减约 345 行，不把删除旧模拟测试误称为真实质量提升。
+- **交接**：独立起点 `main@93ec4c7`，分支 `codex/retire-unused-phase-budget-20261120`；`priority=P3`、`loop=static`、`owner=research/retired-scheduling-prototype`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。#573 评估归档上下文仍独立等待其新精确 HEAD CI，本片不依赖其未合代码；须取得本片新的精确 CI 和无阻断审阅再合并。下一片优先收口两个 PR，再按调用图筛查其它孤立实验而不触碰仍在用的费用/恢复契约。
+
 ### 2026-11-20 研究波次增益与发现进度结算收归实时上下文（独立 P3 静态片）
 
 - **范围**：新增 `ActiveWaveProgressContext`，将 `execute()` 尾部交错的 Evidence Gain、逐 claim/gap 饱和计数、lead 发现增量判定和 `metrics.wave_progress` 有界记账统一收归单一执行上下文。lead 读取前的三个计数保存为只含整数的 `DiscoveryProgressSnapshot`，结算时重新读取唯一 `ActiveRuntimeLiveValues` 的最新 state/cursor/context，沿用原 `_wave_gap_provenance` 来源归因；删除执行器重复的 `_is_discovery_candidate`，执行器仅保留两次显式调用。与 `ActiveWaveSettlementContext` 的后续 steering/停止决定明确分工。
