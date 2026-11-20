@@ -242,7 +242,6 @@ from src.application.research_runtime_steering_context import ActiveResearchStee
 from src.application.research_runtime_wave_settlement import (
     ActiveWaveSettlementContext,
     ActiveWaveSettlementHandoff,
-    ActiveWaveSettlementSnapshot,
 )
 from src.application.research_runtime_wave_baseline import (
     ACTIVE_RESEARCH_WAVE_BASELINE_KEY as ACTIVE_RESEARCH_WAVE_BASELINE_KEY,
@@ -978,7 +977,7 @@ class ActiveResearchRuntimeExecutor:
         # semantic result. A crash first leaves durable inflight for recovery.
         on_model_finished = model_attempt_context.finished
 
-        wave_handoff = ActiveWaveSettlementHandoff.for_live_values(live)
+        wave_handoff = ActiveWaveSettlementHandoff(live=live)
         wave_baseline_context = ActiveWaveBaselineContext(
             live=live, actionable_gaps=_ordered_gaps
         )
@@ -988,21 +987,11 @@ class ActiveResearchRuntimeExecutor:
             max_research_waves=MAX_RESEARCH_WAVES,
         )
 
-        def settle_completed_wave(
-            snapshot: ActiveWaveSettlementSnapshot,
-        ) -> None:
-            """Keep the checkpoint caller label and its original side-effect order."""
-            wave_handoff.bind(snapshot)
-            try:
-                checkpoint()
-            finally:
-                wave_handoff.refresh_after_checkpoint(snapshot)
-
         wave_settlement_context = ActiveWaveSettlementContext(
             steering=steering_context,
             ensure_active=ensure_active,
             elapsed=elapsed,
-            checkpoint=settle_completed_wave,
+            checkpoint=partial(wave_handoff.settle_completed_wave, checkpoint=checkpoint),
             results=results,
             run_id=run_id,
             actionable_gaps=_ordered_gaps,

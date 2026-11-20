@@ -33,7 +33,7 @@ def _live_wave_handoff() -> tuple[ActiveRuntimeLiveValues, ActiveWaveSettlementH
         cursor=ResearchRuntimeCursor(wave_index=1),
         context={"before": True},
     )
-    return live, ActiveWaveSettlementHandoff.for_live_values(live)
+    return live, ActiveWaveSettlementHandoff(live=live)
 
 
 def test_wave_handoff_rebinds_mutated_state_when_settlement_raises() -> None:
@@ -61,6 +61,20 @@ def test_wave_handoff_rebinds_mutated_state_when_settlement_raises() -> None:
     assert live.context == {"after": True}
 
 
+def test_wave_handoff_captures_replaced_live_values_not_a_cached_snapshot() -> None:
+    live, handoff = _live_wave_handoff()
+    original = handoff.capture()
+    live.cursor = ResearchRuntimeCursor(wave_index=3)
+    live.context = {"replacement": True}
+
+    current = handoff.capture()
+
+    assert current.cursor is live.cursor
+    assert current.context is live.context
+    assert original.cursor.wave_index == 1
+    assert original.context == {"before": True}
+
+
 def test_wave_handoff_retains_partial_checkpoint_projection_on_crash() -> None:
     live, handoff = _live_wave_handoff()
     projected_state = cast(ResearchState, object())
@@ -68,13 +82,13 @@ def test_wave_handoff_retains_partial_checkpoint_projection_on_crash() -> None:
 
     def interrupted_checkpoint(snapshot: ActiveWaveSettlementSnapshot, *_: Any) -> None:
         snapshot.cursor = ResearchRuntimeCursor(wave_index=2)
-        handoff.bind(snapshot)
-        try:
+
+        def persist() -> None:
             live.state = projected_state
             live.context = {"prepared": True}
             raise _InterruptedWave
-        finally:
-            handoff.refresh_after_checkpoint(snapshot)
+
+        handoff.settle_completed_wave(snapshot, checkpoint=persist)
 
     settlement.settle_completed_wave.side_effect = interrupted_checkpoint
 
@@ -88,6 +102,21 @@ def test_wave_handoff_retains_partial_checkpoint_projection_on_crash() -> None:
     assert live.state is projected_state
     assert live.cursor.wave_index == 2
     assert live.context == {"prepared": True}
+
+
+def test_wave_handoff_refreshes_completed_checkpoint_projection() -> None:
+    live, handoff = _live_wave_handoff()
+    snapshot = handoff.capture()
+    snapshot.cursor = ResearchRuntimeCursor(wave_index=2)
+
+    def persist() -> None:
+        assert live.cursor.wave_index == 2
+        live.context = {"persisted": True}
+
+    handoff.settle_completed_wave(snapshot, checkpoint=persist)
+
+    assert snapshot.cursor.wave_index == 2
+    assert snapshot.context == {"persisted": True}
 
 
 def test_late_direction_uses_checkpoint_rebound_context_before_publication(
