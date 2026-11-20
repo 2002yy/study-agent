@@ -6,7 +6,15 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572、#573、#574 已分别合入 `main@93ec4c7`、`main@d7ccfaf`、`main@8b3a03e`。#575 精确 HEAD `adb9b9ee` 的 CI `44718784842` 成功、无阻断审阅后，以 SHA 保护 squash 合入 `main@510772d`。#576 的原 HEAD `b520f964` CI `44720300805` 成功，但不能将这份旧基线 CI 借给重挂后的新 HEAD；本片现正重挂并重新验证。
+> **当前收口**：#572–#576 已先后合入；#575 精确 HEAD `adb9b9ee` CI `44718784842` 全绿后合入 `main@510772d`；#576 重挂 HEAD `bd8f4dc` CI `44726446702` 全绿、无阻断审阅后以 SHA 保护合入 `main@2993aa9`。本批把未接线旧回合宿主的独立 PR #577 重挂到新主线；该 PR 必须重跑精确 HEAD CI。#578 波次交接上下文片已推送，须在前序合并后重新核验。
+
+### 2026-11-20 未接线的对话回合宿主与费用闸门整链退役（独立 P3 静态片）
+
+- **生产可达性**：`src/application/conversation_turn_lifecycle.py` 的 `TurnLifecycle` / `TurnDeadline` 没有任何生产构造或 CLI/API 入口，唯一进口是 `tests/test_turn_lifecycle.py`；`src/application/conversation_spend_gate.py` 的 `SpendGatedAdmission` 也仅供该未接线宿主和同一份测试使用。删除两个历史实现文件共 450 行、整份 546 行专项测试，不留只为模拟双轨计费而存在的适配薄层。精确扫描现行 `src/`、`tools/`、`.github/` 及 `tests/stage_gates.json`，无其它运行引用或专属阶段门、配置待删。
+- **保留的真实权威**：现行聊天模型调用经过 `admitted_chat`、`spend_admission_factory`、`spend_settlement_adapter` 与真实费用账本；正式聊天取消由 API 与仓储的实际操作状态驱动，绝不经过已退役的 `TurnLifecycle`。保留现行额度拒绝、重试预留、未决消费、断流关闭、崩溃恢复、同一请求防双扣及取消竞态等负控，不改预算结算、恢复持久化格式或 checkpoint。`docs/CL_M1_REBIND_PREVIEW.md` 是 2026-10-23 的未接线预演快照，已加历史警示而非逐段擦除旧研究记录。
+- **验证与交接**：删除前旧宿主专项 **23 passed / 3.33s**；删除后正式模型准入、费用授权/持久结算/恢复、对话取消、语义准入及决策调用影响集 **204 passed / 25.98s**。全库 Ruff、编译与差异检查通过；mypy **115/125，无新增**（检查源码从 502 减为 500 文件）。原基线 `main@510772d`、分支 `codex/retire-unwired-turn-lifecycle-20261120`；`priority=P3`、`loop=static`、`owner=conversation/retired-turn-host`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。#576 已合并，本片重挂 `main@2993aa9` 后必须通过新精确 HEAD CI 及审阅才可合并。
+
+- **#576 合并后组合复核**：重挂 `main@2993aa97697363172b3e665b166b34c5ac09e53c` 后，正式费用授权/持久结算/取消的 204 项和已合入读取重试/准入的 28 项交叉验证 **232 passed / 27.79s**；Ruff、编译及差异检查通过。旧 #577 HEAD `8536da8` 的原 CI 不用于新 HEAD 合并门禁。
 
 ### 2026-11-20 仅由历史专项测试使用的研究兼容 helper 退役（独立 P3 静态减负片）
 
@@ -18,7 +26,7 @@
 
 - **实际调用与删除范围**：`read_retry_enabled()` 仅被 `test_read_retry.py` 的两个自检断言调用，运行时由 `read_retry_mode()` 统一解析开关。`retry_window_floor_seconds()` 同样只有该文件内一项专项测试调用，随它一起删除从未被准入公式读取的 `RESEARCH_READ_RETRY_FLOOR_SECONDS` 环境变量名、18 秒历史默认常量、`__all__` 导出和旧配置边界专项测试。代码、测试、配置同批退役，不保留兼容薄壳；`docs/archive/` 中当时实验记录作为历史快照保留，不代表仍生效的运行配置。
 - **真正的准入契约保留**：`READ_RETRY_ENV` / `read_retry_mode()` 仍被现行执行器和读取观测装配使用；`make_window_admission()` 始终使用 `retry_window_requirement(retry_number)` 的动态公式（尝试预算 + 下一次退避 + 末段预留），不查已删除的历史 floor 环境变量。保留对 off/on/window_aware、两次重试及 1s/2s 退避、fetch-only 重试、拒绝准入与计时/预算的现行测试；不改 checkpoint、研究恢复、预算结算、Evidence Gate 或发布。
-- **验证与交接**：删除前本模块与准入专项 **29 passed / 2.60s**；删除后读取重试/准入、运行时读取观测、attempt context、读取预算、预算时钟和完整主动研究执行器影响集 **136 passed / 55.78s**。全库 Ruff、编译和差异检查通过。工作分支 `codex/retire-inert-read-retry-floor-20261120`，初始 `main@8b3a03e`；`priority=P3`、`loop=static`、`owner=research/read-retry`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。#575 已合并；本片已重挂 `main@510772d`，新精确 HEAD CI 与审阅仍是最终门禁。
+- **验证与交接**：删除前本模块与准入专项 **29 passed / 2.60s**；删除后读取重试/准入、运行时读取观测、attempt context、读取预算、预算时钟和完整主动研究执行器影响集 **136 passed / 55.78s**；重挂 #575 后复测 **136 passed / 90.26s**。全库 Ruff、编译和差异检查通过。工作分支 `codex/retire-inert-read-retry-floor-20261120`，初始 `main@8b3a03e`；`priority=P3`、`loop=static`、`owner=research/read-retry`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。最终精确 HEAD `bd8f4dc` CI `44726446702` 成功、审阅无阻断，#576 已合入主线 `2993aa9`。
 
 ### 2026-11-20 未接线的 RQ1-C Phase Budget 预估器与专属测试成组退役（独立 P3 静态减负片）
 
