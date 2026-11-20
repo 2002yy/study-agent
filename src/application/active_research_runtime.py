@@ -1254,9 +1254,7 @@ class ActiveResearchRuntimeExecutor:
                         batch_result = execute_candidate_pool_batch(
                             one_query,
                             search_exact=search_execution.search_exact,
-                            should_cancel=lambda: self.repository.cancel_requested(
-                                run_id, operation_id=operation_id
-                            ),
+                            should_cancel=execution_guard.cancel_requested,
                             results_per_query=5,
                             max_candidates=live.state.budget.max_candidates,
                             trace=selection_trace,
