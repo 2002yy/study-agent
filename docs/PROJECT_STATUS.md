@@ -6,13 +6,19 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572–#582 已先后合入；#582 精确 HEAD `d87cadc` 的 CI `44781252749` 五项作业全部成功，审阅无阻断，以 SHA 保护 squash 合入 `main@8ed1430f92d43fa081ac206cd9cdd64b901add1b`。下一独立片将搜索候选池的取消检查归入现有执行守卫，必须以其自己的新 HEAD CI 与审阅为合并门禁。
+> **当前收口**：#572–#583 已先后合入。#583 精确 HEAD `d238b6d8da3e6bf3b51d456b0ca41dca4f756f1b` 的 CI `44784047229` 成功，审阅/线程无阻断，SHA 保护 squash 合入 `main@56e188642a4fff1dd85d13f5d62fa8c2e56b871e`。课后旧生成器整链退役另由 #584 审查，不借用 #583 的 CI。
 
 ### 2026-11-21 搜索候选池的取消探针归入唯一执行守卫（独立 P3 静态片）
 
 - **职责与范围**：`execute_candidate_pool_batch(..., should_cancel=...)` 原来接收 `ActiveResearchRuntimeExecutor.execute()` 临时构造的仓储查询 lambda，和同一函数使用的 `ActiveResearchExecutionGuard.ensure_active()` 重复读同一个 `run_id/operation_id`。新增 `ActiveResearchExecutionGuard.cancel_requested()` 作为明确的无异常布尔探针，`ensure_active()` 复用它；搜索候选池直接绑定这一方法，不再在执行器捕获 `self`、`run_id`、`operation_id` 构造第二条取消读取入口。原 `CandidatePoolCancelled` 和 `ActiveResearchCancelled` 分层异常保持原位。
 - **冻结与负控**：每次检查仍向现有 repository 查询最新取消状态，不缓存标志、不追加一次检查，不改检查位置、物理查询上限、checkpoint、模型/检索调度、恢复、研究预算与结算。直接负控扩展为非抛异常的布尔取消探针与抛 `ActiveResearchCancelled` 的 guard 各自读取最新操作所有权，保留候选池前后检查及其取消异常专项测试。原基线直接测试 **11 passed / 0.86s**；重挂已合并 #582 的 `main@8ed1430` 后，取消守卫、候选池、搜索、主动研究、checkpoint、预算时钟、wave settlement、模型尝试及运行时观测组合 **130 passed / 82.15s**。全库 Ruff、Python 编译、差异检查通过；mypy 基线 **115 current / 125 allowed（无新增）**。
 - **交接**：分支 `codex/active-search-cancellation-guard-20261121`，`priority=P3`、`loop=static`、`owner=research/cancellation-orchestration`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；真实付费模型及外部检索均未运行。当前片只减少执行器隐式依赖，**不改变取消行为**；新精确 PR HEAD CI/审阅待提交后验证。**下一片**：收口本 PR，再继续梳理 `ActiveSearchQueryExecution`、read scheduling 与模型尝试在持久 checkpoint 边界的显式快照/实时值职责，禁止将已冻结游标误改为实时读取。
+
+### 2026-11-21 旧课后 LLM 生成与角色档案写入整链退役（独立 P3 静态减负片）
+
+- **实际调用关系**：现行学习收束由 `LearningClosureService` 调用 `structured_closure` 生成候选并经 MemoryRun 提交；`src/after_session.py` 中的 `generate_after_session_updates`、JSON 三层兜底解析和 `apply_role_updates` 无生产/API/CLI/工具/CI 调用方，仅旧 `tests/test_after_session.py` 造景与测试使用。`after_session_to_memory_updates` 仍被正式学习收束的旧结果格式分支调用，必须保留，不改其筛选和候选形状。微信侧独立的 `wechat_after_session` 任务不在本片范围内。
+- **成组退役**：删除未接线的课后生成 prompt、模型调用与事件回调、手工 JSON 恢复、Markdown 预览、角色文件直接写入及专属测试；同时删除 `llm_client._TASK_DEFAULTS` 旧 `after_session` 任务设置，将模型请求显式选项测试改为未配置任务。原测试文件里两条真实 `safe_writer` 原子替换/追加与备份保护迁到 `test_safe_writer.py`，备份目录改用 `tmp_path` 隔离，测试不再枚举和删除项目真实备份。无阶段门、CI、环境变量或 API 注册需要撤销；归档文档保留历史快照。
+- **冻结与证据**：不修改正式结构化课后候选生成、MemoryRun 权限与持久结算、旧格式候选映射、备份实现、会话恢复、费用或模型服务其它任务；无付费/动态调用。定向学习收束、结构化候选、记忆、LLM options、安全写入与事件测试 **64 passed（44 + 20，不重复）**；全仓 Ruff、编译、差异检查通过；mypy 基线 **115/125（无新增）**。基于 `main@8ed1430f92d43fa081ac206cd9cdd64b901add1b`；`priority=P3`、`loop=static`、`owner=learning/retired-after-session-host`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。新候选精确 HEAD CI、审阅与主线整合仍需核验。**下一片**：先按 CI 门禁收口当前清理 PR，再核对其它单一业务功能的旧事件处理器和重复专项测试，不因无静态导入而删 CLI/持久兼容入口。
 
 ### 2026-11-21 全阶段计时诊断收归单一实时观测上下文（独立 P3 静态片）
 
