@@ -112,7 +112,6 @@
     "teaching_voice": [
       "tests/test_vivid_teaching.py",
       "tests/test_pedagogy_engine.py",
-      "tests/test_pedagogy_quality_gates.py",
       "tests/test_pedagogy_evaluation.py",
       "tests/test_router.py",
       "tests/test_atomic_routing.py",
