@@ -8,10 +8,21 @@
 
 ### 2026-11-20 研究波次增益与发现进度结算收归实时上下文（独立 P3 静态片）
 
-- **范围**：新增 `ActiveWaveProgressContext`，将 `execute()` 尾部交错的 Evidence Gain、逐 claim/gap 饱和计数、lead 发现增量判定和 `metrics.wave_progress` 有界记账统一收归单一执行上下文。读取前的三个计数保存为只含整数的 `DiscoveryProgressSnapshot`，结算时重新读取唯一 `ActiveRuntimeLiveValues` 的最新 state/cursor/context，沿用原 `_wave_gap_provenance` 来源归因；删除执行器重复的 `_is_discovery_candidate`，执行器仅保留两次显式调用。与 `ActiveWaveSettlementContext` 的后续 steering/停止决定明确分工。
+- **范围**：新增 `ActiveWaveProgressContext`，将 `execute()` 尾部交错的 Evidence Gain、逐 claim/gap 饱和计数、lead 发现增量判定和 `metrics.wave_progress` 有界记账统一收归单一执行上下文。lead 读取前的三个计数保存为只含整数的 `DiscoveryProgressSnapshot`，结算时重新读取唯一 `ActiveRuntimeLiveValues` 的最新 state/cursor/context，沿用原 `_wave_gap_provenance` 来源归因；删除执行器重复的 `_is_discovery_candidate`，执行器仅保留两次显式调用。与 `ActiveWaveSettlementContext` 的后续 steering/停止决定明确分工。
 - **冻结契约**：以持久化波次开始时的原 state 为 gain baseline、以 `active_gap_ids` 为处理目标；新候选/域线索只能延迟本波饱和，**不能假冒证据增益，也不能重置既有 no-gain 计数**。无进展时逐 claim/gap 只增加一次，增益历史总是追加；诊断字段、最近 `MAX_RESEARCH_WAVES` 条截断、旧列表别名和 checkpoint 前写入顺序均保留。执行器原 `checkpoint() → research-window end → checkpoint() → timing flush → wave settlement` 调用位置完全不动；不改变恢复 schema、读取/模型/预算结算、证据门禁及发布资格。
 - **验证**：新增 7 项直接负控，覆盖无进展饱和、三种发现信号、真实证据进展、跨 checkpoint live 重绑与有界诊断、归因异常前不写入；初始 6 项与主动研究执行器、波次基线/停止/settlement、checkpoint 会话及预算影响集 **119 passed / 98.19s**，随后补充异常负控并单独运行新专项 **7 passed**。全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。本片 `priority=P3`、`loop=static`、`owner=research/wave-progress`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；无真实搜索或付费模型，不能据此声称用户回答质量提升。
 - **交接**：起点 `main@472cc7b`，独立分支 `codex/research-wave-progress-context-20261120`。此改动仅创建清晰的可变状态所有权、未迁移持久化权威；须以新 PR 的精确 HEAD CI 与无阻断审阅验收。#570 读取链测试、#562 late-tail 诊断、#571 旧研究记忆退役各有独立 PR，不挪用其未合代码。下一片优先收口开放 PR，再看 assessment 结果缓存与外部调度的可变状态交界，不扩张为模型预算重写。
+- **主线整合复核**：原 PR HEAD `d0e9d3c4` 精确 CI `44611274220` 成功；随后 #570 和 #562 依次合入 `main@58b5894`。本片生产代码及专项测试自动合并，唯一冲突为 handoff 并列新增段落，已完整保留；组合下主动研究执行器、wave progress、late-tail 诊断、波次基线/settlement、checkpoint、读取链、检索结果 **119 passed / 77.84s**，全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。重挂后的精确 PR HEAD CI 尚须重新验收，不能沿用 `d0e9d3c4` 绿灯。
+
+### 2026-11-20 读取链五组集成测试复用现有执行场景（独立 P3 静态减负片）
+
+- **范围**：将 `test_active_research_runtime.py` 中五组历史 cutover 测试的重复环境变量、SQLite 仓库、待运行任务、模型/读取网关组装，统一复用同文件既有的 `_a2e_run()` 真实执行器场景。保留五个独立用例及全部断言，分别覆盖 HTTP tier 回退后单源、原生读取足够时不回退、tier 禁用、Wigolo 真实调用按次结算、候选/后端审计唯一性。原执行器路径和 run ID 保持不变，不再重复维护同一套场景搭建。
+- **冻结契约**：测试专用工厂仍对每例使用独立 SQLite 和 `_TrackingRepository`、原 `_StructuredClient`、原生读取模拟与 Wigolo backend；明确保留禁用 tier 的 `escalation=None`、调用前清空 HTTP envelope 的次序及全部后续计费断言。工厂额外关闭未在这些用例中开启的 breaker 开关，避免测试受前序环境泄露影响。**不改生产代码**，不改研究状态/恢复、checkpoint 次数或顺序、外部调用、预算结算、证据门禁与发布。
+- **证据/边界**：改动前五个用例 **5 passed / 6.13s**；改动后完整主动研究执行器、读取链单一权威、升级配置与读取调度影响集 **110 passed / 94.67s**（包含原五例）。测试文件 **+32/-56，净删 24 行**；全库 Ruff、编译、差异检查及 mypy 基线 **115/125、无新增**。本片只收敛测试造景，`priority=P3`、`loop=static`、`owner=retrieval/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；不能由静态测试净减行数推断真实研究质量提升。独立分支 `codex/read-chain-test-scenario-reuse-20261120`，基于 `main@d12766b`；精确 PR HEAD CI 和审阅仍须单独验收。
+- **主线整合更新**：原 PR HEAD `ecc742da` 的精确 CI `44599153892` 已成功，但 #556、#569、#563、#561 进入主线后旧 HEAD 不再可合并。现重挂至 `main@2c58833`，仅并列保留 handoff 文本，测试代码无冲突；重新验证主动研究执行器、读取链单一权威、HTTP 升级与读取调度 **110 passed / 95.29s**，全库 Ruff、编译及差异检查通过，仍须新精确 HEAD CI 和审阅验收。
+- **波次恢复基线后续重挂**：提交前 `main` 又合并 #564，已将本片重挂至 `main@cc82b44`（测试代码依然零冲突）；在该组合下补测本片五项读取链、波次恢复上下文五项、真实崩溃恢复及单一读取权威，共 **17 passed / 11.19s**。此前 110 项影响集属于 #564 之前的基线，不能单独充当最新主线的完整验证；以本 PR 新精确 HEAD CI 补齐门禁。
+- **#566/#567 主线整合**：#567 检索结果上下文与 #566 四阶段取消回归进入 `main@472cc7b` 后，本片再次重挂；仅 `PROJECT_STATUS.md` 的顶部交接发生并列新增冲突，已保留三批交接，执行器测试代码自动合并。主动研究执行器、检索结果、读取链单一权威、读取调度、恢复波次基线及 checkpoint 会话联合影响集 **111 passed / 96.73s**；全库 Ruff、编译和差异检查通过，mypy **115/125、无新增**。重挂后的精确 PR HEAD 必须重新等待 CI 和审阅收口，旧 CI 不再适用。
+- **下一片**：先收口开放的恢复/预算/搜索上下文 PR；下次只清理剩余有明确重复的数据搭建，不重新包装已独立拥有的上下文。
 
 ### 2026-11-20 主动研究四阶段取消回归共用场景搭建（独立 P3 静态测试片）
 
@@ -209,6 +220,12 @@
 - **重复层级核实**：`frontend/src/product-flow/goldenJourneys.test.tsx` 的 5 项“旅程”实质是分别渲染 ChatPanel、RestoreCard、UploadLearningPrompt、ChatResearchRecovery 和 LearningStrip 的离线 DOM 快照，没有发送消息、持久化恢复、跨轮跳转或真实浏览器交互。五条行为均已有更直接的组件契约测试；其中首轮零配置、返回学习继续、失败研究恢复等由正式 `frontend/e2e/golden-journeys.spec.ts` 实测浏览器动作、刷新恢复和可交付产物，E2E 的两个 Playwright 项目配置继续运行。上传行动、研究重试及 durable 学习内容也各有组件直接交互测试。
 - **整组退役**：删除唯一存在于 `frontend/src/product-flow/` 的旧 310 行综合渲染测试及其重复的情景工厂和文本断言，不补空壳或兼容重导出；无专用功能、API、CSS、环境变量、测试阶段注册或 CI 豁免需要保留。正式组件、真实浏览器 Golden Journey、状态恢复、源证据展示、预算与发布逻辑一律不动。
 - `priority=P3`、`loop=static`、`owner=UI/tests`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本地差异检查与精确 PR HEAD CI 分别验收，不能把删除测试说成用户体验改善。
+
+### 2026-11-20 晚到候选诊断状态与终态写入显式化（独立 P3 静态片）
+
+- **范围**：将研究执行器 `_late_admission_tail` 中的 `_live` / `_store` 隐式闭包及 `§70/B5` / `§71A` 六个仅用于该路径的诊断 helper 收归 `research_runtime_late_tail_diagnostics.py`。一个 `LateTailDiagnosticsContext` 明确持有本次评估的原始上下文、实时上下文提供者、预算时钟、截止时间及诊断 invocation；`begin/phase/store/finish` 操作都在原业务分支的相同位置调用，实时重新获取指标映射，不缓存被 steering/checkpoint 更换的字典。
+- **冻结不变量**：无晚到候选时先记 `no_late_ids`；读槽/时限/政策/模型拒绝及失败时记相同 `skipped_reason`，异常路径写 `aborted:<type>`；正常评估的 `late_assessment_tail` / `late_tail_invocations` / `b1_critical_path` 键、长度上限、时钟采样和四舍五入、`recovered`/映射 identity 差异均保持原位置与算法。绝不重排模型尝试、阶段计时、已评估候选写回、预算结算或检查点，不改持久化 schema、来源阅读次数和证据 Gate/发布。
+- **验证与交接**：新增三项直接离线负控（上下文替换、两个终态、只读指标映射）**3 passed**；两份源码编译和 `git diff --check` 通过。原有 `test_late_admission_tail.py` 的成功/拒绝/中止/替换/只读状态行为及研究执行器影响集必须由候选**精确 HEAD CI** 运行；本地缺少 pytest、Ruff 和 openai 运行依赖，未谎称完成整合测试。`priority=P3`、`loop=static`、`owner=diagnostics/late-tail`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`，未发起真实搜索、模型、付费实验。
 
 ### 2026-11-19 Firefly/Doupo 历史源码文案测试退役（P3 静态减负）
 

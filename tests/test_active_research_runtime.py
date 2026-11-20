@@ -4084,20 +4084,12 @@ def test_read_chain_falls_back_to_wigolo_without_inflating_sources(
     One candidate, two backend attempts, still exactly one top-level source.
     """
 
-    monkeypatch.setenv(ESCALATION_ENV, "http")
-    monkeypatch.setenv("WIGOLO_RERANKER", "off")
     adequate = "y" * (SHORT_CHAR_THRESHOLD + 400)
     backend = _CutoverEscalationBackend(adequate)
     native = _ShortNativeReadGateway()
-
-    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover.sqlite"))
-    run = _cutover_run(repository, "run_cutover_fallback")
-    completed = _service(
-        repository,
-        _StructuredClient(),
-        read_gateway=native,
-        escalation_backend=backend,
-    ).execute(run.id, raise_on_error=True)
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="cutover_fallback", native=native, wigolo=backend
+    )
 
     rows = _chain_rows(completed)
     assert rows, "the chain must record its decision"
@@ -4135,20 +4127,14 @@ def test_read_chain_falls_back_to_wigolo_without_inflating_sources(
 def test_read_chain_does_not_run_wigolo_when_native_is_adequate(
     tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(ESCALATION_ENV, "http")
-    monkeypatch.setenv("WIGOLO_RERANKER", "off")
     backend = _CutoverEscalationBackend("y" * 9000)
-
-    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_ok.sqlite"))
-    run = _cutover_run(repository, "run_cutover_native_ok")
-    completed = _service(
-        repository,
-        _StructuredClient(),
-        read_gateway=_ShortNativeReadGateway(
-            text="z" * (SHORT_CHAR_THRESHOLD + 400)
-        ),
-        escalation_backend=backend,
-    ).execute(run.id, raise_on_error=True)
+    completed = _a2e_run(
+        tmp_path,
+        monkeypatch,
+        name="cutover_native_ok",
+        native=_ShortNativeReadGateway(text="z" * (SHORT_CHAR_THRESHOLD + 400)),
+        wigolo=backend,
+    )
 
     assert backend.calls == [], "an adequate native read must never call Wigolo"
     for row in _chain_rows(completed):
@@ -4160,17 +4146,15 @@ def test_read_chain_does_not_run_wigolo_when_native_is_adequate(
 def test_read_chain_does_not_run_wigolo_when_the_tier_is_disabled(
     tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv(ESCALATION_ENV, raising=False)
     backend = _CutoverEscalationBackend("y" * 9000)
-
-    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_off.sqlite"))
-    run = _cutover_run(repository, "run_cutover_disabled")
-    completed = _service(
-        repository,
-        _StructuredClient(),
-        read_gateway=_ShortNativeReadGateway(),
-        escalation_backend=backend,
-    ).execute(run.id, raise_on_error=True)
+    completed = _a2e_run(
+        tmp_path,
+        monkeypatch,
+        name="cutover_disabled",
+        native=_ShortNativeReadGateway(),
+        wigolo=backend,
+        escalation=None,
+    )
 
     assert backend.calls == []
     for item in _breaker_sources(completed):
@@ -4187,21 +4171,17 @@ def test_read_chain_charges_the_run_envelope_once_per_real_wigolo_call(
         reset_http_envelope,
     )
 
-    monkeypatch.setenv(ESCALATION_ENV, "http")
-    monkeypatch.setenv("WIGOLO_RERANKER", "off")
     reset_http_envelope()
     backend = _CutoverEscalationBackend(
         "y" * (SHORT_CHAR_THRESHOLD + 400), latency_ms=120.0
     )
-
-    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_env.sqlite"))
-    run = _cutover_run(repository, "run_cutover_envelope")
-    _service(
-        repository,
-        _StructuredClient(),
-        read_gateway=_ShortNativeReadGateway(),
-        escalation_backend=backend,
-    ).execute(run.id, raise_on_error=True)
+    _a2e_run(
+        tmp_path,
+        monkeypatch,
+        name="cutover_envelope",
+        native=_ShortNativeReadGateway(),
+        wigolo=backend,
+    )
 
     assert len(backend.calls) >= 2, "two candidates must both escalate"
     # one debit per real call, accumulated over the whole run
@@ -4213,18 +4193,14 @@ def test_read_chain_charges_the_run_envelope_once_per_real_wigolo_call(
 def test_read_chain_keeps_one_outcome_per_candidate_and_backend(
     tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(ESCALATION_ENV, "http")
-    monkeypatch.setenv("WIGOLO_RERANKER", "off")
     backend = _CutoverEscalationBackend("y" * (SHORT_CHAR_THRESHOLD + 400))
-
-    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_uniq.sqlite"))
-    run = _cutover_run(repository, "run_cutover_unique")
-    completed = _service(
-        repository,
-        _StructuredClient(),
-        read_gateway=_ShortNativeReadGateway(),
-        escalation_backend=backend,
-    ).execute(run.id, raise_on_error=True)
+    completed = _a2e_run(
+        tmp_path,
+        monkeypatch,
+        name="cutover_unique",
+        native=_ShortNativeReadGateway(),
+        wigolo=backend,
+    )
 
     cursor = _cursor_from_run(completed)
     keys = [(item.candidate_id, item.backend) for item in cursor.read_outcomes]
