@@ -6,7 +6,7 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572–#584 已先后合入。#584 精确 HEAD `2b776a0897c79ae936002508c0657aad01d61e06` 的 CI `44789796262` 成功、无阻断审阅/线程，以 SHA 保护 squash 合入 `main@000f4efb508b792698416e6002c96a8a9b00694e`。#585 News 旧读取适配退役已重挂该主线，#588 RQCE Shadow 退役独立待验收；**新 HEAD 必须分别通过 CI**。
+> **当前收口**：#572–#585 已先后合入；#585 精确 HEAD `c8db91628aa3b4bc57dea710e0e05dab7595de62` 的 CI `44792588785` 成功，审阅/讨论线程无阻断，以 SHA 保护 squash 合入 `main@9bb47844b65b4339ce6024c09d7e005fdf894c8e`。#588 RQCE Shadow 与 #590 早期 Quality Gates 是独立待合并片，必须各自重挂新主线并通过精确 HEAD CI。
 
 ### 2026-11-21 News 旧式读取包装与闲置重定向执行器整链退役（独立 P3 静态减负片）
 
@@ -15,6 +15,16 @@
 - **静态证据/交接**：修改前直接新闻/链接/读取集 **77 passed**；修改后链接、微信、结构化阅读、真实重定向与新闻服务 **78 passed / 6.47s**，相邻 News 仓储/查询、读取网关、DOH/HTTP 保护及服务流 **81 passed / 7.47s**，合计不重复 **159 passed**。全仓 Ruff、编译、diff-check 成功；mypy 基线 **115 current / 125 allowed，无新增**。初始代码基于已合并 #583 的 `main@56e188642a4fff1dd85d13f5d62fa8c2e56b871e`；#584 课后旧生成器的精确 CI 成功并合入 `main@000f4efb508b792698416e6002c96a8a9b00694e` 后，本片干净重挂到该基线，生产代码零冲突，需重新获取新精确 HEAD CI；`priority=P3`、`loop=static`、`owner=news/retired-read-compat`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。未运行外部搜索/浏览器或付费模型。**下一片**：先按新精确 HEAD CI/审阅合并本片；继续从现有 News/学习后端的真实入口扫描测试专用兼容逻辑，不机械删除数据恢复或安全降级分支。
 
 - **#584 合并后的重挂复核**：`main@000f4efb508b792698416e6002c96a8a9b00694e` 上，News 正式读取、链接、微信、仓储、阅读安全、新闻服务与相邻 WebLookup 组合 **99 passed / 9.47s**；全库 Ruff、编译、diff-check 和 mypy **115/125** 均通过。旧 PR HEAD 的 CI 不会被复用于重挂后新 HEAD。
+### 2026-11-21 RQCE 历史 Shadow Runner、停机兼容层及专项测试整链退役（独立 P3 静态减负片）
+
+- **可达性/职责**：`src/evals/research_quality_runner.py` 是 P0-C3 历史录制稿 → 假想 Shadow State 的离线模拟，现行 `src/` 生产执行、`tools/`、API 路由、资格验证命令与 CI 工作流均不调用；消费方只有 `tests/test_research_quality_runner.py` 和 `src/evals/__init__.py` 导出。其 `src/web/research/stop_gate.py` 仅被此模拟及 Shadow 专项测试调用，`evaluate_shadow_stop(legacy_would_stop=...)` 从不控制正式研究终止。三个 `safe_assess_*` 异常吞咽壳以及两个 all-claims 聚合器也只有旧 Shadow Stop 和专属测试消费。
+- **整链处理**：删除历史 Runner、Shadow Stop、两份专属测试、三个 fail-soft 壳、两个无实际消费者的全 claim 聚合器，移除 `src/evals` 和 `src/web/research` 的旧公开导出；删除 Claim-Evidence/Conflict/Coverage 测试内 3 个重复的 Shadow 停机组合断言及只验证旧壳/聚合器的用例。同步清除 `tests/stage_gates.json` 六处旧 Runner 专项测试注册，维护阶段门本身的引用校验。历史存档文档保持为当时的证据快照，不伪造新的运行记录。
+- **保留的真契约**：正式 `src/application/research_stop_gate.py`、生产 `evaluate_evidence_gate()`、读/检索/模型/预算、Evidence Gate 与发布全部保持不变；`src/evals/research_quality.py` 的冻结语料契约仍被 `release_benchmark_plan` 使用，Claim-Evidence/Conflict/Coverage **单 claim** 真评估器仍被研究摘要、视觉资料和多模态资格验证使用。无需删除现行 release benchmark 任务/配置，也不引入兼容重导出。
+- **验证/交接**：修改前该直接影响集 **102 passed / 6.51s**；新代码在 `main@56e188642a4fff1dd85d13f5d62fa8c2e56b871e` 的独立分支 `codex/retire-rqce-shadow-runner-20261121` 上完成 Claim/Conflict/Coverage、Evidence Gate、冻结语料/陷阱、Release Benchmark 计划/注册、多模态资格验证、阶段门、Eval Gate、研究摘要及**完整主动研究执行器**组合 **242 passed / 150.66s**。全库 Ruff、Python 编译、diff-check 成功，mypy 基线 **115 current / 125 allowed，无新增**。本片共 15 文件，净删除约 **1980 行**；`priority=P3`、`loop=static`、`owner=retrieval/retired-shadow-eval`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；不宣称真实用户答案质量改善。**下一片**：提交独立精确 HEAD CI/审阅，与 #584/#585 按当前主线次序整合；不侵入真正持久化、预算和证据发布契约。
+
+- **#584 合并后重挂复核**：已合并课后旧生成器 #584 的 `main@000f4efb508b792698416e6002c96a8a9b00694e` 仅在本 handoff 出现并列新增冲突，双方记录均保留；旧 Shadow 的实现、测试、公开导出和阶段门删除内容没有源代码冲突。重挂后 Claim-Evidence/Conflict/Coverage、Evidence Gate、研究摘要、Release Benchmark、阶段门以及 #584 正式学习收束组合 **109 passed / 8.56s**；全库 Ruff、编译、diff-check 与 mypy **115/125** 通过。旧 #588 HEAD 的 CI 不得借给重挂后新 SHA。
+
+- **#585 合并后最终组合复核**：#585 News 的精确 HEAD `c8db91628aa3b4bc57dea710e0e05dab7595de62` CI `44792588785` 成功且审阅/线程无阻断，SHA 保护 squash 合入 `main@9bb47844b65b4339ce6024c09d7e005fdf894c8e`。本 Shadow 退役片只与新闻交接文档冲突，保留双方完整记录；在该主线上完成 **完整主动研究执行器**、正式 Evidence Gate、Claim/Conflict/Coverage、Release Benchmark、阶段门与 News 安全/服务相关组合 **207 passed / 91.02s**，全仓 Ruff、编译、diff-check 及 mypy **115/125** 继续通过。重挂后新精确 PR HEAD 的 CI 和审阅为唯一合并门禁，先前 CI 全绿不直接转借。
 
 ### 2026-11-21 搜索候选池的取消探针归入唯一执行守卫（独立 P3 静态片）
 

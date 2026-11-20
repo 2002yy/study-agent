@@ -89,7 +89,7 @@ def test_stage_gate_excludes_unrelated_subsystems() -> None:
     for unrelated in (
         "tests/test_deep_research_judge.py",
         "tests/test_research_answer_streaming.py",
-        "tests/test_research_quality_runner.py",
+        "tests/test_research_quality_eval.py",
     ):
         assert unrelated not in gate, unrelated
 

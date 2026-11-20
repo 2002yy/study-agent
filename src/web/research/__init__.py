@@ -59,8 +59,6 @@ from src.web.research.claim_evidence_assessment import (
     ClaimEvidenceAssessment,
     SemanticAdequacy,
     assess_claim_evidence,
-    assess_research_state,
-    safe_assess_research_state,
 )
 from src.web.research.claim_conflict_assessment import (
     ConflictAssessment,
@@ -68,9 +66,7 @@ from src.web.research.claim_conflict_assessment import (
     EvidenceStanding,
     PreferredSide,
     assess_claim_conflict,
-    assess_state_conflicts,
     authority_rank,
-    safe_assess_state_conflicts,
 )
 from src.web.research.coverage_stop_assessment import (
     ClaimCoverageGap,
@@ -78,7 +74,6 @@ from src.web.research.coverage_stop_assessment import (
     CoverageStopStatus,
     Recommendation,
     assess_coverage_stop,
-    safe_assess_coverage_stop,
 )
 from src.web.research.multimodal_reader import (
     ESCALATION_LADDER,
@@ -155,10 +150,6 @@ from src.web.research.final_answer_auditor import (
     SemanticAssessment,
     abstaining_judge,
     audit_final_answer,
-)
-from src.web.research.stop_gate import (
-    ShadowStopDecision,
-    evaluate_shadow_stop,
 )
 from src.web.research.gap_planner import (
     DEFAULT_QUERIES_PER_GAP,
@@ -258,22 +249,17 @@ __all__ = [
     "ClaimEvidenceAssessment",
     "SemanticAdequacy",
     "assess_claim_evidence",
-    "assess_research_state",
-    "safe_assess_research_state",
     "ConflictAssessment",
     "ConflictStatus",
     "EvidenceStanding",
     "PreferredSide",
     "assess_claim_conflict",
-    "assess_state_conflicts",
     "authority_rank",
-    "safe_assess_state_conflicts",
     "ClaimCoverageGap",
     "CoverageStopAssessment",
     "CoverageStopStatus",
     "Recommendation",
     "assess_coverage_stop",
-    "safe_assess_coverage_stop",
     "ESCALATION_LADDER",
     "TRIGGERS",
     "EscalationPlan",
@@ -334,8 +320,6 @@ __all__ = [
     "record_visual_audit",
     "visual_audit_record",
     "visual_read_budget",
-    "ShadowStopDecision",
-    "evaluate_shadow_stop",
     "DEFAULT_QUERIES_PER_GAP",
     "GapQueryBatch",
     "GapSearchIntent",

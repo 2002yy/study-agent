@@ -23,11 +23,8 @@ from src.web.research.coverage_stop_assessment import (
     REASON_SEMANTIC_GAP,
     REASON_VOLUME_NOT_USED,
     assess_coverage_stop,
-    safe_assess_coverage_stop,
 )
-from src.web.research.evidence_gate import evaluate_evidence_gate
 from src.web.research.evidence_units import EvidenceUnit, RequiredUnit
-from src.web.research.stop_gate import evaluate_shadow_stop
 
 _ROLES = ("primary", "authoritative_secondary", "independent_secondary", "community")
 
@@ -89,7 +86,8 @@ def _state(
         evidence=evidence,
         evidence_links=links,
         source_clusters=tuple(
-            EvidenceCluster(link.source_cluster_id, (link.evidence_id,)) for link in links
+            EvidenceCluster(link.source_cluster_id, (link.evidence_id,))
+            for link in links
         ),
         gaps=(),
         conflict_gaps=(),
@@ -240,36 +238,3 @@ def test_assessment_is_pure() -> None:
     assess_coverage_stop(state)
 
     assert state.to_dict() == before
-
-
-def test_safe_wrapper_returns_none_when_assessor_fails(monkeypatch) -> None:
-    state = _state(claims=[("c1", "critical", ("u1",))])
-
-    def boom(_state: ResearchState):
-        raise RuntimeError("corrupt shadow projection")
-
-    monkeypatch.setattr(
-        "src.web.research.coverage_stop_assessment.assess_coverage_stop", boom
-    )
-
-    assert safe_assess_coverage_stop(state) is None
-
-
-def test_shadow_stop_exposes_coverage_without_changing_decisions() -> None:
-    state = _state(
-        claims=[("c1", "critical", ("u1",))],
-        evidence=(_evidence("ev1", "u1"),),
-        links=(_link("c1", "ev1"),),
-    )
-    gate = evaluate_evidence_gate(state)
-
-    result = evaluate_shadow_stop(state, legacy_would_stop=True)
-
-    assert result.shadow_status == gate.status
-    assert result.shadow_would_pass is (gate.status in {"pass", "partial"})
-    assert result.legacy_should_stop is True
-    assert result.gate_result is not None
-    assert result.gate_result.to_dict() == gate.to_dict()
-    assert result.coverage_assessment is not None
-    assert result.coverage_assessment.recommendation == "stop_candidate"
-    assert "coverage_assessment" in result.to_dict()
