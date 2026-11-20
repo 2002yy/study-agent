@@ -15,7 +15,6 @@ from src.web.research.failure_contracts import (
     RESEARCH_FAILURE_CODES,
     RESEARCH_STOP_REASON_CATALOG_VERSION,
     RESEARCH_STOP_REASONS,
-    is_research_failure_code,
     require_research_failure_code,
 )
 
@@ -102,11 +101,9 @@ def test_p1_catalog_does_not_claim_unobservable_p2_reader_failures() -> None:
 
 def test_require_failure_code_accepts_catalog_value() -> None:
     assert require_research_failure_code("read_failed") == "read_failed"
-    assert is_research_failure_code("search_failed") is True
 
 
 def test_require_failure_code_rejects_unknown_new_writer_value() -> None:
     for value in ("TimeoutError", "read_login_required", "provider_timeout", ""):
         with pytest.raises(ValueError):
             require_research_failure_code(value)
-        assert is_research_failure_code(value) is False

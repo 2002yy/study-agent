@@ -165,7 +165,6 @@ from src.web.research.trace import (
 from src.web.research.stop_gate import (
     ShadowStopDecision,
     evaluate_shadow_stop,
-    safe_evaluate_shadow_stop,
 )
 from src.web.research.gap_planner import (
     DEFAULT_QUERIES_PER_GAP,
@@ -347,7 +346,6 @@ __all__ = [
     "try_append_research_trace",
     "ShadowStopDecision",
     "evaluate_shadow_stop",
-    "safe_evaluate_shadow_stop",
     "DEFAULT_QUERIES_PER_GAP",
     "GapQueryBatch",
     "GapSearchIntent",
