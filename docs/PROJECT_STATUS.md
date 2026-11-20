@@ -6,7 +6,14 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572 波次进度上下文已在精确 HEAD `6191d8f6`、CI `44696107007` 成功且无阻断审阅后合入 `main@93ec4c7`；#573 评估结果上下文原 HEAD `37df4222`、CI `44697525596` 同样成功，但主线变化造成文档并列插入冲突。已保留双方交接、将 #573 重挂到新主线并验证组合影响集 **155 passed / 89.70s**；仍须新精确 HEAD CI 才能合并。后续只在两个上下文都收口后开始新语义片。
+> **当前收口**：#572 已合入 `main@93ec4c7`；#573 新精确 HEAD `d858a7c0` 的 CI `44700957122` 成功、审阅/线程无阻断，使用 SHA 保护 squash 合入 `main@d7ccfaf`。#574 的旧 HEAD `480326c7` 在前一轮首次查询后 CI `44703809657` 仍在运行；本批仅重挂其 Phase Budget 整链退役到当前主线，并重新验证组合影响集及新精确 HEAD CI，不能沿用旧运行结果。
+
+### 2026-11-20 未接线的 RQ1-C Phase Budget 预估器与专属测试成组退役（独立 P3 静态减负片）
+
+- **可达性与范围**：`src/web/research/phase_budget.py` 的六类动作优先级、行动耗时/读槽/模型调用预估、`PhaseBudget`/`PhaseAdmission` 及 `admit_phase_action()` 没有生产或工具调用方；唯一生产引用是主动研究执行器借用其 `FINALIZATION_RESERVE_SECONDS=12.0` 常量。现将 **12.0** 明确归还给真实研究窗口所有者 `RESEARCH_WINDOW_RESERVE_SECONDS`，删除未接线的 214 行决策原型及仅验证该原型的 135 行专项测试，不保留兼容层。`DEEP_1_CONTRACT.md` 中两处失效引用同步更新；现行阶段门、CI、脚本和配置无专属注册需要改动。
+- **冻结/负控与验证**：真正的 research-window reserve 从未使用已退役的 `admit_phase_action()`，而是由执行器按统一剩余时间、12 秒预留、实际读取/模型额度作准入。保留现行集成测试 `test_research_window_stops_new_waves_before_the_hard_deadline`（原本已断言 reserve 为 12 秒）与 `test_read_never_starts_outside_research_window`；不变更恢复 schema、checkpoint 次序、预算结算、搜索/读取调用、Evidence Gate 或发布。改前原型 7 例加现行窗口 2 例 **9 passed / 2.08s**；改后完整主动执行器、窗口/预算、读取额度、wave settlement、Deep execution/seed/handoff 影响集 **203 passed / 107.10s**，含上述两项真实窗口负控。全库 Ruff、编译及差异检查通过；mypy **115/125、无新增**。本片仓库净减约 345 行，不把删除旧模拟测试误称为真实质量提升。
+- **交接**：独立起点 `main@93ec4c7`，分支 `codex/retire-unused-phase-budget-20261120`；`priority=P3`、`loop=static`、`owner=research/retired-scheduling-prototype`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。#573 已合并后将本片重挂至 `main@d7ccfaf`，仅此 handoff 并列新增冲突，执行器常量改动自动合并；新组合须单独回归验证，且精确新 HEAD CI、无阻断审阅后方可合并。下一片先收口 #574，再按调用图筛查其它孤立实验而不触碰仍在用的费用/恢复契约。
+- **#573 组合复核完成**：在 `main@d7ccfaff74c166738aa69a4a0f8d61b2128a88f0` 上，完整主动执行器、预算/窗口/读取、Deep、wave settlement、评估结果上下文、late-tail、候选 pipeline/ranking、选择轨迹与 checkpoint 影响集 **251 passed / 143.92s**；Ruff、编译、差异检查及 mypy **115/125（无新增）**通过。删除旧 Phase Budget 后，真实 12 秒窗口的两项负控和 #573 的 6 项恢复/归档负控共同通过。原 #574 HEAD `480326c7` 的运行结果不用于新候选验收，待重推精确 SHA 的 PR CI。
 
 ### 2026-11-20 研究波次增益与发现进度结算收归实时上下文（独立 P3 静态片）
 
@@ -26,6 +33,7 @@
 - **#571 主线重挂**：旧研究记忆栈退役 #571 已入 `main@c58ed4e`；本片重挂无冲突，差异仍只包括评估结果上下文、执行器归档调用、专项测试和本交接。新基线下再次验证完整候选评估与运行时影响集 **139 passed / 77.93s**；全库 Ruff、编译、差异检查通过，mypy **115/125、无新增**。该本地新提交和后续远端精确 PR HEAD 仍须独立 CI 验收。
 - **#572 后续主线重挂**：#573 原精确 HEAD `37df42227487707ab19d1b28373715dc1fc386fb` 的 CI `44697525596` 成功且无阻断审阅。#572 合并后主线为 `93ec4c7`，仅此 handoff 同位置插入冲突；生产代码自动合并。本批将保留两批已冻结契约，补跑组合后的主动研究执行器、波次结算与评估归档影响集；新的 PR HEAD 必须单独完成 CI 才可合并。
 - **组合验证完成**：基于 `main@93ec4c7` 重挂后的 #573 候选包含两组上下文；主动研究执行器、late-tail、候选 pipeline/ranking、选择轨迹、checkpoint、模型尝试、评估归档、wave progress/baseline/settlement 共 **155 passed / 89.70s**。全库 Ruff、编译和差异检查通过；mypy **115/125、无新增**。无真实模型/搜索或预算支出，`decision=engineering-only`。新远端 PR HEAD 的 CI 成功和无阻断审阅仍为最终合并门禁。
+- **最终合并**：PR #573 精确 HEAD `d858a7c0631643ef85c499afcb6cf0db7fa7f27b` 的 CI `44700957122` 成功，reviews/threads 均为空；SHA 保护 squash 合并为 `main@d7ccfaff74c166738aa69a4a0f8d61b2128a88f0`。以上历史“待 CI”状态由此取代。
 
 ### 2026-11-20 读取链五组集成测试复用现有执行场景（独立 P3 静态减负片）
 

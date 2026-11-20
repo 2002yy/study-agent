@@ -323,7 +323,7 @@ Deep 是独立 tier：`Lookup 30s / Standard 60s / Deep 180s`。
 
 ## 16. Deep v1 不扩大模型调用 authority
 
-**Deep v1 不修改** `PHASE_RESEARCH_MODEL_CALL_BUDGET` / `MAX_RESEARCH_MODEL_ATTEMPTS` / `ResearchModelGateway` retry contract。
+**Deep v1 不修改**现行研究窗口的 `RESEARCH_WINDOW_RESERVE_SECONDS`（12 秒）、`MAX_RESEARCH_MODEL_ATTEMPTS` / `ResearchModelGateway` retry contract。早期 `PHASE_RESEARCH_MODEL_CALL_BUDGET` 属于未接线的 Phase Budget 预估器，已随专用模拟器退役；不能把该历史常量视为现行模型额度权威。
 
 若以后发现 Deep 总是先耗尽 model budget 远早于 read/time budget，再开独立 calibration slice。不得为“看起来更深”直接扩大模型调用上限。
 
@@ -538,7 +538,6 @@ src/web/research/gap_planner.py
 src/web/research/stop_gate.py
 src/web/research/runtime.py
 src/web/research/contracts.py
-src/web/research/phase_budget.py
 src/application/chat_service.py
 src/application/runtime_repository.py
 official_publication.py / synthesis_assembler.py / final_answer_auditor.py

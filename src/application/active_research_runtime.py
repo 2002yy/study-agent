@@ -93,7 +93,6 @@ from src.web.research.model_gateway import (
     MAX_RESEARCH_MODEL_ATTEMPTS as MAX_RESEARCH_MODEL_ATTEMPTS,
     ResearchModelGateway,
 )
-from src.web.research.phase_budget import FINALIZATION_RESERVE_SECONDS
 from src.web.research.runtime import (
     _ExternalAttemptBudgetExhausted as _ExternalAttemptBudgetExhausted,
     _ModelAttemptBudgetExhausted as _ModelAttemptBudgetExhausted,
@@ -698,7 +697,7 @@ def _read_visual_evidence_for_candidate(
 # safety reserve - deliberately NOT a calibrated action cost. Real finalization
 # cost is recorded in ``metrics.research_window`` so a later batch can calibrate
 # it from paired runs instead of guessing.
-RESEARCH_WINDOW_RESERVE_SECONDS = FINALIZATION_RESERVE_SECONDS
+RESEARCH_WINDOW_RESERVE_SECONDS = 12.0
 
 # Reader side of the same invariant: a page read may never start (or overrun)
 # outside the shared research window. ``READ_TIMEOUT_CAP_SECONDS`` mirrors the
