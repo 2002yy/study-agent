@@ -6,7 +6,14 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572–#578 已先后合入；#577 精确 HEAD `0e5c174` CI `44728786933` 成功后合入 `main@46538fe`，#578 重挂 HEAD `0ba25204` CI `44732129799` 成功、无阻断审阅后以 SHA 保护合入 `main@53ebc65`。#579 生产读取上下文已重挂最新主线、组合测试 177 项通过，旧 HEAD `8e447d93` 的成功 CI 不能用于新组合；#580 检查点观察片随后也需重挂。
+> **当前收口**：#572–#579 已先后合入；#579 生产读取上下文的精确 HEAD `b923a1d4` CI `44764758284` 成功、无阻断审阅后以 SHA 保护 squash 合入 `main@1bceb43`。#580 检查点计时观察已重挂该主线，190 项组合回归通过，等待新精确 HEAD CI 与审阅；#581 历史 RQCE trace 清理待前序合并后再重挂。任何旧 HEAD 成功 CI 均不能替代重挂后组合提交的门禁。
+
+### 2026-11-20 检查点持久化与计时观察解耦（独立 P3 静态片）
+
+- **现状/范围**：`ActiveResearchRuntimeExecutor.execute()` 中最后一个 `checkpoint()` 内部函数同时捕获 `ActiveRuntimeCheckpointSession`、可变 `live.context`、预算时间回调、`TimingLedger` 和诊断调用者。新增冻结且带槽位的 `ActiveRuntimeCheckpointRecorder`，直接绑定既有持久化 session 与同一 live owner，作为执行器所有原检查点位置的唯一回调；执行器删去计时闭包，只保留明确的上下文构造。不复制 state/cursor/context，不创建新仓储、预算或检查点权威。计时观察留在持久化 session 外，失效时也不改变持久化原语。
+- **冻结契约与负控**：原先顺序 `elapsed_ms → session.checkpoint(stage, diagnostics) → finally: TimingLedger.record_checkpoint → _record_checkpoint_timing` 完全不变；分别保留两次独立时间读取、原调用者栈层级与 `settle_completed_wave` 标签，成功和存储异常都写诊断。新参数化负控涵盖成功/异常、live context 整体重绑、同一个可变 diagnostics 字典、计时调用顺序及 6ms/9ms 的两个时间窗口；现行单波集成测试继续核实实际预算/checkpoint 序列和调用者标签。恢复 schema、波次交接、checkpoint 次数/位置、预算结算、检索/读取/模型调用、Evidence Gate 与发布都不改。
+- **静态验证/交接**：新增两种负控后，checkpoint session/波次结算/基线直接测试 **16 passed**，单波与计时 ledger 集成集 **14 passed**；完整主动研究、波次恢复、模型尝试、执行 guard、预算时钟、steering、重试准入与检查点观察 L1 影响集 **176 passed / 98.31s**。全库 Ruff 通过，mypy 仍是既有 **115 errors / 23 files**、无新增；未运行真实付费模型或外部检索。分支 `codex/checkpoint-observation-context-20261120`，初始基线 `main@46538fe`，本次重挂 `main@1bceb43` 后的组合复核见下；`priority=P3`、`loop=static`、`owner=research/checkpoint-observation`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本片仅为工程职责拆分，不宣称用户研究质量提升；待新精确 PR HEAD CI 和审阅成功后合入。
+- **#579 合并后组合复核**：重挂 `main@1bceb438d5e21d08a7e6b30789b50430c3eae3e0` 时生产代码自动合并，唯一冲突为并列新增交接段落，均已保留。检查点记录、完整主动研究、波次恢复/结算、预算时钟、模型尝试、steering、重试/准入以及 #579 生产读取语义/单一权威的 L1 组合 **190 passed / 96.66s**；Ruff、编译与差异检查通过。原 PR HEAD `0443a72` 的旧 CI 不可用于本次组合验收；待新精确 HEAD CI、审阅后合并。
 
 ### 2026-11-20 未接线的对话回合宿主与费用闸门整链退役（独立 P3 静态片）
 

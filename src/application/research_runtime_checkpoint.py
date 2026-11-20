@@ -22,7 +22,7 @@ from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import ResearchState
 from src.web.research.runtime import ResearchRuntimeCursor, attach_runtime_cursor
 from src.web.research.state import attach_claim_engine_state
-from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
+from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY, TimingLedger
 
 
 def updated_runtime_budget(
@@ -137,7 +137,8 @@ class ActiveRuntimeCheckpointSession:
 
     The snapshot remains short-lived: steering, recovery, and wave settlement
     can replace the cursor, state, and durable context between checkpoints.
-    Timing observation remains at the executor's original call boundary.
+    Timing observation stays outside the persistence session, in the recorder
+    bound by the executor at its existing checkpoint call sites.
     """
 
     repository: WebLookupRepository
@@ -171,6 +172,38 @@ class ActiveRuntimeCheckpointSession:
         # Only a successful persistence result may replace the live context.
         self.live.context = dict(persisted.research_context)
         return persisted
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveRuntimeCheckpointRecorder:
+    """Observe the existing durable checkpoint without owning its live values.
+
+    Callers invoke ``checkpoint`` directly, so caller-name diagnostics retain
+    their original stack depth and the executor has no timing closure.
+    """
+
+    session: ActiveRuntimeCheckpointSession
+    live: ActiveRuntimeLiveValues
+    elapsed_ms: Callable[[], float]
+    timing_ledger: TimingLedger
+    caller_name: Callable[[], str]
+    record_timing: Callable[..., None]
+
+    def checkpoint(self, *, stage: str | None = None) -> WebLookupRun:
+        diagnostics: dict[str, Any] = {}
+        started = self.elapsed_ms()
+        try:
+            return self.session.checkpoint(stage=stage, diagnostics=diagnostics)
+        finally:
+            self.timing_ledger.record_checkpoint(self.elapsed_ms() - started)
+            self.record_timing(
+                self.live.current_context(),
+                diagnostics,
+                wall_ms=self.elapsed_ms() - started,
+                stage=stage,
+                caller=self.caller_name(),
+                phase=self.timing_ledger.current_phase(),
+            )
 
 
 def _update_metrics(
