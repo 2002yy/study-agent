@@ -13,6 +13,29 @@ def _buffers(*records: dict[str, Any]) -> ActiveResearchResultBuffers:
     return ActiveResearchResultBuffers([], list(records), [], [])
 
 
+def test_source_upsert_preserves_list_alias_and_first_candidate_match() -> None:
+    first = {"candidate_id": "source-a", "read": {"status": "failed"}}
+    other = {"candidate_id": "source-b"}
+    duplicate = {"candidate_id": "source-a", "read": {"status": "read"}}
+    buffers = _buffers(first, other, duplicate)
+    published = buffers.selected_sources
+    replacement = {"candidate_id": "source-a", "read": {"status": "read"}}
+
+    buffers.upsert_selected_source(replacement)
+
+    assert buffers.selected_sources is published
+    assert published[0] is replacement
+    assert published[1] is other
+    assert published[2] is duplicate
+
+    added = {"candidate_id": "source-c"}
+    buffers.upsert_selected_source(added)
+
+    assert buffers.selected_sources is published
+    assert published[-1] is added
+    assert len(published) == 4
+
+
 def test_admission_keeps_source_identity_and_initializes_claim_map() -> None:
     source = {"candidate_id": "source-a", "read": {"status": "read"}}
     buffers = _buffers(source)
