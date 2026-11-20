@@ -58,10 +58,10 @@ def test_article_fetcher_does_not_call_jina_by_default(monkeypatch):
         lambda url, timeout, max_chars: calls.append(url) or ReaderResult(text="jina text", method="jina_reader"),
     )
 
-    text, method = article_fetcher.fetch_article_text_with_method("https://example.com/story")
+    result = article_fetcher.fetch_article_read_result("https://example.com/story")
 
-    assert text == ""
-    assert method == ""
+    assert result.ok is False
+    assert result.reason == "all_backends_failed"
     assert calls == []
 
 
@@ -90,28 +90,29 @@ def test_article_fetcher_calls_jina_when_enabled(monkeypatch):
         lambda url, timeout, max_chars: calls.append(url) or ReaderResult(text="jina text", method="jina_reader"),
     )
 
-    text, method = article_fetcher.fetch_article_text_with_method("https://example.com/story")
+    result = article_fetcher.fetch_article_read_result("https://example.com/story")
 
-    assert text == "jina text"
-    assert method == "jina_reader"
+    assert result.ok is True
+    assert result.text == "jina text"
+    assert result.method == "jina_reader"
     assert calls == ["https://example.com/story"]
 
 
-def test_legacy_article_reader_wraps_structured_api(monkeypatch):
+def test_structured_article_reader_uses_cached_method(monkeypatch):
     from src.news import article_fetcher
+    import time
 
     monkeypatch.setattr(
         article_fetcher,
-        "fetch_article_read_result",
-        lambda url, **kwargs: article_fetcher.ArticleReadResult(
-            ok=True,
-            text="structured text",
-            method="structured_reader",
-            requested_url=url,
-        ),
+        "_check_dns_target_safe",
+        lambda host: host == "example.com",
+    )
+    monkeypatch.setattr(article_fetcher, "_ARTICLE_CACHE", {})
+    article_fetcher._ARTICLE_CACHE["https://example.com/a"] = (
+        time.time(), "cached text", "readability", "",
     )
 
-    assert article_fetcher.fetch_article_text_with_method("https://example.com") == (
-        "structured text",
-        "structured_reader",
-    )
+    result = article_fetcher.fetch_article_read_result("https://example.com/a")
+    assert result.ok is True
+    assert result.text == "cached text"
+    assert result.method == "readability"

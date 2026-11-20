@@ -6,7 +6,15 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572–#583 已先后合入。#583 精确 HEAD `d238b6d8da3e6bf3b51d456b0ca41dca4f756f1b` 的 CI `44784047229` 成功，审阅/线程无阻断，SHA 保护 squash 合入 `main@56e188642a4fff1dd85d13f5d62fa8c2e56b871e`。课后旧生成器整链退役另由 #584 审查，不借用 #583 的 CI。
+> **当前收口**：#572–#584 已先后合入。#584 精确 HEAD `2b776a0897c79ae936002508c0657aad01d61e06` 的 CI `44789796262` 成功、无阻断审阅/线程，以 SHA 保护 squash 合入 `main@000f4efb508b792698416e6002c96a8a9b00694e`。#585 News 旧读取适配退役已重挂该主线，#588 RQCE Shadow 退役独立待验收；**新 HEAD 必须分别通过 CI**。
+
+### 2026-11-21 News 旧式读取包装与闲置重定向执行器整链退役（独立 P3 静态减负片）
+
+- **真实调用图**：新闻 RSS 获取现行调用 `resolve_news_link_metadata`，正式正文读取、工具网关与新闻丰富化使用 `fetch_article_read_result`。字符串返回的 `resolve_news_link`、二元组返回的 `fetch_article_text_with_method` 在 `src/`、`tools/`、工作流及配置中均无调用方，只有历史测试在用。`article_fetcher._SafeHTTPRedirectHandler` / `_SAFE_OPENER` 的实际 opener 没有生产调用方；旧测试对这个对象打 monkeypatch 并不触及现行 `safe_fetch_result`。这些旧入口与无效模拟不能当作真实安全保护。
+- **成组删除与负控迁移**：删除两条旧包装、闲置 `urllib` 重定向处理器、对应导入和只检查包装转发的模拟测试。将缓存读取、Jina/Firecrawl 启用与顺序、Google News 解析的独特断言改测真实结构化结果，移出混杂于微信状态测试的旧模拟；新增实际 `safe_fetch_result` 返回非公网最终地址时拒绝并且不进入本地/Jina/Firecrawl 的安全负控。保留真实 `_is_fetchable_article_url`、`safe_fetch_result`、`ArticleReadResult`、RSS 元数据、正式获取/去重/发布及所有原预算/域名安全规则。不改服务配置：无过期环境变量、CLI、阶段门或 CI 注册需要删除。
+- **静态证据/交接**：修改前直接新闻/链接/读取集 **77 passed**；修改后链接、微信、结构化阅读、真实重定向与新闻服务 **78 passed / 6.47s**，相邻 News 仓储/查询、读取网关、DOH/HTTP 保护及服务流 **81 passed / 7.47s**，合计不重复 **159 passed**。全仓 Ruff、编译、diff-check 成功；mypy 基线 **115 current / 125 allowed，无新增**。初始代码基于已合并 #583 的 `main@56e188642a4fff1dd85d13f5d62fa8c2e56b871e`；#584 课后旧生成器的精确 CI 成功并合入 `main@000f4efb508b792698416e6002c96a8a9b00694e` 后，本片干净重挂到该基线，生产代码零冲突，需重新获取新精确 HEAD CI；`priority=P3`、`loop=static`、`owner=news/retired-read-compat`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。未运行外部搜索/浏览器或付费模型。**下一片**：先按新精确 HEAD CI/审阅合并本片；继续从现有 News/学习后端的真实入口扫描测试专用兼容逻辑，不机械删除数据恢复或安全降级分支。
+
+- **#584 合并后的重挂复核**：`main@000f4efb508b792698416e6002c96a8a9b00694e` 上，News 正式读取、链接、微信、仓储、阅读安全、新闻服务与相邻 WebLookup 组合 **99 passed / 9.47s**；全库 Ruff、编译、diff-check 和 mypy **115/125** 均通过。旧 PR HEAD 的 CI 不会被复用于重挂后新 HEAD。
 
 ### 2026-11-21 搜索候选池的取消探针归入唯一执行守卫（独立 P3 静态片）
 
