@@ -37,11 +37,7 @@ from src.web.research.candidate_pool import (
     CandidatePoolItem,
     execute_candidate_pool_batch,
 )
-from src.web.research.candidate_ranking import (
-    CandidateSemanticAssessment,
-    RankedCandidate,
-    rank_candidate_pool,
-)
+from src.web.research.candidate_ranking import RankedCandidate
 from src.web.research.claim_planner import RuntimeClaimPlanner
 from src.web.research.deeper_targeting import (
     GapHint,
@@ -283,6 +279,13 @@ from src.application.research_selection_observability import (
     record_selection_authority,
 )
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
+from src.application.research_runtime_assessment_results import (
+    ACTIVE_RESEARCH_ASSESSMENTS_KEY as ACTIVE_RESEARCH_ASSESSMENTS_KEY,
+    ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY as ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY,
+    ActiveAssessmentResultContext,
+    assessment_store as _assessment_store,
+    record_assessment_result,
+)
 from src.application.research_runtime_discovery_diagnostics import (
     ActiveDiscoveryDiagnosticsContext,
 )
@@ -321,8 +324,6 @@ from src.application.research_runtime_read_observability import (
     _record_read_timing as _record_read_timing,
 )
 
-ACTIVE_RESEARCH_ASSESSMENTS_KEY = "claim_engine_assessments"
-ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY = "claim_engine_assessment_inputs"
 ACTIVE_RESEARCH_READ_PLAN_KEY = "claim_engine_read_plan"
 ACTIVE_RESEARCH_BRIEF_KEY = "claim_engine_evidence_brief"
 TIER2_PROPOSED_CLAIMS_KEY = "tier2_proposed_claim_ids"
@@ -1267,21 +1268,14 @@ class ActiveResearchRuntimeExecutor:
                 checkpoint(stage="assessing")
 
                 # Strict semantic assessment and role-aware ranking, one claim at a time.
-                stored_assessments = _assessment_store(live.context)
-                assessed_inputs = _assessment_inputs_store(live.context)
-                claim_rankings: dict[str, tuple[RankedCandidate, ...]] = {}
+                assessment_results = ActiveAssessmentResultContext.for_live(
+                    live, selection_trace
+                )
                 for claim in _ordered_claims(live.state):
                     claim_candidates = _candidates_for_claim(live.cursor, claim.id)
                     if not claim_candidates:
                         continue
-                    saved = stored_assessments.get(claim.id)
-                    saved_ranked = (
-                        tuple(_ranked_from_dict(item) for item in saved)
-                        if isinstance(saved, list) and saved
-                        else ()
-                    )
-                    if saved_ranked:
-                        claim_rankings[claim.id] = saved_ranked
+                    saved_ranked = assessment_results.restore_claim(claim.id)
                     saved_candidate_ids = {
                         item.candidate.id for item in saved_ranked
                     }
@@ -1399,30 +1393,12 @@ class ActiveResearchRuntimeExecutor:
                         )
                         checkpoint()
                         continue
-                    merged_assessments = {
-                        item.candidate.id: item.assessment for item in saved_ranked
-                    }
-                    merged_assessments.update(assessed.assessments)
-                    ranked_candidates = tuple(
-                        item
-                        for item in claim_candidates
-                        if item.id in merged_assessments
-                    )
-                    ranked = rank_candidate_pool(
-                        ranked_candidates,
+                    merged_assessments = assessment_results.record_completed(
                         claim=claim,
-                        assessments=merged_assessments,
+                        claim_candidates=claim_candidates,
+                        previous_ranked=saved_ranked,
+                        new_assessments=assessed.assessments,
                     )
-                    for rank_position, ranked_item in enumerate(ranked, start=1):
-                        selection_trace.note_scheduler_rank(
-                            ranked_item.candidate.canonical_url,
-                            rank=rank_position,
-                        )
-                    claim_rankings[claim.id] = ranked
-                    stored_assessments[claim.id] = [item.to_dict() for item in ranked]
-                    assessed_inputs[claim.id] = sorted(merged_assessments)
-                    live.context[ACTIVE_RESEARCH_ASSESSMENTS_KEY] = stored_assessments
-                    live.context[ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY] = assessed_inputs
                     # §45 Tier-2 (default off): when Tier-1 produced candidates
                     # but none is answer-relevant, one bounded proposal call may
                     # add reader-verified candidates with llm_proposed provenance.
@@ -1493,9 +1469,9 @@ class ActiveResearchRuntimeExecutor:
                         remaining_timeout=remaining_timeout,
                         research_seconds_left=research_seconds_left,
                         trace=selection_trace,
-                        claim_rankings=claim_rankings,
-                        stored_assessments=stored_assessments,
-                        assessed_inputs=assessed_inputs,
+                        claim_rankings=assessment_results.claim_rankings,
+                        stored_assessments=assessment_results.stored_assessments,
+                        assessed_inputs=assessment_results.assessed_inputs,
                         now_ms=elapsed_ms,
                         deadline_seconds=(
                             live.state.budget.hard_timeout_seconds
@@ -1556,7 +1532,7 @@ class ActiveResearchRuntimeExecutor:
                         for ranked_candidate in ranked
                         if ranked_candidate.candidate.id not in content_available
                     )
-                    for claim_id, ranked in claim_rankings.items()
+                    for claim_id, ranked in assessment_results.claim_rankings.items()
                 }
                 phase_timing.end("ranking", context=live.context)
                 physical_reads, extraction_targets = _fair_read_plan(
@@ -1578,7 +1554,7 @@ class ActiveResearchRuntimeExecutor:
                 extraction_targets = _restore_completed_read_targets(
                     extraction_targets,
                     completed_read_ids=set(content_available),
-                    rankings=claim_rankings,
+                    rankings=assessment_results.claim_rankings,
                 )
                 # §39 atomic routing (default off): a read artifact also serves
                 # factual claims that still lack support, bounded per read and
@@ -1897,7 +1873,7 @@ class ActiveResearchRuntimeExecutor:
                 )
                 lead_plan = _lead_read_plan(
                     live.state,
-                    claim_rankings,
+                    assessment_results.claim_rankings,
                     completed_read_ids=live.cursor.completed_read_ids,
                     lead_read_ids=live.cursor.lead_read_ids,
                     lead_budget_available=lead_budget_available,
@@ -3209,30 +3185,17 @@ def _late_admission_tail(
             observation.store(record)
             return cursor
 
-        merged: dict[str, Any] = {
-            item.candidate.id: item.assessment
-            for item in claim_rankings.get(claim.id, ())
-        }
-        merged.update(assessed.assessments)
-        ranked_candidates = tuple(
-            item for item in claim_candidates if item.id in merged
-        )
-        ranked = rank_candidate_pool(
-            ranked_candidates,
+        _merged, ranked = record_assessment_result(
             claim=claim,
-            assessments=merged,
+            claim_candidates=claim_candidates,
+            previous_ranked=claim_rankings.get(claim.id, ()),
+            new_assessments=assessed.assessments,
+            claim_rankings=claim_rankings,
+            stored_assessments=stored_assessments,
+            assessed_inputs=assessed_inputs,
+            context=context,
+            trace=trace,
         )
-        for rank_position, ranked_item in enumerate(ranked, start=1):
-            if trace is not None:
-                trace.note_scheduler_rank(
-                    ranked_item.candidate.canonical_url,
-                    rank=rank_position,
-                )
-        claim_rankings[claim.id] = ranked
-        stored_assessments[claim.id] = [item.to_dict() for item in ranked]
-        assessed_inputs[claim.id] = sorted(merged)
-        context[ACTIVE_RESEARCH_ASSESSMENTS_KEY] = stored_assessments
-        context[ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY] = assessed_inputs
         record["assessed_ids"] = sorted(assessed.assessments)
         record["ranked_after"] = len(ranked)
         observation.store(record)
@@ -3813,23 +3776,6 @@ def _bounded_assessment_candidates(
     return tuple(selected)
 
 
-def _assessment_store(context: dict[str, Any]) -> dict[str, Any]:
-    raw = context.get(ACTIVE_RESEARCH_ASSESSMENTS_KEY)
-    return {str(key): value for key, value in raw.items()} if isinstance(raw, Mapping) else {}
-
-
-def _assessment_inputs_store(context: dict[str, Any]) -> dict[str, list[str]]:
-    """P1-C batch 2: per-claim candidate-id sets the stored rankings cover."""
-    raw = context.get(ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY)
-    if not isinstance(raw, Mapping):
-        return {}
-    inputs: dict[str, list[str]] = {}
-    for key, value in raw.items():
-        if isinstance(value, list):
-            inputs[str(key)] = [str(item) for item in value]
-    return inputs
-
-
 def _wave_gap_provenance(
     cursor: ResearchRuntimeCursor,
     state: ResearchState,
@@ -3881,44 +3827,6 @@ def _wave_gap_provenance(
             produced_provenance_lead_ids=tuple(sorted(produced_leads)),
         )
     return deltas
-
-
-def _ranked_from_dict(raw: Mapping[str, Any]) -> RankedCandidate:
-    candidate_raw = cast(Mapping[str, Any], raw["candidate"])
-    assessment_raw = cast(Mapping[str, Any], raw["assessment"])
-    candidate = CandidatePoolItem(
-        id=str(candidate_raw["id"]),
-        canonical_url=str(candidate_raw["canonical_url"]),
-        url=str(candidate_raw["url"]),
-        title=str(candidate_raw["title"]),
-        snippet=str(candidate_raw.get("snippet") or ""),
-        source=str(candidate_raw.get("source") or ""),
-        published_at=str(candidate_raw.get("published_at") or ""),
-        query_ids=tuple(str(item) for item in candidate_raw.get("query_ids", [])),
-        intents=tuple(GapSearchIntent(str(item)) for item in candidate_raw.get("intents", [])),
-        providers=tuple(str(item) for item in candidate_raw.get("providers", [])),
-        first_seen_rank=int(candidate_raw.get("first_seen_rank") or 0),
-    )
-    assessment = CandidateSemanticAssessment(
-        candidate_id=str(assessment_raw["candidate_id"]),
-        relevance=cast(Any, str(assessment_raw["relevance"])),
-        relevance_confidence=float(assessment_raw["relevance_confidence"]),
-        source_role=str(assessment_raw["source_role"]),
-        source_role_confidence=float(assessment_raw["source_role_confidence"]),
-        cluster_id=str(assessment_raw["cluster_id"]),
-        expected_gain_signals=tuple(str(item) for item in assessment_raw.get("expected_gain_signals", [])),
-        freshness_score=float(assessment_raw.get("freshness_score") or 0.0),
-        estimated_read_cost=float(assessment_raw.get("estimated_read_cost") or 1.0),
-    )
-    return RankedCandidate(
-        candidate=candidate,
-        assessment=assessment,
-        rank=int(raw["rank"]),
-        eligibility=cast(Any, str(raw["eligibility"])),
-        reason_codes=tuple(str(item) for item in raw.get("reason_codes", [])),
-        new_cluster=bool(raw.get("new_cluster")),
-        expected_information_gain=int(raw.get("expected_information_gain") or 0),
-    )
 
 
 def _fair_read_plan(
