@@ -52,24 +52,20 @@ class ActiveWaveSettlementHandoff:
     its latest in-memory projection to the settlement snapshot.
     """
 
-    capture: Callable[[], ActiveWaveSettlementSnapshot]
-    bind: Callable[[ActiveWaveSettlementSnapshot], None]
+    live: LiveWaveValues
 
-    @classmethod
-    def for_live_values(cls, live: LiveWaveValues) -> ActiveWaveSettlementHandoff:
-        """Bind a single live owner without executor-local snapshot closures."""
+    def capture(self) -> ActiveWaveSettlementSnapshot:
+        """Read the current values from the single mutable run owner."""
+        return ActiveWaveSettlementSnapshot(
+            self.live.state, self.live.cursor, self.live.context
+        )
 
-        def capture() -> ActiveWaveSettlementSnapshot:
-            return ActiveWaveSettlementSnapshot(live.state, live.cursor, live.context)
-
-        def bind(snapshot: ActiveWaveSettlementSnapshot) -> None:
-            live.state, live.cursor, live.context = (
-                snapshot.state,
-                snapshot.cursor,
-                snapshot.context,
-            )
-
-        return cls(capture=capture, bind=bind)
+    def bind(self, snapshot: ActiveWaveSettlementSnapshot) -> None:
+        self.live.state, self.live.cursor, self.live.context = (
+            snapshot.state,
+            snapshot.cursor,
+            snapshot.context,
+        )
 
     def refresh_after_checkpoint(self, snapshot: ActiveWaveSettlementSnapshot) -> None:
         live = self.capture()
@@ -78,6 +74,23 @@ class ActiveWaveSettlementHandoff:
             live.cursor,
             live.context,
         )
+
+    def settle_completed_wave(
+        self,
+        snapshot: ActiveWaveSettlementSnapshot,
+        *,
+        checkpoint: Callable[[], object],
+    ) -> None:
+        """Checkpoint the settlement's live projection and return its latest state.
+
+        Preserve the executor's original checkpoint caller label and finally
+        handoff even if persistence interrupts after preparing a new snapshot.
+        """
+        self.bind(snapshot)
+        try:
+            checkpoint()
+        finally:
+            self.refresh_after_checkpoint(snapshot)
 
     def settle(
         self,

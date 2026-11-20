@@ -6,7 +6,7 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
-> **当前收口**：#572–#576 已先后合入；#575 精确 HEAD `adb9b9ee` CI `44718784842` 全绿后合入 `main@510772d`；#576 重挂 HEAD `bd8f4dc` CI `44726446702` 全绿、无阻断审阅后以 SHA 保护合入 `main@2993aa9`。本批把未接线旧回合宿主的独立 PR #577 重挂到新主线；该 PR 必须重跑精确 HEAD CI。#578 波次交接上下文片已推送，须在前序合并后重新核验。
+> **当前收口**：#572–#577 已先后合入。#577 精确 HEAD `0e5c174` CI `44728786933` 成功、无阻断审阅，以 SHA 保护 squash 合入 `main@46538fe`。#578 波次交接上下文片原 HEAD `660aa110` CI 不能替代合并 #577 后的候选；本片重挂至 `main@46538fe` 后仍须重新运行完整影响集、精确新 HEAD CI 和审阅门禁。#579 生产读取上下文片独立已推送，在主线推进后也须重挂。
 
 ### 2026-11-20 未接线的对话回合宿主与费用闸门整链退役（独立 P3 静态片）
 
@@ -15,6 +15,15 @@
 - **验证与交接**：删除前旧宿主专项 **23 passed / 3.33s**；删除后正式模型准入、费用授权/持久结算/恢复、对话取消、语义准入及决策调用影响集 **204 passed / 25.98s**。全库 Ruff、编译与差异检查通过；mypy **115/125，无新增**（检查源码从 502 减为 500 文件）。原基线 `main@510772d`、分支 `codex/retire-unwired-turn-lifecycle-20261120`；`priority=P3`、`loop=static`、`owner=conversation/retired-turn-host`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。#576 已合并，本片重挂 `main@2993aa9` 后必须通过新精确 HEAD CI 及审阅才可合并。
 
 - **#576 合并后组合复核**：重挂 `main@2993aa97697363172b3e665b166b34c5ac09e53c` 后，正式费用授权/持久结算/取消的 204 项和已合入读取重试/准入的 28 项交叉验证 **232 passed / 27.79s**；Ruff、编译及差异检查通过。旧 #577 HEAD `8536da8` 的原 CI 不用于新 HEAD 合并门禁。
+
+### 2026-11-20 波次结算的检查点交接收归现有执行上下文（独立 P3 静态片）
+
+- **边界与改动**：`ActiveResearchRuntimeExecutor.execute()` 原内部 `settle_completed_wave()` 闭包同时捕获 `wave_handoff` 和 `checkpoint`，在提交成功或异常时把最新已准备的 live state/cursor/context 回写给结算快照。该唯一职责现成为 `ActiveWaveSettlementHandoff.settle_completed_wave(snapshot, *, checkpoint)`，由执行器使用 `partial` 显式绑定检查点回调；不创建第二份持久状态、不扩大 handoff 对 repository/预算的所有权。`execute()` 不再定义波次结算内部函数；直接复用现有 handoff 的 bind/refresh 协议。
+- **严格冻结**：保持 `bind(snapshot)` → `checkpoint()` → 无论成功/失败都 `refresh_after_checkpoint(snapshot)` 的原顺序；新方法名仍为 `settle_completed_wave`，故 `_checkpoint_caller()` 的诊断标签不变。物理 checkpoint 仍由执行器原闭包调用，研究阶段、运行游标、波次预算结算、深层恢复、Evidence Gate 与发布均不变。`tests/test_research_runtime_wave_settlement.py` 原测试改为调用真实交接方法验证崩溃后的准备态回填，并增加成功完成后回填负控；不再在测试中复制一遍 bind/try/finally 实现。
+- **验证与交接**：改动前波次结算及主动单波检查点标签 **5 passed / 1.89s**，改动后对应 **6 passed / 1.99s**；波次结算/基线/进度、完整主动研究、checkpoint、预算时钟、计时 ledger、steering 影响集 **127 passed / 85.60s**。全库 Ruff、编译、diff-check 通过；mypy **115/125，无新增**。起点 `main@510772d`，分支 `codex/wave-checkpoint-handoff-context-20261120`；`priority=P3`、`loop=static`、`owner=research/wave-checkpoint-handoff`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。#576 已合入；本片重挂其主线并追加 live 所有权收敛后重验，#577 合并后还须重挂最终组合 HEAD 方可合并。
+
+- **#576 组合及状态所有权后续片**：`ActiveWaveSettlementHandoff` 原以 `capture` / `bind` 两个内部闭包捕获同一 `live` 实时状态，且 `for_live_values` 只为生成这些包装。现直接持有唯一 `LiveWaveValues` 引用，`capture()` / `bind()` 成为显式方法，执行器和测试直接构造 `ActiveWaveSettlementHandoff(live=live)`；没有复制 state/cursor/context，也没有新增可变 owner。新增「重绑 cursor/context 后仍捕获最新对象」回归，并与检查点成功/异常及 caller 标签测试并行。原 6 项专项变为 **7 passed / 3.28s**；重挂 #576 后波次结算、完整主动研究、checkpoint、预算时钟、steering、计时 ledger 与现行读取重试影响集 **156 passed / 102.69s**；全库 Ruff、编译、diff-check 通过，mypy **115/125、无新增**。
+- **#577 合并后的重新验证**：#577 已合入 `main@46538fe`，#578 的唯一冲突是 handoff 并列新增段落，两批记录均保留。重挂后波次结算/基线/进度、完整主动研究、checkpoint、预算时钟、steering、计时 ledger 和读取重试/准入共 **166 passed / 110.49s**，Ruff 与差异检查通过；重新提交的 #578 新 HEAD 仍须通过独立 CI 与审阅门禁。
 
 ### 2026-11-20 仅由历史专项测试使用的研究兼容 helper 退役（独立 P3 静态减负片）
 
