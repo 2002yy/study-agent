@@ -40,11 +40,18 @@
 
 - **#588 合并后独立重挂复核**：#588 按精确 HEAD 门禁合入 `main@13d4e3cda8fc1f2dba3f3d191bbe3b845aadd9c4` 后，仅重放本 #590 的质量门禁清理提交（不携带 #588 历史提交）；重挂自动完成、无冲突，12 个文件，代码与独占测试/场景删除 721 行（不含交接记录），原组合代码树 `6e544458ef14a8935216edd85a03d03ef3608502` 与重挂后复核树逐字节一致。正式教学、聊天、路由、Workflow、MemoryRun、URL/域名、LocalKnowledge、发布、Evidence Gate、Claim/Conflict/Coverage、Release Benchmark、Quality-0 与阶段门 **260 passed / 25.39s**；全库 Ruff、编译、diff-check 通过，mypy **115 current / 125 allowed**。`priority=P3`、`loop=static`、`owner=learning/retired-quality-harness`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。**下一片**：推送本独立 PR 的新精确 HEAD，经 CI 和无阻断审阅后以 SHA 保护合并；不复用旧 HEAD 的绿色结论。
 
+### 2026-11-21 搜索尝试快照与实时计时诊断职责分离（独立 P3 静态片）
+
+- **状态所有权**：`ActiveSearchQueryExecution` 原同时以尝试开始后冻结的 `context` 写搜索来源/发现序号、又以它记录 `phase_seconds.search`，使计时诊断成为唯一未使用 `ActiveRuntimeObservationContext` 的研究阶段。现保留原 `context`/`cursor` 作为本次查询的**冻结归因快照**，只将阶段计时回调改由已存在的实时观测上下文负责；搜索结果/供应商审计、查询线索与 slot 计算仍使用原快照。读取/模型的调用与预算权威不变，不创建第二份状态或 checkpoint。
+- **冻结顺序与负控**：保留 `attempt-start checkpoint → search phase begin → gateway.search_detailed → provider audit → search provenance → phase end (finally) → external-attempt finish checkpoint` 的所有操作位置。新增成功和超时异常下的模拟上下文+游标整体重绑负控：搜索诊断留在尝试快照，计时只写最新 live context，异常仍不伪造 provider audit。旧基线搜索/运行时观测 **9 passed**，改后直接负控及基线 **11 passed**。不改检索/模型调用数、额度、deadline、cursor 恢复 schema、Evidence Gate 或发布。
+- **静态验证与交接**：基线 `main@56e188642a4fff1dd85d13f5d62fa8c2e56b871e`，分支 `codex/search-attempt-snapshot-live-observation-20261121`。搜索/观测直接负控 **11 passed**；搜索与候选池、取消守卫、运行时读取、模型尝试、完整主动研究、检查点/预算时钟/波次结算及 TimingLedger 影响集 **147 passed / 89.16s**。全库 Ruff、Python 编译、差异检查通过；mypy 基线 **115 current / 125 allowed（无新增）**。`priority=P3`、`loop=static`、`owner=research/search-observability`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；精确 PR HEAD CI/审阅待提交后验证。此批是隔离恢复状态与诊断写入的工程整理，没有真实付费模型或搜索实验。**下一片**：先验收本片 CI 与审阅，再看读取调度中是否有同类快照/实时边界；没有确切重复职责则不机械抽出新模块。
+
 ### 2026-11-21 搜索候选池的取消探针归入唯一执行守卫（独立 P3 静态片）
 
 - **职责与范围**：`execute_candidate_pool_batch(..., should_cancel=...)` 原来接收 `ActiveResearchRuntimeExecutor.execute()` 临时构造的仓储查询 lambda，和同一函数使用的 `ActiveResearchExecutionGuard.ensure_active()` 重复读同一个 `run_id/operation_id`。新增 `ActiveResearchExecutionGuard.cancel_requested()` 作为明确的无异常布尔探针，`ensure_active()` 复用它；搜索候选池直接绑定这一方法，不再在执行器捕获 `self`、`run_id`、`operation_id` 构造第二条取消读取入口。原 `CandidatePoolCancelled` 和 `ActiveResearchCancelled` 分层异常保持原位。
 - **冻结与负控**：每次检查仍向现有 repository 查询最新取消状态，不缓存标志、不追加一次检查，不改检查位置、物理查询上限、checkpoint、模型/检索调度、恢复、研究预算与结算。直接负控扩展为非抛异常的布尔取消探针与抛 `ActiveResearchCancelled` 的 guard 各自读取最新操作所有权，保留候选池前后检查及其取消异常专项测试。原基线直接测试 **11 passed / 0.86s**；重挂已合并 #582 的 `main@8ed1430` 后，取消守卫、候选池、搜索、主动研究、checkpoint、预算时钟、wave settlement、模型尝试及运行时观测组合 **130 passed / 82.15s**。全库 Ruff、Python 编译、差异检查通过；mypy 基线 **115 current / 125 allowed（无新增）**。
 - **交接**：分支 `codex/active-search-cancellation-guard-20261121`，`priority=P3`、`loop=static`、`owner=research/cancellation-orchestration`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；真实付费模型及外部检索均未运行。当前片只减少执行器隐式依赖，**不改变取消行为**；新精确 PR HEAD CI/审阅待提交后验证。**下一片**：收口本 PR，再继续梳理 `ActiveSearchQueryExecution`、read scheduling 与模型尝试在持久 checkpoint 边界的显式快照/实时值职责，禁止将已冻结游标误改为实时读取。
+- **#583 精确门禁完成**：HEAD `d238b6d8da3e6bf3b51d456b0ca41dca4f756f1b` 的 CI 运行 `44784047229` 全部成功，无阻断审阅和讨论线程，以 SHA 保护 squash 合入 `main@56e188642a4fff1dd85d13f5d62fa8c2e56b871e`。此前“待 CI”的记录是当时静态交接快照。
 
 ### 2026-11-21 旧课后 LLM 生成与角色档案写入整链退役（独立 P3 静态减负片）
 

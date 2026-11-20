@@ -1243,7 +1243,7 @@ class ActiveResearchRuntimeExecutor:
                         monotonic=self.monotonic,
                         hard_seconds_left=budget_clock.hard_seconds_left,
                         reserve_seconds=RESEARCH_WINDOW_RESERVE_SECONDS,
-                        phase_timing=phase_timing,
+                        observation=runtime_observation,
                         context=live.context,
                         claim_id=str(getattr(planned, "claim_id", "") or ""),
                         cursor=live.cursor,
