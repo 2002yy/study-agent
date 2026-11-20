@@ -258,6 +258,7 @@ from src.application.research_runtime_read_scheduling import ActiveReadDispatchC
 from src.application.research_runtime_read_execution import ActiveReadExecutionContext
 from src.application.research_runtime_read_plan_context import FairReadPlanContext
 from src.application.research_runtime_read_budget_context import ReadWaveBudgetContext
+from src.application.research_runtime_lead_read_context import ActiveLeadReadAttemptContext
 from src.application.research_runtime_read_quota_context import ReadWaveQuotaContext
 from src.application.research_runtime_read_coverage import (
     ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY as ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY,
@@ -309,7 +310,6 @@ from src.application.research_runtime_publication import ActiveResearchPublisher
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
 from src.application.active_research_evidence_projection import (
     _bounded_retrieval_policy as _bounded_retrieval_policy,
-    _bounded_text,
     _source_record,
     _evidence_brief,
     _state_after_gate,
@@ -984,6 +984,13 @@ class ActiveResearchRuntimeExecutor:
             read_site=read_site_context,
             executor_factory=build_read_chain_executors,
             chain_runner=run_chain,
+        )
+        lead_read_attempt = ActiveLeadReadAttemptContext(
+            live=live,
+            run_id=run_id,
+            utc_now=self.utc_now,
+            gateway_read=gateway_read,
+            diagnostics=discovery_diagnostics,
         )
 
         model_attempt_context = ActiveModelAttemptContext.for_live_values(
@@ -1919,72 +1926,28 @@ class ActiveResearchRuntimeExecutor:
                     lead_source_limit = read_quota.source_limit(
                         max_total_chars=live.state.budget.max_total_chars
                     )
-                    lead_attempt = _attempt_number(
-                        live.cursor, f"lead:{lead_candidate_id}"
-                    )
-                    lead_marker = RuntimeExternalAttemptStart(
-                        call_id=(
-                            f"research_lead_read:{run_id}:{lead_candidate_id}"
-                            f":attempt:{lead_attempt}"
-                        ),
-                        purpose="read",
-                        item_id=f"lead:{lead_candidate_id}",
-                        attempt=lead_attempt,
-                        started_at=self.utc_now(),
-                    )
-                    live.cursor = begin_external_attempt(live.cursor, lead_marker)
-                    discovery_diagnostics.bump_lead("lead_read_started")
+                    lead_marker = lead_read_attempt.start(lead_candidate)
                     checkpoint()
-                    lead_read_exception = ""
                     try:
-                        raw_lead_read = gateway_read(
-                            lead_candidate.url, max_chars=lead_source_limit
+                        raw_lead_read, lead_read_exception = lead_read_attempt.fetch(
+                            lead_candidate, source_limit=lead_source_limit
                         )
-                    except Exception as exc:
-                        lead_read_exception = type(exc).__name__
-                        raw_lead_read = {
-                            "ok": False,
-                            "status": "failed",
-                            "url": lead_candidate.url,
-                            "error": type(exc).__name__,
-                        }
                     finally:
-                        live.cursor = finish_external_attempt(
-                            live.cursor, call_id=lead_marker.call_id
-                        )
+                        lead_read_attempt.finish(lead_marker)
                         checkpoint()
                     ensure_active()
-                    lead_content = str(
-                        raw_lead_read.get("content")
-                        or raw_lead_read.get("readme")
-                        or ""
-                    )[:lead_source_limit]
-                    live.cursor = replace(
-                        live.cursor,
-                        lead_read_ids=(*live.cursor.lead_read_ids, lead_candidate_id),
+                    lead_content = lead_read_attempt.complete(
+                        candidate=lead_candidate,
+                        marker=lead_marker,
+                        raw_read=raw_lead_read,
+                        read_exception=lead_read_exception,
+                        source_limit=lead_source_limit,
+                        quota=read_quota,
+                        budget=read_budget,
                     )
-                    if not (
-                        raw_lead_read.get("ok") is True and lead_content.strip()
-                    ):
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
-                            "read_failed",
-                            "reading",
-                            logical_call_id=lead_marker.call_id,
-                            item_id=lead_candidate_id,
-                            detail=_bounded_text(
-                                raw_lead_read.get("error") or "lead_read_failed",
-                                2000,
-                            ),
-                            exception_type=lead_read_exception,
-                            attempt_id=lead_marker.call_id,
-                        )
-                        discovery_diagnostics.bump_lead("lead_read_failed")
-                        checkpoint()
-                        continue
-                    read_quota.charge_read(lead_content)
-                    live.state = read_budget.project()
                     checkpoint()
+                    if lead_content is None:
+                        continue
                     lead_categories = (
                         "public_research_candidate_metadata",
                         "bounded_public_page_excerpt",
