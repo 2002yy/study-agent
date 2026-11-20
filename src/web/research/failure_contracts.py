@@ -110,10 +110,6 @@ RESEARCH_STOP_REASONS: Final[frozenset[str]] = frozenset(
 )
 
 
-def is_research_failure_code(value: str) -> bool:
-    return value in RESEARCH_FAILURE_CODES
-
-
 def require_research_failure_code(value: str) -> str:
     if not isinstance(value, str) or value not in RESEARCH_FAILURE_CODES:
         raise ValueError(f"unknown research failure code: {value!r}")
@@ -139,7 +135,6 @@ __all__ = [
     "RESEARCH_STOP_REASONS",
     "ResearchFailureCode",
     "ResearchStopReason",
-    "is_research_failure_code",
     "is_research_stop_reason",
     "require_research_failure_code",
     "require_research_stop_reason",

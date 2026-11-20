@@ -15,7 +15,6 @@ from src.web.research.contracts import (
 from src.web.research.policy import evidence_policy_for_claim
 from src.web.research.stop_gate import (
     evaluate_shadow_stop,
-    safe_evaluate_shadow_stop,
 )
 
 
@@ -123,23 +122,3 @@ def test_budget_partial_is_not_reported_as_shadow_block() -> None:
     assert result.shadow_would_pass is True
     assert result.shadow_would_block is False
     assert result.open_critical_claims == ("claim1",)
-
-
-def test_safe_boundary_preserves_legacy_when_shadow_gate_fails(monkeypatch) -> None:
-    def fail(_state: ResearchState):
-        raise RuntimeError("corrupt shadow projection with sensitive detail")
-
-    monkeypatch.setattr(
-        "src.web.research.stop_gate.evaluate_evidence_gate",
-        fail,
-    )
-    result = safe_evaluate_shadow_stop(
-        _state(supported=False),
-        legacy_would_stop=True,
-    )
-
-    assert result.shadow_status == "unavailable"
-    assert result.legacy_should_stop is True
-    assert result.legacy_would_stop_but_shadow_blocked is False
-    assert result.reasons == ("shadow_gate_failed",)
-    assert "sensitive" not in str(result.to_dict())

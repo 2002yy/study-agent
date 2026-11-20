@@ -96,24 +96,3 @@ def evaluate_shadow_stop(
         claim_conflicts=safe_assess_state_conflicts(state),
         coverage_assessment=safe_assess_coverage_stop(state),
     )
-
-
-def safe_evaluate_shadow_stop(
-    state: ResearchState,
-    *,
-    legacy_would_stop: bool,
-) -> ShadowStopDecision:
-    """Keep legacy behavior available if the shadow evaluator itself fails."""
-
-    try:
-        return evaluate_shadow_stop(state, legacy_would_stop=legacy_would_stop)
-    except Exception:
-        return ShadowStopDecision(
-            legacy_would_stop=legacy_would_stop,
-            legacy_should_stop=legacy_would_stop,
-            shadow_status="unavailable",
-            shadow_would_pass=False,
-            shadow_would_block=False,
-            legacy_would_stop_but_shadow_blocked=False,
-            reasons=("shadow_gate_failed",),
-        )
