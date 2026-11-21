@@ -309,7 +309,6 @@ from src.application.research_runtime_execution_guard import (
 from src.application.research_runtime_publication import ActiveResearchPublisher
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
 from src.application.active_research_evidence_projection import (
-    _bounded_retrieval_policy as _bounded_retrieval_policy,
     _source_record,
     _evidence_brief,
     _state_after_gate,
@@ -317,7 +316,6 @@ from src.application.active_research_evidence_projection import (
 from src.application.research_runtime_read_observability import (
     _record_atomic_routing_decisions,
     _record_atomic_routing_extractions,
-    _record_backend_health as _record_backend_health,
     _record_escalation_diagnostics as _record_escalation_diagnostics,
     _record_read_chain_decision,
     _record_read_history,
