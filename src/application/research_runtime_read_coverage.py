@@ -14,16 +14,16 @@ from typing import Any
 ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY = "claim_engine_covered_clusters"
 
 
-def merge_covered_clusters(
-    context: dict[str, Any], selected_sources: Sequence[Mapping[str, Any]]
+def project_covered_clusters(
+    persisted_coverage: Any, selected_sources: Sequence[Mapping[str, Any]]
 ) -> dict[str, set[str]]:
-    """Merge historical and currently read clusters; persist the sorted union.
+    """Compute the historic+current coverage union without persistence.
 
-    This is a durable context projection, not an admission or read operation.
-    Missing and malformed old entries retain their legacy interpretation.
+    Keep legacy treatment of malformed persisted entries and extractable
+    claims. The caller owns when (and whether) this union is written.
     """
 
-    raw_covered = context.get(ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY)
+    raw_covered = persisted_coverage
     covered_clusters_by_claim: dict[str, set[str]] = {}
     if isinstance(raw_covered, Mapping):
         for claim_id, cluster_ids in raw_covered.items():
@@ -53,6 +53,20 @@ def merge_covered_clusters(
             covered_clusters_by_claim.setdefault(claim_id, set()).add(
                 str(bound_cluster)
             )
+    return covered_clusters_by_claim
+
+
+def merge_covered_clusters(
+    context: dict[str, Any], selected_sources: Sequence[Mapping[str, Any]]
+) -> dict[str, set[str]]:
+    """Persist the historical sorted union, exactly once at the read-plan site.
+
+    Keep the established API for callers that supply an explicit context.
+    Computation is side-effect free; this adapter owns the durable write.
+    """
+    covered_clusters_by_claim = project_covered_clusters(
+        context.get(ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY), selected_sources
+    )
     context[ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY] = {
         claim_id: sorted(cluster_ids)
         for claim_id, cluster_ids in sorted(covered_clusters_by_claim.items())
