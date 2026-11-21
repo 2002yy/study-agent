@@ -21,10 +21,10 @@ from src.web.research.read_escalation import (
     BROWSER_TIER_ENV,
     ESCALATION_ENV,
     EscalationOutcome,
+    TIER_HTTP,
     browser_tier_allowed,
     escalate_read,
     escalation_mode,
-    TIER_HTTP,
     reset_run_envelope,
 )
 from src.web.research.retrieval_backends import RawReadArtifact, ReadRequest

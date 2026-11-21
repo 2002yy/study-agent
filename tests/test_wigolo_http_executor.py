@@ -8,9 +8,9 @@ truth actually reaches both entry points identically.
 
 from __future__ import annotations
 
-from functools import partial
 import io
 import re
+from functools import partial
 from typing import Any
 
 import pytest
