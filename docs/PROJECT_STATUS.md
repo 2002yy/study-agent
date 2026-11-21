@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-21，冷启动）
 
+### 2026-11-21 旧式隐藏 Wigolo HTTP 升级执行链整组退役（P3 静态减负片）
+
+- **可达性**：正式主动研究已通过显式 `native_http -> wigolo_http` chain executor；对研究/读取生产模块的定向扫描未发现 `escalate_read()` 的模块外生产调用。旧 `EscalationOutcome`、`_resolve_headroom`、`_record_attempt` 与 `_transition` 只支持原隐藏调用和历史 parity 测试，不再承担证据、恢复或计费权威。
+- **整链变更**：从 `read_escalation.py` 删除旧隐藏执行函数、结果对象、独占诊断辅助和旧导出，留下现行 `wigolo_http_execution_plan`、`run_envelope_*`、`escalation_mode` 和 browser opt-in；同步改写 `test_wigolo_http_executor.py` 为正式执行器的直接预算/拒绝/超时/失败/计费/链路测试。退役 `test_read_escalation.py` 的历史执行负控，把其仍有效的 HTTP/Browser 并发隔离、mode/adequacy/adapter/真实 backend 限时测试迁到 `test_wigolo_reader_policy.py`，并替换 `tests/stage_gates.json` 两处旧测试文件引用。
+- **保留**：ActiveResearchGateway 的真实升级后端工厂与注入 seam、Wigolo正式执行器、读取链退路、SSRF/URL 和预算保护、B-Search Shadow 的入口/开关/遥测/隔离设施不动。保留两个阶段门覆盖，同一旧式 parity 双跑不再作为产品正确性依据；环境变量 `RESEARCH_WIGOLO_ESCALATION` 和相关 budget env 仍有正式消费者，不删除。历史归档文档维持原貌。
+- **门禁**：`priority=P3`、`loop=static`、`owner=retrieval/retired-hidden-escalation`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。精确 HEAD CI、审阅及阶段门路径有效性通过后合并；不跑付费模型。
+
 ### 2026-11-21 无消费者读取升级状态退役（独立 P3 静态减负片）
 
 - **真实调用与无消费者证据**：active_research_runtime 的 read_once 只向 read_escalation.set_escalation_runtime_context 写入三个标量；read_escalation 的 _RUNTIME_CONTEXT 没有读路径，Wigolo 使用现行显式 hard_seconds_left 与 run_envelope_*。该死字典既不是正式 budget ledger，也不控制读取、发布或恢复。

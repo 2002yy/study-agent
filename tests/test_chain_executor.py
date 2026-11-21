@@ -353,14 +353,6 @@ def test_the_adapter_no_longer_executes_wigolo() -> None:
     assert offenders == [], f"production still escalates: {offenders}"
 
 
-def test_the_hidden_escalation_keeps_only_its_signal_contract() -> None:
-    """``escalate_read`` survives as a compatibility function, not as a caller."""
-
-    from src.web.research.read_escalation import escalate_read
-
-    assert callable(escalate_read)
-
-
 def test_executor_decisions_are_serialisable() -> None:
     run, _, _ = _run(
         native=_result(NATIVE, "reset"),

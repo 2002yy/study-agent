@@ -11,10 +11,9 @@ can invoke as a chain step.
 What it keeps
 -------------
 
-The three B2 guards are **not re-implemented here**. Both this executor and the
-legacy escalation ask :func:`read_escalation.wigolo_http_execution_plan`, so the
-allow/deny verdict, the refusal reason and the effective timeout come from one
-budget truth rather than from two copies that happen to agree.
+The three B2 guards are **not re-implemented here**. The executor asks
+:func:`read_escalation.wigolo_http_execution_plan` for the allow/deny verdict,
+refusal reason and effective timeout, preserving one budget authority.
 
 Execution-time preflight still owns the final say: a scheduler that earlier found
 this backend eligible does not authorise the call, because the budget may have
