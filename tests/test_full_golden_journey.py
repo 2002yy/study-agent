@@ -194,9 +194,10 @@ def test_full_golden_journey_source_stale_then_revalidated_rev2(tmp_path):
         prompt="Why is CI identity separate from SourceEvidence identity?",
         user_response="Because a signature lives on the caller path, not the source blob.",
     )
-    truth.create_understanding_evidence(
-        evidence,
-        (
+    truth.commit_semantic_closure(
+        goal_id=goal.id,
+        understanding=evidence,
+        results=(
             UnderstandingClaimResult(
                 understanding_evidence_id=evidence.id,
                 claim_revision_id=rev1_id,
