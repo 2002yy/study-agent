@@ -8,6 +8,9 @@ failing escalation never changes the current reader's result.
 
 from __future__ import annotations
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from typing import Any, Mapping
 
 import pytest
@@ -21,11 +24,15 @@ from src.web.research.read_escalation import (
     BROWSER_TIER_ENV,
     ESCALATION_ENV,
     EscalationOutcome,
+    TIER_BROWSER,
     TIER_HTTP,
     browser_tier_allowed,
+    charge_run_envelope,
     escalate_read,
     escalation_mode,
     reset_run_envelope,
+    run_envelope_remaining_ms,
+    run_envelope_spent_ms,
 )
 from src.web.research.retrieval_backends import RawReadArtifact, ReadRequest
 
@@ -39,6 +46,74 @@ def _fresh_envelope():
     reset_run_envelope(TIER_HTTP)
     yield
     reset_run_envelope(TIER_HTTP)
+
+
+
+def test_envelope_reset_preserves_the_other_tier() -> None:
+    reset_run_envelope(TIER_HTTP)
+    reset_run_envelope(TIER_BROWSER)
+    charge_run_envelope(125.0, TIER_HTTP)
+    charge_run_envelope(300.0, TIER_BROWSER)
+
+    reset_run_envelope(TIER_HTTP)
+    assert run_envelope_spent_ms(TIER_HTTP) == 0.0
+    assert run_envelope_spent_ms(TIER_BROWSER) == 300.0
+
+
+def test_two_concurrent_research_threads_cannot_reset_each_others_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second run's reset must not erase the first run's physical debit."""
+    monkeypatch.setenv("RESEARCH_WIGOLO_HTTP_RUN_ENVELOPE_SECONDS", "3.0")
+    first_charged = Event()
+    second_charged = Event()
+
+    def first_run() -> tuple[float, float, float]:
+        reset_run_envelope(TIER_HTTP)
+        reset_run_envelope(TIER_BROWSER)
+        charge_run_envelope(240.0, TIER_HTTP)
+        charge_run_envelope(70.0, TIER_BROWSER)
+        first_charged.set()
+        assert second_charged.wait(timeout=10)
+        return (
+            run_envelope_spent_ms(TIER_HTTP),
+            run_envelope_spent_ms(TIER_BROWSER),
+            run_envelope_remaining_ms(TIER_HTTP),
+        )
+
+    def second_run() -> tuple[float, float, float]:
+        assert first_charged.wait(timeout=10)
+        reset_run_envelope(TIER_HTTP)
+        reset_run_envelope(TIER_BROWSER)
+        charge_run_envelope(800.0, TIER_HTTP)
+        charge_run_envelope(310.0, TIER_BROWSER)
+        second_charged.set()
+        return (
+            run_envelope_spent_ms(TIER_HTTP),
+            run_envelope_spent_ms(TIER_BROWSER),
+            run_envelope_remaining_ms(TIER_HTTP),
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(first_run)
+        second = pool.submit(second_run)
+        assert first.result(timeout=15) == (240.0, 70.0, 2760.0)
+        assert second.result(timeout=15) == (800.0, 310.0, 2200.0)
+
+
+def test_sibling_async_tasks_have_independent_envelope_updates() -> None:
+    """Copied task contexts must not share a mutable ledger dict."""
+    async def worker(debit: float) -> float:
+        reset_run_envelope(TIER_HTTP)
+        await asyncio.sleep(0)
+        charge_run_envelope(debit, TIER_HTTP)
+        await asyncio.sleep(0)
+        return run_envelope_spent_ms(TIER_HTTP)
+
+    async def concurrent() -> list[float]:
+        return list(await asyncio.gather(worker(140.0), worker(650.0)))
+
+    assert asyncio.run(concurrent()) == [140.0, 650.0]
 
 
 def _reader_ok(text: str = ADEQUATE_TEXT) -> dict[str, Any]:

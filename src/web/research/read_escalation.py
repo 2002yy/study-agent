@@ -17,14 +17,16 @@ Hard rules:
   recorded (``http`` | ``browser``), and the adequacy transition is logged;
 * the browser tier is off unless the experiment flag explicitly asks for it.
 
-The module is deliberately free of run-context state: callers pass a
-``metrics_provider`` callable and the §71B ledger helpers re-resolve it at each
-boundary (the §71A-1 lesson).
+The module stores no application run object: callers pass a ``metrics_provider``
+callable and the §71B ledger helpers re-resolve it at each boundary. The
+fallback's scalar cost ledger is local to the active execution context; it
+must not be shared by two concurrent research runs.
 """
 
 from __future__ import annotations
 
 import os
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, MutableMapping
 
@@ -73,45 +75,49 @@ ESCALATION_BROWSER = "browser"
 TIER_HTTP = "http"
 TIER_BROWSER = "browser"
 
-# Per-run spent ledger (scalars only, per the §71A-1 rule); reset at run start.
-#
-# §111 A3-1R: the envelope is keyed by **execution tier**, not by provider. The
-# http reader and the browser reader are different cost/capability classes, so a
-# slow HTTP step must not be able to starve the browser tier. The numbers are
-# unchanged (3.0s each); only the accounting domain changed, and the global
-# ``research_seconds_left`` remains the real upper bound.
-_RUN_ENVELOPE: dict[str, float] = {TIER_HTTP: 0.0, TIER_BROWSER: 0.0}
+# §111 A3-1R: HTTP and browser have independent per-run envelopes.
+# A process-global dict let one research run erase another run's spent time on
+# reset. ContextVar isolates concurrent threads/async tasks without changing
+# call sites or the frozen 3.0s tier budgets. Updates are copy-on-write so
+# contexts inherited by sibling asyncio tasks cannot mutate the same dict.
+# The application run still owns the *global* research_seconds_left deadline.
+_RUN_ENVELOPE: ContextVar[dict[str, float] | None] = ContextVar(
+    "research_run_envelope", default=None
+)
 
 
 def _envelope_key(tier: str) -> str:
     key = str(tier or TIER_HTTP).strip().lower()
-    return key if key in _RUN_ENVELOPE else TIER_HTTP
+    return key if key in (TIER_HTTP, TIER_BROWSER) else TIER_HTTP
 
 
 def reset_run_envelope(tier: str = TIER_HTTP) -> None:
-    """Called once per run, per active tier, so the envelope is per-run."""
+    """Reset one tier for the current execution context, not the process."""
 
-    _RUN_ENVELOPE[_envelope_key(tier)] = 0.0
+    ledger = dict(_RUN_ENVELOPE.get() or {})
+    ledger[_envelope_key(tier)] = 0.0
+    _RUN_ENVELOPE.set(ledger)
 
 
 def run_envelope_spent_ms(tier: str = TIER_HTTP) -> float:
-    return round(_RUN_ENVELOPE[_envelope_key(tier)], 1)
+    ledger = _RUN_ENVELOPE.get()
+    return round((ledger or {}).get(_envelope_key(tier), 0.0), 1)
 
 
 def run_envelope_remaining_ms(tier: str = TIER_HTTP) -> float:
     return round(
-        max(0.0, http_run_envelope_seconds() * 1000.0 - _RUN_ENVELOPE[_envelope_key(tier)]),
+        max(0.0, http_run_envelope_seconds() * 1000.0 - run_envelope_spent_ms(tier)),
         1,
     )
 
 
 def charge_run_envelope(latency_ms: float, tier: str = TIER_HTTP) -> None:
-    """Charge the *actual* cost of one attempt (success or failure) to its tier."""
+    """Charge the actual attempt cost only to the current execution context."""
 
     key = _envelope_key(tier)
-    _RUN_ENVELOPE[key] = round(
-        _RUN_ENVELOPE[key] + max(0.0, float(latency_ms)), 1
-    )
+    ledger = dict(_RUN_ENVELOPE.get() or {})
+    ledger[key] = round(ledger.get(key, 0.0) + max(0.0, float(latency_ms)), 1)
+    _RUN_ENVELOPE.set(ledger)
 
 
 def http_min_hard_seconds() -> float:
