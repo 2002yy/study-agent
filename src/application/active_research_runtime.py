@@ -260,7 +260,7 @@ from src.application.research_runtime_read_budget_context import ReadWaveBudgetC
 from src.application.research_runtime_read_quota_context import ReadWaveQuotaContext
 from src.application.research_runtime_read_coverage import (
     ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY as ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY,
-    merge_covered_clusters,
+    merge_covered_clusters as merge_covered_clusters,
 )
 from src.application.research_runtime_read_coverage_context import (
     ActiveReadCoverageContext,
