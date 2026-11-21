@@ -6,6 +6,11 @@
 
 ## 0. Current Handoff（2026-11-21，冷启动）
 
+### 2026-11-21 Deep 种子投影与来源发布边界（#589 重挂候选）
+
+- Deep 本地种子由 `project_deep_seed_source` 纯投影生成来源记录，再经 `ActiveResearchResultBuffers.upsert_selected_source` 发布；字符预算扣减、状态投影、读取历史和 checkpoint 保持原顺序。来源缓冲区的首匹配覆盖与列表别名语义保持不变。
+- 清除旧 `_deep_seed_materialization` 隐式发布方法和无独立调用的 `upsert_source_record` 转发；既有测试覆盖空内容、字符预算、无发布副作用、来源更新别名。新 HEAD 的 CI 通过后才可合并。
+
 ### 2026-11-21 旧式隐藏 Wigolo HTTP 升级执行链整组退役（P3 静态减负片）
 
 - **可达性**：正式主动研究已通过显式 `native_http -> wigolo_http` chain executor；对研究/读取生产模块的定向扫描未发现 `escalate_read()` 的模块外生产调用。旧 `EscalationOutcome`、`_resolve_headroom`、`_record_attempt` 与 `_transition` 只支持原隐藏调用和历史 parity 测试，不再承担证据、恢复或计费权威。

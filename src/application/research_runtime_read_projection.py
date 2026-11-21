@@ -1,7 +1,7 @@
-"""Project a completed reader chain into one candidate source record.
+"""Project reader-chain or local-seed content into candidate source records.
 
-This is a pure, post-execution view: it neither admits a read nor updates the
-durable cursor, the read quota, checkpoints, metrics, or model spending.
+These pure views never publish sources, admit a read, or update the durable
+cursor, read quota, checkpoints, metrics, or model spending.
 """
 
 from __future__ import annotations
@@ -13,6 +13,11 @@ from typing import Any
 from src.application.active_research_evidence_projection import _source_record
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.chain_executor import ChainStepResult
+from src.web.research.deep_runtime import (
+    SEED_FINAL_BACKEND,
+    materialization_provenance,
+    materialized_content,
+)
 from src.web.research.read_adequacy import ADEQUATE_SHAPE
 
 
@@ -66,3 +71,40 @@ def project_read_chain(
         retrieval_attempts=[step.to_dict() for step in chain_steps],
     )
     return ReadSourceProjection(ok=ok, content=content, record=record)
+
+
+def project_deep_seed_source(
+    *,
+    candidate: CandidatePoolItem,
+    plan_item: Mapping[str, Any],
+    seed_source: Mapping[str, Any],
+    source_limit: int,
+) -> dict[str, Any] | None:
+    """Project durable seed bytes as a source without publishing them.
+
+    Local materialization is not a physical read: no gateway, reader chain,
+    external attempt or retrieval state is created. The runtime owns source
+    insertion, character charging and the subsequent checkpoint in that order.
+    """
+
+    content = materialized_content(seed_source, source_limit=source_limit)
+    if not content:
+        return None
+    record = _source_record(
+        candidate,
+        plan_item,
+        raw_read={
+            "ok": True,
+            "status": "read",
+            "url": candidate.url,
+            "content": content,
+        },
+        final_backend=SEED_FINAL_BACKEND,
+        retrieval_attempts=[],
+    )
+    record["materialization"] = materialization_provenance(
+        seed_source=seed_source,
+        materialized_content=content,
+        full_body_length=len(str(seed_source.get("content") or "")),
+    )
+    return record

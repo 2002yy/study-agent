@@ -49,14 +49,11 @@ from src.web.research.deep_runtime import (
     SEED_DISCOVERY_METHOD,
     DeepIntegrityError,
     deep_preflight,
-    SEED_FINAL_BACKEND,
     SEED_PROVIDER,
     content_available_ids,
     effective_deep_base_elapsed,
     load_execution_envelope,
     load_seed,
-    materialization_provenance,
-    materialized_content,
     seed_candidate_identity,
     seed_sources_by_url,
 )
@@ -219,7 +216,6 @@ from src.application.research_runtime_checkpoint import (
 )
 from src.application.research_runtime_result_buffers import (
     ActiveResearchResultBuffers,
-    upsert_source_record,
 )
 from src.application.research_runtime_source_evidence_context import (
     ReadSourceEvidenceContext,
@@ -266,7 +262,10 @@ from src.application.research_runtime_read_coverage_context import (
     ActiveReadCoverageContext,
 )
 from src.application.research_runtime_observation import ActiveRuntimeObservationContext
-from src.application.research_runtime_read_projection import project_read_chain
+from src.application.research_runtime_read_projection import (
+    project_deep_seed_source,
+    project_read_chain,
+)
 from src.application.research_runtime_read_site import (
     ActiveReadSiteContext,
     READ_SITE_HINT_ROUTE_DEFAULT as READ_SITE_HINT_ROUTE_DEFAULT,
@@ -1646,23 +1645,23 @@ class ActiveResearchRuntimeExecutor:
                             if _deep_candidate is not None
                             else None
                         )
-                        if _seed_source is not None:
+                        if _seed_source is not None and _deep_candidate is not None:
                             # Local materialization is not a physical read: it must not be
                             # blocked by the read slot, only by the hard window and the
                             # character budget.
                             if research_seconds_left() <= 0:
                                 read_loop_stop_reason = "research_window_closed"
                                 break
-                            _materialized = _deep_seed_materialization(
+                            _materialized = project_deep_seed_source(
                                 candidate=_deep_candidate,
                                 plan_item=plan_item,
                                 seed_source=_seed_source,
                                 source_limit=read_quota.remaining_chars(
                                     max_total_chars=live.state.budget.max_total_chars
                                 ),
-                                selected_sources=selected_sources,
                             )
                             if _materialized is not None:
+                                results.upsert_selected_source(_materialized)
                                 read_quota.charge_materialization(
                                     str((_materialized.get("read") or {}).get("content") or "")
                                 )
@@ -2753,44 +2752,6 @@ def _bind_deep_seed_candidates(
             )
         )
     return replace(cursor, candidates=tuple(merged))
-
-
-def _deep_seed_materialization(
-    *,
-    candidate: Any,
-    plan_item: Mapping[str, Any],
-    seed_source: Mapping[str, Any],
-    source_limit: int,
-    selected_sources: list[dict[str, Any]],
-) -> dict[str, Any] | None:
-    """Build the local-materialization source record, or None when nothing can be charged.
-
-    No gateway call, no reader chain, no external attempt marker: this is not a physical read,
-    so it neither spends a read slot nor records a retrieval state.
-    """
-
-    content = materialized_content(seed_source, source_limit=source_limit)
-    if not content:
-        return None
-    record = _source_record(
-        candidate,
-        plan_item,
-        raw_read={
-            "ok": True,
-            "status": "read",
-            "url": candidate.url,
-            "content": content,
-        },
-        final_backend=SEED_FINAL_BACKEND,
-        retrieval_attempts=[],
-    )
-    record["materialization"] = materialization_provenance(
-        seed_source=seed_source,
-        materialized_content=content,
-        full_body_length=len(str(seed_source.get("content") or "")),
-    )
-    upsert_source_record(selected_sources, record)
-    return record
 
 
 def _tier2_proposal_step(

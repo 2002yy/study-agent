@@ -26,7 +26,12 @@ class ActiveResearchResultBuffers:
     def upsert_selected_source(self, record: dict[str, Any]) -> None:
         """Update the live publication list without replacing its list identity."""
 
-        upsert_source_record(self.selected_sources, record)
+        candidate_id = record.get("candidate_id")
+        for index, current in enumerate(self.selected_sources):
+            if current.get("candidate_id") == candidate_id:
+                self.selected_sources[index] = record
+                return
+        self.selected_sources.append(record)
 
     def admit_extraction_target(
         self, candidate_id: str, claim_id: str
@@ -77,17 +82,6 @@ class ActiveResearchResultBuffers:
             run_id, self.selected_sources, self.rejected_sources
         )
         return tuple(ref.id for ref in snapshot.refs)
-
-
-def upsert_source_record(records: list[dict[str, Any]], record: dict[str, Any]) -> None:
-    """Preserve the original candidate upsert order and record aliasing."""
-
-    candidate_id = record.get("candidate_id")
-    for index, current in enumerate(records):
-        if current.get("candidate_id") == candidate_id:
-            records[index] = record
-            return
-    records.append(record)
 
 
 def _eligible_items(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
