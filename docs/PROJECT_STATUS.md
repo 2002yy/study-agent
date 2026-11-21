@@ -6,6 +6,15 @@
 
 ## 0. Current Handoff（2026-11-21，冷启动）
 
+### 2026-11-22 B5 一次性真实 SearXNG Smoke 工具及自测退役（P3 静态候选）
+
+- 旧 `tools/run_research_active_smoke.py` 是 B5 阶段固定一轮真实 SearXNG/模型的手工执行器，带单独的 `_searxng_success` 报告判断；现行运维由 `tools/studyctl.py`/`studyctl_live.py`、现行研究/读取/预算/发布和受控真实任务验证承担，不以旧 B5 工具作为产品入口。
+- 定向引用审计：当前 README、AGENTS、docs 索引/当前交接、`.github/workflows/ci.yml`、`studyctl*` 运维入口、主动研究执行器和适配器没有引用旧脚本；`tests/test_active_research_runtime.py` 只有 `test_smoke_searxng_success_requires_ok_results` 加载脚本并验证其自有报告函数，未执行真实检索或正式检索准确性契约。
+- 整链删除旧 B5 脚本及其唯一专属自测和测试专属 `pathlib.Path` 导入。不删 `tests/test_active_research_runtime.py` 内真实研究波次/读取/取消/搜索回退回归；不删正式 SearXNG 路由、预算、日志、工具、配置或门禁。本批无需移除整个测试文件在 `tests/stage_gates.json` 的注册，不需要兼容空实现。
+- 原 B5 输出仅在历史 Git 和保存记录中可追溯；不以旧 smoke 的通过/失败替代现行动态质量判断。未执行真实搜索或付费模型。分支 `cleanup/retire-b5-active-smoke-20261122` 基于 `main@52636c4`，须通过精确 HEAD 的 Ruff/pytest CI 后才可合并；若更广义调用方在 CI 中出现，先复核使用场景再决定是否退役。
+- `priority=P3`、`loop=static`、`owner=orchestration-contract/tooling`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。与 Release Benchmark 退役 #615 独立。
+
+
 ### 2026-11-22 研究执行器旧导出收口候选（P3 静态）
 
 - **范围**：只清理 `src/application/active_research_runtime.py` 的 5 个未由执行器调用的转发符号：`MAX_RESEARCH_MODEL_ATTEMPTS`、`ACTIVE_RESEARCH_WAVE_BASELINE_KEY`、`ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY`、`merge_covered_clusters`、`ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY`。真正所有者模块、具体功能与持久化键值不删；`ACTIVE_RESEARCH_ASSESSMENTS_KEY` 仍为正式导出。
