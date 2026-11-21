@@ -10,6 +10,9 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from src.application.research_runtime_read_scheduling_observation import (
+    record_read_scheduling_decision,
+)
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.health_breaker import PerRunBreaker, host_of
 from src.web.research.progressive_routing import (
@@ -19,7 +22,6 @@ from src.web.research.progressive_routing import (
 )
 from src.web.research.runtime import RuntimeReadOutcome
 from src.web.research.scheduler import attempted_read_backends
-from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,15 +44,17 @@ class ActiveReadDispatchContext:
         read_outcomes: Sequence[RuntimeReadOutcome],
         context: dict[str, Any],
     ) -> SchedulingDecision:
-        return schedule_active_research_read(
+        decision = schedule_active_research_read(
             candidate_id=str(candidate.id),
             url=candidate.url,
             read_outcomes=read_outcomes,
-            context=context,
             breaker=self.breaker,
             available_backends=self.available_backends,
             research_seconds_left=self.research_seconds_left,
         )
+        # Observation follows admission, with the caller's current context.
+        record_read_scheduling_decision(context, decision)
+        return decision
 
     def attempted_backends(
         self, *, candidate_id: str, read_outcomes: Sequence[RuntimeReadOutcome]
@@ -70,15 +74,15 @@ def schedule_active_research_read(
     candidate_id: str,
     url: str,
     read_outcomes: Sequence[RuntimeReadOutcome],
-    context: dict[str, Any],
     breaker: PerRunBreaker | None,
     available_backends: tuple[str, ...],
     research_seconds_left: Callable[[], float],
 ) -> SchedulingDecision:
-    """Preserve candidate-local attempts and bounded scheduling diagnostics.
+    """Decide admission from explicit inputs, without writing diagnostics.
 
     The remaining-time callback is evaluated *after* collecting the candidate's
     attempt history, at the same point as in the previous executor closure.
+    The dispatch context records this decision after the scheduler returns.
     """
 
     attempted = attempted_read_backends(read_outcomes, candidate_id)
@@ -96,11 +100,4 @@ def schedule_active_research_read(
             else None
         ),
     )
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if isinstance(metrics, dict):
-        entries = metrics.get("read_scheduling")
-        if not isinstance(entries, list):
-            entries = []
-        entries.append(decision.to_dict())
-        metrics["read_scheduling"] = entries[-60:]
     return decision
