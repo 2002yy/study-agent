@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
 from src.application.research_runtime_source_evidence_context import (
     ReadSourceEvidenceContext,
@@ -35,12 +36,11 @@ def test_visual_reader_observes_previously_upserted_record_and_live_values() -> 
         context["visual_reads"] = [{"vision_calls": 1}]
         return units
 
-    owner = ReadSourceEvidenceContext(results, visual_reader)
+    live = ActiveRuntimeLiveValues(state=state, context=context)
+    owner = ReadSourceEvidenceContext(results, live, visual_reader)
     owner.record_projection(
         record,
         ok=True,
-        context=context,
-        state=state,
         canonical_url="https://source.example/a",
     )
 
@@ -58,19 +58,15 @@ def test_failed_text_and_empty_visuals_preserve_record_and_no_visual_call() -> N
         calls.append(kwargs["canonical_url"])
         return []
 
-    owner = ReadSourceEvidenceContext(results, visual_reader)
-    state = cast(ResearchState, object())
+    live = ActiveRuntimeLiveValues(state=cast(ResearchState, object()))
+    owner = ReadSourceEvidenceContext(results, live, visual_reader)
     failed = {"candidate_id": "a", "read_status": "failed"}
-    owner.record_projection(
-        failed, ok=False, context={}, state=state, canonical_url="https://a"
-    )
+    owner.record_projection(failed, ok=False, canonical_url="https://a")
     assert calls == []
     assert results.selected_sources == [failed]
 
     completed = {"candidate_id": "a", "read_status": "read"}
-    owner.record_projection(
-        completed, ok=True, context={}, state=state, canonical_url="https://a"
-    )
+    owner.record_projection(completed, ok=True, canonical_url="https://a")
     assert calls == ["https://a"]
     assert results.selected_sources == [completed]
     assert results.selected_sources[0] is completed
@@ -87,28 +83,21 @@ def test_rebound_context_and_state_never_use_the_previous_call_values() -> None:
         received.append((context, state))
         return [{"unit_id": canonical_url}]
 
-    owner = ReadSourceEvidenceContext(results, visual_reader)
     first_context, second_context = {"wave": 1}, {"wave": 2}
     first_state, second_state = (
         cast(ResearchState, object()),
         cast(ResearchState, object()),
     )
+    live = ActiveRuntimeLiveValues(state=first_state, context=first_context)
+    owner = ReadSourceEvidenceContext(results, live, visual_reader)
     first_record = {"candidate_id": "same"}
     second_record = {"candidate_id": "same"}
-    owner.record_projection(
-        first_record,
-        ok=True,
-        context=first_context,
-        state=first_state,
-        canonical_url="first",
-    )
-    owner.record_projection(
-        second_record,
-        ok=True,
-        context=second_context,
-        state=second_state,
-        canonical_url="second",
-    )
+    owner.record_projection(first_record, ok=True, canonical_url="first")
+    # An intervening checkpoint can replace both values, while the result
+    # buffers retain their identity for the next source.
+    live.context = second_context
+    live.state = second_state
+    owner.record_projection(second_record, ok=True, canonical_url="second")
 
     assert received[0][0] is first_context and received[0][1] is first_state
     assert received[1][0] is second_context and received[1][1] is second_state
