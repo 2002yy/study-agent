@@ -5,6 +5,7 @@ These cases are pure scheduler fixtures, with no database, network, or model.
 
 from __future__ import annotations
 
+from dataclasses import fields
 from typing import Any
 from types import SimpleNamespace
 
@@ -103,6 +104,48 @@ def _two_claim_state() -> ResearchState:
         reference_date="2026-08-28",
         known_evidence_ids=(),
     )
+
+
+def test_read_plan_reserve_observation_is_one_shot_and_not_retained() -> None:
+    state = _two_claim_state()
+    rankings = {"claim_A": (_ranked("fresh", "cluster", 1),)}
+    baseline = FairReadPlanContext(state=state, rankings=rankings).build(state.claims)
+    metrics: dict[str, Any] = {"other": {"keep": True}}
+    planner = FairReadPlanContext(
+        state=state, rankings=rankings, diagnostics=metrics,
+    )
+
+    assert {item.name for item in fields(planner)}.isdisjoint({"diagnostics"})
+    assert metrics == {
+        "other": {"keep": True},
+        "read_reserve": {
+            "configured": 3,
+            "reclaimed": 3,
+            "reclaim_reason": "no_open_conflicts",
+            "hard_cap": 8,
+            "reads_used": 0,
+        },
+    }
+    before = dict(metrics["read_reserve"])
+    assert planner.build(state.claims) == baseline
+    assert metrics["read_reserve"] == before
+
+
+def test_read_plan_observation_failure_cannot_preempt_plan_mutation() -> None:
+    """Only the diagnostics boundary mutates its own mapping once.
+
+    The scheduler does not rely on metrics to decide what it will read.
+    """
+    state = _two_claim_state()
+    ranked = {"claim_A": (_ranked("a", "c1", 1),)}
+    observed = FairReadPlanContext(
+        state=state, rankings=ranked, diagnostics={},
+    )
+    unobserved = FairReadPlanContext(state=state, rankings=ranked)
+
+    assert observed.build(state.claims) == unobserved.build(state.claims)
+    assert observed.physical_ids == unobserved.physical_ids
+    assert observed.claim_clusters == unobserved.claim_clusters
 
 
 def test_each_read_plan_owns_fresh_bindings_without_mutating_prior_coverage() -> None:
