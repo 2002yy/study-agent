@@ -11,7 +11,7 @@ from dataclasses import replace
 from typing import Any
 from src.web.research.candidate_pool import CandidatePoolItem
 
-from src.domain.evidence import ClaimEvidenceLinkV1, build_evidence_snapshot
+from src.domain.evidence import ClaimEvidenceLinkV1, _canonical_url, build_evidence_snapshot
 from src.web.research.contracts import (
     EvidenceCluster,
     ResearchBrief,
@@ -205,16 +205,31 @@ def _evidence_snapshot(
     )
 
 
+def _research_source_url(record: Mapping[str, Any]) -> str:
+    """Resolve the same URL precedence as the server-owned evidence snapshot."""
+
+    assessment = record.get("assessment")
+    item = record.get("item")
+    item = item if isinstance(item, Mapping) else {}
+    return str(
+        (assessment.get("url") if isinstance(assessment, Mapping) else "")
+        or item.get("url")
+        or item.get("link")
+        or item.get("href")
+        or ""
+    ).strip()
+
+
 def _evidence_id_for_record(
     run_id: str,
     record: Mapping[str, Any],
     selected_sources: list[dict[str, Any]],
     rejected_sources: list[dict[str, Any]],
 ) -> str:
-    item = record.get("item")
-    url = str(item.get("url") or "") if isinstance(item, Mapping) else ""
+    # The snapshot uses canonical URL identity, not literal URL spelling.
+    url = _canonical_url(_research_source_url(record))
     for ref in _evidence_snapshot(run_id, selected_sources, rejected_sources).refs:
-        if ref.url == url and ref.lifecycle_status == "selected":
+        if ref.lifecycle_status == "selected" and _canonical_url(ref.url) == url:
             return ref.id
     raise ValueError("server-owned evidence identity unavailable")
 
@@ -332,9 +347,20 @@ def _evidence_brief(
     gate: EvidenceGateResult | None,
     selected_sources: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    records_by_id = {
-        str(record.get("candidate_id")): record for record in selected_sources
+    # The Evidence Snapshot is the source-ID authority used when extraction
+    # was accepted. A locator ("Section 2", "Table 1") is not a source identity:
+    # separate pages can supply the same claim and anchor text.
+    selected_ids_by_url = {
+        _canonical_url(ref.url): ref.id
+        for ref in _evidence_snapshot("", selected_sources, []).refs
+        if ref.lifecycle_status == "selected" and ref.url
     }
+    records_by_evidence_id: dict[str, list[dict[str, Any]]] = {}
+    for record in selected_sources:
+        url = _research_source_url(record)
+        evidence_id = selected_ids_by_url.get(_canonical_url(url)) if url else None
+        if evidence_id is not None:
+            records_by_evidence_id.setdefault(evidence_id, []).append(record)
     grounded_input = grounded_input_enabled()
     excerpt_budget = EXCERPT_TOTAL_CHARS if grounded_input else 0
     evidence_rows: list[dict[str, Any]] = []
@@ -345,7 +371,7 @@ def _evidence_brief(
         record = next(
             (
                 item
-                for item in records_by_id.values()
+                for item in records_by_evidence_id.get(link.evidence_id, ())
                 if (
                     isinstance(item.get("extractions"), Mapping)
                     and isinstance(item["extractions"].get(link.claim_id), Mapping)
