@@ -3,6 +3,9 @@
 from dataclasses import fields
 
 from src.application import research_runtime_read_scheduling as read_scheduling
+from src.application.research_runtime_read_scheduling_observation import (
+    record_read_scheduling_decision,
+)
 from src.web.research.runtime import RuntimeReadOutcome
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 from tests.research_read_candidate_factory import read_candidate
@@ -19,15 +22,61 @@ def _schedule(
     breaker=None,
     remaining=lambda: 35.0,
 ):
-    return read_scheduling.schedule_active_research_read(
-        candidate_id=candidate_id,
-        url="https://example.org/article",
-        read_outcomes=outcomes,
-        context=context if context is not None else {},
+    dispatch = read_scheduling.ActiveReadDispatchContext(
         breaker=breaker,
         available_backends=BACKENDS,
         research_seconds_left=remaining,
     )
+    return dispatch.schedule(
+        candidate=read_candidate(candidate_id),
+        read_outcomes=outcomes,
+        context=context if context is not None else {},
+    )
+
+
+def test_pure_admission_decision_does_not_write_observations() -> None:
+    """Scheduling must remain usable without a mutable diagnostics mapping."""
+    clock_samples: list[str] = []
+
+    def sample() -> float:
+        clock_samples.append("research_window")
+        return 30.0
+
+    decision = read_scheduling.schedule_active_research_read(
+        candidate_id="target",
+        url="https://example.org/article",
+        read_outcomes=(),
+        breaker=None,
+        available_backends=BACKENDS,
+        research_seconds_left=sample,
+    )
+    assert decision.executable and decision.backend == "native_http"
+    assert clock_samples == ["research_window"]
+
+
+def test_observation_uses_latest_supplied_context_without_rescheduling() -> None:
+    """Recording an existing decision cannot repeat admission or charge time."""
+    samples: list[str] = []
+
+    def remaining() -> float:
+        samples.append("elapsed")
+        return 30.0
+
+    decision = read_scheduling.schedule_active_research_read(
+        candidate_id="target",
+        url="https://example.org/article",
+        read_outcomes=(),
+        breaker=None,
+        available_backends=BACKENDS,
+        research_seconds_left=remaining,
+    )
+    first, rebound = {}, {}
+    record_read_scheduling_decision(first, decision)
+    record_read_scheduling_decision(rebound, decision)
+    assert samples == ["elapsed"]
+    assert first[ACTIVE_RESEARCH_METRICS_KEY]["read_scheduling"] == [decision.to_dict()]
+    assert rebound[ACTIVE_RESEARCH_METRICS_KEY]["read_scheduling"] == [decision.to_dict()]
+    assert first is not rebound
 
 
 def test_candidate_attempt_history_is_scoped_and_does_not_mutate_cursor() -> None:
