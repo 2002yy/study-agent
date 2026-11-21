@@ -23,6 +23,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SPECIALIST_PYTHON = sys.executable
 
 from src.application import active_research_runtime as runtime  # noqa: E402
+from src.application.research_runtime_read_site import (  # noqa: E402
+    read_site_hint_route,
+)
 from src.application.reader_hint_routing import (  # noqa: E402
     EXPLICIT_HINTS_ENABLED_ENV,
     JS_RENDER,
@@ -47,7 +50,7 @@ def _enable_specialist(monkeypatch) -> None:
 
 def test_no_hint_is_default(monkeypatch) -> None:
     monkeypatch.delenv(EXPLICIT_HINTS_ENABLED_ENV, raising=False)
-    route = runtime.read_site_hint_route({})
+    route = read_site_hint_route({})
     assert route["route"] == "default"
     assert route["hint_honored"] is True
     assert route["requested_reader_capabilities"] == []
@@ -55,7 +58,7 @@ def test_no_hint_is_default(monkeypatch) -> None:
 
 def test_hint_with_flag_off_is_default(monkeypatch) -> None:
     monkeypatch.delenv(EXPLICIT_HINTS_ENABLED_ENV, raising=False)
-    route = runtime.read_site_hint_route({"reader_capabilities": [JS_RENDER]})
+    route = read_site_hint_route({"reader_capabilities": [JS_RENDER]})
     assert route["route"] == "default"
     assert route["hint_honored"] is False
     assert route["reason"] == "hints_disabled"
@@ -63,14 +66,14 @@ def test_hint_with_flag_off_is_default(monkeypatch) -> None:
 
 def test_hint_ready_routes_specialist(monkeypatch) -> None:
     _enable_specialist(monkeypatch)
-    route = runtime.read_site_hint_route({"reader_capabilities": [JS_RENDER]})
+    route = read_site_hint_route({"reader_capabilities": [JS_RENDER]})
     assert route["route"] == "specialist"
     assert route["hint_honored"] is True
 
 
 def test_session_hint_without_inputs_is_unsatisfied(monkeypatch) -> None:
     _enable_specialist(monkeypatch)
-    route = runtime.read_site_hint_route({"reader_capabilities": [SESSION_STATE]})
+    route = read_site_hint_route({"reader_capabilities": [SESSION_STATE]})
     assert route["route"] == "unsatisfied"
     assert route["reason"] == "session_inputs_missing"
 
@@ -325,7 +328,6 @@ def test_specialist_config_fails_closed(monkeypatch, value, reason) -> None:
 
 def test_specialist_diagnostics_only_observe_and_keep_last_sixty() -> None:
     """No second selector or reader call is needed to serialize an outcome."""
-    assert runtime.record_read_site_specialist is record_read_site_specialist
     context = {
         ART.ACTIVE_RESEARCH_METRICS_KEY: {
             "read_site_specialist": [{"previous": index} for index in range(60)],
