@@ -503,13 +503,11 @@ def _service(
     monotonic: Callable[[], float] = perf_counter,
 ) -> ClaimEngineDispatchWebLookupService:
     def gateway_factory() -> ActiveResearchGateway:
-        gateway = ActiveResearchGateway(
+        return ActiveResearchGateway(
             search_backend=search_backend or _SearchBackend(),
             read_gateway=read_gateway or _ReadGateway(),
+            escalation_backend=escalation_backend,
         )
-        if escalation_backend is not None:
-            gateway.set_escalation_backend(escalation_backend)
-        return gateway
 
     def runtime_factory(
         repo: WebLookupRepository,
