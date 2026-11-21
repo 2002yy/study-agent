@@ -2378,7 +2378,8 @@ class ActiveResearchRuntimeExecutor:
                 elapsed=elapsed,
                 exhausted=budget_clock.research_window_exhausted(),
             )
-            checkpoint()
+            # One checkpoint persists the hard-budget stop and late steering.
+            # The evidence summary and metrics are checkpointed below.
             checkpoint()
             gate = evaluate_evidence_gate(live.state)
             brief = _evidence_brief(live.state, gate, selected_sources)
