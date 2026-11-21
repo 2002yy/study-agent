@@ -150,7 +150,7 @@ def test_read_site_context_default_does_not_invoke_or_sample_budget(monkeypatch)
     context: dict = {}
     site = ActiveReadSiteContext(hard_seconds_left=unexpected_time)
     assert site.try_specialist(
-        context, read_candidate("a", "https://example.com/a"), 1200
+        context, read_candidate("a", url="https://example.com/a"), 1200
     ) is None
     assert ART.ACTIVE_RESEARCH_METRICS_KEY not in context
 
@@ -176,9 +176,9 @@ def test_read_site_context_uses_latest_context_and_time(monkeypatch) -> None:
     site = ActiveReadSiteContext(hard_seconds_left=lambda: time_left[0])
     first = _hint_context(JS_RENDER, session_id="session-one")
     second = _hint_context(JS_RENDER, session_id="session-two")
-    assert site.try_specialist(first, read_candidate("a", "https://a.test"), 1000)
+    assert site.try_specialist(first, read_candidate("a", url="https://a.test"), 1000)
     time_left[0] = 4.0
-    assert site.try_specialist(second, read_candidate("b", "https://b.test"), 2000)
+    assert site.try_specialist(second, read_candidate("b", url="https://b.test"), 2000)
     assert actual_calls == [
         {"session_id": "session-one", "candidate_id": "a", "remaining": 13.0},
         {"session_id": "session-two", "candidate_id": "b", "remaining": 4.0},
@@ -201,7 +201,7 @@ def test_read_site_context_failed_specialist_keeps_default_fallback(monkeypatch)
     context = _hint_context(JS_RENDER)
     site = ActiveReadSiteContext(hard_seconds_left=lambda: 3.0)
     assert site.try_specialist(
-        context, read_candidate("a", "https://example.com/a"), 2000
+        context, read_candidate("a", url="https://example.com/a"), 2000
     ) is None
     record = context[ART.ACTIVE_RESEARCH_METRICS_KEY]["read_site_specialist"][0]
     assert record["specialist_attempted"] is True
