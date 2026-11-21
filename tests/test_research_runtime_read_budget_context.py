@@ -116,9 +116,10 @@ def test_limit_views_rebind_latest_budget_without_mutation_or_time_sampling() ->
 
     # A checkpoint or steering change may replace the state and tighten both
     # ceilings between read admissions. The budget context cannot cache them.
+    new_state = _state(max_candidates=2, reads_used=1)
     tightened = replace(
-        _state(max_candidates=2, reads_used=1),
-        budget=replace(original.budget, max_reads=1, max_total_chars=10),
+        new_state,
+        budget=replace(new_state.budget, max_reads=1, max_total_chars=10),
     )
     live.state = tightened
     assert budget.exhausted()
