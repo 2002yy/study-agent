@@ -6,13 +6,19 @@
 
 ## 0. Current Handoff（2026-11-21，冷启动）
 
-> **当前收口**：#590 早期 Quality Gates 退役已合入 `main@9eb9671ff71e5291951a248a11102d29d4c73bb4`；冷启动时尚有 #586、#587、#589、#591、#592 五个独立开放 PR。各片须以自己的最新精确 HEAD CI、审阅和当前可合并性判定收口，不借用其它片或旧 SHA 的验证。
+> **当前收口**：#588 历史 RQCE Shadow 退役以精确 CI `44797083430` 成功合入 `main@13d4e3cda8fc1f2dba3f3d191bbe3b845aadd9c4`；#590 早期 Quality Gates 退役的精确 HEAD `6047ab77ca4aa663ab1ee3be806c7049781264a5` 经 CI `44800303084` 成功、审阅/线程无阻断，以 SHA 保护 squash 合入 `main@9eb9671ff71e5291951a248a11102d29d4c73bb4`。当前独立清理片：News 两条已无独立职责的 Web 适配门面；#586/#587/#589 是其他研究执行开发分支，未经其维护者整合不接管重挂或复用旧 CI。
 
 ### 2026-11-21 线索页物理读取生命周期收敛与恢复重试计数修复（独立 P0 静态片）
 
 - **冻结检查点与职责边界**：Deep/普通来源读取、证据提取、线索发现模型调用、发布、持久 schema 与费用模型均不动。新增 `ActiveLeadReadAttemptContext` 统一线索页读取的外部尝试起止、网关异常归档、线索 ID 投影和成功读取额度扣减；执行器仍在原位执行 `start → checkpoint → gateway → finally finish → checkpoint → ensure_active → complete → checkpoint`，所以崩溃前的 inflight 记录、取消检查、成功/失败写入顺序和 `checkpoint_timing.caller=execute` 诊断标签不变。每次完成均读取最新 `ActiveRuntimeLiveValues`，波次额度由调用方现场提供，不缓存游标/状态快照。
 - **P0 负控发现与修复**：原 `_attempt_number(cursor, f"lead:{candidate_id}")` 不匹配持久恢复写入的 `research_lead_read:{run_id}:{candidate_id}:attempt:{n}`，连续进程中断会误将第二次仍计为第一次；改为仅匹配原有**完整调用 ID 的稳定前缀**，保留旧 ID/恢复结构，且不混入同候选的证据读取和相似候选 ID。新增两次中断拒绝第三次、跨 checkpoint 重绑、失败仍完成外部尝试但不扣额、取消后不写入线索 ID 的定向负控；端到端线索页场景追加检查点调用者标签约束。原先三项线索相关基线 **3 passed**；新主动研究执行器、线索、读额度、checkpoint、发现诊断、读取尝试、波次与计时影响集 **131 passed / 85.99s**，阶段门契约 **10 passed / 1.03s**；全库 Ruff、应用编译、diff-check 通过，mypy **115 current / 125 allowed，无新增**。
 - **交接**：基于 `main@9eb9671ff71e5291951a248a11102d29d4c73bb4`，独立分支 `codex/lead-read-lifecycle-context-20261121`；`priority=P0`（恢复后外部重试额度完整性）、`loop=static`、`owner=research/lead-read-lifecycle`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`，无真实检索或付费模型。**下一片**：推送独立 PR，核对精确 HEAD CI / 审阅和可合并性后再合入；其他开放的 #586/#587/#589/#591/#592 各守原职责，不复用它们的 CI 证明。
+
+### 2026-11-21 News 旧 Web 搜索/正文读取门面退役（独立 P3 静态减负片）
+
+- **调用关系**：`src/web/gateway.py::WebSearchGateway` 与 `src/web/article_reader.py::ArticleReader` 只被 `src/application/news_service.py` 两个默认依赖工厂实例化。二者各自不做业务决策，仅转发给现行 `src/news/rss_fetcher.fetch_news_items`、`src/news/article_fetcher.enrich_news_items_with_article_text`；`WebSearchGateway.warnings()` 没有任何调用方。无 API/CLI、其他生产服务、CI、阶段门、配置或专属测试引用这些类。RSS 警告的真实源函数仍被诊断与负控使用，不能随门面删除。
+- **整链删除/边界验证**：删除两个转发模块及 `NewsService` 的旧导入；默认 `NewsDependencies.search/enrich` 直接调用真正新闻实现，保留 `query → query_text`、条数、正文长度和原 `query_text` 参数传递，依赖注入签名不变。新增一个针对真实默认依赖而非已删壳的无网络参数转发负控；保留 NewsRun 阶段、重试/事务、安全模式、RSS 缓存/去重、正文域名安全与读取预算的原始测试。没有需要删改的配置、环境变量或阶段门注册。
+- **证据/交接**：原新闻服务/微信/新闻重定向组合 **40 passed / 2.91s**；修改后新闻服务、API、跨层、微信、新闻重定向/正文与读取质量 **97 passed / 8.22s**，相邻订阅源诊断、正文解析、News 读取安全、URL/域名、News 证据/群聊/缓存 **98 passed / 7.76s**，合计不重复 **195 passed**。全仓 Ruff、编译、diff-check 通过，mypy 基线 **115 current / 125 allowed、无新增**。起点 `main@9eb9671ff71e5291951a248a11102d29d4c73bb4`；`priority=P3`、`loop=static`、`owner=news/retired-web-delegates`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。**下一片**：提交独立 PR，凭精确 HEAD CI/审阅后合并；不以单纯没有静态导入为由删除通过配置/前端入口启动的测试服务或历史证据。
 
 ### 2026-11-21 News 旧式读取包装与闲置重定向执行器整链退役（独立 P3 静态减负片）
 
