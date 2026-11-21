@@ -7,6 +7,7 @@ checkpoint, without owning search, model calls or final publication.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from typing import Any
@@ -23,6 +24,9 @@ from src.web.research.contracts import ResearchState
 from src.web.research.runtime import ResearchRuntimeCursor, attach_runtime_cursor
 from src.web.research.state import attach_claim_engine_state
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY, TimingLedger
+
+
+_logger = logging.getLogger(__name__)
 
 
 def updated_runtime_budget(
@@ -195,15 +199,21 @@ class ActiveRuntimeCheckpointRecorder:
         try:
             return self.session.checkpoint(stage=stage, diagnostics=diagnostics)
         finally:
-            self.timing_ledger.record_checkpoint(self.elapsed_ms() - started)
-            self.record_timing(
-                self.live.current_context(),
-                diagnostics,
-                wall_ms=self.elapsed_ms() - started,
-                stage=stage,
-                caller=self.caller_name(),
-                phase=self.timing_ledger.current_phase(),
-            )
+            # Telemetry may fail independently of the durable repository write.
+            # Preserve both the successful result and the original checkpoint
+            # exception; an observation error must never mask either one.
+            try:
+                self.timing_ledger.record_checkpoint(self.elapsed_ms() - started)
+                self.record_timing(
+                    self.live.current_context(),
+                    diagnostics,
+                    wall_ms=self.elapsed_ms() - started,
+                    stage=stage,
+                    caller=self.caller_name(),
+                    phase=self.timing_ledger.current_phase(),
+                )
+            except Exception:
+                _logger.exception("research checkpoint timing observation failed")
 
 
 def _update_metrics(

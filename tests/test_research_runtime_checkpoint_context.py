@@ -300,3 +300,51 @@ def test_checkpoint_recorder_observes_latest_live_state_after_persist_attempt(
         "caller": "settle_completed_wave",
         "phase": "reading",
     }
+
+@pytest.mark.parametrize("persist_fails", [False, True], ids=["saved", "write_failed"])
+@pytest.mark.parametrize("broken_observer", ["ledger", "timing"])
+def test_checkpoint_telemetry_failure_preserves_durable_outcome(
+    persist_fails: bool,
+    broken_observer: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Observation must not turn a durable commit into failure or mask its error."""
+    initial = _checkpoint(Mock(spec=WebLookupRepository))
+    live = ActiveRuntimeLiveValues(state=initial.state)
+    session = Mock(spec=ActiveRuntimeCheckpointSession)
+    persisted = SimpleNamespace(research_context={"saved": True})
+    if persist_fails:
+        session.checkpoint.side_effect = ValueError("repository checkpoint failed")
+    else:
+        session.checkpoint.return_value = persisted
+    ledger = Mock(spec=TimingLedger)
+    ledger.current_phase.return_value = "reading"
+    timing = Mock()
+    if broken_observer == "ledger":
+        ledger.record_checkpoint.side_effect = RuntimeError("ledger sink failed")
+    else:
+        timing.side_effect = RuntimeError("timing sink failed")
+    recorder = ActiveRuntimeCheckpointRecorder(
+        session=session,
+        live=live,
+        elapsed_ms=lambda: 5.0,
+        timing_ledger=ledger,
+        caller_name=lambda: "read",
+        record_timing=timing,
+    )
+
+    with caplog.at_level("ERROR", logger="src.application.research_runtime_checkpoint"):
+        if persist_fails:
+            with pytest.raises(ValueError, match="repository checkpoint failed"):
+                recorder.checkpoint(stage="reading")
+        else:
+            assert recorder.checkpoint(stage="reading") is persisted
+
+    session.checkpoint.assert_called_once_with(stage="reading", diagnostics={})
+    ledger.record_checkpoint.assert_called_once_with(0.0)
+    if broken_observer == "ledger":
+        timing.assert_not_called()
+    else:
+        timing.assert_called_once()
+    assert caplog.text.count("research checkpoint timing observation failed") == 1
+    assert f"{broken_observer} sink failed" in caplog.text
