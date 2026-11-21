@@ -5,6 +5,7 @@ These cases are pure scheduler fixtures, with no database, network, or model.
 
 from __future__ import annotations
 
+from dataclasses import fields, replace
 from typing import Any
 from types import SimpleNamespace
 
@@ -19,6 +20,7 @@ from src.web.research.candidate_ranking import RankedCandidate
 from src.web.research.gap_planner import GapSearchIntent
 
 from src.web.research.contracts import (
+    ConflictGap,
     EvidenceRequirement,
     ResearchBudget,
     ResearchClaim,
@@ -103,6 +105,74 @@ def _two_claim_state() -> ResearchState:
         reference_date="2026-08-28",
         known_evidence_ids=(),
     )
+
+
+def test_read_plan_reserve_observation_is_one_shot_and_not_retained() -> None:
+    state = _two_claim_state()
+    rankings = {"claim_A": (_ranked("fresh", "cluster", 1),)}
+    baseline = FairReadPlanContext(state=state, rankings=rankings).build(state.claims)
+    metrics: dict[str, Any] = {"other": {"keep": True}}
+    planner = FairReadPlanContext(
+        state=state, rankings=rankings, diagnostics=metrics,
+    )
+
+    assert {item.name for item in fields(planner)}.isdisjoint({"diagnostics"})
+    assert metrics == {
+        "other": {"keep": True},
+        "read_reserve": {
+            "configured": 3,
+            "reclaimed": 3,
+            "reclaim_reason": "no_open_conflicts",
+            "hard_cap": 8,
+            "reads_used": 0,
+        },
+    }
+    before = dict(metrics["read_reserve"])
+    assert planner.build(state.claims) == baseline
+    assert metrics["read_reserve"] == before
+
+
+def test_read_plan_observation_does_not_change_scheduling() -> None:
+    """The scheduler does not rely on diagnostics to decide what to read."""
+    state = _two_claim_state()
+    ranked = {"claim_A": (_ranked("a", "c1", 1),)}
+    observed = FairReadPlanContext(
+        state=state, rankings=ranked, diagnostics={},
+    )
+    unobserved = FairReadPlanContext(state=state, rankings=ranked)
+
+    assert observed.build(state.claims) == unobserved.build(state.claims)
+    assert observed.physical_ids == unobserved.physical_ids
+    assert observed.claim_clusters == unobserved.claim_clusters
+
+
+def test_conflict_reserve_observation_uses_existing_planner_decision() -> None:
+    state = _two_claim_state()
+    with_conflict = replace(
+        state,
+        conflict_gaps=(
+            ConflictGap(
+                id="conflict",
+                claim_id="claim_A",
+                supporting_evidence_ids=(),
+                contradicting_evidence_ids=(),
+                state="open",
+            ),
+        ),
+    )
+    metrics: dict[str, Any] = {}
+    plan = FairReadPlanContext(
+        state=with_conflict, rankings={}, diagnostics=metrics,
+    )
+    assert plan.reserve == 3
+    assert plan.normal_limit == 5
+    assert metrics["read_reserve"] == {
+        "configured": 3,
+        "reclaimed": 0,
+        "reclaim_reason": "open_conflicts_present",
+        "hard_cap": 8,
+        "reads_used": 0,
+    }
 
 
 def test_each_read_plan_owns_fresh_bindings_without_mutating_prior_coverage() -> None:
