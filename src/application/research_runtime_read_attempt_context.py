@@ -1,16 +1,16 @@
-"""Run-scoped read attempt recording without capturing the executor cursor.
+"""Run-scoped read attempts using the executor's current live cursor/context.
 
-The caller owns the current durable cursor and passes it on every transition.
-The context binds stable run identity, clocks, cursor publication and the
-breaker. Current research context, cursor and budget ceiling stay invocation
-inputs because checkpoints and steering can replace them.
+The executor owns checkpoint persistence and the budget. This context binds
+stable run identity and clocks, resolves the live owner at each attempt, and
+publishes every cursor transition before diagnostics can fail. Checkpoints and
+steering may replace the runtime values between attempts.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, Protocol
 
 from src.application.active_research_evidence_projection import _bounded_text
 from src.application.research_runtime_failure_projection import (
@@ -35,6 +35,16 @@ from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 from src.web.research.wigolo_http_executor import WIGOLO_HTTP_BACKEND
 
 
+class LiveReadAttemptValues(Protocol):
+    """Latest cursor/context with one owner across checkpoint and steering rebinds."""
+
+    def current_cursor(self) -> ResearchRuntimeCursor: ...
+
+    def current_context(self) -> dict[str, Any]: ...
+
+    def set_cursor(self, cursor: ResearchRuntimeCursor) -> None: ...
+
+
 @dataclass(slots=True)
 class ActiveReadAttemptContext:
     """Group real reader-attempt transitions and their derived observations.
@@ -47,7 +57,7 @@ class ActiveReadAttemptContext:
     breaker: PerRunBreaker | None
     run_id: str
     utc_now: Callable[[], str]
-    on_cursor_change: Callable[[ResearchRuntimeCursor], None]
+    live: LiveReadAttemptValues
     research_seconds_left: Callable[[], float]
     elapsed: Callable[[], float]
     escalation_recorder: Callable[..., None] = _record_escalation_diagnostics
@@ -118,8 +128,6 @@ class ActiveReadAttemptContext:
 
     def record_chain_attempts(
         self,
-        cursor: ResearchRuntimeCursor,
-        context: dict[str, Any],
         *,
         candidate: CandidatePoolItem,
         chain_steps: Sequence[ChainStepResult],
@@ -128,14 +136,14 @@ class ActiveReadAttemptContext:
     ) -> ResearchRuntimeCursor:
         """Record each real backend attempt before observing its side effects.
 
-        The run-bound callback is intentionally required. Publishing the cursor
-        after begin/finish/outcome/failure transitions preserves crash and
-        diagnostic failure semantics while keeping cursor ownership with the
-        runtime. The supplied cursor/context are this attempt's snapshot.
+        The run-bound live owner is the single cursor/context authority.
+        Publishing each cursor transition before observing diagnostics keeps
+        the original crash and observation-failure semantics.
         """
         if not chain_steps:
             raise ValueError("cannot record an empty reader chain")
 
+        cursor = self.live.current_cursor()
         native_step = next(
             (item for item in chain_steps if item.backend == NATIVE_HTTP_BACKEND),
             None,
@@ -156,13 +164,13 @@ class ActiveReadAttemptContext:
                 started_at=self.utc_now(),
             )
             cursor = begin_external_attempt(cursor, marker)
-            self.on_cursor_change(cursor)
+            self.live.set_cursor(cursor)
             cursor = finish_external_attempt(cursor, call_id=marker.call_id)
-            self.on_cursor_change(cursor)
+            self.live.set_cursor(cursor)
             cursor = self.append_outcome(cursor, candidate, step)
-            self.on_cursor_change(cursor)
+            self.live.set_cursor(cursor)
             self.observe_step(
-                context,
+                self.live.current_context(),
                 candidate=candidate,
                 step=step,
                 wave_index=cursor.wave_index,
@@ -174,7 +182,7 @@ class ActiveReadAttemptContext:
                 )
                 cursor = with_appended_runtime_failure(
                     cursor,
-                    context,
+                    self.live.current_context(),
                     "read_failed",
                     "reading",
                     logical_call_id=marker.call_id,
@@ -192,10 +200,10 @@ class ActiveReadAttemptContext:
                     exception_type=step_error,
                     attempt_id=marker.call_id,
                 )
-                self.on_cursor_change(cursor)
+                self.live.set_cursor(cursor)
 
         self.record_escalation_signal(
-            context,
+            self.live.current_context(),
             candidate=candidate,
             native_step=native_step,
             wigolo_step=wigolo_step,

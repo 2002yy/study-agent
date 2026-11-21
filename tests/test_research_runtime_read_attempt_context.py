@@ -1,7 +1,6 @@
 """Per-backend attempt transitions publish the live cursor before observation."""
 
 from dataclasses import fields
-from types import SimpleNamespace
 
 import pytest
 
@@ -13,13 +12,16 @@ from src.web.research.health_breaker import NATIVE_HTTP_BACKEND
 from src.web.research.runtime import ResearchRuntimeCursor
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 from src.web.research.wigolo_http_executor import WIGOLO_HTTP_BACKEND
-from tests.research_read_attempt_factory import read_attempt_recorder
+from tests.research_read_attempt_factory import RecordingReadLive, read_attempt_recorder
 from tests.research_read_candidate_factory import read_candidate
 
 
 def test_record_chain_attempts_publishes_each_transition_and_escalation() -> None:
-    context: dict = {}
-    published: list[ResearchRuntimeCursor] = []
+    live = RecordingReadLive(
+        cursor=ResearchRuntimeCursor(phase="reading", wave_index=3)
+    )
+    context = live.context
+    published = live.published
     signals: list[tuple[dict, dict, int]] = []
     timestamps = iter(("native-start", "wigolo-start"))
     remaining_samples: list[str] = []
@@ -32,7 +34,7 @@ def test_record_chain_attempts_publishes_each_transition_and_escalation() -> Non
         breaker=None,
         run_id="run-1",
         utc_now=lambda: next(timestamps),
-        on_cursor_change=published.append,
+        live=live,
         research_seconds_left=lambda: remaining_samples.append("sample") or 17.0,
         elapsed=lambda: elapsed_samples.append("sample") or 4.0,
         escalation_recorder=record_escalation,
@@ -41,7 +43,7 @@ def test_record_chain_attempts_publishes_each_transition_and_escalation() -> Non
         "breaker",
         "run_id",
         "utc_now",
-        "on_cursor_change",
+        "live",
         "research_seconds_left",
         "elapsed",
         "escalation_recorder",
@@ -65,8 +67,6 @@ def test_record_chain_attempts_publishes_each_transition_and_escalation() -> Non
     )
 
     result = attempt_context.record_chain_attempts(
-        ResearchRuntimeCursor(phase="reading", wave_index=3),
-        context,
         candidate=candidate,
         chain_steps=(native, wigolo),
         attempt_number=2,
@@ -127,11 +127,10 @@ def test_record_chain_attempts_publishes_each_transition_and_escalation() -> Non
 
 
 def test_cursor_is_published_before_read_observation_can_fail(monkeypatch) -> None:
-    published: list[ResearchRuntimeCursor] = []
+    live = RecordingReadLive(cursor=ResearchRuntimeCursor(phase="reading"))
+    published = live.published
     candidate = read_candidate("candidate-a")
-    attempt_context = read_attempt_recorder(
-        run_id="run-1", on_cursor_change=published.append
-    )
+    attempt_context = read_attempt_recorder(run_id="run-1", live=live)
 
     def fail_observation(self, context, *, candidate, step, wave_index):
         assert published[-1].read_outcomes[-1].backend == step.backend
@@ -141,8 +140,6 @@ def test_cursor_is_published_before_read_observation_can_fail(monkeypatch) -> No
 
     with pytest.raises(RuntimeError, match="diagnostic sink failed"):
         attempt_context.record_chain_attempts(
-            ResearchRuntimeCursor(phase="reading"),
-            {},
             candidate=candidate,
             chain_steps=(
                 ChainStepResult(
@@ -166,20 +163,12 @@ def test_run_bound_recorder_uses_new_cursor_and_context_after_rebind() -> None:
     """Stable callbacks must not become a hidden snapshot of attempt state."""
 
     first_context: dict = {}
-    live = SimpleNamespace(
+    live = RecordingReadLive(
         cursor=ResearchRuntimeCursor(phase="reading", wave_index=1),
         context=first_context,
     )
-    published: list[ResearchRuntimeCursor] = []
-
-    def publish(cursor: ResearchRuntimeCursor) -> None:
-        live.cursor = cursor
-        published.append(cursor)
-
-    recorder = read_attempt_recorder(
-        run_id="stable-run",
-        on_cursor_change=publish,
-    )
+    published = live.published
+    recorder = read_attempt_recorder(run_id="stable-run", live=live)
     step = ChainStepResult(
         backend=NATIVE_HTTP_BACKEND,
         retrieval_state="fetched",
@@ -189,8 +178,6 @@ def test_run_bound_recorder_uses_new_cursor_and_context_after_rebind() -> None:
     candidate = read_candidate("candidate-a")
 
     recorder.record_chain_attempts(
-        live.cursor,
-        live.context,
         candidate=candidate,
         chain_steps=(step,),
         attempt_number=1,
@@ -206,8 +193,6 @@ def test_run_bound_recorder_uses_new_cursor_and_context_after_rebind() -> None:
     live.cursor = ResearchRuntimeCursor(phase="reading", wave_index=4)
     live.context = {}
     recorder.record_chain_attempts(
-        live.cursor,
-        live.context,
         candidate=candidate,
         chain_steps=(step,),
         attempt_number=2,
