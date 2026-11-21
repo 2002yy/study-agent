@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 from contextvars import ContextVar
 from dataclasses import dataclass
+from typing import Any
 
 
 ESCALATION_ENV = "RESEARCH_WIGOLO_ESCALATION"
