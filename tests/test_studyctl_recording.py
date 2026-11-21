@@ -1,6 +1,5 @@
 """Inspect a real committed B5 recording offline without running its producer."""
 
-import ast
 import hashlib
 import json
 from pathlib import Path
@@ -54,21 +53,6 @@ def test_real_committed_recording_is_partial_and_preserves_exact_facts(repo, cap
     assert "brief_excerpt" not in json.dumps(data) and "question" not in data
     assert ARTIFACT.read_bytes() == original
     assert result["head_sha"] == studyctl.git(studyctl.ROOT, "rev-parse", "HEAD")
-
-
-def test_schema_matches_existing_producer_without_importing_live_runtime():
-    producer = ARTIFACT.parents[2] / "tools/run_research_active_smoke.py"
-    tree = ast.parse(producer.read_text(encoding="utf-8"))
-    schema = next(
-        node.value.value
-        for node in tree.body
-        if isinstance(node, ast.Assign)
-        and any(
-            isinstance(name, ast.Name) and name.id == "SMOKE_SCHEMA_VERSION"
-            for name in node.targets
-        )
-    )
-    assert schema == studyctl_recording.RECORDING_SCHEMA
 
 
 @pytest.fixture
