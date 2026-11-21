@@ -1656,9 +1656,7 @@ class ActiveResearchRuntimeExecutor:
                                 candidate=_deep_candidate,
                                 plan_item=plan_item,
                                 seed_source=_seed_source,
-                                source_limit=read_quota.remaining_chars(
-                                    max_total_chars=live.state.budget.max_total_chars
-                                ),
+                                source_limit=read_budget.remaining_chars(),
                             )
                             if _materialized is not None:
                                 results.upsert_selected_source(_materialized)
@@ -1670,10 +1668,7 @@ class ActiveResearchRuntimeExecutor:
                                 _record_read_history(live.context, live.cursor.read_outcomes)
                                 checkpoint()
                             continue
-                    if read_quota.exhausted(
-                        max_reads=live.state.budget.max_reads,
-                        max_total_chars=live.state.budget.max_total_chars,
-                    ):
+                    if read_budget.exhausted():
                         read_loop_stop_reason = "read_budget_exhausted"
                         break
                     if research_seconds_left() < MIN_READ_SECONDS:
@@ -1712,9 +1707,7 @@ class ActiveResearchRuntimeExecutor:
                         break
                     execution_guard.ensure_budget(live.state)
                     candidate = _candidate_by_id(live.cursor, candidate_id)
-                    source_limit = read_quota.source_limit(
-                        max_total_chars=live.state.budget.max_total_chars
-                    )
+                    source_limit = read_budget.source_limit()
                     # §100 A2c: pre-attempt scheduling. A candidate whose only
                     # reader is currently unavailable is not planned at all this
                     # wave - no attempt, and no read outcome, because nothing was
@@ -1893,10 +1886,7 @@ class ActiveResearchRuntimeExecutor:
                 for lead_item in lead_plan:
                     if len(live.cursor.lead_read_ids) >= MAX_LEAD_READS_PER_RUN:
                         break
-                    if read_quota.exhausted(
-                        max_reads=live.state.budget.max_reads,
-                        max_total_chars=live.state.budget.max_total_chars,
-                    ):
+                    if read_budget.exhausted():
                         break
                     if research_seconds_left() < MIN_READ_SECONDS:
                         # Bounded lead reads obey the same shared window as
@@ -1910,9 +1900,7 @@ class ActiveResearchRuntimeExecutor:
                     lead_candidate_id = lead_candidate.id
                     ensure_active()
                     execution_guard.ensure_budget(live.state)
-                    lead_source_limit = read_quota.source_limit(
-                        max_total_chars=live.state.budget.max_total_chars
-                    )
+                    lead_source_limit = read_budget.source_limit()
                     lead_marker = lead_read_attempt.start(lead_candidate)
                     checkpoint()
                     try:
