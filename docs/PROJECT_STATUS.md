@@ -1340,6 +1340,15 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
   `dynamic_evidence=not_run`、`budget_authorization=not_applicable`、
   `decision=engineering-only`，没有调用任何付费模型或外部检索。
 
+### 2026-11-22 §159–§161 未获评分资格的语义探针退役（P3 静态候选）
+
+- **依据**：历史 §159 自动诊断探针与 §161 校准结果明确是 `qualified_judge=false`、`formal_semantic_label=false`、`release_gate=NO_GO`；实际校准特异性仅 1/6。这套同供应商模型自测不能作为正式发布质量评价，后续 §162 独立盲评/资格流程才是现役入口。
+- **整链处理**：移除 `src/evals/release_benchmark_semantic_probe.py`、`src/evals/release_benchmark_semantic_calibration.py`、两个旧 CLI 及两个专属测试，并从 `tests/stage_gates.json` 的 `release-benchmark-pilot` 去掉两项已删除的测试注册。不存在需要删除的专属生产环境开关或 API 路由。
+- **保留的现役共享逻辑**：旧 probe 模块的 `materialize_review_items` 与冻结控制样例生成由正式 `tools/run_release_benchmark_blind_review.py`、`tests/test_release_benchmark_blind_review.py` 直接使用，已原样迁入纯数据准备模块 `src/evals/release_benchmark_review_material.py`；CLI 与测试只更换导入。继续保留 `release_benchmark_semantic_controls.py`、正式资格机制、冻结源/holdout、盲评 CLI 测试、真实预算/证据边界。
+- **历史证据边界**：`docs/research_quality/RELEASE_BENCHMARK_SEMANTIC_PROBE_2026-09-29/` 和 `RELEASE_BENCHMARK_SEMANTIC_CALIBRATION_2026-09-29/` 的原始失败记录不删除、不改写；它们是可核实的历史结果，但不再是当前可运行命令。
+- **验收**：分支 `cleanup/retire-disqualified-release-semantic-probe-20261122` 从 `main@42329be` 独立起步；本批尚未执行本地 pytest/Ruff，CI 精确 HEAD 与审查必须通过后才能合并。建议影响集：`test_release_benchmark_blind_review.py`、`test_release_benchmark_blind_review_cli.py`、`test_release_benchmark_reviewer_qualification.py`、`test_release_benchmark_qualification_holdout.py`、`test_stage_gates_policy.py` 以及 `release-benchmark-pilot` 阶段门。不能用历史 §161 的测量代替新 HEAD CI。
+- **决策**：`priority=P3`、`loop=static`、`owner=evals/release-benchmark`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。与 #614 的研究执行器旧别名收口独立；未改变正式研究结果、持久状态和费用结算。
+
 ## 0A. 已冻结研究路线（摘要）
 
 `Lookup → VERIFIED / SAFE_ABSTAIN / ESCALATE_STANDARD`；Standard 的多源/比较/冲突和 Deep 的计划/缺口/收益/暂停恢复复用既有 `ActiveResearchRuntimeExecutor`，不另起第二套研究引擎。`usable/read_backed/relevant` 不能等同逐条 claim 支持；默认 `simple` 只验证引用 URL 属于已读来源，不标逐条 verified。
