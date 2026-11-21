@@ -35,6 +35,13 @@
 - **整链删除/边界验证**：删除两个转发模块及 `NewsService` 的旧导入；默认 `NewsDependencies.search/enrich` 直接调用真正新闻实现，保留 `query → query_text`、条数、正文长度和原 `query_text` 参数传递，依赖注入签名不变。新增一个针对真实默认依赖而非已删壳的无网络参数转发负控；保留 NewsRun 阶段、重试/事务、安全模式、RSS 缓存/去重、正文域名安全与读取预算的原始测试。没有需要删改的配置、环境变量或阶段门注册。
 - **证据/交接**：原新闻服务/微信/新闻重定向组合 **40 passed / 2.91s**；修改后新闻服务、API、跨层、微信、新闻重定向/正文与读取质量 **97 passed / 8.22s**，相邻订阅源诊断、正文解析、News 读取安全、URL/域名、News 证据/群聊/缓存 **98 passed / 7.76s**，合计不重复 **195 passed**。全仓 Ruff、编译、diff-check 通过，mypy 基线 **115 current / 125 allowed、无新增**。起点 `main@9eb9671ff71e5291951a248a11102d29d4c73bb4`；`priority=P3`、`loop=static`、`owner=news/retired-web-delegates`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。**下一片**：提交独立 PR，凭精确 HEAD CI/审阅后合并；不以单纯没有静态导入为由删除通过配置/前端入口启动的测试服务或历史证据。
 
+### 2026-11-21 晚到候选模型尝试恢复与游标交接收归执行上下文（独立静态片）
+
+- **实际问题/职责**：`_late_admission_tail` 用独立的 `:late` 逻辑调用标识检查重试余额，但正式 `RuntimeCandidateAssessor.assess()` 的实际模型回调及持久审计使用 `:1`；从已中断的尝试恢复时，尾部可能漏算已使用的尝试。另一个隐蔽边界是模型 `started/finished` 回调会更新 live 游标，函数却返回进入时的旧 `cursor`，执行器赋值会覆盖已写入的模型审计。
+- **整合与冻结**：尾部评估改用同一个 `ActiveModelAttemptContext` 负责最新游标的尝试号、开始时预算/取消判定与 inflight checkpoint、完成时内存审计；删除尾部单独直调 `_model_attempt_start` 及两枚分散回调参数，使用与正式候选评估实际网关一致的调用标识。返回最新 live 游标供外层保存，避免回写旧快照；不改模型真实执行次数上限（二次尝试）、网关、预算扣费权威、checkpoint 位置/顺序、持久化格式、搜索/读取、Evidence Gate 或发布。
+- **负控与边界**：新增在策略检查后游标重绑的恢复负控：中断一次时只准尝试二；已经中断两次时拒绝第三次，且不发起评估。新增真实模型尝试回调模拟：启动先 checkpoint inflight、完成后仅留内存审计，尾部返回保持该审计，不提前做语义完成 checkpoint。原晚到候选场景改共用单一测试构造器并直接绑定现行模型上下文，移除七处重复的空 lambda 事件替身；历史模型计数单测从真正所有者 `src.web.research.runtime` 导入，不保留执行器兼容导出。
+- **静态交接**：独立分支 `codex/late-tail-model-attempt-context-20261121`，基线 `main@9eb9671ff71e5291951a248a11102d29d4c73bb4`，与在途 #586/#587/#589 不叠加；直接尾部/模型尝试负控 **28 passed**，完整晚到候选、主动研究执行器、模型尝试/策略、基础恢复游标、预算时钟、波次结算、checkpoint、错误契约和运行时观测影响集 **192 passed / 189.22s**。全仓 Ruff、Python 编译、diff-check 成功，mypy baseline **115 current / 125 allowed（无新增）**。精确 PR HEAD CI/审阅仍须独立完成。`priority=P0`（恢复后第三次模型物理尝试的预算完整性风险）、`loop=static`、`owner=orchestration/model-attempt-recovery`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；未发起真实模型、外部检索或付费实验。**下一片**：以精确 HEAD CI 和无阻断审阅收口本片，再决定是否扩展模型调用/预算其他隐式依赖。
+
 ### 2026-11-21 News 旧式读取包装与闲置重定向执行器整链退役（独立 P3 静态减负片）
 
 - **真实调用图**：新闻 RSS 获取现行调用 `resolve_news_link_metadata`，正式正文读取、工具网关与新闻丰富化使用 `fetch_article_read_result`。字符串返回的 `resolve_news_link`、二元组返回的 `fetch_article_text_with_method` 在 `src/`、`tools/`、工作流及配置中均无调用方，只有历史测试在用。`article_fetcher._SafeHTTPRedirectHandler` / `_SAFE_OPENER` 的实际 opener 没有生产调用方；旧测试对这个对象打 monkeypatch 并不触及现行 `safe_fetch_result`。这些旧入口与无效模拟不能当作真实安全保护。

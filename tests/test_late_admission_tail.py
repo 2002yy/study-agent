@@ -11,6 +11,9 @@ Acceptance cases 1-7 from the ruling.
 
 from __future__ import annotations
 
+from dataclasses import replace
+from typing import Any
+
 import pytest
 
 
@@ -18,6 +21,8 @@ from src.application.active_research_runtime import (
     LATE_TAIL_MAX_CANDIDATES,
     _late_admission_tail,
 )
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
+from src.application.research_runtime_model_attempt_context import ActiveModelAttemptContext
 from src.application.research_runtime_model_policy import RuntimeModelPolicyContext
 from src.web.research.candidate_ranking import CandidateSemanticAssessment
 from src.web.research.contracts import (
@@ -26,12 +31,19 @@ from src.web.research.contracts import (
     ResearchBudget,
     ResearchClaim,
     ResearchQuestion,
+    ResearchState,
+)
+from src.web.research.model_gateway import (
+    ResearchModelAttemptStart,
+    ResearchModelCallAudit,
 )
 from src.web.research.runtime import (
     ResearchRuntimeCursor,
     RuntimeCandidate,
+    RuntimeFailure,
     RuntimePlannedQuery,
     RuntimeReadOutcome,
+    _assessment_call_suffix,
 )
 from src.web.research.state import build_research_state
 
@@ -159,6 +171,37 @@ def _context(late_ids: list[str], *, wave_index: int = 2) -> dict:
     }
 
 
+def _model_attempts(
+    cursor: ResearchRuntimeCursor, state: ResearchState
+) -> ActiveModelAttemptContext:
+    """Use the real run-scoped attempt owner with offline no-op boundaries."""
+
+    live = ActiveRuntimeLiveValues(state=state, cursor=cursor)
+    return ActiveModelAttemptContext.for_live_values(
+        live,
+        ensure_active=lambda: None,
+        ensure_budget=lambda _state: None,
+        checkpoint=lambda: None,
+    )
+
+
+def _call_tail(
+    *,
+    cursor: ResearchRuntimeCursor,
+    state: ResearchState,
+    model_attempts: ActiveModelAttemptContext | None = None,
+    **kwargs: Any,
+) -> ResearchRuntimeCursor:
+    """Keep late-tail cases bound to their own cursor and model-attempt owner."""
+
+    return _late_admission_tail(
+        cursor=cursor,
+        state=state,
+        model_attempts=model_attempts or _model_attempts(cursor, state),
+        **kwargs,
+    )
+
+
 def _run_tail(
     *,
     cursor: ResearchRuntimeCursor,
@@ -176,7 +219,7 @@ def _run_tail(
     stored: dict = {}
     inputs: dict = {}
     assessor = assessor or _Assessor()
-    result_cursor = _late_admission_tail(
+    result_cursor = _call_tail(
         cursor=cursor,
         state=state,
         claim=claim,
@@ -186,8 +229,6 @@ def _run_tail(
         max_reads=8,
         assessor=assessor,
         policy_context=_policy_context(model_allowed),
-        on_model_started=lambda **kwargs: None,
-        on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -341,6 +382,177 @@ def test_budget_gates_record_why_the_tail_was_skipped() -> None:
     assert record2["skipped_reason"] == "policy_blocked"
 
 
+@pytest.mark.parametrize(
+    ("recovered_attempts", "expected_next"),
+    [(1, 2), (2, None)],
+    ids=["resume_second_attempt", "deny_third_attempt"],
+)
+def test_late_tail_model_admission_uses_rebound_cursor_after_policy(
+    recovered_attempts: int, expected_next: int | None
+) -> None:
+    """A policy callback may rebind the run; stale tail input cannot mint attempt 1."""
+
+    class _RecordingAssessor(_Assessor):
+        attempts: list[int]
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.attempts = []
+
+        def assess(self, *, candidates: Any, **kwargs: Any) -> Any:
+            self.attempts.append(kwargs["attempt_start"])
+            return super().assess(candidates=candidates, **kwargs)
+
+    claim = _claim()
+    state = _state(claim)
+    cursor = _cursor(["https://docs.example.com/pulls"])
+    context = _context(["candidate_0"])
+    logical_id = (
+        f"research_candidate_assessment:run_1:{claim.id}:1"
+        f"{_assessment_call_suffix(cursor, claim.id, ('candidate_0',))}"
+    )
+    failures = tuple(
+        RuntimeFailure(
+            code="interrupted_unknown",
+            phase="assessing",
+            item_id=f"{logical_id}:attempt:{attempt}",
+        )
+        for attempt in range(1, recovered_attempts + 1)
+    )
+    live = ActiveRuntimeLiveValues(state=state, cursor=cursor)
+    rebound = replace(cursor, failures=failures)
+
+    def policy_rebind(_context: dict[str, Any], _purpose: str) -> bool:
+        live.cursor = rebound
+        return True
+
+    model_attempts = ActiveModelAttemptContext.for_live_values(
+        live,
+        ensure_active=lambda: None,
+        ensure_budget=lambda _state: None,
+        checkpoint=lambda: None,
+    )
+    assessor = _RecordingAssessor()
+    returned = _call_tail(
+        cursor=cursor,
+        state=state,
+        claim=claim,
+        context=context,
+        run_id="run_1",
+        wave_index=2,
+        max_reads=8,
+        assessor=assessor,
+        policy_context=RuntimeModelPolicyContext(
+            policy_check=policy_rebind,
+            utc_now=lambda: "2026-09-21T00:00:00Z",
+        ),
+        model_attempts=model_attempts,
+        phase_begin=lambda _name: None,
+        phase_end=lambda _name: None,
+        remaining_timeout=lambda: 5.0,
+        research_seconds_left=lambda: 30.0,
+        trace=None,
+        claim_rankings={},
+        stored_assessments={},
+        assessed_inputs={},
+    )
+
+    assert live.cursor is rebound
+    assert returned is rebound, "the executor must not replace recovery with a stale cursor"
+    assert cursor.failures == ()
+    assert assessor.attempts == ([] if expected_next is None else [expected_next])
+    records = context["claim_engine_metrics"].get("late_assessment_tail") or []
+    if expected_next is None:
+        assert records[-1]["skipped_reason"] == "model_call_budget_exceeded"
+        assert assessor.calls == []
+    else:
+        assert records[-1]["assessed_ids"] == ["candidate_0"]
+
+
+def test_late_tail_returns_gateway_audit_cursor_without_extra_checkpoint() -> None:
+    """The caller's cursor assignment must not discard model callback changes."""
+
+    class _HookAssessor(_Assessor):
+        def assess(self, *, candidates: Any, **kwargs: Any) -> Any:
+            logical_call_id = (
+                f"research_candidate_assessment:run_1:{CLAIM_ID}:1"
+                f"{kwargs['call_id_suffix']}"
+            )
+            marker = ResearchModelAttemptStart(
+                call_id=f"{logical_call_id}:attempt:{kwargs['attempt_start']}",
+                logical_call_id=logical_call_id,
+                purpose="research_candidate_assessment",
+                provider_profile="test",
+                model_profile="flash",
+                model_name="fake-model",
+                attempt=kwargs["attempt_start"],
+                started_at="2026-11-21T00:00:00Z",
+                response_schema_version="test-v1",
+                input_sha256="0" * 64,
+                input_chars=5,
+            )
+            kwargs["on_attempt_started"](marker)
+            audit = ResearchModelCallAudit(
+                call_id=marker.call_id,
+                logical_call_id=marker.logical_call_id,
+                purpose=marker.purpose,
+                provider_profile=marker.provider_profile,
+                model_profile=marker.model_profile,
+                model_name=marker.model_name,
+                attempt=marker.attempt,
+                started_at=marker.started_at,
+                completed_at="2026-11-21T00:00:01Z",
+                elapsed_seconds=1.0,
+                status="completed",
+                response_schema_version=marker.response_schema_version,
+                input_sha256=marker.input_sha256,
+                input_chars=marker.input_chars,
+            )
+            kwargs["on_attempt_finished"](audit)
+            return super().assess(candidates=candidates, **kwargs)
+
+    claim = _claim()
+    state = _state(claim)
+    cursor = _cursor(["https://docs.example.com/pulls"])
+    live = ActiveRuntimeLiveValues(state=state, cursor=cursor)
+    checkpoints: list[ResearchRuntimeCursor] = []
+    model_attempts = ActiveModelAttemptContext.for_live_values(
+        live,
+        ensure_active=lambda: None,
+        ensure_budget=lambda _state: None,
+        checkpoint=lambda: checkpoints.append(live.cursor),
+    )
+    returned = _call_tail(
+        cursor=cursor,
+        state=state,
+        claim=claim,
+        context=_context(["candidate_0"]),
+        run_id="run_1",
+        wave_index=2,
+        max_reads=8,
+        assessor=_HookAssessor(),
+        policy_context=_policy_context(),
+        model_attempts=model_attempts,
+        phase_begin=lambda _name: None,
+        phase_end=lambda _name: None,
+        remaining_timeout=lambda: 5.0,
+        research_seconds_left=lambda: 30.0,
+        trace=None,
+        claim_rankings={},
+        stored_assessments={},
+        assessed_inputs={},
+    )
+
+    assert len(checkpoints) == 1
+    assert checkpoints[0].inflight_model_call is not None
+    assert checkpoints[0].model_calls == ()
+    assert returned is live.cursor
+    assert returned is not cursor
+    assert returned.inflight_model_call is None
+    assert len(returned.model_calls) == 1
+    assert returned.model_calls[0].logical_call_id == checkpoints[0].inflight_model_call.logical_call_id
+
+
 def test_frozen_floor_and_experimental_override(monkeypatch: pytest.MonkeyPatch) -> None:
     """§71A frozen 3.0s: an assessment-viability guard, still overridable."""
 
@@ -479,7 +691,7 @@ def test_identity_swap_keeps_behaviour_and_terminal_state() -> None:
     stored: dict = {}
     inputs: dict = {}
     assessor = _Assessor()
-    _late_admission_tail(
+    _call_tail(
         cursor=_cursor(["https://docs.example.com/pulls"]),
         state=state,
         claim=claim,
@@ -489,8 +701,6 @@ def test_identity_swap_keeps_behaviour_and_terminal_state() -> None:
         max_reads=8,
         assessor=assessor,
         policy_context=_policy_context(),
-        on_model_started=lambda **kwargs: None,
-        on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -523,7 +733,7 @@ def test_no_identity_change_path_is_unchanged() -> None:
     claim = _claim()
     rankings: dict = {}
     assessor = _Assessor()
-    _late_admission_tail(
+    _call_tail(
         cursor=_cursor(["https://docs.example.com/pulls"]),
         state=_state(claim),
         claim=claim,
@@ -533,8 +743,6 @@ def test_no_identity_change_path_is_unchanged() -> None:
         max_reads=8,
         assessor=assessor,
         policy_context=_policy_context(),
-        on_model_started=lambda **kwargs: None,
-        on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -558,7 +766,7 @@ def test_refusal_paths_are_terminal_even_with_identity_swap() -> None:
     # no late ids at all, with a mid-call metrics swap
     context = _SwappingContext({"domain_targeted": []}, {"domain_targeted": []})
     claim = _claim()
-    _late_admission_tail(
+    _call_tail(
         cursor=_cursor(["https://docs.example.com/pulls"]),
         state=_state(claim),
         claim=claim,
@@ -568,8 +776,6 @@ def test_refusal_paths_are_terminal_even_with_identity_swap() -> None:
         max_reads=8,
         assessor=_Assessor(),
         policy_context=_policy_context(),
-        on_model_started=lambda **kwargs: None,
-        on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -594,7 +800,7 @@ def test_refusal_paths_are_terminal_even_with_identity_swap() -> None:
             {"claim_id": CLAIM_ID, "wave_index": 2, "added_candidate_ids": ["candidate_0"]}
         ]},
     )
-    _late_admission_tail(
+    _call_tail(
         cursor=_cursor(["https://docs.example.com/pulls"]),
         state=_state(claim),
         claim=claim,
@@ -604,8 +810,6 @@ def test_refusal_paths_are_terminal_even_with_identity_swap() -> None:
         max_reads=8,
         assessor=_Assessor(),
         policy_context=_policy_context(),
-        on_model_started=lambda **kwargs: None,
-        on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -689,7 +893,7 @@ def test_read_only_metrics_mapping_is_rebound_not_lost() -> None:
     claim = _claim()
     rankings: dict = {}
     assessor = _Assessor()
-    _late_admission_tail(
+    _call_tail(
         cursor=_cursor(["https://docs.example.com/pulls"]),
         state=_state(claim),
         claim=claim,
@@ -699,8 +903,6 @@ def test_read_only_metrics_mapping_is_rebound_not_lost() -> None:
         max_reads=8,
         assessor=assessor,
         policy_context=_policy_context(),
-        on_model_started=lambda **kwargs: None,
-        on_model_finished=lambda **kwargs: None,
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -733,7 +935,7 @@ def test_aborted_tail_still_reaches_a_terminal_state() -> None:
     context = _context(["candidate_0"])
     claim = _claim()
     try:
-        _late_admission_tail(
+        _call_tail(
             cursor=_cursor(["https://docs.example.com/pulls"]),
             state=_state(claim),
             claim=claim,
@@ -743,8 +945,6 @@ def test_aborted_tail_still_reaches_a_terminal_state() -> None:
             max_reads=8,
             assessor=_AbortingAssessor(),
             policy_context=_policy_context(),
-            on_model_started=lambda **kwargs: None,
-            on_model_finished=lambda **kwargs: None,
             phase_begin=lambda name: None,
             phase_end=lambda name: None,
             remaining_timeout=lambda: 5.0,
