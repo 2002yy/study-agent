@@ -7,14 +7,17 @@ process protocol without installing Crawl4AI or contacting the network.
 
 from __future__ import annotations
 
-import os
 import sys
 import time
 from pathlib import Path
 
 import pytest
 
-from src.web.research.crawl4ai_browser_executor import Crawl4AIBridge
+from src.web.research.crawl4ai_browser_executor import (
+    DEFAULT_WORKER,
+    Crawl4AIBridge,
+    WorkerUnavailable,
+)
 from src.web.research.crawl4ai_worker import PdfDownloadDeadline, _bounded_pdf_fetch
 
 FAKE_CRAWL4AI = """
@@ -45,20 +48,45 @@ class AsyncWebCrawler:
 
 
 @pytest.fixture
-def fake_crawl4ai(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> str:
+def fake_crawl4ai(tmp_path: Path) -> Path:
+    """Bootstrap the real worker with a deterministic local provider.
+
+    Explicit sys.path insertion avoids CI PYTHONPATH and installed-package
+    precedence. The executed worker is the production source file itself.
+    """
     (tmp_path / "crawl4ai.py").write_text(FAKE_CRAWL4AI, encoding="utf-8")
-    previous = os.environ.get("PYTHONPATH", "")
-    monkeypatch.setenv(
-        "PYTHONPATH", str(tmp_path) + (os.pathsep + previous if previous else "")
+    launcher = tmp_path / "worker_entry.py"
+    launcher.write_text(
+        "import runpy, sys\n"
+        + f"sys.path.insert(0, {str(tmp_path)!r})\n"
+        + f"runpy.run_path({str(DEFAULT_WORKER)!r}, run_name='__main__')\n",
+        encoding="utf-8",
     )
-    return sys.executable
+    return launcher
+
+
+def _start_worker(launcher: Path) -> Crawl4AIBridge:
+    bridge = Crawl4AIBridge(python=sys.executable, worker=launcher)
+    try:
+        bridge.start(timeout_ms=12000)
+    except WorkerUnavailable as exc:
+        # The bridge's READY wait would otherwise hide an early subprocess crash.
+        details = {
+            "stderr": list(bridge._stderr_tail or []),
+            "reader_error": bridge.reader_error,
+            "returncode": bridge._proc.poll() if bridge._proc else None,
+        }
+        if bridge._proc is not None and bridge._proc.poll() is None:
+            bridge._proc.terminate()
+            bridge._proc.wait(timeout=3)
+        pytest.fail(f"worker startup failed: {exc}; {details}")
+    return bridge
 
 
 def test_worker_shutdown_emits_bye_before_bridge_closes(
-    fake_crawl4ai: str, monkeypatch: pytest.MonkeyPatch
+    fake_crawl4ai: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    bridge = Crawl4AIBridge(python=fake_crawl4ai)
-    bridge.start(timeout_ms=10000)
+    bridge = _start_worker(fake_crawl4ai)
     proc = bridge._proc
     observed: list[dict] = []
     original_next = bridge._next
@@ -79,10 +107,9 @@ def test_worker_shutdown_emits_bye_before_bridge_closes(
 
 
 def test_nondefault_request_deadline_reaches_worker_and_cancels_provider(
-    fake_crawl4ai: str,
+    fake_crawl4ai: Path,
 ) -> None:
-    bridge = Crawl4AIBridge(python=fake_crawl4ai)
-    bridge.start(timeout_ms=10000)
+    bridge = _start_worker(fake_crawl4ai)
     try:
         result = bridge.request(
             timeout_ms=350,
