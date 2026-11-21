@@ -38,6 +38,7 @@ _PROVIDER_OUTCOME_FIELDS = (
     "result_count",
 )
 _PENDING_AUDIT_CAP = 32
+_UNBUILT_ESCALATION_BACKEND = object()
 
 
 class ResearchSearchExact(Protocol):
@@ -102,7 +103,11 @@ class ActiveResearchGateway:
         self._warnings: list[dict[str, str]] = []
         # Inject a fixed test backend at construction, or lazily build the
         # production Wigolo HTTP backend when the reader chain needs it.
-        self._escalation_backend: Any | None = escalation_backend
+        self._escalation_backend: Any = (
+            escalation_backend
+            if escalation_backend is not None
+            else _UNBUILT_ESCALATION_BACKEND
+        )
 
     def search_detailed(
         self,
@@ -192,10 +197,10 @@ class ActiveResearchGateway:
         # the provider the runtime uses to build that chain's executor.
         return dict(result or {})
 
-    def escalation_backend(self) -> Any:
-        """Return the constructor-injected backend or the lazy HTTP backend."""
+    def escalation_backend(self) -> Any | None:
+        """Return the injected or lazily created HTTP backend, including None."""
 
-        if self._escalation_backend is None:
+        if self._escalation_backend is _UNBUILT_ESCALATION_BACKEND:
             self._escalation_backend = self._build_escalation_backend("http")
         return self._escalation_backend
 
