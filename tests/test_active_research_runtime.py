@@ -3125,14 +3125,7 @@ def test_late_steering_terminal_crash_recomputes_same_stop_decision(
     class _SimulatedProcessDeath(BaseException):
         pass
 
-    class _Clock:
-        def __init__(self) -> None:
-            self.value = 0.0
-
-        def __call__(self) -> float:
-            return self.value
-
-    clock = _Clock()
+    clock = _HardBudgetDeadlineClock()
 
     class _CrashOnLateCheckpoint(WebLookupRepository):
         def __init__(self, database: Any) -> None:
