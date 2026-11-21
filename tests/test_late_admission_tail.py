@@ -177,8 +177,8 @@ def _model_attempts(
     """Use the real run-scoped attempt owner with offline no-op boundaries."""
 
     live = ActiveRuntimeLiveValues(state=state, cursor=cursor)
-    return ActiveModelAttemptContext.for_live_values(
-        live,
+    return ActiveModelAttemptContext(
+        live=live,
         ensure_active=lambda: None,
         ensure_budget=lambda _state: None,
         checkpoint=lambda: None,
@@ -426,8 +426,8 @@ def test_late_tail_model_admission_uses_rebound_cursor_after_policy(
         live.cursor = rebound
         return True
 
-    model_attempts = ActiveModelAttemptContext.for_live_values(
-        live,
+    model_attempts = ActiveModelAttemptContext(
+        live=live,
         ensure_active=lambda: None,
         ensure_budget=lambda _state: None,
         checkpoint=lambda: None,
@@ -516,8 +516,8 @@ def test_late_tail_returns_gateway_audit_cursor_without_extra_checkpoint() -> No
     cursor = _cursor(["https://docs.example.com/pulls"])
     live = ActiveRuntimeLiveValues(state=state, cursor=cursor)
     checkpoints: list[ResearchRuntimeCursor] = []
-    model_attempts = ActiveModelAttemptContext.for_live_values(
-        live,
+    model_attempts = ActiveModelAttemptContext(
+        live=live,
         ensure_active=lambda: None,
         ensure_budget=lambda _state: None,
         checkpoint=lambda: checkpoints.append(live.cursor),

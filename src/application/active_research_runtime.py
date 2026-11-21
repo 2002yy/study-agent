@@ -987,8 +987,8 @@ class ActiveResearchRuntimeExecutor:
             diagnostics=discovery_diagnostics,
         )
 
-        model_attempt_context = ActiveModelAttemptContext.for_live_values(
-            live,
+        model_attempt_context = ActiveModelAttemptContext(
+            live=live,
             ensure_active=ensure_active,
             ensure_budget=execution_guard.ensure_budget,
             checkpoint=checkpoint,
@@ -3047,7 +3047,7 @@ def _late_admission_tail(
         ):
             record["skipped_reason"] = "policy_blocked"
             observation.store(record)
-            return model_attempts.current_cursor()
+            return model_attempts.live.current_cursor()
 
         candidate_ids = tuple(sorted(item.id for item in selected))
         call_suffix = _assessment_call_suffix(cursor, claim.id, candidate_ids)
@@ -3062,7 +3062,7 @@ def _late_admission_tail(
         except _ModelAttemptBudgetExhausted:
             record["skipped_reason"] = "model_call_budget_exceeded"
             observation.store(record)
-            return model_attempts.current_cursor()
+            return model_attempts.live.current_cursor()
 
         assessment_assignments = {item.id: assignments[item.id] for item in selected}
         observation.phase("assessing")
@@ -3093,7 +3093,7 @@ def _late_admission_tail(
             # Gateway callbacks may have replaced the live cursor with an
             # inflight marker or completed audit. Never overwrite it with the
             # pre-call snapshot at the executor's assignment boundary.
-            return model_attempts.current_cursor()
+            return model_attempts.live.current_cursor()
 
         _merged, ranked = record_assessment_result(
             claim=claim,
@@ -3109,7 +3109,7 @@ def _late_admission_tail(
         record["assessed_ids"] = sorted(assessed.assessments)
         record["ranked_after"] = len(ranked)
         observation.store(record)
-        return model_attempts.current_cursor()
+        return model_attempts.live.current_cursor()
     except BaseException as exc:  # noqa: BLE001 - re-raised below
         observation.finish(outcome=f"aborted:{type(exc).__name__}")
         raise
