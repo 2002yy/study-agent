@@ -332,9 +332,26 @@ def _evidence_brief(
     gate: EvidenceGateResult | None,
     selected_sources: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    records_by_id = {
-        str(record.get("candidate_id")): record for record in selected_sources
+    # The Evidence Snapshot is the source-ID authority used when extraction
+    # was accepted. A locator ("Section 2", "Table 1") is not a source identity:
+    # separate pages can supply the same claim and anchor text.
+    selected_ids_by_url = {
+        ref.url: ref.id
+        for ref in _evidence_snapshot("", selected_sources, []).refs
+        if ref.lifecycle_status == "selected" and ref.url
     }
+    records_by_evidence_id: dict[str, list[dict[str, Any]]] = {}
+    for record in selected_sources:
+        assessment = record.get("assessment")
+        item = record.get("item")
+        url = str(
+            (assessment.get("url") if isinstance(assessment, Mapping) else "")
+            or (item.get("url") if isinstance(item, Mapping) else "")
+            or ""
+        )
+        evidence_id = selected_ids_by_url.get(url)
+        if evidence_id is not None:
+            records_by_evidence_id.setdefault(evidence_id, []).append(record)
     grounded_input = grounded_input_enabled()
     excerpt_budget = EXCERPT_TOTAL_CHARS if grounded_input else 0
     evidence_rows: list[dict[str, Any]] = []
@@ -345,7 +362,7 @@ def _evidence_brief(
         record = next(
             (
                 item
-                for item in records_by_id.values()
+                for item in records_by_evidence_id.get(link.evidence_id, ())
                 if (
                     isinstance(item.get("extractions"), Mapping)
                     and isinstance(item["extractions"].get(link.claim_id), Mapping)
