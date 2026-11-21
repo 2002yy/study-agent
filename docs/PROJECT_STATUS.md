@@ -79,6 +79,20 @@
 - **成组退役**：删除未接线的课后生成 prompt、模型调用与事件回调、手工 JSON 恢复、Markdown 预览、角色文件直接写入及专属测试；同时删除 `llm_client._TASK_DEFAULTS` 旧 `after_session` 任务设置，将模型请求显式选项测试改为未配置任务。原测试文件里两条真实 `safe_writer` 原子替换/追加与备份保护迁到 `test_safe_writer.py`，备份目录改用 `tmp_path` 隔离，测试不再枚举和删除项目真实备份。无阶段门、CI、环境变量或 API 注册需要撤销；归档文档保留历史快照。
 - **冻结与证据**：不修改正式结构化课后候选生成、MemoryRun 权限与持久结算、旧格式候选映射、备份实现、会话恢复、费用或模型服务其它任务；无付费/动态调用。定向学习收束、结构化候选、记忆、LLM options、安全写入与事件测试 **64 passed（44 + 20，不重复）**；全仓 Ruff、编译、差异检查通过；mypy 基线 **115/125（无新增）**。基于 `main@8ed1430f92d43fa081ac206cd9cdd64b901add1b`；`priority=P3`、`loop=static`、`owner=learning/retired-after-session-host`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。新候选精确 HEAD CI、审阅与主线整合仍需核验。**下一片**：先按 CI 门禁收口当前清理 PR，再核对其它单一业务功能的旧事件处理器和重复专项测试，不因无静态导入而删 CLI/持久兼容入口。
 
+### 2026-11-21 Deep 种子来源投影与结果发布职责分离（独立 P3 静态片）
+
+- **实证与所有权**：读取链的 `project_read_chain` 已是纯来源投影，但 Deep 本地种子路径 `_deep_seed_materialization` 一边构造来源记录，一边直接修改 `selected_sources`，绕过现有 `ActiveResearchResultBuffers.upsert_selected_source`，使投影与发布写入混在一起。将 Deep 投影移入已有的 `research_runtime_read_projection.project_deep_seed_source`，函数只返回记录/无内容时返回 `None`；执行器拿到记录后统一调用结果缓冲区写入，不额外复制列表或建立持久状态。旧内部 helper 连同多余直接列表写入参数、导入一同删除，不保留兼容转发层。
+- **冻结顺序与范围**：原 `materialized_content → _source_record → materialization_provenance → upsert_source_record → charge_materialization → read_budget.project → read history → checkpoint` 保持同序；无物理读取、无 gateway、无外部尝试标记，`reads_used` 保持原语义。来源记录引用、first-candidate 覆盖、`materialization` provenance、字符截断以及恢复时的发布列表身份不变；不触碰搜索/读取调度、模型预算、Evidence Gate、终态发布或持久 schema。测试验证投影调用不产生列表写入，只有结果 owner 明确 upsert 才发布来源；原 Deep 种子无内容和字符预算负控保留。
+- **验证/交接**：以 `main@000f4efb508b792698416e6002c96a8a9b00694e` 为基线，分支 `codex/read-evidence-handoff-20261121`；改前 Deep seams、结果缓冲与来源上下文直接 **32 passed**，改后最终代码直接 **32 passed**；Deep 执行/恢复、读取投影、来源缓冲、证据接受、检查点、预算波次结算、终态发布与完整主动研究影响集 **184 passed / 107.32s**。全库 Ruff、Python 编译与差异检查通过，mypy 基线 **115 current / 125 allowed，无新增**（修正候选非空类型守卫）。`priority=P3`、`loop=static`、`owner=research/source-projection-publication`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。#586 重挂 HEAD `cdf5a5e` 与 #587 重挂 HEAD `7c98537` 必须分别通过新的精确 CI/审阅；本片最终应在两片收口后重挂并独立验收。**下一片**：先收口未合 PR，再检查证据接受与终态发布边界是否仍有无权威写入；没有真实重复职责则不新增模块。
+
+- **#585 后三片本地叠加验证（未推送堆叠 HEAD）**：#586 在 `main@9bb4784` 上重挂，独立研究影响集 **96 passed / 90.77s**，Ruff/编译/diff-check 通过，远端 HEAD `ba4831d` 的精确 CI 待回报。#587 本地接于 #586，#589 再接于 #587：三片合计的搜索观测、读取尝试、来源投影/发布、Deep、恢复、checkpoint、预算时钟、波次结算、模型尝试与主动研究影响集 **211 passed / 113.34s**；全仓 Ruff、编译、diff-check 通过，mypy **115 current / 125 allowed，无新增**。合并生产代码未产生冲突，交接文档中的三片独立记录均保留。先验收 #586 精确 CI 再重挂并推送 #587、#589，各自重跑独立精确 HEAD 门禁；这组静态回归不是实网/付费模型质量证据。
+
+- **#589 后续结果 owner 收紧**：到本片叠加代码为止，`upsert_source_record(records, record)` 已无生产/测试/工具调用方，唯一入口是 `ActiveResearchResultBuffers.upsert_selected_source` 内部转发。把原替换首个匹配来源、原位更新列表和追加新来源的操作直接收归结果 owner，删除独立转发函数，不保留旧 API；新增重复 candidate ID 下保留首匹配与列表别名的负控。直接来源/Deep/投影测试 **38 passed**；三片叠加的恢复、checkpoint、预算、模型尝试、Deep、来源和发布影响集 **212 passed / 100.74s**；Ruff、编译、diff-check 成功，mypy **115/125 无新增**。无恢复 schema、调用/预算/结算或 Evidence Gate 顺序变动，本片仍未推送新远端 HEAD。
+
+- **#586 当前远端门禁补充**：新 HEAD `ba4831d13159f941a41c26c53dcf3865389ab255` 对应 Actions 运行 `44797213768`；2026-11-21 核验时 classify/frontend 已成功，backend/browser 仍在执行，不得提前合并。#586、#587、#589 的 Codex 自动审阅在较早提交上因账号 review 额度用尽而**未完成**，评论里的 failed 不是实际代码缺陷清单；后续应分别对最终精确差异做人工复核，明确区分自动审阅不可用与发现阻断问题，不能冒称已完成自动审阅。
+
+- **#588 后改为独立候选**：重新核对调用图后确认本 Deep 来源投影与缓冲区收紧不依赖 #586 搜索观测或 #587 读取尝试上下文。已从先前的本地叠加分支拆出，独立重挂 `main@13d4e3cda8fc1f2dba3f3d191bbe3b845aadd9c4`；生产代码自动应用，保留本片的来源别名与预算顺序负控，不把其他两片的代码混进 PR。先前 212 项叠加回归只是组合证据，本独立候选须以新 HEAD 的测试、CI 和审阅单独验收。
+
 ### 2026-11-21 全阶段计时诊断收归单一实时观测上下文（独立 P3 静态片）
 
 - **范围与职责**：主动研究执行器过去对 `assessment`、`tier2_proposal`、`domain_targeted`、`late_tail`、`ranking`、`discovery`、`extraction`、`gating` 各自调用底层 `phase_timing.end(..., context=live.context)`，晚到候选的内部子阶段另用 lambda 隐式捕获 `live`。将读取观测上下文提升为 `ActiveRuntimeObservationContext`，统一绑定运行时阶段起止、读取重试时间和最新波次标识；删除旧 read-only 命名和单独闭包，不设兼容转发层。底层 `RuntimePhaseTiming` 和 `TimingLedger` 仍是原有唯一计时权威，读取网关继续拥有重试及升级语义。
