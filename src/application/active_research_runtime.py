@@ -100,7 +100,6 @@ from src.web.research.runtime import (
     _attempt_number as _attempt_number,
     _extraction_call_suffix as _extraction_call_suffix,
     _is_interrupted_failure as _is_interrupted_failure,
-    _model_attempt_start as _model_attempt_start,
     EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS,
     MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN,
     MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE,
@@ -1457,8 +1456,7 @@ class ActiveResearchRuntimeExecutor:
                         max_reads=live.state.budget.max_reads,
                         assessor=self.candidate_assessor,
                         policy_context=model_policy,
-                        on_model_started=on_model_started,
-                        on_model_finished=on_model_finished,
+                        model_attempts=model_attempt_context,
                         phase_begin=runtime_observation.phase_start,
                         phase_end=runtime_observation.phase_end,
                         remaining_timeout=remaining_timeout,
@@ -3005,8 +3003,7 @@ def _late_admission_tail(
     max_reads: int,
     assessor: Any,
     policy_context: RuntimeModelPolicyContext,
-    on_model_started: Any,
-    on_model_finished: Any,
+    model_attempts: ActiveModelAttemptContext,
     phase_begin: Any,
     phase_end: Any,
     remaining_timeout: Any,
@@ -3136,19 +3133,22 @@ def _late_admission_tail(
         ):
             record["skipped_reason"] = "policy_blocked"
             observation.store(record)
-            return cursor
+            return model_attempts.current_cursor()
 
         candidate_ids = tuple(sorted(item.id for item in selected))
+        call_suffix = _assessment_call_suffix(cursor, claim.id, candidate_ids)
+        # Match the logical ID constructed by RuntimeCandidateAssessor.assess.
+        # The old ':late' marker was never present in real gateway audits, so
+        # recovered late-tail attempts could incorrectly restart at attempt 1.
         logical_call_id = (
-            f"research_candidate_assessment:{run_id}:{claim.id}:late"
-            f"{_assessment_call_suffix(cursor, claim.id, candidate_ids)}"
+            f"research_candidate_assessment:{run_id}:{claim.id}:1{call_suffix}"
         )
         try:
-            attempt_start = _model_attempt_start(cursor, logical_call_id)
+            attempt_start = model_attempts.next_attempt_number(logical_call_id)
         except _ModelAttemptBudgetExhausted:
             record["skipped_reason"] = "model_call_budget_exceeded"
             observation.store(record)
-            return cursor
+            return model_attempts.current_cursor()
 
         assessment_assignments = {item.id: assignments[item.id] for item in selected}
         observation.phase("assessing")
@@ -3161,11 +3161,9 @@ def _late_admission_tail(
                 assignments=assessment_assignments,
                 reference_date=state.reference_date,
                 timeout_seconds=remaining_timeout(),
-                on_attempt_started=on_model_started,
-                on_attempt_finished=on_model_finished,
-                call_id_suffix=_assessment_call_suffix(
-                    cursor, claim.id, candidate_ids
-                ),
+                on_attempt_started=model_attempts.started,
+                on_attempt_finished=model_attempts.finished,
+                call_id_suffix=call_suffix,
                 attempt_start=attempt_start,
             )
         finally:
@@ -3178,7 +3176,10 @@ def _late_admission_tail(
                 else "assessment_failed"
             )
             observation.store(record)
-            return cursor
+            # Gateway callbacks may have replaced the live cursor with an
+            # inflight marker or completed audit. Never overwrite it with the
+            # pre-call snapshot at the executor's assignment boundary.
+            return model_attempts.current_cursor()
 
         _merged, ranked = record_assessment_result(
             claim=claim,
@@ -3194,7 +3195,7 @@ def _late_admission_tail(
         record["assessed_ids"] = sorted(assessed.assessments)
         record["ranked_after"] = len(ranked)
         observation.store(record)
-        return cursor
+        return model_attempts.current_cursor()
     except BaseException as exc:  # noqa: BLE001 - re-raised below
         observation.finish(outcome=f"aborted:{type(exc).__name__}")
         raise
