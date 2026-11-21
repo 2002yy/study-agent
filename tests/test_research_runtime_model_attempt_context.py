@@ -1,6 +1,7 @@
 """Model attempt callbacks preserve durable-before-send and in-memory finish."""
 
-from dataclasses import replace
+from dataclasses import fields, replace
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -98,9 +99,11 @@ def _callbacks(
 
     return (
         ActiveModelAttemptContext(
-            current_state=current_state,
-            current_cursor=current_cursor,
-            set_cursor=set_cursor,
+            live=SimpleNamespace(
+                current_state=current_state,
+                current_cursor=current_cursor,
+                set_cursor=set_cursor,
+            ),
             ensure_active=ensure_active,
             ensure_budget=ensure_budget,
             checkpoint=checkpoint,
@@ -117,13 +120,17 @@ def test_live_binding_reads_recovered_state_and_rebound_cursor() -> None:
     live = ActiveRuntimeLiveValues(state=original_state)
     checked: list[ResearchState] = []
     checkpoints: list[ResearchRuntimeCursor] = []
-    callbacks = ActiveModelAttemptContext.for_live_values(
-        live,
+    callbacks = ActiveModelAttemptContext(
+        live=live,
         ensure_active=lambda: None,
         ensure_budget=checked.append,
         checkpoint=lambda: checkpoints.append(live.cursor),
     )
 
+    assert {item.name for item in fields(callbacks)} == {
+        "live", "ensure_active", "ensure_budget", "checkpoint"
+    }
+    assert callbacks.live is live
     live.state = recovered_state
     live.cursor = replace(live.cursor, wave_index=2)
     marker = _marker()
@@ -219,8 +226,8 @@ def test_model_callbacks_budget_check_reads_rebound_state_at_send_boundary() -> 
 def test_attempt_number_admission_uses_current_recovered_cursor_without_side_effects() -> None:
     live = ActiveRuntimeLiveValues(state=cast(ResearchState, object()))
     events: list[str] = []
-    callbacks = ActiveModelAttemptContext.for_live_values(
-        live,
+    callbacks = ActiveModelAttemptContext(
+        live=live,
         ensure_active=lambda: events.append("ensure_active"),
         ensure_budget=lambda _state: events.append("ensure_budget"),
         checkpoint=lambda: events.append("checkpoint"),
