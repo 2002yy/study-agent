@@ -1770,28 +1770,41 @@ def test_wave_limit_exhausted_is_not_fake_saturation(tmp_path: Any) -> None:
     )
 
 
+class _HardBudgetDeadlineClock:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def __call__(self) -> float:
+        return self.value
+
+
+class _HardBudgetDeadlineSearch(_EmptySearchBackend):
+    """Cross the hard deadline immediately after the external search returns."""
+
+    def __init__(
+        self,
+        clock: _HardBudgetDeadlineClock,
+        *,
+        after_search: Callable[[], None] | None = None,
+    ) -> None:
+        super().__init__()
+        self.clock = clock
+        self.after_search = after_search
+
+    def search_exact(
+        self, query: str, *, max_results: int = 5
+    ) -> dict[str, Any]:
+        result = super().search_exact(query, max_results=max_results)
+        self.clock.value = 61.0
+        if self.after_search is not None:
+            self.after_search()
+        return result
+
+
 def test_hard_budget_precedes_wave_limit_after_external_call(tmp_path: Any) -> None:
     import src.application.active_research_runtime as art_mod
 
-    class _Clock:
-        def __init__(self) -> None:
-            self.value = 0.0
-
-        def __call__(self) -> float:
-            return self.value
-
-    clock = _Clock()
-
-    class _DeadlineCrossingSearch(_EmptySearchBackend):
-        def search_exact(
-            self,
-            query: str,
-            *,
-            max_results: int = 5,
-        ) -> dict[str, Any]:
-            result = super().search_exact(query, max_results=max_results)
-            clock.value = 61.0
-            return result
+    clock = _HardBudgetDeadlineClock()
 
     state = _two_gap_state()
     context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
@@ -1810,7 +1823,7 @@ def test_hard_budget_precedes_wave_limit_after_external_call(tmp_path: Any) -> N
         completed = _service(
             repository,
             _StructuredClient(),
-            search_backend=_DeadlineCrossingSearch(),
+            search_backend=_HardBudgetDeadlineSearch(clock),
             monotonic=clock,
         ).execute(run.id, raise_on_error=True)
     finally:
@@ -2832,31 +2845,7 @@ def test_pending_steering_goes_late_when_hard_budget_exhausted(
     evidence_budget_exhausted terminal truth - never an implicit extension."""
     from src.web.research.steering import active_steering_entries
 
-    class _Clock:
-        def __init__(self) -> None:
-            self.value = 0.0
-
-        def __call__(self) -> float:
-            return self.value
-
-    clock = _Clock()
-
-    class _DeadlineCrossingSearch(_EmptySearchBackend):
-        def search_exact(
-            self,
-            query: str,
-            *,
-            max_results: int = 5,
-        ) -> dict[str, Any]:
-            result = super().search_exact(query, max_results=max_results)
-            clock.value = 61.0
-            if not injected["done"]:
-                injected["done"] = True
-                assert repository.append_steering(
-                    run.id,
-                    content="Too late to apply",
-                ) is not None
-            return result
+    clock = _HardBudgetDeadlineClock()
 
     state = _two_gap_state()
     context = attach_claim_engine_state(_active_context(), state, known_evidence_ids=())
@@ -2870,10 +2859,20 @@ def test_pending_steering_goes_late_when_hard_budget_exhausted(
     )
     injected = {"done": False}
 
+    def append_pending_steering() -> None:
+        if not injected["done"]:
+            injected["done"] = True
+            assert repository.append_steering(
+                run.id,
+                content="Too late to apply",
+            ) is not None
+
     completed = _service(
         repository,
         _StructuredClient(),
-        search_backend=_DeadlineCrossingSearch(),
+        search_backend=_HardBudgetDeadlineSearch(
+            clock, after_search=append_pending_steering
+        ),
         monotonic=clock,
     ).execute(run.id, raise_on_error=True)
 
@@ -3126,14 +3125,7 @@ def test_late_steering_terminal_crash_recomputes_same_stop_decision(
     class _SimulatedProcessDeath(BaseException):
         pass
 
-    class _Clock:
-        def __init__(self) -> None:
-            self.value = 0.0
-
-        def __call__(self) -> float:
-            return self.value
-
-    clock = _Clock()
+    clock = _HardBudgetDeadlineClock()
 
     class _CrashOnLateCheckpoint(WebLookupRepository):
         def __init__(self, database: Any) -> None:
