@@ -4,9 +4,15 @@
 >
 > **产品目标**：体验接近 ChatGPT 的通用聊天与研究 Agent，覆盖自然聊天、自主研究、持续交互、智能 UI、多模态和工具执行；教学是专业场景。**部署仍限可信环境的单用户**；多用户身份/数据/费用隔离未实现。
 
-## 0. Current Handoff（2026-11-20，冷启动）
+## 0. Current Handoff（2026-11-21，冷启动）
 
 > **当前收口**：#588 历史 RQCE Shadow 退役以精确 CI `44797083430` 成功合入 `main@13d4e3cda8fc1f2dba3f3d191bbe3b845aadd9c4`；#590 早期 Quality Gates 退役的精确 HEAD `6047ab77ca4aa663ab1ee3be806c7049781264a5` 经 CI `44800303084` 成功、审阅/线程无阻断，以 SHA 保护 squash 合入 `main@9eb9671ff71e5291951a248a11102d29d4c73bb4`。当前独立清理片：News 两条已无独立职责的 Web 适配门面；#586/#587/#589 是其他研究执行开发分支，未经其维护者整合不接管重挂或复用旧 CI。
+
+### 2026-11-21 线索页物理读取生命周期收敛与恢复重试计数修复（独立 P0 静态片）
+
+- **冻结检查点与职责边界**：Deep/普通来源读取、证据提取、线索发现模型调用、发布、持久 schema 与费用模型均不动。新增 `ActiveLeadReadAttemptContext` 统一线索页读取的外部尝试起止、网关异常归档、线索 ID 投影和成功读取额度扣减；执行器仍在原位执行 `start → checkpoint → gateway → finally finish → checkpoint → ensure_active → complete → checkpoint`，所以崩溃前的 inflight 记录、取消检查、成功/失败写入顺序和 `checkpoint_timing.caller=execute` 诊断标签不变。每次完成均读取最新 `ActiveRuntimeLiveValues`，波次额度由调用方现场提供，不缓存游标/状态快照。
+- **P0 负控发现与修复**：原 `_attempt_number(cursor, f"lead:{candidate_id}")` 不匹配持久恢复写入的 `research_lead_read:{run_id}:{candidate_id}:attempt:{n}`，连续进程中断会误将第二次仍计为第一次；改为仅匹配原有**完整调用 ID 的稳定前缀**，保留旧 ID/恢复结构，且不混入同候选的证据读取和相似候选 ID。新增两次中断拒绝第三次、跨 checkpoint 重绑、失败仍完成外部尝试但不扣额、取消后不写入线索 ID 的定向负控；端到端线索页场景追加检查点调用者标签约束。原先三项线索相关基线 **3 passed**；新主动研究执行器、线索、读额度、checkpoint、发现诊断、读取尝试、波次与计时影响集 **131 passed / 85.99s**，阶段门契约 **10 passed / 1.03s**；全库 Ruff、应用编译、diff-check 通过，mypy **115 current / 125 allowed，无新增**。
+- **交接**：基于 `main@9eb9671ff71e5291951a248a11102d29d4c73bb4`，独立分支 `codex/lead-read-lifecycle-context-20261121`；`priority=P0`（恢复后外部重试额度完整性）、`loop=static`、`owner=research/lead-read-lifecycle`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`，无真实检索或付费模型。**下一片**：推送独立 PR，核对精确 HEAD CI / 审阅和可合并性后再合入；其他开放的 #586/#587/#589/#591/#592 各守原职责，不复用它们的 CI 证明。
 
 ### 2026-11-21 News 旧 Web 搜索/正文读取门面退役（独立 P3 静态减负片）
 
