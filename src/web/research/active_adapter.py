@@ -89,6 +89,7 @@ class ActiveResearchGateway:
         *,
         search_backend: ResearchSearchExact | None = None,
         read_gateway: ResearchReadGateway | None = None,
+        escalation_backend: Any | None = None,
     ) -> None:
         self._search_backend = search_backend or ResearchProviderSearch()
         self._read_gateway = read_gateway or ResearchWebGateway()
@@ -99,9 +100,9 @@ class ActiveResearchGateway:
         self._last_audit: ActiveSearchCallAudit | None = None
         self._pending_audits: list[dict[str, Any] | None] = []
         self._warnings: list[dict[str, str]] = []
-        # §71C-3a escalation backend is built lazily (only if the mode is on)
-        self._escalation_backend: Any | None = None
-        self._escalation_backend_built = False
+        # Inject a fixed test backend at construction, or lazily build the
+        # production Wigolo HTTP backend when the reader chain needs it.
+        self._escalation_backend: Any | None = escalation_backend
 
     def search_detailed(
         self,
@@ -191,26 +192,17 @@ class ActiveResearchGateway:
         # the provider the runtime uses to build that chain's executor.
         return dict(result or {})
 
-    def escalation_backend(self) -> Any | None:
-        """Lazily built Wigolo HTTP-tier backend (None when disabled)."""
+    def escalation_backend(self) -> Any:
+        """Return the constructor-injected backend or the lazy HTTP backend."""
 
-        if self._escalation_backend is None and self._escalation_backend_built:
-            return None
         if self._escalation_backend is None:
             self._escalation_backend = self._build_escalation_backend("http")
-            self._escalation_backend_built = True
         return self._escalation_backend
 
     def _build_escalation_backend(self, tier: str) -> Any:
         from src.web.research.wigolo_backend import WigoloShadowReadBackend
 
         return WigoloShadowReadBackend(tier=tier)
-
-    def set_escalation_backend(self, backend: Any) -> None:
-        """Test seam: inject a backend without touching the daemon."""
-
-        self._escalation_backend = backend
-        self._escalation_backend_built = True
 
     def warnings(self) -> list[dict[str, str]]:
         return [dict(item) for item in self._warnings]
