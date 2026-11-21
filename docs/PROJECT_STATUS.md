@@ -6,6 +6,14 @@
 
 ## 0. Current Handoff（2026-11-21，冷启动）
 
+### 2026-11-22 研究执行器旧导出收口候选（P3 静态）
+
+- **范围**：只清理 `src/application/active_research_runtime.py` 的 5 个未由执行器调用的转发符号：`MAX_RESEARCH_MODEL_ATTEMPTS`、`ACTIVE_RESEARCH_WAVE_BASELINE_KEY`、`ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY`、`merge_covered_clusters`、`ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY`。真正所有者模块、具体功能与持久化键值不删；`ACTIVE_RESEARCH_ASSESSMENTS_KEY` 仍为正式导出。
+- **测试迁移**：`tests/test_active_research_runtime.py` 的波次基线与覆盖率常量改从定义模块直接导入；对应模块自己的契约测试原样保留。没有额外环境开关、适配器或独占测试需要删除。
+- **边界与证据**：源文件逐项核实上述 5 个名称只有导入处，无自身执行调用。此变更不调整恢复/检查点顺序、费用、检索读取、模型派发、证据投影或发布。基线为 `main@42329be`；分支 `cleanup/remove-remaining-runtime-aliases-20261122`。当前仅完成范围审计与精确文本替换，尚无本地 pytest/Ruff 或精确提交 CI 通过证据。须待本分支新 HEAD 的 CI/审阅合格才能合并；不可复用 #613 的 CI。
+- **决策**：`priority=P3`、`loop=static`、`owner=orchestration-contract/reexport-cleanup`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。下一片若继续删别名，应从真实消费者定位，不以字符串单次出现替代全仓静态/动态引用证明。
+
+
 ### 2026-11-21 Deep 种子投影与来源发布边界（#589 重挂候选）
 
 - Deep 本地种子由 `project_deep_seed_source` 纯投影生成来源记录，再经 `ActiveResearchResultBuffers.upsert_selected_source` 发布；字符预算扣减、状态投影、读取历史和 checkpoint 保持原顺序。来源缓冲区的首匹配覆盖与列表别名语义保持不变。

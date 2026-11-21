@@ -18,15 +18,15 @@ import pytest
 
 from src.application.active_research_runtime import (
     ACTIVE_RESEARCH_BRIEF_KEY,
-    ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY,
     ACTIVE_RESEARCH_METRICS_KEY,
     ACTIVE_RESEARCH_READ_PLAN_KEY,
-    ACTIVE_RESEARCH_WAVE_BASELINE_KEY,
     ActiveResearchRuntimeExecutor,
     RuntimePlannedQuery,
     _append_gap_queries,
     _restore_completed_read_targets,
 )
+from src.application.research_runtime_read_coverage import ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY
+from src.application.research_runtime_wave_baseline import ACTIVE_RESEARCH_WAVE_BASELINE_KEY
 from src.application.research_web_lookup_dispatch import (
     _dispatch_state,
     ClaimEngineDispatchWebLookupService,
