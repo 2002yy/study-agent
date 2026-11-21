@@ -834,6 +834,7 @@ class ActiveResearchRuntimeExecutor:
         )
         source_evidence = ReadSourceEvidenceContext(
             results=results,
+            live=live,
             visual_reader=_read_visual_evidence_for_candidate,
         )
         evidence_acceptance = ExtractedEvidenceAcceptanceContext(
@@ -1818,8 +1819,6 @@ class ActiveResearchRuntimeExecutor:
                     source_evidence.record_projection(
                         record,
                         ok=ok,
-                        context=live.context,
-                        state=live.state,
                         canonical_url=candidate.canonical_url,
                     )
                     live.state = read_budget.project()
