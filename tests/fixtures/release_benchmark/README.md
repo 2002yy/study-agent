@@ -37,13 +37,7 @@ The opt-in text/PDF pilot uses a snapshot allowlist, rechecks bytes on each read
 
 These outputs are diagnostic runtime transcripts, not scored release observations. The guard covers Python socket connects in this process; it is not an OS-level network sandbox. An absent PDF renderer is reported as `unavailable`, and a present renderer does not supply semantic vision. The mixed case records its PDF text read and visual read separately.
 
-To record the five approved **frozen** reader pilots against one clean code head and score them, run:
-
-```powershell
-.venv\Scripts\python.exe tools/run_release_benchmark_recorded_pilot.py --output-dir .workbuddy/release-recorded-pilot
-```
-
-The output directory contains `pilot_bundle.json`, `observation.json`, and `score.json`. The observation binds the bundle's exact byte SHA-256, registry/gold digests, source locator/SHA/page/region, and code head. It maps WebLookupService's local source IDs back to registry IDs only after checking the source binding. Reader success does not imply an answer: text/PDF cases stay `unavailable` because answer generation was not run; image/chart/mixed stay `unavailable` without qualified visual interpretation. The live case remains `missing` until a real manual live read with an actual human reviewer is recorded. The scorer still reports `NO_GO`.
+**Reader-only score recorder retired (2026-11-22).** The historical `run_release_benchmark_recorded_pilot.py`, its result-conversion module, specialized test and stage registration were removed as one obsolete experiment. It never generated an answer; its scored run therefore remained `NO_GO`. The original `docs/research_quality/RELEASE_BENCHMARK_RECORDED_PILOT_2026-09-29/` bundle, observation and score are preserved as fixed evidence, not a runnable current evaluation. The independent `run_release_benchmark_frozen_pilot.py` remains available to inspect byte-bound snapshot reads without semantic scoring.
 
 The opt-in **answer diagnostic** runs the same frozen text/PDF reader, then sends only the question and byte-bound source text to a configured remote model. It records the model identity, complete prompt/response, source snapshot and context digests, structured claims, and code-owned citation locators:
 
@@ -61,13 +55,7 @@ Prepare the two-case assessment packet only after rechecking the saved answer ag
 
 The packet binds the answer bundle digest and contains the previously withheld gold rubric. It is an input for an assessor, not a semantic verdict. Rechecking proves internal source/prompt/citation consistency; it does not prove that the remote model's prose is supported or that the historical reader guard actually ran.
 
-The owner allows a DeepSeek API path for this personal project's frozen-source diagnostics. The source snapshot remains byte-bound and the local reader still runs without network; model inference is explicitly remote. A separate DeepSeek pro probe can assess the saved flash-model answers against the source and rubric, plus blinded wrong-citation, missing-aspect, and unsupported-claim controls:
-
-```powershell
-.venv\Scripts\python.exe tools/run_release_benchmark_semantic_probe.py --answer-bundle docs/research_quality/RELEASE_BENCHMARK_ANSWER_DIAGNOSTIC_2026-09-29/answer_bundle.json --review-packet docs/research_quality/RELEASE_BENCHMARK_ANSWER_DIAGNOSTIC_2026-09-29/review_packet.json --output-dir .workbuddy/release-semantic-probe
-```
-
-The probe records every prompt and raw response, model identity, capture digests, and per-control detection. It is a cross-model **diagnostic**; the pro model is not thereby a qualified judge, and these judgments are not scorer labels. The existing `release-benchmark-observation-v1` still requires fully offline frozen execution. Any release-scoring path that permits remote inference needs an explicit versioned contract and network provenance; this probe does not silently change v1.
+**Retired §159 probe (2026-11-22).** The old same-provider DeepSeek pro diagnostic and its CLI were removed together with the calibration tool and their tests. Their historical captured prompts, control responses and failed specificity evaluation remain archived under `docs/research_quality/RELEASE_BENCHMARK_SEMANTIC_PROBE_2026-09-29/` and `RELEASE_BENCHMARK_SEMANTIC_CALIBRATION_2026-09-29/`. The archived 6/6 target-detection result is **not** an authorized semantic score: specificity was only 1/6 and `qualified_judge=false`. Do not run the removed `run_release_benchmark_semantic_probe.py` or infer continuing approval for fresh paid inference. New formal reviews use the independent blind-review transport (`tools/run_release_benchmark_blind_review.py`) and explicit reviewer qualification, with separate authorization for paid model calls when applicable.
 
 `release-benchmark-observation-v2` is the separate path for the owner's DeepSeek choice. It requires a **fresh answer run** with an exact source-read timestamp, the current code SHA, a canonical answer-bundle digest, per-case answer digests, `source_network_disabled=true`, `network_disabled=false`, and `inference_network=remote_model_api`. The scorer keeps v1's fully offline requirement intact. V2 initially accepts only mechanical source reads and completed answer presence; it rejects self-declared observed semantic labels until a separate verified authority is available. Run the answer pilot at a clean candidate head, then record and score that same bundle:
 
@@ -76,13 +64,9 @@ The probe records every prompt and raw response, model identity, capture digests
 .venv\Scripts\python.exe tools/record_release_benchmark_remote_observation.py --answer-bundle .workbuddy/remote-answer-v2/answer_bundle.json --output-dir .workbuddy/remote-observation-v2
 ```
 
-The current v2 run scope is two frozen TEXT/PDF cases. The visual frozen cases and live case remain `missing` in this recording; the older reader-only pilot retains their unavailable/read evidence separately. V2 does not import the DeepSeek pro diagnostic verdicts, and release remains `NO_GO`.
+The current v2 run scope is two frozen TEXT/PDF cases. The visual frozen cases and live case remain `missing` in this recording; the archived 2026-09-29 reader-only records retain their unavailable/read evidence as historical evidence. V2 does not import the DeepSeek pro diagnostic verdicts, and release remains `NO_GO`.
 
-`release-benchmark-semantic-calibration-v1` replays a saved probe's prompts and raw responses against the answer bundle and frozen source before measuring two separate properties: target control detection and non-target specificity. For a wrong locator, coverage and grounding must remain supported; for a missing answer aspect, grounding and citation support must remain supported; for an unsupported added sentence, coverage must remain covered while grounding and citation support fail. The actual-answer diagnostic must be clean, each control needs its target issue once, and unrelated issues or dimension changes fail specificity. This is a diagnostic calibration gate: even a 6/6 pass does not make a model a qualified judge or create formal semantic labels. A same-provider reviewer has no independent authority. Run the check on a clean tracked HEAD with the saved probe and review packet:
-
-```powershell
-.venv\Scripts\python.exe tools/calibrate_release_benchmark_semantic_probe.py --answer-bundle docs/research_quality/RELEASE_BENCHMARK_REMOTE_OBSERVATION_2026-09-29/answer_bundle.json --review-packet docs/research_quality/RELEASE_BENCHMARK_REMOTE_OBSERVATION_2026-09-29/review_packet.json --semantic-probe .workbuddy/semantic-probe-current-adb409c/semantic_probe.json --output-dir .workbuddy/semantic-calibration-check
-```
+`release-benchmark-semantic-calibration-v1` replays a saved probe's prompts and raw responses against the answer bundle and frozen source before measuring two separate properties: target control detection and non-target specificity. For a wrong locator, coverage and grounding must remain supported; for a missing answer aspect, grounding and citation support must remain supported; for an unsupported added sentence, coverage must remain covered while grounding and citation support fail. The actual-answer diagnostic must be clean, each control needs its target issue once, and unrelated issues or dimension changes fail specificity. This is a diagnostic calibration gate: even a 6/6 pass does not make a model a qualified judge or create formal semantic labels. A same-provider reviewer has no independent authority. This describes the **historical** calibration protocol, not a currently runnable command. The old calibration CLI has been retired; keep its saved artifact and finding as evidence of a failed gate. The active release pathway instead requires independent review and an explicit authority decision.
 
 The gold spells out source-backed answer criteria. Prepare a packet containing each selected case, source SHA, substantive gold and review checklist:
 

@@ -40,7 +40,7 @@ from src.evals.release_benchmark_registry import load_gold, load_registry  # noq
 from src.evals.release_benchmark_reviewer_qualification import (  # noqa: E402
     make_identity,
 )
-from src.evals.release_benchmark_semantic_probe import (  # noqa: E402
+from src.evals.release_benchmark_review_material import (  # noqa: E402
     materialize_review_items,
 )
 
