@@ -262,6 +262,9 @@ from src.application.research_runtime_read_coverage import (
     ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY as ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY,
     merge_covered_clusters,
 )
+from src.application.research_runtime_read_coverage_context import (
+    ActiveReadCoverageContext,
+)
 from src.application.research_runtime_observation import ActiveRuntimeObservationContext
 from src.application.research_runtime_read_projection import project_read_chain
 from src.application.research_runtime_read_site import (
@@ -986,6 +989,7 @@ class ActiveResearchRuntimeExecutor:
         on_model_finished = model_attempt_context.finished
 
         wave_handoff = ActiveWaveSettlementHandoff(live=live)
+        read_coverage = ActiveReadCoverageContext(live=live, results=results)
         wave_baseline_context = ActiveWaveBaselineContext(
             live=live, actionable_gaps=_ordered_gaps
         )
@@ -1511,9 +1515,7 @@ class ActiveResearchRuntimeExecutor:
                 # extraction map holds every claim actually bound to it, so
                 # coverage must merge the owner claim AND all extraction-map
                 # keys, or a secondary claim forgets the cluster (H8).
-                covered_clusters_by_claim = merge_covered_clusters(
-                    live.context, selected_sources
-                )
+                covered_clusters_by_claim = read_coverage.merge_current()
                 # Deep-2 §29/§7: bytes already durable - fetched by a reader chain or
                 # materialized from a seed - must not be planned for a physical read at all.
                 # Skipping them later in the read loop would still have consumed a scheduler
