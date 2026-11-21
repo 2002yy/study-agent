@@ -3,6 +3,9 @@
 from dataclasses import fields
 
 from src.application import research_runtime_read_scheduling as read_scheduling
+from src.application.research_runtime_read_scheduling_observation import (
+    record_read_scheduling_decision,
+)
 from src.web.research.runtime import RuntimeReadOutcome
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 from tests.research_read_candidate_factory import read_candidate
@@ -52,17 +55,27 @@ def test_pure_admission_decision_does_not_write_observations() -> None:
 
 
 def test_observation_uses_latest_supplied_context_without_rescheduling() -> None:
-    dispatch = read_scheduling.ActiveReadDispatchContext(
+    """Recording an existing decision cannot repeat admission or charge time."""
+    samples: list[str] = []
+
+    def remaining() -> float:
+        samples.append("elapsed")
+        return 30.0
+
+    decision = read_scheduling.schedule_active_research_read(
+        candidate_id="target",
+        url="https://example.org/article",
+        read_outcomes=(),
         breaker=None,
         available_backends=BACKENDS,
-        research_seconds_left=lambda: 30.0,
+        research_seconds_left=remaining,
     )
     first, rebound = {}, {}
-    candidate = read_candidate("target")
-    dispatch.schedule(candidate=candidate, read_outcomes=(), context=first)
-    dispatch.schedule(candidate=candidate, read_outcomes=(), context=rebound)
-    assert len(first[ACTIVE_RESEARCH_METRICS_KEY]["read_scheduling"]) == 1
-    assert len(rebound[ACTIVE_RESEARCH_METRICS_KEY]["read_scheduling"]) == 1
+    record_read_scheduling_decision(first, decision)
+    record_read_scheduling_decision(rebound, decision)
+    assert samples == ["elapsed"]
+    assert first[ACTIVE_RESEARCH_METRICS_KEY]["read_scheduling"] == [decision.to_dict()]
+    assert rebound[ACTIVE_RESEARCH_METRICS_KEY]["read_scheduling"] == [decision.to_dict()]
     assert first is not rebound
 
 
