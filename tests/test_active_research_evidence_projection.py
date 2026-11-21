@@ -5,7 +5,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from src.application.active_research_evidence_projection import (
-    _bounded_retrieval_policy,
     _evidence_brief,
     _evidence_id_for_record,
     _evidence_snapshot,
@@ -165,11 +164,7 @@ def test_evidence_projection_formats_open_claims_and_conflict_warning() -> None:
     assert not _evidence_snapshot("run-1", [], []).refs
 
 
-def test_source_record_preserves_bounded_provenance_and_legacy_export() -> None:
-    from src.application import active_research_runtime
-
-    assert active_research_runtime._source_record is _source_record
-    assert active_research_runtime._bounded_retrieval_policy is _bounded_retrieval_policy
+def test_source_record_preserves_bounded_provenance() -> None:
     candidate = CandidatePoolItem(
         id="candidate-1", canonical_url="https://example.org/p",
         url="https://example.org/p", title="Primary Source", snippet="",
