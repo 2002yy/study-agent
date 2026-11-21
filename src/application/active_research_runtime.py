@@ -150,8 +150,8 @@ from src.web.research.domain_targeted import (
 )
 from src.web.research.read_escalation import (
     TIER_BROWSER,
-    charge_http_envelope,
-    reset_http_envelope,
+    TIER_HTTP,
+    charge_run_envelope,
     reset_run_envelope,
     set_escalation_runtime_context,
 )
@@ -414,7 +414,7 @@ def build_read_chain_executors(
             backend=escalation_backend,
             max_chars=source_limit,
             hard_seconds_left=hard_seconds_left,
-            charge_envelope=charge_http_envelope,
+            charge_envelope=partial(charge_run_envelope, tier=TIER_HTTP),
         ),
     }
 
@@ -903,7 +903,7 @@ class ActiveResearchRuntimeExecutor:
         )
 
         # §71B2: the HTTP envelope is per-run; a fresh run starts full.
-        reset_http_envelope()
+        reset_run_envelope(TIER_HTTP)
         # §111 A3-1R: each active execution tier gets its own run-scoped
         # envelope, reset exactly once per run. The browser tier is reset even
         # though it is not in the active chain yet, so activation cannot

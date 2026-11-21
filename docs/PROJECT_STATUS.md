@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-21 旧 HTTP Envelope 包装接口退役（独立 P3 静态减负片）
+
+- **用户决定**：B-Search Shadow 保留，`research_shadow_seam`、三处研究观测入口及与学习状态共享的隔离机制不动。只退役 `read_escalation.py` 的四个 `*_http_envelope` 兼容包装接口。
+- **调用关系及迁移**：研究执行器启动时改用 `reset_run_envelope(TIER_HTTP)`；Wigolo HTTP Executor 的单参数扣费回调用 `partial(charge_run_envelope, tier=TIER_HTTP)` 显式绑定 HTTP；旧升级流程直接使用 `run_envelope_remaining_ms(TIER_HTTP)` 和 `charge_run_envelope(latency_ms, TIER_HTTP)`；全部相邻预算/读链测试使用同一正式接口。移除四个只转发的旧函数，不新增兼容重导出。
+- **冻结契约**：HTTP 与 Browser tier 的额度隔离、现行成功/异常路径的原有扣费语义、预算准入拒绝、超时上限、恢复/checkpoint 与来源发布行为均不变；不修改模块级 `_RUN_ENVELOPE` 账本。账本没有 `run_id` 键，跨并发 run 隔离属于后续独立正确性核查，不与兼容 API 退役混做。没有因函数删除而失效的环境配置或阶段门文件引用。
+- **门禁**：本批 `priority=P3`、`loop=static`、`owner=retrieval/http-envelope-compat`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`；影响集包括 `test_read_escalation.py`、`test_wigolo_http_executor.py`、`test_active_research_runtime.py` 及预算/恢复相邻回归。仅在精确 PR HEAD CI 成功并完成审阅后合并。
+
 > **当前收口**：#588 历史 RQCE Shadow 退役以精确 CI `44797083430` 成功合入 `main@13d4e3cda8fc1f2dba3f3d191bbe3b845aadd9c4`；#590 早期 Quality Gates 退役的精确 HEAD `6047ab77ca4aa663ab1ee3be806c7049781264a5` 经 CI `44800303084` 成功、审阅/线程无阻断，以 SHA 保护 squash 合入 `main@9eb9671ff71e5291951a248a11102d29d4c73bb4`。当前独立清理片：News 两条已无独立职责的 Web 适配门面；#586/#587/#589 是其他研究执行开发分支，未经其维护者整合不接管重挂或复用旧 CI。
 
 ### 2026-11-21 News 旧 Web 搜索/正文读取门面退役（独立 P3 静态减负片）
