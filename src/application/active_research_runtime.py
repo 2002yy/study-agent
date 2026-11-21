@@ -86,10 +86,7 @@ from src.web.research.gap_planner import (
     plan_gap_queries,
     query_terms,
 )
-from src.web.research.model_gateway import (
-    MAX_RESEARCH_MODEL_ATTEMPTS as MAX_RESEARCH_MODEL_ATTEMPTS,
-    ResearchModelGateway,
-)
+from src.web.research.model_gateway import ResearchModelGateway
 from src.web.research.runtime import (
     _ExternalAttemptBudgetExhausted as _ExternalAttemptBudgetExhausted,
     _ModelAttemptBudgetExhausted as _ModelAttemptBudgetExhausted,
@@ -236,10 +233,7 @@ from src.application.research_runtime_wave_settlement import (
     ActiveWaveSettlementContext,
     ActiveWaveSettlementHandoff,
 )
-from src.application.research_runtime_wave_baseline import (
-    ACTIVE_RESEARCH_WAVE_BASELINE_KEY as ACTIVE_RESEARCH_WAVE_BASELINE_KEY,
-    ActiveWaveBaselineContext,
-)
+from src.application.research_runtime_wave_baseline import ActiveWaveBaselineContext
 from src.application.research_runtime_wave_progress import ActiveWaveProgressContext
 from src.application.research_runtime_failure_projection import (
     with_appended_runtime_failure,
@@ -252,10 +246,6 @@ from src.application.research_runtime_read_plan_context import FairReadPlanConte
 from src.application.research_runtime_read_budget_context import ReadWaveBudgetContext
 from src.application.research_runtime_lead_read_context import ActiveLeadReadAttemptContext
 from src.application.research_runtime_read_quota_context import ReadWaveQuotaContext
-from src.application.research_runtime_read_coverage import (
-    ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY as ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY,
-    merge_covered_clusters as merge_covered_clusters,
-)
 from src.application.research_runtime_read_coverage_context import (
     ActiveReadCoverageContext,
 )
@@ -273,7 +263,6 @@ from src.application.research_selection_observability import (
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_assessment_results import (
     ACTIVE_RESEARCH_ASSESSMENTS_KEY as ACTIVE_RESEARCH_ASSESSMENTS_KEY,
-    ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY as ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY,
     ActiveAssessmentResultContext,
     assessment_store as _assessment_store,
     record_assessment_result,
