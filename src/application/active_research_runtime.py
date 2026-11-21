@@ -987,8 +987,8 @@ class ActiveResearchRuntimeExecutor:
             diagnostics=discovery_diagnostics,
         )
 
-        model_attempt_context = ActiveModelAttemptContext.for_live_values(
-            live,
+        model_attempt_context = ActiveModelAttemptContext(
+            live=live,
             ensure_active=ensure_active,
             ensure_budget=execution_guard.ensure_budget,
             checkpoint=checkpoint,
