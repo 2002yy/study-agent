@@ -12,11 +12,12 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.application.research_runtime_observation import ActiveRuntimeObservationContext
 from src.web.research.active_adapter import ActiveResearchGateway
 from src.web.research.discovery_observability import record_search_call
 from src.web.research.page_intent import PageIntent
 from src.web.research.runtime import ResearchRuntimeCursor
-from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY, RuntimePhaseTiming
+from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 
 
 def _deeper_targeting_inputs(
@@ -131,15 +132,17 @@ def _lead_hints_for_claim(
 class ActiveSearchQueryExecution:
     """Only search transport and observation, never attempt accounting.
 
-    ``context`` and ``cursor`` are taken at the current attempt boundary;
-    the executor may later replace its runtime context at a checkpoint.
+    ``context`` and ``cursor`` freeze the attempted query's attribution after
+    the attempt-start checkpoint. Phase timing uses the live observation owner
+    instead: a later context rebind must not redirect the query's provenance,
+    or leave its completed timing in an abandoned context.
     """
 
     gateway: ActiveResearchGateway
     monotonic: Callable[[], float]
     hard_seconds_left: Callable[[], float]
     reserve_seconds: float
-    phase_timing: RuntimePhaseTiming
+    observation: ActiveRuntimeObservationContext
     context: dict[str, Any]
     claim_id: str
     cursor: ResearchRuntimeCursor
@@ -149,7 +152,7 @@ class ActiveSearchQueryExecution:
         remaining = self.hard_seconds_left()
         search_deadline = self.monotonic() + max(0.0, remaining - self.reserve_seconds)
         try:
-            self.phase_timing.begin("search")
+            self.observation.phase_start("search")
             payload = self.gateway.search_detailed(
                 query,
                 max_items=max_results,
@@ -170,4 +173,4 @@ class ActiveSearchQueryExecution:
             )
             return payload
         finally:
-            self.phase_timing.end("search", context=self.context)
+            self.observation.phase_end("search")
