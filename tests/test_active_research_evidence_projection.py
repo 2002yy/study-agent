@@ -29,28 +29,86 @@ def test_evidence_brief_without_gate_keeps_conditional_publication() -> None:
 
 
 def test_evidence_brief_prefers_claim_specific_extraction_anchor() -> None:
+    record = {
+        "candidate_id": "a1",
+        "item": {"title": "Paper", "url": "https://example.org/a"},
+        "assessment": {"url": "https://example.org/a"},
+        "read_status": "read",
+        "extractions": {
+            "c1": {"locator": "old-anchor", "anchored_spans": ["specific-span"]}
+        },
+    }
+    # Use the same server-owned identity as real extraction admission.
+    (ref,) = _evidence_snapshot("run-1", [record], []).refs
+    assert ref.lifecycle_status == "selected"
     link = SimpleNamespace(
-        evidence_id="e1", claim_id="c1", locator="old-anchor", anchored_spans=(),
+        evidence_id=ref.id, claim_id="c1", locator="old-anchor", anchored_spans=(),
         relation="supports", strength=0.8, source_role="primary",
         source_cluster_id="cluster-1", caveats=(),
-        to_dict=lambda: {"claim_id": "c1", "evidence_id": "e1"},
+        to_dict=lambda: {"claim_id": "c1", "evidence_id": ref.id},
     )
     state = SimpleNamespace(
         evidence_links=(link,),
-        evidence=(SimpleNamespace(evidence_id="e1", extraction_status="eligible",
+        evidence=(SimpleNamespace(evidence_id=ref.id, extraction_status="eligible",
                                   anchored_spans=("old-span",), published_at="2026-11-17"),),
         claims=(), conflict_gaps=(), gaps=(),
         budget=SimpleNamespace(to_dict=lambda: {}),
     )
-    record = {
-        "candidate_id": "a1", "item": {"title": "Paper", "url": "https://example.org/a"},
-        "extractions": {"c1": {"locator": "old-anchor", "anchored_spans": ["specific-span"]}},
-    }
     brief = _evidence_brief(state, None, [record])
     row = brief["eligible_evidence"][0]
     assert row["title"] == "Paper"
     assert row["anchored_spans"] == ["specific-span"]
-    assert brief["claim_links"] == [{"claim_id": "c1", "evidence_id": "e1"}]
+    assert brief["claim_links"] == [{"claim_id": "c1", "evidence_id": ref.id}]
+
+
+def test_evidence_brief_never_matches_another_source_with_same_claim_locator() -> None:
+    """Two pages can both have 'Section 2'; only the evidence ID identifies one."""
+    sources = [
+        {
+            "candidate_id": "a",
+            "item": {"title": "Wrong source", "url": "https://example.org/wrong"},
+            "assessment": {"url": "https://example.org/wrong"},
+            "read_status": "read",
+            "extractions": {
+                "c1": {"status": "eligible", "locator": "Section 2",
+                       "anchored_spans": ["wrong-page-span"]}
+            },
+        },
+        {
+            "candidate_id": "b",
+            "item": {"title": "Correct source", "url": "https://example.org/right"},
+            "assessment": {"url": "https://example.org/right"},
+            "read_status": "read",
+            "extractions": {
+                "c1": {"status": "eligible", "locator": "Section 2",
+                       "anchored_spans": ["right-page-span"]}
+            },
+        },
+    ]
+    refs = _evidence_snapshot("run-1", sources, []).refs
+    ref = next(item for item in refs if item.url == "https://example.org/right")
+    link = SimpleNamespace(
+        evidence_id=ref.id, claim_id="c1", locator="Section 2",
+        relation="supports", strength=0.9, source_role="primary",
+        source_cluster_id="cluster-1", caveats=(),
+        to_dict=lambda: {"claim_id": "c1", "evidence_id": ref.id},
+    )
+    state = SimpleNamespace(
+        evidence_links=(link,),
+        evidence=(SimpleNamespace(
+            evidence_id=ref.id, extraction_status="eligible",
+            anchored_spans=("fallback-span",), published_at="2026-11-20"
+        ),),
+        claims=(), conflict_gaps=(), gaps=(),
+        budget=SimpleNamespace(to_dict=lambda: {}),
+    )
+
+    brief = _evidence_brief(state, None, sources)
+    (row,) = brief["eligible_evidence"]
+    assert row["evidence_id"] == ref.id
+    assert row["url"] == "https://example.org/right"
+    assert row["title"] == "Correct source"
+    assert row["anchored_spans"] == ["right-page-span"]
 
 
 def test_evidence_projection_formats_open_claims_and_conflict_warning() -> None:
