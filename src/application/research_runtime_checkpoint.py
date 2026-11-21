@@ -7,8 +7,8 @@ checkpoint, without owning search, model calls or final publication.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
 import logging
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from typing import Any
 
