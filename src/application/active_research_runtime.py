@@ -927,6 +927,11 @@ class ActiveResearchRuntimeExecutor:
         )
         read_attempt_context = ActiveReadAttemptContext(
             breaker=breaker,
+            run_id=run_id,
+            utc_now=self.utc_now,
+            on_cursor_change=live.set_cursor,
+            research_seconds_left=research_seconds_left,
+            elapsed=elapsed,
             escalation_recorder=_record_escalation_diagnostics,
         )
 
@@ -1798,13 +1803,8 @@ class ActiveResearchRuntimeExecutor:
                         live.context,
                         candidate=candidate,
                         chain_steps=chain_steps,
-                        run_id=run_id,
                         attempt_number=attempt,
-                        utc_now=self.utc_now,
-                        on_cursor_change=live.set_cursor,
-                        research_seconds_left=research_seconds_left,
                         hard_timeout_seconds=live.state.budget.hard_timeout_seconds,
-                        elapsed=elapsed,
                     )
                     ensure_active()
                     # The candidate has content if *any* backend produced a
