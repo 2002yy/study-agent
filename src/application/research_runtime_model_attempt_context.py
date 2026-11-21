@@ -1,7 +1,7 @@
-"""Run-scoped model attempt callbacks with explicit mutable-cursor access.
+"""Run-scoped model attempts bound to one recovery-safe live owner.
 
 The executor owns the real cursor and checkpoint implementation. This context
-only binds their callbacks and preserves the frozen before/after-call order.
+binds the stable live owner and preserves the frozen before/after-call order.
 """
 
 from __future__ import annotations
@@ -37,32 +37,10 @@ class LiveModelAttemptValues(Protocol):
 class ActiveModelAttemptContext:
     """Keep model attempt order without retaining stale cursor or budget state."""
 
-    current_state: Callable[[], ResearchState]
-    current_cursor: Callable[[], ResearchRuntimeCursor]
-    set_cursor: Callable[[ResearchRuntimeCursor], None]
+    live: LiveModelAttemptValues
     ensure_active: Callable[[], None]
     ensure_budget: Callable[[ResearchState], None]
     checkpoint: Callable[[], Any]
-
-    @classmethod
-    def for_live_values(
-        cls,
-        live: LiveModelAttemptValues,
-        *,
-        ensure_active: Callable[[], None],
-        ensure_budget: Callable[[ResearchState], None],
-        checkpoint: Callable[[], Any],
-    ) -> ActiveModelAttemptContext:
-        """Observe rebound state/cursor through one explicit per-run owner."""
-
-        return cls(
-            current_state=live.current_state,
-            current_cursor=live.current_cursor,
-            set_cursor=live.set_cursor,
-            ensure_active=ensure_active,
-            ensure_budget=ensure_budget,
-            checkpoint=checkpoint,
-        )
 
     def next_attempt_number(self, logical_call_id: str) -> int:
         """Admit from the latest recovered cursor, before any physical model I/O.
@@ -72,18 +50,18 @@ class ActiveModelAttemptContext:
         leave budget checks and persistence to the ``started`` callback.
         """
 
-        return _model_attempt_start(self.current_cursor(), logical_call_id)
+        return _model_attempt_start(self.live.current_cursor(), logical_call_id)
 
     def started(self, marker: ResearchModelAttemptStart) -> None:
         """Persist inflight *before* the model gateway can reserve and send."""
 
         self.ensure_active()
-        self.ensure_budget(self.current_state())
-        self.set_cursor(begin_model_attempt(self.current_cursor(), marker))
+        self.ensure_budget(self.live.current_state())
+        self.live.set_cursor(begin_model_attempt(self.live.current_cursor(), marker))
         self.checkpoint()
 
     def finished(self, audit: ResearchModelCallAudit) -> None:
         """Finish in memory; the semantic-result checkpoint remains the owner."""
 
-        self.set_cursor(finish_model_attempt(self.current_cursor(), audit))
+        self.live.set_cursor(finish_model_attempt(self.live.current_cursor(), audit))
         self.ensure_active()
