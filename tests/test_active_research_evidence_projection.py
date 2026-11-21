@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from src.application.active_research_evidence_projection import (
     _bounded_retrieval_policy,
     _evidence_brief,
+    _evidence_id_for_record,
     _evidence_snapshot,
     _format_evidence_brief,
     _source_record,
@@ -31,8 +32,8 @@ def test_evidence_brief_without_gate_keeps_conditional_publication() -> None:
 def test_evidence_brief_prefers_claim_specific_extraction_anchor() -> None:
     record = {
         "candidate_id": "a1",
-        "item": {"title": "Paper", "url": "https://example.org/a"},
-        "assessment": {"url": "https://example.org/a"},
+        "item": {"title": "Paper", "url": "https://example.org/a/"},
+        "assessment": {"url": "https://EXAMPLE.org/a"},
         "read_status": "read",
         "extractions": {
             "c1": {"locator": "old-anchor", "anchored_spans": ["specific-span"]}
@@ -41,6 +42,9 @@ def test_evidence_brief_prefers_claim_specific_extraction_anchor() -> None:
     # Use the same server-owned identity as real extraction admission.
     (ref,) = _evidence_snapshot("run-1", [record], []).refs
     assert ref.lifecycle_status == "selected"
+    # Extraction acceptance must use the same URL precedence/canonicalization
+    # as the server snapshot even when item and assessment spellings differ.
+    assert _evidence_id_for_record("run-1", record, [record], []) == ref.id
     link = SimpleNamespace(
         evidence_id=ref.id, claim_id="c1", locator="old-anchor", anchored_spans=(),
         relation="supports", strength=0.8, source_role="primary",
@@ -109,6 +113,52 @@ def test_evidence_brief_never_matches_another_source_with_same_claim_locator() -
     assert row["url"] == "https://example.org/right"
     assert row["title"] == "Correct source"
     assert row["anchored_spans"] == ["right-page-span"]
+
+
+
+def test_brief_keeps_source_identity_when_snapshot_dedupes_url_variants() -> None:
+    sources = [
+        {
+            "candidate_id": "first",
+            "item": {"title": "First", "url": "https://EXAMPLE.org/report/"},
+            "assessment": {"url": "https://EXAMPLE.org/report/"},
+            "read_status": "read",
+            "extractions": {"other": {"locator": "Section 2"}},
+        },
+        {
+            "candidate_id": "second",
+            "item": {"title": "Second", "url": "https://example.org/report"},
+            "assessment": {"url": "https://example.org/report"},
+            "read_status": "read",
+            "extractions": {
+                "c1": {"locator": "Section 2", "anchored_spans": ["second-only"]}
+            },
+        },
+    ]
+    (ref,) = _evidence_snapshot("run-1", sources, []).refs
+    assert ref.lifecycle_status == "selected"
+    assert _evidence_id_for_record("run-1", sources[1], sources, []) == ref.id
+    link = SimpleNamespace(
+        evidence_id=ref.id, claim_id="c1", locator="Section 2",
+        relation="supports", strength=0.8, source_role="primary",
+        source_cluster_id="cluster-1", caveats=(),
+        to_dict=lambda: {"claim_id": "c1", "evidence_id": ref.id},
+    )
+    state = SimpleNamespace(
+        evidence_links=(link,),
+        evidence=(SimpleNamespace(
+            evidence_id=ref.id, extraction_status="eligible",
+            anchored_spans=("fallback",), published_at="2026-11-20",
+        ),),
+        claims=(), conflict_gaps=(), gaps=(),
+        budget=SimpleNamespace(to_dict=lambda: {}),
+    )
+
+    brief = _evidence_brief(state, None, sources)
+    (row,) = brief["eligible_evidence"]
+    assert row["title"] == "Second"
+    assert row["url"] == "https://example.org/report"
+    assert row["anchored_spans"] == ["second-only"]
 
 
 def test_evidence_projection_formats_open_claims_and_conflict_warning() -> None:
