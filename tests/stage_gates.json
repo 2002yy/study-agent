@@ -229,7 +229,7 @@
     "a2d_chain": [
       "tests/test_chain_executor.py",
       "tests/test_wigolo_http_executor.py",
-      "tests/test_read_escalation.py",
+      "tests/test_wigolo_reader_policy.py",
       "tests/test_read_retry.py"
     ],
     "a3_browser": [
@@ -921,7 +921,7 @@
       "tests/test_research_scheduler.py",
       "tests/test_chain_executor.py",
       "tests/test_wigolo_http_executor.py",
-      "tests/test_read_escalation.py",
+      "tests/test_wigolo_reader_policy.py",
       "tests/test_read_retry.py",
       "tests/test_browser_honesty.py",
       "tests/test_crawl4ai_timeout_propagation.py",
