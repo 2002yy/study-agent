@@ -7,10 +7,13 @@ does not execute reads, update the durable cursor, checkpoint, or spend budgets.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import InitVar, dataclass, field, replace
 from math import ceil
 from typing import Any
 
+from src.application.research_runtime_read_plan_observation import (
+    record_read_plan_reserve,
+)
 from src.web.research.candidate_ranking import RankedCandidate
 from src.web.research.contracts import ResearchClaim, ResearchState
 from src.web.research.scheduler import (
@@ -26,14 +29,15 @@ class FairReadPlanContext:
     """Own all per-plan mutable bindings, cluster coverage and read slots.
 
     A fresh instance is used per wave. Input rankings and durable coverage are
-    read-only; trace and diagnostics receive the same observations as before.
+    read-only. The trace records decisions during planning; the reserve
+    diagnostic is written once at construction and never retained.
     """
 
     state: ResearchState
     rankings: Mapping[str, tuple[RankedCandidate, ...]]
     covered_cluster_ids_by_claim: Mapping[str, set[str]] | None = None
     trace: SelectionTraceCollector | None = None
-    diagnostics: dict[str, Any] | None = None
+    diagnostics: InitVar[dict[str, Any] | None] = None
     physical: list[dict[str, str]] = field(default_factory=list, init=False)
     targets: list[dict[str, str]] = field(default_factory=list, init=False)
     physical_ids: set[str] = field(default_factory=set, init=False)
@@ -44,7 +48,7 @@ class FairReadPlanContext:
     reserve: int = field(init=False)
     normal_limit: int = field(init=False)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, diagnostics: dict[str, Any] | None) -> None:
         self.claims = {claim.id: claim for claim in self.state.claims}
         # Copy prior-wave durable truth; adding a binding cannot modify the input.
         self.claim_clusters = {
@@ -70,14 +74,17 @@ class FairReadPlanContext:
             - self.reserve
             + reclaimed,
         )
-        if self.diagnostics is not None:
-            self.diagnostics["read_reserve"] = {
-                "configured": self.reserve,
-                "reclaimed": reclaimed,
-                "reclaim_reason": reclaim_reason,
-                "hard_cap": self.state.budget.max_reads,
-                "reads_used": self.state.budget.reads_used,
-            }
+        # Emit the legacy observation once without retaining a replaceable
+        # run-context metrics dict for the rest of the plan's lifetime.
+        if diagnostics is not None:
+            record_read_plan_reserve(
+                diagnostics,
+                configured=self.reserve,
+                reclaimed=reclaimed,
+                reclaim_reason=reclaim_reason,
+                hard_cap=self.state.budget.max_reads,
+                reads_used=self.state.budget.reads_used,
+            )
 
     def bind(self, candidate_id: str, claim_id: str, item: RankedCandidate) -> None:
         pair = (candidate_id, claim_id)
