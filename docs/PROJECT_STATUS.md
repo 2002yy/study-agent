@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-21 并发研究 HTTP/Browser Envelope 账本隔离（P0 静态候选）
+
+- **复现原理**：旧 `read_escalation._RUN_ENVELOPE` 是进程级两键字典；研究 A 的实际读取消耗可能被研究 B 的启动重置清零，研究 B 的耗时亦可能计入研究 A。既有 `reset_run_envelope` 只按 tier 归零、没有 run 标识，因此进程级字典不符合 per-run 契约。
+- **最小修复**：采用 `ContextVar` 存储 HTTP/Browser 两项耗时，读/写不再跨并发执行上下文共享；每次扣费以 copy-on-write 更新，避免 asyncio 任务继承同一个可变字典；正式运行起点仍分别重置两 tier。保留冻结 3 秒门槛、原准入/超时、物理扣费时机、checkpoint/恢复和证据发布；B-Search Shadow 原样保留。
+- **负控与范围**：在既有 `tests/test_read_escalation.py` 中覆盖两个线程交错重置与扣费、异步同级任务隔离、同一上下文内 HTTP/Browser 分账。既有读取升级、Wigolo legacy/explicit parity 与完整主动研究回归继续保留。此修复针对同一线程/async task 执行一次研究的常规调用链；若未来将单个研究的读取扣费拆到独立线程，必须显式传递运行账本，不可假定 ContextVar 自动跨线程传播。
+- **门禁**：`priority=P0`（读取预算完整性）、`loop=static`、`owner=retrieval/envelope-concurrency`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。本批须在精确 HEAD 的 GitHub 后端/集成 CI 与审阅合格后才合并，动态付费测试不运行。
+
 ### 2026-11-21 旧 HTTP Envelope 包装接口退役（独立 P3 静态减负片）
 
 - **用户决定**：B-Search Shadow 保留，`research_shadow_seam`、三处研究观测入口及与学习状态共享的隔离机制不动。只退役 `read_escalation.py` 的四个 `*_http_envelope` 兼容包装接口。
