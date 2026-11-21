@@ -263,6 +263,7 @@
     ],
     "runtime_read_loop": [
       "tests/test_active_research_runtime.py",
+      "tests/test_research_runtime_lead_read_context.py",
       "tests/test_active_research_read_planner.py",
       "tests/test_research_active_adapter.py",
       "tests/test_reader_backends.py"
@@ -927,6 +928,7 @@
       "tests/test_crawl4ai_timeout_propagation.py",
       "tests/test_crawl4ai_shutdown_contract.py",
       "tests/test_active_research_runtime.py",
+      "tests/test_research_runtime_lead_read_context.py",
       "tests/test_active_research_read_planner.py",
       "tests/test_research_active_adapter.py",
       "tests/test_reader_backends.py"

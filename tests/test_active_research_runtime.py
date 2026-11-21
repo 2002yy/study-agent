@@ -3358,10 +3358,20 @@ def test_v1_planning_attempt_exhaustion_is_classified_before_third_call(
 
 
 def test_bounded_lead_read_discovers_assets_without_creating_evidence(
-    tmp_path: Any,
+    tmp_path: Any, monkeypatch: Any,
 ) -> None:
     """Slice 1: a lead_only candidate is read as a lead and yields discovery
     assets only; it never produces eligible evidence or an evidence read."""
+    import src.application.active_research_runtime as runtime_module
+
+    checkpoint_callers: list[str] = []
+    record_timing = runtime_module._record_checkpoint_timing
+
+    def capture_timing(*args: Any, **kwargs: Any) -> None:
+        checkpoint_callers.append(str(kwargs.get("caller") or ""))
+        record_timing(*args, **kwargs)
+
+    monkeypatch.setattr(runtime_module, "_record_checkpoint_timing", capture_timing)
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "lead.sqlite"))
     run = _pending_active_run(
@@ -3423,6 +3433,11 @@ def test_bounded_lead_read_discovers_assets_without_creating_evidence(
         "wave_progress"
     ]
     assert any(item["discovery_progress"] for item in wave_progress)
+    # The durable calls stay in execute(), not inside the new attempt context:
+    # checkpoint caller labels are part of the frozen timing audit contract.
+    assert "execute" in checkpoint_callers
+    assert "read" not in checkpoint_callers
+    assert "complete" not in checkpoint_callers
 
 
 class _AdvancingClock:
