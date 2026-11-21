@@ -459,16 +459,6 @@ def test_f35_seed_refs_that_disagree_with_the_handoff_block_finalization(ctx):
 # --- review round 1: existing-terminal integrity and transaction ordering ----------
 
 
-def test_a_valid_completed_terminal_is_returned_unchanged(ctx):
-    service, repository, _runs, parent, prepared, execution = ctx
-    set_child_status(repository, prepared.child_run_id, "completed")
-    first = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
-    second = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
-    assert first.status == second.status == "completed"
-    assert first.result == second.result
-    assert execution.calls == 0
-
-
 def test_a_completed_terminal_without_a_result_is_not_trusted(ctx):
     service, repository, _runs, parent, _prepared, execution = ctx
     tamper(

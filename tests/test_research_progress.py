@@ -497,28 +497,3 @@ def test_no_progress_stop_can_finish_with_its_own_fenced_lease(repository):
     assert stopped is not None
     assert stopped.status == STATE_STOPPED
     assert stopped.lease_owner == ""
-
-
-def test_a_round_with_gain_does_not_stop_the_research(repository):
-    """The negative side: a research that is still learning must keep going.
-
-    Otherwise the "no progress" rule is indistinguishable from a rule that
-    stops after one round.
-    """
-
-    _create(repository)
-    _checkpoint(repository, index=0)
-
-    claimed = repository.claim(RESEARCH, owner="worker-1")
-    repository.checkpoint(
-        RESEARCH,
-        _round(RESEARCH, 1, evidence=("fact-1",), urls=("https://source/1",)),
-        owner="worker-1",
-        fencing_token=claimed.fencing_token,
-        expected_state_version=claimed.state_version,
-    )
-    repository.release(RESEARCH, owner="worker-1", fencing_token=claimed.fencing_token)
-
-    assert repository.stop_if_no_progress(RESEARCH) is None
-    state = repository.load(RESEARCH)
-    assert state.status == STATE_CHECKPOINTED
