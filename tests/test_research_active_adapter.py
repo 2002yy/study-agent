@@ -221,6 +221,45 @@ def test_active_gateway_reuses_existing_reader() -> None:
     assert reader.calls == [("https://example.test/article", 1234)]
 
 
+def test_injected_wigolo_backend_never_builds_a_second_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Constructor injection is authoritative for the whole gateway lifetime."""
+    backend = object()
+    gateway = ActiveResearchGateway(
+        search_backend=FakeSearchBackend([_payload()]),
+        read_gateway=FakeReadGateway(),
+        escalation_backend=backend,
+    )
+
+    def forbidden_build(tier: str) -> None:
+        raise AssertionError("injected Wigolo backend must not be replaced")
+
+    monkeypatch.setattr(gateway, "_build_escalation_backend", forbidden_build)
+    assert gateway.escalation_backend() is backend
+    assert gateway.escalation_backend() is backend
+
+
+def test_absent_wigolo_backend_is_cached_after_first_lazy_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A provider returning None must not be constructed repeatedly."""
+    gateway = ActiveResearchGateway(
+        search_backend=FakeSearchBackend([_payload()]),
+        read_gateway=FakeReadGateway(),
+    )
+    built_tiers: list[str] = []
+
+    def unavailable_backend(tier: str) -> None:
+        built_tiers.append(tier)
+        return None
+
+    monkeypatch.setattr(gateway, "_build_escalation_backend", unavailable_backend)
+    assert gateway.escalation_backend() is None
+    assert gateway.escalation_backend() is None
+    assert built_tiers == ["http"]
+
+
 class DeadlineSearchBackend:
     def __init__(self, payload: dict[str, Any]) -> None:
         self.payload = payload
