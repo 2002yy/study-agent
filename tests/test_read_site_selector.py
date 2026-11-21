@@ -29,7 +29,10 @@ from src.application.reader_hint_routing import (  # noqa: E402
     SESSION_STATE,
 )
 from src.web.research.chain_executor import ChainStepResult  # noqa: E402
-from src.web.research.candidate_pool import CandidatePoolItem  # noqa: E402
+from src.application.research_runtime_read_site_observability import (  # noqa: E402
+    record_read_site_specialist,
+)
+from tests.research_read_candidate_factory import read_candidate  # noqa: E402
 from tests.research_read_site_scenarios import ART, run_read_site_scenario  # noqa: E402
 
 
@@ -131,22 +134,6 @@ def _unusable_specialist(*, url, **kwargs):
     }
 
 
-def _site_candidate(candidate_id: str, url: str) -> CandidatePoolItem:
-    return CandidatePoolItem(
-        id=candidate_id,
-        canonical_url=url,
-        url=url,
-        title="",
-        snippet="",
-        source="",
-        published_at="",
-        query_ids=(),
-        intents=(),
-        providers=(),
-        first_seen_rank=0,
-    )
-
-
 def test_read_site_context_default_does_not_invoke_or_sample_budget(monkeypatch) -> None:
     from src.application.research_runtime_read_site import ActiveReadSiteContext
 
@@ -163,7 +150,7 @@ def test_read_site_context_default_does_not_invoke_or_sample_budget(monkeypatch)
     context: dict = {}
     site = ActiveReadSiteContext(hard_seconds_left=unexpected_time)
     assert site.try_specialist(
-        context, _site_candidate("a", "https://example.com/a"), 1200
+        context, read_candidate("a", "https://example.com/a"), 1200
     ) is None
     assert ART.ACTIVE_RESEARCH_METRICS_KEY not in context
 
@@ -189,9 +176,9 @@ def test_read_site_context_uses_latest_context_and_time(monkeypatch) -> None:
     site = ActiveReadSiteContext(hard_seconds_left=lambda: time_left[0])
     first = _hint_context(JS_RENDER, session_id="session-one")
     second = _hint_context(JS_RENDER, session_id="session-two")
-    assert site.try_specialist(first, _site_candidate("a", "https://a.test"), 1000)
+    assert site.try_specialist(first, read_candidate("a", "https://a.test"), 1000)
     time_left[0] = 4.0
-    assert site.try_specialist(second, _site_candidate("b", "https://b.test"), 2000)
+    assert site.try_specialist(second, read_candidate("b", "https://b.test"), 2000)
     assert actual_calls == [
         {"session_id": "session-one", "candidate_id": "a", "remaining": 13.0},
         {"session_id": "session-two", "candidate_id": "b", "remaining": 4.0},
@@ -214,7 +201,7 @@ def test_read_site_context_failed_specialist_keeps_default_fallback(monkeypatch)
     context = _hint_context(JS_RENDER)
     site = ActiveReadSiteContext(hard_seconds_left=lambda: 3.0)
     assert site.try_specialist(
-        context, _site_candidate("a", "https://example.com/a"), 2000
+        context, read_candidate("a", "https://example.com/a"), 2000
     ) is None
     record = context[ART.ACTIVE_RESEARCH_METRICS_KEY]["read_site_specialist"][0]
     assert record["specialist_attempted"] is True
@@ -334,3 +321,74 @@ def test_specialist_config_fails_closed(monkeypatch, value, reason) -> None:
     status = crawl4ai_specialist_status()
     assert status["config_ok"] is False
     assert status["reason"] == reason
+
+
+def test_specialist_diagnostics_only_observe_and_keep_last_sixty() -> None:
+    """No second selector or reader call is needed to serialize an outcome."""
+    assert runtime.record_read_site_specialist is record_read_site_specialist
+    context = {
+        ART.ACTIVE_RESEARCH_METRICS_KEY: {
+            "read_site_specialist": [{"previous": index} for index in range(60)],
+            "other": {"preserve": True},
+        }
+    }
+    route = {
+        "requested_reader_capabilities": [JS_RENDER],
+        "reason": "",
+    }
+    specialist = _usable_specialist(url="https://example.test")
+    original_route = dict(route)
+    original_specialist = dict(specialist)
+    record_read_site_specialist(
+        context, route=route, specialist=specialist, hint_source="REQUEST_FIELD"
+    )
+    metrics = context[ART.ACTIVE_RESEARCH_METRICS_KEY]
+    assert len(metrics["read_site_specialist"]) == 60
+    assert metrics["read_site_specialist"][0] == {"previous": 1}
+    assert metrics["read_site_specialist"][-1] == {
+        "requested_reader_capabilities": [JS_RENDER],
+        "hint_source": "REQUEST_FIELD",
+        "hint_honored": True,
+        "specialist_attempted": True,
+        "specialist_backend": "crawl4ai_browser",
+        "specialist_outcome": "success",
+        "specialist_usable": True,
+        "specialist_unavailable_reason": "",
+        "specialist_latency_ms": 12.0,
+        "fallback_used": False,
+    }
+    assert metrics["other"] == {"preserve": True}
+    assert route == original_route
+    assert specialist == original_specialist
+
+
+def test_specialist_diagnostics_preserve_malformed_metrics_behavior() -> None:
+    invalid_metrics = {ART.ACTIVE_RESEARCH_METRICS_KEY: "legacy"}
+    record_read_site_specialist(
+        invalid_metrics, route={"reason": "hints_disabled"},
+        specialist=None, hint_source="",
+    )
+    assert invalid_metrics[ART.ACTIVE_RESEARCH_METRICS_KEY] == "legacy"
+    invalid_history = {ART.ACTIVE_RESEARCH_METRICS_KEY: {
+        "read_site_specialist": "legacy",
+    }}
+    record_read_site_specialist(
+        invalid_history,
+        route={"requested_reader_capabilities": [SESSION_STATE], "reason": "missing"},
+        specialist=None,
+        hint_source="REQUEST_FIELD",
+    )
+    assert invalid_history[ART.ACTIVE_RESEARCH_METRICS_KEY][
+        "read_site_specialist"
+    ] == [{
+        "requested_reader_capabilities": [SESSION_STATE],
+        "hint_source": "REQUEST_FIELD",
+        "hint_honored": False,
+        "specialist_attempted": False,
+        "specialist_backend": "",
+        "specialist_outcome": "",
+        "specialist_usable": False,
+        "specialist_unavailable_reason": "missing",
+        "specialist_latency_ms": 0.0,
+        "fallback_used": True,
+    }]
