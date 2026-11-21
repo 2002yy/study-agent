@@ -37,13 +37,7 @@ The opt-in text/PDF pilot uses a snapshot allowlist, rechecks bytes on each read
 
 These outputs are diagnostic runtime transcripts, not scored release observations. The guard covers Python socket connects in this process; it is not an OS-level network sandbox. An absent PDF renderer is reported as `unavailable`, and a present renderer does not supply semantic vision. The mixed case records its PDF text read and visual read separately.
 
-To record the five approved **frozen** reader pilots against one clean code head and score them, run:
-
-```powershell
-.venv\Scripts\python.exe tools/run_release_benchmark_recorded_pilot.py --output-dir .workbuddy/release-recorded-pilot
-```
-
-The output directory contains `pilot_bundle.json`, `observation.json`, and `score.json`. The observation binds the bundle's exact byte SHA-256, registry/gold digests, source locator/SHA/page/region, and code head. It maps WebLookupService's local source IDs back to registry IDs only after checking the source binding. Reader success does not imply an answer: text/PDF cases stay `unavailable` because answer generation was not run; image/chart/mixed stay `unavailable` without qualified visual interpretation. The live case remains `missing` until a real manual live read with an actual human reviewer is recorded. The scorer still reports `NO_GO`.
+**Reader-only score recorder retired (2026-11-22).** The historical `run_release_benchmark_recorded_pilot.py`, its result-conversion module, specialized test and stage registration were removed as one obsolete experiment. It never generated an answer; its scored run therefore remained `NO_GO`. The original `docs/research_quality/RELEASE_BENCHMARK_RECORDED_PILOT_2026-09-29/` bundle, observation and score are preserved as fixed evidence, not a runnable current evaluation. The independent `run_release_benchmark_frozen_pilot.py` remains available to inspect byte-bound snapshot reads without semantic scoring.
 
 The opt-in **answer diagnostic** runs the same frozen text/PDF reader, then sends only the question and byte-bound source text to a configured remote model. It records the model identity, complete prompt/response, source snapshot and context digests, structured claims, and code-owned citation locators:
 
@@ -70,7 +64,7 @@ The packet binds the answer bundle digest and contains the previously withheld g
 .venv\Scripts\python.exe tools/record_release_benchmark_remote_observation.py --answer-bundle .workbuddy/remote-answer-v2/answer_bundle.json --output-dir .workbuddy/remote-observation-v2
 ```
 
-The current v2 run scope is two frozen TEXT/PDF cases. The visual frozen cases and live case remain `missing` in this recording; the older reader-only pilot retains their unavailable/read evidence separately. V2 does not import the DeepSeek pro diagnostic verdicts, and release remains `NO_GO`.
+The current v2 run scope is two frozen TEXT/PDF cases. The visual frozen cases and live case remain `missing` in this recording; the archived 2026-09-29 reader-only records retain their unavailable/read evidence as historical evidence. V2 does not import the DeepSeek pro diagnostic verdicts, and release remains `NO_GO`.
 
 `release-benchmark-semantic-calibration-v1` replays a saved probe's prompts and raw responses against the answer bundle and frozen source before measuring two separate properties: target control detection and non-target specificity. For a wrong locator, coverage and grounding must remain supported; for a missing answer aspect, grounding and citation support must remain supported; for an unsupported added sentence, coverage must remain covered while grounding and citation support fail. The actual-answer diagnostic must be clean, each control needs its target issue once, and unrelated issues or dimension changes fail specificity. This is a diagnostic calibration gate: even a 6/6 pass does not make a model a qualified judge or create formal semantic labels. A same-provider reviewer has no independent authority. This describes the **historical** calibration protocol, not a currently runnable command. The old calibration CLI has been retired; keep its saved artifact and finding as evidence of a failed gate. The active release pathway instead requires independent review and an explicit authority decision.
 
