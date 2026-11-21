@@ -19,15 +19,51 @@ def _schedule(
     breaker=None,
     remaining=lambda: 35.0,
 ):
-    return read_scheduling.schedule_active_research_read(
-        candidate_id=candidate_id,
-        url="https://example.org/article",
-        read_outcomes=outcomes,
-        context=context if context is not None else {},
+    dispatch = read_scheduling.ActiveReadDispatchContext(
         breaker=breaker,
         available_backends=BACKENDS,
         research_seconds_left=remaining,
     )
+    return dispatch.schedule(
+        candidate=read_candidate(candidate_id),
+        read_outcomes=outcomes,
+        context=context if context is not None else {},
+    )
+
+
+def test_pure_admission_decision_does_not_write_observations() -> None:
+    """Scheduling must remain usable without a mutable diagnostics mapping."""
+    clock_samples: list[str] = []
+
+    def sample() -> float:
+        clock_samples.append("research_window")
+        return 30.0
+
+    decision = read_scheduling.schedule_active_research_read(
+        candidate_id="target",
+        url="https://example.org/article",
+        read_outcomes=(),
+        breaker=None,
+        available_backends=BACKENDS,
+        research_seconds_left=sample,
+    )
+    assert decision.executable and decision.backend == "native_http"
+    assert clock_samples == ["research_window"]
+
+
+def test_observation_uses_latest_supplied_context_without_rescheduling() -> None:
+    dispatch = read_scheduling.ActiveReadDispatchContext(
+        breaker=None,
+        available_backends=BACKENDS,
+        research_seconds_left=lambda: 30.0,
+    )
+    first, rebound = {}, {}
+    candidate = read_candidate("target")
+    dispatch.schedule(candidate=candidate, read_outcomes=(), context=first)
+    dispatch.schedule(candidate=candidate, read_outcomes=(), context=rebound)
+    assert len(first[ACTIVE_RESEARCH_METRICS_KEY]["read_scheduling"]) == 1
+    assert len(rebound[ACTIVE_RESEARCH_METRICS_KEY]["read_scheduling"]) == 1
+    assert first is not rebound
 
 
 def test_candidate_attempt_history_is_scoped_and_does_not_mutate_cursor() -> None:
