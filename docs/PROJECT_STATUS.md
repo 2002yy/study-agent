@@ -1349,6 +1349,12 @@ mypy 基线 **115/125** 通过；真实检索和模型 `not_run`。
 - **验收**：分支 `cleanup/retire-disqualified-release-semantic-probe-20261122` 从 `main@42329be` 独立起步；本批尚未执行本地 pytest/Ruff，CI 精确 HEAD 与审查必须通过后才能合并。建议影响集：`test_release_benchmark_blind_review.py`、`test_release_benchmark_blind_review_cli.py`、`test_release_benchmark_reviewer_qualification.py`、`test_release_benchmark_qualification_holdout.py`、`test_stage_gates_policy.py` 以及 `release-benchmark-pilot` 阶段门。不能用历史 §161 的测量代替新 HEAD CI。
 - **决策**：`priority=P3`、`loop=static`、`owner=evals/release-benchmark`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。与 #614 的研究执行器旧别名收口独立；未改变正式研究结果、持久状态和费用结算。
 
+### 2026-11-22 冻结来源读取历史评分记录器退役（同一 Release Benchmark 减负片）
+
+- 旧 `run_release_benchmark_recorded_pilot.py` 把五个冻结来源的读取成功/不可用投影为无真实答案的记录，产物始终是 `NO_GO`；现行离线字节绑定读取已有 `run_release_benchmark_frozen_pilot.py`，正式远程答案观察与独立盲评拥有各自路径。此旧记录器不再承担独立质量判定。
+- 连同 `src/evals/release_benchmark_recorded_pilot.py`、专属 CLI、`tests/test_release_benchmark_recorded_pilot.py` 整组删除；移除 `tests/stage_gates.json` 的专项测试注册，修正 `tests/fixtures/release_benchmark/README.md` 中已经不存在的命令。保留现行冻结读取 CLI、`src/evals/release_benchmark_replay.py`、正式观察和评分器、其相关测试，以及 2026-09-29 的历史 bundle/observation/score 三份原始产物。
+- 这不是删除生产预算/安全/证据保护，不修改正式模型派发、恢复、检索来源和评分器语义。**无真实调用或动态质量测量**；精确 HEAD 的 CI 尚待通过，审查未结论前不得合并。该退役须与上方旧语义探针一并审核新 HEAD 范围。
+
 ## 0A. 已冻结研究路线（摘要）
 
 `Lookup → VERIFIED / SAFE_ABSTAIN / ESCALATE_STANDARD`；Standard 的多源/比较/冲突和 Deep 的计划/缺口/收益/暂停恢复复用既有 `ActiveResearchRuntimeExecutor`，不另起第二套研究引擎。`usable/read_backed/relevant` 不能等同逐条 claim 支持；默认 `simple` 只验证引用 URL 属于已读来源，不标逐条 verified。
