@@ -15,6 +15,33 @@ from src.application.active_research_evidence_projection import (
 from src.web.research.candidate_pool import CandidatePoolItem
 
 
+
+def _eligible_state(
+    evidence_id: str,
+    *,
+    locator: str,
+    anchored_spans: tuple[str, ...],
+    published_at: str,
+    strength: float = 0.8,
+) -> SimpleNamespace:
+    """Only the shared evidence-link fixture; each source scenario stays explicit."""
+    link = SimpleNamespace(
+        evidence_id=evidence_id, claim_id="c1", locator=locator,
+        anchored_spans=(), relation="supports", strength=strength,
+        source_role="primary", source_cluster_id="cluster-1", caveats=(),
+        to_dict=lambda: {"claim_id": "c1", "evidence_id": evidence_id},
+    )
+    return SimpleNamespace(
+        evidence_links=(link,),
+        evidence=(SimpleNamespace(
+            evidence_id=evidence_id, extraction_status="eligible",
+            anchored_spans=anchored_spans, published_at=published_at,
+        ),),
+        claims=(), conflict_gaps=(), gaps=(),
+        budget=SimpleNamespace(to_dict=lambda: {}),
+    )
+
+
 def test_evidence_brief_without_gate_keeps_conditional_publication() -> None:
     state = SimpleNamespace(
         evidence_links=(), evidence=(), claims=(SimpleNamespace(id="c1", priority="critical"),),
@@ -45,19 +72,7 @@ def test_evidence_brief_prefers_claim_specific_extraction_anchor() -> None:
     # Extraction acceptance must use the same URL precedence/canonicalization
     # as the server snapshot even when item and assessment spellings differ.
     assert _evidence_id_for_record("run-1", record, [record], []) == ref.id
-    link = SimpleNamespace(
-        evidence_id=ref.id, claim_id="c1", locator="old-anchor", anchored_spans=(),
-        relation="supports", strength=0.8, source_role="primary",
-        source_cluster_id="cluster-1", caveats=(),
-        to_dict=lambda: {"claim_id": "c1", "evidence_id": ref.id},
-    )
-    state = SimpleNamespace(
-        evidence_links=(link,),
-        evidence=(SimpleNamespace(evidence_id=ref.id, extraction_status="eligible",
-                                  anchored_spans=("old-span",), published_at="2026-11-17"),),
-        claims=(), conflict_gaps=(), gaps=(),
-        budget=SimpleNamespace(to_dict=lambda: {}),
-    )
+    state = _eligible_state(ref.id, locator="old-anchor", anchored_spans=("old-span",), published_at="2026-11-17")
     brief = _evidence_brief(state, None, [record])
     row = brief["eligible_evidence"][0]
     assert row["title"] == "Paper"
@@ -91,22 +106,7 @@ def test_evidence_brief_never_matches_another_source_with_same_claim_locator() -
     ]
     refs = _evidence_snapshot("run-1", sources, []).refs
     ref = next(item for item in refs if item.url == "https://example.org/right")
-    link = SimpleNamespace(
-        evidence_id=ref.id, claim_id="c1", locator="Section 2",
-        relation="supports", strength=0.9, source_role="primary",
-        source_cluster_id="cluster-1", caveats=(),
-        to_dict=lambda: {"claim_id": "c1", "evidence_id": ref.id},
-    )
-    state = SimpleNamespace(
-        evidence_links=(link,),
-        evidence=(SimpleNamespace(
-            evidence_id=ref.id, extraction_status="eligible",
-            anchored_spans=("fallback-span",), published_at="2026-11-20"
-        ),),
-        claims=(), conflict_gaps=(), gaps=(),
-        budget=SimpleNamespace(to_dict=lambda: {}),
-    )
-
+    state = _eligible_state(ref.id, locator="Section 2", anchored_spans=("fallback-span",), published_at="2026-11-20", strength=0.9)
     brief = _evidence_brief(state, None, sources)
     (row,) = brief["eligible_evidence"]
     assert row["evidence_id"] == ref.id
@@ -138,22 +138,7 @@ def test_brief_keeps_source_identity_when_snapshot_dedupes_url_variants() -> Non
     (ref,) = _evidence_snapshot("run-1", sources, []).refs
     assert ref.lifecycle_status == "selected"
     assert _evidence_id_for_record("run-1", sources[1], sources, []) == ref.id
-    link = SimpleNamespace(
-        evidence_id=ref.id, claim_id="c1", locator="Section 2",
-        relation="supports", strength=0.8, source_role="primary",
-        source_cluster_id="cluster-1", caveats=(),
-        to_dict=lambda: {"claim_id": "c1", "evidence_id": ref.id},
-    )
-    state = SimpleNamespace(
-        evidence_links=(link,),
-        evidence=(SimpleNamespace(
-            evidence_id=ref.id, extraction_status="eligible",
-            anchored_spans=("fallback",), published_at="2026-11-20",
-        ),),
-        claims=(), conflict_gaps=(), gaps=(),
-        budget=SimpleNamespace(to_dict=lambda: {}),
-    )
-
+    state = _eligible_state(ref.id, locator="Section 2", anchored_spans=("fallback",), published_at="2026-11-20")
     brief = _evidence_brief(state, None, sources)
     (row,) = brief["eligible_evidence"]
     assert row["title"] == "Second"
