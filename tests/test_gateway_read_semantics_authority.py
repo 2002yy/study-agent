@@ -4,7 +4,7 @@ The narrow measurement entry is only trustworthy when the *read function* it
 drives is the exact same production read function ``execute()`` drives. B0
 closed executor identity; these tests close behavioural identity:
 
-* the shared primitive owns metrics sequencing, escalation runtime context, the
+* the shared primitive owns metrics sequencing, the
   bounded retry policy and the window-bounded read timeout;
 * a caller can only inject the low-level gateway/clock, never a read function.
 
@@ -45,7 +45,6 @@ def _build(
     *,
     accepts_timeout: bool = True,
     research_left: float = 30.0,
-    hard_left: float = 40.0,
     wave: int = 3,
     on_phase: list[str] | None = None,
     on_retry: list[dict[str, float]] | None = None,
@@ -55,7 +54,6 @@ def _build(
         accepts_timeout=accepts_timeout,
         get_context=lambda: context,
         research_seconds_left=lambda: research_left,
-        hard_seconds_left=lambda: hard_left,
         wave_index=lambda: wave,
         on_phase_start=(on_phase.append if on_phase is not None else None),
         on_phase_end=(on_phase.append if on_phase is not None else None),
@@ -67,12 +65,14 @@ def test_off_mode_stamps_sequence_and_forwards_window_timeout(monkeypatch) -> No
     monkeypatch.delenv(read_retry.READ_RETRY_ENV, raising=False)
     context: dict[str, Any] = {}
     gateway = _FakeGateway()
-    seen: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        runtime,
-        "set_escalation_runtime_context",
-        lambda **kw: seen.append(kw),
-    )
+    observed_attempts: list[int] = []
+    read_original = gateway.read
+
+    def record_attempt(url: str, *, max_chars: int, timeout: float | None = None):
+        observed_attempts.append(context[METRICS_KEY]["retrieval_attempt_seq"])
+        return read_original(url, max_chars=max_chars, timeout=timeout)
+
+    monkeypatch.setattr(gateway, "read", record_attempt)
     phases: list[str] = []
 
     gateway_read = _build(gateway, context, on_phase=phases)
@@ -88,9 +88,7 @@ def test_off_mode_stamps_sequence_and_forwards_window_timeout(monkeypatch) -> No
     assert [c["max_chars"] for c in gateway.calls] == [100, 100]
     # attempt sequence is stamped and monotonic
     assert context[METRICS_KEY]["retrieval_attempt_seq"] == 2
-    assert [s["attempt_seq"] for s in seen] == [1, 2]
-    assert seen[0]["research_seconds_left"] == 30.0
-    assert seen[0]["hard_seconds_left"] == 40.0
+    assert observed_attempts == [1, 2]
     # read phase is bracketed (start + end per read)
     assert phases == ["read", "read", "read", "read"]
 
@@ -161,7 +159,6 @@ def test_retry_reads_fresh_live_context_and_window_after_rebind(monkeypatch) -> 
         accepts_timeout=True,
         get_context=lambda: live["context"],
         research_seconds_left=lambda: live["remaining"],
-        hard_seconds_left=lambda: 40.0,
         wave_index=lambda: 1,
     )
 
@@ -207,7 +204,6 @@ def test_retry_budget_refusal_is_observable(monkeypatch) -> None:
         accepts_timeout=False,
         get_context=lambda: context,
         research_seconds_left=lambda: 1.0,
-        hard_seconds_left=lambda: 2.0,
         wave_index=lambda: 0,
     )
     payload = gateway_read("http://example.test/f", max_chars=10)

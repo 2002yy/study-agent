@@ -100,10 +100,6 @@ def test_read_semantics_primitive_is_the_only_authority() -> None:
     assert src.count("def gateway_read(") == 1, (
         "gateway_read must only be produced by the shared primitive, never re-inlined"
     )
-    # escalation runtime context must not be forked into a second call site
-    assert src.count("set_escalation_runtime_context(") == 1, (
-        "escalation runtime context must be stamped by the shared primitive only"
-    )
     # the read timeout must not be re-implemented outside the primitive
     assert "def read_timeout_seconds(" not in src, (
         "read timeout semantics must live in the shared primitive only"
