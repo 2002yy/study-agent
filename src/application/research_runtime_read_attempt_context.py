@@ -1,9 +1,9 @@
-"""Run-scoped read attempt recording without capturing the executor cursor.
+"""Run-scoped read attempts using the executor's current live cursor/context.
 
-The caller owns the current durable cursor and passes it on every transition.
-The context binds stable run identity, clocks, cursor publication and the
-breaker. Current research context, cursor and budget ceiling stay invocation
-inputs because checkpoints and steering can replace them.
+The executor owns checkpoint persistence and the budget. This context binds
+stable run identity and clocks, resolves the live owner at each attempt, and
+publishes every cursor transition before diagnostics can fail. Checkpoints and
+steering may replace the runtime values between attempts.
 """
 
 from __future__ import annotations
