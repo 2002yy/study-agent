@@ -114,23 +114,6 @@ def charge_run_envelope(latency_ms: float, tier: str = TIER_HTTP) -> None:
     )
 
 
-# Back-compat shims: the http tier keeps its original call surface.
-def reset_http_envelope() -> None:
-    reset_run_envelope(TIER_HTTP)
-
-
-def http_envelope_spent_ms() -> float:
-    return run_envelope_spent_ms(TIER_HTTP)
-
-
-def http_envelope_remaining_ms() -> float:
-    return run_envelope_remaining_ms(TIER_HTTP)
-
-
-def charge_http_envelope(latency_ms: float) -> None:
-    charge_run_envelope(latency_ms, TIER_HTTP)
-
-
 def http_min_hard_seconds() -> float:
     """Frozen default 3.0; the env override exists for experiments only."""
 
@@ -315,7 +298,7 @@ def wigolo_http_execution_plan(
         else float(min_hard_seconds)
     )
     envelope = (
-        http_envelope_remaining_ms()
+        run_envelope_remaining_ms(TIER_HTTP)
         if envelope_remaining_ms is None
         else float(envelope_remaining_ms)
     )
@@ -472,7 +455,7 @@ def escalate_read(
     except Exception as exc:  # noqa: BLE001 - shadow/fallback must never raise
         outcome.state = "transport_error"
         outcome.reason = f"{type(exc).__name__}"
-        charge_http_envelope(outcome.latency_ms)
+        charge_run_envelope(outcome.latency_ms, TIER_HTTP)
         _record_attempt(
             metrics_provider,
             outcome,
@@ -489,7 +472,7 @@ def escalate_read(
         outcome.reason = "no_artifact"
         return current, outcome
     artifact = fetched
-    charge_http_envelope(artifact.latency_ms)
+    charge_run_envelope(artifact.latency_ms, TIER_HTTP)
     failure_state = str((artifact.external_metadata or {}).get("state") or "")
     # §78.2-1: provenance must carry the value the daemon actually received (the
     # frozen contract value), not the caller's read-window slice.

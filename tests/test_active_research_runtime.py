@@ -4167,11 +4167,12 @@ def test_read_chain_charges_the_run_envelope_once_per_real_wigolo_call(
     """§105: the envelope is run-scoped - debits accumulate across candidates."""
 
     from src.web.research.read_escalation import (
-        http_envelope_spent_ms,
-        reset_http_envelope,
+        TIER_HTTP,
+        reset_run_envelope,
+        run_envelope_spent_ms,
     )
 
-    reset_http_envelope()
+    reset_run_envelope(TIER_HTTP)
     backend = _CutoverEscalationBackend(
         "y" * (SHORT_CHAR_THRESHOLD + 400), latency_ms=120.0
     )
@@ -4185,7 +4186,7 @@ def test_read_chain_charges_the_run_envelope_once_per_real_wigolo_call(
 
     assert len(backend.calls) >= 2, "two candidates must both escalate"
     # one debit per real call, accumulated over the whole run
-    assert http_envelope_spent_ms() == pytest.approx(
+    assert run_envelope_spent_ms(TIER_HTTP) == pytest.approx(
         120.0 * len(backend.calls), abs=1.0
     )
 
@@ -4698,11 +4699,12 @@ def test_a2e_wigolo_envelope_is_run_scoped_and_bounded(
     """D3: the alternate's budget is a single run-scoped, bounded envelope."""
 
     from src.web.research.read_escalation import (
-        http_envelope_spent_ms,
-        reset_http_envelope,
+        TIER_HTTP,
+        reset_run_envelope,
+        run_envelope_spent_ms,
     )
 
-    reset_http_envelope()
+    reset_run_envelope(TIER_HTTP)
     wigolo = _CutoverEscalationBackend(_A2E_ALT_OK, latency_ms=120.0)
     native = _ScriptedNativeReadGateway({"ok": True, "content": "tiny"})
     completed = _a2e_run(
@@ -4710,7 +4712,7 @@ def test_a2e_wigolo_envelope_is_run_scoped_and_bounded(
     )
 
     assert len(wigolo.calls) >= 2, "both candidates must escalate"
-    spent = http_envelope_spent_ms()
+    spent = run_envelope_spent_ms(TIER_HTTP)
     assert spent == pytest.approx(120.0 * len(wigolo.calls), abs=1.0)
     # Bounded: the run can never debit more than the frozen envelope.
     assert spent <= 3000.0 + 1.0

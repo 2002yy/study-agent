@@ -8,6 +8,7 @@ truth actually reaches both entry points identically.
 
 from __future__ import annotations
 
+from functools import partial
 import io
 import re
 from typing import Any
@@ -17,10 +18,11 @@ import pytest
 from src.web.research.chain_executor import ChainAttemptRequest, run_chain
 from src.web.research.read_adequacy import ADEQUATE_SHAPE
 from src.web.research.read_escalation import (
-    charge_http_envelope,
+    TIER_HTTP,
+    charge_run_envelope,
     escalate_read,
-    http_envelope_spent_ms,
-    reset_http_envelope,
+    reset_run_envelope,
+    run_envelope_spent_ms,
 )
 from src.web.research.retrieval_backends import RawReadArtifact
 from src.web.research.wigolo_http_executor import WigoloHttpBackendExecutor
@@ -110,7 +112,7 @@ def _explicit(
         backend=backend,
         max_chars=max_chars,
         hard_seconds_left=(lambda: hard_seconds_left),
-        charge_envelope=charge_http_envelope,
+        charge_envelope=partial(charge_run_envelope, tier=TIER_HTTP),
     )
     return executor.execute(
         ChainAttemptRequest(
@@ -181,7 +183,7 @@ def _escalation_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "http")
     monkeypatch.delenv("RESEARCH_WIGOLO_HTTP_MIN_HARD_SECONDS_LEFT", raising=False)
     monkeypatch.delenv("RESEARCH_WIGOLO_HTTP_RUN_ENVELOPE_SECONDS", raising=False)
-    reset_http_envelope()
+    reset_run_envelope(TIER_HTTP)
 
 
 def _both(
@@ -193,19 +195,19 @@ def _both(
     envelope-exhaustion and timeout-clamp cases can be compared fairly.
     """
 
-    reset_http_envelope()
+    reset_run_envelope(TIER_HTTP)
     if pre_charge_ms:
-        charge_http_envelope(pre_charge_ms)
+        charge_run_envelope(pre_charge_ms, TIER_HTTP)
     legacy_backend = backend_factory()
     legacy = _legacy(legacy_backend, hard_seconds_left=hard_seconds_left)
-    legacy_debit = http_envelope_spent_ms()
+    legacy_debit = run_envelope_spent_ms(TIER_HTTP)
 
-    reset_http_envelope()
+    reset_run_envelope(TIER_HTTP)
     if pre_charge_ms:
-        charge_http_envelope(pre_charge_ms)
+        charge_run_envelope(pre_charge_ms, TIER_HTTP)
     new_backend = backend_factory()
     new = _explicit(new_backend, hard_seconds_left=hard_seconds_left)
-    new_debit = http_envelope_spent_ms()
+    new_debit = run_envelope_spent_ms(TIER_HTTP)
     return legacy, legacy_debit, new, new_debit
 
 
@@ -265,10 +267,10 @@ def test_parity_effective_timeout_is_clamped_by_hard_headroom(
 
 
 def test_parity_request_args() -> None:
-    reset_http_envelope()
+    reset_run_envelope(TIER_HTTP)
     legacy_backend = _FakeWigoloHttp()
     _legacy(legacy_backend, hard_seconds_left=40.0)
-    reset_http_envelope()
+    reset_run_envelope(TIER_HTTP)
     new_backend = _FakeWigoloHttp()
     _explicit(new_backend, hard_seconds_left=40.0)
 
@@ -340,7 +342,7 @@ def test_parity_empty_response() -> None:
 
 
 def test_parity_cache_and_rendered_flags_survive() -> None:
-    reset_http_envelope()
+    reset_run_envelope(TIER_HTTP)
     backend = _FakeWigoloHttp(cache_hit=True, rendered=False)
     result = _explicit(backend, hard_seconds_left=40.0)
     assert result.cost["cache_hit"] is True
@@ -395,12 +397,12 @@ def test_the_executor_plugs_into_run_chain() -> None:
                 backend="native_http", retrieval_state="reset"
             )
 
-    reset_http_envelope()
+    reset_run_envelope(TIER_HTTP)
     executor = WigoloHttpBackendExecutor(
         backend=_FakeWigoloHttp(),
         max_chars=6000,
         hard_seconds_left=(lambda: 40.0),
-        charge_envelope=charge_http_envelope,
+        charge_envelope=partial(charge_run_envelope, tier=TIER_HTTP),
     )
     recorded: list[ChainStepResult] = []
     run = run_chain(
