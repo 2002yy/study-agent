@@ -5,7 +5,43 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.application import news_service
 from src.application.news_service import NewsDependencies
+
+
+def test_default_news_dependencies_use_real_backends_without_adapter_layers(
+    monkeypatch,
+) -> None:
+    seen: list[tuple] = []
+    articles = [{"title": "Source", "url": "https://example.org/news"}]
+
+    def fake_search(*, query_text: str, max_items: int):
+        seen.append(("search", query_text, max_items))
+        return articles
+
+    def fake_enrich(items, **kwargs):
+        seen.append(("enrich", items, kwargs))
+        return [{**items[0], "article_excerpt": "verified"}]
+
+    monkeypatch.setattr(news_service, "fetch_news_items", fake_search)
+    monkeypatch.setattr(news_service, "enrich_news_items_with_article_text", fake_enrich)
+
+    deps = NewsDependencies()
+    assert deps.search("最新研究", max_items=7) is articles
+    assert deps.enrich(
+        articles,
+        max_articles=2,
+        query_text="最新研究",
+        max_chars_per_article=1800,
+    ) == [{**articles[0], "article_excerpt": "verified"}]
+    assert seen == [
+        ("search", "最新研究", 7),
+        (
+            "enrich",
+            articles,
+            {"max_articles": 2, "query_text": "最新研究", "max_chars_per_article": 1800},
+        ),
+    ]
 
 
 def test_news_run_pipeline_persists_server_owned_stage_data(runtime_test_context):
