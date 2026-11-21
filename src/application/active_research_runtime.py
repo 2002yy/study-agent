@@ -3103,7 +3103,9 @@ def _late_admission_tail(
             claim_rankings=claim_rankings,
             stored_assessments=stored_assessments,
             assessed_inputs=assessed_inputs,
-            context=context,
+            # The model-start checkpoint may replace the durable context.
+            # Store rankings on the current live owner, not the entry snapshot.
+            context=observation.live(),
             trace=trace,
         )
         record["assessed_ids"] = sorted(assessed.assessments)
