@@ -191,8 +191,9 @@ def test_adapter_never_escalates_even_when_the_mode_allows_it(
     backend = _UnexpectedWigoloBackend()
 
     inner = _Inner(_reader_ok("z" * 120))
-    gateway = ActiveResearchGateway(read_gateway=inner)
-    gateway.set_escalation_backend(backend)
+    gateway = ActiveResearchGateway(
+        read_gateway=inner, escalation_backend=backend
+    )
     result = gateway.read("https://x.example/", max_chars=20000)
     assert inner.calls == 1
     # the backend is never executed and no escalation signal is written
