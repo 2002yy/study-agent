@@ -96,7 +96,6 @@ from src.web.research.runtime import (
     _assessment_call_suffix as _assessment_call_suffix,
     _attempt_number as _attempt_number,
     _extraction_call_suffix as _extraction_call_suffix,
-    _is_interrupted_failure as _is_interrupted_failure,
     EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS,
     MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN,
     MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE,
@@ -202,7 +201,6 @@ from src.web.research.source_cluster import (
 from src.web.research.state import attach_claim_engine_state
 from src.web.research.steering import (
     _pending_active_steering_ids as _pending_active_steering_ids,
-    _steering_ids_for_claim as _steering_ids_for_claim,
     _unapplied_steering_blocks_completion as _unapplied_steering_blocks_completion,
 )
 from src.application.research_stop_gate import (
@@ -266,14 +264,7 @@ from src.application.research_runtime_read_projection import (
     project_deep_seed_source,
     project_read_chain,
 )
-from src.application.research_runtime_read_site import (
-    ActiveReadSiteContext,
-    READ_SITE_HINT_ROUTE_DEFAULT as READ_SITE_HINT_ROUTE_DEFAULT,
-    READ_SITE_HINT_ROUTE_SPECIALIST as READ_SITE_HINT_ROUTE_SPECIALIST,
-    read_site_hint_route as read_site_hint_route,
-    record_read_site_specialist as record_read_site_specialist,
-    specialist_chain_run as specialist_chain_run,
-)
+from src.application.research_runtime_read_site import ActiveReadSiteContext
 from src.application.research_runtime_budget_clock import ResearchBudgetClock
 from src.application.research_selection_observability import (
     ResearchSelectionTraceContext,
@@ -309,7 +300,6 @@ from src.application.research_runtime_execution_guard import (
 from src.application.research_runtime_publication import ActiveResearchPublisher
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
 from src.application.active_research_evidence_projection import (
-    _bounded_retrieval_policy as _bounded_retrieval_policy,
     _source_record,
     _evidence_brief,
     _state_after_gate,
@@ -317,7 +307,6 @@ from src.application.active_research_evidence_projection import (
 from src.application.research_runtime_read_observability import (
     _record_atomic_routing_decisions,
     _record_atomic_routing_extractions,
-    _record_backend_health as _record_backend_health,
     _record_escalation_diagnostics as _record_escalation_diagnostics,
     _record_read_chain_decision,
     _record_read_history,

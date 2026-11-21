@@ -8,15 +8,6 @@ from src.application.active_research_runtime import (
 from src.application.active_research_runtime import (
     _record_atomic_routing_extractions as active_record_atomic_routing_extractions,
 )
-from src.application.active_research_runtime import (
-    _record_escalation_diagnostics as legacy_escalation_diagnostics,
-)
-from src.application.active_research_runtime import (
-    _record_backend_health as legacy_record_backend_health,
-)
-from src.application.active_research_runtime import (
-    _record_read_timing as legacy_record_read_timing,
-)
 from src.application.research_runtime_read_observability import (
     _record_atomic_routing_decisions,
     _record_atomic_routing_extractions,
@@ -197,8 +188,7 @@ def test_resolution_is_computed_after_history_write_and_bad_metrics_still_fail(
     assert invalid[ACTIVE_RESEARCH_METRICS_KEY] == "old-invalid-metrics"
 
 
-def test_read_timing_preserves_backend_retry_components_and_legacy_import() -> None:
-    assert legacy_record_read_timing is _record_read_timing
+def test_read_timing_preserves_backend_retry_components() -> None:
     context: dict = {}
     _record_read_timing(
         context,
@@ -267,7 +257,6 @@ def test_read_timing_keeps_80_entries_and_invalid_metrics_untouched() -> None:
 
 
 def test_backend_health_snapshot_does_not_affect_reader_state() -> None:
-    assert legacy_record_backend_health is _record_backend_health
     context: dict = {}
     _record_backend_health(context, None)
     assert context == {}
@@ -397,7 +386,6 @@ def test_escalation_context_passes_current_context_and_samples_clock_only_if_use
 
 
 def test_moved_escalation_ledger_keeps_invocation_before_attempt_row() -> None:
-    assert legacy_escalation_diagnostics is _record_escalation_diagnostics
     context = {ACTIVE_RESEARCH_METRICS_KEY: {}}
     signal = {
         "attempted": True,
