@@ -1,37 +1,28 @@
-"""§103 P2-A2d-3 old/new Wigolo HTTP execution parity.
+"""Contract regressions for the production Wigolo HTTP chain executor.
 
-The explicit ``wigolo_http`` executor must behave exactly like the legacy hidden
-escalation. Parity here is not "two implementations happen to agree" - both ask
-the same ``wigolo_http_execution_plan`` - but these tests pin that the shared
-truth actually reaches both entry points identically.
+Tests target the real execution path, not a historical hidden escalation
+implementation. They freeze budget admission, single debit, timeout binding,
+provider failures, adequacy projection, chain ordering and evidence boundaries.
 """
 
 from __future__ import annotations
 
-import io
-import re
 from functools import partial
 from typing import Any
 
 import pytest
 
 from src.web.research.chain_executor import ChainAttemptRequest, run_chain
-from src.web.research.read_adequacy import ADEQUATE_SHAPE
 from src.web.research.read_escalation import (
     TIER_HTTP,
     charge_run_envelope,
-    escalate_read,
     reset_run_envelope,
     run_envelope_spent_ms,
+    wigolo_http_execution_plan,
 )
 from src.web.research.retrieval_backends import RawReadArtifact
 from src.web.research.wigolo_http_executor import WigoloHttpBackendExecutor
 
-INADEQUATE = {
-    "ok": True,
-    "content": "short",
-    "url": "https://x.example/a",
-}
 GOOD_TEXT = "A" * 1200
 
 
@@ -84,24 +75,6 @@ class _FakeWigoloHttp:
         )
 
 
-def _legacy(
-    backend: _FakeWigoloHttp,
-    *,
-    hard_seconds_left: float | None,
-    max_chars: int = 6000,
-) -> tuple[Any, Any]:
-    payload, outcome = escalate_read(
-        url="https://x.example/a",
-        current=INADEQUATE,
-        http_backend=backend,
-        metrics_provider=None,
-        max_chars=max_chars,
-        research_seconds_left=(lambda: 40.0),
-        hard_seconds_left=(lambda: hard_seconds_left),
-    )
-    return payload, outcome
-
-
 def _explicit(
     backend: _FakeWigoloHttp,
     *,
@@ -126,58 +99,6 @@ def _explicit(
     )
 
 
-def _canonical_legacy_state(outcome: Any) -> str:
-    """Map a legacy escalation outcome into the canonical vocabulary.
-
-    The parity gate compares *semantics*. The two entry points intentionally
-    speak different dialects - legacy uses the §71B invocation words ("ok",
-    "unsupported"), the explicit executor uses the A0 canonical words
-    ("success", "budget_exhausted") - so the comparison normalises both sides.
-    """
-
-    from src.web.research.failure_taxonomy import (
-        UNKNOWN_STATE,
-        from_invocation_state,
-        from_read_adequacy,
-    )
-
-    if not outcome.attempted:
-        if outcome.reason in (
-            "hard_headroom_insufficient",
-            "run_envelope_exhausted",
-        ):
-            return "budget_exhausted"
-        return UNKNOWN_STATE
-    if outcome.state in ("ok", "empty"):
-        return from_read_adequacy(outcome.shape_after).state
-    return from_invocation_state(outcome.state).state
-
-
-def _comparable(legacy: tuple[Any, Any]) -> dict[str, Any]:
-    payload, outcome = legacy
-    return {
-        "attempted": bool(outcome.attempted),
-        "deny_reason": "" if outcome.attempted else outcome.reason,
-        "canonical_state": _canonical_legacy_state(outcome),
-        "effective_timeout": outcome.effective_timeout_seconds or None,
-        "usable": bool(
-            outcome.attempted and outcome.shape_after == ADEQUATE_SHAPE
-        ),
-        "content_len": int(outcome.chars_after or 0),
-    }
-
-
-def _comparable_new(result: Any) -> dict[str, Any]:
-    return {
-        "attempted": bool(result.attempted),
-        "deny_reason": "" if result.attempted else result.adequacy_reason,
-        "canonical_state": result.retrieval_state,
-        "effective_timeout": result.cost.get("effective_timeout_seconds") or None,
-        "usable": bool(result.usable_content),
-        "content_len": len(result.content),
-    }
-
-
 @pytest.fixture(autouse=True)
 def _escalation_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "http")
@@ -186,162 +107,112 @@ def _escalation_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     reset_run_envelope(TIER_HTTP)
 
 
-def _both(
-    backend_factory, *, hard_seconds_left: float | None, pre_charge_ms: float = 0.0
-):
-    """Run both entry points with a fresh backend and envelope each.
-
-    ``pre_charge_ms`` simulates envelope already spent earlier in the run, so the
-    envelope-exhaustion and timeout-clamp cases can be compared fairly.
-    """
-
-    reset_run_envelope(TIER_HTTP)
-    if pre_charge_ms:
-        charge_run_envelope(pre_charge_ms, TIER_HTTP)
-    legacy_backend = backend_factory()
-    legacy = _legacy(legacy_backend, hard_seconds_left=hard_seconds_left)
-    legacy_debit = run_envelope_spent_ms(TIER_HTTP)
-
-    reset_run_envelope(TIER_HTTP)
-    if pre_charge_ms:
-        charge_run_envelope(pre_charge_ms, TIER_HTTP)
-    new_backend = backend_factory()
-    new = _explicit(new_backend, hard_seconds_left=hard_seconds_left)
-    new_debit = run_envelope_spent_ms(TIER_HTTP)
-    return legacy, legacy_debit, new, new_debit
+def test_success_charges_one_real_wigolo_call() -> None:
+    backend = _FakeWigoloHttp(latency_ms=120.0)
+    result = _explicit(backend, hard_seconds_left=40.0)
+    assert result.attempted is True
+    assert result.retrieval_state == "success"
+    assert result.usable_content is True
+    assert result.content == GOOD_TEXT
+    assert len(backend.requests) == 1
+    assert run_envelope_spent_ms(TIER_HTTP) == 120.0
 
 
-# --------------------------------------------------------------- parity matrix
+def test_low_hard_budget_refuses_without_fetch_or_debit() -> None:
+    backend = _FakeWigoloHttp()
+    result = _explicit(backend, hard_seconds_left=1.0)
+    assert result.attempted is False
+    assert result.retrieval_state == "budget_exhausted"
+    assert result.adequacy_reason == "hard_headroom_insufficient"
+    assert backend.requests == []
+    assert run_envelope_spent_ms(TIER_HTTP) == 0.0
 
 
-def test_parity_success() -> None:
-    legacy, legacy_debit, new, new_debit = _both(
-        _FakeWigoloHttp, hard_seconds_left=40.0
-    )
-    assert _comparable(legacy) == _comparable_new(new)
-    assert _comparable_new(new)["usable"] is True
-    assert legacy_debit == new_debit == 120.0
+def test_exhausted_envelope_refuses_without_double_charge() -> None:
+    charge_run_envelope(3000.0, TIER_HTTP)
+    backend = _FakeWigoloHttp()
+    result = _explicit(backend, hard_seconds_left=40.0)
+    assert result.attempted is False
+    assert result.adequacy_reason == "run_envelope_exhausted"
+    assert backend.requests == []
+    assert run_envelope_spent_ms(TIER_HTTP) == 3000.0
 
 
-def test_parity_low_hard_seconds() -> None:
-    legacy, legacy_debit, new, new_debit = _both(
-        _FakeWigoloHttp, hard_seconds_left=1.0
-    )
-    old, fresh = _comparable(legacy), _comparable_new(new)
-    assert old["attempted"] is False and fresh["attempted"] is False
-    assert old["deny_reason"] == fresh["deny_reason"] == "hard_headroom_insufficient"
-    # Legacy calls it "unsupported"; the explicit executor maps it to the
-    # canonical budget state. Both mean "we did not try".
-    assert legacy[1].state == "unsupported"
-    assert fresh["canonical_state"] == "budget_exhausted"
-    assert legacy_debit == new_debit == 0.0
+def test_timeout_is_clamped_by_remaining_envelope() -> None:
+    charge_run_envelope(1500.0, TIER_HTTP)
+    backend = _FakeWigoloHttp()
+    result = _explicit(backend, hard_seconds_left=40.0)
+    assert result.cost["effective_timeout_seconds"] == 1.5
+    assert backend.requests[0].timeout_seconds == 1.5
 
 
-def test_parity_envelope_exhausted() -> None:
-    legacy, legacy_debit, new, new_debit = _both(
-        _FakeWigoloHttp, hard_seconds_left=40.0, pre_charge_ms=3000.0
-    )
-    old, fresh = _comparable(legacy), _comparable_new(new)
-    assert old["attempted"] is False and fresh["attempted"] is False
-    assert old["deny_reason"] == fresh["deny_reason"] == "run_envelope_exhausted"
-    assert legacy_debit == new_debit == 3000.0  # unchanged: nothing was spent
-
-
-def test_parity_effective_timeout_is_clamped_by_the_envelope() -> None:
-    legacy, _, new, _ = _both(
-        _FakeWigoloHttp, hard_seconds_left=40.0, pre_charge_ms=1500.0
-    )
-    old, fresh = _comparable(legacy), _comparable_new(new)
-    assert old["effective_timeout"] == fresh["effective_timeout"] == 1.5
-
-
-def test_parity_effective_timeout_is_clamped_by_hard_headroom(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # 2.0s of hard budget, above the (lowered) MIN_HARD floor and below the
-    # 3.0s envelope: the hard budget is the binding constraint.
+def test_timeout_is_clamped_by_hard_headroom(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RESEARCH_WIGOLO_HTTP_MIN_HARD_SECONDS_LEFT", "1.0")
-    legacy, _, new, _ = _both(_FakeWigoloHttp, hard_seconds_left=2.0)
-    old, fresh = _comparable(legacy), _comparable_new(new)
-    assert old["effective_timeout"] == fresh["effective_timeout"] == 2.0
+    backend = _FakeWigoloHttp()
+    result = _explicit(backend, hard_seconds_left=2.0)
+    assert result.cost["effective_timeout_seconds"] == 2.0
+    assert backend.requests[0].timeout_seconds == 2.0
 
 
-def test_parity_request_args() -> None:
-    reset_run_envelope(TIER_HTTP)
-    legacy_backend = _FakeWigoloHttp()
-    _legacy(legacy_backend, hard_seconds_left=40.0)
-    reset_run_envelope(TIER_HTTP)
-    new_backend = _FakeWigoloHttp()
-    _explicit(new_backend, hard_seconds_left=40.0)
-
-    old_request = legacy_backend.requests[0]
-    new_request = new_backend.requests[0]
-    assert old_request.url == new_request.url
-    assert old_request.max_chars == new_request.max_chars
-    assert old_request.timeout_seconds == new_request.timeout_seconds
+def test_wigolo_request_has_the_expected_identity_and_size() -> None:
+    backend = _FakeWigoloHttp()
+    _explicit(backend, hard_seconds_left=40.0, max_chars=6000)
+    (request,) = backend.requests
+    assert request.url == "https://x.example/a"
+    assert request.max_chars == 6000
+    assert request.timeout_seconds == 3.0
 
 
-def test_parity_provider_unavailable_fails_closed() -> None:
-    legacy, legacy_debit, new, new_debit = _both(
-        lambda: _FakeWigoloHttp(preflight="unavailable"), hard_seconds_left=40.0
-    )
-    old, fresh = _comparable(legacy), _comparable_new(new)
-    assert old["attempted"] is False and fresh["attempted"] is False
-    # Legacy says "backend_unavailable"; A0's skip vocabulary is deliberately
-    # coarser, so the equivalent is the policy skip reason plus the detail.
-    assert old["deny_reason"] == "backend_unavailable"
-    assert new.policy["skip_reason"] == "preflight"
-    assert "unavailable" in new.adequacy_reason
-    assert legacy_debit == new_debit == 0.0
+def test_unavailable_preflight_fails_closed() -> None:
+    backend = _FakeWigoloHttp(preflight="unavailable")
+    result = _explicit(backend, hard_seconds_left=40.0)
+    assert result.attempted is False
+    assert result.policy["skip_reason"] == "preflight"
+    assert "unavailable" in result.adequacy_reason
+    assert backend.requests == []
+    assert run_envelope_spent_ms(TIER_HTTP) == 0.0
 
 
-def test_parity_disabled_capability_fails_closed(
+def test_disabled_wigolo_never_fetches_or_spends(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "off")
-    legacy, legacy_debit, new, new_debit = _both(
-        _FakeWigoloHttp, hard_seconds_left=40.0
+    backend = _FakeWigoloHttp()
+    result = _explicit(backend, hard_seconds_left=40.0)
+    assert result.attempted is False
+    assert result.policy["skip_reason"] == "disabled"
+    assert backend.requests == []
+    assert run_envelope_spent_ms(TIER_HTTP) == 0.0
+
+
+def test_transport_failure_is_a_canonical_unusable_step() -> None:
+    backend = _FakeWigoloHttp(raises=TimeoutError("boom"))
+    result = _explicit(backend, hard_seconds_left=40.0)
+    assert result.attempted is True
+    assert result.usable_content is False
+    assert result.retrieval_state == "timeout"
+    assert result.cost["error_type"] == "TimeoutError"
+    assert result.cost["fetch_ms"] == 0.0
+    assert run_envelope_spent_ms(TIER_HTTP) == 0.0
+
+
+def test_short_page_is_not_evidence_usable() -> None:
+    result = _explicit(_FakeWigoloHttp(content="tiny"), hard_seconds_left=40.0)
+    assert result.attempted is True
+    assert result.usable_content is False
+    assert result.retrieval_state == "invalid_content"
+    assert result.adequacy_reason == "short_doc"
+
+
+def test_empty_page_is_not_evidence_usable() -> None:
+    result = _explicit(
+        _FakeWigoloHttp(content="", raw_state="empty"), hard_seconds_left=40.0
     )
-    assert legacy[1].attempted is False
-    assert legacy[1].reason == "disabled"
-    assert new.attempted is False
-    assert new.policy["skip_reason"] == "disabled"
-    assert legacy_debit == new_debit == 0.0
+    assert result.attempted is True
+    assert result.usable_content is False
 
 
-def test_parity_transport_failure() -> None:
-    legacy, _, new, _ = _both(
-        lambda: _FakeWigoloHttp(raises=TimeoutError("boom")),
-        hard_seconds_left=40.0,
-    )
-    old, fresh = _comparable(legacy), _comparable_new(new)
-    assert old["attempted"] is True and fresh["attempted"] is True
-    assert old["usable"] is False and fresh["usable"] is False
-    # Legacy reports the raw state; the explicit executor projects canonically.
-    assert legacy[1].state == "transport_error"
-    assert fresh["canonical_state"] == "timeout"
-
-
-def test_parity_short_response_is_not_usable() -> None:
-    legacy, _, new, _ = _both(
-        lambda: _FakeWigoloHttp(content="tiny"), hard_seconds_left=40.0
-    )
-    old, fresh = _comparable(legacy), _comparable_new(new)
-    assert old["usable"] is False and fresh["usable"] is False
-    assert fresh["canonical_state"] == "invalid_content"
-    assert new.adequacy_reason == "short_doc"
-
-
-def test_parity_empty_response() -> None:
-    legacy, _, new, _ = _both(
-        lambda: _FakeWigoloHttp(content="", raw_state="empty"),
-        hard_seconds_left=40.0,
-    )
-    old, fresh = _comparable(legacy), _comparable_new(new)
-    assert old["usable"] is False and fresh["usable"] is False
-
-
-def test_parity_cache_and_rendered_flags_survive() -> None:
+def test_cache_and_rendered_flags_survive() -> None:
     reset_run_envelope(TIER_HTTP)
     backend = _FakeWigoloHttp(cache_hit=True, rendered=False)
     result = _explicit(backend, hard_seconds_left=40.0)
@@ -351,19 +222,14 @@ def test_parity_cache_and_rendered_flags_survive() -> None:
     assert result.cost["content_type"] == "text/html"
 
 
-# --------------------------------------------------------------- one budget truth
-
-
-def test_both_entry_points_ask_the_same_plan() -> None:
-    from src.web.research.read_escalation import wigolo_http_execution_plan
-
+def test_executor_uses_the_shared_budget_plan() -> None:
     plan = wigolo_http_execution_plan(
         hard_seconds_left=1.0, envelope_remaining_ms=3000.0
     )
     assert plan.allowed is False
     assert plan.deny_reason == "hard_headroom_insufficient"
     assert plan.deny_layer == "hard_headroom"
-    # The explicit executor's skip carries the same reason.
+    # The executor must surface the shared plan's exact reason.
     result = _explicit(_FakeWigoloHttp(), hard_seconds_left=1.0)
     assert result.adequacy_reason == plan.deny_reason
     assert result.policy["skip_reason"] == "insufficient_remaining_window"
@@ -422,39 +288,3 @@ def test_the_executor_plugs_into_run_chain() -> None:
     assert {step.outer_attempt_number for step in run.steps} == {3}
 
 
-# --------------------------------------------------------------- production cutover
-
-
-def test_production_runs_the_explicit_wigolo_executor() -> None:
-    """§105 A2d-4: the runtime wires the explicit executor into its chain."""
-
-    text = io.open(
-        "src/application/active_research_runtime.py", encoding="utf-8", errors="ignore"
-    ).read()
-    assert "WigoloHttpBackendExecutor(" in text
-    assert "run_chain(" in text
-
-
-def test_the_legacy_escalation_is_no_longer_the_production_wigolo_entry() -> None:
-    """The hidden path is retired: production no longer calls ``escalate_read``."""
-
-    text = io.open(
-        "src/web/research/active_adapter.py", encoding="utf-8", errors="ignore"
-    ).read()
-    assert "escalate_read" not in text
-
-
-def test_the_active_chain_enables_wigolo_http_but_not_the_browser() -> None:
-    """A2d-4 enables ``native_http -> wigolo_http``; the browser stays for A3."""
-
-    text = io.open(
-        "src/application/active_research_runtime.py", encoding="utf-8", errors="ignore"
-    ).read()
-    match = re.search(
-        r"ACTIVE_READER_CHAIN(?:\s*:\s*[^=]+)?\s*=\s*\(([^)]*)\)", text
-    )
-    assert match is not None, "the production reader chain must be declared"
-    chain = match.group(1)
-    assert chain.strip() == "NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND"
-    # the declared chain names exactly two backends; the browser is not one
-    assert "wigolo_browser" not in chain
