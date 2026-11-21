@@ -6,6 +6,15 @@
 
 ## 0. Current Handoff（2026-11-21，冷启动）
 
+### 2026-11-22 G18 关键词 Deep 自动判定原型与专属测试退役（P3 静态候选）
+
+- **已确认的角色差异**：`src/web/deep_research.py` 的 `should_use_deep_research` / `escalation_score` 仅按输入字数、关键词、标点以及 `conservative/balanced/eager` 静态阈值判定 Deep；实际 Deep-3T 由 `src/application/deep_trigger.py` 和 `src/web/research/deep_handoff.py` 基于 Standard durable terminal / 未解决证据缺口触发，而非旧 G18 问题启发式。
+- **专项验证失效**：`tests/test_deep_research_judge.py` 的 6 个测试只断言这个旧判定器自己的输出，没有覆盖现役 Standard→Deep 触发、恢复、支付或发布；它不是产品行为的有效回归保护。独立的 `test_deep_trigger.py`、`test_deep_trigger_integration.py`、`test_deep_handoff.py`、`test_web_lookup_deep_research.py` 保留。
+- **参考检查**：定向审阅了主路由、模式、聊天服务、研究 API、Deep handoff/runtime/trigger、Deep 触发测试及根文档（15 个入口），没有发现现役 G18 旧符号的调用；`tests/stage_gates.json` 无此专项测试注册，`.github/workflows/ci.yml` 也无专门调用。由于 GitHub 搜索索引不完整，这不代替全仓 CI。
+- **整链移除**：删除 `src/web/deep_research.py` 以及 `tests/test_deep_research_judge.py`，无需新兼容门面。现役 Deep durable scheduler、用户显式 Deep 入口、配置、真实检索和证据门禁不改；没有发现归该原型所有的产品配置和独占适配器需要进一步处理。
+- **验收边界**：基于 `main@52636c4` 的独立分支 `cleanup/retire-unused-deep-heuristic-20261122`；新 HEAD 必须经过 pytest/Ruff、CI 和代码审查再合并。动态真模型 `not_run`；预算授权 `not_applicable`；`priority=P3`，`loop=static`，`owner=deep-research`，`decision=engineering-only`。
+
+
 ### 2026-11-22 研究执行器旧导出收口候选（P3 静态）
 
 - **范围**：只清理 `src/application/active_research_runtime.py` 的 5 个未由执行器调用的转发符号：`MAX_RESEARCH_MODEL_ATTEMPTS`、`ACTIVE_RESEARCH_WAVE_BASELINE_KEY`、`ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY`、`merge_covered_clusters`、`ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY`。真正所有者模块、具体功能与持久化键值不删；`ACTIVE_RESEARCH_ASSESSMENTS_KEY` 仍为正式导出。
