@@ -142,12 +142,6 @@ def http_run_envelope_seconds() -> float:
     return max(0.0, min(value, 120.0))
 
 
-ESCALATION_OFF = "off"
-ESCALATION_HTTP = "http"
-ESCALATION_BROWSER = "browser"
-TIER_HTTP = "http"
-TIER_BROWSER = "browser"
-
 
 def escalation_mode() -> str:
     """``off`` (default) | ``http`` | ``browser`` (experimental)."""
@@ -590,35 +584,8 @@ def _transition(outcome: EscalationOutcome) -> str:
     return f"{before} -> {after}"
 
 
-_RUNTIME_CONTEXT: dict[str, Any] = {}
-
-
-def set_escalation_runtime_context(
-    *,
-    attempt_seq: int,
-    research_seconds_left: float | None,
-    hard_seconds_left: float | None,
-) -> None:
-    """Per-read scalars supplied by the runtime (never a mapping reference).
-
-    The escalation happens inside the adapter, which cannot see the run's
-    wave/claim/budget; the runtime stamps these per-read values before the read
-    so the escalation outcome can carry them. Scalars only - the §71A-1 rule
-    about long-lived references applies to mappings, not to numbers.
-    """
-
-    _RUNTIME_CONTEXT["attempt_seq"] = int(attempt_seq)
-    _RUNTIME_CONTEXT["research_seconds_left"] = (
-        float(research_seconds_left) if research_seconds_left is not None else None
-    )
-    _RUNTIME_CONTEXT["hard_seconds_left"] = (
-        float(hard_seconds_left) if hard_seconds_left is not None else None
-    )
-
-
 __all__ = [
     "BROWSER_TIER_ENV",
-    "set_escalation_runtime_context",
     "ESCALATION_BROWSER",
     "ESCALATION_ENV",
     "ESCALATION_HTTP",
