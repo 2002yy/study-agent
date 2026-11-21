@@ -1,9 +1,9 @@
 """Project wave read charges onto the current research budget.
 
 The per-wave quota owns only read/character charges. The executor still owns
-ResearchState and checkpoint persistence; this context merely binds the live
-state/cursor, quota and clock used by all three read paths (Deep seeds,
-physical evidence reads and lead discovery).
+ResearchState and checkpoint persistence. This context is the single view of
+live budget limits and accumulated quota for Deep seeds, evidence reads and
+lead discovery; it never authorizes a physical read or performs persistence.
 """
 
 from __future__ import annotations
@@ -35,4 +35,24 @@ class ReadWaveBudgetContext:
             self.live.current_cursor(),
             elapsed_seconds=self.elapsed(),
             reads_used=self.quota.successful_reads,
+        )
+
+    def exhausted(self) -> bool:
+        """Check the shared read/character quota against the latest live limits."""
+        limits = self.live.current_state().budget
+        return self.quota.exhausted(
+            max_reads=limits.max_reads,
+            max_total_chars=limits.max_total_chars,
+        )
+
+    def remaining_chars(self) -> int:
+        """Deep materialization reads the current character ceiling."""
+        return self.quota.remaining_chars(
+            max_total_chars=self.live.current_state().budget.max_total_chars
+        )
+
+    def source_limit(self) -> int:
+        """Bound ordinary evidence and lead reads using the same live ceiling."""
+        return self.quota.source_limit(
+            max_total_chars=self.live.current_state().budget.max_total_chars
         )

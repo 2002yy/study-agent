@@ -96,3 +96,46 @@ def test_projection_does_not_change_cursor_or_context_when_no_read_succeeds() ->
     assert live.state.budget.elapsed_seconds != 2.0
     assert live.cursor is cursor
     assert live.context == {"untouched": True}
+
+
+def test_limit_views_rebind_latest_budget_without_mutation_or_time_sampling() -> None:
+    original = _state(max_candidates=5, reads_used=1)
+    live = ActiveRuntimeLiveValues(state=original)
+    quota = ReadWaveQuotaContext(successful_reads=1, used_chars=12)
+
+    def forbidden_elapsed() -> float:
+        raise AssertionError("checking read limits must not sample elapsed time")
+
+    budget = ReadWaveBudgetContext(
+        live=live, quota=quota, elapsed=forbidden_elapsed
+    )
+
+    assert not budget.exhausted()
+    assert budget.remaining_chars() == 88
+    assert budget.source_limit() == 88
+
+    # A checkpoint or steering change may replace the state and tighten both
+    # ceilings between read admissions. The budget context cannot cache them.
+    new_state = _state(max_candidates=2, reads_used=1)
+    tightened = replace(
+        new_state,
+        budget=replace(new_state.budget, max_reads=1, max_total_chars=10),
+    )
+    live.state = tightened
+    assert budget.exhausted()
+    assert budget.remaining_chars() == -2
+    # Preserve the historical non-clamped result: callers enforce admission.
+    assert budget.source_limit() == -2
+
+    # A later increase reuses the same quota but the newest live hard limit.
+    reopened = replace(
+        tightened,
+        budget=replace(tightened.budget, max_reads=3, max_total_chars=7000),
+    )
+    live.state = reopened
+    assert not budget.exhausted()
+    assert budget.remaining_chars() == 6988
+    assert budget.source_limit() == 6000
+    assert (quota.successful_reads, quota.used_chars) == (1, 12)
+    assert original.budget.max_total_chars == 100
+    assert tightened.budget.max_total_chars == 10
