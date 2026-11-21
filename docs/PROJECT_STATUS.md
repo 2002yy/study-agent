@@ -6,6 +6,14 @@
 
 ## 0. Current Handoff（2026-11-21，冷启动）
 
+### 2026-11-22 未被现行搜索链调用的 Web 搜索计划兼容门面退役（P3 静态候选）
+
+- **被动兼容链**：`src/web/orchestrator.py` 的 `WebSearchPlan/build_search_plan` 只做 `normalize_web_query` + `route_query` 的旧式二次包装；`src/web/query_router.py` 的 `SearchIntent` 是与现行 `src/web/search_router.py::route_search` 不同的一套独立意图枚举。两个模块仍由 `src/web/__init__.py` 公开重导出。
+- **定向可达性**：已查 `src/web` 顶层 34 个非 research 模块、15 个核心业务/查询/读取调用方，另查 `tests/test_web_query_normalizer.py`、`tests/test_web_search_flow.py` 和 `tests/test_web_search_strategy.py`；没有发现这 4 个旧符号的实际调用方。现行 `GeneralWebGateway` 在 `src/web/tool_gateway.py` 直接使用 `src/web/query_normalizer.py::normalize_web_query`；实用搜索路由 `src/web/search_router.py` 保留。GitHub 代码搜索索引未完整，故不声称整个仓库零动态引用。
+- **整链删除**：删除 `src/web/orchestrator.py`、`src/web/query_router.py` 以及 `src/web/__init__.py` 四个旧符号重导出，不增加兼容空壳。未发现为这两个包装独占的测试、配置、环境变量或阶段门注册；不删除真正消费者使用的 `query_normalizer.py` 和其专门测试。
+- **门禁**：基于 `main@52636c4` 的独立分支 `cleanup/retire-unused-web-plan-facade-20261122`；本地 pytest/Ruff `not_run`，必须以本候选新精确 HEAD CI 和代码审阅验收后才合并。保留新闻、真正查询规范化、SSRF 安全、双通道检索、预算和证据发布。P3/static/web-retrieval/engineering-only，动态付费测试 `not_run`。
+
+
 ### 2026-11-22 研究执行器旧导出收口候选（P3 静态）
 
 - **范围**：只清理 `src/application/active_research_runtime.py` 的 5 个未由执行器调用的转发符号：`MAX_RESEARCH_MODEL_ATTEMPTS`、`ACTIVE_RESEARCH_WAVE_BASELINE_KEY`、`ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY`、`merge_covered_clusters`、`ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY`。真正所有者模块、具体功能与持久化键值不删；`ACTIVE_RESEARCH_ASSESSMENTS_KEY` 仍为正式导出。
