@@ -153,7 +153,6 @@ from src.web.research.read_escalation import (
     TIER_HTTP,
     charge_run_envelope,
     reset_run_envelope,
-    set_escalation_runtime_context,
 )
 from src.web.research.timing_ledger import (
     ACTIVE_RESEARCH_METRICS_KEY,
@@ -431,7 +430,6 @@ class _ProductionGatewayReadContext:
     accepts_timeout: bool
     get_context: Callable[[], dict[str, Any]]
     research_seconds_left: Callable[[], float]
-    hard_seconds_left: Callable[[], float]
     wave_index: Callable[[], int]
     on_phase_start: Callable[[str], None] | None
     on_phase_end: Callable[[str], None] | None
@@ -443,11 +441,6 @@ class _ProductionGatewayReadContext:
         metrics_for_seq = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
         seq = int(metrics_for_seq.get("retrieval_attempt_seq") or 0) + 1
         metrics_for_seq["retrieval_attempt_seq"] = seq
-        set_escalation_runtime_context(
-            attempt_seq=seq,
-            research_seconds_left=self.research_seconds_left(),
-            hard_seconds_left=self.hard_seconds_left(),
-        )
         if self.accepts_timeout:
             return (
                 self.gateway.read(
@@ -514,7 +507,6 @@ def build_production_gateway_read(
     accepts_timeout: bool,
     get_context: Callable[[], dict[str, Any]],
     research_seconds_left: Callable[[], float],
-    hard_seconds_left: Callable[[], float],
     wave_index: Callable[[], int],
     on_phase_start: Callable[[str], None] | None = None,
     on_phase_end: Callable[[str], None] | None = None,
@@ -530,7 +522,6 @@ def build_production_gateway_read(
     Everything with behavioural meaning is owned here, not by callers:
 
     * metrics/context sequencing (``retrieval_attempt_seq``);
-    * escalation runtime context (``set_escalation_runtime_context``);
     * the bounded retry policy (§48/§49) including the ``window_aware``
       admission and deadline-preserving retry suppression;
     * the research-window / finalization reserve that bounds the read timeout.
@@ -547,7 +538,6 @@ def build_production_gateway_read(
         accepts_timeout=accepts_timeout,
         get_context=get_context,
         research_seconds_left=research_seconds_left,
-        hard_seconds_left=hard_seconds_left,
         wave_index=wave_index,
         on_phase_start=on_phase_start,
         on_phase_end=on_phase_end,
@@ -598,7 +588,6 @@ def run_single_read_measurement(
         accepts_timeout=accepts_timeout,
         get_context=get_context,
         research_seconds_left=research_seconds_left,
-        hard_seconds_left=hard_seconds_left,
         wave_index=(lambda: 0) if wave_index is None else wave_index,
     )
     executors = build_read_chain_executors(
@@ -970,7 +959,6 @@ class ActiveResearchRuntimeExecutor:
             accepts_timeout=self.read_gateway_accepts_timeout,
             get_context=runtime_observation.current_context,
             research_seconds_left=research_seconds_left,
-            hard_seconds_left=budget_clock.hard_seconds_left,
             wave_index=runtime_observation.wave_index,
             on_phase_start=runtime_observation.phase_start,
             on_phase_end=runtime_observation.phase_end,

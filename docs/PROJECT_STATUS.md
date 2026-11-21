@@ -6,6 +6,13 @@
 
 ## 0. Current Handoff（2026-11-20，冷启动）
 
+### 2026-11-21 无消费者读取升级状态退役（独立 P3 静态减负片）
+
+- **真实调用与无消费者证据**：active_research_runtime 的 read_once 只向 read_escalation.set_escalation_runtime_context 写入三个标量；read_escalation 的 _RUNTIME_CONTEXT 没有读路径，Wigolo 使用现行显式 hard_seconds_left 与 run_envelope_*。该死字典既不是正式 budget ledger，也不控制读取、发布或恢复。
+- **删除范围**：删 _RUNTIME_CONTEXT、setter、__all__ 导出、read_once 写入；同步删除 build_production_gateway_read 只为死 setter 存在的 hard_seconds_left 参数/字段和两处调用方传参，以及重复定义的 tier/模式常量。保留 retrieval_attempt_seq 的真实 metrics 写入，Wigolo/read-site 的 hard_seconds_left 与 B-Search Shadow 全部不动。
+- **测试/配置边界**：没有独占该死 setter 的测试、环境变量或阶段门。已有研究执行、读取升级、Wigolo parity、窗口/预算、恢复与发布回归必须保持，不新增兼容重导出。
+- **门禁**：priority=P3，loop=static，owner=retrieval/retired-read-context，dynamic_evidence=not_run，budget_authorization=not_applicable，decision=engineering-only；仅凭本次精确 HEAD CI 与审阅决定合并。
+
 ### 2026-11-21 并发研究 HTTP/Browser Envelope 账本隔离（P0 静态候选）
 
 - **复现原理**：旧 `read_escalation._RUN_ENVELOPE` 是进程级两键字典；研究 A 的实际读取消耗可能被研究 B 的启动重置清零，研究 B 的耗时亦可能计入研究 A。既有 `reset_run_envelope` 只按 tier 归零、没有 run 标识，因此进程级字典不符合 per-run 契约。
