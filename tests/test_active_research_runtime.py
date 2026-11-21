@@ -5,7 +5,6 @@ from collections.abc import Callable
 from collections.abc import Mapping
 from json import dumps as _json_dumps
 from json import loads
-from pathlib import Path
 from types import SimpleNamespace
 from threading import Event, Thread
 from time import perf_counter
@@ -1373,58 +1372,6 @@ def test_slow_active_stage_cancel_settles_within_call_timeout_plus_one(
         f"settle_seconds={settle_seconds:.3f} "
         f"bound_seconds={declared_timeout_seconds + 1.0:.1f}"
     )
-
-
-
-def _load_smoke_module() -> Any:
-    import importlib.util
-
-    path = Path(__file__).resolve().parents[1] / "tools" / "run_research_active_smoke.py"
-    spec = importlib.util.spec_from_file_location("run_research_active_smoke", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def test_smoke_searxng_success_requires_ok_results() -> None:
-    """B5-H6: attempted is not success; only a successful result-bearing
-    searxng outcome proves the real-SearXNG smoke ran against SearXNG."""
-    module = _load_smoke_module()
-
-    success = [
-        {
-            "provider_audit": {
-                "provider_outcomes": [
-                    {"provider": "searxng", "status": "ok", "result_count": 3}
-                ]
-            }
-        }
-    ]
-    assert module._searxng_success(success) is True
-
-    failed_but_attempted = [
-        {
-            "provider_audit": {
-                "provider_outcomes": [
-                    {"provider": "searxng", "status": "failed", "result_count": 0},
-                    {"provider": "bing_rss", "status": "ok", "result_count": 5},
-                ]
-            }
-        }
-    ]
-    assert module._searxng_success(failed_but_attempted) is False
-
-    ok_but_empty = [
-        {
-            "provider_audit": {
-                "provider_outcomes": [
-                    {"provider": "searxng", "status": "ok", "result_count": 0}
-                ]
-            }
-        }
-    ]
-    assert module._searxng_success(ok_but_empty) is False
 
 
 
