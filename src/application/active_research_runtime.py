@@ -96,7 +96,6 @@ from src.web.research.runtime import (
     _assessment_call_suffix as _assessment_call_suffix,
     _attempt_number as _attempt_number,
     _extraction_call_suffix as _extraction_call_suffix,
-    _is_interrupted_failure as _is_interrupted_failure,
     EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS,
     MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN,
     MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE,
@@ -202,7 +201,6 @@ from src.web.research.source_cluster import (
 from src.web.research.state import attach_claim_engine_state
 from src.web.research.steering import (
     _pending_active_steering_ids as _pending_active_steering_ids,
-    _steering_ids_for_claim as _steering_ids_for_claim,
     _unapplied_steering_blocks_completion as _unapplied_steering_blocks_completion,
 )
 from src.application.research_stop_gate import (
