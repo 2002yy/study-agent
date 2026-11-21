@@ -32,7 +32,7 @@ from src.evals.release_benchmark_reviewer_qualification import (
     ReviewerQualificationViolation,
     make_identity,
 )
-from src.evals.release_benchmark_semantic_probe import materialize_review_items
+from src.evals.release_benchmark_review_material import materialize_review_items
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests/fixtures/release_benchmark"
