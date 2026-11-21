@@ -931,7 +931,7 @@ class ActiveResearchRuntimeExecutor:
             breaker=breaker,
             run_id=run_id,
             utc_now=self.utc_now,
-            on_cursor_change=live.set_cursor,
+            live=live,
             research_seconds_left=research_seconds_left,
             elapsed=elapsed,
             escalation_recorder=_record_escalation_diagnostics,
@@ -1793,8 +1793,6 @@ class ActiveResearchRuntimeExecutor:
                     dispatched_read_ids.add(candidate_id)
                     ensure_active()
                     read_attempt_context.record_chain_attempts(
-                        live.cursor,
-                        live.context,
                         candidate=candidate,
                         chain_steps=chain_steps,
                         attempt_number=attempt,
