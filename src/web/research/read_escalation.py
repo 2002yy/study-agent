@@ -6,12 +6,13 @@ execution-time Wigolo budget plan; it does not perform retrievals or create
 evidence. The old in-reader hidden escalation path has been retired.
 """
 
-
 from __future__ import annotations
 
 import os
 from contextvars import ContextVar
 from dataclasses import dataclass
+
+
 ESCALATION_ENV = "RESEARCH_WIGOLO_ESCALATION"
 BROWSER_TIER_ENV = "WIGOLO_BROWSER_ESCALATION"
 
@@ -111,7 +112,6 @@ def http_run_envelope_seconds() -> float:
     except (TypeError, ValueError):
         value = HTTP_RUN_ENVELOPE_DEFAULT
     return max(0.0, min(value, 120.0))
-
 
 
 def escalation_mode() -> str:
