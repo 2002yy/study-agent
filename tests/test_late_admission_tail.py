@@ -964,3 +964,54 @@ def test_aborted_tail_still_reaches_a_terminal_state() -> None:
     entry = _terminal_invocations(context)[0]
     assert entry["outcome"] == "aborted:_Abort"
 
+
+def test_late_tail_assessment_store_targets_context_rebound_after_model_call() -> None:
+    """The assessment must survive a checkpoint that replaces the context dict."""
+
+    claim = _claim()
+    state = _state(claim)
+    cursor = _cursor(["https://docs.example.com/pulls"])
+    entry_context = _context(["candidate_0"])
+    live = ActiveRuntimeLiveValues(state=state, cursor=cursor, context=entry_context)
+    assessments: dict = {}
+    inputs: dict = {}
+    rankings: dict = {}
+
+    class _RebindingAssessor(_Assessor):
+        def assess(self, *, candidates: Any, **kwargs: Any) -> Any:
+            # The real model-start callback performs a durable checkpoint; the
+            # repository can return a newly allocated research-context dict.
+            live.context = {**live.current_context(), "checkpoint_rebound": True}
+            return super().assess(candidates=candidates, **kwargs)
+
+    result = _call_tail(
+        cursor=cursor,
+        state=state,
+        claim=claim,
+        context=entry_context,
+        run_id="run_1",
+        wave_index=2,
+        max_reads=8,
+        assessor=_RebindingAssessor(),
+        policy_context=_policy_context(),
+        phase_begin=lambda _name: None,
+        phase_end=lambda _name: None,
+        remaining_timeout=lambda: 5.0,
+        research_seconds_left=lambda: 30.0,
+        trace=None,
+        claim_rankings=rankings,
+        stored_assessments=assessments,
+        assessed_inputs=inputs,
+        live_context=live.current_context,
+    )
+
+    assert result is cursor
+    assert live.current_context() is not entry_context
+    assert live.current_context()["checkpoint_rebound"] is True
+    assert [item.candidate.id for item in rankings[CLAIM_ID]] == ["candidate_0"]
+    # The entry snapshot must not become a second, stale publication owner.
+    assert "claim_engine_assessments" not in entry_context
+    assert "claim_engine_assessment_inputs" not in entry_context
+    assert live.current_context()["claim_engine_assessments"] is assessments
+    assert live.current_context()["claim_engine_assessment_inputs"] is inputs
+    assert inputs[CLAIM_ID] == ["candidate_0"]
