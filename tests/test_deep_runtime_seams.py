@@ -12,9 +12,10 @@ import hashlib
 
 from src.application.active_research_runtime import (
     _bind_deep_seed_candidates,
-    _deep_seed_materialization,
     _lead_read_plan,
 )
+from src.application.research_runtime_read_projection import project_deep_seed_source
+from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
 from src.web.research.contracts import (
     EvidenceGap,
     EvidenceRequirement,
@@ -186,14 +187,13 @@ def test_e28_e29_the_materialized_source_is_read_backed_without_a_retrieval_stat
         cursor, state, seed_by_url={URL: _seed_source()}, max_candidates=40
     )
     candidate = bound.candidates[0]
-    selected: list[dict] = []
+    results = ActiveResearchResultBuffers([], [], [], [])
 
-    record = _deep_seed_materialization(
+    record = project_deep_seed_source(
         candidate=_to_pool_item(candidate),
         plan_item=_plan_item(candidate),
         seed_source=_seed_source(),
         source_limit=6000,
-        selected_sources=selected,
     )
 
     assert record is not None
@@ -205,7 +205,10 @@ def test_e28_e29_the_materialized_source_is_read_backed_without_a_retrieval_stat
     # No retrieval happened, so no retrieval state and no attempt history are invented.
     assert "retrieval_state" not in record
     assert "retrieval_attempts" not in record
-    assert selected and selected[0]["candidate_id"] == candidate.id
+    assert results.selected_sources == []  # projection cannot publish the source
+    results.upsert_selected_source(record)
+    assert results.selected_sources[0] is record
+    assert results.selected_sources[0]["candidate_id"] == candidate.id
 
 
 def test_materialization_respects_the_char_budget():
@@ -215,13 +218,11 @@ def test_materialization_respects_the_char_budget():
         cursor, state, seed_by_url={URL: _seed_source()}, max_candidates=40
     )
     candidate = bound.candidates[0]
-    selected: list[dict] = []
-    record = _deep_seed_materialization(
+    record = project_deep_seed_source(
         candidate=_to_pool_item(candidate),
         plan_item=_plan_item(candidate),
         seed_source=_seed_source(),
         source_limit=5,
-        selected_sources=selected,
     )
     assert record is not None
     assert record["read"]["content"] == BODY[:5]
@@ -237,12 +238,11 @@ def test_materialization_declines_when_no_budget_remains():
     )
     candidate = bound.candidates[0]
     assert (
-        _deep_seed_materialization(
+        project_deep_seed_source(
             candidate=_to_pool_item(candidate),
             plan_item=_plan_item(candidate),
             seed_source=_seed_source(),
             source_limit=0,
-            selected_sources=[],
         )
         is None
     )
