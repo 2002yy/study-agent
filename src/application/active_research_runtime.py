@@ -848,6 +848,7 @@ class ActiveResearchRuntimeExecutor:
         research_seconds_left = budget_clock.research_seconds_left
         remaining_timeout = budget_clock.remaining_timeout
         execution_guard = ActiveResearchExecutionGuard(
+            live=live,
             repository=self.repository,
             run_id=run_id,
             operation_id=operation_id,
@@ -1124,7 +1125,7 @@ class ActiveResearchRuntimeExecutor:
                     live.cursor = replace(live.cursor, wave_index=1)
                     live.context = steering_context.refresh(live.context)
                     if _pending_active_steering_ids(live.context):
-                        execution_guard.ensure_budget(live.state)
+                        execution_guard.ensure_budget()
                         live.state, live.context, _applied_ids = steering_context.apply_pending(
                             state=live.state,
                             context=live.context,
@@ -1304,7 +1305,7 @@ class ActiveResearchRuntimeExecutor:
                     # rankings remain durable inputs for scheduling and crash
                     # recovery; successful later windows are merged and
                     # reranked instead of replacing those bindings.
-                    execution_guard.ensure_budget(live.state)
+                    execution_guard.ensure_budget()
                     categories = ("public_research_claim", "public_candidate_metadata")
                     assessment_logical_call_id = (
                         f"research_candidate_assessment:{run_id}:{claim.id}:1"
@@ -1684,7 +1685,7 @@ class ActiveResearchRuntimeExecutor:
                             ),
                         )
                         break
-                    execution_guard.ensure_budget(live.state)
+                    execution_guard.ensure_budget()
                     candidate = _candidate_by_id(live.cursor, candidate_id)
                     source_limit = read_budget.source_limit()
                     # §100 A2c: pre-attempt scheduling. A candidate whose only
@@ -1874,7 +1875,7 @@ class ActiveResearchRuntimeExecutor:
                     lead_candidate = lead_item["candidate"]
                     lead_candidate_id = lead_candidate.id
                     ensure_active()
-                    execution_guard.ensure_budget(live.state)
+                    execution_guard.ensure_budget()
                     lead_source_limit = read_budget.source_limit()
                     lead_marker = lead_read_attempt.start(lead_candidate)
                     checkpoint()
@@ -2014,7 +2015,7 @@ class ActiveResearchRuntimeExecutor:
                     if source_record is None:
                         continue
                     ensure_active()
-                    execution_guard.ensure_budget(live.state)
+                    execution_guard.ensure_budget()
                     extraction_categories = (
                         "public_research_claim",
                         "public_candidate_metadata",
