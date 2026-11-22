@@ -3,13 +3,19 @@
 from dataclasses import fields, replace
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import Mock
 
 import pytest
 
 from src.application.research_runtime_model_attempt_context import (
     ActiveModelAttemptContext,
 )
+from src.application.research_runtime_execution_guard import (
+    ActiveResearchExecutionGuard,
+    HardResearchBudgetReached,
+)
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
+from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import ResearchState
 from src.web.research.model_gateway import (
     ResearchModelAttemptStart,
@@ -252,3 +258,80 @@ def test_attempt_number_admission_uses_current_recovered_cursor_without_side_eff
 
     assert live.cursor is before
     assert events == [], "number admission must not send, charge or checkpoint"
+
+
+def test_live_budget_guard_preserves_checkpoint_before_provider_send() -> None:
+    """Budget refusal cannot leave an inflight marker or reach the provider."""
+
+    events: list[str] = []
+    repository = Mock(spec=WebLookupRepository)
+
+    def cancel_requested(_run_id: str, *, operation_id: str) -> bool:
+        assert operation_id == "operation-1"
+        events.append("cancel_probe")
+        return False
+
+    repository.cancel_requested.side_effect = cancel_requested
+    initial_state = cast(
+        ResearchState,
+        SimpleNamespace(budget=SimpleNamespace(hard_timeout_seconds=10.0)),
+    )
+    live = ActiveRuntimeLiveValues(state=initial_state)
+
+    def elapsed() -> float:
+        events.append("budget_clock")
+        return 5.0
+
+    def checkpoint() -> None:
+        events.append("checkpoint")
+        assert live.cursor.inflight_model_call is not None
+        assert not live.cursor.model_calls
+
+    guard = ActiveResearchExecutionGuard(
+        live=live,
+        repository=repository,
+        run_id="research-1",
+        operation_id="operation-1",
+        elapsed=elapsed,
+    )
+    attempt = ActiveModelAttemptContext(
+        live=live,
+        ensure_active=guard.ensure_active,
+        ensure_budget=guard.ensure_budget,
+        checkpoint=checkpoint,
+    )
+
+    marker = _marker()
+
+    def provider_send(start: ResearchModelAttemptStart) -> None:
+        attempt.started(start)
+        events.append("provider_send")
+        attempt.finished(_audit(start))
+
+    provider_send(marker)
+    assert events == [
+        "cancel_probe",
+        "budget_clock",
+        "checkpoint",
+        "provider_send",
+        "cancel_probe",
+    ]
+    assert live.cursor.inflight_model_call is None
+    assert len(live.cursor.model_calls) == 1
+
+    # A steering/recovery rebind tightens the hard budget after first call.
+    live.state = cast(
+        ResearchState,
+        SimpleNamespace(budget=SimpleNamespace(hard_timeout_seconds=4.0)),
+    )
+    before = live.cursor
+    events.clear()
+    with pytest.raises(HardResearchBudgetReached):
+        provider_send(replace(marker, attempt=2, call_id="claim:1:attempt:2"))
+
+    assert events == ["cancel_probe", "budget_clock"]
+    assert live.cursor is before
+    assert len(live.cursor.model_calls) == 1
+    repository.cancel_requested.assert_called_with(
+        "research-1", operation_id="operation-1"
+    )
