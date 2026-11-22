@@ -49,7 +49,8 @@ def _settlement(
     ensure_active: Any = None,
 ) -> ActiveWaveSettlementContext:
     steering = steering or Mock()
-    steering.refresh.side_effect = lambda value: value
+    if steering.refresh.side_effect is None:
+        steering.refresh.side_effect = lambda value: value
     return ActiveWaveSettlementContext(
         live=live,
         steering=steering,
@@ -215,7 +216,9 @@ def test_pending_direction_reads_current_evidence_ids_after_context_binding(
     )
     steering = Mock()
 
-    def apply_pending(*, state: Any, context: Any, known_evidence_ids: Any, **_: Any) -> Any:
+    def apply_pending(
+        *, state: Any, context: Any, known_evidence_ids: Any, **_: Any
+    ) -> Any:
         assert known_evidence_ids() == ("research-1:fresh-source",)
         return state, context, ("new-direction",)
 
