@@ -236,7 +236,6 @@ def test_model_gateway_exhaustion_is_unavailable_without_token_estimates() -> No
     assert all(item.total_tokens is None for item in result.audits)
 
 
-
 def test_model_gateway_settles_retry_from_original_start_markers(monkeypatch) -> None:
     """Each paid send has one matching audit, even after a failed first call."""
     gateway, client = _gateway(
@@ -339,7 +338,6 @@ def test_model_gateway_budget_refusal_finishes_one_audit(monkeypatch) -> None:
         "finish:refused:1:attempt:1",
     ]
     assert not client.create_calls
-
 
 
 @pytest.mark.parametrize("reason", ["exhausted", "conflict"])
