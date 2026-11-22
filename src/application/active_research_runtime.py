@@ -229,10 +229,7 @@ from src.application.research_runtime_model_attempt_context import (
     ActiveModelAttemptContext,
 )
 from src.application.research_runtime_steering_context import ActiveResearchSteeringContext
-from src.application.research_runtime_wave_settlement import (
-    ActiveWaveSettlementContext,
-    ActiveWaveSettlementHandoff,
-)
+from src.application.research_runtime_wave_settlement import ActiveWaveSettlementContext
 from src.application.research_runtime_wave_baseline import ActiveWaveBaselineContext
 from src.application.research_runtime_wave_progress import ActiveWaveProgressContext
 from src.application.research_runtime_failure_projection import (
@@ -968,7 +965,6 @@ class ActiveResearchRuntimeExecutor:
         # semantic result. A crash first leaves durable inflight for recovery.
         on_model_finished = model_attempt_context.finished
 
-        wave_handoff = ActiveWaveSettlementHandoff(live=live)
         read_coverage = ActiveReadCoverageContext(live=live, results=results)
         wave_baseline_context = ActiveWaveBaselineContext(
             live=live, actionable_gaps=_ordered_gaps
@@ -980,10 +976,11 @@ class ActiveResearchRuntimeExecutor:
         )
 
         wave_settlement_context = ActiveWaveSettlementContext(
+            live=live,
             steering=steering_context,
             ensure_active=ensure_active,
             elapsed=elapsed,
-            checkpoint=partial(wave_handoff.settle_completed_wave, checkpoint=checkpoint),
+            checkpoint=checkpoint,
             results=results,
             run_id=run_id,
             actionable_gaps=_ordered_gaps,
@@ -1139,7 +1136,7 @@ class ActiveResearchRuntimeExecutor:
                         exhausted=budget_clock.research_window_exhausted(),
                     )
                     checkpoint()
-                    settled = wave_handoff.settle(wave_settlement_context, gate, brief)
+                    settled = wave_settlement_context.settle_completed_wave(gate, brief)
                     if settled is not None:
                         return settled
                     continue
@@ -2314,7 +2311,7 @@ class ActiveResearchRuntimeExecutor:
                 checkpoint()
                 timing_ledger.end_wave()
                 timing_ledger.flush_into(live.context)
-                settled = wave_handoff.settle(wave_settlement_context, gate, brief)
+                settled = wave_settlement_context.settle_completed_wave(gate, brief)
                 if settled is not None:
                     return settled
         except (ActiveResearchCancelled, CandidatePoolCancelled, ReadSchedulingCancelled):
