@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.application.active_research_evidence_projection import _evidence_snapshot
+from src.domain.runtime_entities import WebLookupRun
 
 
 @dataclass
@@ -22,6 +23,17 @@ class ActiveResearchResultBuffers:
     selected_sources: list[dict[str, Any]]
     rejected_sources: list[dict[str, Any]]
     warnings: list[str]
+
+    @classmethod
+    def from_run(cls, run: WebLookupRun) -> ActiveResearchResultBuffers:
+        """Detach restored records once; execution consumers share these live lists."""
+
+        return cls(
+            query_attempts=list(run.query_attempts),
+            selected_sources=[dict(item) for item in run.selected_sources],
+            rejected_sources=[dict(item) for item in run.rejected_sources],
+            warnings=list(run.warnings),
+        )
 
     def upsert_selected_source(self, record: dict[str, Any]) -> None:
         """Update the live publication list without replacing its list identity."""
