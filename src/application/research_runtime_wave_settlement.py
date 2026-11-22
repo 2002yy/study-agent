@@ -112,4 +112,6 @@ class ActiveWaveSettlementContext:
             phase="completed" if stop.decision == "success" else "unavailable",
         )
         self.checkpoint()
-        return self.publisher.complete(context=self.live.context, stop=stop, brief=brief)
+        return self.publisher.complete(
+            context=self.live.context, stop=stop, brief=brief
+        )
