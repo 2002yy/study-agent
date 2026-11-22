@@ -37,7 +37,10 @@ def test_restored_buffers_detach_persisted_records_and_keep_one_live_owner() -> 
     assert buffers.selected_sources is not persisted.selected_sources
     assert buffers.selected_sources[0] is not persisted.selected_sources[0]
     assert buffers.rejected_sources[0] is not persisted.rejected_sources[0]
-    assert buffers.selected_sources[0]["read"] is not persisted.selected_sources[0]["read"]
+    assert (
+        buffers.selected_sources[0]["read"]
+        is not persisted.selected_sources[0]["read"]
+    )
     assert (
         buffers.selected_sources[0]["extractions"]
         is not persisted.selected_sources[0]["extractions"]
