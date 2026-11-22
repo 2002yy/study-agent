@@ -800,16 +800,7 @@ class ActiveResearchRuntimeExecutor:
             live.cursor = ResearchRuntimeCursor()
         live.cursor = recover_interrupted_model_attempt(live.cursor)
         live.cursor = recover_interrupted_external_attempt(live.cursor)
-        query_attempts = list(run.query_attempts)
-        selected_sources = [dict(item) for item in run.selected_sources]
-        rejected_sources = [dict(item) for item in run.rejected_sources]
-        warnings = list(run.warnings)
-        results = ActiveResearchResultBuffers(
-            query_attempts=query_attempts,
-            selected_sources=selected_sources,
-            rejected_sources=rejected_sources,
-            warnings=warnings,
-        )
+        results = ActiveResearchResultBuffers.from_run(run)
         source_evidence = ReadSourceEvidenceContext(
             results=results,
             live=live,
@@ -1139,7 +1130,7 @@ class ActiveResearchRuntimeExecutor:
                 # settlement must not account the same wave twice.
                 if len(live.cursor.gain_history) >= live.cursor.wave_index:
                     gate = evaluate_evidence_gate(live.state)
-                    brief = _evidence_brief(live.state, gate, selected_sources)
+                    brief = _evidence_brief(live.state, gate, results.selected_sources)
                     live.context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
                     research_window_diagnostics.record_end(
                         live.context,
@@ -1509,7 +1500,7 @@ class ActiveResearchRuntimeExecutor:
                 # Skipping them later in the read loop would still have consumed a scheduler
                 # read slot that an unread candidate needed.
                 content_available = content_available_ids(
-                    completed_read, selected_sources
+                    completed_read, results.selected_sources
                 )
                 rankings_for_plan = {
                     claim_id: tuple(
@@ -1550,7 +1541,7 @@ class ActiveResearchRuntimeExecutor:
                 if atomic_routing_enabled():
                     routing_read_ids = frozenset(
                         str(record.get("candidate_id") or "")
-                        for record in selected_sources
+                        for record in results.selected_sources
                         if str(record.get("read_status") or "") == "read"
                     )
                     supported_ids = frozenset(
@@ -1596,7 +1587,7 @@ class ActiveResearchRuntimeExecutor:
                 read_quota = ReadWaveQuotaContext.restore(
                     budget_reads_used=live.state.budget.reads_used,
                     context=live.context,
-                    selected_sources=selected_sources,
+                    selected_sources=results.selected_sources,
                 )
                 read_budget = ReadWaveBudgetContext(
                     live=live, quota=read_quota, elapsed=elapsed
@@ -2290,7 +2281,7 @@ class ActiveResearchRuntimeExecutor:
                         live.context,
                         wave_index=live.cursor.wave_index,
                         routed_pairs=routed_pairs,
-                        selected_sources=selected_sources,
+                        selected_sources=results.selected_sources,
                     )
 
                 live.cursor = replace(live.cursor, phase="gating")
@@ -2298,11 +2289,11 @@ class ActiveResearchRuntimeExecutor:
                 checkpoint(stage="gating")
                 gate = evaluate_evidence_gate(live.state)
                 live.state = _state_after_gate(live.state, gate)
-                brief = _evidence_brief(live.state, gate, selected_sources)
+                brief = _evidence_brief(live.state, gate, results.selected_sources)
                 live.context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
                 # §45 funnel: proposal -> added -> assessed -> read ->
                 # extracted -> gate-eligible, per llm_proposed candidate.
-                _record_tier2_funnel(live.context, live.cursor, brief, selected_sources)
+                _record_tier2_funnel(live.context, live.cursor, brief, results.selected_sources)
                 runtime_observation.phase_end("gating")
                 checkpoint()
 
@@ -2356,12 +2347,12 @@ class ActiveResearchRuntimeExecutor:
             # Persist the stop once; the final evidence has its own checkpoint below.
             checkpoint()
             gate = evaluate_evidence_gate(live.state)
-            brief = _evidence_brief(live.state, gate, selected_sources)
+            brief = _evidence_brief(live.state, gate, results.selected_sources)
             live.context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
             # §63/§50 acceptance accounting: the run can stop here (budget
             # exhaustion) before the per-wave gating block, so record the
             # discovery funnel on this path too; it only joins metrics.
-            _record_tier2_funnel(live.context, live.cursor, brief, selected_sources)
+            _record_tier2_funnel(live.context, live.cursor, brief, results.selected_sources)
             # F2-S1: close the open wave and publish the timeline
             timing_ledger.end_wave()
             timing_ledger.flush_into(live.context)
