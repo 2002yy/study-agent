@@ -8,12 +8,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_execution_guard import (
     ActiveResearchCancelled,
     ActiveResearchExecutionGuard,
     HardResearchBudgetReached,
 )
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import ResearchState
 
