@@ -23,7 +23,7 @@ from src.web.research.runtime import (
 
 
 class LiveModelAttemptValues(Protocol):
-    """Only the live state and cursor capabilities needed by model auditing."""
+    """Only live cursor capabilities; budget state is owned by the guard."""
 
     def current_cursor(self) -> ResearchRuntimeCursor: ...
 
