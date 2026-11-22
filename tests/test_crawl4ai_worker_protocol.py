@@ -32,6 +32,10 @@ class CrawlerRunConfig:
         self.options = kwargs
 
 class AsyncWebCrawler:
+    def __init__(self, **kwargs):
+        # Mirror the provider constructor boundary used by Worker.crawler_for.
+        self.options = kwargs
+
     async def start(self):
         return None
 
