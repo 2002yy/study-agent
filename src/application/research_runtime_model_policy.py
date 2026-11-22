@@ -13,7 +13,6 @@ from typing import Any
 
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 
-
 ACTIVE_RESEARCH_POLICY_AUDITS_KEY = "claim_engine_policy_audits"
 
 
