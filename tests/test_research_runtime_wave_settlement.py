@@ -57,7 +57,11 @@ def _settlement(
         ensure_active=ensure_active or (lambda: None),
         elapsed=elapsed or (lambda: 5.0),
         checkpoint=checkpoint or (lambda: None),
-        results=results if results is not None else ActiveResearchResultBuffers([], [], [], []),
+        results=(
+            results
+            if results is not None
+            else ActiveResearchResultBuffers([], [], [], [])
+        ),
         run_id="research-1",
         actionable_gaps=lambda _: (),
         publisher=cast(ActiveResearchPublisher, publisher or Mock()),
