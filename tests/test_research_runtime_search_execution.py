@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock
 
 import pytest
 
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_search_execution import (
     ActiveSearchQueryExecution,
 )
@@ -15,6 +15,7 @@ from src.application.research_runtime_observation import (
     ActiveRuntimeObservationContext,
 )
 from src.web.research.active_adapter import ActiveResearchGateway
+from src.web.research.contracts import ResearchState
 from src.web.research.runtime import (
     ResearchRuntimeCursor,
     RuntimeCandidate,
@@ -24,7 +25,7 @@ from src.web.research.timing_ledger import RuntimePhaseTiming, TimingLedger
 
 
 @pytest.fixture
-def search_case() -> tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], SimpleNamespace]:
+def search_case() -> tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], ActiveRuntimeLiveValues]:
     """Share the same deadline, phase and diagnostics setup across outcomes."""
 
     gateway = Mock(spec=ActiveResearchGateway)
@@ -69,10 +70,11 @@ def search_case() -> tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], Sim
             },
         ),
     )
-    live = SimpleNamespace(context=context, cursor=cursor)
+    live = ActiveRuntimeLiveValues(
+        state=cast(ResearchState, object()), cursor=cursor, context=context
+    )
     observation = ActiveRuntimeObservationContext(
-        current_context=lambda: live.context,
-        current_cursor=lambda: live.cursor,
+        live=live,
         phase_timing=timing,
         timing_ledger=timing.ledger,
     )
@@ -90,7 +92,7 @@ def search_case() -> tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], Sim
 
 
 def test_search_context_preserves_deadline_audit_and_observation(
-    search_case: tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], SimpleNamespace],
+    search_case: tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], ActiveRuntimeLiveValues],
 ) -> None:
     execution, gateway, context, _live = search_case
     payload = {
@@ -121,7 +123,7 @@ def test_search_context_preserves_deadline_audit_and_observation(
 
 
 def test_failed_search_context_ends_phase_without_fabricating_audit(
-    search_case: tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], SimpleNamespace],
+    search_case: tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], ActiveRuntimeLiveValues],
 ) -> None:
     execution, gateway, context, _live = search_case
     gateway.search_detailed.side_effect = TimeoutError("provider timeout")
@@ -138,7 +140,7 @@ def test_failed_search_context_ends_phase_without_fabricating_audit(
 
 @pytest.mark.parametrize("raises", [False, True], ids=["success", "exception"])
 def test_search_attempt_keeps_frozen_attribution_but_times_latest_context(
-    search_case: tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], SimpleNamespace],
+    search_case: tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], ActiveRuntimeLiveValues],
     raises: bool,
 ) -> None:
     execution, gateway, attempted_context, live = search_case
