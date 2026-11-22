@@ -239,7 +239,10 @@ def test_model_gateway_exhaustion_is_unavailable_without_token_estimates() -> No
 def test_model_gateway_settles_retry_from_original_start_markers(monkeypatch) -> None:
     """Each paid send has one matching audit, even after a failed first call."""
     gateway, client = _gateway(
-        [TimeoutError("temporary"), _response('{"ok":true}', prompt_tokens=7, completion_tokens=2)]
+        [
+            TimeoutError("temporary"),
+            _response('{"ok":true}', prompt_tokens=7, completion_tokens=2),
+        ]
     )
     events: list[tuple[str, str]] = []
     markers: list[ResearchModelAttemptStart] = []
@@ -304,7 +307,7 @@ def test_model_gateway_settles_retry_from_original_start_markers(monkeypatch) ->
     assert result.audits[1].total_tokens == 9
 
 
-def test_model_gateway_budget_refusal_still_finishes_exactly_one_audit(monkeypatch) -> None:
+def test_model_gateway_budget_refusal_finishes_one_audit(monkeypatch) -> None:
     """A refused reservation never reaches the provider or triggers retry."""
     import src.llm_spend_guard as spend_guard
 
@@ -341,13 +344,15 @@ def test_model_gateway_budget_refusal_still_finishes_exactly_one_audit(monkeypat
     assert not client.create_calls
 
 
-def test_model_gateway_cancel_at_start_prevents_reservation_and_send(monkeypatch) -> None:
+def test_model_gateway_cancel_at_start_prevents_send(monkeypatch) -> None:
     """A start/checkpoint exception is not a failed provider attempt."""
     import src.llm_spend_guard as spend_guard
 
     gateway, client = _gateway([_response('{"ok":true}')])
     reservations: list[object] = []
-    monkeypatch.setattr(spend_guard, "reserve_call", lambda **kw: reservations.append(kw))
+    monkeypatch.setattr(
+        spend_guard, "reserve_call", lambda **kw: reservations.append(kw)
+    )
 
     def interrupt(_marker: ResearchModelAttemptStart) -> None:
         raise RuntimeError("cancelled before model send")
