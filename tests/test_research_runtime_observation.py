@@ -16,8 +16,13 @@ from src.web.research.runtime import ResearchRuntimeCursor
 from src.web.research.timing_ledger import RuntimePhaseTiming, TimingLedger
 
 
+ObservationCase = tuple[
+    ActiveRuntimeLiveValues, dict[str, float], ActiveRuntimeObservationContext
+]
+
+
 @pytest.fixture
-def runtime_observation_case() -> tuple[ActiveRuntimeLiveValues, dict[str, float], ActiveRuntimeObservationContext]:
+def runtime_observation_case() -> ObservationCase:
     """Share the same live-state and timing setup for all phase/retry tests."""
 
     tick: dict[str, float] = {"now": 1.0}
@@ -38,7 +43,7 @@ def runtime_observation_case() -> tuple[ActiveRuntimeLiveValues, dict[str, float
 
 @pytest.mark.parametrize("phase", ["read", "assessment", "late_tail", "ranking", "gating"])
 def test_phase_end_records_on_rebound_context(
-    runtime_observation_case: tuple[ActiveRuntimeLiveValues, dict[str, float], ActiveRuntimeObservationContext],
+    runtime_observation_case: ObservationCase,
     phase: str,
 ) -> None:
     live, tick, observation = runtime_observation_case
@@ -58,7 +63,7 @@ def test_phase_end_records_on_rebound_context(
 
 
 def test_sequential_phases_do_not_write_to_stale_context(
-    runtime_observation_case: tuple[ActiveRuntimeLiveValues, dict[str, float], ActiveRuntimeObservationContext],
+    runtime_observation_case: ObservationCase,
 ) -> None:
     live, tick, observation = runtime_observation_case
     observation.phase_start("assessment")
@@ -80,9 +85,9 @@ def test_sequential_phases_do_not_write_to_stale_context(
 
 
 def test_read_retry_and_wave_index_use_live_bindings(
-    runtime_observation_case: tuple[ActiveRuntimeLiveValues, dict[str, float], ActiveRuntimeObservationContext],
+    runtime_observation_case: ObservationCase,
 ) -> None:
-    live, tick, observation = runtime_observation_case
+    live, _, observation = runtime_observation_case
     assert observation.wave_index() == 1
     live.cursor = ResearchRuntimeCursor(wave_index=4)
 
@@ -96,7 +101,7 @@ def test_read_retry_and_wave_index_use_live_bindings(
 
 
 def test_live_observation_rebinds_state_cursor_and_context_after_checkpoint(
-    runtime_observation_case: tuple[ActiveRuntimeLiveValues, dict[str, float], ActiveRuntimeObservationContext],
+    runtime_observation_case: ObservationCase,
 ) -> None:
     live, _, observation = runtime_observation_case
     original_context = live.current_context()
