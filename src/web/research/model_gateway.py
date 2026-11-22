@@ -190,6 +190,56 @@ class ResearchModelCallAudit:
     data_counts: tuple[tuple[str, int], ...] = ()
     schema_version: str = RESEARCH_MODEL_AUDIT_SCHEMA_VERSION
 
+    @classmethod
+    def from_attempt(
+        cls,
+        marker: ResearchModelAttemptStart,
+        *,
+        completed_at: str,
+        elapsed_seconds: float,
+        status: str,
+        response_sha256: str = "",
+        response_chars: int = 0,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        total_tokens: int | None = None,
+        finish_reason: str = "",
+        error_type: str = "",
+    ) -> ResearchModelCallAudit:
+        """Complete one attempt with its original immutable identity.
+
+        The gateway supplies only completion observations. Recovery markers,
+        attempt ceilings and spend reservations share the original call ID;
+        rebuilding it at completion risks attribution drift. No persistence
+        or model spend reservation happens here.
+        """
+        return cls(
+            call_id=marker.call_id,
+            logical_call_id=marker.logical_call_id,
+            purpose=marker.purpose,
+            provider_profile=marker.provider_profile,
+            model_profile=marker.model_profile,
+            model_name=marker.model_name,
+            attempt=marker.attempt,
+            started_at=marker.started_at,
+            completed_at=completed_at,
+            elapsed_seconds=elapsed_seconds,
+            status=status,
+            response_schema_version=marker.response_schema_version,
+            input_sha256=marker.input_sha256,
+            input_chars=marker.input_chars,
+            response_sha256=response_sha256,
+            response_chars=response_chars,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            finish_reason=finish_reason,
+            error_type=error_type,
+            data_categories=marker.data_categories,
+            data_counts=marker.data_counts,
+            schema_version=marker.schema_version,
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
@@ -474,21 +524,11 @@ class ResearchModelGateway:
             except Exception as exc:  # provider + schema/parse errors share bounded retry
                 error_type = type(exc).__name__
 
-            audit = ResearchModelCallAudit(
-                call_id=call_id,
-                logical_call_id=call_root,
-                purpose=normalized_purpose,
-                provider_profile=self.provider_profile,
-                model_profile=str(self.model_profile),
-                model_name=model_name,
-                attempt=attempt,
-                started_at=started_at,
+            audit = ResearchModelCallAudit.from_attempt(
+                marker,
                 completed_at=self._now(),
                 elapsed_seconds=max(0.0, self._monotonic() - started),
                 status=status,
-                response_schema_version=schema,
-                input_sha256=input_hash,
-                input_chars=len(payload_json),
                 response_sha256=response_hash,
                 response_chars=response_chars,
                 input_tokens=input_tokens,
@@ -496,8 +536,6 @@ class ResearchModelGateway:
                 total_tokens=total_tokens,
                 finish_reason=finish_reason,
                 error_type=error_type,
-                data_categories=categories,
-                data_counts=counts,
             )
             if on_attempt_finished is not None:
                 on_attempt_finished(audit)
