@@ -1,7 +1,7 @@
 """Run-scoped cancellation and hard-budget admission checks.
 
-The repository owns cancellation truth; the active executor supplies the live
-budget state. Neither check mutates state or persists a checkpoint.
+The repository owns cancellation truth; the live execution owner supplies the
+current budget on every admission. Neither check mutates state or persists.
 """
 
 from __future__ import annotations
@@ -9,8 +9,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.repositories.web_lookup_repository import WebLookupRepository
-from src.web.research.contracts import ResearchState
 
 
 class ActiveResearchCancelled(RuntimeError):
@@ -23,6 +23,7 @@ class HardResearchBudgetReached(Exception):
 
 @dataclass(frozen=True, slots=True)
 class ActiveResearchExecutionGuard:
+    live: ActiveRuntimeLiveValues
     repository: WebLookupRepository
     run_id: str
     operation_id: str
@@ -46,6 +47,8 @@ class ActiveResearchExecutionGuard:
         if self.cancel_requested():
             raise ActiveResearchCancelled("active research cancelled")
 
-    def ensure_budget(self, state: ResearchState) -> None:
-        if self.elapsed() >= state.budget.hard_timeout_seconds:
+    def ensure_budget(self) -> None:
+        """Sample the latest budget before the clock, without caching state."""
+        hard_timeout_seconds = self.live.current_state().budget.hard_timeout_seconds
+        if self.elapsed() >= hard_timeout_seconds:
             raise HardResearchBudgetReached
