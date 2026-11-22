@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+import src.llm_spend_guard as spend_guard
 from src.application.active_research_runtime import (
     _ExternalAttemptBudgetExhausted,
     _attempt_number,
@@ -247,8 +248,6 @@ def test_model_gateway_settles_retry_from_original_start_markers(monkeypatch) ->
     events: list[tuple[str, str]] = []
     markers: list[ResearchModelAttemptStart] = []
     finished: list[ResearchModelCallAudit] = []
-    import src.llm_spend_guard as spend_guard
-
     monkeypatch.setattr(spend_guard, "require_allowed_model", lambda *_a, **_kw: None)
     monkeypatch.setattr(
         spend_guard,
@@ -309,8 +308,6 @@ def test_model_gateway_settles_retry_from_original_start_markers(monkeypatch) ->
 
 def test_model_gateway_budget_refusal_finishes_one_audit(monkeypatch) -> None:
     """A refused reservation never reaches the provider or triggers retry."""
-    import src.llm_spend_guard as spend_guard
-
     gateway, client = _gateway([_response('{"ok":true}')])
     events: list[str] = []
 
@@ -346,8 +343,6 @@ def test_model_gateway_budget_refusal_finishes_one_audit(monkeypatch) -> None:
 
 def test_model_gateway_cancel_at_start_prevents_send(monkeypatch) -> None:
     """A start/checkpoint exception is not a failed provider attempt."""
-    import src.llm_spend_guard as spend_guard
-
     gateway, client = _gateway([_response('{"ok":true}')])
     reservations: list[object] = []
     monkeypatch.setattr(
@@ -374,8 +369,6 @@ def test_model_gateway_cancel_at_start_prevents_send(monkeypatch) -> None:
 
 def test_model_gateway_cancel_after_audit_does_not_retry(monkeypatch) -> None:
     """After a sent call, completion callback exceptions stay authoritative."""
-    import src.llm_spend_guard as spend_guard
-
     gateway, client = _gateway([_response('{"ok":true}'), _response('{"ok":true}')])
     charged: list[str] = []
     finished: list[ResearchModelCallAudit] = []
