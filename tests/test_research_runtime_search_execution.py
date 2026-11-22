@@ -24,8 +24,13 @@ from src.web.research.runtime import (
 from src.web.research.timing_ledger import RuntimePhaseTiming, TimingLedger
 
 
+SearchCase = tuple[
+    ActiveSearchQueryExecution, Mock, dict[str, Any], ActiveRuntimeLiveValues
+]
+
+
 @pytest.fixture
-def search_case() -> tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], ActiveRuntimeLiveValues]:
+def search_case() -> SearchCase:
     """Share the same deadline, phase and diagnostics setup across outcomes."""
 
     gateway = Mock(spec=ActiveResearchGateway)
@@ -92,7 +97,7 @@ def search_case() -> tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], Act
 
 
 def test_search_context_preserves_deadline_audit_and_observation(
-    search_case: tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], ActiveRuntimeLiveValues],
+    search_case: SearchCase,
 ) -> None:
     execution, gateway, context, _live = search_case
     payload = {
@@ -123,7 +128,7 @@ def test_search_context_preserves_deadline_audit_and_observation(
 
 
 def test_failed_search_context_ends_phase_without_fabricating_audit(
-    search_case: tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], ActiveRuntimeLiveValues],
+    search_case: SearchCase,
 ) -> None:
     execution, gateway, context, _live = search_case
     gateway.search_detailed.side_effect = TimeoutError("provider timeout")
@@ -140,7 +145,7 @@ def test_failed_search_context_ends_phase_without_fabricating_audit(
 
 @pytest.mark.parametrize("raises", [False, True], ids=["success", "exception"])
 def test_search_attempt_keeps_frozen_attribution_but_times_latest_context(
-    search_case: tuple[ActiveSearchQueryExecution, Mock, dict[str, Any], ActiveRuntimeLiveValues],
+    search_case: SearchCase,
     raises: bool,
 ) -> None:
     execution, gateway, attempted_context, live = search_case
