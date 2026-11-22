@@ -466,6 +466,7 @@ class ResearchModelGateway:
             error_type = ""
             value: T | None = None
             status = "attempt_failed"
+            hard_send_limit: Exception | None = None
             try:
                 request_kwargs: dict[str, Any] = {}
                 if extra_body is not None:
@@ -474,6 +475,7 @@ class ResearchModelGateway:
                 # same caps *before* the request, like every other provider call.
                 # Without this the experiment ledger would not cover them.
                 from src.llm_spend_guard import (
+                    SendLimitExceeded,
                     SpendConfigurationError,
                     SpendLimitExceeded,
                     require_allowed_model,
@@ -515,6 +517,13 @@ class ResearchModelGateway:
                 decoded = json.loads(_strip_json_fence(raw))
                 value = parse(decoded)
                 status = "completed"
+            except SendLimitExceeded as exc:
+                # Send slots are a hard run-level ceiling, unlike a soft
+                # per-request money refusal. Audit this denial but do not
+                # convert it to an unavailable result or spend another attempt.
+                error_type = type(exc).__name__
+                status = "budget_exhausted"
+                hard_send_limit = exc
             except (SpendLimitExceeded, SpendConfigurationError) as exc:
                 # A budget stop (cap reached, or work not authorized for the
                 # experiment) is not a provider or schema failure: it must not be
@@ -540,6 +549,11 @@ class ResearchModelGateway:
             if on_attempt_finished is not None:
                 on_attempt_finished(audit)
             audits.append(audit)
+            if hard_send_limit is not None:
+                # A SendLimitExceeded must stop the owner, not become a soft
+                # per-call result; the recorded audit remains available to
+                # the runtime callback/exception checkpoint.
+                raise hard_send_limit
             if status == "completed" and value is not None:
                 return ResearchModelResult(
                     status="completed",
