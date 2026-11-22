@@ -12,7 +12,7 @@ Acceptance cases 1-7 from the ruling.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -51,7 +51,10 @@ CLAIM_ID = "claim_1"
 
 
 def _policy_context(allowed: bool = True) -> RuntimeModelPolicyContext:
+    # Late-tail tests not exercising policy state rebind only need a live
+    # context for audit admission; the dedicated rebound test binds its owner.
     return RuntimeModelPolicyContext(
+        live=ActiveRuntimeLiveValues(state=cast(ResearchState, object())),
         policy_check=lambda context, purpose: allowed,
         utc_now=lambda: "2026-09-21T00:00:00Z",
     )
@@ -443,6 +446,7 @@ def test_late_tail_model_admission_uses_rebound_cursor_after_policy(
         max_reads=8,
         assessor=assessor,
         policy_context=RuntimeModelPolicyContext(
+            live=live,
             policy_check=policy_rebind,
             utc_now=lambda: "2026-09-21T00:00:00Z",
         ),
