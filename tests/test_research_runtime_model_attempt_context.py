@@ -86,7 +86,9 @@ def _callbacks(
         if cancel_after_finish and slot["cursor"].model_calls:
             raise RuntimeError("cancelled after completion")
 
-    def ensure_budget(state: ResearchState) -> None:
+    def ensure_budget() -> None:
+        # The real guard resolves the latest state before sampling the clock.
+        state = current_state()
         order.append("ensure_budget")
         slot["budget_state_seen"] = state
         if budget_fails:
@@ -123,7 +125,7 @@ def test_live_binding_reads_recovered_state_and_rebound_cursor() -> None:
     callbacks = ActiveModelAttemptContext(
         live=live,
         ensure_active=lambda: None,
-        ensure_budget=checked.append,
+        ensure_budget=lambda: checked.append(live.current_state()),
         checkpoint=lambda: checkpoints.append(live.cursor),
     )
 
@@ -229,7 +231,7 @@ def test_attempt_number_admission_uses_current_recovered_cursor_without_side_eff
     callbacks = ActiveModelAttemptContext(
         live=live,
         ensure_active=lambda: events.append("ensure_active"),
-        ensure_budget=lambda _state: events.append("ensure_budget"),
+        ensure_budget=lambda: events.append("ensure_budget"),
         checkpoint=lambda: events.append("checkpoint"),
     )
     assert callbacks.next_attempt_number("claim:1") == 1
