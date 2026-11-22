@@ -2,11 +2,20 @@
 
 import pytest
 
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_model_policy import (
     ACTIVE_RESEARCH_POLICY_AUDITS_KEY,
     RuntimeModelPolicyContext,
     updated_model_policy_audits,
 )
+from src.web.research.contracts import ResearchState
+from typing import cast
+
+
+def _live(context: dict) -> ActiveRuntimeLiveValues:
+    return ActiveRuntimeLiveValues(
+        state=cast(ResearchState, object()), context=context
+    )
 
 
 def test_model_policy_audit_filters_legacy_entries_without_mutating_input() -> None:
@@ -61,12 +70,14 @@ def test_model_policy_context_reads_each_rebound_context_before_sampling_time() 
         calls.append(("clock",))
         return "2026-11-18T00:00:00Z"
 
-    policy = RuntimeModelPolicyContext(policy_check=check, utc_now=now)
     first: dict = {"run": "first", ACTIVE_RESEARCH_POLICY_AUDITS_KEY: []}
     second: dict = {"run": "second", ACTIVE_RESEARCH_POLICY_AUDITS_KEY: []}
+    live = _live(first)
+    policy = RuntimeModelPolicyContext(live=live, policy_check=check, utc_now=now)
 
-    assert policy.allowed(first, "research_claim_planning", ("question",))
-    assert not policy.allowed(second, "research_evidence_extraction", ("source",))
+    assert policy.allowed("research_claim_planning", ("question",))
+    live.context = second
+    assert not policy.allowed("research_evidence_extraction", ("source",))
     assert calls == [
         ("policy", "first", "research_claim_planning"),
         ("clock",),
@@ -98,7 +109,7 @@ def test_model_policy_check_failure_writes_no_audit_or_clock_sample() -> None:
         return "never"
 
     with pytest.raises(ValueError, match="policy unavailable"):
-        RuntimeModelPolicyContext(check, now).allowed(context, "planning", ())
+        RuntimeModelPolicyContext(_live(context), check, now).allowed("planning", ())
 
     assert calls == ["policy"]
     assert context[ACTIVE_RESEARCH_POLICY_AUDITS_KEY] is original
@@ -112,8 +123,44 @@ def test_model_policy_clock_failure_preserves_prior_audits() -> None:
         raise TimeoutError("clock failed")
 
     with pytest.raises(TimeoutError, match="clock failed"):
-        RuntimeModelPolicyContext(lambda _context, _purpose: True, clock_failure).allowed(
-            context, "planning", ()
-        )
+        RuntimeModelPolicyContext(
+            _live(context), lambda _context, _purpose: True, clock_failure
+        ).allowed("planning", ())
 
     assert context[ACTIVE_RESEARCH_POLICY_AUDITS_KEY] is original
+
+
+def test_policy_rebind_during_check_keeps_one_audit_target_and_order() -> None:
+    """No split audit: callbacks cannot move a single decision across mappings."""
+
+    first: dict = {"run": "first"}
+    rebound: dict = {"run": "rebound"}
+    live = _live(first)
+    events: list[str] = []
+
+    def check(context: dict, purpose: str) -> bool:
+        events.append("policy")
+        assert context is first
+        assert purpose == "research_claim_planning"
+        live.context = rebound
+        return True
+
+    def clock() -> str:
+        events.append("clock")
+        return "2026-11-22T00:00:00Z"
+
+    policy = RuntimeModelPolicyContext(live, check, clock)
+    assert policy.allowed("research_claim_planning", ("question",))
+    assert events == ["policy", "clock"]
+    assert first[ACTIVE_RESEARCH_POLICY_AUDITS_KEY][-1]["status"] == "allowed"
+    assert ACTIVE_RESEARCH_POLICY_AUDITS_KEY not in rebound
+
+    # The next call uses the new context, never a cached run-level mapping.
+    live.context = rebound
+    policy2 = RuntimeModelPolicyContext(
+        live, lambda context, purpose: context is rebound, clock
+    )
+    assert policy2.allowed("research_evidence_extraction", ("source",))
+    assert rebound[ACTIVE_RESEARCH_POLICY_AUDITS_KEY][-1]["purpose"] == (
+        "research_evidence_extraction"
+    )
