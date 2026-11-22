@@ -10,7 +10,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from src.web.research.contracts import ResearchState
 from src.web.research.model_gateway import (
     ResearchModelAttemptStart,
     ResearchModelCallAudit,
@@ -26,8 +25,6 @@ from src.web.research.runtime import (
 class LiveModelAttemptValues(Protocol):
     """Only the live state and cursor capabilities needed by model auditing."""
 
-    def current_state(self) -> ResearchState: ...
-
     def current_cursor(self) -> ResearchRuntimeCursor: ...
 
     def set_cursor(self, cursor: ResearchRuntimeCursor) -> None: ...
@@ -39,7 +36,7 @@ class ActiveModelAttemptContext:
 
     live: LiveModelAttemptValues
     ensure_active: Callable[[], None]
-    ensure_budget: Callable[[ResearchState], None]
+    ensure_budget: Callable[[], None]
     checkpoint: Callable[[], Any]
 
     def next_attempt_number(self, logical_call_id: str) -> int:
@@ -56,7 +53,7 @@ class ActiveModelAttemptContext:
         """Persist inflight *before* the model gateway can reserve and send."""
 
         self.ensure_active()
-        self.ensure_budget(self.live.current_state())
+        self.ensure_budget()
         self.live.set_cursor(begin_model_attempt(self.live.current_cursor(), marker))
         self.checkpoint()
 
