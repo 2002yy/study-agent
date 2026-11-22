@@ -8,6 +8,7 @@ Neither this module nor its projections persist a checkpoint or finish a run.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,12 +27,17 @@ class ActiveResearchResultBuffers:
 
     @classmethod
     def from_run(cls, run: WebLookupRun) -> ActiveResearchResultBuffers:
-        """Detach restored records once; execution consumers share these live lists."""
+        """Detach the restored object graph once; share only new live lists.
+
+        Records contain nested mutable read, extraction and retry metadata.
+        Copying only the lists or top-level dicts would let post-recovery
+        updates rewrite the repository snapshot still held by the caller.
+        """
 
         return cls(
-            query_attempts=list(run.query_attempts),
-            selected_sources=[dict(item) for item in run.selected_sources],
-            rejected_sources=[dict(item) for item in run.rejected_sources],
+            query_attempts=deepcopy(list(run.query_attempts)),
+            selected_sources=deepcopy([dict(item) for item in run.selected_sources]),
+            rejected_sources=deepcopy([dict(item) for item in run.rejected_sources]),
             warnings=list(run.warnings),
         )
 
