@@ -9,20 +9,27 @@ replace either; this context never owns that state or a checkpoint.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.web.research.runtime import ResearchRuntimeCursor
 from src.web.research.timing_ledger import RuntimePhaseTiming, TimingLedger
 
 
 @dataclass(frozen=True, slots=True)
 class ActiveRuntimeObservationContext:
-    current_context: Callable[[], dict[str, Any]]
-    current_cursor: Callable[[], ResearchRuntimeCursor]
+    live: ActiveRuntimeLiveValues
     phase_timing: RuntimePhaseTiming
     timing_ledger: TimingLedger
+
+    def current_context(self) -> dict[str, Any]:
+        """Expose the current context to the existing read gateway callback."""
+        return self.live.current_context()
+
+    def current_cursor(self) -> ResearchRuntimeCursor:
+        """Resolve the cursor after checkpoint recovery or wave handoff."""
+        return self.live.current_cursor()
 
     def wave_index(self) -> int:
         return int(self.current_cursor().wave_index)
