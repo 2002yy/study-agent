@@ -1,5 +1,7 @@
 """Frozen model policy admission/audit, independent of provider calls."""
 
+from typing import cast
+
 import pytest
 
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
@@ -9,7 +11,6 @@ from src.application.research_runtime_model_policy import (
     updated_model_policy_audits,
 )
 from src.web.research.contracts import ResearchState
-from typing import cast
 
 
 def _live(context: dict) -> ActiveRuntimeLiveValues:
