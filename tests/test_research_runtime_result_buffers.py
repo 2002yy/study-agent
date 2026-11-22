@@ -40,6 +40,7 @@ def test_restored_buffers_detach_persisted_records_and_keep_one_live_owner() -> 
     assert live_selected[0]["read"]["status"] == "failed"
     assert persisted.selected_sources[0]["read"]["status"] == "read"
 
+
 def test_source_upsert_preserves_list_alias_and_first_candidate_match() -> None:
     first = {"candidate_id": "source-a", "read": {"status": "failed"}}
     other = {"candidate_id": "source-b"}
