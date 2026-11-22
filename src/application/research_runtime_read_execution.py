@@ -7,7 +7,7 @@ dependencies and returns the actual chain steps for the caller to account for.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -19,12 +19,11 @@ from src.application.research_runtime_read_site import (
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.chain_executor import ChainRun, ChainStepResult
 from src.web.research.health_breaker import host_of
-from src.web.research.runtime import RuntimeReadOutcome
 
 
 @dataclass(frozen=True, slots=True)
 class ActiveReadExecutionContext:
-    """Stable backend wiring; each invocation supplies live context and history."""
+    """Stable backend wiring; dispatch owns the shared live context and history."""
 
     gateway: Any
     gateway_read: Callable[..., Mapping[str, Any]]
@@ -37,20 +36,18 @@ class ActiveReadExecutionContext:
     def run_candidate(
         self,
         *,
-        context: dict[str, Any],
         candidate: CandidatePoolItem,
         source_limit: int,
         outer_attempt_number: int,
-        read_outcomes: Sequence[RuntimeReadOutcome],
     ) -> tuple[ChainRun, list[ChainStepResult]]:
         """Try the explicit specialist first, then the unchanged default chain.
 
-        No results are stored here: the owner must persist the returned steps
-        and must pass its current cursor/context on every new invocation.
+        Results are not stored here. Read-site diagnostics use the current
+        run context; backend selection re-reads history at dispatch time.
         """
 
         specialist_step = self.read_site.try_specialist(
-            context, candidate, source_limit
+            self.dispatch.live.current_context(), candidate, source_limit
         )
         chain_steps: list[ChainStepResult] = []
         if specialist_step is not None:
@@ -81,8 +78,7 @@ class ActiveReadExecutionContext:
                 executors=executors,
                 record_outcome=chain_steps.append,
                 attempted_backends=self.dispatch.attempted_backends(
-                    candidate_id=candidate.id,
-                    read_outcomes=read_outcomes,
+                    candidate_id=candidate.id
                 ),
                 health_state_for=self.dispatch.health_state_for,
             )

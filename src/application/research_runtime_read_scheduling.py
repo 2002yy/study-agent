@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
 
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_read_scheduling_observation import (
     record_read_scheduling_decision,
 )
@@ -26,42 +26,38 @@ from src.web.research.scheduler import attempted_read_backends
 
 @dataclass(frozen=True, slots=True)
 class ActiveReadDispatchContext:
-    """One run's stable reader dependencies, never its rebound cursor/context.
+    """Bind reader admission and chain history to the one live execution owner.
 
-    Scheduling and the subsequent reader chain must both consult the current
-    candidate-local attempt history.  A checkpoint or resumed run may replace
-    the cursor and research context between those two operations.
+    Recovery or checkpoints may rebind the cursor and context between
+    admission, diagnostics, and the physical reader chain. Neither caller
+    passes a second snapshot of these replaceable values.
     """
 
+    live: ActiveRuntimeLiveValues
     breaker: PerRunBreaker | None
     available_backends: tuple[str, ...]
     research_seconds_left: Callable[[], float]
 
-    def schedule(
-        self,
-        *,
-        candidate: CandidatePoolItem,
-        read_outcomes: Sequence[RuntimeReadOutcome],
-        context: dict[str, Any],
-    ) -> SchedulingDecision:
+    def schedule(self, *, candidate: CandidatePoolItem) -> SchedulingDecision:
         decision = schedule_active_research_read(
             candidate_id=str(candidate.id),
             url=candidate.url,
-            read_outcomes=read_outcomes,
+            read_outcomes=self.live.current_cursor().read_outcomes,
             breaker=self.breaker,
             available_backends=self.available_backends,
             research_seconds_left=self.research_seconds_left,
         )
-        # Observation follows admission, with the caller's current context.
-        record_read_scheduling_decision(context, decision)
+        # Observe only after admission, in the latest (possibly rebound)
+        # context. An observation must never resample the research clock.
+        record_read_scheduling_decision(self.live.current_context(), decision)
         return decision
 
-    def attempted_backends(
-        self, *, candidate_id: str, read_outcomes: Sequence[RuntimeReadOutcome]
-    ) -> tuple[str, ...]:
-        """Re-read the live outcome list when dispatching, after admission."""
+    def attempted_backends(self, *, candidate_id: str) -> tuple[str, ...]:
+        """Read the current history when dispatching after admission."""
 
-        return attempted_read_backends(read_outcomes, candidate_id)
+        return attempted_read_backends(
+            self.live.current_cursor().read_outcomes, candidate_id
+        )
 
     def health_state_for(self, backend: str, host: str) -> str:
         if self.breaker is None:

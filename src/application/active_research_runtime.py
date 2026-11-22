@@ -908,6 +908,7 @@ class ActiveResearchRuntimeExecutor:
         # (see the definition above), so the chain has a single authority.
 
         read_dispatch = ActiveReadDispatchContext(
+            live=live,
             breaker=breaker,
             available_backends=ACTIVE_READER_CHAIN,
             research_seconds_left=research_seconds_left,
@@ -1679,11 +1680,7 @@ class ActiveResearchRuntimeExecutor:
                     # reader is currently unavailable is not planned at all this
                     # wave - no attempt, and no read outcome, because nothing was
                     # read.
-                    scheduling = read_dispatch.schedule(
-                        candidate=candidate,
-                        read_outcomes=live.cursor.read_outcomes,
-                        context=live.context,
-                    )
+                    scheduling = read_dispatch.schedule(candidate=candidate)
                     if scheduling is not None and not scheduling.executable:
                         continue
                     # §105 A2d-4: one candidate, one outer read-slot, an explicit
@@ -1733,11 +1730,9 @@ class ActiveResearchRuntimeExecutor:
                     # With no hint (or any gate/health failure) the original
                     # inline default block below runs unchanged.
                     chain_run, chain_steps = read_execution.run_candidate(
-                        context=live.context,
                         candidate=candidate,
                         source_limit=source_limit,
                         outer_attempt_number=attempt,
-                        read_outcomes=live.cursor.read_outcomes,
                     )
                     # §105 A2d-4: the chain's own decision, recorded even when it
                     # executed nothing (a scheduling/policy skip), so the
