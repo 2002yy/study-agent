@@ -11,6 +11,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
+
 
 ACTIVE_RESEARCH_POLICY_AUDITS_KEY = "claim_engine_policy_audits"
 
@@ -40,19 +42,24 @@ def updated_model_policy_audits(
 
 @dataclass(frozen=True, slots=True)
 class RuntimeModelPolicyContext:
-    """Own stable policy dependencies, never a rebound run context."""
+    """Check model policy against the execution's latest research context."""
 
+    live: ActiveRuntimeLiveValues
     policy_check: Callable[[dict[str, Any], str], Any]
     utc_now: Callable[[], Any]
 
     def allowed(
         self,
-        context: dict[str, Any],
         purpose: str,
         categories: tuple[str, ...],
     ) -> bool:
-        """Check authorization first, then append an audit without persisting."""
+        """Check first, then audit on the same current context without persisting.
 
+        A new call observes a rebound context; an in-flight policy check keeps
+        its original audit target even if callbacks replace the live mapping.
+        """
+
+        context = self.live.current_context()
         allowed = bool(self.policy_check(context, purpose))
         context[ACTIVE_RESEARCH_POLICY_AUDITS_KEY] = updated_model_policy_audits(
             context.get(ACTIVE_RESEARCH_POLICY_AUDITS_KEY, []),
