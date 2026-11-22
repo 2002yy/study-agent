@@ -341,6 +341,51 @@ def test_model_gateway_budget_refusal_finishes_one_audit(monkeypatch) -> None:
     assert not client.create_calls
 
 
+
+@pytest.mark.parametrize("reason", ["exhausted", "conflict"])
+def test_model_gateway_hard_send_ceiling_audits_then_stops(monkeypatch, reason) -> None:
+    """Run-level send limits cannot turn into provider retries or a soft result."""
+    gateway, client = _gateway([_response('{"ok":true}'), _response('{"ok":true}')])
+    events: list[str] = []
+    finished: list[ResearchModelCallAudit] = []
+    monkeypatch.setattr(spend_guard, "require_allowed_model", lambda *_a, **_kw: None)
+
+    def deny_send(**kwargs) -> None:
+        events.append("reserve:" + kwargs["request_key"])
+        raise spend_guard.SendLimitExceeded("send slots full", reason=reason)
+
+    monkeypatch.setattr(spend_guard, "reserve_call", deny_send)
+
+    def finished_hook(audit: ResearchModelCallAudit) -> None:
+        events.append("finish:" + audit.call_id)
+        finished.append(audit)
+
+    with pytest.raises(spend_guard.SendLimitExceeded) as caught:
+        gateway.complete_structured(
+            logical_call_id="send-ceiling:1",
+            purpose="research_claim_planning",
+            messages=[{"role": "user", "content": "question"}],
+            audit_payload={"question": "question"},
+            response_schema_version="test-v1",
+            parse=lambda data: data,
+            on_attempt_started=lambda marker: events.append("start:" + marker.call_id),
+            on_attempt_finished=finished_hook,
+        )
+
+    assert caught.value.reason == reason
+    assert events == [
+        "start:send-ceiling:1:attempt:1",
+        "reserve:send-ceiling:1:attempt:1",
+        "finish:send-ceiling:1:attempt:1",
+    ]
+    assert len(finished) == 1
+    assert finished[0].call_id == "send-ceiling:1:attempt:1"
+    assert finished[0].status == "budget_exhausted"
+    assert finished[0].error_type == "SendLimitExceeded"
+    assert ResearchModelCallAudit.from_dict(finished[0].to_dict()) == finished[0]
+    assert client.create_calls == []
+
+
 def test_model_gateway_cancel_at_start_prevents_send(monkeypatch) -> None:
     """A start/checkpoint exception is not a failed provider attempt."""
     gateway, client = _gateway([_response('{"ok":true}')])
