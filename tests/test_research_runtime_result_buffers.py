@@ -16,9 +16,15 @@ def _buffers(*records: dict[str, Any]) -> ActiveResearchResultBuffers:
 
 def test_restored_buffers_detach_persisted_records_and_keep_one_live_owner() -> None:
     persisted = SimpleNamespace(
-        query_attempts=[{"query": "original"}],
-        selected_sources=[{"candidate_id": "a", "read": {"status": "read"}}],
-        rejected_sources=[{"candidate_id": "b"}],
+        query_attempts=[{"query": "original", "audit": {"attempts": [1]}}],
+        selected_sources=[
+            {
+                "candidate_id": "a",
+                "read": {"status": "read", "metadata": {"tags": ["original"]}},
+                "extractions": {"claim-1": {"status": "pending"}},
+            }
+        ],
+        rejected_sources=[{"candidate_id": "b", "reasons": ["original"]}],
         warnings=["durable warning"],
     )
 
@@ -31,6 +37,30 @@ def test_restored_buffers_detach_persisted_records_and_keep_one_live_owner() -> 
     assert buffers.selected_sources is not persisted.selected_sources
     assert buffers.selected_sources[0] is not persisted.selected_sources[0]
     assert buffers.rejected_sources[0] is not persisted.rejected_sources[0]
+    assert (
+        buffers.selected_sources[0]["read"]
+        is not persisted.selected_sources[0]["read"]
+    )
+    assert (
+        buffers.selected_sources[0]["extractions"]
+        is not persisted.selected_sources[0]["extractions"]
+    )
+
+    # Recovered nested objects are also mutable: they must not reach the
+    # repository snapshot through an alias after resumption.
+    buffers.query_attempts[0]["audit"]["attempts"].append(2)
+    buffers.selected_sources[0]["read"]["metadata"]["tags"].append("new")
+    admitted = buffers.admit_extraction_target("a", "claim-2")
+    assert admitted is buffers.selected_sources[0]
+    admitted["extractions"]["claim-2"] = {"status": "eligible"}
+    buffers.rejected_sources[0]["reasons"].append("new")
+
+    assert persisted.query_attempts[0]["audit"]["attempts"] == [1]
+    assert persisted.selected_sources[0]["read"]["metadata"]["tags"] == ["original"]
+    assert persisted.selected_sources[0]["extractions"] == {
+        "claim-1": {"status": "pending"}
+    }
+    assert persisted.rejected_sources[0]["reasons"] == ["original"]
 
     # A live replacement must reach every consumer of the result buffer but
     # must not retroactively mutate the recovered repository snapshot.
