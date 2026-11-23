@@ -24,6 +24,7 @@ from src.application.active_research_runtime import (
     _append_gap_queries,
     _restore_completed_read_targets,
 )
+from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_coverage import ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY
 from src.application.research_runtime_wave_baseline import ACTIVE_RESEARCH_WAVE_BASELINE_KEY
 from src.application.research_web_lookup_dispatch import (
@@ -46,7 +47,11 @@ from src.web.research.contracts import (
     build_research_state,
 )
 from src.web.research.model_gateway import ResearchModelGateway
-from src.web.research.runtime import CLAIM_ENGINE_RUNTIME_CONTEXT_KEY, ResearchRuntimeCursor
+from src.web.research.runtime import (
+    CLAIM_ENGINE_RUNTIME_CONTEXT_KEY,
+    ResearchRuntimeCursor,
+    _ExternalAttemptBudgetExhausted,
+)
 from src.web.research.read_adequacy import SHORT_CHAR_THRESHOLD
 from src.web.research.read_escalation import ESCALATION_ENV
 from src.web.research.retrieval_backends import RawReadArtifact
@@ -4026,6 +4031,37 @@ def _chain_rows(completed: WebLookupRun) -> list[dict[str, Any]]:
         for item in (metrics.get("read_chain") or [])
         if isinstance(item, Mapping)
     ]
+
+
+def test_read_attempt_exhaustion_checkpoints_failure_without_dispatch(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def exhaust(_self, candidate):
+        raise _ExternalAttemptBudgetExhausted(candidate.id)
+
+    monkeypatch.setattr(ActiveReadAttemptContext, "next_attempt_number", exhaust)
+    native = _ShortNativeReadGateway()
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="read_attempts_exhausted", native=native
+    )
+
+    assert completed.status == "partial"
+    assert native.calls == 0
+    assert _chain_rows(completed) == []
+    sources = _breaker_sources(completed)
+    assert sources
+    assert all(row["read_status"] == "failed" for row in sources)
+    assert all(row["read"]["error"] == "external_attempts_exhausted" for row in sources)
+    assert all(not row.get("retrieval_attempts") for row in sources)
+    cursor = _cursor_from_run(completed)
+    assert {row.candidate_id for row in cursor.read_outcomes} == {
+        row["candidate_id"] for row in sources
+    }
+    assert all(row.error_code == "read_failed" and not row.backend for row in cursor.read_outcomes)
+    metrics = _a2e_metrics(completed)
+    assert metrics["reads"] == [row.to_dict() for row in cursor.read_outcomes]
+    assert "candidate_resolution" not in metrics
+    assert completed.research_context["claim_engine"]["budget"]["reads_used"] == 0
 
 
 def test_read_chain_falls_back_to_wigolo_without_inflating_sources(

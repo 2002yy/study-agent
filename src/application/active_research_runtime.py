@@ -100,7 +100,6 @@ from src.web.research.runtime import (
     RuntimeCandidate,
     RuntimeExternalAttemptStart,
     RuntimePlannedQuery,
-    RuntimeReadOutcome,
     attach_runtime_cursor,
     begin_external_attempt,
     finish_external_attempt,
@@ -274,8 +273,8 @@ from src.application.research_runtime_execution_guard import (
 )
 from src.application.research_runtime_publication import ActiveResearchPublisher
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
+from src.application.research_runtime_read_projection import project_exhausted_read_source
 from src.application.active_research_evidence_projection import (
-    _source_record,
     _evidence_brief,
     _state_after_gate,
 )
@@ -1652,40 +1651,12 @@ class ActiveResearchRuntimeExecutor:
                     # each real attempt and routes; the runtime only projects the
                     # result. Nothing here escalates behind the chain's back.
                     try:
-                        attempt = _attempt_number(live.cursor, candidate_id)
+                        attempt = read_attempt_context.next_attempt_number(candidate)
                     except _ExternalAttemptBudgetExhausted:
-                        runtime_failures.append(
-                            "read_failed",
-                            "reading",
-                            logical_call_id=(
-                                f"research_read:{run_id}:{candidate_id}:attempts_exhausted"
-                            ),
-                            item_id=candidate_id,
-                            detail="external_attempts_exhausted",
+                        read_attempt_context.record_exhausted(candidate)
+                        results.upsert_selected_source(
+                            project_exhausted_read_source(candidate, plan_item)
                         )
-                        live.cursor = replace(
-                            live.cursor,
-                            read_outcomes=(
-                                *live.cursor.read_outcomes,
-                                RuntimeReadOutcome(
-                                    candidate_id=candidate_id,
-                                    status="failed",
-                                    error_code="read_failed",
-                                ),
-                            ),
-                        )
-                        record = _source_record(
-                            candidate,
-                            plan_item,
-                            raw_read={
-                                "ok": False,
-                                "status": "failed",
-                                "url": candidate.url,
-                                "error": "external_attempts_exhausted",
-                                "content": "",
-                            },
-                        )
-                        results.upsert_selected_source(record)
                         _record_read_history(live.context, live.cursor.read_outcomes)
                         checkpoint()
                         continue

@@ -6,6 +6,14 @@
 
 ## 0. Current Handoff（2026-11-23，冷启动）
 
+### 2026-11-23 普通证据读取的重试次数耗尽归档（第三片）
+
+- 基线是 #630 已合入的 `main@ad21ae9b093eac70ad5b4df2205f6edc86a948d8`。#630 的精确 PR CI 45158499821 已通过，合并后的 push CI 45161356948 首次查询在跑。#631 独立审阅和验证。
+- 普通证据读取由现有 `ActiveReadAttemptContext` 读取当前游标计算尝试号，并归档次数耗尽的失败和游标结果。失败来源仍由纯投影生成，执行器写入来源、更新读历史、在原处检查点。真实读链沿用两次取消检查及逐后端归档；空链继续只记调度决策。搜索和线索页沿用各自的尝试准入。
+- **复现及修复**。在原 `main@880d5ef3` 的运行入口注入候选读取次数耗尽，后续波次再次遇到同一候选时，游标重复写入无后端结果，检查点抛出 `runtime read outcomes must be unique per candidate and backend`。既存游标验证将无后端结果归入 native HTTP 槽位。新代码先归档失败，仅当该槽位为空才追加结果，保留已有读取历史。端到端故障注入验证能以 partial 保存，零后端派发、零读额度，来源和读历史一致。
+- 单测复用已有读尝试夹具，覆盖真实中断恢复的第 1、2 次及耗尽、重绑后的运行上下文、重复归档和显式 native 槽位。冻结游标持久格式、预算算法、检查点顺序和读链调度。分支 `codex/research-read-attempt-boundary-20261123`。14 个文件的离线影响集 202 项通过；与 #631 试合并后另跑 14 项，全部通过。Ruff、diff-check、编译、mypy 115/125 通过。 `priority=P1`、`loop=static`、`owner=orchestration/read-attempt-recovery`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+- 下一片梳理普通读取循环的停读原因与已派发候选集合，只整理它们如何生成剩余候选的调度诊断，保持停止判断和指标不变。
+
 ### 2026-11-23 主动研究恢复边界（第一片）
 
 - 集成基线为 `main@880d5ef3ac7a9bfe63e8acc4d1848ca878a9734c`。#626 观测、#624 模型政策、#625 预算准入按各自精确 PR HEAD 的成功 CI（45144793550、45144801592、45144791386）合入；主线树与 58 项本地组合回归对应的代码树一致。
