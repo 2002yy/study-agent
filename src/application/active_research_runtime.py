@@ -239,10 +239,8 @@ from src.application.research_runtime_read_coverage_context import (
     ActiveReadCoverageContext,
 )
 from src.application.research_runtime_observation import ActiveRuntimeObservationContext
-from src.application.research_runtime_read_projection import (
-    project_deep_seed_source,
-    project_read_chain,
-)
+from src.application.research_runtime_read_projection import project_deep_seed_source
+from src.application.research_runtime_read_result_context import ReadWaveResultContext
 from src.application.research_runtime_read_site import ActiveReadSiteContext
 from src.application.research_runtime_budget_clock import ResearchBudgetClock
 from src.application.research_selection_observability import (
@@ -1555,6 +1553,7 @@ class ActiveResearchRuntimeExecutor:
                 read_budget = ReadWaveBudgetContext(
                     live=live, quota=read_quota, elapsed=elapsed
                 )
+                read_results = ReadWaveResultContext(read_budget, source_evidence)
                 read_loop_stop_reason = ""
                 dispatched_read_ids: set[str] = set()
                 for plan_item in physical_reads:
@@ -1725,28 +1724,12 @@ class ActiveResearchRuntimeExecutor:
                         hard_timeout_seconds=live.state.budget.hard_timeout_seconds,
                     )
                     ensure_active()
-                    # The candidate has content if *any* backend produced a
-                    # usable read. Prefer the adequate attempt (the legacy
-                    # escalation replaced a short read with the adequate one),
-                    # else the last non-empty attempt.
-                    projection = project_read_chain(
+                    live.state = read_results.record_chain(
                         candidate=candidate,
                         plan_item=plan_item,
                         chain_steps=chain_steps,
                         source_limit=source_limit,
                     )
-                    ok, content = projection.ok, projection.content
-                    if ok:
-                        read_quota.charge_read(content)
-                    record = projection.record
-                    # Multimodal Reader v1 (default-inert): publish the source
-                    # first, then enrich that same record only on text success.
-                    source_evidence.record_projection(
-                        record,
-                        ok=ok,
-                        canonical_url=candidate.canonical_url,
-                    )
-                    live.state = read_budget.project()
                     # §98 A2a: the single lifecycle view is diagnostics only;
                     # candidate_resolution remains the pure state authority.
                     _record_read_history(

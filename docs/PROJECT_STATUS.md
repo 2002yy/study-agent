@@ -23,6 +23,13 @@
 - **验证**：基于 `main@52636c4` 的独立分支 `cleanup/retire-unowned-understanding-writer-20261122`；新 HEAD pytest/Ruff/CI 结果尚待出炉。没有调用数据库、付费模型或真实用户数据；P3/static/learning-truth/engineering-only。
 
 
+### 2026-11-23 普通证据读取结果与波次配额（第二片）
+
+- `ReadWaveResultContext` 复用现行读链投影、同一个波次配额和来源缓冲区。顺序为选取可用结果、截断正文、成功时扣一次读取与截断后字符数、写来源并按原条件附加视觉证据、从最新 live state/cursor 投影预算。失败读写入现有失败来源记录，读取数与字符数不增加。
+- 执行器继续负责调度及外部读取、两次取消检查（读尝试归档前后）、采用已投影状态、记录读历史及检查点。空链提前退出，Deep 种子和线索页沿各自路径更新同一个波次配额。仓储契约、金额/发送预算、回退链与发布规则沿用现行实现。
+- 成功与失败场景复用一个参数化测试，覆盖截断扣费、来源先写、视觉完成后才采样预算时钟及重绑后的状态。分支 `codex/research-read-result-boundary-20261123` 从 `main@880d5ef3ac7a9bfe63e8acc4d1848ca878a9734c` 独立分出。读链、波次配额、读取调度、线索页、Deep 种子、检查点、视觉证据与完整主动研究执行器等 14 个测试文件共 169 passed。Ruff、diff-check 和应用编译通过，mypy 115/125，无新增。恢复 PR #630 自有 CI 和审阅。本片 `priority=P3`、`loop=static`、`owner=retrieval/read-result-accounting`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+- 下一片梳理外部尝试编号耗尽分支和正常读链归档所共享的候选、游标与诊断写入，保留耗尽记录和空链跳过的不同语义。
+
 ### 2026-11-22 B5 一次性真实 SearXNG Smoke 工具及自测退役（P3 静态候选）
 
 - 旧 `tools/run_research_active_smoke.py` 是 B5 阶段固定一轮真实 SearXNG/模型的手工执行器，带单独的 `_searxng_success` 报告判断；现行运维由 `tools/studyctl.py`/`studyctl_live.py`、现行研究/读取/预算/发布和受控真实任务验证承担，不以旧 B5 工具作为产品入口。
