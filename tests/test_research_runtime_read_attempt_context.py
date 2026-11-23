@@ -9,7 +9,14 @@ from src.application.research_runtime_read_attempt_context import (
 )
 from src.web.research.chain_executor import ChainStepResult
 from src.web.research.health_breaker import NATIVE_HTTP_BACKEND
-from src.web.research.runtime import ResearchRuntimeCursor
+from src.web.research.runtime import (
+    ResearchRuntimeCursor,
+    RuntimeExternalAttemptStart,
+    RuntimeReadOutcome,
+    _ExternalAttemptBudgetExhausted,
+    begin_external_attempt,
+    recover_interrupted_external_attempt,
+)
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 from src.web.research.wigolo_http_executor import WIGOLO_HTTP_BACKEND
 from tests.research_read_attempt_factory import RecordingReadLive, read_attempt_recorder
@@ -209,3 +216,64 @@ def test_run_bound_recorder_uses_new_cursor_and_context_after_rebind() -> None:
         "wave_index"
     ] == 4
     assert len(first_context[ACTIVE_RESEARCH_METRICS_KEY]["read_timing"]) == 1
+
+
+def test_exhausted_read_admission_records_failure_and_outcome_without_backend() -> None:
+    candidate = read_candidate("candidate-a")
+    live = RecordingReadLive(context={"run_attempt": 1})
+    recorder = read_attempt_recorder(live=live, run_id="run-1")
+    assert recorder.next_attempt_number(candidate) == 1
+
+    for attempt in (1, 2):
+        marker = RuntimeExternalAttemptStart(
+            call_id=f"research_read:run-1:{candidate.id}:attempt:{attempt}:native_http",
+            purpose="read",
+            item_id=candidate.id,
+            attempt=attempt,
+            started_at="started",
+        )
+        live.cursor = recover_interrupted_external_attempt(
+            begin_external_attempt(live.cursor, marker)
+        )
+        if attempt == 1:
+            assert recorder.next_attempt_number(candidate) == 2
+
+    live.context = {"run_attempt": 3}
+    with pytest.raises(_ExternalAttemptBudgetExhausted, match=candidate.id):
+        recorder.next_attempt_number(candidate)
+    assert len(live.cursor.failures) == 2
+    assert live.published == []
+
+    recorder.record_exhausted(candidate)
+
+    failure_published, outcome_published = live.published
+    assert failure_published.read_outcomes == ()
+    assert failure_published.failures[-1].detail == "external_attempts_exhausted"
+    assert failure_published.failures[-1].attempt_id == "run-attempt:3"
+    assert outcome_published.failures == failure_published.failures
+    outcome, = outcome_published.read_outcomes
+    assert (outcome.candidate_id, outcome.status, outcome.error_code) == (
+        candidate.id, "failed", "read_failed"
+    )
+    assert outcome.backend == ""
+    assert outcome_published.inflight_external_call is None
+    assert live.context == {"run_attempt": 3}
+
+
+@pytest.mark.parametrize("backend", ["", NATIVE_HTTP_BACKEND], ids=["legacy", "native"])
+def test_exhaustion_preserves_existing_outcome_in_the_same_cursor_slot(backend: str) -> None:
+    candidate = read_candidate()
+    previous = RuntimeReadOutcome(
+        candidate_id=candidate.id, status="failed", error_code="read_failed", backend=backend
+    )
+    live = RecordingReadLive(
+        cursor=ResearchRuntimeCursor(read_outcomes=(previous,)),
+        context={"run_attempt": 3},
+    )
+    recorder = read_attempt_recorder(live=live)
+
+    recorder.record_exhausted(candidate)
+    recorder.record_exhausted(candidate)
+
+    assert live.cursor.read_outcomes == (previous,)
+    assert [failure.detail for failure in live.cursor.failures] == ["external_attempts_exhausted"]

@@ -28,6 +28,7 @@ from src.web.research.runtime import (
     ResearchRuntimeCursor,
     RuntimeExternalAttemptStart,
     RuntimeReadOutcome,
+    _attempt_number,
     begin_external_attempt,
     finish_external_attempt,
 )
@@ -61,6 +62,44 @@ class ActiveReadAttemptContext:
     research_seconds_left: Callable[[], float]
     elapsed: Callable[[], float]
     escalation_recorder: Callable[..., None] = _record_escalation_diagnostics
+
+    def next_attempt_number(self, candidate: CandidatePoolItem) -> int:
+        return _attempt_number(self.live.current_cursor(), candidate.id)
+
+    def record_exhausted(self, candidate: CandidatePoolItem) -> None:
+        """Record the admission failure without recording a physical attempt."""
+
+        cursor = with_appended_runtime_failure(
+            self.live.current_cursor(),
+            self.live.current_context(),
+            "read_failed",
+            "reading",
+            logical_call_id=f"research_read:{self.run_id}:{candidate.id}:attempts_exhausted",
+            item_id=candidate.id,
+            detail="external_attempts_exhausted",
+        )
+        self.live.set_cursor(cursor)
+        # Serialization gives a backendless outcome the same slot as native HTTP.
+        # Preserve an existing observation when another wave exhausts admission.
+        if any(
+            outcome.candidate_id == candidate.id
+            and (outcome.backend or NATIVE_HTTP_BACKEND) == NATIVE_HTTP_BACKEND
+            for outcome in cursor.read_outcomes
+        ):
+            return
+        self.live.set_cursor(
+            replace(
+                cursor,
+                read_outcomes=(
+                    *cursor.read_outcomes,
+                    RuntimeReadOutcome(
+                        candidate_id=candidate.id,
+                        status="failed",
+                        error_code="read_failed",
+                    ),
+                ),
+            )
+        )
 
     def append_outcome(
         self,

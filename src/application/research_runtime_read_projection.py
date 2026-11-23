@@ -73,6 +73,24 @@ def project_read_chain(
     return ReadSourceProjection(ok=ok, content=content, record=record)
 
 
+def project_exhausted_read_source(
+    candidate: CandidatePoolItem, plan_item: Mapping[str, str]
+) -> dict[str, Any]:
+    """Preserve a failed source with no backend attempt provenance."""
+
+    return _source_record(
+        candidate,
+        plan_item,
+        raw_read={
+            "ok": False,
+            "status": "failed",
+            "url": candidate.url,
+            "error": "external_attempts_exhausted",
+            "content": "",
+        },
+    )
+
+
 def project_deep_seed_source(
     *,
     candidate: CandidatePoolItem,
