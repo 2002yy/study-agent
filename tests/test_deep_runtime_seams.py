@@ -9,13 +9,21 @@ fetched again - not by a later wave and not by the lead-read path.
 from __future__ import annotations
 
 import hashlib
+from unittest.mock import Mock
+
+import pytest
 
 from src.application.active_research_runtime import (
+    ActiveResearchRuntimeExecutor,
     _bind_deep_seed_candidates,
     _lead_read_plan,
 )
 from src.application.research_runtime_read_projection import project_deep_seed_source
 from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
+from src.domain.runtime_entities import WebLookupRun
+from src.repositories.web_lookup_repository import WebLookupRepository
+from src.web.research.active_adapter import ActiveResearchGateway
+from src.web.research.model_gateway import ResearchModelGateway
 from src.web.research.contracts import (
     EvidenceGap,
     EvidenceRequirement,
@@ -25,6 +33,7 @@ from src.web.research.contracts import (
     build_research_state,
 )
 from src.web.research.deep_runtime import (
+    DeepIntegrityError,
     deep_preflight,
     verify_seed_projection,
     SEED_DISCOVERY_METHOD,
@@ -339,6 +348,36 @@ def test_b5_a_seed_projection_mismatch_fails_preflight():
     ok, reason = deep_preflight(context)
     assert ok is False
     assert reason == "seed_projection_mismatch"
+
+
+@pytest.mark.parametrize("corrupt_after_acquisition", [False, True])
+def test_executor_checks_deep_inputs_before_and_after_acquiring_operation(
+    corrupt_after_acquisition: bool,
+) -> None:
+    acquired = _deep_context()
+    original = _deep_context(seed=_seed()) if corrupt_after_acquisition else acquired
+    repository = Mock(spec=WebLookupRepository)
+    repository.get.return_value = WebLookupRun(id="run", research_context=original)
+    repository.begin_operation.return_value = WebLookupRun(
+        id="run", research_context=acquired
+    )
+    gateway = Mock(spec=ActiveResearchGateway)
+    model_client = Mock()
+    model_gateway = ResearchModelGateway(
+        provider_profile="deepseek", client=model_client
+    )
+    executor = ActiveResearchRuntimeExecutor(
+        repository, gateway, model_gateway=model_gateway
+    )
+
+    with pytest.raises(DeepIntegrityError, match="Deep preflight failed: seed_absent"):
+        executor.execute("run", initial_state=_state())
+
+    assert [call[0] for call in repository.method_calls] == (
+        ["get", "begin_operation"] if corrupt_after_acquisition else ["get"]
+    )
+    assert gateway.method_calls == []
+    assert model_client.mock_calls == []
 
 
 def test_b4_projection_accepts_an_honest_seed():
