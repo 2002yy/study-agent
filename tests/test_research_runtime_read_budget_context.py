@@ -3,16 +3,24 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any
+
+import pytest
 
 from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_read_budget_context import ReadWaveBudgetContext
 from src.application.research_runtime_read_quota_context import ReadWaveQuotaContext
+from src.application.research_runtime_read_result_context import ReadWaveResultContext
+from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
+from src.application.research_runtime_source_evidence_context import ReadSourceEvidenceContext
+from src.web.research.chain_executor import ChainStepResult
 from src.web.research.contracts import (
     ResearchBudget,
     ResearchState,
     build_research_state,
 )
 from src.web.research.runtime import ResearchRuntimeCursor, RuntimeCandidate
+from tests.research_read_candidate_factory import read_candidate
 
 
 def _state(*, max_candidates: int, reads_used: int = 0) -> ResearchState:
@@ -139,3 +147,58 @@ def test_limit_views_rebind_latest_budget_without_mutation_or_time_sampling() ->
     assert (quota.successful_reads, quota.used_chars) == (1, 12)
     assert original.budget.max_total_chars == 100
     assert tightened.budget.max_total_chars == 10
+
+
+@pytest.mark.parametrize("usable", [True, False], ids=["usable", "failed"])
+def test_complete_chain_updates_shared_quota_and_source_before_budget_projection(
+    usable: bool,
+) -> None:
+    state = _state(max_candidates=5, reads_used=1)
+    live = ActiveRuntimeLiveValues(state=state)
+    quota = ReadWaveQuotaContext(successful_reads=1, used_chars=3)
+    results = ActiveResearchResultBuffers([], [], [], [])
+    candidate = read_candidate("candidate-a", url="https://example.org/report")
+    visuals = [{"unit_id": "figure-a"}]
+
+    def visual_reader(**kwargs: Any) -> list[dict[str, Any]]:
+        assert usable
+        assert kwargs["state"] is state
+        assert kwargs["canonical_url"] == candidate.canonical_url
+        assert quota.successful_reads == 2
+        assert quota.used_chars == 9
+        assert results.selected_sources[0]["read"]["content"] == "strong"
+        live.state = _state(max_candidates=7)
+        return visuals
+
+    def elapsed() -> float:
+        assert len(results.selected_sources) == 1
+        record = results.selected_sources[0]
+        if usable:
+            assert record["visual_units"] is visuals
+        else:
+            assert record["read_status"] == "failed"
+            assert "visual_units" not in record
+        return 3.5
+
+    budget = ReadWaveBudgetContext(live, quota, elapsed)
+    owner = ReadWaveResultContext(budget, ReadSourceEvidenceContext(results, live, visual_reader))
+    projected = owner.record_chain(
+        candidate=candidate,
+        plan_item={"source_role": "primary", "cluster_id": "cluster-a", "claim_id": "claim-a"},
+        chain_steps=[
+            ChainStepResult(
+                backend="native_http",
+                retrieval_state="fetched" if usable else "failed",
+                usable_content=usable,
+                adequacy_reason="ok" if usable else "failed",
+                content="strong whole answer" if usable else "",
+            ),
+        ],
+        source_limit=6,
+    )
+
+    assert live.state is not projected  # the executor adopts the returned state
+    assert projected.budget.reads_used == quota.successful_reads == (2 if usable else 1)
+    assert quota.used_chars == (9 if usable else 3)
+    assert projected.budget.max_candidates == (7 if usable else 5)
+    assert projected.budget.elapsed_seconds == 3.5
