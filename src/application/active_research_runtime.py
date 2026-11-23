@@ -1708,27 +1708,13 @@ class ActiveResearchRuntimeExecutor:
                     )
                     checkpoint()
 
-                if read_loop_stop_reason:
-                    # Observed loop-level stop: every planned candidate after the
-                    # break shares the same recorded cause; none of them was
-                    # dispatched, and the run never reconsiders them this wave.
-                    for plan_item in physical_reads:
-                        leftover_id = plan_item["candidate_id"]
-                        if leftover_id in dispatched_read_ids:
-                            continue
-                        if leftover_id in live.cursor.completed_read_ids:
-                            continue
-                        try:
-                            leftover_url = _candidate_by_id(
-                                live.cursor, leftover_id
-                            ).canonical_url
-                        except ValueError:
-                            continue
-                        selection_trace.note_read(
-                            leftover_url,
-                            dispatched=False,
-                            skip_reason=read_loop_stop_reason,
-                        )
+                selection_trace_context.note_reads_after_stop(
+                    stop_reason=read_loop_stop_reason,
+                    planned_reads=physical_reads,
+                    dispatched_ids=dispatched_read_ids,
+                    completed_ids=live.cursor.completed_read_ids,
+                    find_candidate=partial(_candidate_by_id, live.cursor),
+                )
                 selection_trace_context.flush(live.context)
 
                 # Slice 1: bounded lead discovery. A lead read is a discovery

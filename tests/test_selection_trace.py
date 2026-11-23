@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from src.application.research_selection_observability import ResearchSelectionTraceContext
 from src.web.research.candidate_pool import (
     CandidatePoolItem,
@@ -15,6 +17,8 @@ from src.web.research.selection_trace import (
     TERMINAL_REASONS,
     SelectionTraceCollector,
 )
+
+from tests.research_read_candidate_factory import read_candidate
 
 CASES = "https://docs.docker.com/docker-hub/usage/pulls/"
 
@@ -133,25 +137,57 @@ def test_scheduler_seen_but_not_selected() -> None:
     assert entry["terminal_reason"] == "scheduler_not_selected"
 
 
-# 7: an unobserved read outcome stays unobserved; the window skip is named.
-def test_unobserved_read_never_guesses_budget() -> None:
-    blind = SelectionTraceCollector()
-    blind.note_seen(CASES)
-    entry = _entry(blind.to_payload(), CASES)
-    assert entry["terminal_reason"] == "unobserved"
-    assert entry["read_skip_reason"] == ""
+@pytest.mark.parametrize(
+    ("stop_reason", "expected_terminal"),
+    [
+        ("", "unobserved"),
+        ("research_window_closed", "other_observed_reason"),
+        ("read_budget_exhausted", "read_budget_exhausted"),
+    ],
+)
+def test_stop_trace_only_tags_planned_reads_that_never_dispatched(
+    stop_reason: str, expected_terminal: str
+) -> None:
+    owner = ResearchSelectionTraceContext(SelectionTraceCollector())
+    candidates = {
+        candidate_id: read_candidate(candidate_id, url=f"https://example.com/{candidate_id}")
+        for candidate_id in ("dispatched", "completed", "pending", "unplanned")
+    }
+    for item in candidates.values():
+        owner.trace.note_seen(item.canonical_url)
+    owner.trace.note_read(candidates["dispatched"].canonical_url, dispatched=True)
 
-    window = SelectionTraceCollector()
-    window.note_seen(CASES)
-    window.note_read(CASES, dispatched=False, skip_reason="research_window_closed")
-    entry = _entry(window.to_payload(), CASES)
-    assert entry["terminal_reason"] == "other_observed_reason"
-    assert "research_window_closed" in entry["read_skip_reason"]
+    lookups: list[str] = []
 
-    budget = SelectionTraceCollector()
-    budget.note_seen(CASES)
-    budget.note_read(CASES, dispatched=False, skip_reason="read_budget_exhausted")
-    assert _entry(budget.to_payload(), CASES)["terminal_reason"] == "read_budget_exhausted"
+    def find_candidate(candidate_id: str) -> CandidatePoolItem:
+        lookups.append(candidate_id)
+        if candidate_id not in candidates:
+            raise ValueError(f"unknown runtime candidate: {candidate_id}")
+        return candidates[candidate_id]
+
+    owner.note_reads_after_stop(
+        stop_reason=stop_reason,
+        planned_reads=[
+            {"candidate_id": candidate_id}
+            for candidate_id in ("dispatched", "missing", "completed", "pending")
+        ],
+        dispatched_ids={"dispatched"},
+        completed_ids=("completed",),
+        find_candidate=find_candidate,
+    )
+
+    assert lookups == (["missing", "pending"] if stop_reason else [])
+    metrics_context: dict = {}
+    owner.flush(metrics_context)
+    payload = metrics_context["claim_engine_metrics"]["selection_trace"]
+    pending = _entry(payload, candidates["pending"].canonical_url)
+    assert pending["terminal_reason"] == expected_terminal
+    assert pending["read_skip_reason"] == stop_reason
+    assert pending["read_dispatched"] is False
+    for candidate_id in ("dispatched", "completed", "unplanned"):
+        row = _entry(payload, candidates[candidate_id].canonical_url)
+        assert row["read_skip_reason"] == ""
+    assert _entry(payload, candidates["dispatched"].canonical_url)["read_dispatched"] is True
 
 
 # 8: first observed drop is stable and never overwritten by later state.

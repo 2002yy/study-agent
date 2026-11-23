@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,6 +31,29 @@ class ResearchSelectionTraceContext:
         metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
         previous = metrics.get("selection_trace") if isinstance(metrics, Mapping) else None
         return cls(trace=SelectionTraceCollector.from_payload(previous))
+
+    def note_reads_after_stop(
+        self,
+        *,
+        stop_reason: str,
+        planned_reads: Sequence[Mapping[str, str]],
+        dispatched_ids: Collection[str],
+        completed_ids: Collection[str],
+        find_candidate: Callable[[str], CandidatePoolItem],
+    ) -> None:
+        """Record stop diagnostics for planned reads that never dispatched."""
+
+        if not stop_reason:
+            return
+        for plan_item in planned_reads:
+            candidate_id = plan_item["candidate_id"]
+            if candidate_id in dispatched_ids or candidate_id in completed_ids:
+                continue
+            try:
+                url = find_candidate(candidate_id).canonical_url
+            except ValueError:
+                continue
+            self.trace.note_read(url, dispatched=False, skip_reason=stop_reason)
 
     def flush(self, context: dict[str, Any]) -> None:
         """Publish diagnostics only, never update a cursor or selection rule."""
