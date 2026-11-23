@@ -12,7 +12,7 @@ Acceptance cases 1-7 from the ruling.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -50,8 +50,11 @@ from src.web.research.state import build_research_state
 CLAIM_ID = "claim_1"
 
 
-def _policy_context(allowed: bool = True) -> RuntimeModelPolicyContext:
+def _policy_context(
+    live: ActiveRuntimeLiveValues, allowed: bool
+) -> RuntimeModelPolicyContext:
     return RuntimeModelPolicyContext(
+        live=live,
         policy_check=lambda context, purpose: allowed,
         utc_now=lambda: "2026-09-21T00:00:00Z",
     )
@@ -172,11 +175,10 @@ def _context(late_ids: list[str], *, wave_index: int = 2) -> dict:
 
 
 def _model_attempts(
-    cursor: ResearchRuntimeCursor, state: ResearchState
+    live: ActiveRuntimeLiveValues,
 ) -> ActiveModelAttemptContext:
     """Use the real run-scoped attempt owner with offline no-op boundaries."""
 
-    live = ActiveRuntimeLiveValues(state=state, cursor=cursor)
     return ActiveModelAttemptContext(
         live=live,
         ensure_active=lambda: None,
@@ -189,15 +191,26 @@ def _call_tail(
     *,
     cursor: ResearchRuntimeCursor,
     state: ResearchState,
+    context: dict,
     model_attempts: ActiveModelAttemptContext | None = None,
+    policy_context: RuntimeModelPolicyContext | None = None,
+    model_allowed: bool = True,
     **kwargs: Any,
 ) -> ResearchRuntimeCursor:
     """Keep late-tail cases bound to their own cursor and model-attempt owner."""
 
+    if model_attempts is None:
+        live = ActiveRuntimeLiveValues(state=state, cursor=cursor, context=context)
+        model_attempts = _model_attempts(live)
+    else:
+        live = cast(ActiveRuntimeLiveValues, model_attempts.live)
+        live.context = context
     return _late_admission_tail(
         cursor=cursor,
         state=state,
-        model_attempts=model_attempts or _model_attempts(cursor, state),
+        context=context,
+        model_attempts=model_attempts,
+        policy_context=policy_context or _policy_context(live, model_allowed),
         **kwargs,
     )
 
@@ -228,7 +241,7 @@ def _run_tail(
         wave_index=wave_index,
         max_reads=8,
         assessor=assessor,
-        policy_context=_policy_context(model_allowed),
+        model_allowed=model_allowed,
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -443,6 +456,7 @@ def test_late_tail_model_admission_uses_rebound_cursor_after_policy(
         max_reads=8,
         assessor=assessor,
         policy_context=RuntimeModelPolicyContext(
+            live=live,
             policy_check=policy_rebind,
             utc_now=lambda: "2026-09-21T00:00:00Z",
         ),
@@ -531,7 +545,6 @@ def test_late_tail_returns_gateway_audit_cursor_without_extra_checkpoint() -> No
         wave_index=2,
         max_reads=8,
         assessor=_HookAssessor(),
-        policy_context=_policy_context(),
         model_attempts=model_attempts,
         phase_begin=lambda _name: None,
         phase_end=lambda _name: None,
@@ -700,7 +713,6 @@ def test_identity_swap_keeps_behaviour_and_terminal_state() -> None:
         wave_index=2,
         max_reads=8,
         assessor=assessor,
-        policy_context=_policy_context(),
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -742,7 +754,6 @@ def test_no_identity_change_path_is_unchanged() -> None:
         wave_index=2,
         max_reads=8,
         assessor=assessor,
-        policy_context=_policy_context(),
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -775,7 +786,6 @@ def test_refusal_paths_are_terminal_even_with_identity_swap() -> None:
         wave_index=2,
         max_reads=8,
         assessor=_Assessor(),
-        policy_context=_policy_context(),
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -809,7 +819,6 @@ def test_refusal_paths_are_terminal_even_with_identity_swap() -> None:
         wave_index=2,
         max_reads=8,
         assessor=_Assessor(),
-        policy_context=_policy_context(),
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -902,7 +911,6 @@ def test_read_only_metrics_mapping_is_rebound_not_lost() -> None:
         wave_index=2,
         max_reads=8,
         assessor=assessor,
-        policy_context=_policy_context(),
         phase_begin=lambda name: None,
         phase_end=lambda name: None,
         remaining_timeout=lambda: 5.0,
@@ -944,7 +952,6 @@ def test_aborted_tail_still_reaches_a_terminal_state() -> None:
             wave_index=2,
             max_reads=8,
             assessor=_AbortingAssessor(),
-            policy_context=_policy_context(),
             phase_begin=lambda name: None,
             phase_end=lambda name: None,
             remaining_timeout=lambda: 5.0,
@@ -993,7 +1000,6 @@ def test_late_tail_assessment_store_targets_context_rebound_after_model_call() -
         wave_index=2,
         max_reads=8,
         assessor=_RebindingAssessor(),
-        policy_context=_policy_context(),
         phase_begin=lambda _name: None,
         phase_end=lambda _name: None,
         remaining_timeout=lambda: 5.0,
@@ -1002,6 +1008,7 @@ def test_late_tail_assessment_store_targets_context_rebound_after_model_call() -
         claim_rankings=rankings,
         stored_assessments=assessments,
         assessed_inputs=inputs,
+        model_attempts=_model_attempts(live),
         live_context=live.current_context,
     )
 

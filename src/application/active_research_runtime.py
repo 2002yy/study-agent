@@ -845,6 +845,7 @@ class ActiveResearchRuntimeExecutor:
             reserve_seconds=RESEARCH_WINDOW_RESERVE_SECONDS
         )
         model_policy = RuntimeModelPolicyContext(
+            live=live,
             policy_check=self.policy_check,
             utc_now=self.utc_now,
         )
@@ -996,7 +997,7 @@ class ActiveResearchRuntimeExecutor:
                 live.cursor = replace(live.cursor, phase="planning")
                 checkpoint(stage="planned")
                 categories = ("public_research_question", "research_time_context")
-                if not model_policy.allowed(live.context, "research_claim_planning", categories):
+                if not model_policy.allowed("research_claim_planning", categories):
                     runtime_failures.append(
                         "policy_blocked",
                         "planning",
@@ -1295,7 +1296,7 @@ class ActiveResearchRuntimeExecutor:
                         f"{_assessment_call_suffix(live.cursor, claim.id, candidate_ids)}"
                     )
                     if not model_policy.allowed(
-                        live.context, "research_candidate_assessment", categories
+                        "research_candidate_assessment", categories
                     ):
                         runtime_failures.append(
                             "policy_blocked",
@@ -1877,7 +1878,7 @@ class ActiveResearchRuntimeExecutor:
                         "bounded_public_page_excerpt",
                     )
                     if not model_policy.allowed(
-                        live.context, "research_lead_discovery", lead_categories
+                        "research_lead_discovery", lead_categories
                     ):
                         runtime_failures.append(
                             "policy_blocked",
@@ -1997,7 +1998,7 @@ class ActiveResearchRuntimeExecutor:
                         f"{_extraction_call_suffix(live.cursor, candidate_id, claim_id)}"
                     )
                     if not model_policy.allowed(
-                        live.context, "research_evidence_extraction", extraction_categories
+                        "research_evidence_extraction", extraction_categories
                     ):
                         extraction_failures.record(
                             source_record=source_record,
@@ -2989,7 +2990,7 @@ def _late_admission_tail(
 
         categories = ("public_research_claim", "public_candidate_metadata")
         if not policy_context.allowed(
-            observation.live(), "research_candidate_assessment", categories
+            "research_candidate_assessment", categories
         ):
             record["skipped_reason"] = "policy_blocked"
             observation.store(record)
