@@ -249,7 +249,6 @@ from src.application.research_selection_observability import (
 from src.application.research_runtime_assessment_results import (
     ACTIVE_RESEARCH_ASSESSMENTS_KEY as ACTIVE_RESEARCH_ASSESSMENTS_KEY,
     ActiveAssessmentResultContext,
-    assessment_store as _assessment_store,
     record_assessment_result,
 )
 from src.application.research_runtime_discovery_diagnostics import (
@@ -2190,7 +2189,9 @@ class ActiveResearchRuntimeExecutor:
                 )
                 # §45 funnel: proposal -> added -> assessed -> read ->
                 # extracted -> gate-eligible, per llm_proposed candidate.
-                _record_tier2_funnel(live.context, live.cursor, brief, results.selected_sources)
+                discovery_diagnostics.record_tier2_funnel(
+                    brief=brief, selected_sources=results.selected_sources
+                )
                 runtime_observation.phase_end("gating")
                 checkpoint()
 
@@ -2250,7 +2251,9 @@ class ActiveResearchRuntimeExecutor:
             # §63/§50 acceptance accounting: the run can stop here (budget
             # exhaustion) before the per-wave gating block, so record the
             # discovery funnel on this path too; it only joins metrics.
-            _record_tier2_funnel(live.context, live.cursor, brief, results.selected_sources)
+            discovery_diagnostics.record_tier2_funnel(
+                brief=brief, selected_sources=results.selected_sources
+            )
             # F2-S1: close the open wave and publish the timeline
             timing_ledger.end_wave()
             timing_ledger.flush_into(live.context)
@@ -3249,102 +3252,6 @@ def _domain_targeted_step(
     if not new_items:
         return cursor
     return replace(cursor, candidates=(*cursor.candidates, *new_items))
-
-
-def _record_tier2_funnel(
-    context: dict[str, Any],
-    cursor: ResearchRuntimeCursor,
-    brief: Mapping[str, Any],
-    selected_sources: list[dict[str, Any]],
-) -> None:
-    """§45 funnel: proposal -> added -> assessed -> read -> extracted -> gate."""
-
-    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
-    if not isinstance(metrics, dict):
-        return
-    proposals: list[tuple[str, Mapping[str, Any]]] = []
-    for key, method in (
-        ("tier2_proposal", "llm_proposed"),
-        ("domain_targeted", DISCOVERY_METHOD_DOMAIN_TARGETED),
-    ):
-        records = metrics.get(key)
-        if isinstance(records, list):
-            proposals.extend((method, record) for record in records if isinstance(record, Mapping))
-    if not proposals:
-        return
-    assessment_store = _assessment_store(context)
-    relevant_ids: set[str] = set()
-    for ranked in assessment_store.values():
-        if not isinstance(ranked, list):
-            continue
-        for row in ranked:
-            if not isinstance(row, Mapping):
-                continue
-            assessment = row.get("assessment")
-            candidate = row.get("candidate")
-            if not isinstance(assessment, Mapping) or not isinstance(candidate, Mapping):
-                continue
-            if str(assessment.get("relevance") or "") == "answer_relevant":
-                relevant_ids.add(str(candidate.get("id") or ""))
-    completed_reads = set(cursor.completed_read_ids)
-    extraction_by_candidate: dict[str, list[str]] = {}
-    for source in selected_sources:
-        if not isinstance(source, Mapping):
-            continue
-        candidate_id = str(source.get("candidate_id") or "")
-        extractions = source.get("extractions")
-        relations: list[str] = []
-        if isinstance(extractions, Mapping):
-            for summary in extractions.values():
-                if isinstance(summary, Mapping):
-                    relation = str(summary.get("relation") or "")
-                    if relation:
-                        relations.append(relation)
-        extraction_by_candidate[candidate_id] = sorted(set(relations))
-    eligible_ids = {
-        str(row.get("evidence_id") or "")
-        for row in brief.get("eligible_evidence") or []
-        if isinstance(row, Mapping)
-    }
-    evidence_by_candidate = {
-        outcome.candidate_id: outcome.evidence_id
-        for outcome in cursor.read_outcomes
-        if outcome.evidence_id
-    }
-    rows: list[dict[str, Any]] = []
-    for method, record in proposals:
-        for candidate_id in record.get("added_candidate_ids") or []:
-            evidence_id = evidence_by_candidate.get(str(candidate_id), "")
-            rows.append(
-                {
-                    "claim_id": record.get("claim_id"),
-                    "candidate_id": candidate_id,
-                    "discovery_method": method,
-                    "proposed": True,
-                    "assessed_answer_relevant": str(candidate_id) in relevant_ids,
-                    "read": str(candidate_id) in completed_reads,
-                    "extraction_relations": extraction_by_candidate.get(
-                        str(candidate_id), []
-                    ),
-                    "gate_eligible": bool(evidence_id) and evidence_id in eligible_ids,
-                }
-            )
-    metrics["discovery_funnel"] = {
-        "proposed_candidates": len(rows),
-        "by_discovery_method": {
-            method: sum(1 for row in rows if row["discovery_method"] == method)
-            for method in sorted({row["discovery_method"] for row in rows})
-        },
-        "assessed_answer_relevant": sum(
-            1 for row in rows if row["assessed_answer_relevant"]
-        ),
-        "read": sum(1 for row in rows if row["read"]),
-        "extracted_supports": sum(
-            1 for row in rows if "supports" in row["extraction_relations"]
-        ),
-        "gate_eligible": sum(1 for row in rows if row["gate_eligible"]),
-        "rows": rows,
-    }
 
 
 def _select_assessment_window(

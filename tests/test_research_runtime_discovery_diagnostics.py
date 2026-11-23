@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
-from typing import cast
+from typing import Any, cast
+
+import pytest
+
+from src.application.research_runtime_assessment_results import ACTIVE_RESEARCH_ASSESSMENTS_KEY
 
 from src.application.research_runtime_discovery_diagnostics import (
     ActiveDiscoveryDiagnosticsContext,
@@ -12,7 +17,7 @@ from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.web.research.contracts import ResearchState
 from src.web.research.deeper_targeting import AUTHORITY_OFFICIAL, GapHint
 from src.web.research.page_intent import infer_page_intent
-from src.web.research.runtime import RuntimeCandidate
+from src.web.research.runtime import RuntimeCandidate, RuntimeReadOutcome
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 
 
@@ -134,3 +139,116 @@ def test_targeting_missing_gap_uses_current_context_without_old_metrics() -> Non
     assert second_record["gap_unavailable"] == 1
     assert second_record["recent"][0]["source_candidate_url"] == "https://second"
     assert first_record["recent"][0]["source_candidate_url"] == "https://first"
+
+
+def test_tier2_funnel_joins_current_inputs_after_context_and_cursor_rebind() -> None:
+    first = {
+        ACTIVE_RESEARCH_METRICS_KEY: {
+            "tier2_proposal": [{"claim_id": "old", "added_candidate_ids": ["old-id"]}],
+        },
+    }
+    live = _live(first)
+    audit = ActiveDiscoveryDiagnosticsContext(live)
+    audit.record_tier2_funnel(brief={}, selected_sources=[])
+    snapshot = deepcopy(first)
+
+    live.context = {
+        ACTIVE_RESEARCH_METRICS_KEY: {
+            "tier2_proposal": [
+                None,
+                {"claim_id": "one", "added_candidate_ids": ["proposed"]},
+            ],
+            "domain_targeted": [
+                {"claim_id": "two", "added_candidate_ids": ["targeted"]},
+            ],
+            "unrelated": "preserved",
+        },
+        ACTIVE_RESEARCH_ASSESSMENTS_KEY: {
+            "one": [
+                {
+                    "candidate": {"id": "proposed"},
+                    "assessment": {"relevance": "answer_relevant"},
+                }
+            ],
+            "two": "unreadable",
+        },
+    }
+    live.cursor = replace(
+        live.cursor,
+        read_outcomes=(
+            RuntimeReadOutcome(
+                candidate_id="proposed", status="success", evidence_id="e-proposed"
+            ),
+            RuntimeReadOutcome(candidate_id="targeted", status="failed"),
+        ),
+    )
+    rebound_cursor = live.cursor
+    sources = [
+        {
+            "candidate_id": "proposed",
+            "extractions": {
+                "one": {"relation": "supports"},
+                "two": {"relation": "lead"},
+                "three": {"relation": "supports"},
+            },
+        },
+        {"candidate_id": "targeted", "extractions": {}},
+    ]
+    brief = {"eligible_evidence": [{"evidence_id": "e-proposed"}, {"evidence_id": "unrelated"}]}
+    sources_before, brief_before = deepcopy(sources), deepcopy(brief)
+
+    audit.record_tier2_funnel(brief=brief, selected_sources=sources)
+
+    metrics = live.context[ACTIVE_RESEARCH_METRICS_KEY]
+    assert metrics["discovery_funnel"] == {
+        "proposed_candidates": 2,
+        "by_discovery_method": {"domain_targeted": 1, "llm_proposed": 1},
+        "assessed_answer_relevant": 1,
+        "read": 1,
+        "extracted_supports": 1,
+        "gate_eligible": 1,
+        "rows": [
+            {
+                "claim_id": "one",
+                "candidate_id": "proposed",
+                "discovery_method": "llm_proposed",
+                "proposed": True,
+                "assessed_answer_relevant": True,
+                "read": True,
+                "extraction_relations": ["lead", "supports"],
+                "gate_eligible": True,
+            },
+            {
+                "claim_id": "two",
+                "candidate_id": "targeted",
+                "discovery_method": "domain_targeted",
+                "proposed": True,
+                "assessed_answer_relevant": False,
+                "read": False,
+                "extraction_relations": [],
+                "gate_eligible": False,
+            },
+        ],
+    }
+    assert metrics["unrelated"] == "preserved"
+    assert first == snapshot
+    assert live.cursor is rebound_cursor
+    assert sources == sources_before and brief == brief_before
+
+
+@pytest.mark.parametrize(
+    "metrics",
+    [
+        None,
+        "malformed",
+        {"discovery_funnel": {"previous": True}, "tier2_proposal": [None]},
+    ],
+)
+def test_tier2_funnel_leaves_context_unchanged_without_proposals(metrics: Any) -> None:
+    context = {} if metrics is None else {ACTIVE_RESEARCH_METRICS_KEY: metrics}
+    initial = deepcopy(context)
+    audit = ActiveDiscoveryDiagnosticsContext(_live(context))
+
+    audit.record_tier2_funnel(brief={}, selected_sources=[])
+
+    assert context == initial
