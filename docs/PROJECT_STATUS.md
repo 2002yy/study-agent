@@ -4,7 +4,15 @@
 >
 > **产品目标**：体验接近 ChatGPT 的通用聊天与研究 Agent，覆盖自然聊天、自主研究、持续交互、智能 UI、多模态和工具执行；教学是专业场景。**部署仍限可信环境的单用户**；多用户身份/数据/费用隔离未实现。
 
-## 0. Current Handoff（2026-11-21，冷启动）
+## 0. Current Handoff（2026-11-23，冷启动）
+
+### 2026-11-23 主动研究恢复边界（第一片）
+
+- 集成基线为 `main@880d5ef3ac7a9bfe63e8acc4d1848ca878a9734c`。#626 观测、#624 模型政策、#625 预算准入按各自精确 PR HEAD 的成功 CI（45144793550、45144801592、45144791386）合入；主线树与 58 项本地组合回归对应的代码树一致。
+- **冻结恢复顺序**。分派层继续提供已加载的 Claim Engine 状态。执行器在取得 operation lease 前先验证 Deep；恢复组件从取得租约后返回的快照复制顶层 context、增加本次运行编号、重新验证 Deep、读取种子、载入可用游标或使用空游标、依次恢复中断模型与外部尝试、脱离快照的结果缓冲区。执行器随后组装各职责的上下文。第一次检查点仍在本次 active 检查后、任何物理模型或检索读取前。持久键、恢复次数和 Deep 墙钟起点沿用原契约。
+- **冻结检查点和预算结算**。可选 stage 更新 → 采样已用时间并投影预算 → 写入游标与 Claim Engine 投影 → 绑定内存状态 → 以 operation ID 持久化 → 绑定仓储返回的上下文。投影失败仍保留已生成的内存状态并跳过写入。模型开始保持取消检查 → 预算检查 → inflight → 检查点 → 网关预留与发送；完成写入内存审计，之后由语义结果检查点持久化。检索读取继续使用波次配额和现有 HTTP/Browser envelope；钱与发送次数由模型支出守卫负责。
+- **共享状态归属**。`ActiveRuntimeLiveValues` 提供当前状态、游标和上下文；结果缓冲区供读取、证据接纳、检查点和发布共用；候选排名与评估存储归 `ActiveAssessmentResultContext`；读取计数与字符用量共享波次配额；发布归 `ActiveResearchPublisher`；计时与重试观测使用同一运行的 `TimingLedger`。下一片从普通证据读取循环核对标记起止、读结果投影和配额写入的共同依赖，保留检查点和取消检查位置，再处理相邻重复测试夹具。
+- **本片**。`codex/research-recovery-boundary-20261123` 将恢复组装归入 `ActiveResearchRecovery`，并通过两种 Deep 损坏场景和检查点顺序回归锁住上述边界。离线影响集共 193 项。主体运行通过 191 项，两项新增用例的模拟网关缺少实例字段，改用真实网关和离线模拟客户端后，与更新后的检查点顺序测试一起复核 30 项通过。Ruff、diff-check、应用编译通过，mypy 115/125，无新增。 `priority=P3`，`loop=static`，`owner=orchestration/recovery`，`dynamic_evidence=not_run`，`budget_authorization=not_applicable`，`decision=engineering-only`。
 
 ### 2026-11-22 无生产调用的 Understanding 直接写入口退役（P3 静态候选）
 

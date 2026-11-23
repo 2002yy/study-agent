@@ -47,15 +47,11 @@ from src.web.research.deeper_targeting import (
 )
 from src.web.research.deep_runtime import (
     SEED_DISCOVERY_METHOD,
-    DeepIntegrityError,
-    deep_preflight,
     SEED_PROVIDER,
     content_available_ids,
     effective_deep_base_elapsed,
     load_execution_envelope,
-    load_seed,
     seed_candidate_identity,
-    seed_sources_by_url,
 )
 from src.web.research.page_intent import (
     infer_page_intent,
@@ -108,9 +104,6 @@ from src.web.research.runtime import (
     attach_runtime_cursor,
     begin_external_attempt,
     finish_external_attempt,
-    load_runtime_cursor,
-    recover_interrupted_external_attempt,
-    recover_interrupted_model_attempt,
 )
 from src.web.research.scheduler import (
     ReadSchedulingCancelled,
@@ -209,8 +202,9 @@ from src.application.research_runtime_checkpoint import (
     ActiveRuntimeCheckpointSession,
     updated_runtime_budget,
 )
-from src.application.research_runtime_result_buffers import (
-    ActiveResearchResultBuffers,
+from src.application.research_runtime_recovery import (
+    ActiveResearchRecovery,
+    require_intact_deep_inputs,
 )
 from src.application.research_runtime_source_evidence_context import (
     ReadSourceEvidenceContext,
@@ -255,7 +249,6 @@ from src.application.research_selection_observability import (
     ResearchSelectionTraceContext,
     record_selection_authority,
 )
-from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_assessment_results import (
     ACTIVE_RESEARCH_ASSESSMENTS_KEY as ACTIVE_RESEARCH_ASSESSMENTS_KEY,
     ActiveAssessmentResultContext,
@@ -760,12 +753,8 @@ class ActiveResearchRuntimeExecutor:
         if existing.status == "completed" and existing.provider_status == "found":
             raise ValueError(f"WebLookupRun is already complete: {run_id}")
 
-        # Deep-2 §54: check the durable facts before taking the operation, so an already
-        # corrupted Deep child never even reaches a running state. The second preflight after
-        # acquisition closes the window in between.
-        _pre_ok, _pre_reason = deep_preflight(existing.research_context)
-        if not _pre_ok:
-            raise DeepIntegrityError(f"Deep preflight failed: {_pre_reason}")
+        # Reject corrupted Deep inputs before claiming the operation.
+        require_intact_deep_inputs(existing.research_context)
 
         operation_id = new_id("rqce_active")
         run = self.repository.begin_operation(
@@ -774,28 +763,10 @@ class ActiveResearchRuntimeExecutor:
             stage="planned",
             stale_after_seconds=stale_after_seconds,
         )
-        live = ActiveRuntimeLiveValues(state=initial_state, context=dict(run.research_context))
+        restored = ActiveResearchRecovery.from_run(run, initial_state)
+        live, results = restored.live, restored.results
+        deep_seed_by_url = restored.deep_seed_by_url
         discovery_diagnostics = ActiveDiscoveryDiagnosticsContext(live)
-        live.context["run_attempt"] = int(live.context.get("run_attempt") or 0) + 1
-        # Deep-2: durable seed bytes by canonical URL. Empty for every non-Deep run, so the
-        # ordinary path is untouched. The seed is data, never semantic authority.
-        # Deep-2 §54: the service validated at admission, but this context was reloaded
-        # afterwards. Re-establish the durable Deep facts before any model or network work so a
-        # tampered envelope or seed cannot be carried into a research run. Non-Deep runs have no
-        # envelope and pass through untouched.
-        _deep_ok, _deep_reason = deep_preflight(live.context)
-        if not _deep_ok:
-            raise DeepIntegrityError(f"Deep preflight failed: {_deep_reason}")
-        deep_seed_by_url = _deep_seed_urls(live.context)
-        cursor_result = load_runtime_cursor(live.context)
-        loaded_cursor = cursor_result.cursor
-        if cursor_result.available and loaded_cursor is not None:
-            live.cursor = loaded_cursor
-        else:
-            live.cursor = ResearchRuntimeCursor()
-        live.cursor = recover_interrupted_model_attempt(live.cursor)
-        live.cursor = recover_interrupted_external_attempt(live.cursor)
-        results = ActiveResearchResultBuffers.from_run(run)
         source_evidence = ReadSourceEvidenceContext(
             results=results,
             live=live,
@@ -2589,12 +2560,6 @@ def _candidates_for_claim(cursor: ResearchRuntimeCursor, claim_id: str) -> tuple
         for item in cursor.candidates
         if query_ids.intersection(item.query_ids)
     )
-
-
-def _deep_seed_urls(context: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
-    """Canonical URL -> durable seed source. Empty for a non-Deep run."""
-
-    return seed_sources_by_url(load_seed(context))
 
 
 def _deep_wall_now(clock: Callable[[], str]) -> datetime:

@@ -86,33 +86,52 @@ def test_prepare_failure_rebinds_partial_projection_without_persisting() -> None
     repository.checkpoint.assert_not_called()
 
 
-def test_success_rebinds_before_repository_write() -> None:
+def test_checkpoint_sets_stage_then_projects_and_rebinds_before_write() -> None:
     events: list[str] = []
     repository = Mock(spec=WebLookupRepository)
     snapshot = _checkpoint(repository)
     persisted = Mock()
 
-    def persist(*args: Any, **kwargs: Any) -> Mock:
-        events.append("persist")
-        assert events == ["bind", "persist"]
-        assert kwargs["research_context"] is snapshot.context
-        return persisted
+    def get_run(run_id: str) -> SimpleNamespace:
+        events.append("get")
+        assert run_id == snapshot.run_id
+        return SimpleNamespace(stage="assessing")
+
+    def set_stage(run_id: str, *, stage: str, operation_id: str) -> None:
+        events.append("stage")
+        assert (run_id, stage, operation_id) == (
+            snapshot.run_id, "reading", snapshot.operation_id
+        )
+
+    def elapsed() -> float:
+        events.append("elapsed")
+        return 4.0
 
     def bind(state: Any, context: dict[str, Any]) -> None:
         events.append("bind")
         assert state is snapshot.state
+        assert state.budget.elapsed_seconds == 4.0
         assert context is snapshot.context
+        assert context["claim_engine_runtime"] == snapshot.cursor.to_dict()
+        assert context["claim_engine"]["budget"]["elapsed_seconds"] == 4.0
 
+    def persist(*args: Any, **kwargs: Any) -> Mock:
+        events.append("persist")
+        assert kwargs["research_context"] is snapshot.context
+        return persisted
+
+    repository.get.side_effect = get_run
+    repository.set_stage.side_effect = set_stage
     repository.checkpoint.side_effect = persist
     result = snapshot.prepare_and_persist(
-        stage=None,
-        elapsed=lambda: 4.0,
+        stage="reading",
+        elapsed=elapsed,
         bind_prepared=bind,
         diagnostics={},
         elapsed_ms=lambda: 0.0,
     )
     assert result is persisted
-    assert events == ["bind", "persist"]
+    assert events == ["get", "stage", "elapsed", "bind", "persist"]
 
 
 def test_prepare_derives_evidence_ids_from_live_result_buffers(
