@@ -1,8 +1,8 @@
-"""Terminal evidence publication and no-evidence failure for an active run.
+"""Stage evidence briefs and publish terminal results for an active run.
 
-The executor owns *when* a run is terminal: steering, the stop gate, and the
-final checkpoint must all happen before this context is called.  This context
-owns terminal repository payloads; it never advances a wave or charges a model.
+Brief staging updates the supplied context ahead of the executor's checkpoint.
+The executor owns terminal decisions and their ordering with steering and
+checkpoints; this context owns the payloads sent to the repository.
 """
 
 from __future__ import annotations
@@ -24,6 +24,9 @@ from src.application.research_stop_gate import ResearchStopDecision
 from src.domain.runtime_entities import WebLookupRun
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import ResearchState
+from src.web.research.evidence_gate import EvidenceGateResult
+
+ACTIVE_RESEARCH_BRIEF_KEY = "claim_engine_evidence_brief"
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +42,19 @@ class ActiveResearchPublisher:
     run_id: str
     operation_id: str
     buffers: ActiveResearchResultBuffers
+
+    def stage_brief(
+        self,
+        *,
+        context: dict[str, Any],
+        state: ResearchState,
+        gate: EvidenceGateResult,
+    ) -> dict[str, Any]:
+        """Build the gated brief for the caller's next checkpoint."""
+
+        brief = _evidence_brief(state, gate, self.buffers.selected_sources)
+        context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
+        return brief
 
     def complete(
         self,

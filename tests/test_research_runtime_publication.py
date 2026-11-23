@@ -8,10 +8,14 @@ import pytest
 
 from src.application import research_runtime_publication as publication
 from src.application.research_runtime_result_buffers import ActiveResearchResultBuffers
-from src.application.research_runtime_publication import ActiveResearchPublisher
+from src.application.research_runtime_publication import (
+    ACTIVE_RESEARCH_BRIEF_KEY,
+    ActiveResearchPublisher,
+)
 from src.application.research_stop_gate import ResearchStopDecision
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import ResearchState
+from src.web.research.evidence_gate import EvidenceGateResult
 
 
 class _RecordingRepository:
@@ -54,6 +58,31 @@ def _stop() -> ResearchStopDecision:
         answer_confidence="high",
         final_status="completed",
     )
+
+
+def test_staging_brief_uses_current_inputs_and_leaves_persistence_to_caller(monkeypatch) -> None:
+    publisher, repository = _publisher()
+    state = cast(ResearchState, object())
+    gate = cast(EvidenceGateResult, object())
+    initial_context = {"run_attempt": 1}
+    rebound_context = {"run_attempt": 2}
+
+    def evidence(current_state, current_gate, records):
+        assert current_state is state
+        assert current_gate is gate
+        assert records is publisher.buffers.selected_sources
+        return {"source_count": len(records)}
+
+    monkeypatch.setattr(publication, "_evidence_brief", evidence)
+    initial = publisher.stage_brief(context=initial_context, state=state, gate=gate)
+    publisher.buffers.upsert_selected_source({"candidate_id": "read-after-recovery"})
+    rebound = publisher.stage_brief(context=rebound_context, state=state, gate=gate)
+
+    assert initial_context[ACTIVE_RESEARCH_BRIEF_KEY] is initial
+    assert rebound_context[ACTIVE_RESEARCH_BRIEF_KEY] is rebound
+    assert initial == {"source_count": 0}
+    assert rebound == {"source_count": 1}
+    assert repository.calls == []
 
 
 def test_completion_uses_current_context_and_shared_result_lists() -> None:

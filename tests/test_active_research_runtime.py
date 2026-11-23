@@ -1047,7 +1047,10 @@ def test_model_crash_after_success_before_semantic_persist_recovers_via_new_atte
     assert len({item.call_id for item in cursor.model_calls}) == len(cursor.model_calls)
 
 
-def test_crash_after_extraction_preserves_wave_baseline_and_gain(tmp_path: Any) -> None:
+@pytest.mark.parametrize("after_gain", [False, True], ids=["extraction", "gain_checkpoint"])
+def test_crash_after_extraction_preserves_wave_baseline_and_gain(
+    tmp_path: Any, after_gain: bool
+) -> None:
     class _CrashAfterExtractionRepository(_TrackingRepository):
         def __init__(self, database: RuntimeDatabase) -> None:
             super().__init__(database)
@@ -1066,7 +1069,7 @@ def test_crash_after_extraction_preserves_wave_baseline_and_gain(tmp_path: Any) 
                 for record in kwargs["selected_sources"]
             )
             cursor = _cursor_from_run(persisted)
-            if has_eligible_extraction and not cursor.gain_history:
+            if has_eligible_extraction and bool(cursor.gain_history) == after_gain:
                 self.crashed = True
                 assert persisted.active_operation_id
                 self.fail(
@@ -1106,17 +1109,24 @@ def test_crash_after_extraction_preserves_wave_baseline_and_gain(tmp_path: Any) 
     assert baseline["evidence"] == []
     crashed_state = _dispatch_state(crashed)
     assert crashed_state is not None
-    assert len(crashed_state.evidence) == 1
+    assert crashed_state.evidence
+    if not after_gain:
+        assert len(crashed_state.evidence) == 1
     crashed_cursor = _cursor_from_run(crashed)
     assert crashed_cursor.wave_index == 1
     assert crashed_cursor.wave_id == f"research_wave:{run.id}:1"
-    assert crashed_cursor.gain_history == ()
+    assert len(crashed_cursor.gain_history) == int(after_gain)
+    if after_gain:
+        assert crashed.research_context[ACTIVE_RESEARCH_BRIEF_KEY]["gate_status"] == "pass"
     search_calls = search.calls
     read_calls = reader.calls
 
     recovered = service.execute(run.id, raise_on_error=True)
 
     assert recovered.status == "completed"
+    brief = recovered.research_context[ACTIVE_RESEARCH_BRIEF_KEY]
+    assert brief["gate_status"] == "pass"
+    assert brief["eligible_evidence"]
     cursor = _cursor_from_run(recovered)
     assert len(cursor.gain_history) == 1
     assert cursor.gain_history[0]["substantive_gain"] is True
@@ -3198,6 +3208,8 @@ def test_late_steering_terminal_crash_recomputes_same_stop_decision(
     # durable truth reproduces the persisted canonical stop reason.
     cursor = _cursor_from_run(completed)
     gate = evaluate_evidence_gate(rebuilt)
+    brief = completed.research_context[ACTIVE_RESEARCH_BRIEF_KEY]
+    assert brief["gate_status"] == gate.status
     rebuilt_signal = ResearchStopSignal(
         gate_pass=gate.status == "pass",
         hard_budget_exhausted=(
