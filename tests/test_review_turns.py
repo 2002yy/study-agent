@@ -104,8 +104,10 @@ def harness(request, runtime_test_context):
     )
     revision = result.revision.revision
     old = UnderstandingEvidence(verified_at="2000-01-01T00:00:00+00:00")
-    truth.create_understanding_evidence(
-        old, (UnderstandingClaimResult(old.id, revision.id, "pass"),)
+    truth.commit_semantic_closure(
+        goal_id=goal.id,
+        understanding=old,
+        results=(UnderstandingClaimResult(old.id, revision.id, "pass"),),
     )
     truth.create_next_step(
         NextStep(goal_id=goal.id, text="Original next step", is_primary=True)
@@ -255,8 +257,10 @@ def test_fresh_pass_between_answer_and_commit_fails_cas(harness):
     answer(h, prompt(h))
     run = h.closures.create_and_execute(h.session.id)
     fresh = UnderstandingEvidence()
-    h.truth.create_understanding_evidence(
-        fresh, (UnderstandingClaimResult(fresh.id, h.revision.id, "pass"),)
+    h.truth.commit_semantic_closure(
+        goal_id=h.goal.id,
+        understanding=fresh,
+        results=(UnderstandingClaimResult(fresh.id, h.revision.id, "pass"),),
     )
     failed = h.closures.commit(run.id)
     assert failed.status == "failed" and "last pass changed" in failed.error
@@ -514,8 +518,10 @@ def test_fresh_pass_invalidates_prompt_before_answer(harness):
     evidence = UnderstandingEvidence(
         method="explain", prompt="another attempt", user_response=ANSWER
     )
-    h.truth.create_understanding_evidence(
-        evidence, (UnderstandingClaimResult(evidence.id, h.revision.id, "pass"),)
+    h.truth.commit_semantic_closure(
+        goal_id=h.goal.id,
+        understanding=evidence,
+        results=(UnderstandingClaimResult(evidence.id, h.revision.id, "pass"),),
     )
     with pytest.raises(ValueError):
         answer(h, p)

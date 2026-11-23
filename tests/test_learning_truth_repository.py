@@ -356,6 +356,7 @@ def test_understanding_hypothesis_and_next_step_use_normalized_relations(tmp_pat
     repository.commit_revision(
         revision,
         (EvidenceBinding(source=_source(), role="primary", position=0),),
+        goal_id=goal.id,
     )
 
     understanding = UnderstandingEvidence(
@@ -368,7 +369,10 @@ def test_understanding_hypothesis_and_next_step_use_normalized_relations(tmp_pat
         claim_revision_id=revision.id,
         result="pass",
     )
-    repository.create_understanding_evidence(understanding, (result,))
+    written, _, _ = repository.commit_semantic_closure(
+        goal_id=goal.id, understanding=understanding, results=(result,)
+    )
+    assert written == understanding
 
     hypothesis = repository.create_hypothesis(
         LearningHypothesis(

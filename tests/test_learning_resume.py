@@ -106,9 +106,10 @@ def test_durable_resume_uses_latest_revision_and_bounded_semantic_state(tmp_path
         prompt="Why does durable resume not require replaying chat?",
         user_response="Because the Goal and ClaimRevision are persisted separately.",
     )
-    truth.create_understanding_evidence(
-        pass_evidence,
-        (
+    truth.commit_semantic_closure(
+        goal_id=goal.id,
+        understanding=pass_evidence,
+        results=(
             UnderstandingClaimResult(
                 understanding_evidence_id=pass_evidence.id,
                 claim_revision_id=second.revision.revision.id,
@@ -121,9 +122,10 @@ def test_durable_resume_uses_latest_revision_and_bounded_semantic_state(tmp_path
         prompt="Explain additional fact 2.",
         user_response="Incorrect explanation that should not appear in resume context.",
     )
-    truth.create_understanding_evidence(
-        fail_evidence,
-        (
+    truth.commit_semantic_closure(
+        goal_id=goal.id,
+        understanding=fail_evidence,
+        results=(
             UnderstandingClaimResult(
                 understanding_evidence_id=fail_evidence.id,
                 claim_revision_id=other_revisions[-1].id,

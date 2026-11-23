@@ -479,25 +479,6 @@ class LearningTruthRepository:
                 result.append(bundle)
         return result
 
-    def create_understanding_evidence(
-        self,
-        evidence: UnderstandingEvidence,
-        results: Sequence[UnderstandingClaimResult],
-    ) -> UnderstandingEvidence:
-        normalized = tuple(results)
-        self._validate_understanding_results(evidence, normalized)
-        with self.database.connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            try:
-                for item in normalized:
-                    self._require_revision(connection, item.claim_revision_id)
-                self._insert_understanding(connection, evidence, normalized)
-                connection.commit()
-            except Exception:
-                connection.rollback()
-                raise
-        return evidence
-
     def commit_review_attempt(self, *, run, binding, evaluation, understanding, result):
         """Review CAS, replay detection and evidence insert share one commit boundary."""
         from src.repositories.review_attempt_guard import guard_review_attempt, require

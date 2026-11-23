@@ -74,14 +74,19 @@ def _seed_truth(repository):
 def _write_unauthorized_mastery(truth):
     # M6: simulate a production boundary mistakenly calling the actual writer.
     with truth.database.connect() as connection:
-        revision_id = connection.execute(
-            "SELECT id FROM claim_revisions LIMIT 1"
-        ).fetchone()[0]
+        goal_id, revision_id = connection.execute(
+            """
+            SELECT goal_id, claim_revision_id FROM learning_goal_claim_revisions
+            LIMIT 1
+            """
+        ).fetchone()
     evidence = UnderstandingEvidence(
         prompt="M6 mutation", user_response="UI/research success"
     )
-    truth.create_understanding_evidence(
-        evidence, (UnderstandingClaimResult(evidence.id, revision_id, "pass"),)
+    truth.commit_semantic_closure(
+        goal_id=goal_id,
+        understanding=evidence,
+        results=(UnderstandingClaimResult(evidence.id, revision_id, "pass"),),
     )
 
 
