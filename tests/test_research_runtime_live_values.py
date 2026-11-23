@@ -41,6 +41,7 @@ def test_budget_clock_and_model_guard_share_rebound_state_owner() -> None:
         reserve_seconds=5.0,
     )
     guard = ActiveResearchExecutionGuard(
+        live=live,
         repository=Mock(spec=WebLookupRepository),
         run_id="run-1",
         operation_id="operation-1",
@@ -49,13 +50,13 @@ def test_budget_clock_and_model_guard_share_rebound_state_owner() -> None:
 
     assert clock.hard_seconds_left() == -5.0
     with pytest.raises(HardResearchBudgetReached):
-        guard.ensure_budget(live.current_state())
+        guard.ensure_budget()
 
     # A restored/checkpoint-prepared state replaces the value, not its owner.
     live.state = recovered
     assert live.current_state() is recovered
     assert clock.hard_seconds_left() == 5.0
-    guard.ensure_budget(live.current_state())
+    guard.ensure_budget()
 
 
 def test_model_and_read_observers_share_latest_rebound_cursor() -> None:

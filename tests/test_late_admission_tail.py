@@ -182,7 +182,7 @@ def _model_attempts(
     return ActiveModelAttemptContext(
         live=live,
         ensure_active=lambda: None,
-        ensure_budget=lambda _state: None,
+        ensure_budget=lambda: None,
         checkpoint=lambda: None,
     )
 
@@ -442,7 +442,7 @@ def test_late_tail_model_admission_uses_rebound_cursor_after_policy(
     model_attempts = ActiveModelAttemptContext(
         live=live,
         ensure_active=lambda: None,
-        ensure_budget=lambda _state: None,
+        ensure_budget=lambda: None,
         checkpoint=lambda: None,
     )
     assessor = _RecordingAssessor()
@@ -533,7 +533,7 @@ def test_late_tail_returns_gateway_audit_cursor_without_extra_checkpoint() -> No
     model_attempts = ActiveModelAttemptContext(
         live=live,
         ensure_active=lambda: None,
-        ensure_budget=lambda _state: None,
+        ensure_budget=lambda: None,
         checkpoint=lambda: checkpoints.append(live.cursor),
     )
     returned = _call_tail(
