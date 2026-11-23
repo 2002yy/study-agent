@@ -1,9 +1,8 @@
 """Learning State-1 §7 / §9: durable-mastery write isolation (T16 / T17 / M6).
 
 Durable mastery is confirmed only by Understanding rows. Those rows are written
-exclusively by three ``LearningTruthRepository`` methods::
+exclusively by two ``LearningTruthRepository`` transactional methods::
 
-    create_understanding_evidence
     commit_review_attempt
     commit_semantic_closure
 
@@ -25,18 +24,14 @@ from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[1] / "src"
 
-# The three repository methods that create Understanding rows (confirmed mastery).
+# The two authorized repository methods that create Understanding rows.
 _UNDERSTANDING_WRITERS = {
-    "create_understanding_evidence",
     "commit_review_attempt",
     "commit_semantic_closure",
 }
 
 # Allowed application-layer callers, keyed by method. Paths are relative to src/.
 _ALLOWED_WRITERS = {
-    # No src caller today: it is a repository primitive used by tests and by the
-    # two methods below. Any production caller must be added here deliberately.
-    "create_understanding_evidence": set(),
     "commit_review_attempt": {"application/learning_closure_truth.py"},
     "commit_semantic_closure": {"application/learning_semantic_closure.py"},
 }
@@ -114,14 +109,6 @@ def test_only_the_closure_chain_writes_durable_understanding():
             f"{method} is called outside the closure chain: {sorted(offenders)}; "
             "durable mastery must only be written by the closure path (§7 / M6)"
         )
-
-
-def test_create_understanding_evidence_has_no_production_caller():
-    # If a production caller appears it must be reviewed and allow-listed above;
-    # until then the primitive stays test-only.
-    assert _call_sites({"create_understanding_evidence"})[
-        "create_understanding_evidence"
-    ] == set()
 
 
 def test_closure_truth_service_is_constructed_only_by_the_runtime_wiring():

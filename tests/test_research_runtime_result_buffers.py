@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -11,6 +12,63 @@ from src.application.research_runtime_result_buffers import ActiveResearchResult
 
 def _buffers(*records: dict[str, Any]) -> ActiveResearchResultBuffers:
     return ActiveResearchResultBuffers([], list(records), [], [])
+
+
+def test_restored_buffers_detach_persisted_records_and_keep_one_live_owner() -> None:
+    persisted = SimpleNamespace(
+        query_attempts=[{"query": "original", "audit": {"attempts": [1]}}],
+        selected_sources=[
+            {
+                "candidate_id": "a",
+                "read": {"status": "read", "metadata": {"tags": ["original"]}},
+                "extractions": {"claim-1": {"status": "pending"}},
+            }
+        ],
+        rejected_sources=[{"candidate_id": "b", "reasons": ["original"]}],
+        warnings=["durable warning"],
+    )
+
+    buffers = ActiveResearchResultBuffers.from_run(persisted)
+    assert buffers.query_attempts == persisted.query_attempts
+    assert buffers.selected_sources == persisted.selected_sources
+    assert buffers.rejected_sources == persisted.rejected_sources
+    assert buffers.warnings == persisted.warnings
+    assert buffers.query_attempts is not persisted.query_attempts
+    assert buffers.selected_sources is not persisted.selected_sources
+    assert buffers.selected_sources[0] is not persisted.selected_sources[0]
+    assert buffers.rejected_sources[0] is not persisted.rejected_sources[0]
+    assert (
+        buffers.selected_sources[0]["read"]
+        is not persisted.selected_sources[0]["read"]
+    )
+    assert (
+        buffers.selected_sources[0]["extractions"]
+        is not persisted.selected_sources[0]["extractions"]
+    )
+
+    # Recovered nested objects are also mutable: they must not reach the
+    # repository snapshot through an alias after resumption.
+    buffers.query_attempts[0]["audit"]["attempts"].append(2)
+    buffers.selected_sources[0]["read"]["metadata"]["tags"].append("new")
+    admitted = buffers.admit_extraction_target("a", "claim-2")
+    assert admitted is buffers.selected_sources[0]
+    admitted["extractions"]["claim-2"] = {"status": "eligible"}
+    buffers.rejected_sources[0]["reasons"].append("new")
+
+    assert persisted.query_attempts[0]["audit"]["attempts"] == [1]
+    assert persisted.selected_sources[0]["read"]["metadata"]["tags"] == ["original"]
+    assert persisted.selected_sources[0]["extractions"] == {
+        "claim-1": {"status": "pending"}
+    }
+    assert persisted.rejected_sources[0]["reasons"] == ["original"]
+
+    # A live replacement must reach every consumer of the result buffer but
+    # must not retroactively mutate the recovered repository snapshot.
+    live_selected = buffers.selected_sources
+    buffers.upsert_selected_source({"candidate_id": "a", "read": {"status": "failed"}})
+    assert buffers.selected_sources is live_selected
+    assert live_selected[0]["read"]["status"] == "failed"
+    assert persisted.selected_sources[0]["read"]["status"] == "read"
 
 
 def test_source_upsert_preserves_list_alias_and_first_candidate_match() -> None:

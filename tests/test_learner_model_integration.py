@@ -83,9 +83,10 @@ def test_snapshot_derives_from_real_repositories_without_database_writes(tmp_pat
         prompt="Why is the snapshot read-only?",
         user_response="Because repositories remain the truth owners.",
     )
-    truth.create_understanding_evidence(
-        understanding,
-        (
+    truth.commit_semantic_closure(
+        goal_id=goal.id,
+        understanding=understanding,
+        results=(
             UnderstandingClaimResult(
                 understanding_evidence_id=understanding.id,
                 claim_revision_id=committed.revision.revision.id,
