@@ -234,8 +234,7 @@
     ],
     "a3_browser": [
       "tests/test_browser_honesty.py",
-      "tests/test_crawl4ai_timeout_propagation.py",
-      "tests/test_crawl4ai_shutdown_contract.py"
+      "tests/test_crawl4ai_worker_protocol.py"
     ],
     "release_benchmark_plan": [
       "tests/test_release_benchmark_plan.py",
@@ -922,8 +921,7 @@
       "tests/test_wigolo_reader_policy.py",
       "tests/test_read_retry.py",
       "tests/test_browser_honesty.py",
-      "tests/test_crawl4ai_timeout_propagation.py",
-      "tests/test_crawl4ai_shutdown_contract.py",
+      "tests/test_crawl4ai_worker_protocol.py",
       "tests/test_active_research_runtime.py",
       "tests/test_research_runtime_lead_read_context.py",
       "tests/test_active_research_read_planner.py",

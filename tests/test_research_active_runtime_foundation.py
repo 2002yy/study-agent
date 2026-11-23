@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+import src.llm_spend_guard as spend_guard
 from src.application.active_research_runtime import (
     _ExternalAttemptBudgetExhausted,
     _attempt_number,
@@ -233,6 +234,213 @@ def test_model_gateway_exhaustion_is_unavailable_without_token_estimates() -> No
     assert all(item.input_tokens is None for item in result.audits)
     assert all(item.output_tokens is None for item in result.audits)
     assert all(item.total_tokens is None for item in result.audits)
+
+
+def test_model_gateway_settles_retry_from_original_start_markers(monkeypatch) -> None:
+    """Each paid send has one matching audit, even after a failed first call."""
+    gateway, client = _gateway(
+        [
+            TimeoutError("temporary"),
+            _response('{"ok":true}', prompt_tokens=7, completion_tokens=2),
+        ]
+    )
+    events: list[tuple[str, str]] = []
+    markers: list[ResearchModelAttemptStart] = []
+    finished: list[ResearchModelCallAudit] = []
+    monkeypatch.setattr(spend_guard, "require_allowed_model", lambda *_a, **_kw: None)
+    monkeypatch.setattr(
+        spend_guard,
+        "reserve_call",
+        lambda **kwargs: events.append(("reserve", kwargs["request_key"])),
+    )
+    original_create = client.chat.completions.create
+
+    def send(**kwargs):
+        events.append(("send", ""))
+        return original_create(**kwargs)
+
+    client.chat.completions.create = send
+
+    def started(marker: ResearchModelAttemptStart) -> None:
+        markers.append(marker)
+        events.append(("start", marker.call_id))
+
+    def ended(audit: ResearchModelCallAudit) -> None:
+        finished.append(audit)
+        events.append(("finish", audit.call_id))
+
+    result = gateway.complete_structured(
+        logical_call_id="tracked:1",
+        purpose="research_claim_planning",
+        messages=[{"role": "user", "content": "public question"}],
+        audit_payload={"question": "public question"},
+        response_schema_version="test-v1",
+        parse=lambda data: data["ok"],
+        data_categories=("public_question",),
+        data_counts={"public_question": 1},
+        on_attempt_started=started,
+        on_attempt_finished=ended,
+    )
+
+    ids = ["tracked:1:attempt:1", "tracked:1:attempt:2"]
+    assert result.completed and result.value is True
+    assert [item.call_id for item in result.audits] == ids
+    assert [item.status for item in result.audits] == ["attempt_failed", "completed"]
+    assert result.audits == tuple(finished)
+    assert events == [
+        ("start", ids[0]), ("reserve", ids[0]), ("send", ""), ("finish", ids[0]),
+        ("start", ids[1]), ("reserve", ids[1]), ("send", ""), ("finish", ids[1]),
+    ]
+    for marker, audit in zip(markers, result.audits, strict=True):
+        assert (audit.call_id, audit.logical_call_id, audit.attempt) == (
+            marker.call_id, marker.logical_call_id, marker.attempt
+        )
+        assert (audit.input_sha256, audit.input_chars, audit.data_categories) == (
+            marker.input_sha256, marker.input_chars, marker.data_categories
+        )
+        assert audit.data_counts == marker.data_counts
+        assert ResearchModelCallAudit.from_dict(audit.to_dict()) == audit
+    assert result.audits[0].error_type == "TimeoutError"
+    assert result.audits[0].total_tokens is None
+    assert result.audits[1].total_tokens == 9
+
+
+def test_model_gateway_budget_refusal_finishes_one_audit(monkeypatch) -> None:
+    """A refused reservation never reaches the provider or triggers retry."""
+    gateway, client = _gateway([_response('{"ok":true}')])
+    events: list[str] = []
+
+    monkeypatch.setattr(spend_guard, "require_allowed_model", lambda *_a, **_kw: None)
+
+    def refuse(**kwargs) -> None:
+        events.append("reserve:" + kwargs["request_key"])
+        raise spend_guard.SpendLimitExceeded("cap reached")
+
+    monkeypatch.setattr(spend_guard, "reserve_call", refuse)
+    result = gateway.complete_structured(
+        logical_call_id="refused:1",
+        purpose="research_claim_planning",
+        messages=[{"role": "user", "content": "question"}],
+        audit_payload={"question": "question"},
+        response_schema_version="test-v1",
+        parse=lambda data: data,
+        on_attempt_started=lambda marker: events.append("start:" + marker.call_id),
+        on_attempt_finished=lambda audit: events.append("finish:" + audit.call_id),
+    )
+
+    assert result.status == "unavailable" and result.reason == "budget_exhausted"
+    assert len(result.audits) == 1
+    assert result.audits[0].status == "budget_exhausted"
+    assert result.audits[0].error_type == "SpendLimitExceeded"
+    assert events == [
+        "start:refused:1:attempt:1",
+        "reserve:refused:1:attempt:1",
+        "finish:refused:1:attempt:1",
+    ]
+    assert not client.create_calls
+
+
+@pytest.mark.parametrize("reason", ["exhausted", "conflict"])
+def test_model_gateway_hard_send_ceiling_audits_then_stops(monkeypatch, reason) -> None:
+    """Run-level send limits cannot turn into provider retries or a soft result."""
+    gateway, client = _gateway([_response('{"ok":true}'), _response('{"ok":true}')])
+    events: list[str] = []
+    finished: list[ResearchModelCallAudit] = []
+    monkeypatch.setattr(spend_guard, "require_allowed_model", lambda *_a, **_kw: None)
+
+    def deny_send(**kwargs) -> None:
+        events.append("reserve:" + kwargs["request_key"])
+        raise spend_guard.SendLimitExceeded("send slots full", reason=reason)
+
+    monkeypatch.setattr(spend_guard, "reserve_call", deny_send)
+
+    def finished_hook(audit: ResearchModelCallAudit) -> None:
+        events.append("finish:" + audit.call_id)
+        finished.append(audit)
+
+    with pytest.raises(spend_guard.SendLimitExceeded) as caught:
+        gateway.complete_structured(
+            logical_call_id="send-ceiling:1",
+            purpose="research_claim_planning",
+            messages=[{"role": "user", "content": "question"}],
+            audit_payload={"question": "question"},
+            response_schema_version="test-v1",
+            parse=lambda data: data,
+            on_attempt_started=lambda marker: events.append("start:" + marker.call_id),
+            on_attempt_finished=finished_hook,
+        )
+
+    assert caught.value.reason == reason
+    assert events == [
+        "start:send-ceiling:1:attempt:1",
+        "reserve:send-ceiling:1:attempt:1",
+        "finish:send-ceiling:1:attempt:1",
+    ]
+    assert len(finished) == 1
+    assert finished[0].call_id == "send-ceiling:1:attempt:1"
+    assert finished[0].status == "budget_exhausted"
+    assert finished[0].error_type == "SendLimitExceeded"
+    assert ResearchModelCallAudit.from_dict(finished[0].to_dict()) == finished[0]
+    assert client.create_calls == []
+
+
+def test_model_gateway_cancel_at_start_prevents_send(monkeypatch) -> None:
+    """A start/checkpoint exception is not a failed provider attempt."""
+    gateway, client = _gateway([_response('{"ok":true}')])
+    reservations: list[object] = []
+    monkeypatch.setattr(
+        spend_guard, "reserve_call", lambda **kw: reservations.append(kw)
+    )
+
+    def interrupt(_marker: ResearchModelAttemptStart) -> None:
+        raise RuntimeError("cancelled before model send")
+
+    with pytest.raises(RuntimeError, match="cancelled before model send"):
+        gateway.complete_structured(
+            logical_call_id="cancelled:1",
+            purpose="research_claim_planning",
+            messages=[{"role": "user", "content": "question"}],
+            audit_payload={"question": "question"},
+            response_schema_version="test-v1",
+            parse=lambda data: data,
+            on_attempt_started=interrupt,
+        )
+
+    assert reservations == []
+    assert not client.create_calls
+
+
+def test_model_gateway_cancel_after_audit_does_not_retry(monkeypatch) -> None:
+    """After a sent call, completion callback exceptions stay authoritative."""
+    gateway, client = _gateway([_response('{"ok":true}'), _response('{"ok":true}')])
+    charged: list[str] = []
+    finished: list[ResearchModelCallAudit] = []
+    monkeypatch.setattr(spend_guard, "require_allowed_model", lambda *_a, **_kw: None)
+    monkeypatch.setattr(
+        spend_guard, "reserve_call",
+        lambda **kwargs: charged.append(kwargs["request_key"]),
+    )
+
+    def interrupt(audit: ResearchModelCallAudit) -> None:
+        finished.append(audit)
+        raise RuntimeError("cancelled after model audit")
+
+    with pytest.raises(RuntimeError, match="cancelled after model audit"):
+        gateway.complete_structured(
+            logical_call_id="after:1",
+            purpose="research_claim_planning",
+            messages=[{"role": "user", "content": "question"}],
+            audit_payload={"question": "question"},
+            response_schema_version="test-v1",
+            parse=lambda data: data["ok"],
+            on_attempt_finished=interrupt,
+        )
+
+    assert charged == ["after:1:attempt:1"]
+    assert len(client.create_calls) == 1
+    assert len(finished) == 1
+    assert finished[0].status == "completed"
+    assert finished[0].call_id == charged[0]
 
 
 def test_claim_planner_defaults_to_shadow_and_code_owns_policy_and_ids() -> None:

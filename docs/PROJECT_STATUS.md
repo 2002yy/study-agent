@@ -6,6 +6,15 @@
 
 ## 0. Current Handoff（2026-11-21，冷启动）
 
+### 2026-11-22 无生产调用的 Understanding 直接写入口退役（P3 静态候选）
+
+- **业务性质**：`LearningTruthRepository.create_understanding_evidence` 允许独立事务插入掌握度证据，要求目标 ClaimRevision 存在，却未附带 Goal→Revision 关系绑定、ReviewAttempt CAS/replay 或同事务 Goal 导航更新。当前 `commit_review_attempt` 和 `commit_semantic_closure` 才分别承载正式复核与语义闭环的事务边界。
+- **调用证据与纠错**：静态测试 `tests/test_learning_mastery_isolation.py::test_create_understanding_evidence_has_no_production_caller` 只证实 `src/` 生产调用为零；第一次提交误称测试仅一处使用，精确 HEAD 的 pytest 随即揭示 `test_full_golden_journey`、`test_learner_model_integration`、`test_learning_mastery_runtime_isolation`、`test_learning_resume`、`test_review_turns` 等测试夹具仍直接调用，造成大量失败。现已逐处迁移，不能将生产无调用误当全仓无依赖。此接口允许绕过 Goal 与 Revision 绑定的业务约束，因此仍应整体退役而非保留兼容假入口。
+- **删除与迁移**：删除 `src/repositories/learning_truth_repository.py` 的该 19 行直接写入口；关系归一化测试通过 `commit_revision(goal_id=goal.id)` 绑定，再走 `commit_semantic_closure(goal_id, understanding, results)`。同步迁移 Golden Journey、Learner Model、Learning Resume 与 Review Turns 的真实夹具；M6 负控改为从已绑定的 Goal→Revision 查询合法目标，再由现役原子写入模拟越权写入，不改变“研究/UI 不得改写持久掌握度”的断言。删除旧接口对应的静态零调用测试及白名单，原有流程断言、回滚和 CAS 保护继续保留。
+- **刻意保留**：`_validate_understanding_results`、`_insert_understanding`、事务中的写入/回滚、两条现役提交接口、所有其它静态写入隔离和路由负控、SQLite migration/schema 均不动；不引入替代适配层或允许新的写入入口。相关测试文件仍为现役测试，无需改变 `tests/stage_gates.json` 注册。
+- **验证**：基于 `main@52636c4` 的独立分支 `cleanup/retire-unowned-understanding-writer-20261122`；新 HEAD pytest/Ruff/CI 结果尚待出炉。没有调用数据库、付费模型或真实用户数据；P3/static/learning-truth/engineering-only。
+
+
 ### 2026-11-22 B5 一次性真实 SearXNG Smoke 工具及自测退役（P3 静态候选）
 
 - 旧 `tools/run_research_active_smoke.py` 是 B5 阶段固定一轮真实 SearXNG/模型的手工执行器，带单独的 `_searxng_success` 报告判断；现行运维由 `tools/studyctl.py`/`studyctl_live.py`、现行研究/读取/预算/发布和受控真实任务验证承担，不以旧 B5 工具作为产品入口。

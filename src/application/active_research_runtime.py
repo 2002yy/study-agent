@@ -229,15 +229,10 @@ from src.application.research_runtime_model_attempt_context import (
     ActiveModelAttemptContext,
 )
 from src.application.research_runtime_steering_context import ActiveResearchSteeringContext
-from src.application.research_runtime_wave_settlement import (
-    ActiveWaveSettlementContext,
-    ActiveWaveSettlementHandoff,
-)
+from src.application.research_runtime_wave_settlement import ActiveWaveSettlementContext
 from src.application.research_runtime_wave_baseline import ActiveWaveBaselineContext
 from src.application.research_runtime_wave_progress import ActiveWaveProgressContext
-from src.application.research_runtime_failure_projection import (
-    with_appended_runtime_failure,
-)
+from src.application.research_runtime_failure_projection import ActiveRuntimeFailureContext
 from src.application.research_runtime_search_outcomes import ActiveSearchOutcomeContext
 from src.application.research_runtime_read_attempt_context import ActiveReadAttemptContext
 from src.application.research_runtime_read_scheduling import ActiveReadDispatchContext
@@ -800,16 +795,7 @@ class ActiveResearchRuntimeExecutor:
             live.cursor = ResearchRuntimeCursor()
         live.cursor = recover_interrupted_model_attempt(live.cursor)
         live.cursor = recover_interrupted_external_attempt(live.cursor)
-        query_attempts = list(run.query_attempts)
-        selected_sources = [dict(item) for item in run.selected_sources]
-        rejected_sources = [dict(item) for item in run.rejected_sources]
-        warnings = list(run.warnings)
-        results = ActiveResearchResultBuffers(
-            query_attempts=query_attempts,
-            selected_sources=selected_sources,
-            rejected_sources=rejected_sources,
-            warnings=warnings,
-        )
+        results = ActiveResearchResultBuffers.from_run(run)
         source_evidence = ReadSourceEvidenceContext(
             results=results,
             live=live,
@@ -818,6 +804,7 @@ class ActiveResearchRuntimeExecutor:
         evidence_acceptance = ExtractedEvidenceAcceptanceContext(
             run_id=run_id, live=live, results=results
         )
+        runtime_failures = ActiveRuntimeFailureContext(live)
         extraction_failures = ExtractionFailureContext(live)
         known_evidence_ids = partial(results.known_evidence_ids, run_id)
         publisher = ActiveResearchPublisher(
@@ -921,6 +908,7 @@ class ActiveResearchRuntimeExecutor:
         # (see the definition above), so the chain has a single authority.
 
         read_dispatch = ActiveReadDispatchContext(
+            live=live,
             breaker=breaker,
             available_backends=ACTIVE_READER_CHAIN,
             research_seconds_left=research_seconds_left,
@@ -978,7 +966,6 @@ class ActiveResearchRuntimeExecutor:
         # semantic result. A crash first leaves durable inflight for recovery.
         on_model_finished = model_attempt_context.finished
 
-        wave_handoff = ActiveWaveSettlementHandoff(live=live)
         read_coverage = ActiveReadCoverageContext(live=live, results=results)
         wave_baseline_context = ActiveWaveBaselineContext(
             live=live, actionable_gaps=_ordered_gaps
@@ -990,10 +977,11 @@ class ActiveResearchRuntimeExecutor:
         )
 
         wave_settlement_context = ActiveWaveSettlementContext(
+            live=live,
             steering=steering_context,
             ensure_active=ensure_active,
             elapsed=elapsed,
-            checkpoint=partial(wave_handoff.settle_completed_wave, checkpoint=checkpoint),
+            checkpoint=checkpoint,
             results=results,
             run_id=run_id,
             actionable_gaps=_ordered_gaps,
@@ -1011,8 +999,7 @@ class ActiveResearchRuntimeExecutor:
                 checkpoint(stage="planned")
                 categories = ("public_research_question", "research_time_context")
                 if not model_policy.allowed(live.context, "research_claim_planning", categories):
-                    live.cursor = with_appended_runtime_failure(
-                        live.cursor, live.context,
+                    runtime_failures.append(
                         "policy_blocked",
                         "planning",
                         logical_call_id=f"policy:research_claim_planning:{run_id}",
@@ -1032,8 +1019,7 @@ class ActiveResearchRuntimeExecutor:
                         planning_logical_call_id
                     )
                 except _ModelAttemptBudgetExhausted:
-                    live.cursor = with_appended_runtime_failure(
-                        live.cursor, live.context,
+                    runtime_failures.append(
                         "model_attempts_exhausted",
                         "planning",
                         logical_call_id=planning_logical_call_id,
@@ -1067,8 +1053,7 @@ class ActiveResearchRuntimeExecutor:
                         if planning_reason == "model_call_attempts_exhausted"
                         else "claim_planning_failed"
                     )
-                    live.cursor = with_appended_runtime_failure(
-                        live.cursor, live.context,
+                    runtime_failures.append(
                         planning_code,
                         "planning",
                         logical_call_id=f"research_claim_plan:{run.id}:1",
@@ -1140,7 +1125,7 @@ class ActiveResearchRuntimeExecutor:
                 # settlement must not account the same wave twice.
                 if len(live.cursor.gain_history) >= live.cursor.wave_index:
                     gate = evaluate_evidence_gate(live.state)
-                    brief = _evidence_brief(live.state, gate, selected_sources)
+                    brief = _evidence_brief(live.state, gate, results.selected_sources)
                     live.context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
                     research_window_diagnostics.record_end(
                         live.context,
@@ -1149,7 +1134,7 @@ class ActiveResearchRuntimeExecutor:
                         exhausted=budget_clock.research_window_exhausted(),
                     )
                     checkpoint()
-                    settled = wave_handoff.settle(wave_settlement_context, gate, brief)
+                    settled = wave_settlement_context.settle_completed_wave(gate, brief)
                     if settled is not None:
                         return settled
                     continue
@@ -1314,8 +1299,7 @@ class ActiveResearchRuntimeExecutor:
                     if not model_policy.allowed(
                         live.context, "research_candidate_assessment", categories
                     ):
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
+                        runtime_failures.append(
                             "policy_blocked",
                             "assessing",
                             logical_call_id=f"policy:{assessment_logical_call_id}",
@@ -1334,8 +1318,7 @@ class ActiveResearchRuntimeExecutor:
                         # that claim through the normal unavailable/no-gain path;
                         # attempt exhaustion is not a whole-runtime failure and
                         # must never create a third physical model call.
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
+                        runtime_failures.append(
                             "model_attempts_exhausted",
                             "assessing",
                             logical_call_id=assessment_logical_call_id,
@@ -1372,8 +1355,7 @@ class ActiveResearchRuntimeExecutor:
                             if assessment_reason == "model_call_attempts_exhausted"
                             else "assessment_failed"
                         )
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
+                        runtime_failures.append(
                             assessment_code,
                             "assessing",
                             logical_call_id=assessment_logical_call_id,
@@ -1510,7 +1492,7 @@ class ActiveResearchRuntimeExecutor:
                 # Skipping them later in the read loop would still have consumed a scheduler
                 # read slot that an unread candidate needed.
                 content_available = content_available_ids(
-                    completed_read, selected_sources
+                    completed_read, results.selected_sources
                 )
                 rankings_for_plan = {
                     claim_id: tuple(
@@ -1551,7 +1533,7 @@ class ActiveResearchRuntimeExecutor:
                 if atomic_routing_enabled():
                     routing_read_ids = frozenset(
                         str(record.get("candidate_id") or "")
-                        for record in selected_sources
+                        for record in results.selected_sources
                         if str(record.get("read_status") or "") == "read"
                     )
                     supported_ids = frozenset(
@@ -1597,7 +1579,7 @@ class ActiveResearchRuntimeExecutor:
                 read_quota = ReadWaveQuotaContext.restore(
                     budget_reads_used=live.state.budget.reads_used,
                     context=live.context,
-                    selected_sources=selected_sources,
+                    selected_sources=results.selected_sources,
                 )
                 read_budget = ReadWaveBudgetContext(
                     live=live, quota=read_quota, elapsed=elapsed
@@ -1692,11 +1674,7 @@ class ActiveResearchRuntimeExecutor:
                     # reader is currently unavailable is not planned at all this
                     # wave - no attempt, and no read outcome, because nothing was
                     # read.
-                    scheduling = read_dispatch.schedule(
-                        candidate=candidate,
-                        read_outcomes=live.cursor.read_outcomes,
-                        context=live.context,
-                    )
+                    scheduling = read_dispatch.schedule(candidate=candidate)
                     if scheduling is not None and not scheduling.executable:
                         continue
                     # §105 A2d-4: one candidate, one outer read-slot, an explicit
@@ -1706,8 +1684,7 @@ class ActiveResearchRuntimeExecutor:
                     try:
                         attempt = _attempt_number(live.cursor, candidate_id)
                     except _ExternalAttemptBudgetExhausted:
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
+                        runtime_failures.append(
                             "read_failed",
                             "reading",
                             logical_call_id=(
@@ -1746,11 +1723,9 @@ class ActiveResearchRuntimeExecutor:
                     # With no hint (or any gate/health failure) the original
                     # inline default block below runs unchanged.
                     chain_run, chain_steps = read_execution.run_candidate(
-                        context=live.context,
                         candidate=candidate,
                         source_limit=source_limit,
                         outer_attempt_number=attempt,
-                        read_outcomes=live.cursor.read_outcomes,
                     )
                     # §105 A2d-4: the chain's own decision, recorded even when it
                     # executed nothing (a scheduling/policy skip), so the
@@ -1906,8 +1881,7 @@ class ActiveResearchRuntimeExecutor:
                     if not model_policy.allowed(
                         live.context, "research_lead_discovery", lead_categories
                     ):
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
+                        runtime_failures.append(
                             "policy_blocked",
                             "reading",
                             logical_call_id=(
@@ -1987,8 +1961,7 @@ class ActiveResearchRuntimeExecutor:
                             discovery_diagnostics.record_lead_candidate_ids()
                     else:
                         discovery_diagnostics.bump_lead("lead_discovery_failed")
-                        live.cursor = with_appended_runtime_failure(
-                            live.cursor, live.context,
+                        runtime_failures.append(
                             "extraction_failed",
                             "reading",
                             logical_call_id=(
@@ -2291,7 +2264,7 @@ class ActiveResearchRuntimeExecutor:
                         live.context,
                         wave_index=live.cursor.wave_index,
                         routed_pairs=routed_pairs,
-                        selected_sources=selected_sources,
+                        selected_sources=results.selected_sources,
                     )
 
                 live.cursor = replace(live.cursor, phase="gating")
@@ -2299,11 +2272,11 @@ class ActiveResearchRuntimeExecutor:
                 checkpoint(stage="gating")
                 gate = evaluate_evidence_gate(live.state)
                 live.state = _state_after_gate(live.state, gate)
-                brief = _evidence_brief(live.state, gate, selected_sources)
+                brief = _evidence_brief(live.state, gate, results.selected_sources)
                 live.context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
                 # §45 funnel: proposal -> added -> assessed -> read ->
                 # extracted -> gate-eligible, per llm_proposed candidate.
-                _record_tier2_funnel(live.context, live.cursor, brief, selected_sources)
+                _record_tier2_funnel(live.context, live.cursor, brief, results.selected_sources)
                 runtime_observation.phase_end("gating")
                 checkpoint()
 
@@ -2324,7 +2297,7 @@ class ActiveResearchRuntimeExecutor:
                 checkpoint()
                 timing_ledger.end_wave()
                 timing_ledger.flush_into(live.context)
-                settled = wave_handoff.settle(wave_settlement_context, gate, brief)
+                settled = wave_settlement_context.settle_completed_wave(gate, brief)
                 if settled is not None:
                     return settled
         except (ActiveResearchCancelled, CandidatePoolCancelled, ReadSchedulingCancelled):
@@ -2357,12 +2330,12 @@ class ActiveResearchRuntimeExecutor:
             # Persist the stop once; the final evidence has its own checkpoint below.
             checkpoint()
             gate = evaluate_evidence_gate(live.state)
-            brief = _evidence_brief(live.state, gate, selected_sources)
+            brief = _evidence_brief(live.state, gate, results.selected_sources)
             live.context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
             # §63/§50 acceptance accounting: the run can stop here (budget
             # exhaustion) before the per-wave gating block, so record the
             # discovery funnel on this path too; it only joins metrics.
-            _record_tier2_funnel(live.context, live.cursor, brief, selected_sources)
+            _record_tier2_funnel(live.context, live.cursor, brief, results.selected_sources)
             # F2-S1: close the open wave and publish the timeline
             timing_ledger.end_wave()
             timing_ledger.flush_into(live.context)
@@ -2398,8 +2371,7 @@ class ActiveResearchRuntimeExecutor:
                 if raise_on_error:
                     raise
                 return latest
-            live.cursor = with_appended_runtime_failure(
-                live.cursor, live.context,
+            runtime_failures.append(
                 "runtime_internal_failed",
                 live.cursor.phase,
                 item_id=run_id,
