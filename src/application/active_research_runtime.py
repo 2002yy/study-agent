@@ -919,8 +919,7 @@ class ActiveResearchRuntimeExecutor:
 
         phase_timing = RuntimePhaseTiming(ledger=timing_ledger, now=self.monotonic)
         runtime_observation = ActiveRuntimeObservationContext(
-            current_context=live.current_context,
-            current_cursor=live.current_cursor,
+            live=live,
             phase_timing=phase_timing,
             timing_ledger=timing_ledger,
         )
