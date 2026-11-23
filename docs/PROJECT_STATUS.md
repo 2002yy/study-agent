@@ -22,6 +22,14 @@
 - 单测复用已有读尝试夹具，覆盖真实中断恢复的第 1、2 次及耗尽、重绑后的运行上下文、重复归档和显式 native 槽位。冻结游标持久格式、预算算法、检查点顺序和读链调度。分支 `codex/research-read-attempt-boundary-20261123`。14 个文件的离线影响集 202 项通过；与 #631 试合并后另跑 14 项，全部通过。Ruff、diff-check、编译、mypy 115/125 通过。 `priority=P1`、`loop=static`、`owner=orchestration/read-attempt-recovery`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 - 下一片梳理普通读取循环的停读原因与已派发候选集合，只整理它们如何生成剩余候选的调度诊断，保持停止判断和指标不变。
 
+### 2026-11-23 证据摘要写入与终态发布边界（第五片）
+
+- 分支 `codex/research-evidence-brief-staging-20261123` 从 `main@b1f4a7545485d6fb0a172e333129503942553873` 独立分出。#633 的精确 PR CI 45171532764 成功且无阻断评审，已合入 `main@f5baf15e70eada611632902c49a33e6da6afa9c4`，本分支已重挂到该基线。重挂后摘要、恢复、硬预算和选择诊断的定向复核 30 项通过。主线 push CI 45173749984 首次查询在跑。
+- `ActiveResearchPublisher.stage_brief` 根据调用时提供的已有 Gate 决策、当前状态和共享来源缓冲区生成原有摘要，写入调用者提供的当前上下文并返回同一个对象。持久键 `claim_engine_evidence_brief` 保持，执行器原常量导出继续可用。
+- 恢复待结算、正常 gating 和硬预算退出均共享摘要写入。正常 gating 先更新 Gate 状态，两条其他路径沿用原状态。各自的检查点、诊断和终态写入位置沿用原流程。通用异常路径继续独立投影条件证据，只用于原有终态格式化。
+- 单测验证重绑后使用当前上下文和来源且阶段写入不调用仓储。端到端恢复测试复用提取崩溃夹具，覆盖 gain 检查点前后崩溃，断言恢复后有摘要且不重跑已完成的检索读取。硬预算和波次终止的共用恢复测试核对持久 Gate 与摘要一致。原基线强化后的端到端场景 4 项通过；本片在该基线的 12 个影响文件共 220 项通过。Ruff、diff-check、compileall、mypy 115/125 通过。
+- `priority=P3`、`loop=static`、`owner=orchestration/evidence-brief-staging`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。下一片整理 Tier 2 漏斗诊断，保留常规 gating 和硬预算退出的采样位置及恢复待结算的原行为。
+
 ### 2026-11-23 主动研究恢复边界（第一片）
 
 - 集成基线为 `main@880d5ef3ac7a9bfe63e8acc4d1848ca878a9734c`。#626 观测、#624 模型政策、#625 预算准入按各自精确 PR HEAD 的成功 CI（45144793550、45144801592、45144791386）合入；主线树与 58 项本地组合回归对应的代码树一致。

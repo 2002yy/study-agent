@@ -271,11 +271,13 @@ from src.application.research_runtime_execution_guard import (
     ActiveResearchExecutionGuard,
     HardResearchBudgetReached as _HardBudgetReached,
 )
-from src.application.research_runtime_publication import ActiveResearchPublisher
+from src.application.research_runtime_publication import (
+    ACTIVE_RESEARCH_BRIEF_KEY as ACTIVE_RESEARCH_BRIEF_KEY,
+    ActiveResearchPublisher,
+)
 from src.application.research_runtime_window_diagnostics import ResearchWindowDiagnostics
 from src.application.research_runtime_read_projection import project_exhausted_read_source
 from src.application.active_research_evidence_projection import (
-    _evidence_brief,
     _state_after_gate,
 )
 from src.application.research_runtime_read_observability import (
@@ -288,7 +290,6 @@ from src.application.research_runtime_read_observability import (
 )
 
 ACTIVE_RESEARCH_READ_PLAN_KEY = "claim_engine_read_plan"
-ACTIVE_RESEARCH_BRIEF_KEY = "claim_engine_evidence_brief"
 TIER2_PROPOSED_CLAIMS_KEY = "tier2_proposed_claim_ids"
 DOMAIN_TARGETED_CLAIMS_KEY = "domain_targeted_claim_ids"
 MAX_DOMAIN_TARGETED_CANDIDATES = 3
@@ -1093,8 +1094,9 @@ class ActiveResearchRuntimeExecutor:
                 # settlement must not account the same wave twice.
                 if len(live.cursor.gain_history) >= live.cursor.wave_index:
                     gate = evaluate_evidence_gate(live.state)
-                    brief = _evidence_brief(live.state, gate, results.selected_sources)
-                    live.context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
+                    brief = publisher.stage_brief(
+                        context=live.context, state=live.state, gate=gate
+                    )
                     research_window_diagnostics.record_end(
                         live.context,
                         hard_seconds=live.state.budget.hard_timeout_seconds,
@@ -2183,8 +2185,9 @@ class ActiveResearchRuntimeExecutor:
                 checkpoint(stage="gating")
                 gate = evaluate_evidence_gate(live.state)
                 live.state = _state_after_gate(live.state, gate)
-                brief = _evidence_brief(live.state, gate, results.selected_sources)
-                live.context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
+                brief = publisher.stage_brief(
+                    context=live.context, state=live.state, gate=gate
+                )
                 # §45 funnel: proposal -> added -> assessed -> read ->
                 # extracted -> gate-eligible, per llm_proposed candidate.
                 _record_tier2_funnel(live.context, live.cursor, brief, results.selected_sources)
@@ -2241,8 +2244,9 @@ class ActiveResearchRuntimeExecutor:
             # Persist the stop once; the final evidence has its own checkpoint below.
             checkpoint()
             gate = evaluate_evidence_gate(live.state)
-            brief = _evidence_brief(live.state, gate, results.selected_sources)
-            live.context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
+            brief = publisher.stage_brief(
+                context=live.context, state=live.state, gate=gate
+            )
             # §63/§50 acceptance accounting: the run can stop here (budget
             # exhaustion) before the per-wave gating block, so record the
             # discovery funnel on this path too; it only joins metrics.
