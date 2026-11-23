@@ -3673,7 +3673,7 @@ def test_read_forwards_shared_research_deadline(tmp_path: Any) -> None:
 
 
 class _WindowJumpTimer:
-    """Research clock that reports an exhausted window once search is done."""
+    """Research clock that can close the available read window."""
 
     def __init__(self) -> None:
         self.value = 0.0
@@ -3683,16 +3683,6 @@ class _WindowJumpTimer:
         if self.exhaust:
             self.value = 50.0
         return self.value
-
-
-class _WindowJumpingSearchBackend:
-    def __init__(self, timer: _WindowJumpTimer) -> None:
-        self.timer = timer
-        self._inner = _SearchBackend()
-
-    def search_exact(self, query: str, *, max_results: int = 5) -> dict[str, Any]:
-        payload = self._inner.search_exact(query, max_results=max_results)
-        return payload
 
 
 class _WindowJumpClient(_StructuredClient):
@@ -3712,7 +3702,10 @@ class _WindowJumpClient(_StructuredClient):
         return result
 
 
-def test_read_never_starts_outside_research_window(tmp_path: Any) -> None:
+@pytest.mark.parametrize("after_plan", [False, True], ids=["before_plan", "after_plan"])
+def test_read_never_starts_outside_research_window(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, after_plan: bool
+) -> None:
     """An exhausted research window starts no reads instead of overrunning it."""
 
     repository = _TrackingRepository(RuntimeDatabase(tmp_path / "read_window.sqlite"))
@@ -3726,10 +3719,21 @@ def test_read_never_starts_outside_research_window(tmp_path: Any) -> None:
     timer = _WindowJumpTimer()
     reader = _DeadlineRecordingReadGateway()
 
+    if after_plan:
+        checkpoint = repository.checkpoint
+
+        def checkpoint_then_expire(run_id: str, **kwargs: Any) -> WebLookupRun:
+            updated = checkpoint(run_id, **kwargs)
+            plan = updated.research_context.get(ACTIVE_RESEARCH_READ_PLAN_KEY, {})
+            if plan.get("physical_reads"):
+                timer.exhaust = True
+            return updated
+
+        monkeypatch.setattr(repository, "checkpoint", checkpoint_then_expire)
+
     completed = _service(
         repository,
-        _WindowJumpClient(timer),
-        search_backend=_WindowJumpingSearchBackend(timer),
+        _StructuredClient() if after_plan else _WindowJumpClient(timer),
         read_gateway=reader,
         monotonic=timer,
     ).execute(run.id, raise_on_error=False)
@@ -3742,6 +3746,20 @@ def test_read_never_starts_outside_research_window(tmp_path: Any) -> None:
     window = metrics.get("research_window") or {}
     assert window.get("exhausted") is True
     assert float(window.get("remaining_after_research_seconds") or 0) > 0
+    if after_plan:
+        read_plan = completed.research_context[ACTIVE_RESEARCH_READ_PLAN_KEY]["physical_reads"]
+        planned_ids = {row["candidate_id"] for row in read_plan}
+        assert planned_ids
+        skipped_urls = {
+            row["canonical_url"]
+            for row in metrics["selection_trace"]["entries"]
+            if row["read_skip_reason"] == "research_window_closed"
+            and not row["read_dispatched"]
+        }
+        assert {
+            candidate.url for candidate in _cursor_from_run(completed).candidates
+            if candidate.id in planned_ids
+        } == skipped_urls
     assert completed.stop_reason == "evidence_budget_exhausted"
 
 
