@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, replace
 
 import pytest
 
+from src.application.active_research_runtime import TIER2_PROPOSED_CLAIMS_KEY, _tier2_proposal_step
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.web.research.llm_proposal import (
     DISCOVERY_METHOD_LLM_PROPOSED,
     LLM_PROPOSAL_ENV,
@@ -202,37 +205,62 @@ def _verified_read(url: str, *, max_chars: int) -> dict:
     return {"ok": True, "content": "x"}
 
 
-def test_tier1_hit_never_calls_the_model(monkeypatch: pytest.MonkeyPatch) -> None:
-    from src.application.active_research_runtime import _tier2_proposal_step
-
-    monkeypatch.setenv(LLM_PROPOSAL_ENV, "on")
+def _proposal_case(*, wave_index: int = 1):
     state, claim = _runtime_state_and_claim()
-    gateway = _Gateway(["https://docs.docker.com/docker-hub/usage/pulls/"])
-    assessments = {"candidate_search_1": _Assessment("answer_relevant")}
-    cursor = _tier2_proposal_step(
-        cursor=_runtime_cursor(),
-        state=state,
+    return ActiveRuntimeLiveValues(
+        state=state, cursor=replace(_runtime_cursor(), wave_index=wave_index)
+    ), claim
+
+
+def _propose(live, claim, gateway, assessments, *, read_fn=_verified_read):
+    return _tier2_proposal_step(
+        live=live,
         claim=claim,
         assessments=assessments,
         model_gateway=gateway,
-        read_fn=_verified_read,
-        context={},
+        read_fn=read_fn,
         run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
-        proposed_claim_ids=[],
+        remaining_timeout=lambda: 5.0,
+        proposed_claim_ids=live.context.setdefault(TIER2_PROPOSED_CLAIMS_KEY, []),
     )
+
+
+@pytest.mark.parametrize("blocked_by", ["tier1_hit", "foreign_read", "already_proposed", "off"])
+def test_proposal_admission_skips_without_model_or_read(
+    monkeypatch: pytest.MonkeyPatch, blocked_by: str
+) -> None:
+    from src.web.research.runtime import RuntimeReadOutcome
+
+    monkeypatch.setenv(LLM_PROPOSAL_ENV, "off" if blocked_by == "off" else "on")
+    live, claim = _proposal_case(wave_index=2)
+    gateway = _Gateway(["https://docs.docker.com/docker-hub/usage/pulls/"])
+    assessments = {"candidate_search_1": _Assessment(
+        "answer_relevant" if blocked_by == "tier1_hit" else "topic_only"
+    )}
+    if blocked_by == "foreign_read":
+        live.cursor = replace(live.cursor, read_outcomes=(
+            RuntimeReadOutcome(candidate_id="candidate_other_claim", status="success"),
+        ))
+    if blocked_by == "already_proposed":
+        live.context[TIER2_PROPOSED_CLAIMS_KEY] = [claim.id]
+
+    def unexpected_read(*args, **kwargs):
+        pytest.fail("proposal admission must short-circuit before reads")
+
+    cursor = _propose(live, claim, gateway, assessments, read_fn=unexpected_read)
+    assert cursor is live.cursor
     assert gateway.calls == 0
-    assert len(cursor.candidates) == 1
+    assert "claim_engine_metrics" not in live.context
+    assert live.context[TIER2_PROPOSED_CLAIMS_KEY] == (
+        [claim.id] if blocked_by == "already_proposed" else []
+    )
 
 
 def test_tier1_miss_proposes_verifies_and_adds_with_provenance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from src.application.active_research_runtime import _tier2_proposal_step
-
     monkeypatch.setenv(LLM_PROPOSAL_ENV, "on")
-    state, claim = _runtime_state_and_claim()
+    live, claim = _proposal_case()
     target = "https://docs.docker.com/docker-hub/usage/pulls/"
     gateway = _Gateway([target, "https://docs.docker.com/broken/"])
     assessments = {"candidate_search_1": _Assessment("topic_only")}
@@ -240,158 +268,59 @@ def test_tier1_miss_proposes_verifies_and_adds_with_provenance(
 
     def read_fn(url: str, *, max_chars: int) -> dict:
         reads.append(url)
+        assert max_chars == 1200
         if "broken" in url:
             return {"ok": False, "error": "http_404"}
         return {"ok": True, "content": "pull limits", "title": "Pull usage and limits"}
 
-    context: dict = {}
-    cursor = _tier2_proposal_step(
-        cursor=_runtime_cursor(),
-        state=state,
-        claim=claim,
-        assessments=assessments,
-        model_gateway=gateway,
-        read_fn=read_fn,
-        context=context,
-        run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
-        proposed_claim_ids=[],
-    )
+    cursor = _propose(live, claim, gateway, assessments, read_fn=read_fn)
     assert gateway.calls == 1
     assert reads == [target, "https://docs.docker.com/broken/"]
     added = [item for item in cursor.candidates if item.discovery_method == DISCOVERY_METHOD_LLM_PROPOSED]
     assert len(added) == 1
     assert added[0].url == target
     assert added[0].query_ids == ("q1",)
-    record = context["claim_engine_metrics"]["tier2_proposal"][-1]
+    metrics = live.context["claim_engine_metrics"]
+    record = metrics["tier2_proposal"][-1]
     assert record["tier1_miss_reason"] == "no_answer_relevant_candidate"
     assert record["verified"] == [target]
     assert len(record["dropped"]) == 1
     assert record["dropped"][0]["url"] == "https://docs.docker.com/broken/"
     assert record["dropped"][0]["reason"] == "read_failed"
-    assert context["claim_engine_metrics"]["orchestration_model_calls"] == 1
+    assert metrics["orchestration_model_calls"] == 1
 
 
-def test_tier2_records_model_and_verification_in_rebound_context(
+def test_tier2_records_model_and_verification_at_each_context_rebind(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The model-start checkpoint may replace the executor's context dict."""
-
-    from src.application.active_research_runtime import _tier2_proposal_step
-
     monkeypatch.setenv(LLM_PROPOSAL_ENV, "on")
-    original: dict = {}
-    current: dict = original
+    live, claim = _proposal_case(wave_index=2)
+    original = live.context
+    after_model: dict = {}
+    target = "https://docs.docker.com/docker-hub/usage/pulls/"
 
     class _RebindingGateway(_Gateway):
         def complete_structured(self, **kwargs):
-            nonlocal current
-            current = {"claim_engine_metrics": {}}
+            assert live.context[TIER2_PROPOSED_CLAIMS_KEY] == [claim.id]
+            assert kwargs["logical_call_id"] == f"research_url_proposal:run_1:{claim.id}:2"
+            assert kwargs["timeout_seconds"] == 5.0
+            after_model.update(deepcopy(live.context))
+            live.context = after_model
             return super().complete_structured(**kwargs)
 
-    state, claim = _runtime_state_and_claim()
-    _tier2_proposal_step(
-        cursor=_runtime_cursor(),
-        state=state,
-        claim=claim,
-        assessments={"candidate_search_1": _Assessment("topic_only")},
-        model_gateway=_RebindingGateway(
-            ["https://docs.docker.com/docker-hub/usage/pulls/"]
-        ),
-        read_fn=_verified_read,
-        context=original,
-        run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
-        proposed_claim_ids=[],
-        live_context=lambda: current,
-    )
+    def read_fn(url: str, *, max_chars: int) -> dict:
+        assert live.context is after_model
+        assert after_model["claim_engine_metrics"]["orchestration_model_calls"] == 1
+        live.context = deepcopy(after_model)
+        return _verified_read(url, max_chars=max_chars)
 
-    assert current is not original
+    gateway = _RebindingGateway([target])
+    assessments = {"candidate_search_1": _Assessment("topic_only")}
+    _propose(live, claim, gateway, assessments, read_fn=read_fn)
+
     assert "claim_engine_metrics" not in original
-    metrics = current["claim_engine_metrics"]
-    assert metrics["orchestration_model_calls"] == 1
-    assert len(metrics["tier2_proposal"]) == 1
-    assert metrics["tier2_proposal"][0]["verified"] == [
-        "https://docs.docker.com/docker-hub/usage/pulls/"
-    ]
-
-
-def test_completed_read_must_belong_to_this_claim(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Frozen §45: reads from other claims must not unlock the proposal step."""
-
-    from src.application.active_research_runtime import _tier2_proposal_step
-    from src.web.research.runtime import RuntimeReadOutcome
-
-    monkeypatch.setenv(LLM_PROPOSAL_ENV, "on")
-    state, claim = _runtime_state_and_claim()
-    gateway = _Gateway(["https://docs.docker.com/docker-hub/usage/pulls/"])
-    base = _runtime_cursor()
-    foreign_read_cursor = base.__class__(
-        candidates=base.candidates,
-        read_outcomes=(
-            RuntimeReadOutcome(candidate_id="candidate_other_claim", status="success"),
-        ),
-        planned_queries=base.planned_queries,
-    )
-    cursor = _tier2_proposal_step(
-        cursor=foreign_read_cursor,
-        state=state,
-        claim=claim,
-        assessments={"candidate_search_1": _Assessment("topic_only")},
-        model_gateway=gateway,
-        read_fn=_verified_read,
-        context={},
-        run_id="run_1",
-        wave_index=2,
-        timeout_seconds=5.0,
-        proposed_claim_ids=[],
-    )
-    assert gateway.calls == 0
-    assert len(cursor.candidates) == 1
-
-
-def test_missing_api_never_repeats_for_the_same_claim(monkeypatch: pytest.MonkeyPatch) -> None:
-    from src.application.active_research_runtime import _tier2_proposal_step
-
-    monkeypatch.setenv(LLM_PROPOSAL_ENV, "on")
-    state, claim = _runtime_state_and_claim()
-    gateway = _Gateway(["https://docs.docker.com/docker-hub/usage/pulls/"])
-    proposed: list[str] = ["claim_1"]
-    _tier2_proposal_step(
-        cursor=_runtime_cursor(),
-        state=state,
-        claim=claim,
-        assessments={},
-        model_gateway=gateway,
-        read_fn=_verified_read,
-        context={},
-        run_id="run_1",
-        wave_index=2,
-        timeout_seconds=5.0,
-        proposed_claim_ids=proposed,
-    )
-    assert gateway.calls == 0
-
-
-def test_flag_off_never_calls_the_model(monkeypatch: pytest.MonkeyPatch) -> None:
-    from src.application.active_research_runtime import _tier2_proposal_step
-
-    monkeypatch.delenv(LLM_PROPOSAL_ENV, raising=False)
-    state, claim = _runtime_state_and_claim()
-    gateway = _Gateway(["https://docs.docker.com/docker-hub/usage/pulls/"])
-    _tier2_proposal_step(
-        cursor=_runtime_cursor(),
-        state=state,
-        claim=claim,
-        assessments={},
-        model_gateway=gateway,
-        read_fn=_verified_read,
-        context={},
-        run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
-        proposed_claim_ids=[],
-    )
-    assert gateway.calls == 0
+    assert "tier2_proposal" not in after_model["claim_engine_metrics"]
+    assert live.context["claim_engine_metrics"]["tier2_proposal"][0]["verified"] == [target]
+    assert live.context[TIER2_PROPOSED_CLAIMS_KEY] == [claim.id]
+    _propose(live, claim, gateway, assessments, read_fn=read_fn)
+    assert gateway.calls == 1

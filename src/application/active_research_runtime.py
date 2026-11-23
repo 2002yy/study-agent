@@ -201,6 +201,7 @@ from src.application.research_runtime_checkpoint import (
     ActiveRuntimeCheckpointSession,
     updated_runtime_budget,
 )
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_recovery import (
     ActiveResearchRecovery,
     require_intact_deep_inputs,
@@ -1348,18 +1349,14 @@ class ActiveResearchRuntimeExecutor:
                     if isinstance(proposed_claim_ids, list):
                         runtime_observation.phase_start("tier2_proposal")
                         live.cursor = _tier2_proposal_step(
-                            cursor=live.cursor,
-                            state=live.state,
+                            live=live,
                             claim=claim,
                             assessments=merged_assessments,
                             model_gateway=timed_gateway,
                             read_fn=gateway_read,
-                            context=live.context,
                             run_id=run_id,
-                            wave_index=live.cursor.wave_index,
-                            timeout_seconds=remaining_timeout(),
+                            remaining_timeout=remaining_timeout,
                             proposed_claim_ids=proposed_claim_ids,
-                            live_context=live.current_context,
                         )
                         runtime_observation.phase_end("tier2_proposal")
                     # §63 Tier-1.5 (default off): official-domain site search
@@ -2604,18 +2601,14 @@ def _bind_deep_seed_candidates(
 
 def _tier2_proposal_step(
     *,
-    cursor: ResearchRuntimeCursor,
-    state: ResearchState,
+    live: ActiveRuntimeLiveValues,
     claim: ResearchClaim,
     assessments: Mapping[str, Any],
     model_gateway: Any,
     read_fn: Any,
-    context: dict[str, Any],
     run_id: str,
-    wave_index: int,
-    timeout_seconds: float | None,
+    remaining_timeout: Callable[[], float | None],
     proposed_claim_ids: list[str],
-    live_context: Callable[[], dict[str, Any]] | None = None,
 ) -> ResearchRuntimeCursor:
     """§45 Tier-2: LLM URL proposal -> reader verification -> candidate.
 
@@ -2627,6 +2620,10 @@ def _tier2_proposal_step(
     read, extraction and Gate path as any search-discovered candidate.
     """
 
+    cursor = live.current_cursor()
+    state = live.current_state()
+    wave_index = cursor.wave_index
+    timeout_seconds = remaining_timeout()
     if not llm_proposal_enabled():
         return cursor
     if claim.id in proposed_claim_ids:
@@ -2696,7 +2693,7 @@ def _tier2_proposal_step(
         value = result.value if status == "completed" else None
         record["proposed"] = list(value or [])
     _count_orchestration_call(
-        live_context() if live_context is not None else context,
+        live.current_context(),
         "research_url_proposal",
     )
 
@@ -2752,9 +2749,7 @@ def _tier2_proposal_step(
         record["verified"].append(url)
         record["added_candidate_ids"].append(candidate_id)
         existing_urls.add(url)
-    metrics = (
-        live_context() if live_context is not None else context
-    ).setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    metrics = live.current_context().setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
     if isinstance(metrics, dict):
         records = metrics.get("tier2_proposal")
         if not isinstance(records, list):

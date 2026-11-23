@@ -6,6 +6,14 @@
 
 ## 0. Current Handoff（2026-11-23，冷启动）
 
+### 2026-11-23 模型 URL 提案的执行上下文（第七片）
+
+- #635 精确 PR CI 45179110010 通过，以保护 SHA 合入 `main@b273e70c237355f1661cb26796d49bd366071f85`。本片从该主线分出，push CI 45181431713 首次查询在跑。上一主线 `60d8637d` 的 push CI 45177888102 有一项 Deep 桌面浏览器回归超时，未看到“恢复结果已设为下一轮聊天资料。”，该失败的根因待查。
+- URL 提案入口直接接收现有 `ActiveRuntimeLiveValues`，一次读取进调用时的游标、状态和波次，再采样一次剩余超时。执行器按原顺序选定 claim 去重列表、开启观测阶段，提案逻辑在模型调用前向该列表追加并按原上限截断。
+- 模型调用后从当时的当前上下文记次数；验证读取结束后再获取当前上下文写提案诊断。候选仍按进入该步骤时的游标投影。特性开关、准入判断、超时采样次数、模型派发、验证读取与账本沿用原行为。
+- 分支 `codex/research-url-proposal-context-20261123`。7 个影响文件共 165 项离线回归通过，Ruff、diff-check、应用编译与 mypy 115/125 通过。URL 提案测试复用同一运行夹具，覆盖四种短路、正常候选投影、模型与验证读取两次换绑后分别回写，以及恢复上下文保留去重记录。 `priority=P3`、`loop=static`、`owner=orchestration/url-proposal-live-context`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+- 下一片核对域名定向入口的同类依赖，保留它独有的库存读取、时限检查和诊断顺序。
+
 ### 2026-11-23 Tier 2 发现漏斗诊断（第六片）
 
 - #634 的精确 PR CI 45174129911 通过，按保护 SHA 合入 `main@60d8637da3e197d1e6cdee5fd46ffec002937da4`。本片从该基线分出，push CI 45177888102 首次查询在跑。
