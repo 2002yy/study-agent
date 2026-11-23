@@ -6,6 +6,14 @@
 
 ## 0. Current Handoff（2026-11-23，冷启动）
 
+### 2026-11-23 Tier 2 发现漏斗诊断（第六片）
+
+- #634 的精确 PR CI 45174129911 通过，按保护 SHA 合入 `main@60d8637da3e197d1e6cdee5fd46ffec002937da4`。本片从该基线分出，push CI 45177888102 首次查询在跑。
+- 将 `discovery_funnel` 的投影和写入归给现有 `ActiveDiscoveryDiagnosticsContext`。每次调用读取执行上下文的当前游标及持久上下文，接收当前证据摘要和共享来源。按原顺序汇总模型提案和域名定向记录、答案相关评估、已完成读取、提取关系及 Gate 可用证据。字段、行顺序、计数与无提案时的原样保留行为不变。
+- 执行器仍在常规 gating 和硬预算退出的原位置记录，恢复待结算维持原行为。恢复与检查点继续由其原所有者处理；读取计划和模型准入照旧；摘要由 `ActiveResearchPublisher` 写入；漏斗只改诊断字段。
+- 诊断单测复用现有 live 夹具，验证两种发现渠道汇总、上下文和游标换绑、不修改输入及缺失或损坏提案的处理。分支 `codex/research-tier2-funnel-observation-20261123`。10 个影响文件共 190 项通过，Ruff、diff-check、编译和 mypy 115/125 通过。静态比较确认迁移前后的漏斗计算一致。 `priority=P3`、`loop=static`、`owner=diagnostics/tier2-discovery-funnel`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
+- 下一片从模型 URL 提案入口入手，梳理调用方传入的 claim 去重列表、当前上下文和调用后诊断回写的顺序，再缩小隐式依赖，沿用已有模型派发与预算契约。
+
 ### 2026-11-23 停读后剩余候选的选择诊断（第四片）
 
 - 基线为 `main@b1f4a7545485d6fb0a172e333129503942553873`。#631 的 PR CI 45160348601 与 #632 的 PR CI 45162254629 均在精确 HEAD 成功，按顺序合入。主线代码树与上轮试合并树 `7a772a1442357d5a9039aee440f696499a4da497` 一致，push CI 45170301551 首次查询在跑。
