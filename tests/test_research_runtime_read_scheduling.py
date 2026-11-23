@@ -1,17 +1,32 @@
 """Pure read-admission regression checks without models or external traffic."""
 
 from dataclasses import fields
+from typing import cast
 
 from src.application import research_runtime_read_scheduling as read_scheduling
+from src.application.research_runtime_live_values import ActiveRuntimeLiveValues
 from src.application.research_runtime_read_scheduling_observation import (
     record_read_scheduling_decision,
 )
-from src.web.research.runtime import RuntimeReadOutcome
+from src.web.research.contracts import ResearchState
+from src.web.research.runtime import ResearchRuntimeCursor, RuntimeReadOutcome
 from src.web.research.timing_ledger import ACTIVE_RESEARCH_METRICS_KEY
 from tests.research_read_candidate_factory import read_candidate
 
 
 BACKENDS = ("native_http", "wigolo_http")
+
+
+def _live(
+    *,
+    outcomes: tuple[RuntimeReadOutcome, ...] = (),
+    context: dict | None = None,
+) -> ActiveRuntimeLiveValues:
+    return ActiveRuntimeLiveValues(
+        state=cast(ResearchState, object()),
+        cursor=ResearchRuntimeCursor(read_outcomes=outcomes),
+        context=context if context is not None else {},
+    )
 
 
 def _schedule(
@@ -23,15 +38,12 @@ def _schedule(
     remaining=lambda: 35.0,
 ):
     dispatch = read_scheduling.ActiveReadDispatchContext(
+        live=_live(outcomes=outcomes, context=context),
         breaker=breaker,
         available_backends=BACKENDS,
         research_seconds_left=remaining,
     )
-    return dispatch.schedule(
-        candidate=read_candidate(candidate_id),
-        read_outcomes=outcomes,
-        context=context if context is not None else {},
-    )
+    return dispatch.schedule(candidate=read_candidate(candidate_id))
 
 
 def test_pure_admission_decision_does_not_write_observations() -> None:
@@ -153,7 +165,15 @@ def test_research_clock_sampled_after_candidate_attempt_history(monkeypatch) -> 
 def test_dispatch_context_uses_current_context_and_attempts_after_rebinding() -> None:
     """A persisted cursor/context replacement must never keep an old snapshot."""
 
+    original_context: dict = {}
+    initial_history = (
+        RuntimeReadOutcome(
+            candidate_id="target", status="failed", backend="native_http"
+        ),
+    )
+    live = _live(outcomes=initial_history, context=original_context)
     dispatch = read_scheduling.ActiveReadDispatchContext(
+        live=live,
         breaker=None,
         available_backends=BACKENDS,
         research_seconds_left=lambda: 35.0,
@@ -161,17 +181,8 @@ def test_dispatch_context_uses_current_context_and_attempts_after_rebinding() ->
     assert not {"state", "cursor", "context", "read_outcomes"} & {
         field.name for field in fields(dispatch)
     }
-    original_context: dict = {}
-    initial_history = (
-        RuntimeReadOutcome(
-            candidate_id="target", status="failed", backend="native_http"
-        ),
-    )
-    decision = dispatch.schedule(
-        candidate=read_candidate("target"),
-        read_outcomes=initial_history,
-        context=original_context,
-    )
+    assert dispatch.live is live
+    decision = dispatch.schedule(candidate=read_candidate("target"))
     assert decision.backend == "wigolo_http"
 
     resumed_history = (
@@ -183,20 +194,45 @@ def test_dispatch_context_uses_current_context_and_attempts_after_rebinding() ->
         ),
     )
     resumed_context: dict = {}
-    decision = dispatch.schedule(
-        candidate=read_candidate("target"),
-        read_outcomes=resumed_history,
-        context=resumed_context,
-    )
+    live.cursor = ResearchRuntimeCursor(read_outcomes=resumed_history)
+    live.context = resumed_context
+    decision = dispatch.schedule(candidate=read_candidate("target"))
     assert decision.backend == "native_http"
-    assert dispatch.attempted_backends(
-        candidate_id="target", read_outcomes=resumed_history
-    ) == ("wigolo_http",)
+    assert dispatch.attempted_backends(candidate_id="target") == ("wigolo_http",)
     assert [
         item["candidate_id"]
         for item in resumed_context[ACTIVE_RESEARCH_METRICS_KEY]["read_scheduling"]
     ] == ["target"]
     assert len(original_context[ACTIVE_RESEARCH_METRICS_KEY]["read_scheduling"]) == 1
+
+
+def test_dispatch_observation_uses_rebound_context_after_deadline_sample() -> None:
+    """An elapsed-time callback can trigger a context rebind mid-schedule."""
+
+    original_context: dict = {}
+    recovered_context: dict = {}
+    live = _live(context=original_context)
+    order: list[str] = []
+
+    def remaining() -> float:
+        order.append("deadline")
+        live.context = recovered_context
+        return 30.0
+
+    dispatch = read_scheduling.ActiveReadDispatchContext(
+        live=live,
+        breaker=None,
+        available_backends=BACKENDS,
+        research_seconds_left=remaining,
+    )
+    decision = dispatch.schedule(candidate=read_candidate("target"))
+
+    assert decision.executable
+    assert order == ["deadline"]
+    assert original_context == {}
+    assert recovered_context[ACTIVE_RESEARCH_METRICS_KEY]["read_scheduling"] == [
+        decision.to_dict()
+    ]
 
 
 def test_dispatch_context_preserves_breaker_health_and_no_breaker_default() -> None:
@@ -207,13 +243,18 @@ def test_dispatch_context_preserves_breaker_health_and_no_breaker_default() -> N
             seen.append((backend, host))
             return "open"
 
+    live = _live()
     with_breaker = read_scheduling.ActiveReadDispatchContext(
+        live=live,
         breaker=_Breaker(),
         available_backends=BACKENDS,
         research_seconds_left=lambda: 30.0,
     )
     without_breaker = read_scheduling.ActiveReadDispatchContext(
-        breaker=None, available_backends=BACKENDS, research_seconds_left=lambda: 30.0
+        live=live,
+        breaker=None,
+        available_backends=BACKENDS,
+        research_seconds_left=lambda: 30.0,
     )
     assert with_breaker.health_state_for("native_http", "example.org") == "open"
     assert without_breaker.health_state_for("native_http", "example.org") == ""
