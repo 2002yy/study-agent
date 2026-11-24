@@ -516,3 +516,45 @@ def test_semantic_platform_scope_rejects_unavailable_and_mixed_routes(monkeypatc
     value["proposed_queries"] = [{"rq_id": "rq-identity", "query": query, "site_key": key}]
     with pytest.raises(ValueError, match="site_scope_invalid"):
         ResearchDecision.parse(value, task_id="task-1")
+
+def test_full_platform_map_is_available_to_existing_model_prompt(monkeypatch):
+    from src.web.site_pool import platform_map_instruction
+    from src.web.source_directions import SOURCE_DIRECTIONS
+
+    monkeypatch.delenv("WEB_SITE_POOL_EXTRA_SITES", raising=False)
+    assert len(SOURCE_DIRECTIONS.splitlines()) == 156
+    prompt = platform_map_instruction()
+    assert "miyoushe|米游社|游戏专项|N" in prompt
+    assert "xiaohongshu.com|小红书|生活消费|I" in prompt
+    assert "t.me|Telegram 公开频道|即时讨论|L" in prompt
+    value = decision()
+    value["proposed_queries"] = [
+        {"rq_id": "rq-identity", "query": "春招笔试", "site_key": "xiaohongshu.com"},
+    ]
+    parsed = ResearchDecision.parse(value, task_id="task-1")
+    assert parsed.proposed_queries == value["proposed_queries"]
+
+
+@pytest.mark.parametrize("strategy", ["browser_first", "browse_sites"])
+def test_public_index_scope_filters_domains_before_claiming_success(monkeypatch, strategy):
+    from src.web.tool_gateway import GeneralWebGateway
+
+    gateway = GeneralWebGateway(search_strategy=strategy)
+    expected_query = "招聘 笔试 site:xiaohongshu.com"
+    sent = []
+
+    def browse(query, limit, timeout):
+        sent.append(query)
+        return [
+            {"url": "https://other.example/1", "title": "Wrong"},
+            {"url": "https://www.xiaohongshu.com/explore/1", "title": "招聘 笔试"},
+        ], ""
+
+    monkeypatch.setattr(gateway, "_search_browse", browse)
+    result = gateway.search_site("招聘 笔试", site_key="xiaohongshu.com")
+    assert sent == [expected_query]
+    assert [row["url"] for row in result["results"]] == ["https://www.xiaohongshu.com/explore/1"]
+    assert result["providers_attempted"] == ["browse"]
+    assert result["domain_filtered_count"] == 1
+    assert gateway.search_site("招聘 笔试", site_key="t.me")["reason"] == "site_scope_invalid"
+    assert gateway.search_site("招聘 OR 笔试", site_key="xiaohongshu.com")["reason"] == "site_scope_invalid"

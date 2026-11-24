@@ -13,7 +13,7 @@ from src.web.research.steering import (
     active_steering_entries,
     is_active_claim_engine_context,
 )
-from src.web.site_pool import enabled_platforms
+from src.web.site_pool import enabled_platforms, platform_index_domain
 from src.web.tool_evidence import _public_url
 from src.web.research.interim_analysis import analysis_sources, interim_revision, validate_interim_analysis
 
@@ -195,35 +195,70 @@ def steering_supported(context: Mapping[str, Any]) -> bool:
 
 
 def _platform_search_feedback(calls: Any) -> str:
-    """Describe scoped operations using local labels and bounded outcomes."""
+    """Describe attempted searches without promoting their snippets to evidence."""
     platforms = enabled_platforms()
     outcomes = {
         "results_found": "找到候选链接",
         "no_results": "没有找到可用链接",
+        "providers_returned_no_results": "没有找到可用链接",
+        "domain_constraint_rejected_results": "结果均不在指定域名",
+        "unexpected_search_page": "跳转到了非搜索页",
         "login_required": "需要登录",
         "human_action_required": "遇到需要人工处理的验证",
         "timeout": "超时",
+        "connection_failed": "连接失败",
+        "unresponsive_engines": "上游搜索引擎未响应",
+        "invalid_json": "响应格式无效",
+        "unexpected_content_type": "响应类型异常",
+        "http_status": "HTTP 请求失败",
+        "search_budget_exhausted": "搜索时间用尽",
+        "no_search_provider_enabled": "未启用搜索提供方",
+    }
+    providers = {
+        "searxng": "SearXNG", "deepseek": "DeepSeek Search", "browse": "Browse",
+        "browse_sites": "Browse", "browser_bing": "Browse Bing",
+        "bing_rss": "Bing RSS", "duckduckgo_html": "DuckDuckGo",
+        "community_browser": "Browse 社区搜索",
     }
     statuses: list[str] = []
     for call in calls:
         if call.get("name") != "web_search":
             continue
-        site = platforms.get(call.get("arguments", {}).get("site_key", ""))
-        if site is None:
-            continue
+        arguments = call.get("arguments", {})
         result = call["result"]
+        key = arguments.get("site_key", "")
+        site = platforms.get(key)
+        domain = platform_index_domain(key)
         site_status: dict[str, Any] = next(iter(result.get("site_outcomes", [])), {})
         via = site_status.get("via")
-        channel = "站内搜索" if via == "site" else "站点入口"
-        if via and via == site.search_via:
-            channel = f"{site.search_via} 同域索引"
+        if site and via == "site":
+            channel = f"{site.label}（站内搜索）"
+        elif site and via and via == site.search_via:
+            channel = f"{site.label}（{site.search_via} 同域索引）"
+        else:
+            used = [providers[p] for p in result.get("providers_attempted", []) if p in providers]
+            if key and site:
+                channel = f"{site.label}（站点入口）"
+            elif domain:
+                channel = f"{domain}（同域索引）"
+            elif used:
+                channel = "通用检索"
+            else:
+                continue
+            if used:
+                channel += "／" + " → ".join(used)
         status = outcomes.get(result.get("reason"), "检索不可用")
-        statuses.append(f"{site.label}（{channel}）{status}")
+        failed = [
+            f"{providers[row['provider']]} {outcomes.get(row.get('reason'), '失败')}"
+            for row in result.get("provider_outcomes", [])
+            if row.get("provider") in providers and row.get("status") == "failed"
+        ]
+        statuses.append(f"{channel} {status}" + (f"（{'、'.join(failed)}）" if failed else ""))
     if not statuses:
         return ""
-    return ("本轮指定站点检索状态，仅用于说明执行范围和访问限制。"
+    return ("本轮检索执行信息，仅用于说明访问和覆盖情况。"
             + "；".join(dict.fromkeys(statuses))
-            + "。只用实际读到且相关的资料回答；如果指定站点资料不足，明确说明。")
+            + "。只用实际读到且相关的资料回答；资料不足时明确说明。")
 
 
 def steering_answer_instruction(calls: Any, original: str) -> str:

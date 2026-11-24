@@ -5077,3 +5077,42 @@ def test_a2e_authority_is_unchanged_when_no_fallback_is_needed(
         for row in _chain_rows(completed):
             assert [step["backend"] for step in row["steps"]] == ["native_http"]
             assert row["action"] == "resolve"
+
+def test_active_model_platform_direction_uses_existing_gateway_and_cursor(tmp_path, monkeypatch):
+    from src.web import browse_search
+    from src.web.research_gateway import ResearchWebGateway
+
+    class _PlatformClient(_StructuredClient):
+        def create(self, **kwargs):
+            response = super().create(**kwargs)
+            if "claim planner" in kwargs["messages"][0]["content"]:
+                assert "xiaohongshu.com|小红书" in kwargs["messages"][0]["content"]
+                message = response.choices[0].message
+                plan = loads(message.content)
+                plan["platform_searches"] = [{"site_key": "miyoushe", "query": "原神 那维莱特 配队"}]
+                message.content = _json_dumps(plan)
+            return response
+
+    seen = []
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "platform.sqlite"))
+    run = _pending_active_run(
+        repository, run_id="run_active_platform", query="What is the verified current release date?",
+        research_context=_active_context(), max_items=5,
+    )
+
+    def wall(url, limit, timeout, **kwargs):
+        cursor = _cursor_from_run(repository.get(run.id))
+        query = cursor.planned_queries[0]
+        assert query.query == "platform:miyoushe 原神 那维莱特 配队"
+        assert cursor.inflight_external_call is not None
+        seen.append(url)
+        return [], "browse:human_action_required", {"status": "browse:human_action_required"}
+
+    gateway = ResearchWebGateway()
+    monkeypatch.setattr(browse_search, "search_browse_at", wall)
+    monkeypatch.setattr(gateway, "read", _ReadGateway().read)
+    client = _PlatformClient()
+    completed = _service(repository, client, read_gateway=gateway).execute(run.id, raise_on_error=True)
+    assert len(seen) == 1 and seen[0].startswith("https://www.miyoushe.com/ys/search")
+    assert completed.query_attempts[0]["provider_audit"]["reason"] == "human_action_required"
+    assert len([c for c in client.calls if "claim planner" in c["messages"][0]["content"]]) == 1

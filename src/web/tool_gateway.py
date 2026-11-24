@@ -31,7 +31,7 @@ from src.web.github_reader import GitHubSourceReader
 from src.web.github_snapshot import GitHubRepositorySnapshotter
 from src.web.query_normalizer import normalize_web_query
 from src.web.search_router import DUAL, route_search
-from src.web.site_pool import SiteProfile, enabled_platforms, take_outcomes
+from src.web.site_pool import SiteProfile, enabled_platforms, platform_index_domain, platform_search_query, take_outcomes
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -428,6 +428,8 @@ class GeneralWebGateway:
         *,
         max_results: int = 5,
         now: datetime | None = None,
+        deadline: float | None = None,
+        index_only: bool = False,
     ) -> dict[str, Any]:
         """Search one already-planned query without creating more variants."""
 
@@ -447,8 +449,15 @@ class GeneralWebGateway:
                 "searched_at": current.isoformat(),
             }
 
-        lane = self._start_browser_lane(focused, limit)
-        outcome = self._search_single(focused, limit)
+        if focused.startswith("platform:"):
+            scope, _, phrase = focused.partition(" ")
+            return self.search_site(phrase, site_key=scope.removeprefix("platform:"),
+                                    max_results=limit, deadline=deadline)
+        lane = self._start_browser_lane(focused, limit) if deadline is None and not index_only else None
+        outcome = (
+            self._search_single(focused, limit) if deadline is None and not index_only
+            else self._search_single(focused, limit, deadline=deadline, index_only=index_only)
+        )
         if lane is not None:
             outcome = self._merge_browser_lane(outcome, lane, limit)
         results = list(outcome["results"])
@@ -470,6 +479,11 @@ class GeneralWebGateway:
         else:
             status = "empty"
             reason = "providers_returned_no_results"
+        if index_only and not results:
+            for code in ("human_action_required", "login_required"):
+                if f"browse:{code}" in provider_errors:
+                    reason = code
+                    break
         trace = self._merge_trace(outcome)
         if trace:
             # The delivered order, after the local domain constraint. Reporting
@@ -497,13 +511,22 @@ class GeneralWebGateway:
         }
 
     def search_site(
-        self, query: str, *, site_key: str, max_results: int = 5
+        self, query: str, *, site_key: str, max_results: int = 5, deadline: float | None = None,
     ) -> dict[str, Any]:
         """Dispatch one explicitly scoped search through the existing site adapter."""
-        site = enabled_platforms().get(site_key)
-        if site is None:
-            return {"status": "unavailable", "reason": "site_scope_invalid", "results": []}
-        return self._search_target_site(query, site, max_results, provider="browse_sites")
+        if platform_search_query(query):
+            site = enabled_platforms().get(site_key)
+            if site is not None:
+                timeout = min(10.0, deadline - time.monotonic()) if deadline is not None else 10.0
+                if timeout < 1.5:
+                    return {"status": "unavailable", "reason": "search_budget_exhausted", "results": []}
+                return self._search_target_site(query, site, max_results, provider="browse_sites", timeout=timeout)
+            domain = platform_index_domain(site_key)
+            if domain:
+                scoped = f"{query} site:{domain}"
+                result = self.search_exact(scoped, max_results=max_results, deadline=deadline, index_only=True)
+                return {**result, "site_route": {"target": site_key, "domain": domain}}
+        return {"status": "unavailable", "reason": "site_scope_invalid", "results": []}
 
     def search_community_site(
         self, query: str, *, host: str, max_results: int = 5
@@ -546,10 +569,10 @@ class GeneralWebGateway:
         }
 
     def _search_target_site(
-        self, query: str, site: SiteProfile, max_results: int, *, provider: str,
+        self, query: str, site: SiteProfile, max_results: int, *, provider: str, timeout: float = 10.0,
     ) -> dict[str, Any]:
         limit = max(1, min(max_results, 12))
-        rows, _error = self._search_browse_sites(query, limit, 10.0, target_site=site)
+        rows, _error = self._search_browse_sites(query, limit, timeout, target_site=site)
         site_outcomes = take_outcomes()
         raw_status = str(site_outcomes[0].get("status") or "") if site_outcomes else ""
         if rows:
@@ -787,12 +810,17 @@ class GeneralWebGateway:
                 payload["ranked_urls"] = []
         return payload
 
-    def _search_single(self, query: str, limit: int) -> dict[str, Any]:
+    def _search_single(
+        self, query: str, limit: int, *, deadline: float | None = None, index_only: bool = False,
+    ) -> dict[str, Any]:
         """One provider loop; strategies choose order and whether to keep searching."""
         provider_timeout = _env_float(
             "WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS", 6.0, minimum=1.0, maximum=8.0
         )
-        if self.search_strategy == "browse_sites":
+        strategy = self.search_strategy
+        if index_only and strategy == "browse_sites":
+            strategy = "browser_first"
+        if strategy == "browse_sites":
             # One provider searches several sites sequentially, so it needs its
             # own budget. The reserve is what keeps SearXNG/Bing RSS/DuckDuckGo
             # reachable after the whole pool failed; a slow pool must not be
@@ -801,14 +829,16 @@ class GeneralWebGateway:
             pool_deadline = started + _env_float(
                 "WEB_SITE_POOL_TOTAL_SECONDS", 20.0, minimum=6.0, maximum=36.0
             )
-            deadline = pool_deadline + _env_float(
+            default_deadline = pool_deadline + _env_float(
                 "WEB_SEARCH_FALLBACK_RESERVE_SECONDS", 4.0, minimum=2.0, maximum=8.0
             )
         else:
             pool_deadline = 0.0
-            deadline = time.monotonic() + _env_float(
+            default_deadline = time.monotonic() + _env_float(
                 "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", 8.0, minimum=3.0, maximum=10.0
             )
+        deadline = default_deadline if deadline is None else min(deadline, default_deadline)
+        pool_deadline = min(pool_deadline, deadline)
         plan = {
             "fallback": ("searxng", "bing_rss", "duckduckgo_html"),
             "browser_first": ("browse", "searxng", "bing_rss", "duckduckgo_html"),
@@ -816,11 +846,11 @@ class GeneralWebGateway:
             "ddg_first": ("duckduckgo_html", "bing_rss"),
             "merge": ("bing_rss", "duckduckgo_html"),
             "deepseek_first": ("deepseek", "searxng", "bing_rss", "duckduckgo_html"),
-        }[self.search_strategy]
+        }[strategy]
         # No change to existing routing/diagnostics until explicitly enabled.
         # The independent index is tried after SearXNG on regular fallback,
         # or first when selected for a later controlled comparison.
-        if _env_flag("WEB_DEEPSEEK_SEARCH_ENABLED") and self.search_strategy in {
+        if _env_flag("WEB_DEEPSEEK_SEARCH_ENABLED") and strategy in {
             "fallback",
             "browser_first",
             "browse_sites",
@@ -852,7 +882,7 @@ class GeneralWebGateway:
         for index, name in enumerate(plan):
             enabled, fetch = providers[name]
             if not enabled:
-                if self.search_strategy != "fallback":
+                if strategy != "fallback":
                     errors.append(f"{name}:provider_disabled")
                 skipped.append({"provider": name, "reason": "provider_disabled"})
                 provider_outcomes.append({
@@ -884,27 +914,29 @@ class GeneralWebGateway:
             rows, error = fetch(query, limit, timeout)
             counts[name] = len(rows)
             kind = _search_failure_kind(error) if error else "no_results"
+            if error in {"browse:human_action_required", "browse:login_required"}:
+                kind = error.removeprefix("browse:")
+            eligible = _domain_results(rows, domain)
             provider_outcomes.append({
                 "provider": name,
-                "status": "ok" if rows else "empty" if kind == "no_results" else "failed",
-                "reason": "results_found" if rows else kind,
-                "result_count": len(rows),
+                "status": "ok" if eligible else "empty" if rows or kind == "no_results" else "failed",
+                "reason": "results_found" if eligible else "domain_constraint_rejected_results" if rows else kind,
+                "result_count": len(eligible),
             })
             if error:
                 errors.append(error)
             if error == "browse:human_action_required":
                 break
-            eligible = _domain_results(rows, domain)
             filtered_count += len(rows) - len(eligible)
             collected.extend(eligible)
             # A provider returning unrelated sites is not a successful search.
-            if eligible and self.search_strategy != "merge":
+            if eligible and (index_only or strategy != "merge"):
                 break
 
         unique = _dedupe_results(collected, len(collected))
         results = (
             _rank_merged(unique, query)[:limit]
-            if self.search_strategy == "merge"
+            if strategy == "merge"
             else unique[:limit]
         )
         payload: dict[str, Any] = {
@@ -914,16 +946,16 @@ class GeneralWebGateway:
             "provider_outcomes": provider_outcomes,
             "domain_filtered_count": filtered_count,
         }
-        if self.search_strategy != "fallback":
-            payload.update(search_strategy=self.search_strategy, provider_counts=counts)
-        if self.search_strategy == "browse_sites":
+        if strategy != "fallback":
+            payload.update(search_strategy=strategy, provider_counts=counts)
+        if strategy == "browse_sites":
             from src.web import site_pool
 
             payload["site_outcomes"] = site_pool.take_outcomes()
             payload["site_route"] = site_pool.describe_route(query)
-        if self.search_strategy == "ddg_first":
+        if strategy == "ddg_first":
             payload["fallback_used"] = fallback_used
-        elif self.search_strategy == "merge":
+        elif strategy == "merge":
             payload.update(
                 merged_count=sum(counts.values()),
                 duplicate_count=len(collected) - len(unique),

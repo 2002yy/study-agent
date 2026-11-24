@@ -13,6 +13,14 @@
 - 精确本地源码的 Study Agent 网站搜索入口实测 B 站、米游社、V2EX 各得 5 个有效结果。浏览器退出后无保留的测试标签。默认检索策略与站点名单沿用现有配置。普通 HTTP 可读取一个 B 站视频公开元信息样本；同一米游社攻略的普通 HTTP 正文为空，浏览器读取约 3402 字。DeepSeek 平台样本按用户本轮要求未额外付费调用。
 - 分支 `codex/browse-cli-compat-20261124`。影响集 120 项通过，包括延迟返回的 stdio 负控、验证墙和私有 URL 过滤；Ruff、diff-check、mypy 115/125 通过。 `priority=P1`、`loop=combined`、`owner=retrieval/browser-transport`、`dynamic_evidence=real_site_search_only`、`budget_authorization=free_probes_only`、`decision=engineering-only`。端到端付费答案生成未运行，精确 HEAD CI 和评审仍为合并门禁。
 
+### 2026-11-25 平台搜索地图
+
+- 基线 `d7cbddd7`（#639 平台派发），分支 `codex/platform-search-map`。把原审计 156 行变成紧凑运行时地图。普通语义规划与 Deep 活动研究的首次 claim 规划均复用原调用。候选方向按站内 Browse、同域公开索引、已有链接读取标记。通用搜索的通道和结果状态进入普通研究写作提示，下一轮规划可通过已有尝试记录看到状态。
+- Deep 的最多两条平台建议进入已有查询游标，和 claim 规划在同一检查点保存。派发走已有网关并受研究截止时间约束，结果沿用已有 provider audit。常规 Deep 证据缺口搜索仍按原策略运行，平台建议目前不是全程独占范围。Deep 后续波次仍由既有搜索和证据策略决定。
+- 离线影响集 272 项通过，最后修订后规划与平台派发复核 18 项通过。Ruff、diff-check 和 mypy 基线门禁（115/125）通过。
+- 免费实测固定路线普通米游社、Deep B 站各返回 3 个候选；BBC 定向搜索的 SearXNG、Bing RSS、DDG 失败，Gitee 有候选被域名过滤且未留下同域结果。对既有米游社攻略作常规读取得到 provider_failed；B 站视频页面返回 2194 字页面文本，未验证字幕。站点地图证明可选择方向，成功读取、相关性及最终答案仍须单独验收。用户选择只做免费验收，未调用 DeepSeek 模型或独立 Search/Fetch。
+- `priority=P2`、`loop=combined`、`owner=retrieval/platform-map`、`dynamic_evidence=free_path_probes`、`budget_authorization=free_probes_only`、`decision=engineering-only`。下一片用同一组题固定通用/原生/同域路径，先补可重复的正文样本和受限站点对照，再决定是否为授权的真实选站实验及 Deep 后续规划扩展范围。
+
 ### 2026-11-24 显式平台搜索意图
 
 - 基线 `main@84f654ac3a805016a708b42ad1154339d4fcb8b4`，分支 `codex/study-agent-platform-intent`。普通语义研究在一次现有规划调用中提供站点池中的启用平台，查询可携带 `site_key`。执行层校验站点、复用现有 Browse 入口，指定计划遇验证或登录时停止该站点余下搜索。查找结果与访问限制以运行信息送入写作提示，仍由原正文与发布证据链决定可引用内容。

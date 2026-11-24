@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from src.web.site_pool import enabled_platforms
+from src.web.site_pool import enabled_platforms, platform_index_domain, platform_map_instruction, platform_search_query
 from src.web.tool_evidence import _public_url
 from src.web.conversation_query import is_research_resume
 
@@ -152,7 +152,9 @@ class ResearchDecision:
         platforms = enabled_platforms()
         for row in _rows(raw["proposed_queries"], 3):
             site_key = row.get("site_key", "")
-            if not isinstance(site_key, str) or (site_key and site_key not in platforms):
+            if not isinstance(site_key, str) or (
+                site_key and site_key not in platforms and not platform_index_domain(site_key)
+            ):
                 raise ValueError("site_scope_invalid")
             if set(row) - {"site_key"} != {"rq_id", "query"} or row["rq_id"] not in ids:
                 raise ValueError("site_scope_invalid" if site_key else "query_binding")
@@ -168,7 +170,7 @@ class ResearchDecision:
             for host in re.findall(r"site:([^\s)]+)", query, re.I):
                 if not _public_url("https://" + host):
                     raise ValueError("private_domain")
-            if site_key and re.search(r"\bsite\s*:", query, re.I):
+            if query.casefold().startswith("platform:") or (site_key and not platform_search_query(query)):
                 raise ValueError("site_scope_invalid")
             queries.append({"rq_id": row["rq_id"], "query": query, **({"site_key": site_key} if site_key else {})})
         if raw["intent"] in {"NEW_RESEARCH", "CONTINUE_ACTIVE_RESEARCH", "REFINE_RESEARCH"} and not queries:
@@ -228,13 +230,13 @@ _TURN_INSTRUCTION = (
     # entry for a build question).
     "Plan 2 or 3 short queries (2-8 meaningful terms), each bound to an RQ. "
     "For a single focused platform search, one query is enough. "
-    "If the user asks to search on a specific platform, choose its site_key from enabled_platforms "
+    "If the user asks to search on a specific platform, choose its site_key from the platform map "
     "and keep the query as plain search terms without a site: filter. "
     "For example, 在B站找 selects bilibili and 在米游社找 selects miyoushe. Keep the game name for 米游社. "
     "Asking about Bilibili as a company is a general-web question with an empty site_key. "
     "Keep each explicitly requested platform in scope and include general-web queries only when allowed. "
     "Respect explicit platform restrictions on continuation until the user changes them. "
-    "ABSTAIN if the required platform is unavailable in enabled_platforms. "
+    "ABSTAIN if the required platform cannot be searched according to the platform map. "
     "Keep the entity anchors the user named (work, character, model, product, version) and the task "
     "focus (build, comparison, auto-battle, release notes) in every query; a query that drops them "
     "is a topic search, not a plan. "
@@ -351,7 +353,8 @@ class ResearchSemanticSession:
                   "unresolved_questions": [{"id": "rq-identity", "question": "subquestion"}],
                   "suggested_next_action": "brief action", "proposed_queries": [{"rq_id": "rq-identity", "query": "focused search", "site_key": ""}]}
         raw = self.request("research_turn_interpretation",
-            _TURN_INSTRUCTION + "Exact fields, no extras: " + json.dumps(schema, ensure_ascii=False), context)
+            _TURN_INSTRUCTION + "Exact fields, no extras: " + json.dumps(schema, ensure_ascii=False)
+            + "\n\n" + platform_map_instruction(), context)
         try:
             self.decision = ResearchDecision.parse(
                 _provider_payload(raw, task_id=episode.task_id),

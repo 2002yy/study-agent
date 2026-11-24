@@ -38,6 +38,7 @@ from src.web.research.model_gateway import (
     with_json_object_contract,
 )
 from src.web.research.policy import evidence_policy_for_claim
+from src.web.site_pool import planned_platform_query, platform_map_instruction
 
 RUNTIME_CLAIM_PLAN_SCHEMA_VERSION = "research-runtime-claim-plan-v1"
 MAX_RUNTIME_CLAIMS = 6
@@ -133,6 +134,7 @@ _CLAIM_PLAN_RESPONSE_FORMAT: dict[str, Any] = {
                 "schema_version",
                 "critical_claim",
                 "supporting_claims",
+                "platform_searches",
             ],
             "properties": {
                 "schema_version": {
@@ -140,6 +142,20 @@ _CLAIM_PLAN_RESPONSE_FORMAT: dict[str, Any] = {
                     "enum": [RUNTIME_CLAIM_PLAN_SCHEMA_VERSION],
                 },
                 "critical_claim": _CLAIM_ITEM_UNION_SCHEMA,
+                "platform_searches": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": 2,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["site_key", "query"],
+                        "properties": {
+                            "site_key": {"type": "string"},
+                            "query": {"type": "string", "maxLength": 260},
+                        },
+                    },
+                },
                 "supporting_claims": {
                     "type": "array",
                     "minItems": 0,
@@ -166,6 +182,7 @@ class ClaimBootstrapResult:
     state: ResearchState | None
     audits: tuple[ResearchModelCallAudit, ...]
     reason: str = ""
+    platform_searches: tuple[str, ...] = ()
 
     @property
     def completed(self) -> bool:
@@ -306,7 +323,13 @@ class RuntimeClaimPlanner:
             logical_call_id=f"research_claim_plan:{normalized_run_id}:1",
             purpose="research_claim_planning",
             messages=[
-                {"role": "system", "content": _CLAIM_SYSTEM_PROMPT},
+                {"role": "system", "content": (
+                    _CLAIM_SYSTEM_PROMPT
+                    + " platform_searches is a list of up to two optional directions for the "
+                      "critical claim using {site_key, query}. Use plain search terms. "
+                      "Use [] when there is no clear platform-specific contribution.\n"
+                    + platform_map_instruction()
+                )},
                 {
                     "role": "user",
                     "content": _claim_user_payload(audit_payload),
@@ -314,7 +337,7 @@ class RuntimeClaimPlanner:
             ],
             audit_payload=audit_payload,
             response_schema_version=RUNTIME_CLAIM_PLAN_SCHEMA_VERSION,
-            parse=lambda raw: _parse_claim_plan(raw, question=normalized_question),
+            parse=lambda raw: _parse_claim_plan_with_searches(raw, question=normalized_question),
             data_categories=("user_question", "research_time_context"),
             data_counts={
                 "user_question": 1,
@@ -335,11 +358,12 @@ class RuntimeClaimPlanner:
                 reason=result.reason or "claim_plan_unavailable",
             )
 
+        proposals, platform_searches = result.value
         state = _build_initial_state(
             run_id=normalized_run_id,
             question=normalized_question,
             reference_date=normalized_reference_date,
-            proposals=result.value,
+            proposals=proposals,
             budget=budget,
             freshness_days=normalized_freshness,
             timestamp=timestamp or _utc_now(),
@@ -349,6 +373,7 @@ class RuntimeClaimPlanner:
             status="completed",
             state=state,
             audits=result.audits,
+            platform_searches=platform_searches,
         )
 
 
@@ -381,6 +406,18 @@ def _claim_planner_gateway(shared: ResearchModelGateway) -> ResearchModelGateway
         provider_profile=gateway.provider_profile,
     )
     return gateway
+
+
+def _parse_claim_plan_with_searches(
+    raw: Any, *, question: str,
+) -> tuple[tuple[ProposedClaim, ...], tuple[str, ...]]:
+    payload = dict(raw) if isinstance(raw, Mapping) else raw
+    directions = payload.pop("platform_searches", []) if isinstance(payload, dict) else []
+    queries = (
+        tuple(dict.fromkeys(query for row in directions[:2] if (query := planned_platform_query(row))))
+        if isinstance(directions, list) else ()
+    )
+    return _parse_claim_plan(payload, question=question), queries
 
 
 def _parse_claim_plan(raw: Any, *, question: str) -> tuple[ProposedClaim, ...]:

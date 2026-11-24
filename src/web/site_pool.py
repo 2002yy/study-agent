@@ -30,6 +30,8 @@ import re
 from typing import Any, Iterable
 from urllib.parse import quote_plus, urlsplit
 
+from src.web.source_directions import SOURCE_DIRECTIONS
+
 
 @dataclass(frozen=True)
 class SiteProfile:
@@ -289,6 +291,71 @@ def enabled_platforms() -> dict[str, SiteProfile]:
         if site.category != "search" and site.verified
         and (site.default_enabled or site.key in extra)
     }
+
+
+# Group entries use the audited representative URL. Known-link directions
+# can contribute to a plan once there is an actual public source URL.
+_LINK_ONLY_DOMAINS = frozenset({"t.me", "web.archive.org"})
+
+
+def platform_index_domain(key: str) -> str:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9.-]+", key) or key in _LINK_ONLY_DOMAINS:
+        return ""
+    return key if any(row.startswith(f"{key}|") for row in SOURCE_DIRECTIONS.splitlines()) else ""
+
+
+def platform_search_query(query: str) -> bool:
+    """Only plain terms can be combined with a server-owned site scope."""
+    return bool(query.strip()) and not re.search(
+        r"\b(?:(?:site|platform)\s*:|OR\b|file:)|[()]|://", query, re.I
+    )
+
+
+def planned_platform_query(value: object) -> str:
+    """Encode an optional bounded model direction as a regular planned query."""
+    if not isinstance(value, dict) or set(value) != {"site_key", "query"}:
+        return ""
+    key = value["site_key"]
+    query = value["query"]
+    if not isinstance(key, str) or not isinstance(query, str) or len(query) > 260:
+        return ""
+    if not (key in enabled_platforms() or platform_index_domain(key)) or not platform_search_query(query):
+        return ""
+    return f"platform:{key} {' '.join(query.split())}"
+
+
+def platform_map_instruction() -> str:
+    """Compact capability map for existing model calls, independent of topic."""
+    profiles = enabled_platforms()
+    by_domain = {host_of(site.home): key for key, site in profiles.items()}
+    by_domain.update({"news.ycombinator.com": "hn"} if "hn" in profiles else {})
+    lines = []
+    for row in SOURCE_DIRECTIONS.splitlines():
+        domain, label, topic = row.split("|")
+        key = by_domain.get(domain, domain)
+        if domain in _LINK_ONLY_DOMAINS:
+            method = "L"
+        elif key in profiles:
+            site = profiles[key]
+            method = f"I/{site.search_via}" if site.search_via else "N/login" if site.needs_login else "N"
+        else:
+            method = "I"
+        lines.append(f"{key}|{label}|{topic}|{method}")
+    mapped = {line.split("|", 1)[0] for line in lines}
+    lines.extend(
+        f"{key}|{site.label}|{site.category}|"
+        + (f"I/{site.search_via}" if site.search_via else "N/login" if site.needs_login else "N")
+        for key, site in profiles.items() if key not in mapped
+    )
+    return (
+        "Platform map (site_key|source direction|topic|capability). N opens native search via Browse, "
+        "N/login may require an existing session, I limits an existing public search provider to the listed "
+        "domain, I/engine uses the named engine, L needs an already known URL and is not a search key. "
+        "I or N may return no useful content. Read candidate URLs with the normal bounded reader. "
+        "Search only selected directions; the catalogue is not evidence and does not imply login access, "
+        "video transcripts or comments. Respect user scope; use empty site_key for general search.\n"
+        + "\n".join(lines)
+    )
 
 
 def select_sites(
