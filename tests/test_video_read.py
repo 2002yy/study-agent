@@ -142,6 +142,31 @@ def test_the_transcript_stops_at_the_character_cap():
     assert [len(row["text"]) for row in kept] == [6]
 
 
+def test_ocr_is_returned_as_a_separate_source(monkeypatch, tmp_path):
+    monkeypatch.setattr(video_read, "_cache_root", lambda: tmp_path)
+    monkeypatch.setattr(
+        video_read, "_run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stderr="",
+            stdout=json.dumps({"title": "T", "duration": 300}),
+        ),
+    )
+    monkeypatch.setattr(video_read, "_download_section", lambda *a, **k: {"path": tmp_path / "clip.mp4"})
+    monkeypatch.setattr(video_read, "_transcribe_media", lambda *a, **k: {
+        "rows": [{"start": 0, "end": 20, "text": "语音内容"}],
+    })
+    monkeypatch.setattr(video_read, "_ocr_media", lambda *a, **k: {
+        "ok": True, "source": "ocr", "engine": "rapidocr",
+        "segments": [{"start": 0, "end": 3, "text": "原神"}],
+        "text": "原神", "samples": 1,
+    })
+    result = video_read.read_video(URL, max_seconds=60, include_ocr=True)
+    assert result["transcript"][0]["text"] == "语音内容"
+    assert result["ocr"]["segments"][0]["text"] == "原神"
+    assert result["sources"] == {"speech": "sensevoice", "ocr": "ocr"}
+    assert result["content"] == "[00:00] 语音内容"
+
+
 def test_a_video_read_is_citable_evidence():
     calls = [
         {"name": "web_search", "result": {

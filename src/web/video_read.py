@@ -134,9 +134,31 @@ def _transcript_from_subtitles(
     return None
 
 
-def _transcript_from_asr(
-    url: str, work: Path, start: int, seconds: int, deadline: float,
+def _download_section(
+    url: str, work: Path, start: int, seconds: int, *,
+    video: bool, deadline: float,
 ) -> dict[str, Any]:
+    """One media download for this section; video also serves OCR."""
+
+    remaining = deadline - time.monotonic()
+    if remaining < _MIN_BUDGET:
+        return {"error_code": "video_no_budget", "error": "no time left for the media"}
+    target = work / ("clip.%(ext)s" if video else "audio.%(ext)s")
+    fmt = "bv*[height<=480]+ba/b[height<=480]" if video else "ba/b"
+    done = _run(
+        ["yt-dlp", "--download-sections", f"*{start}-{start + seconds}",
+         "-f", fmt, "-o", str(target), url],
+        remaining,
+    )
+    pattern = "clip.*" if video else "audio.*"
+    files = [path for path in work.glob(pattern) if path.suffix not in {".part"}]
+    if not files:
+        return {"error_code": "video_no_audio" if not video else "video_no_media",
+                "error": (done.stderr or "no media track")[-300:]}
+    return {"path": files[0]}
+
+
+def _transcribe_media(media: Path, work: Path, start: int, deadline: float) -> dict[str, Any]:
     asr_python = os.getenv(
         "STUDY_AGENT_ASR_PYTHON", r"D:\video\tools\envs\asr\Scripts\python.exe"
     )
@@ -147,26 +169,11 @@ def _transcript_from_asr(
     if not Path(asr_python).exists() or not Path(script).exists():
         return {"error_code": "video_asr_unavailable",
                 "error": "SenseVoice runtime is not installed"}
-
-    audio = work / "audio.%(ext)s"
-    end = start + seconds
-    remaining = deadline - time.monotonic()
-    if remaining < _MIN_BUDGET:
-        return {"error_code": "video_no_budget", "error": "no time left for audio"}
-    done = _run(
-        ["yt-dlp", "--download-sections", f"*{start}-{end}", "-f", "ba/b",
-         "-o", str(audio), url],
-        remaining,
-    )
-    files = [path for path in work.glob("audio.*") if path.suffix not in {".part"}]
-    if not files:
-        return {"error_code": "video_no_audio",
-                "error": (done.stderr or "no audio track")[-300:]}
     remaining = deadline - time.monotonic()
     if remaining < _MIN_BUDGET:
         return {"error_code": "video_no_budget", "error": "no time left for transcription"}
     done = _run(
-        [asr_python, script, "--video", str(files[0]), "--out-dir", str(work / "asr")],
+        [asr_python, script, "--video", str(media), "--out-dir", str(work / "asr")],
         remaining,
     )
     transcript = work / "asr" / "transcript-asr.json"
@@ -184,6 +191,16 @@ def _transcript_from_asr(
                 "text": str(row["text"]).strip(),
             })
     return {"rows": shifted}
+
+
+def _ocr_media(media: Path, work: Path, deadline: float) -> dict[str, Any]:
+    from src.web.video_skill import ocr_transcript
+
+    remaining = deadline - time.monotonic()
+    if remaining < _MIN_BUDGET:
+        return {"ok": False, "error_code": "video_no_budget",
+                "error": "no time left for OCR"}
+    return ocr_transcript(media, work / "ocr", timeout=remaining)
 
 
 def _trim(rows: list[Any], max_chars: int) -> list[dict[str, Any]]:
@@ -244,7 +261,7 @@ def _read_cache(cache: Path, max_chars: int) -> dict[str, Any] | None:
 
 def read_video(
     url: str, *, max_chars: int = 12_000, timeout: float = 180.0,
-    max_seconds: int = 180, start_seconds: int = 0,
+    max_seconds: int = 180, start_seconds: int = 0, include_ocr: bool = False,
 ) -> dict[str, Any]:
     """Return timed transcript rows for one Bilibili video section."""
 
@@ -265,7 +282,9 @@ def read_video(
     # poison a later, larger read of the same section.
     cache = _cache_root() / f"bili-{video_id}-p{part}-{start}-{seconds}.json"
     cached = _read_cache(cache, max_chars)
-    if cached is not None:
+    # A speech-only cache cannot answer an OCR request; that run is repeated
+    # once and replaces the file, so no duplicate copy is kept.
+    if cached is not None and (not include_ocr or cached.get("ocr")):
         return cached
 
     deadline = time.monotonic() + float(timeout)
@@ -308,11 +327,36 @@ def read_video(
                 if start <= float(row.get("start") or 0) < window_end
             ]
         if not rows:
-            result = _transcript_from_asr(target, work, start, seconds, deadline)
+            media = None
+            download = _download_section(
+                target, work, start, seconds, video=include_ocr, deadline=deadline,
+            )
+            if "error_code" in download:
+                return _failure(
+                    target, download["error_code"], download.get("error") or "media download failed"
+                )
+            media = download["path"]
+            result = _transcribe_media(media, work, start, deadline)
             if "error_code" in result:
                 return _failure(target, result["error_code"], result.get("error") or "audio read failed")
             rows = result["rows"]
             method = "sensevoice"
+        elif include_ocr:
+            media = None
+            download = _download_section(
+                target, work, start, seconds, video=True, deadline=deadline,
+            )
+            media = download.get("path")
+        else:
+            media = None
+
+        ocr: dict[str, Any] | None = None
+        if include_ocr:
+            if media is None:
+                ocr = {"ok": False, "error_code": "video_no_media",
+                       "error": "a video track was required for OCR"}
+            else:
+                ocr = _ocr_media(media, work, deadline)
 
         full = _trim(rows, 40_000)
         transcript = _trim(full, max(500, min(int(max_chars), 40_000)))
@@ -344,6 +388,10 @@ def read_video(
             # projection so a video read is citable without a second system.
             "content": _project(transcript),
             "chars": kept_chars,
+            "sources": {
+                "speech": method,
+                "ocr": "ocr" if (ocr and ocr.get("ok")) else "",
+            },
             "scope": {
                 "start": start,
                 "seconds": seconds,
@@ -354,6 +402,13 @@ def read_video(
             },
             "cached": False,
         }
+        if include_ocr:
+            ocr_ok = bool(ocr and ocr.get("ok"))
+            result["ocr"] = ocr if ocr_ok else None
+            result["ocr_error"] = None if ocr_ok else {
+                "error": (ocr or {}).get("error"),
+                "error_code": (ocr or {}).get("error_code"),
+            }
         try:
             payload = dict(result)
             payload["transcript"] = full

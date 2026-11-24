@@ -403,6 +403,7 @@ def _browse_read(
 def _read_video(
     url: str, max_chars: int, timeout: float,
     *, start_seconds: int = 0, video_seconds: int = 180,
+    include_ocr: bool = False,
 ) -> dict[str, Any]:
     """One video read; a missing media toolchain is a result, not a raise."""
 
@@ -412,6 +413,7 @@ def _read_video(
         return read_video(
             url, max_chars=max_chars, timeout=timeout,
             start_seconds=start_seconds, max_seconds=video_seconds,
+            include_ocr=include_ocr,
         )
     except (OSError, ValueError, TypeError, subprocess.SubprocessError) as exc:
         return {
@@ -1170,6 +1172,7 @@ class GeneralWebGateway:
         self, url: str, *, max_chars: int = 6000, timeout: float | None = None,
         mode: str = "auto", include_discussion: bool = False,
         max_comments: int = 0, start_seconds: int = 0, video_seconds: int = 180,
+        include_ocr: bool = False,
     ) -> dict[str, Any]:
         value = str(url or "").strip()
         from src.web.research.official_resolver import read_official_metadata
@@ -1218,6 +1221,7 @@ class GeneralWebGateway:
             return _read_video(
                 value, max_chars, remaining(),
                 start_seconds=start_seconds, video_seconds=video_seconds,
+                include_ocr=include_ocr,
             )
         browse_allowed = mode != "http" and _browse_read_available()
         browse_tried = False

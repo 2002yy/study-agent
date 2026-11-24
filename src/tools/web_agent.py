@@ -93,6 +93,10 @@ WEB_TOOLS = [
                 "maximum": 600,
                 "description": "Video only: length of the section to read, in seconds.",
             },
+            "include_ocr": {
+                "type": "boolean",
+                "description": "Video only: also read burned-in captions with the local OCR pipeline (useful for names, models and numbers). Returned as a separate source, not merged into the speech transcript.",
+            },
         },
         ["url"],
     ),
@@ -453,6 +457,7 @@ class WebToolAgent:
                 max_comments=int(arguments.get("max_comments", 0)),
                 start_seconds=int(arguments.get("start_seconds", 0)),
                 video_seconds=int(arguments.get("video_seconds", 180)),
+                include_ocr=bool(arguments.get("include_ocr", False)),
             )
         if name == "github_search":
             return self.gateway.github_search(
