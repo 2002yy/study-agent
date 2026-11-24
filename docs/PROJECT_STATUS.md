@@ -6,6 +6,15 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-25 应用内 Browse 正文补读（P0 切片）
+
+- 基线 `main@b7b3bf1c`（#639/#641/#642 已合并）。动机：`fetch_article_read_result` 对米游社攻略返回 `all_backends_failed`、0 字；同一 URL 用已登录 Edge 的 browse 读到 4152 字、6.8 s。
+- 新增 `src/web/browse_read.py`：非公网 URL 在开标签前拒绝；丢弃 script/style/nav/footer/form；优先 `article/main/[role=main]`；登录墙且无正文返回 `None`，保留原读取错误。
+- `GeneralWebGateway.read` 只在静态读取失败或正文短于 300 字时尝试一次 browse；仅当 browse 正文更长才采用。默认 `fallback` 策略不变，`browser_first` 或 `WEB_BROWSE_READ_ENABLED=1` 生效；browse 先于付费 DeepSeek Fetch，安全拒绝的 URL 不转交。
+- 结果字段：`method=browse`、最终 `url`、`chars`、`title`、`content`；所有结果继续经过 `classify_video_page`。
+- 验证：`tests/test_browse_read.py` 6 项、读取影响集 43 项通过；Ruff 通过。单篇米游社实测，无残留标签。分支 `feat/browse-read-fallback`，PR #644。
+- 限制：正文仍带约 200 字页面导航；未做批量平台实测。下一步：容器选择与正文清洗，不改搜索路由。
+
 ### 2026-11-24 Study Agent 的 Browse 0.1.5 启动兼容
 
 - 基线 `main@e438b82cdbb3acece5438338ad077c1ccbdd5330`。B 站、米游社等站点已有仓库适配（`8630798b`、`d034d743`）；OpenCode 也注册通用 `browse mcp`。浏览器配对与站点选择各由既有入口负责。
