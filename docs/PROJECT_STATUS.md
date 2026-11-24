@@ -53,6 +53,12 @@
 - 分支 `codex/research-url-proposal-context-20261123`。7 个影响文件共 165 项离线回归通过，Ruff、diff-check、应用编译与 mypy 115/125 通过。URL 提案测试复用同一运行夹具，覆盖四种短路、正常候选投影、模型与验证读取两次换绑后分别回写，以及恢复上下文保留去重记录。 `priority=P3`、`loop=static`、`owner=orchestration/url-proposal-live-context`、`dynamic_evidence=not_run`、`budget_authorization=not_applicable`、`decision=engineering-only`。
 - 下一片核对域名定向入口的同类依赖，保留它独有的库存读取、时限检查和诊断顺序。
 
+### 2026-11-24 V2EX 搜索页校验
+
+- 基线 `main@84f654ac3a805016a708b42ad1154339d4fcb8b4`，分支 `codex/v2ex-search-coverage`。真实 Browse 用 Obsidian 笔记查询复现 V2EX `/search?q=` 跳到 `/go/search`。修复前将 5 个版块链接计为搜索命中；修复后同题返回 0 条并记录 `browse:unexpected_search_page`。
+- 仅 V2EX 启用搜索页地址和查询参数验证。离线覆盖版块跳转、关键词丢失以及仍在原搜索页的正例；82 项 Browse、站点池和研究检索相关测试通过。Google、Brave、Bing 的同域 Browse 实测都未取得可用回执，当前没有提高此站召回的证据。
+- `priority=P2`、`loop=combined`、`owner=retrieval/browser-page-validation`、`dynamic_evidence=live_browse_negative_control`、`budget_authorization=free_probes_only`、`decision=engineering-only`。下一片先验收一个关键词确实生效的 V2EX 公开发现入口，再决定是否调整路由。
+
 ### 2026-11-23 Tier 2 发现漏斗诊断（第六片）
 
 - #634 的精确 PR CI 45174129911 通过，按保护 SHA 合入 `main@60d8637da3e197d1e6cdee5fd46ffec002937da4`。本片从该基线分出，push CI 45177888102 首次查询在跑。

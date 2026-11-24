@@ -60,6 +60,8 @@ def _search_failure_kind(error: str) -> str:
     """Bounded diagnostic code; never put provider exception URLs in outcomes."""
 
     value = error.casefold()
+    if value == "browse:unexpected_search_page":
+        return "unexpected_search_page"
     if "no_results" in value or "empty_response" in value:
         return "no_results"
     if "timeout" in value or "timed out" in value:
@@ -1124,6 +1126,7 @@ class GeneralWebGateway:
                     pattern=site.result_pattern,
                     own_hosts=site.own_hosts,
                     wait_for=site.wait_selector,
+                    require_search_page=site.require_search_page,
                 )
             fresh = 0
             for row in rows:
