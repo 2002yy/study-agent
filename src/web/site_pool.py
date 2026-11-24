@@ -281,6 +281,16 @@ def extra_sites() -> set[str]:
     return {part.strip().casefold() for part in raw.split(",") if part.strip()}
 
 
+def enabled_platforms() -> dict[str, SiteProfile]:
+    """Platform routes available to the semantic search planner."""
+    extra = extra_sites()
+    return {
+        site.key: site for site in SITES
+        if site.category != "search" and site.verified
+        and (site.default_enabled or site.key in extra)
+    }
+
+
 def select_sites(
     question: str, *, limit: int | None = None, include_unverified: bool = False
 ) -> list[SiteProfile]:

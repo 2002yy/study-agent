@@ -13,6 +13,12 @@
 - 精确本地源码的 Study Agent 网站搜索入口实测 B 站、米游社、V2EX 各得 5 个有效结果。浏览器退出后无保留的测试标签。默认检索策略与站点名单沿用现有配置。普通 HTTP 可读取一个 B 站视频公开元信息样本；同一米游社攻略的普通 HTTP 正文为空，浏览器读取约 3402 字。DeepSeek 平台样本按用户本轮要求未额外付费调用。
 - 分支 `codex/browse-cli-compat-20261124`。影响集 120 项通过，包括延迟返回的 stdio 负控、验证墙和私有 URL 过滤；Ruff、diff-check、mypy 115/125 通过。 `priority=P1`、`loop=combined`、`owner=retrieval/browser-transport`、`dynamic_evidence=real_site_search_only`、`budget_authorization=free_probes_only`、`decision=engineering-only`。端到端付费答案生成未运行，精确 HEAD CI 和评审仍为合并门禁。
 
+### 2026-11-24 显式平台搜索意图
+
+- 基线 `main@84f654ac3a805016a708b42ad1154339d4fcb8b4`，分支 `codex/study-agent-platform-intent`。普通语义研究在一次现有规划调用中提供站点池中的启用平台，查询可携带 `site_key`。执行层校验站点、复用现有 Browse 入口，指定计划遇验证或登录时停止该站点余下搜索。查找结果与访问限制以运行信息送入写作提示，仍由原正文与发布证据链决定可引用内容。
+- 普通语义研究影响集及直接相关的 Browse、站点池、规划、准入、交互和覆盖测试合计 466 项通过。Ruff、diff-check 和 mypy 债务门禁通过（115/125）。离线验收覆盖米游社、B 站、将 B 站作为讨论对象、指定米游社遇验证，以及无效站点、复合范围和旧模型回复兼容。免费真实 Browse 两站各返回 5 个候选，观测约 3.97 秒和 4.75 秒。该轮米游社前两条常规读取未取到正文，B 站取到普通解析内容，未验证视频论述或字幕。
+- `priority=P2`、`loop=combined`、`owner=retrieval/platform-intent`、`dynamic_evidence=live_browse_with_fixed_plan`、`budget_authorization=free_probes_only`、`decision=engineering-only`。本片实施普通语义研究的定向派发。后续按同一组题用实际 DeepSeek 检查选站准确度和答案支撑；Deep 活动研究使用独立的执行链。V2EX 搜索可能命中版块页，作为单独的站点结果校验问题。
+
 ### 2026-11-23 模型 URL 提案的执行上下文（第七片）
 
 - #635 精确 PR CI 45179110010 通过，以保护 SHA 合入 `main@b273e70c237355f1661cb26796d49bd366071f85`。本片从该主线分出，push CI 45181431713 首次查询在跑。上一主线 `60d8637d` 的 push CI 45177888102 有一项 Deep 桌面浏览器回归超时，未看到“恢复结果已设为下一轮聊天资料。”，该失败的根因待查。

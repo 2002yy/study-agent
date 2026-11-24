@@ -31,6 +31,7 @@ from src.web.github_reader import GitHubSourceReader
 from src.web.github_snapshot import GitHubRepositorySnapshotter
 from src.web.query_normalizer import normalize_web_query
 from src.web.search_router import DUAL, route_search
+from src.web.site_pool import SiteProfile, enabled_platforms, take_outcomes
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -495,6 +496,15 @@ class GeneralWebGateway:
             "searched_at": current.isoformat(),
         }
 
+    def search_site(
+        self, query: str, *, site_key: str, max_results: int = 5
+    ) -> dict[str, Any]:
+        """Dispatch one explicitly scoped search through the existing site adapter."""
+        site = enabled_platforms().get(site_key)
+        if site is None:
+            return {"status": "unavailable", "reason": "site_scope_invalid", "results": []}
+        return self._search_target_site(query, site, max_results, provider="browse_sites")
+
     def search_community_site(
         self, query: str, *, host: str, max_results: int = 5
     ) -> dict[str, Any]:
@@ -530,11 +540,17 @@ class GeneralWebGateway:
                                        "reason": "invalid_scope", "result_count": 0}],
                 "site_outcomes": [],
             }
+        return {
+            **self._search_target_site(phrase, sites[0], max_results, provider="community_browser"),
+            "query": focused,
+        }
+
+    def _search_target_site(
+        self, query: str, site: SiteProfile, max_results: int, *, provider: str,
+    ) -> dict[str, Any]:
         limit = max(1, min(max_results, 12))
-        rows, _error = self._search_browse_sites(
-            phrase, limit, 10.0, target_site=sites[0]
-        )
-        site_outcomes = site_pool.take_outcomes()
+        rows, _error = self._search_browse_sites(query, limit, 10.0, target_site=site)
+        site_outcomes = take_outcomes()
         raw_status = str(site_outcomes[0].get("status") or "") if site_outcomes else ""
         if rows:
             status, reason = "ok", "results_found"
@@ -542,19 +558,21 @@ class GeneralWebGateway:
             status, reason = "empty", "no_results"
         else:
             status, reason = "unavailable", _search_failure_kind(raw_status or "provider_error")
+        if provider == "browse_sites" and raw_status in {"browse:login_required", "browse:human_action_required"}:
+            reason = raw_status.removeprefix("browse:")
         return {
             "status": status,
             "reason": reason,
-            "query": focused,
+            "query": query,
             "results": rows,
-            "providers_attempted": ["community_browser"],
-            "provider_errors": [] if status != "unavailable" else [f"community_browser:{reason}"],
+            "providers_attempted": [provider],
+            "provider_errors": [] if status != "unavailable" else [f"{provider}:{reason}"],
             "provider_outcomes": [{
-                "provider": "community_browser", "status": "failed" if status == "unavailable" else status,
-                "reason": reason, "result_count": len(rows), "site": sites[0].key,
+                "provider": provider, "status": "failed" if status == "unavailable" else status,
+                "reason": reason, "result_count": len(rows), "site": site.key,
             }],
             "site_outcomes": site_outcomes,
-            "site_route": {"target": sites[0].key},
+            "site_route": {"target": site.key},
         }
 
     def _start_browser_lane(self, query: str, limit: int) -> _BrowserLane | None:

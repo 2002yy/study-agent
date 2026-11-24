@@ -13,6 +13,7 @@ from src.web.research.steering import (
     active_steering_entries,
     is_active_claim_engine_context,
 )
+from src.web.site_pool import enabled_platforms
 from src.web.tool_evidence import _public_url
 from src.web.research.interim_analysis import analysis_sources, interim_revision, validate_interim_analysis
 
@@ -193,8 +194,44 @@ def steering_supported(context: Mapping[str, Any]) -> bool:
     )
 
 
+def _platform_search_feedback(calls: Any) -> str:
+    """Describe scoped operations using local labels and bounded outcomes."""
+    platforms = enabled_platforms()
+    outcomes = {
+        "results_found": "找到候选链接",
+        "no_results": "没有找到可用链接",
+        "login_required": "需要登录",
+        "human_action_required": "遇到需要人工处理的验证",
+        "timeout": "超时",
+    }
+    statuses: list[str] = []
+    for call in calls:
+        if call.get("name") != "web_search":
+            continue
+        site = platforms.get(call.get("arguments", {}).get("site_key", ""))
+        if site is None:
+            continue
+        result = call["result"]
+        site_status: dict[str, Any] = next(iter(result.get("site_outcomes", [])), {})
+        via = site_status.get("via")
+        channel = "站内搜索" if via == "site" else "站点入口"
+        if via and via == site.search_via:
+            channel = f"{site.search_via} 同域索引"
+        status = outcomes.get(result.get("reason"), "检索不可用")
+        statuses.append(f"{site.label}（{channel}）{status}")
+    if not statuses:
+        return ""
+    return ("本轮指定站点检索状态，仅用于说明执行范围和访问限制。"
+            + "；".join(dict.fromkeys(statuses))
+            + "。只用实际读到且相关的资料回答；如果指定站点资料不足，明确说明。")
+
+
 def steering_answer_instruction(calls: Any, original: str) -> str:
-    """Carry user task changes into synthesis separately from external evidence."""
+    """Carry task changes and search status into synthesis instructions."""
+    calls = tuple(calls)
+    search_feedback = _platform_search_feedback(calls)
+    if search_feedback:
+        original = "\n\n".join(filter(None, (original, search_feedback)))
     metadata: dict[str, Any] = next(
         (
             call.get("result", {})

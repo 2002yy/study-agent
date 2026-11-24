@@ -435,3 +435,84 @@ def test_writer_cannot_exceed_shared_six_call_budget(tmp_path):
         service.generate(prepared)
     assert prepared.route["answer_generation_calls"] == 3
     assert repository.get_chat_turn(prepared.turn.id).status == "failed"
+
+@pytest.mark.parametrize(("prompt", "site_key", "search_url", "wall"), [
+    ("联网研究：在米游社找原神那维莱特配队", "miyoushe", "https://www.miyoushe.com/ys/search", ""),
+    ("联网研究：在B站找原神那维莱特配队", "bilibili", "https://search.bilibili.com/all", ""),
+    ("联网研究：哔哩哔哩的广告业务收入如何？", "", "", ""),
+    ("联网研究：只在米游社找原神那维莱特配队", "miyoushe", "https://www.miyoushe.com/ys/search",
+     "browse:human_action_required"),
+])
+def test_semantic_platform_scope_reaches_existing_search_adapter(
+    tmp_path, monkeypatch, prompt, site_key, search_url, wall,
+):
+    from src.web import browse_search
+    from src.web.research.research_interaction import steering_answer_instruction
+    from src.web.tool_gateway import GeneralWebGateway
+
+    targeted_urls = []
+    broad_queries = []
+    gateway = GeneralWebGateway()
+
+    def complete(*, messages, timeout, task_name):
+        assert task_name == "research_turn_interpretation"
+        assert "在B站找 selects bilibili" in messages[0]["content"]
+        assert "general-web question with an empty site_key" in messages[0]["content"]
+        context = json.loads(messages[-1]["content"])
+        assert context["enabled_platforms"]["miyoushe"] == "米游社"
+        assert context["enabled_platforms"]["bilibili"] == "哔哩哔哩"
+        row = {"rq_id": "rq-identity",
+               "query": "原神 那维莱特 配队" if site_key else "哔哩哔哩 广告业务 收入",
+               "site_key": site_key}
+        value = decision(context["episode"]["task_id"])
+        value["unresolved_questions"] = [{"id": "rq-identity", "question": prompt}]
+        value["proposed_queries"] = [row]
+        if wall:
+            value["proposed_queries"].append({**row, "query": "原神 那维莱特 角色攻略"})
+        return json.dumps(value)
+
+    def browse_at(url, limit, timeout, **kwargs):
+        targeted_urls.append(url)
+        if wall:
+            return [], wall, {"status": wall}
+        lead = ("https://www.miyoushe.com/ys/article/60066437" if site_key == "miyoushe"
+                else "https://www.bilibili.com/video/BV1bC4y1V7LE")
+        return [{"url": lead, "title": "原神 那维莱特 配队"}], "", {"status": "ok"}
+
+    def search_exact(query, **kwargs):
+        broad_queries.append(query)
+        return {"status": "empty", "results": []}
+
+    monkeypatch.setattr(browse_search, "search_browse_at", browse_at)
+    monkeypatch.setattr(gateway, "search_exact", search_exact)
+    monkeypatch.setattr(gateway, "read", lambda *args, **kwargs: {"ok": False})
+    runtime, _, _, _ = agent(tmp_path, completion=complete, gateway=gateway)
+    trace = runtime.resolve(prompt, owner_thread_id="thread-1", history_allowed=True)
+    calls = [c for c in trace.calls if c["name"] == "web_search"]
+    assert calls
+    instruction = steering_answer_instruction(trace.calls, "")
+    if site_key:
+        assert not broad_queries
+        assert len(targeted_urls) == len(calls) == 1
+        assert targeted_urls[0].startswith(search_url)
+        assert calls[0]["arguments"]["site_key"] == site_key
+        assert calls[0]["result"]["site_route"] == {"target": site_key}
+        assert ("需要人工处理的验证" if wall else "找到候选链接") in instruction
+        assert "站内搜索" in instruction
+        assert not evidence_tool_calls(list(trace.calls))
+    else:
+        assert broad_queries and not targeted_urls
+        assert all("site_key" not in c["arguments"] for c in calls)
+        assert not instruction
+
+
+@pytest.mark.parametrize(("key", "query"), [
+    ("unknown", "topic"), ("zhihu", "topic"), ("google", "topic"),
+    ("bilibili", "topic site:other.example"), (["bilibili"], "topic"),
+])
+def test_semantic_platform_scope_rejects_unavailable_and_mixed_routes(monkeypatch, key, query):
+    monkeypatch.delenv("WEB_SITE_POOL_EXTRA_SITES", raising=False)
+    value = decision()
+    value["proposed_queries"] = [{"rq_id": "rq-identity", "query": query, "site_key": key}]
+    with pytest.raises(ValueError, match="site_scope_invalid"):
+        ResearchDecision.parse(value, task_id="task-1")
