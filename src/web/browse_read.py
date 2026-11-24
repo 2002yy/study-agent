@@ -31,6 +31,21 @@ _DISCUSSION_SELECTOR = (
     '[class*="comment" i],[class*="reply" i],[class*="answer" i],[class~="cell"]'
 )
 
+#: Only where the generic pool lands on headers or wrappers. One selector per
+#: site, not a separate reader: everything else (budget, failures, scope,
+#: pagination, author/time) stays shared.
+_DISCUSSION_HINTS = {
+    "miyoushe.com": ".reply-card__content",
+}
+
+
+def _discussion_selector(url: str) -> str:
+    host = (urlsplit(url).hostname or "").lower()
+    for suffix, selector in _DISCUSSION_HINTS.items():
+        if host == suffix or host.endswith("." + suffix):
+            return selector
+    return _DISCUSSION_SELECTOR
+
 _ERROR_CODES = {
     "browse:human_action_required": ("browse_challenge", "the page asked for a human check"),
     "browse:timeout": ("browse_timeout", "the browser did not finish in the time budget"),
@@ -90,10 +105,13 @@ return await page.evaluate((limit) => {
       // The article itself and counters such as "1 2 ❮ ❯" are not replies.
       if (length >= 200 && bodyText.includes(raw.slice(0, 60))) continue;
       if (/^[\d\s•·:：/|]+$/.test(raw)) continue;
-      const authorNode = node.querySelector(
-        '[rel="author"],[class*="author" i],[class*="user" i],a[href*="/member"],a[href*="/u/"],a[href*="/space"]'
+      const metaScope = node.closest(
+        '[class*="reply-card" i],[class*="comment" i],[class*="reply" i]'
+      ) || node.parentElement || node;
+      const authorNode = metaScope.querySelector(
+        '[rel="author"],[class*="author" i],[class*="user" i],[class*="name" i],a[href*="/member"],a[href*="/u/"],a[href*="/space"]'
       );
-      const timeNode = node.querySelector('time,[datetime],[class*="time" i],[class*="date" i]');
+      const timeNode = metaScope.querySelector('time,[datetime],[class*="time" i],[class*="date" i]');
       let depth = 0;
       let parent = node.parentElement;
       while (parent && parent !== document.body && depth < 6) {
@@ -271,7 +289,7 @@ def read_browse(
             _READ_SCRIPT.replace("READ_URL", json.dumps(attempt))
             .replace("MAX_CHARS", str(limit))
             .replace("INCLUDE_DISCUSSION", "true" if include_discussion else "false")
-            .replace("DISCUSSION_SELECTOR", json.dumps(_DISCUSSION_SELECTOR))
+            .replace("DISCUSSION_SELECTOR", json.dumps(_discussion_selector(attempt)))
             .replace("DISC_LIMIT", str(max(30, wanted * 3)))
         )
         envelope, error = _execute(script, "", remaining)

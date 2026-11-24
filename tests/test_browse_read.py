@@ -111,6 +111,15 @@ def _ok_browse(url: str, max_chars: int, timeout: float, **kwargs) -> dict:
             "content": "浏览器正文" * 100, "title": "T", "chars": 500}
 
 
+def test_a_discussion_hint_is_used_only_for_that_site():
+    assert browse_read._discussion_selector(
+        "https://www.miyoushe.com/sr/article/1"
+    ) == ".reply-card__content"
+    assert browse_read._discussion_selector(
+        "https://www.v2ex.com/t/1"
+    ) == browse_read._DISCUSSION_SELECTOR
+
+
 def test_discussion_is_optional_and_reported_as_partial(monkeypatch):
     def run(script, url, timeout, **kwargs):
         assert "INCLUDE_DISCUSSION" not in script
