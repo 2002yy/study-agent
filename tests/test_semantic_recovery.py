@@ -558,3 +558,54 @@ def test_public_index_scope_filters_domains_before_claiming_success(monkeypatch,
     assert result["domain_filtered_count"] == 1
     assert gateway.search_site("招聘 笔试", site_key="t.me")["reason"] == "site_scope_invalid"
     assert gateway.search_site("招聘 OR 笔试", site_key="xiaohongshu.com")["reason"] == "site_scope_invalid"
+
+def test_video_page_text_cannot_become_video_evidence():
+    from src.web.research.read_adequacy import classify_video_page
+
+    url = "https://www.bilibili.com/video/BV1bC4y1V7LE/"
+    raw = {"ok": True, "content": "页面描述" * 450}
+    video = classify_video_page(raw, url)
+    assert video["ok"] is False and video["content"] == ""
+    assert video["content_kind"] == "video_page_text"
+    assert video["error_code"] == "video_content_not_available"
+    assert video["page_text_chars"] == 1800
+    assert classify_video_page(raw, "https://www.bilibili.com/read/cv1") == raw
+
+def test_explicit_platform_scope_survives_next_turn_and_blocks_fallback(tmp_path):
+    from src.web.tool_gateway import GeneralWebGateway
+
+    gateway = GeneralWebGateway()
+    seen = []
+
+    def search_site(query, *, site_key, max_results):
+        seen.append(site_key)
+        return {"status": "unavailable", "reason": "login_required", "results": []}
+
+    def no_broad(*args, **kwargs):
+        pytest.fail("explicit scope must not run a general-web fallback")
+
+    gateway.search_site = search_site
+    gateway.search_exact = no_broad
+    turns = 0
+
+    def complete(*, messages, timeout, task_name):
+        nonlocal turns
+        assert task_name == "research_turn_interpretation"
+        context = json.loads(messages[-1]["content"])
+        turns += 1
+        value = decision(context["episode"]["task_id"], "NEW_RESEARCH" if turns == 1 else "CONTINUE_ACTIVE_RESEARCH")
+        value["proposed_queries"] = [
+            {"rq_id": "rq-identity", "query": "原神 那维莱特 配队", "site_key": "miyoushe" if turns == 1 else "bilibili"}
+        ]
+        if turns == 1:
+            value["constraints_delta"] = {"platform_scope": "miyoushe"}
+        else:
+            assert context["episode"]["constraints"]["platform_scope"] == "miyoushe"
+        return json.dumps(value)
+
+    runtime, service, _, _ = agent(tmp_path, completion=complete, gateway=gateway)
+    runtime.resolve("联网研究：只在米游社找原神配队", owner_thread_id="owner", history_allowed=True)
+    trace = runtime.resolve("再查查", owner_thread_id="owner", history_allowed=True)
+    assert seen == ["miyoushe"] and turns == 2
+    assert not any(call["name"] == "web_search" for call in trace.calls)
+    assert service.active_semantic_episode("owner").constraints["platform_scope"] == "miyoushe"

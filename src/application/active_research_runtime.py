@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from functools import partial
@@ -113,10 +113,11 @@ from src.web.research.llm_proposal import (
     DISCOVERY_METHOD_LLM_PROPOSED,
     build_proposal_payload,
     llm_proposal_enabled,
-    parse_proposal_response,
+    parse_followup_proposal,
     proposal_messages,
     tier1_miss_reason,
 )
+from src.web.site_pool import REQUESTED_PLATFORM_SCOPE_KEY, platform_key_for_query, platform_read_allowed, platform_url_allowed
 from src.web.research.domain_targeted import (
     DISCOVERY_METHOD_DOMAIN_TARGETED,
     MAX_DOMAINS,
@@ -165,7 +166,7 @@ from src.web.research.wigolo_http_executor import (
     WIGOLO_HTTP_BACKEND,
     WigoloHttpBackendExecutor,
 )
-from src.web.research.read_adequacy import classify_reader_result
+from src.web.research.read_adequacy import classify_reader_result, classify_video_page
 from src.web.research.read_retry import (
     error_signature,
     make_window_admission,
@@ -406,19 +407,19 @@ class _ProductionGatewayReadContext:
         metrics_for_seq = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
         seq = int(metrics_for_seq.get("retrieval_attempt_seq") or 0) + 1
         metrics_for_seq["retrieval_attempt_seq"] = seq
+        scope = tuple(context.get(REQUESTED_PLATFORM_SCOPE_KEY) or ())
+        if not platform_url_allowed(target, scope):
+            return {"ok": False, "url": target, "error": "outside_platform_scope"}
         if self.accepts_timeout:
-            return (
-                self.gateway.read(
-                    target,
-                    max_chars=max_chars,
-                    timeout=min(
-                        READ_TIMEOUT_CAP_SECONDS,
-                        max(0.0, self.research_seconds_left()),
-                    ),
-                )
-                or {}
-            )
-        return self.gateway.read(target, max_chars=max_chars) or {}
+            payload = self.gateway.read(
+                target, max_chars=max_chars,
+                timeout=min(READ_TIMEOUT_CAP_SECONDS, max(0.0, self.research_seconds_left())),
+            ) or {}
+        else:
+            payload = self.gateway.read(target, max_chars=max_chars) or {}
+        if not platform_read_allowed(payload, target, scope):
+            return {"ok": False, "url": target, "error": "outside_platform_scope"}
+        return payload
 
     def with_escalation_ledger(self, payload: dict[str, Any]) -> dict[str, Any]:
         escalation = payload.get("escalation")
@@ -1038,6 +1039,9 @@ class ActiveResearchRuntimeExecutor:
                     )
                 live.state = bootstrap.state
                 platform_queries = getattr(bootstrap, "platform_searches", ())
+                scope = getattr(bootstrap, "platform_scope", ())
+                if scope:
+                    live.context[REQUESTED_PLATFORM_SCOPE_KEY] = list(scope)
                 if platform_queries and live.state.gaps:
                     bootstrap_gap = live.state.gaps[0]
                     live.cursor = replace(
@@ -1140,14 +1144,19 @@ class ActiveResearchRuntimeExecutor:
                 # Semantic query identity is stable across waves. Re-entering a
                 # wave or reaching a later wave must not re-search the same text;
                 # no new query space is handled as a no-gain batch by Saturation.
-                live.cursor = _append_gap_queries(live.cursor, live.state)
+                platform_scope = tuple(live.context.get(REQUESTED_PLATFORM_SCOPE_KEY) or ())
+                if not platform_scope:
+                    live.cursor = _append_gap_queries(live.cursor, live.state)
                 # Deep-2: seed candidates must join the pool after this wave's queries exist,
                 # because claim selection is driven by planned-query intersection, and before
                 # the first search, so a search duplicate can merge into the same candidate.
                 live.cursor = _bind_deep_seed_candidates(
                     live.cursor,
                     live.state,
-                    seed_by_url=deep_seed_by_url,
+                    seed_by_url={
+                        url: value for url, value in deep_seed_by_url.items()
+                        if platform_url_allowed(url, platform_scope)
+                    },
                     max_candidates=live.state.budget.max_candidates,
                     trace=selection_trace,
                 )
@@ -1163,6 +1172,8 @@ class ActiveResearchRuntimeExecutor:
 
                 # Search every still-pending planned query until the shared hard budget.
                 for planned in live.cursor.planned_queries:
+                    if platform_scope and platform_key_for_query(planned.query) not in platform_scope:
+                        continue
                     if planned.id in live.cursor.completed_query_ids:
                         continue
                     ensure_active()
@@ -1374,6 +1385,8 @@ class ActiveResearchRuntimeExecutor:
                             run_id=run_id,
                             remaining_timeout=remaining_timeout,
                             proposed_claim_ids=proposed_claim_ids,
+                            policy_allowed=model_policy.allowed,
+                            search_attempts=results.query_attempts,
                         )
                         runtime_observation.phase_end("tier2_proposal")
                     # §63 Tier-1.5 (default off): official-domain site search
@@ -1381,7 +1394,7 @@ class ActiveResearchRuntimeExecutor:
                     targeted_claim_ids = live.context.setdefault(
                         DOMAIN_TARGETED_CLAIMS_KEY, []
                     )
-                    if isinstance(targeted_claim_ids, list):
+                    if not platform_scope and isinstance(targeted_claim_ids, list):
                         runtime_observation.phase_start("domain_targeted")
                         live.cursor = _domain_targeted_step(
                             cursor=live.cursor,
@@ -1875,6 +1888,7 @@ class ActiveResearchRuntimeExecutor:
                                 discovery_diagnostics.bump_lead(
                                     stats_key, int(stats_value)
                                 )
+                        discovered = tuple(item for item in discovered if platform_url_allowed(item.url, platform_scope))
                         if discovered:
                             live.cursor = replace(
                                 live.cursor,
@@ -2112,6 +2126,7 @@ class ActiveResearchRuntimeExecutor:
                                         f"evidence_lead_{stats_key}",
                                         int(stats_value),
                                     )
+                            discovered = tuple(item for item in discovered if platform_url_allowed(item.url, platform_scope))
                             if discovered:
                                 live.cursor = replace(
                                     live.cursor,
@@ -2193,6 +2208,28 @@ class ActiveResearchRuntimeExecutor:
                         selected_sources=results.selected_sources,
                     )
 
+                # Reuse the existing proposal admission after an empty search
+                # or after the wave's attempted reads all failed.
+                if llm_proposal_enabled() and not budget_clock.research_window_exhausted():
+                    proposal_ids = live.context.setdefault(TIER2_PROPOSED_CLAIMS_KEY, [])
+                    if isinstance(proposal_ids, list):
+                        for claim in _ordered_claims(live.state):
+                            followup_candidate_ids = {item.id for item in _candidates_for_claim(live.cursor, claim.id)}
+                            outcomes = [
+                                item for item in live.cursor.read_outcomes
+                                if item.candidate_id in followup_candidate_ids
+                            ]
+                            if followup_candidate_ids and (
+                                not outcomes or any(item.status == "success" for item in outcomes)
+                            ):
+                                continue
+                            live.cursor = _tier2_proposal_step(
+                                live=live, claim=claim, assessments={}, model_gateway=timed_gateway,
+                                read_fn=gateway_read, run_id=run_id, remaining_timeout=remaining_timeout,
+                                proposed_claim_ids=proposal_ids,
+                                policy_allowed=model_policy.allowed,
+                                search_attempts=results.query_attempts,
+                            )
                 live.cursor = replace(live.cursor, phase="gating")
                 runtime_observation.phase_start("gating")
                 checkpoint(stage="gating")
@@ -2626,6 +2663,8 @@ def _tier2_proposal_step(
     run_id: str,
     remaining_timeout: Callable[[], float | None],
     proposed_claim_ids: list[str],
+    policy_allowed: Callable[[str, tuple[str, ...]], bool] | None = None,
+    search_attempts: Sequence[Mapping[str, Any]] = (),
 ) -> ResearchRuntimeCursor:
     """§45 Tier-2: LLM URL proposal -> reader verification -> candidate.
 
@@ -2649,11 +2688,8 @@ def _tier2_proposal_step(
     claim_candidate_ids = {item.id for item in claim_candidates}
     # Frozen §45 contract: the read that unlocks Tier-2 must belong to THIS
     # claim, not just to the run.
-    claim_completed_reads = sum(
-        1
-        for outcome in cursor.read_outcomes
-        if outcome.candidate_id in claim_candidate_ids
-    )
+    outcomes = [item for item in cursor.read_outcomes if item.candidate_id in claim_candidate_ids]
+    claim_completed_reads = len(outcomes)
     miss_reason = tier1_miss_reason(
         assessments=assessments,
         candidate_ids=[item.id for item in claim_candidates],
@@ -2665,6 +2701,11 @@ def _tier2_proposal_step(
     )
     if not miss_reason:
         return cursor
+    categories = ("public_research_claim", "public_candidate_metadata")
+    if policy_allowed is not None and not policy_allowed("research_url_proposal", categories):
+        return cursor
+    if outcomes and not any(item.status == "success" for item in outcomes):
+        miss_reason = "reads_failed"
     proposed_claim_ids.append(claim.id)
     del proposed_claim_ids[50:]
 
@@ -2679,6 +2720,30 @@ def _tier2_proposal_step(
         "added_candidate_ids": [],
         "verification_reads": 0,
     }
+    gap = next((item for item in state.gaps if item.claim_id == claim.id and item.state == "open"), None)
+    claim_queries = {query.id: query.query for query in cursor.planned_queries if query.claim_id == claim.id}
+    claim_urls = {candidate.id: candidate.url.split("?", 1)[0][:200] for candidate in claim_candidates}
+    scope = tuple(live.current_context().get(REQUESTED_PLATFORM_SCOPE_KEY) or ())
+    reasons = {
+        str(row.get("query_id") or ""): str(row.get("reason") or "")
+        for row in search_attempts
+        if re.fullmatch(r"[a-z_]{1,100}", str(row.get("reason") or ""))
+    }
+    feedback = {
+        "explicit_platform_scope": list(scope),
+        "evidence_gap": gap.gap_type if gap else "",
+        "searches": [
+            {"query": claim_queries[outcome.query_id][:150], "status": outcome.status,
+             "providers": list(outcome.providers)[:5], "result_count": outcome.result_count,
+             "reason": reasons.get(outcome.query_id, outcome.error_code[:100])}
+            for outcome in cursor.query_outcomes if outcome.query_id in claim_queries
+        ][-6:],
+        "reads": [
+            {"url": claim_urls[outcome.candidate_id], "status": outcome.status,
+             "provider": outcome.backend, "chars": outcome.content_chars, "reason": outcome.error_code[:100]}
+            for outcome in cursor.read_outcomes if outcome.candidate_id in claim_urls
+        ][-6:],
+    }
     extra_body: Mapping[str, Any] | None = None
     try:
         from src.llm_client import research_structured_output_capabilities
@@ -2692,11 +2757,11 @@ def _tier2_proposal_step(
         result = model_gateway.complete_structured(
             logical_call_id=f"research_url_proposal:{run_id}:{claim.id}:{wave_index}",
             purpose="research_url_proposal",
-            messages=proposal_messages(claim.text),
-            audit_payload=build_proposal_payload(claim.text),
+            messages=proposal_messages(claim.text, feedback),
+            audit_payload=build_proposal_payload(claim.text, feedback),
             response_schema_version="research-url-proposal-v1",
-            parse=parse_proposal_response,
-            data_categories=("public_research_claim",),
+            parse=parse_followup_proposal,
+            data_categories=categories,
             max_tokens=300,
             timeout_seconds=timeout_seconds,
             extra_body=extra_body,
@@ -2708,7 +2773,24 @@ def _tier2_proposal_step(
         status = str(getattr(result, "status", ""))
         record["call_status"] = status or "unknown"
         value = result.value if status == "completed" else None
-        record["proposed"] = list(value or [])
+        if isinstance(value, Mapping):
+            record["proposed"] = list(value.get("urls") or [])
+            if gap:
+                planned = {item.query.casefold() for item in cursor.planned_queries}
+                new_queries = tuple(
+                    RuntimePlannedQuery(
+                        id=f"{gap.id}:platform:{hashlib.sha256(query.encode()).hexdigest()[:12]}",
+                        gap_id=gap.id, claim_id=claim.id, intent=GapSearchIntent.DISCOVERY.value,
+                        query=query, desired_source_role=gap.desired_source_role,
+                    )
+                    for query in value.get("platform_searches", [])[:2]
+                    if query.casefold() not in planned
+                    and (not scope or platform_key_for_query(query) in scope)
+                )
+                cursor = replace(cursor, planned_queries=(*cursor.planned_queries, *new_queries)[:100])
+                record["platform_searches"] = [item.query for item in new_queries]
+        else:
+            record["proposed"] = list(value or [])
     _count_orchestration_call(
         live.current_context(),
         "research_url_proposal",
@@ -2725,6 +2807,9 @@ def _tier2_proposal_step(
     )
     new_items: list[RuntimeCandidate] = []
     for url in record["proposed"]:
+        if not platform_url_allowed(url, scope):
+            record["dropped"].append({"url": url, "reason": "outside_platform_scope"})
+            continue
         if url in existing_urls:
             record["dropped"].append({"url": url, "reason": "duplicate_candidate"})
             continue
@@ -3885,7 +3970,7 @@ class NativeHttpBackendExecutor:
         wall_ms = max(0.0, self.now_ms() - started)
         payload = payload if isinstance(payload, Mapping) else {}
         self.calls += 1
-        return _project_native_step(payload, wall_ms)
+        return _project_native_step(classify_video_page(payload, request.url), wall_ms)
 
 
 def _project_native_step(payload: Mapping[str, Any], wall_ms: float) -> ChainStepResult:
@@ -3908,7 +3993,9 @@ def _project_native_step(payload: Mapping[str, Any], wall_ms: float) -> ChainSte
         attempted=True,
         usable_content=usable,
         content=raw_content if usable else "",
-        adequacy_reason=adequacy.shape,
+        adequacy_reason=(str(payload["error"]) if payload.get("error") in {
+            "video_content_not_available", "rendered_body_unavailable", "outside_platform_scope"
+        } else adequacy.shape),
         cost={
             "latency_ms": round(float(wall_ms), 1),
             "fetch_ms": round(fetch_ms, 1),

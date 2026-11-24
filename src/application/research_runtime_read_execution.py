@@ -18,7 +18,8 @@ from src.application.research_runtime_read_site import (
 )
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.chain_executor import ChainRun, ChainStepResult
-from src.web.research.health_breaker import host_of
+from src.web.research.health_breaker import NATIVE_HTTP_BACKEND, host_of
+from src.web.site_pool import REQUESTED_PLATFORM_SCOPE_KEY
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,9 +47,11 @@ class ActiveReadExecutionContext:
         run context; backend selection re-reads history at dispatch time.
         """
 
-        specialist_step = self.read_site.try_specialist(
-            self.dispatch.live.current_context(), candidate, source_limit
-        )
+        context = self.dispatch.live.current_context()
+        scoped = bool(context.get(REQUESTED_PLATFORM_SCOPE_KEY))
+        # This reader exposes the final URL to the existing scope validation.
+        # The alternate projections may only retain the requested URL.
+        specialist_step = None if scoped else self.read_site.try_specialist(context, candidate, source_limit)
         chain_steps: list[ChainStepResult] = []
         if specialist_step is not None:
             chain_steps = [specialist_step]
@@ -74,7 +77,9 @@ class ActiveReadExecutionContext:
                 url=candidate.url,
                 host=host_of(candidate.url),
                 outer_attempt_number=outer_attempt_number,
-                chain=self.dispatch.available_backends,
+                chain=tuple(
+                    name for name in self.dispatch.available_backends if not scoped or name == NATIVE_HTTP_BACKEND
+                ),
                 executors=executors,
                 record_outcome=chain_steps.append,
                 attempted_backends=self.dispatch.attempted_backends(

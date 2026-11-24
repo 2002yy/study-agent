@@ -117,7 +117,7 @@ science.org|Science|科学媒体
 quantamagazine.org|Quanta Magazine|科学媒体
 reuters.com|Reuters|国际新闻
 apnews.com|AP|国际新闻
-bbc.com|BBC|国际新闻
+bbc.co.uk|BBC|国际新闻
 afp.com|AFP|国际新闻
 ft.com|Financial Times|深度新闻
 economist.com|The Economist|深度新闻

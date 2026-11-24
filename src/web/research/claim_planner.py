@@ -38,7 +38,7 @@ from src.web.research.model_gateway import (
     with_json_object_contract,
 )
 from src.web.research.policy import evidence_policy_for_claim
-from src.web.site_pool import planned_platform_query, platform_map_instruction
+from src.web.site_pool import planned_platform_query, platform_key_for_query, platform_map_instruction
 
 RUNTIME_CLAIM_PLAN_SCHEMA_VERSION = "research-runtime-claim-plan-v1"
 MAX_RUNTIME_CLAIMS = 6
@@ -135,6 +135,7 @@ _CLAIM_PLAN_RESPONSE_FORMAT: dict[str, Any] = {
                 "critical_claim",
                 "supporting_claims",
                 "platform_searches",
+                "only_requested_platforms",
             ],
             "properties": {
                 "schema_version": {
@@ -142,6 +143,7 @@ _CLAIM_PLAN_RESPONSE_FORMAT: dict[str, Any] = {
                     "enum": [RUNTIME_CLAIM_PLAN_SCHEMA_VERSION],
                 },
                 "critical_claim": _CLAIM_ITEM_UNION_SCHEMA,
+                "only_requested_platforms": {"type": "boolean"},
                 "platform_searches": {
                     "type": "array",
                     "minItems": 0,
@@ -183,6 +185,7 @@ class ClaimBootstrapResult:
     audits: tuple[ResearchModelCallAudit, ...]
     reason: str = ""
     platform_searches: tuple[str, ...] = ()
+    platform_scope: tuple[str, ...] = ()
 
     @property
     def completed(self) -> bool:
@@ -327,7 +330,9 @@ class RuntimeClaimPlanner:
                     _CLAIM_SYSTEM_PROMPT
                     + " platform_searches is a list of up to two optional directions for the "
                       "critical claim using {site_key, query}. Use plain search terms. "
-                      "Use [] when there is no clear platform-specific contribution.\n"
+                      "Set only_requested_platforms=true only when the user explicitly limits where to look. "
+                      "In that case supply only permitted platform searches. Use [] when there is "
+                      "no clear platform-specific contribution.\n"
                     + platform_map_instruction()
                 )},
                 {
@@ -358,7 +363,7 @@ class RuntimeClaimPlanner:
                 reason=result.reason or "claim_plan_unavailable",
             )
 
-        proposals, platform_searches = result.value
+        proposals, platform_searches, scope = result.value
         state = _build_initial_state(
             run_id=normalized_run_id,
             question=normalized_question,
@@ -374,6 +379,7 @@ class RuntimeClaimPlanner:
             state=state,
             audits=result.audits,
             platform_searches=platform_searches,
+            platform_scope=scope,
         )
 
 
@@ -410,14 +416,20 @@ def _claim_planner_gateway(shared: ResearchModelGateway) -> ResearchModelGateway
 
 def _parse_claim_plan_with_searches(
     raw: Any, *, question: str,
-) -> tuple[tuple[ProposedClaim, ...], tuple[str, ...]]:
+) -> tuple[tuple[ProposedClaim, ...], tuple[str, ...], tuple[str, ...]]:
     payload = dict(raw) if isinstance(raw, Mapping) else raw
     directions = payload.pop("platform_searches", []) if isinstance(payload, dict) else []
+    restricted = payload.pop("only_requested_platforms", False) if isinstance(payload, dict) else False
+    if not isinstance(restricted, bool):
+        raise ValueError("explicit_platform_scope_invalid")
     queries = (
         tuple(dict.fromkeys(query for row in directions[:2] if (query := planned_platform_query(row))))
         if isinstance(directions, list) else ()
     )
-    return _parse_claim_plan(payload, question=question), queries
+    if restricted and not queries:
+        raise ValueError("explicit_platform_scope_unavailable")
+    scope = tuple(dict.fromkeys(platform_key_for_query(query) for query in queries)) if restricted else ()
+    return _parse_claim_plan(payload, question=question), queries, scope
 
 
 def _parse_claim_plan(raw: Any, *, question: str) -> tuple[ProposedClaim, ...]:

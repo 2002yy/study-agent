@@ -30,6 +30,7 @@ from src.web.deepseek_web_tools import fetch_deepseek, search_deepseek
 from src.web.github_reader import GitHubSourceReader
 from src.web.github_snapshot import GitHubRepositorySnapshotter
 from src.web.query_normalizer import normalize_web_query
+from src.web.research.read_adequacy import classify_video_page
 from src.web.search_router import DUAL, route_search
 from src.web.site_pool import SiteProfile, enabled_platforms, platform_index_domain, platform_search_query, take_outcomes
 
@@ -1178,14 +1179,14 @@ class GeneralWebGateway:
                     value, max_chars=max_chars, timeout=remaining()
                 )
                 if fetched is not None:
-                    return {
+                    return classify_video_page({
                         "ok": True,
                         "kind": "web_page",
                         "url": value,
                         "method": "deepseek_fetch",
                         "content": fetched["content"],
                         "title": fetched["title"],
-                    }
+                    }, value)
             return {
                 "ok": False,
                 "url": result.requested_url,
@@ -1201,7 +1202,7 @@ class GeneralWebGateway:
         }
         if result.author:
             response["author"] = result.author
-        return response
+        return classify_video_page(response, value)
 
     def github_search(
         self,

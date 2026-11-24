@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Mapping
+from urllib.parse import urlsplit
 
 SHORT_CHAR_THRESHOLD = 800
 
@@ -72,6 +73,31 @@ def classify_reader_result(result: Mapping[str, Any] | None) -> ReadAdequacy:
     if chars < SHORT_CHAR_THRESHOLD:
         return ReadAdequacy(shape="short_doc", chars=chars, adequate=False)
     return ReadAdequacy(shape=ADEQUATE_SHAPE, chars=chars, adequate=True)
+
+
+def classify_video_page(payload: Mapping[str, Any], requested_url: str) -> dict[str, Any]:
+    """Page text from a video watch URL is an observation, not a transcript."""
+    try:
+        source = urlsplit(str(payload.get("url") or requested_url))
+    except ValueError:
+        return dict(payload)
+    host = (source.hostname or "").removeprefix("www.")
+    if (
+        payload.get("ok") is True
+        and ((host == "bilibili.com" and source.path.startswith("/video/"))
+             or (host == "youtube.com" and source.path == "/watch"))
+    ):
+        return {
+            **payload,
+            "ok": False,
+            "content": "",
+            "page_text_chars": len(str(payload.get("content") or "")),
+            "content_kind": "video_page_text",
+            "answer_eligible": False,
+            "error": "video_content_not_available",
+            "error_code": "video_content_not_available",
+        }
+    return dict(payload)
 
 
 def reader_shape(result: Mapping[str, Any] | None) -> str:

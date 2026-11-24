@@ -31,6 +31,7 @@ from src.web.research.facet_coverage import (
     plan_facets,
 )
 from src.web.query_normalizer import normalize_web_query
+from src.web.site_pool import platform_read_allowed, platform_url_allowed
 
 
 class RecoveryCancelled(RuntimeError):
@@ -438,6 +439,10 @@ def _recover_public_research(
         ]
     )
     scoped = any(row.get("site_key") for row in query_plan or [])
+    allowed_sites = (
+        tuple(dict.fromkeys(row["site_key"] for row in query_plan))
+        if query_plan and all(row.get("site_key") for row in query_plan) else ()
+    )
     if query_plan and scoped:
         # A scoped plan is already a statement of source intent. Automatic
         # authority and gap searches could widen it beyond the user's request.
@@ -807,7 +812,8 @@ def _recover_public_research(
                 return calls
             items = result.get("results")
             candidates = (
-                [v for v in items if isinstance(v, dict)]
+                [v for v in items if isinstance(v, dict)
+                 and platform_url_allowed(str(v.get("url") or v.get("link") or ""), allowed_sites)]
                 if isinstance(items, list)
                 else []
             )
@@ -1003,6 +1009,8 @@ def _recover_public_research(
                         "url": url,
                         "error": f"{type(exc).__name__}: {exc}",
                     }
+                if body.get("ok") is True and not platform_read_allowed(body, url, allowed_sites):
+                    body = {"ok": False, "url": url, "error_code": "outside_platform_scope"}
                 if scheduler.finish(url, body):
                     provider_failures += 1
                 content = body.get("content") or body.get("readme") or ""

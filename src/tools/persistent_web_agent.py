@@ -624,9 +624,19 @@ class PersistentWebToolAgent(WebToolAgent):
                     raise ValueError("original_rq_removed")
                 frozen_questions = [{"id": q["id"], "question": old.get(q["id"], q["question"])}
                                     for q in decision.unresolved_questions]
+                delta = dict(decision.constraints_delta)
+                if decision.intent == "CONTINUE_ACTIVE_RESEARCH":
+                    delta.pop("platform_scope", None)
                 episode = replace(episode, questions=frozen_questions,
-                                  constraints={**episode.constraints, **decision.constraints_delta})
+                                  constraints={**episode.constraints, **delta})
             plan = decision.proposed_queries
+            declared_scope = episode.constraints.get("platform_scope", "general")
+            if declared_scope != "general":
+                from src.web.site_pool import platform_scope_keys
+
+                scope = platform_scope_keys(declared_scope)
+                if not scope or any(row.get("site_key") not in scope for row in plan):
+                    raise ValueError("site_scope_invalid")
             focused = episode.original_question
             admitted = True
         except Exception as exc:
@@ -647,7 +657,13 @@ class PersistentWebToolAgent(WebToolAgent):
             if service.tool_trace_cancel_requested(run.id, operation_id):
                 service.finish_tool_trace_cancel(run.id, operation_id)
                 return WebToolTrace(calls=tuple(calls), error="ResearchCancelled: Research cancelled by user", run_id=run.id)
-            if prior and is_research_resume(user_input):
+            restrict_fallback = (
+                str(exc) == "site_scope_invalid"
+                or bool(prior and prior.constraints.get("platform_scope", "general") != "general")
+            )
+            if restrict_fallback:
+                focused = ""
+            elif prior and is_research_resume(user_input):
                 focused = prior.original_question
                 episode = prior
             elif (
@@ -699,7 +715,15 @@ class PersistentWebToolAgent(WebToolAgent):
                      ",".join(str(item) for item in c["result"].get("providers_attempted", [])),
                  ]).strip()[:100]}
                 for c in calls if c.get("name") == "web_search"
-            ]][-8:]
+            ], *[
+                {"query": str(c.get("arguments", {}).get("url") or "").split("?", 1)[0][:500],
+                 "outcome": " ".join([
+                     "read" if c["result"].get("ok") is True else "read_failed",
+                     str(c["result"].get("method") or ""),
+                     str(c["result"].get("error_code") or c["result"].get("adequacy_reason") or ""),
+                 ]).strip()[:100]}
+                for c in calls if c.get("name") == "web_read"
+            ][-4:]][-8:]
             from src.web.tool_evidence import _public_url
 
             leads = [{"url": str(c["arguments"].get("url", ""))[:500],

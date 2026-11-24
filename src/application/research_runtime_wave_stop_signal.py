@@ -48,6 +48,12 @@ def completed_wave_stop_signal(
             extra_batch_eligible_claim_ids=extra_batch_claims,
         )
     )
+    attempted_queries = set(cursor.completed_query_ids)
+    pending_platform_claims = {
+        query.claim_id for query in cursor.planned_queries
+        if query.query.startswith("platform:") and query.id not in attempted_queries
+    }
+    saturated_claims.difference_update(pending_platform_claims)
     unapplied_steering = _unapplied_steering_blocks_completion(context)
     return ResearchStopSignal(
         gate_pass=gate.status == "pass",

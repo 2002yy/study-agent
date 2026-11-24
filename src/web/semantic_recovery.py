@@ -12,13 +12,13 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from src.web.site_pool import enabled_platforms, platform_index_domain, platform_map_instruction, platform_search_query
+from src.web.site_pool import enabled_platforms, platform_index_domain, platform_map_instruction, platform_scope_keys, platform_search_query
 from src.web.tool_evidence import _public_url
 from src.web.conversation_query import is_research_resume
 
 CONTEXT_CAP = 16000
 INTENTS = {"NEW_RESEARCH", "CONTINUE_ACTIVE_RESEARCH", "REFINE_RESEARCH", "ANSWER", "ABSTAIN"}
-PREFERENCES = {"focus", "source_preference", "excluded_page_types", "persistence"}
+PREFERENCES = {"focus", "source_preference", "excluded_page_types", "persistence", "platform_scope"}
 
 
 def digest(text: str) -> str:
@@ -175,8 +175,13 @@ class ResearchDecision:
             queries.append({"rq_id": row["rq_id"], "query": query, **({"site_key": site_key} if site_key else {})})
         if raw["intent"] in {"NEW_RESEARCH", "CONTINUE_ACTIVE_RESEARCH", "REFINE_RESEARCH"} and not queries:
             raise ValueError("missing_queries")
+        constraints = preferences(raw["constraints_delta"])
+        declared = constraints.get("platform_scope", "general")
+        keys = platform_scope_keys(declared) if declared != "general" else ()
+        if declared != "general" and (not keys or any(row.get("site_key") not in keys for row in queries)):
+            raise ValueError("site_scope_invalid")
         return cls(task_id, raw["intent"], _text(raw["subject"], 500),
-                   preferences(raw["constraints_delta"]), rqs,
+                   constraints, rqs,
                    _text(raw["suggested_next_action"], 300), queries)
 
 
@@ -251,7 +256,10 @@ _TURN_INSTRUCTION = (
     "Do not append generic words official release model documentation to every query. "
     "Do not silently substitute other versions or infer a named version doesn't exist. "
     "Do not claim knowledge or evidence. "
-    "Allowed constraint keys: focus, source_preference, excluded_page_types, persistence. "
+    "Allowed constraint keys: focus, source_preference, excluded_page_types, persistence, platform_scope. "
+    "When the user explicitly limits where to search, set platform_scope to the permitted comma-separated "
+    "site keys; every planned query must choose an allowed key. Omit platform_scope for your own source "
+    "choices and unchanged constraints. Set it to 'general' only if the user explicitly removes the restriction. "
 )
 
 

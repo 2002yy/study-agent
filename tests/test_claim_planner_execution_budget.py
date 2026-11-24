@@ -121,6 +121,7 @@ def test_planner_has_small_anchored_schema_and_does_not_mutate_shared_retry_budg
         "critical_claim",
         "supporting_claims",
         "platform_searches",
+        "only_requested_platforms",
     ]
     assert schema["properties"]["platform_searches"]["maxItems"] == 2
     critical_branches = schema["properties"]["critical_claim"]["anyOf"]

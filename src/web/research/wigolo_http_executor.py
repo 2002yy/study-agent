@@ -44,7 +44,7 @@ from src.web.research.failure_taxonomy import (
     from_invocation_state,
     from_read_adequacy,
 )
-from src.web.research.read_adequacy import ADEQUATE_SHAPE, classify_reader_result
+from src.web.research.read_adequacy import ADEQUATE_SHAPE, classify_reader_result, classify_video_page
 from src.web.research.read_escalation import (
     ESCALATION_OFF,
     escalation_mode,
@@ -238,6 +238,7 @@ class WigoloHttpBackendExecutor:
             "method": artifact.retrieval_mode,
             "backend": str(self.name),
         }
+        payload = classify_video_page(payload, request.url)
         adequacy = classify_reader_result(payload)
         raw_state = str(metadata.get("state") or "")
         if artifact.usable:
@@ -255,7 +256,8 @@ class WigoloHttpBackendExecutor:
             attempted=True,
             usable_content=usable,
             content=artifact.content if usable else "",
-            adequacy_reason=adequacy.shape,
+            adequacy_reason=("video_content_not_available"
+                         if payload.get("content_kind") == "video_page_text" else adequacy.shape),
             cost={
                 "latency_ms": round(float(artifact.latency_ms or 0.0), 1),
                 # §107 A2e: the alternate's latency is *network fetch*, not local
