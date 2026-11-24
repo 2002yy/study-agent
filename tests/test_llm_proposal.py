@@ -324,3 +324,41 @@ def test_tier2_records_model_and_verification_at_each_context_rebind(
     assert live.context[TIER2_PROPOSED_CLAIMS_KEY] == [claim.id]
     _propose(live, claim, gateway, assessments, read_fn=read_fn)
     assert gateway.calls == 1
+
+@pytest.mark.parametrize("restricted", [False, True])
+def test_followup_uses_existing_model_call_and_filters_requested_scope(monkeypatch, restricted):
+    from src.web.research.runtime import RuntimeReadOutcome
+
+    monkeypatch.setenv(LLM_PROPOSAL_ENV, "on")
+    live, claim = _proposal_case(wave_index=2)
+    live.cursor = replace(
+        live.cursor,
+        read_outcomes=(RuntimeReadOutcome("candidate_search_1", "failed", error_code="rendered_body_unavailable"),),
+    )
+    if restricted:
+        live.context["requested_platform_scope"] = ["miyoushe"]
+
+    class Gateway(_Gateway):
+        def complete_structured(self, **kwargs):
+            from src.web.research.model_gateway import ResearchModelResult
+
+            self.calls += 1
+            assert kwargs["audit_payload"]["retrieval_feedback"]["reads"][0]["reason"] == "rendered_body_unavailable"
+            assert "xiaohongshu.com|小红书" in kwargs["messages"][0]["content"]
+            value = kwargs["parse"]({
+                "urls": [],
+                "platform_searches": [
+                    {"site_key": "bilibili", "query": "原神 配队 实战"},
+                    {"site_key": "miyoushe", "query": "原神 配队 攻略"},
+                ],
+            })
+            return ResearchModelResult(status="completed", value=value, audits=())
+
+    gateway = Gateway([])
+    cursor = _propose(live, claim, gateway, {})
+    assert gateway.calls == 1
+    added = [item.query for item in cursor.planned_queries if item.query.startswith("platform:")]
+    expected = ["platform:miyoushe 原神 配队 攻略"]
+    if not restricted:
+        expected.insert(0, "platform:bilibili 原神 配队 实战")
+    assert added == expected

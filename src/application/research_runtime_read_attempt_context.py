@@ -108,6 +108,10 @@ class ActiveReadAttemptContext:
         step: ChainStepResult,
     ) -> ResearchRuntimeCursor:
         ok = bool(step.usable_content)
+        reason = step.adequacy_reason
+        error_code = reason if reason in {
+            "video_content_not_available", "rendered_body_unavailable", "outside_platform_scope"
+        } else "read_failed"
         return replace(
             cursor,
             read_outcomes=(
@@ -116,7 +120,7 @@ class ActiveReadAttemptContext:
                     candidate_id=candidate.id,
                     status="success" if ok else "failed",
                     content_chars=len(step.content) if ok else 0,
-                    error_code="" if ok else "read_failed",
+                    error_code="" if ok else error_code,
                     backend=step.backend,
                     retrieval_state=step.retrieval_state,
                 ),

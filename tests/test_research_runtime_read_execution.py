@@ -215,3 +215,23 @@ def test_default_chain_reloads_history_after_specialist_fallback() -> None:
     )
     assert attempted == [("wigolo_http",)]
     assert dispatch.live.context == {"phase": "after"}
+
+def test_explicit_site_uses_reader_that_reports_the_final_url():
+    dispatch = _dispatch()
+    dispatch.live.context = {"requested_platform_scope": ["miyoushe"]}
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Unverifiable alternate reader must not run for an explicit site scope")
+
+    def run_chain(**kwargs):
+        assert kwargs["chain"] == ("native_http",)
+        return ChainRun(
+            candidate_id="target", steps=(), action="resolve", attempted_backends=(),
+        )
+
+    execution = ActiveReadExecutionContext(
+        gateway=SimpleNamespace(), gateway_read=forbidden, hard_seconds_left=lambda: 10,
+        dispatch=dispatch, read_site=SimpleNamespace(try_specialist=forbidden),
+        executor_factory=lambda **kwargs: {}, chain_runner=run_chain,
+    )
+    execution.run_candidate(candidate=read_candidate(), source_limit=1200, outer_attempt_number=1)

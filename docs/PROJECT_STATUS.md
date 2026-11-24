@@ -13,6 +13,15 @@
 - 精确本地源码的 Study Agent 网站搜索入口实测 B 站、米游社、V2EX 各得 5 个有效结果。浏览器退出后无保留的测试标签。默认检索策略与站点名单沿用现有配置。普通 HTTP 可读取一个 B 站视频公开元信息样本；同一米游社攻略的普通 HTTP 正文为空，浏览器读取约 3402 字。DeepSeek 平台样本按用户本轮要求未额外付费调用。
 - 分支 `codex/browse-cli-compat-20261124`。影响集 120 项通过，包括延迟返回的 stdio 负控、验证墙和私有 URL 过滤；Ruff、diff-check、mypy 115/125 通过。 `priority=P1`、`loop=combined`、`owner=retrieval/browser-transport`、`dynamic_evidence=real_site_search_only`、`budget_authorization=free_probes_only`、`decision=engineering-only`。端到端付费答案生成未运行，精确 HEAD CI 和评审仍为合并门禁。
 
+### 2026-11-25 平台检索反馈、续查与正文边界
+
+- 依赖顺序 `#639 → #641 → codex/platform-evidence-feedback`。#639 `d7cbddd7` 的 PR CI 45430114798 通过，#641 `776c27ba` 的 PR CI 45435318332 通过。两者仍为草稿，未合并；本批从 `776c27baef78f29311ef2edb4f781f2ded811cea` 分出。
+- 普通研究沿用已有历史尝试记录传回实际检索通道、读取状态与原因。新声明的平台限制进入原有 constraints，普通继续时保留。Deep 把明确平台限制和初始查询同时保存，搜索、种子与后续发现接收相同允许范围；模型自主选站时可切换。Deep 在已启用的现有 Tier-2 机会追加最多两条符合范围的查询，由下一波既有队列执行，沿用原每 claim 一次、研究窗口、策略和发布门禁。已有初始规划与候选评估调用次数不变。指定平台时读取使用能回传最终 URL 的已有 HTTP 读器，最终域越界则丢弃。主动改写范围和真实模型对照仍待验收。
+- 免费 Browse 读到米游社攻略、BBC 报道和 Gitee README，同题程序搜索保持如实失败。米游社 HTTP 样本约 99 KB，包含客户端脚本标记，缺少正文锚点，程序现在报告 `rendered_body_unavailable`。BBC 样本正式入口在 bbc.co.uk，已作为地图首选域，旧域仍识别。BBC/Gitee 的本地通用索引给出域外候选，过滤后零条。B 站核实可见标题和约 483 字元描述；约 2074 字程序页面文本现标记为 `video_content_not_available`，不产生字幕或视频内容证据。使用本机配对 Browse 做页面对照。
+- 离线影响集 253 项通过。补查、模型约束与读取的最后差异分别复核 50 项、53 项通过；测试范围有重叠。Ruff 和 mypy 基线 115/125 通过。
+- 当前配置下每次发送的紧凑地图为 4805 字符、6509 UTF-8 字节，包含原 156 行及两个此前已启用的方向。初始规划与 Deep 已有的续查机会各发送一份，程序没有逐站发起规划调用。未得到真实模型 token 数。免费验收只使用固定计划、模拟模型与免费实际访问。
+- `priority=P2`、`loop=combined`、`owner=retrieval/platform-evidence-feedback`、`dynamic_evidence=free_browser_and_http`、`budget_authorization=free_probes_only`、`decision=engineering-only`。下一片保持地图范围不扩大，用同题验收应用能否读取渲染正文，再在获批预算后验证真实模型选站、续查与证据支撑。
+
 ### 2026-11-25 平台搜索地图
 
 - 基线 `d7cbddd7`（#639 平台派发），分支 `codex/platform-search-map`。把原审计 156 行变成紧凑运行时地图。普通语义规划与 Deep 活动研究的首次 claim 规划均复用原调用。候选方向按站内 Browse、同域公开索引、已有链接读取标记。通用搜索的通道和结果状态进入普通研究写作提示，下一轮规划可通过已有尝试记录看到状态。

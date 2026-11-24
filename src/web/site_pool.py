@@ -27,7 +27,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 import os
 import re
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 from urllib.parse import quote_plus, urlsplit
 
 from src.web.source_directions import SOURCE_DIRECTIONS
@@ -293,6 +293,8 @@ def enabled_platforms() -> dict[str, SiteProfile]:
     }
 
 
+REQUESTED_PLATFORM_SCOPE_KEY = "requested_platform_scope"
+
 # Group entries use the audited representative URL. Known-link directions
 # can contribute to a plan once there is an actual public source URL.
 _LINK_ONLY_DOMAINS = frozenset({"t.me", "web.archive.org"})
@@ -301,6 +303,8 @@ _LINK_ONLY_DOMAINS = frozenset({"t.me", "web.archive.org"})
 def platform_index_domain(key: str) -> str:
     if not re.fullmatch(r"[a-z0-9][a-z0-9.-]+", key) or key in _LINK_ONLY_DOMAINS:
         return ""
+    if key == "bbc.com":
+        return key
     return key if any(row.startswith(f"{key}|") for row in SOURCE_DIRECTIONS.splitlines()) else ""
 
 
@@ -322,6 +326,45 @@ def planned_platform_query(value: object) -> str:
     if not (key in enabled_platforms() or platform_index_domain(key)) or not platform_search_query(query):
         return ""
     return f"platform:{key} {' '.join(query.split())}"
+
+
+def platform_key_for_query(query: str) -> str:
+    token, _, _ = query.partition(" ")
+    return token.removeprefix("platform:") if token.startswith("platform:") else ""
+
+
+def platform_scope_keys(value: str) -> tuple[str, ...]:
+    keys = tuple(dict.fromkeys(part.strip() for part in value.split(",") if part.strip()))
+    enabled = enabled_platforms()
+    return keys if len(keys) <= 3 and all(key in enabled or platform_index_domain(key) for key in keys) else ()
+
+
+def platform_url_allowed(url: str, keys: tuple[str, ...]) -> bool:
+    if not keys:
+        return True
+    try:
+        host = host_of(url)
+    except ValueError:
+        return False
+    enabled = enabled_platforms()
+    for key in keys:
+        site = enabled.get(key)
+        if site and site.result_pattern and re.search(site.result_pattern, url):
+            return True
+        domain = key if platform_index_domain(key) else host_of(site.home) if site else ""
+        domains = ("bbc.com", "bbc.co.uk") if domain in {"bbc.com", "bbc.co.uk"} else (domain,)
+        if any(candidate and (host == candidate or host.endswith(f".{candidate}")) for candidate in domains):
+            return True
+    return False
+
+
+def platform_read_allowed(payload: Mapping[str, Any], requested_url: str, keys: tuple[str, ...]) -> bool:
+    if not keys:
+        return True
+    # These readers do not return their own verified final destination.
+    if payload.get("method") in {"deepseek_fetch", "firecrawl", "jina_reader"}:
+        return False
+    return platform_url_allowed(str(payload.get("url") or requested_url), keys)
 
 
 def platform_map_instruction() -> str:

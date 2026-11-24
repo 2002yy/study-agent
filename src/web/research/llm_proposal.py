@@ -23,6 +23,7 @@ import os
 from typing import Any, Mapping, Sequence
 
 from src.news.url_normalizer import canonicalize_url
+from src.web.site_pool import planned_platform_query, platform_map_instruction
 
 LLM_PROPOSAL_ENV = "RESEARCH_LLM_PROPOSAL"
 MAX_PROPOSALS = 3
@@ -97,19 +98,33 @@ def tier1_miss_reason(
     return "no_answer_relevant_candidate"
 
 
-def build_proposal_payload(claim_text: str) -> dict[str, str]:
-    return {"claim": str(claim_text or "")[:2000]}
+def parse_followup_proposal(raw: Any) -> dict[str, list[str]]:
+    urls = parse_proposal_response(raw)
+    rows = raw.get("platform_searches", [])
+    queries = [query for row in rows[:2] if (query := planned_platform_query(row))] if isinstance(rows, list) else []
+    return {"urls": urls, "platform_searches": list(dict.fromkeys(queries))}
 
 
-def proposal_messages(claim_text: str) -> list[dict[str, str]]:
+def build_proposal_payload(claim_text: str, feedback: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {"claim": str(claim_text or "")[:2000]}
+    if feedback:
+        payload["retrieval_feedback"] = dict(feedback)
+    return payload
+
+
+def proposal_messages(claim_text: str, feedback: Mapping[str, Any] | None = None) -> list[dict[str, str]]:
+    instruction = LLM_PROPOSAL_SYSTEM_PROMPT
+    if feedback:
+        instruction += (
+            "\nYou may also return platform_searches with at most two {site_key, query} entries "
+            "for the remaining evidence gap. Use an empty urls list if no reliable URL is known. "
+            "Use the actual search/read results to pick a different direction when the earlier "
+            "route failed or supplied only page metadata. Avoid repeating attempted queries.\n"
+            + platform_map_instruction()
+        )
     return [
-        {"role": "system", "content": LLM_PROPOSAL_SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": json.dumps(
-                build_proposal_payload(claim_text), ensure_ascii=False
-            ),
-        },
+        {"role": "system", "content": instruction},
+        {"role": "user", "content": json.dumps(build_proposal_payload(claim_text, feedback), ensure_ascii=False)},
     ]
 
 

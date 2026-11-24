@@ -13,7 +13,7 @@ from src.web.research.steering import (
     active_steering_entries,
     is_active_claim_engine_context,
 )
-from src.web.site_pool import enabled_platforms, platform_index_domain
+from src.web.site_pool import enabled_platforms, host_of, platform_index_domain
 from src.web.tool_evidence import _public_url
 from src.web.research.interim_analysis import analysis_sources, interim_revision, validate_interim_analysis
 
@@ -254,9 +254,29 @@ def _platform_search_feedback(calls: Any) -> str:
             if row.get("provider") in providers and row.get("status") == "failed"
         ]
         statuses.append(f"{channel} {status}" + (f"（{'、'.join(failed)}）" if failed else ""))
+    read_reasons = {
+        "video_content_not_available": "只取得视频页面文本，未读取字幕或视频内容",
+        "rendered_body_unavailable": "已取得网页，未提取到渲染后的正文",
+        "outside_platform_scope": "读取结果超出指定平台",
+    }
+    for call in [item for item in calls if item.get("name") == "web_read"][-6:]:
+        result = call["result"]
+        url = str(result.get("url") or call.get("arguments", {}).get("url") or "")
+        if not _public_url(url):
+            continue
+        host = host_of(url)
+        code = result.get("error")
+        if code not in read_reasons:
+            code = result.get("error_code") or result.get("adequacy_reason")
+        if result.get("ok") and result.get("answer_eligible") is not False:
+            statuses.append(f"{host} 已取得可供核对的页面正文")
+        elif code in read_reasons:
+            statuses.append(f"{host} {read_reasons[code]}")
+        else:
+            statuses.append(f"{host} 未取得可用于作答的正文")
     if not statuses:
         return ""
-    return ("本轮检索执行信息，仅用于说明访问和覆盖情况。"
+    return ("本轮检索和读取信息，仅用于说明访问和覆盖情况。"
             + "；".join(dict.fromkeys(statuses))
             + "。只用实际读到且相关的资料回答；资料不足时明确说明。")
 

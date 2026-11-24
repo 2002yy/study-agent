@@ -131,7 +131,7 @@ def test_author_propagates_through_fetch_cache_and_gateway(monkeypatch):
         "_fetch_html_payload",
         lambda _url, timeout, max_bytes: (
             '<meta name="author" content="Grace Hopper">',
-            "https://example.com/post",
+            "https://redirected.example.com/post",
             "text/html",
             "",
         ),
@@ -153,3 +153,4 @@ def test_author_propagates_through_fetch_cache_and_gateway(monkeypatch):
     assert first.author == "Grace Hopper"
     assert second.author == "Grace Hopper"
     assert gateway["author"] == "Grace Hopper"
+    assert first.final_url == second.final_url == gateway["url"] == "https://redirected.example.com/post"

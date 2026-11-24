@@ -47,7 +47,7 @@ class ArticleReadResult:
 
 # ── Cache ─────────────────────────────────────────────────────────────
 
-_ARTICLE_CACHE: dict[str, tuple[float, str, str, str]] = {}
+_ARTICLE_CACHE: dict[str, tuple[float, str, str, str, str]] = {}
 _ARTICLE_CACHE_TTL = 1800
 _ARTICLE_CACHE_MAX_SIZE = 32
 
@@ -264,6 +264,7 @@ def fetch_article_read_result(
             method=cached[2],
             author=cached[3],
             requested_url=url,
+            final_url=cached[4] if len(cached) > 4 else "",
         )
 
     try:
@@ -287,7 +288,7 @@ def fetch_article_read_result(
             )
             if local_result.ok:
                 _ARTICLE_CACHE[url] = (
-                    now, local_result.text, local_result.method, local_result.author
+                    now, local_result.text, local_result.method, local_result.author, final_url or url
                 )
                 return ArticleReadResult(
                     ok=True,
@@ -302,7 +303,7 @@ def fetch_article_read_result(
         fallback_url = final_url or url
         text, method = _try_firecrawl(fallback_url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "")
+            _ARTICLE_CACHE[url] = (now, text, method, "", fallback_url)
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -313,7 +314,7 @@ def fetch_article_read_result(
 
         text, method = _try_jina(fallback_url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "")
+            _ARTICLE_CACHE[url] = (now, text, method, "", fallback_url)
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -326,7 +327,9 @@ def fetch_article_read_result(
             ok=False,
             requested_url=url,
             final_url=final_url or url,
-            reason="all_backends_failed",
+            reason=("rendered_body_unavailable"
+                    if html and any(marker in html for marker in ("__NUXT__", "__NEXT_DATA__"))
+                    else "all_backends_failed"),
         )
     except SafeFetchRefusal as refusal:
         # Security refusals are fail-closed: never fall back to a weaker reader.
@@ -336,7 +339,7 @@ def fetch_article_read_result(
     except Exception as exc:
         text, method = _try_firecrawl(url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "")
+            _ARTICLE_CACHE[url] = (now, text, method, "", url)
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -346,7 +349,7 @@ def fetch_article_read_result(
 
         text, method = _try_jina(url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "")
+            _ARTICLE_CACHE[url] = (now, text, method, "", url)
             return ArticleReadResult(
                 ok=True,
                 text=text,

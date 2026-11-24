@@ -5078,7 +5078,8 @@ def test_a2e_authority_is_unchanged_when_no_fallback_is_needed(
             assert [step["backend"] for step in row["steps"]] == ["native_http"]
             assert row["action"] == "resolve"
 
-def test_active_model_platform_direction_uses_existing_gateway_and_cursor(tmp_path, monkeypatch):
+@pytest.mark.parametrize("exclusive", [False, True])
+def test_active_model_platform_direction_uses_existing_gateway_and_cursor(tmp_path, monkeypatch, exclusive):
     from src.web import browse_search
     from src.web.research_gateway import ResearchWebGateway
 
@@ -5090,6 +5091,7 @@ def test_active_model_platform_direction_uses_existing_gateway_and_cursor(tmp_pa
                 message = response.choices[0].message
                 plan = loads(message.content)
                 plan["platform_searches"] = [{"site_key": "miyoushe", "query": "原神 那维莱特 配队"}]
+                plan["only_requested_platforms"] = exclusive
                 message.content = _json_dumps(plan)
             return response
 
@@ -5115,4 +5117,53 @@ def test_active_model_platform_direction_uses_existing_gateway_and_cursor(tmp_pa
     completed = _service(repository, client, read_gateway=gateway).execute(run.id, raise_on_error=True)
     assert len(seen) == 1 and seen[0].startswith("https://www.miyoushe.com/ys/search")
     assert completed.query_attempts[0]["provider_audit"]["reason"] == "human_action_required"
+    if exclusive:
+        assert completed.research_context["requested_platform_scope"] == ["miyoushe"]
+        assert len(completed.query_attempts) == 1
+    else:
+        assert len(completed.query_attempts) > 1
     assert len([c for c in client.calls if "claim planner" in c["messages"][0]["content"]]) == 1
+
+def test_active_followup_runs_next_platform_after_empty_first_wave(tmp_path, monkeypatch):
+    from src.web import browse_search
+    from src.web.research_gateway import ResearchWebGateway
+
+    class Model(_StructuredClient):
+        proposals = 0
+
+        def create(self, **kwargs):
+            system = kwargs["messages"][0]["content"]
+            if "You may also return platform_searches" in system:
+                self.proposals += 1
+                feedback = loads(kwargs["messages"][1]["content"])["retrieval_feedback"]
+                assert any(row["status"] != "ok" for row in feedback["searches"])
+                content = _json_dumps({
+                    "urls": [],
+                    "platform_searches": [{"site_key": "bilibili", "query": "原神 那维莱特 实战"}],
+                })
+                return SimpleNamespace(
+                    choices=[SimpleNamespace(message=SimpleNamespace(content=content), finish_reason="stop")],
+                    usage=SimpleNamespace(prompt_tokens=10, completion_tokens=10, total_tokens=20),
+                )
+            return super().create(**kwargs)
+
+    monkeypatch.setenv("RESEARCH_LLM_PROPOSAL", "on")
+    opened = []
+
+    def browse_at(url, *args, **kwargs):
+        opened.append(url)
+        return [], "browse:no_results", {"status": "browse:no_results"}
+
+    monkeypatch.setattr(browse_search, "search_browse_at", browse_at)
+    repo = _TrackingRepository(RuntimeDatabase(tmp_path / "platform-followup.sqlite"))
+    run = _pending_active_run(
+        repo, run_id="run_active_followup", query="What is the verified current release date?",
+        research_context=_active_context(), max_items=5,
+    )
+    client = Model()
+    completed = _service(
+        repo, client, search_backend=_EmptySearchBackend(), read_gateway=ResearchWebGateway(),
+    ).execute(run.id, raise_on_error=True)
+    assert client.proposals == 1
+    assert len(opened) == 1 and opened[0].startswith("https://search.bilibili.com/all")
+    assert any("platform:bilibili" in item.query for item in _cursor_from_run(completed).planned_queries)
