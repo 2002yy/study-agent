@@ -81,6 +81,18 @@ WEB_TOOLS = [
                 "maximum": 50,
                 "description": "Cap on discussion items to keep (0 means the browser default).",
             },
+            "start_seconds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600,
+                "description": "Video only: first second to read (0 is the start).",
+            },
+            "video_seconds": {
+                "type": "integer",
+                "minimum": 15,
+                "maximum": 600,
+                "description": "Video only: length of the section to read, in seconds.",
+            },
         },
         ["url"],
     ),
@@ -439,6 +451,8 @@ class WebToolAgent:
                 mode=str(arguments.get("mode", "auto")),
                 include_discussion=bool(arguments.get("include_discussion", False)),
                 max_comments=int(arguments.get("max_comments", 0)),
+                start_seconds=int(arguments.get("start_seconds", 0)),
+                video_seconds=int(arguments.get("video_seconds", 180)),
             )
         if name == "github_search":
             return self.gateway.github_search(

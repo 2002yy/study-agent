@@ -163,7 +163,7 @@ def test_video_mode_uses_the_video_reader(monkeypatch):
     monkeypatch.setattr(tool_gateway, "fetch_article_read_result", unexpected)
     monkeypatch.setattr(
         tool_gateway, "_read_video",
-        lambda url, max_chars, timeout: {
+        lambda url, max_chars, timeout, **kwargs: {
             "ok": True, "kind": "video", "url": url, "method": "sensevoice",
             "transcript": [{"start": 0, "end": 1, "text": "视频"}], "chars": 2,
         },
