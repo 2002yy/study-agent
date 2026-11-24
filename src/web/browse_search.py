@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import math
 import os
 from queue import Empty, Queue
 import re
@@ -279,7 +280,9 @@ def _execute(
                     "name": "execute",
                     "arguments": {
                         "code": script_input,
-                        "timeoutMs": max(1, int(budget * 1000)),
+                        # ceil keeps a 3 s call at 3000 ms: computing from the
+                        # remaining budget must not round 2.999 s down to 2999.
+                        "timeoutMs": max(1, math.ceil(budget * 1000)),
                     },
                 },
             },
