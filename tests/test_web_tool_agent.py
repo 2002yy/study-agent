@@ -80,7 +80,7 @@ def test_web_agent_formats_model_selected_results_as_context():
         def search(self, query, *, max_results):
             return [{"title": query, "url": "https://example.com", "source": "test"}]
 
-        def read(self, url, *, max_chars):
+        def read(self, url, *, max_chars, mode="auto"):
             return {"ok": "true", "url": url, "content": "page text"}
 
     def run_loop(messages, *, execute_tool, **kwargs):

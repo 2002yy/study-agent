@@ -375,15 +375,33 @@ def _canonical_read_error_code(reason: str) -> str:
     return _READ_ERROR_CODE_BY_REASON.get(value, "other")
 
 
-def _browse_read(url: str, max_chars: int, timeout: float) -> dict[str, Any] | None:
-    """One browse read attempt; a browser failure never breaks the read path."""
+def _browse_read(url: str, max_chars: int, timeout: float) -> dict[str, Any]:
+    """One browse read attempt; failures come back as a result, never a raise."""
 
     from src.web.browse_read import read_browse
 
     try:
         return read_browse(url, max_chars=max_chars, timeout=timeout)
-    except (OSError, ValueError, TypeError):
-        return None
+    except (OSError, ValueError, TypeError) as exc:
+        return {
+            "ok": False,
+            "kind": "web_page",
+            "url": url,
+            "method": "browse",
+            "error": f"{type(exc).__name__}: {exc}",
+            "error_code": "browse_failed",
+        }
+
+
+def _browse_read_available() -> bool:
+    """Browse reads are on by default; an explicit off switch still wins."""
+
+    raw = os.getenv("WEB_BROWSE_READ_ENABLED")
+    if raw is not None and raw.strip().lower() in {"0", "false", "no", "off"}:
+        return False
+    import shutil
+
+    return shutil.which("browse") is not None
 
 
 def _browse_short_read_chars() -> int:
@@ -1119,10 +1137,20 @@ class GeneralWebGateway:
         return merge_trace(outcome)
 
     def read(
-        self, url: str, *, max_chars: int = 6000, timeout: float | None = None
+        self, url: str, *, max_chars: int = 6000, timeout: float | None = None,
+        mode: str = "auto",
     ) -> dict[str, Any]:
         value = str(url or "").strip()
         from src.web.research.official_resolver import read_official_metadata
+
+        mode = str(mode or "auto").strip().lower()
+        if mode not in {"auto", "http", "browse"}:
+            return {
+                "ok": False,
+                "url": value,
+                "error": f"unknown read mode {mode!r}",
+                "error_code": "invalid_mode",
+            }
 
         # One budget for the whole read, not one budget per stage: the metadata
         # probe, the GitHub reader and the article fetcher must not each get the
@@ -1148,6 +1176,31 @@ class GeneralWebGateway:
                 "error": "read_timeout",
                 "error_code": "timeout",
             }
+
+        # A browser-first search must not be followed by a browser-last read.
+        # An explicit mode="browse" goes straight to the paired browser; the
+        # default "auto" keeps the cheap HTTP path first unless the deployment
+        # already chose browser_first.
+        browse_allowed = mode != "http" and _browse_read_available()
+        browse_tried = False
+        if mode == "browse" and not browse_allowed:
+            return {
+                "ok": False,
+                "kind": "web_page",
+                "url": value,
+                "method": "browse",
+                "error": "browse read is disabled",
+                "error_code": "browse_unavailable",
+            }
+        browse_first = browse_allowed and (
+            mode == "browse"
+            or (mode == "auto" and self.search_strategy == "browser_first")
+        )
+        if browse_first:
+            browse_tried = True
+            browsed = _browse_read(value, max_chars, remaining())
+            if browsed.get("ok") or mode == "browse":
+                return browsed
 
         # GitHub URLs are read by the GitHub reader. Probing the official-metadata
         # resolver first would spend part of the budget on a stage that cannot
@@ -1176,7 +1229,8 @@ class GeneralWebGateway:
             timeout=max(1, int(left)),
             max_chars=max(500, min(max_chars, 20_000)),
         )
-        browse_enabled = (
+        browse_enabled = browse_allowed and not browse_tried
+        browse_upgrade = browse_enabled and (
             self.search_strategy == "browser_first"
             or _env_flag("WEB_BROWSE_READ_ENABLED", False)
         )
@@ -1191,13 +1245,23 @@ class GeneralWebGateway:
                 refusal in {"unsafe_or_empty_url", "unsafe_redirect_target"}
                 or refusal.startswith("security_refused:")
             )
+            failure = {
+                "ok": False,
+                "url": result.requested_url,
+                "error": result.reason or "page_read_failed",
+                "error_code": _canonical_read_error_code(result.reason),
+            }
             # The paired browser already holds the user's session. It is free
             # and it is the only path that renders a JS-only page, so it runs
             # before the paid Fetch fallback and never against a refused URL.
             if not security_refused and browse_enabled and remaining() >= 0.5:
                 browsed = _browse_read(value, max_chars, remaining())
-                if browsed is not None:
+                if browsed.get("ok"):
                     return classify_video_page(browsed, value)
+                # Keep the browser's own diagnosis: a login wall, a challenge
+                # and a dead connection are different facts for the model.
+                failure["browse_error"] = browsed.get("error")
+                failure["browse_error_code"] = browsed.get("error_code")
             if (
                 not security_refused
                 and _env_flag("WEB_DEEPSEEK_FETCH_ENABLED")
@@ -1215,12 +1279,7 @@ class GeneralWebGateway:
                         "content": fetched["content"],
                         "title": fetched["title"],
                     }, value)
-            return {
-                "ok": False,
-                "url": result.requested_url,
-                "error": result.reason or "page_read_failed",
-                "error_code": _canonical_read_error_code(result.reason),
-            }
+            return failure
         response = {
             "ok": True,
             "kind": "web_page",
@@ -1234,12 +1293,15 @@ class GeneralWebGateway:
         # browser is already in play, ask it for the real body before giving up
         # on the page.
         if (
-            browse_enabled
+            browse_upgrade
             and len(str(result.text or "")) < _browse_short_read_chars()
             and remaining() >= 0.5
         ):
             browsed = _browse_read(value, max_chars, remaining())
-            if browsed is not None and len(browsed["content"]) > len(response["content"]):
+            if (
+                browsed.get("ok")
+                and len(browsed["content"]) > len(response["content"])
+            ):
                 return classify_video_page(browsed, value)
         return classify_video_page(response, value)
 
