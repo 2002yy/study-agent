@@ -106,9 +106,62 @@ def _failing_read(url: str, **kwargs):
     )
 
 
-def _ok_browse(url: str, max_chars: int, timeout: float) -> dict:
+def _ok_browse(url: str, max_chars: int, timeout: float, **kwargs) -> dict:
     return {"ok": True, "kind": "web_page", "url": url, "method": "browse",
             "content": "浏览器正文" * 100, "title": "T", "chars": 500}
+
+
+def test_discussion_is_optional_and_reported_as_partial(monkeypatch):
+    def run(script, url, timeout, **kwargs):
+        assert "INCLUDE_DISCUSSION" not in script
+        return ({"value": {
+            "url": "https://www.v2ex.com/t/1", "title": "T", "login": False,
+            "text": "正文" * 100,
+            "discussion": [
+                {"text": "评论一", "author": "a", "time": "1h", "depth": 0},
+                {"text": "评论一", "author": "a", "time": "1h", "depth": 0},
+                {"text": "评论二", "author": "b", "time": "2h", "depth": 1},
+            ],
+            "next_url": "https://www.v2ex.com/t/1?p=2",
+        }}, "")
+
+    monkeypatch.setattr(browse_read, "_execute", run)
+    result = read_browse(
+        "https://www.v2ex.com/t/1", include_discussion=True, max_comments=5
+    )
+    assert result["discussion_scope"]["may_be_partial"] is True
+    assert [item["text"] for item in result["discussion"]] == ["评论一", "评论二"]
+    assert result["next_url"].endswith("?p=2")
+
+
+def test_discussion_is_absent_unless_requested(monkeypatch):
+    monkeypatch.setattr(browse_read, "_execute", lambda *args, **kwargs: ({
+        "value": {"url": "https://example.com/", "login": False, "text": "正文" * 100},
+    }, ""))
+    result = read_browse("https://example.com/")
+    assert "discussion" not in result
+    assert "discussion_scope" not in result
+
+
+def test_discussion_requires_the_browser(monkeypatch):
+    monkeypatch.setattr(tool_gateway, "_browse_read_available", lambda: True)
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("plain HTTP cannot read a discussion")
+
+    monkeypatch.setattr(tool_gateway, "fetch_article_read_result", unexpected)
+    monkeypatch.setattr(
+        tool_gateway, "_browse_read",
+        lambda *args, **kwargs: {"ok": True, "kind": "web_page",
+                                 "url": "https://www.v2ex.com/t/1",
+                                 "method": "browse", "content": "正文", "chars": 2,
+                                 "discussion": [], "discussion_scope": {"page": 1}},
+    )
+    result = GeneralWebGateway(search_strategy="fallback").read(
+        "https://www.v2ex.com/t/1", timeout=5,
+        include_discussion=True, max_comments=3,
+    )
+    assert result["method"] == "browse"
 
 
 def test_a_failed_static_read_falls_back_to_browse(monkeypatch):

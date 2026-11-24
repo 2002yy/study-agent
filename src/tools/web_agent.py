@@ -71,6 +71,16 @@ WEB_TOOLS = [
                 "enum": ["auto", "http", "browse"],
                 "description": "auto: cheap reader with browser fallback; http: plain HTTP only; browse: render in the paired browser (dynamic pages, community threads).",
             },
+            "include_discussion": {
+                "type": "boolean",
+                "description": "Also read the visible comments/replies on the first page. Use only when the discussion matters; the result reports how many were read and that the thread may be partial.",
+            },
+            "max_comments": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 50,
+                "description": "Cap on discussion items to keep (0 means the browser default).",
+            },
         },
         ["url"],
     ),
@@ -427,6 +437,8 @@ class WebToolAgent:
                 str(arguments.get("url", "")),
                 max_chars=int(arguments.get("max_chars", 8000)),
                 mode=str(arguments.get("mode", "auto")),
+                include_discussion=bool(arguments.get("include_discussion", False)),
+                max_comments=int(arguments.get("max_comments", 0)),
             )
         if name == "github_search":
             return self.gateway.github_search(

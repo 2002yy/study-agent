@@ -375,13 +375,19 @@ def _canonical_read_error_code(reason: str) -> str:
     return _READ_ERROR_CODE_BY_REASON.get(value, "other")
 
 
-def _browse_read(url: str, max_chars: int, timeout: float) -> dict[str, Any]:
+def _browse_read(
+    url: str, max_chars: int, timeout: float,
+    *, include_discussion: bool = False, max_comments: int = 0,
+) -> dict[str, Any]:
     """One browse read attempt; failures come back as a result, never a raise."""
 
     from src.web.browse_read import read_browse
 
     try:
-        return read_browse(url, max_chars=max_chars, timeout=timeout)
+        return read_browse(
+            url, max_chars=max_chars, timeout=timeout,
+            include_discussion=include_discussion, max_comments=max_comments,
+        )
     except (OSError, ValueError, TypeError) as exc:
         return {
             "ok": False,
@@ -1138,12 +1144,15 @@ class GeneralWebGateway:
 
     def read(
         self, url: str, *, max_chars: int = 6000, timeout: float | None = None,
-        mode: str = "auto",
+        mode: str = "auto", include_discussion: bool = False,
+        max_comments: int = 0,
     ) -> dict[str, Any]:
         value = str(url or "").strip()
         from src.web.research.official_resolver import read_official_metadata
 
         mode = str(mode or "auto").strip().lower()
+        position = max(0, min(int(max_comments or 0), 50))
+        include_discussion = bool(include_discussion) and mode != "http"
         if mode not in {"auto", "http", "browse"}:
             return {
                 "ok": False,
@@ -1194,11 +1203,15 @@ class GeneralWebGateway:
             }
         browse_first = browse_allowed and (
             mode == "browse"
+            or include_discussion
             or (mode == "auto" and self.search_strategy == "browser_first")
         )
         if browse_first:
             browse_tried = True
-            browsed = _browse_read(value, max_chars, remaining())
+            browsed = _browse_read(
+                value, max_chars, remaining(),
+                include_discussion=include_discussion, max_comments=position,
+            )
             if browsed.get("ok") or mode == "browse":
                 return browsed
 
@@ -1255,7 +1268,10 @@ class GeneralWebGateway:
             # and it is the only path that renders a JS-only page, so it runs
             # before the paid Fetch fallback and never against a refused URL.
             if not security_refused and browse_enabled and remaining() >= 0.5:
-                browsed = _browse_read(value, max_chars, remaining())
+                browsed = _browse_read(
+                    value, max_chars, remaining(),
+                    include_discussion=include_discussion, max_comments=position,
+                )
                 if browsed.get("ok"):
                     return classify_video_page(browsed, value)
                 # Keep the browser's own diagnosis: a login wall, a challenge
@@ -1297,7 +1313,10 @@ class GeneralWebGateway:
             and len(str(result.text or "")) < _browse_short_read_chars()
             and remaining() >= 0.5
         ):
-            browsed = _browse_read(value, max_chars, remaining())
+            browsed = _browse_read(
+                value, max_chars, remaining(),
+                include_discussion=include_discussion, max_comments=position,
+            )
             if (
                 browsed.get("ok")
                 and len(browsed["content"]) > len(response["content"])
