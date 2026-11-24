@@ -429,6 +429,7 @@
       "tests/test_chat_research_run_owner.py",
       "tests/test_answer_publication_gate.py",
       "tests/test_semantic_recovery.py",
+      "tests/test_query_planning_instruction.py",
       "tests/test_answer_claim_turn_lifecycle.py",
       "tests/test_answer_phase_no_hidden_sdk_retry.py",
       "tests/test_web_lookup_stop_reason_recovery.py",

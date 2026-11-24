@@ -226,7 +226,8 @@ _TURN_INSTRUCTION = (
     # QP-1B: a planned query has to carry the entities and the task focus, otherwise
     # the engine answers a topic instead of the question (a character's dictionary
     # entry for a build question).
-    "Plan one to three short queries (2-8 meaningful terms), each bound to an RQ. "
+    "Plan 2 or 3 short queries (2-8 meaningful terms), each bound to an RQ. "
+    "For a single focused platform search, one query is enough. "
     "If the user asks to search on a specific platform, choose its site_key from enabled_platforms "
     "and keep the query as plain search terms without a site: filter. "
     "For example, 在B站找 selects bilibili and 在米游社找 selects miyoushe. Keep the game name for 米游社. "
