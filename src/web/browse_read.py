@@ -38,6 +38,11 @@ _DISCUSSION_HINTS = {
     "miyoushe.com": ".reply-card__content",
 }
 
+#: The card that holds the header (author/time) for a hinted content selector.
+_DISCUSSION_CARD_HINTS = {
+    "miyoushe.com": ".reply-card",
+}
+
 
 def _discussion_selector(url: str) -> str:
     host = (urlsplit(url).hostname or "").lower()
@@ -45,6 +50,14 @@ def _discussion_selector(url: str) -> str:
         if host == suffix or host.endswith("." + suffix):
             return selector
     return _DISCUSSION_SELECTOR
+
+
+def _discussion_card_selector(url: str) -> str:
+    host = (urlsplit(url).hostname or "").lower()
+    for suffix, selector in _DISCUSSION_CARD_HINTS.items():
+        if host == suffix or host.endswith("." + suffix):
+            return selector
+    return ""
 
 _ERROR_CODES = {
     "browse:human_action_required": ("browse_challenge", "the page asked for a human check"),
@@ -105,9 +118,12 @@ return await page.evaluate((limit) => {
       // The article itself and counters such as "1 2 ❮ ❯" are not replies.
       if (length >= 200 && bodyText.includes(raw.slice(0, 60))) continue;
       if (/^[\d\s•·:：/|]+$/.test(raw)) continue;
-      const metaScope = node.closest(
-        '[class*="reply-card" i],[class*="comment" i],[class*="reply" i]'
-      ) || node.parentElement || node;
+      const cardSelector = CARD_SELECTOR;
+      const metaScope = cardSelector
+        ? (node.closest(cardSelector) || node.parentElement || node)
+        : (node.parentElement && node.parentElement.closest(
+            '[class*="reply-card" i],[class*="comment" i],[class*="reply" i]'
+          )) || node.parentElement || node;
       const authorNode = metaScope.querySelector(
         '[rel="author"],[class*="author" i],[class*="user" i],[class*="name" i],a[href*="/member"],a[href*="/u/"],a[href*="/space"]'
       );
@@ -290,6 +306,7 @@ def read_browse(
             .replace("MAX_CHARS", str(limit))
             .replace("INCLUDE_DISCUSSION", "true" if include_discussion else "false")
             .replace("DISCUSSION_SELECTOR", json.dumps(_discussion_selector(attempt)))
+            .replace("CARD_SELECTOR", json.dumps(_discussion_card_selector(attempt)))
             .replace("DISC_LIMIT", str(max(30, wanted * 3)))
         )
         envelope, error = _execute(script, "", remaining)

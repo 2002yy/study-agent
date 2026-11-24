@@ -115,9 +115,13 @@ def test_a_discussion_hint_is_used_only_for_that_site():
     assert browse_read._discussion_selector(
         "https://www.miyoushe.com/sr/article/1"
     ) == ".reply-card__content"
+    assert browse_read._discussion_card_selector(
+        "https://www.miyoushe.com/sr/article/1"
+    ) == ".reply-card"
     assert browse_read._discussion_selector(
         "https://www.v2ex.com/t/1"
     ) == browse_read._DISCUSSION_SELECTOR
+    assert browse_read._discussion_card_selector("https://www.v2ex.com/t/1") == ""
 
 
 def test_discussion_is_optional_and_reported_as_partial(monkeypatch):
