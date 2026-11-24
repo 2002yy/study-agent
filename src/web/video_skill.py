@@ -82,7 +82,7 @@ def ocr_transcript(
         "source": "ocr",
         "engine": str(data.get("engine") or ""),
         "segments": segments,
-        "text": "\n".join(row["text"] for row in segments),
+        "text": "\n".join(str(row["text"]) for row in segments),
         "samples": int(data.get("samples") or 0),
         "completeness": data.get("completeness") or {},
         "chart_rows": data.get("chart_rows") or [],
