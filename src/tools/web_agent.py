@@ -68,8 +68,8 @@ WEB_TOOLS = [
             "max_chars": {"type": "integer", "minimum": 500, "maximum": 30000},
             "mode": {
                 "type": "string",
-                "enum": ["auto", "http", "browse"],
-                "description": "auto: cheap reader with browser fallback; http: plain HTTP only; browse: render in the paired browser (dynamic pages, community threads).",
+                "enum": ["auto", "http", "browse", "video"],
+                "description": "auto: cheap reader with browser fallback; http: plain HTTP only; browse: render in the paired browser (dynamic pages, community threads); video: read a Bilibili video's subtitles, or transcribe its audio with SenseVoice.",
             },
             "include_discussion": {
                 "type": "boolean",
