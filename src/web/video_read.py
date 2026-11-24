@@ -220,14 +220,24 @@ def _read_cache(cache: Path, max_chars: int) -> dict[str, Any] | None:
     rows = cached.get("transcript")
     if not isinstance(rows, list):
         return None
-    transcript = _trim(rows, max_chars)
+    transcript = _trim(rows, max(500, min(int(max_chars), 40_000)))
     if not transcript:
         return None
+    available = int(cached.get("available_chars") or 0)
+    if available <= 0:
+        available = sum(len(str(row.get("text") or "").strip())
+                        for row in rows if isinstance(row, dict))
+    kept = sum(len(row["text"]) for row in transcript)
+    scope = dict(cached.get("scope") or {})
+    # The cache keeps every row it fetched; this read may still be capped.
+    scope["chars_truncated"] = kept < available
+    scope["may_be_partial"] = bool(scope.get("may_be_partial") or scope["chars_truncated"])
+    cached["scope"] = scope
     cached["transcript"] = transcript
     cached["segments"] = transcript
     cached["text"] = "\n".join(row["text"] for row in transcript)
     cached["content"] = _project(transcript)
-    cached["chars"] = sum(len(row["text"]) for row in transcript)
+    cached["chars"] = kept
     cached["cached"] = True
     return cached
 
@@ -289,8 +299,14 @@ def read_video(
                 method = "subtitle"
         except subprocess.TimeoutExpired:
             rows = None
-        if rows and start:
-            rows = [row for row in rows if start <= float(row.get("start") or 0) < start + seconds]
+        if rows:
+            # Always clip to the requested window; a 0-second start is still a
+            # 60-second window, not "the whole video".
+            window_end = start + seconds
+            rows = [
+                row for row in rows
+                if start <= float(row.get("start") or 0) < window_end
+            ]
         if not rows:
             result = _transcript_from_asr(target, work, start, seconds, deadline)
             if "error_code" in result:
@@ -299,9 +315,15 @@ def read_video(
             method = "sensevoice"
 
         full = _trim(rows, 40_000)
-        transcript = _trim(full, max(1_000, min(int(max_chars), 40_000)))
+        transcript = _trim(full, max(500, min(int(max_chars), 40_000)))
         if not transcript:
             return _failure(target, "video_no_transcript", "the video produced no speech")
+        available_chars = sum(
+            len(str(row.get("text") or "").strip())
+            for row in rows if isinstance(row, dict)
+        )
+        kept_chars = sum(len(row["text"]) for row in transcript)
+        chars_truncated = kept_chars < available_chars
         duration = meta.get("duration")
         result = {
             "ok": True,
@@ -321,17 +343,21 @@ def read_video(
             # The existing evidence path reads `content`; keep one timestamped
             # projection so a video read is citable without a second system.
             "content": _project(transcript),
-            "chars": sum(len(row["text"]) for row in transcript),
+            "chars": kept_chars,
             "scope": {
                 "start": start,
                 "seconds": seconds,
-                "may_be_partial": bool(duration and duration > start + seconds),
+                "may_be_partial": bool(
+                    (duration and duration > start + seconds) or chars_truncated
+                ),
+                "chars_truncated": chars_truncated,
             },
             "cached": False,
         }
         try:
             payload = dict(result)
             payload["transcript"] = full
+            payload["available_chars"] = available_chars
             payload.pop("content", None)
             cache.parent.mkdir(parents=True, exist_ok=True)
             cache.write_text(json.dumps(payload, ensure_ascii=False) + "\n", encoding="utf-8")
