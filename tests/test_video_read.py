@@ -34,6 +34,13 @@ def test_vtt_cues_keep_their_timestamps():
     ]
 
 
+def test_vtt_inline_markup_is_stripped():
+    text = "WEBVTT\n\n00:00:00.000 --> 00:00:02.000\n<c>rust</c><00:00:01.000><c> memory</c>\n"
+    assert video_read._parse_vtt(text) == [
+        {"start": 0.0, "end": 2.0, "text": "rust memory"},
+    ]
+
+
 def test_a_cached_transcript_is_reused(monkeypatch, tmp_path):
     monkeypatch.setattr(video_read, "_cache_root", lambda: tmp_path)
     cached = {
@@ -215,6 +222,96 @@ def test_cached_speech_is_kept_when_ocr_is_added(monkeypatch, tmp_path):
     assert result["transcript"][0]["text"] == "已有语音"
     assert result["ocr"]["segments"][0]["text"] == "OCR"
     assert result["sources"] == {"speech": "sensevoice", "ocr": "ocr"}
+
+
+def test_rolling_auto_caption_duplicates_are_collapsed():
+    rows = [
+        {"start": 0.1, "end": 1.0, "text": "same line"},
+        {"start": 1.0, "end": 2.0, "text": "same line"},
+        {"start": 2.0, "end": 3.0, "text": "next line"},
+    ]
+    assert video_read._dedupe_cues(rows) == [
+        {"start": 0.1, "end": 2.0, "text": "same line"},
+        {"start": 2.0, "end": 3.0, "text": "next line"},
+    ]
+
+
+def test_youtube_ids_are_parsed():
+    assert video_read._youtube_id("https://www.youtube.com/watch?v=aircAruvnKk") == "aircAruvnKk"
+    assert video_read._youtube_id("https://youtu.be/aircAruvnKk") == "aircAruvnKk"
+    assert video_read._youtube_id("https://example.com/v/1") == ""
+
+
+def test_youtube_prefers_manual_and_labels_machine_tracks():
+    original = {"language": "en", "subtitles": {"en": [{}], "zh-CN": [{}]},
+                "automatic_captions": {}}
+    assert video_read._youtube_track(original) == {"kind": "manual", "language": "en"}
+    translated_manual = {"language": "en", "subtitles": {"zh-CN": [{}]},
+                         "automatic_captions": {}}
+    assert video_read._youtube_track(translated_manual) == {
+        "kind": "manual_translated", "language": "zh-CN"
+    }
+    translated = {"language": "en", "subtitles": {},
+                  "automatic_captions": {"zh-CN": [{}]}}
+    assert video_read._youtube_track(translated) == {
+        "kind": "auto_translated", "language": "zh-CN"
+    }
+    original_auto = {"language": "en", "subtitles": {},
+                     "automatic_captions": {"en": [{}]}}
+    assert video_read._youtube_track(original_auto) == {"kind": "auto", "language": "en"}
+    # A machine-translated track must not outrank the original language.
+    mixed = {"language": "en", "subtitles": {},
+             "automatic_captions": {"zh-Hans": [{}], "en": [{}]}}
+    assert video_read._youtube_track(mixed) == {"kind": "auto", "language": "en"}
+
+
+def test_youtube_without_subtitles_never_downloads_media(monkeypatch, tmp_path):
+    monkeypatch.setattr(video_read, "_cache_root", lambda: tmp_path)
+
+    def fake_run(args, timeout):
+        if "--dump-single-json" in args:
+            return SimpleNamespace(returncode=0, stderr="", stdout=json.dumps({
+                "title": "T", "duration": 100, "subtitles": {}, "automatic_captions": {},
+            }))
+        raise AssertionError("must not download audio or video")
+
+    monkeypatch.setattr(video_read, "_run", fake_run)
+    result = video_read.read_video("https://www.youtube.com/watch?v=aircAruvnKk")
+    assert result["ok"] is False
+    assert result["error_code"] == "video_no_subtitles"
+
+
+def test_youtube_subtitles_respect_the_window(monkeypatch, tmp_path):
+    monkeypatch.setattr(video_read, "_cache_root", lambda: tmp_path)
+
+    def fake_run(args, timeout):
+        if "--dump-single-json" in args:
+            return SimpleNamespace(returncode=0, stderr="", stdout=json.dumps({
+                "title": "T", "duration": 300, "language": "en",
+                "subtitles": {"en": [{"ext": "vtt"}]}, "automatic_captions": {},
+            }))
+        if "--write-subs" in args:
+            target = args[args.index("-o") + 1]
+            Path(target + ".en.vtt").write_text(
+                "WEBVTT\n\n00:00:10.000 --> 00:00:12.000\n前六十秒\n\n"
+                "00:02:00.000 --> 00:02:02.000\n两分钟以后\n",
+                encoding="utf-8",
+            )
+            return SimpleNamespace(returncode=0, stderr="", stdout="")
+        raise AssertionError("unexpected command")
+
+    monkeypatch.setattr(video_read, "_run", fake_run)
+    result = video_read.read_video(
+        "https://www.youtube.com/watch?v=aircAruvnKk", max_seconds=60, timeout=30
+    )
+    assert result["ok"] is True
+    assert result["platform"] == "youtube"
+    assert result["subtitle_type"] == "manual"
+    assert [row["text"] for row in result["transcript"]] == ["前六十秒"]
+    second = video_read.read_video(
+        "https://www.youtube.com/watch?v=aircAruvnKk", max_seconds=60, timeout=30
+    )
+    assert second["cached"] is True
 
 
 def test_a_video_read_is_citable_evidence():
