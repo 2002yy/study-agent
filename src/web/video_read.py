@@ -217,7 +217,7 @@ def _ocr_media(
                 "text": str(row.get("text") or "").strip(),
             })
     result["segments"] = shifted
-    result["text"] = "\n".join(row["text"] for row in shifted)
+    result["text"] = "\n".join(str(row["text"]) for row in shifted)
     return result
 
 
@@ -363,9 +363,9 @@ def read_video(
                     "error": download.get("error"),
                     "error_code": download["error_code"],
                 })
-            ocr = _ocr_media(download["path"], work, start, seconds, deadline)
-            _store_ocr(cache, ocr)
-            return _apply_ocr(cached, ocr)
+            cached_ocr = _ocr_media(download["path"], work, start, seconds, deadline)
+            _store_ocr(cache, cached_ocr)
+            return _apply_ocr(cached, cached_ocr)
         finally:
             shutil.rmtree(work, ignore_errors=True)
 
