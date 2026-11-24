@@ -156,6 +156,22 @@ def test_discussion_is_absent_unless_requested(monkeypatch):
     assert "discussion_scope" not in result
 
 
+def test_comments_mode_uses_the_comment_reader(monkeypatch):
+    monkeypatch.setattr(
+        tool_gateway, "_read_comments",
+        lambda url, page, limit, timeout: {
+            "ok": True, "kind": "comments", "url": url, "page": page,
+            "read": 1, "total": 1, "comments": [{"text": "评论"}],
+        },
+    )
+    result = GeneralWebGateway(search_strategy="fallback").read(
+        "https://www.bilibili.com/video/BV1oV4y187A1",
+        mode="comments", comment_page=3, timeout=10,
+    )
+    assert result["kind"] == "comments"
+    assert result["page"] == 3
+
+
 def test_video_mode_uses_the_video_reader(monkeypatch):
     def unexpected(*args, **kwargs):
         raise AssertionError("video mode must not run the article reader")

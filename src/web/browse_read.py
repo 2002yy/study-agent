@@ -36,11 +36,13 @@ _DISCUSSION_SELECTOR = (
 #: pagination, author/time) stays shared.
 _DISCUSSION_HINTS = {
     "miyoushe.com": ".reply-card__content",
+    "zhihu.com": ".RichText",
 }
 
 #: The card that holds the header (author/time) for a hinted content selector.
 _DISCUSSION_CARD_HINTS = {
     "miyoushe.com": ".reply-card",
+    "zhihu.com": ".AnswerItem",
 }
 
 
@@ -116,7 +118,9 @@ return await page.evaluate((limit) => {
       if (node.closest('[class*="pagination" i],nav,[role="navigation"],[class*="page_" i]')) continue;
       const raw = (node.innerText || '').replace(/\s+/g, ' ').trim();
       // The article itself and counters such as "1 2 ❮ ❯" are not replies.
-      if (length >= 200 && bodyText.includes(raw.slice(0, 60))) continue;
+      // A hinted site's container can include the answers inside the page
+      // body, so the body-substring rule would drop every answer there.
+      if (!CARD_SELECTOR && length >= 200 && bodyText.includes(raw.slice(0, 60))) continue;
       if (/^[\d\s•·:：/|]+$/.test(raw)) continue;
       const cardSelector = CARD_SELECTOR;
       const metaScope = cardSelector
@@ -184,7 +188,8 @@ def _tidy(text: str) -> str:
 
 
 _UI_NOISE = re.compile(
-    r"^(?:\d+\s*(?:条回复|comments?)|[\d\s•·:：/|‹›«»❮❯<>-]+)$"
+    r"^(?:\d+\s*(?:条回复|comments?)|另外\s*\d+\s*条回复|排序方式[：:]?|"
+    r"[\d\s•·:：/|‹›«»❮❯<>-]+)$"
     r"|\d+\s*条回复\s*[•·]|只看楼主|排序\s*[:：]|看帖是喜欢",
     re.I,
 )
@@ -210,6 +215,9 @@ def _discussion(value: dict[str, Any], max_comments: int) -> tuple[list[dict[str
             text = text[:800]
             if len(text) < 2 or _UI_NOISE.search(text):
                 continue
+            text = re.sub(r"\s*另外\s*\d+\s*条回复\s*$", "", text).strip()
+            if len(text) < 2:
+                continue
             key = text[:80]
             if key in seen:
                 continue
@@ -222,6 +230,10 @@ def _discussion(value: dict[str, Any], max_comments: int) -> tuple[list[dict[str
             })
             if max_comments and len(items) >= max_comments:
                 break
+    if items:
+        base = min(item["depth"] for item in items)
+        for item in items:
+            item["depth"] = max(0, item["depth"] - base)
     next_url = _public_url(value.get("next_url")) if isinstance(value.get("next_url"), str) else ""
     return items, next_url
 

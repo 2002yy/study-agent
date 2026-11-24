@@ -425,6 +425,23 @@ def _read_video(
         }
 
 
+def _read_comments(
+    url: str, page: int, limit: int, timeout: float,
+) -> dict[str, Any]:
+    from src.web.bilibili_comments import read_comments
+
+    try:
+        return read_comments(url, page=page, limit=limit, timeout=timeout)
+    except (OSError, ValueError, TypeError) as exc:
+        return {
+            "ok": False,
+            "kind": "comments",
+            "url": url,
+            "error": f"{type(exc).__name__}: {exc}",
+            "error_code": "comments_failed",
+        }
+
+
 def _browse_read_available() -> bool:
     """Browse reads are on by default; an explicit off switch still wins."""
 
@@ -1172,7 +1189,7 @@ class GeneralWebGateway:
         self, url: str, *, max_chars: int = 6000, timeout: float | None = None,
         mode: str = "auto", include_discussion: bool = False,
         max_comments: int = 0, start_seconds: int = 0, video_seconds: int = 180,
-        include_ocr: bool = False,
+        include_ocr: bool = False, comment_page: int = 1,
     ) -> dict[str, Any]:
         value = str(url or "").strip()
         from src.web.research.official_resolver import read_official_metadata
@@ -1180,7 +1197,7 @@ class GeneralWebGateway:
         mode = str(mode or "auto").strip().lower()
         position = max(0, min(int(max_comments or 0), 50))
         include_discussion = bool(include_discussion) and mode != "http"
-        if mode not in {"auto", "http", "browse", "video"}:
+        if mode not in {"auto", "http", "browse", "video", "comments"}:
             return {
                 "ok": False,
                 "url": value,
@@ -1217,6 +1234,8 @@ class GeneralWebGateway:
         # An explicit mode="browse" goes straight to the paired browser; the
         # default "auto" keeps the cheap HTTP path first unless the deployment
         # already chose browser_first.
+        if mode == "comments":
+            return _read_comments(value, comment_page, position or 20, remaining())
         if mode == "video":
             return _read_video(
                 value, max_chars, remaining(),
