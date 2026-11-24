@@ -6,6 +6,12 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-24 平台信源覆盖审计
+
+- 基线 `main@84f654ac3a805016a708b42ad1154339d4fcb8b4`（#637 已合并，主线 push CI 45387811942 首次查询在跑）。[平台清单与实测](research_quality/PLATFORM_SOURCE_COVERAGE_20261124.md)保存用户找回的早期候选、扩展清单、当前站点池及各站浏览器证据。
+- 免费 Browse 覆盖已接入和优先候选，复核搜索页面、目标相关性、详情和可见回复。米游社、掘金、知乎、GitHub 等可读对应正文样本。B 站只验证视频发现和标题。V2EX 当前搜索实际跳到版块页，修复传输后的五条链接不构成题目命中。Reddit 的搜索与详情仍可能分别成功、受限。没有付费调用和研究答案发布验收。
+- `priority=P2`、`loop=combined`、`owner=retrieval/platform-coverage`、`dynamic_evidence=browse_free_page_samples`、`budget_authorization=free_probes_only`、`decision=engineering-only`。本批是文档审计，生产代码无改动。下一片在现有 DeepSeek 决策层与站点池之间传递显式平台意图，使用 B 站、米游社及无站点约束的对照题验证派发。
+
 ### 2026-11-24 Study Agent 的 Browse 0.1.5 启动兼容
 
 - 基线 `main@e438b82cdbb3acece5438338ad077c1ccbdd5330`。B 站、米游社等站点已有仓库适配（`8630798b`、`d034d743`）；OpenCode 也注册通用 `browse mcp`。浏览器配对与站点选择各由既有入口负责。
