@@ -48,6 +48,9 @@ def test_a_cached_transcript_is_reused(monkeypatch, tmp_path):
     assert result["cached"] is True
     assert result["transcript"][0]["text"] == "缓存"
     assert result["content"] == "[00:00] 缓存"
+    # Same shape as video_study.py's transcript.json.
+    assert result["segments"] == result["transcript"]
+    assert result["text"] == "缓存"
 
 
 def test_the_cache_keeps_full_text_and_caps_only_the_output(monkeypatch, tmp_path):
