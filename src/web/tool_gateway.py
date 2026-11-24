@@ -375,6 +375,23 @@ def _canonical_read_error_code(reason: str) -> str:
     return _READ_ERROR_CODE_BY_REASON.get(value, "other")
 
 
+def _browse_read(url: str, max_chars: int, timeout: float) -> dict[str, Any] | None:
+    """One browse read attempt; a browser failure never breaks the read path."""
+
+    from src.web.browse_read import read_browse
+
+    try:
+        return read_browse(url, max_chars=max_chars, timeout=timeout)
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def _browse_short_read_chars() -> int:
+    from src.web.browse_read import SHORT_READ_CHARS
+
+    return SHORT_READ_CHARS
+
+
 def _github_release_default_timeout() -> float:
     """Budget for a GitHub release read when the caller names none.
 
@@ -1159,6 +1176,10 @@ class GeneralWebGateway:
             timeout=max(1, int(left)),
             max_chars=max(500, min(max_chars, 20_000)),
         )
+        browse_enabled = (
+            self.search_strategy == "browser_first"
+            or _env_flag("WEB_BROWSE_READ_ENABLED", False)
+        )
         if not result.ok:
             # Independent paid Fetch is a last-resort, explicitly enabled
             # fallback; never override an explicit safety refusal from the
@@ -1170,6 +1191,13 @@ class GeneralWebGateway:
                 refusal in {"unsafe_or_empty_url", "unsafe_redirect_target"}
                 or refusal.startswith("security_refused:")
             )
+            # The paired browser already holds the user's session. It is free
+            # and it is the only path that renders a JS-only page, so it runs
+            # before the paid Fetch fallback and never against a refused URL.
+            if not security_refused and browse_enabled and remaining() >= 0.5:
+                browsed = _browse_read(value, max_chars, remaining())
+                if browsed is not None:
+                    return classify_video_page(browsed, value)
             if (
                 not security_refused
                 and _env_flag("WEB_DEEPSEEK_FETCH_ENABLED")
@@ -1202,6 +1230,17 @@ class GeneralWebGateway:
         }
         if result.author:
             response["author"] = result.author
+        # A static reader can "succeed" with navigation chrome only. When the
+        # browser is already in play, ask it for the real body before giving up
+        # on the page.
+        if (
+            browse_enabled
+            and len(str(result.text or "")) < _browse_short_read_chars()
+            and remaining() >= 0.5
+        ):
+            browsed = _browse_read(value, max_chars, remaining())
+            if browsed is not None and len(browsed["content"]) > len(response["content"]):
+                return classify_video_page(browsed, value)
         return classify_video_page(response, value)
 
     def github_search(
