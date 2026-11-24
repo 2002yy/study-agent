@@ -53,10 +53,18 @@ def test_each_engine_uses_its_own_endpoint_selector_and_origin(monkeypatch):
     captured: list[str] = []
 
     def run(command, **kwargs):
+        script = execute_request(kwargs["input"])["code"]
+        if "const targets = " in script:
+            return execute_response({"urls": ["https://sqlite.org/wal.html"]})
         captured.clear()
-        captured.append(execute_request(kwargs["input"])["code"])
+        captured.append(script)
+        url = (
+            "https://search.brave.com/go/v1#token"
+            if "search.brave.com/search?" in script
+            else "https://sqlite.org/wal.html"
+        )
         return execute_response({"results": [
-            {"title": "SQLite WAL", "url": "https://sqlite.org/wal.html"},
+            {"title": "SQLite WAL", "url": url},
         ]})
 
     monkeypatch.setattr(browse_search, "_run_mcp", run)
@@ -114,6 +122,108 @@ def test_a_bing_redirect_wrapper_is_unwrapped_before_citation():
     assert browse_search._result_url("https://www.bing.com/ck/a?u=invalid", "bing") == ""
     private = base64.urlsafe_b64encode(b"http://127.0.0.1:8080/secret").decode()
     assert browse_search._result_url(f"https://www.bing.com/ck/a?u=a1{private}", "bing") == ""
+
+
+def test_brave_wrappers_are_resolved_before_citation(monkeypatch):
+    monkeypatch.setattr(browse_search.shutil, "which", lambda name: "browse")
+    scripts: list[str] = []
+
+    def run(command, **kwargs):
+        script = execute_request(kwargs["input"])["code"]
+        scripts.append(script)
+        if "const targets = " in script:
+            return execute_response(
+                {"urls": ["https://www.sqlite.org/wal.html", ""]}
+            )
+        return execute_response({"results": [
+            {"title": "WAL", "url": "https://search.brave.com/go/v1#a"},
+            {"title": "still wrapped", "url": "https://search.brave.com/go/v1#b"},
+        ]})
+
+    monkeypatch.setattr(browse_search, "_run_mcp", run)
+    rows, error = browse_search.search_browse("SQLite WAL", 5, 3, engine="brave")
+    assert error == ""
+    assert [row["url"] for row in rows] == ["https://www.sqlite.org/wal.html"]
+    assert any("const targets = " in script for script in scripts)
+
+
+def test_a_brave_redirect_wrapper_is_not_a_citation():
+    wrapper = "https://search.brave.com/go/v1#AUCBCVLQ2m-FawW_wAEDzbIu_TXZbdIL7GB"
+    assert browse_search._result_url(wrapper, "brave") == ""
+    # A plain public URL from any engine still passes.
+    assert browse_search._result_url("https://sqlite.org/wal.html", "brave") == (
+        "https://sqlite.org/wal.html"
+    )
+
+
+def _error_response(text: str) -> str:
+    return json.dumps({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {"isError": True, "content": [{"type": "text", "text": text}]},
+    })
+
+
+def test_a_relay_detach_is_retried_once(monkeypatch):
+    monkeypatch.setattr(browse_search.shutil, "which", lambda name: "browse")
+    calls: list[str] = []
+
+    def run(command, **kwargs):
+        calls.append(kwargs["input"])
+        if len(calls) == 1:
+            return _error_response(
+                "Error: The tab closed, or browse lost its connection to it "
+                "while the command ran (Detached while handling command.)"
+            )
+        return execute_response({"results": [
+            {"title": "SQLite WAL", "url": "https://sqlite.org/wal.html"},
+        ]})
+
+    monkeypatch.setattr(browse_search, "_run_mcp", run)
+    rows, error = browse_search.search_browse("SQLite WAL", 5, 3)
+    assert error == ""
+    assert len(calls) == 2
+    assert [row["url"] for row in rows] == ["https://sqlite.org/wal.html"]
+
+
+def test_a_challenge_is_not_retried(monkeypatch):
+    monkeypatch.setattr(browse_search.shutil, "which", lambda name: "browse")
+    calls: list[str] = []
+
+    def run(command, **kwargs):
+        calls.append(kwargs["input"])
+        return _error_response("Captcha: human action required")
+
+    monkeypatch.setattr(browse_search, "_run_mcp", run)
+    assert browse_search.search_browse("SQLite WAL", 5, 3) == (
+        [], "browse:human_action_required"
+    )
+    assert len(calls) == 1
+
+
+def test_brave_resolution_is_capped_at_three(monkeypatch):
+    monkeypatch.setattr(browse_search.shutil, "which", lambda name: "browse")
+
+    def run(command, **kwargs):
+        script = execute_request(kwargs["input"])["code"]
+        if "const targets = " in script:
+            assert script.count("https://search.brave.com/go/v1#") == 3
+            return execute_response({"urls": [
+                "https://a.example/1",
+                "https://a.example/2",
+                "https://a.example/3",
+            ]})
+        return execute_response({"results": [
+            {"title": f"result {index}", "url": f"https://search.brave.com/go/v1#{index}"}
+            for index in range(5)
+        ]})
+
+    monkeypatch.setattr(browse_search, "_run_mcp", run)
+    rows, error = browse_search.search_browse("SQLite WAL", 5, 20, engine="brave")
+    assert error == ""
+    assert [row["url"] for row in rows] == [
+        "https://a.example/1", "https://a.example/2", "https://a.example/3",
+    ]
 
 
 def test_stdio_challenge_is_reported_without_using_results(monkeypatch):

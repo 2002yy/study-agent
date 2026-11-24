@@ -43,12 +43,13 @@ _ENGINES: dict[str, tuple[str, str, str]] = {
     ),
 }
 
-_ENGINE_SCRIPT = """
+_ENGINE_SCRIPT = r"""
 await page.goto(SEARCH_URL, {waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS});
 await snapshot();
-const expected = new URL(SEARCH_URL);
-const actual = new URL(page.url());
-if (!ALLOWED_ORIGINS.includes(actual.origin) || actual.pathname !== expected.pathname) {
+// The execute sandbox has no URL global; parse on the page side instead.
+const landed = await page.evaluate(() => ({origin: location.origin, pathname: location.pathname}));
+const expectedPath = SEARCH_URL.split('?')[0].replace(/^https?:\/\/[^/]+/, '');
+if (!ALLOWED_ORIGINS.includes(landed.origin) || landed.pathname !== expectedPath) {
   // A redirect away from the engine's own result page is never trusted.
   return {blocked: true, results: []};
 }
@@ -65,9 +66,43 @@ return await page.evaluate(() => ({
 """
 
 
+_BRAVE_RESOLVE_SCRIPT = r"""
+const targets = WRAPPER_URLS;
+const out = [];
+const tab = await context.newPage();
+try {
+  for (const target of targets) {
+    let finalUrl = "";
+    try {
+      await tab.goto(target, {waitUntil: 'domcontentloaded', timeout: PER_NAV_MS});
+      for (let i = 0; i < POLL_STEPS; i++) {
+        const current = tab.url();
+        if (current && current.indexOf('/go/') === -1) { finalUrl = current; break; }
+        await tab.waitForTimeout(100);
+      }
+      if (!finalUrl) finalUrl = tab.url();
+    } catch (error) {
+      finalUrl = "";
+    }
+    out.push(finalUrl);
+  }
+} finally {
+  try { await tab.close(); } catch (error) {}
+}
+return {urls: out};
+"""
+
+
 def _result_url(value: object, engine: str) -> str:
     """Resolve an engine's own redirect wrapper before validating the URL."""
 
+    if engine == "brave" and isinstance(value, str):
+        # Brave wraps every result in /go/v1#<opaque token>; the target is not
+        # in the DOM, and following the wrapper is a tracking hop. It is not a
+        # citable URL, so it is dropped instead of being published as a source.
+        parsed = urlsplit(value)
+        if parsed.hostname == "search.brave.com" and parsed.path.startswith("/go/"):
+            return ""
     if engine != "bing" or not isinstance(value, str):
         return _public_url(value)
     parsed = urlsplit(value)
@@ -194,6 +229,7 @@ def _run_mcp(command: list[str], *, input: str, timeout: float) -> str:
 def _execute(
     script: str, url: str, timeout: float, *, selector: str = "",
     origins: tuple[str, ...] = (), wait_for: str = "",
+    urls: tuple[str, ...] = (), deadline: float = 0.0,
 ) -> tuple[dict[str, Any] | None, str]:
     executable = shutil.which("browse")
     if not executable:
@@ -204,6 +240,7 @@ def _execute(
         script.replace("SEARCH_URL", json.dumps(url))
         .replace("RESULT_SELECTOR", json.dumps(selector))
         .replace("WAIT_FOR_SELECTOR", json.dumps(wait_for))
+        .replace("WRAPPER_URLS", json.dumps(list(urls)))
         .replace("ALLOWED_ORIGINS", json.dumps(list(origins)))
         .replace("NAV_TIMEOUT_MS", str(max(1500, int(timeout * 600))))
         .replace("WAIT_FOR_MS", str(max(1000, min(6000, int(timeout * 1000 / 2)))))
@@ -212,38 +249,57 @@ def _execute(
     # Use the same stdio transport as OpenCode. Script and query data stay off
     # the command line, including on Windows where npm installs a .cmd shim.
     script_input = "try {\n" + body + "\n} finally { try { await page.close(); } catch {} }"
-    requests = (
-        {
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "study-agent", "version": "1"},
-            },
-        },
-        {"method": "notifications/initialized"},
-        {
-            "id": 2,
-            "method": "tools/call",
-            "params": {
-                "name": "execute",
-                "arguments": {
-                    "code": script_input,
-                    "timeoutMs": max(1, int(timeout * 1000)),
+    # A relay or tab detach is a transport hiccup, not a site verdict: retry it
+    # once. Challenge, login walls, permission errors, cancellation, budget
+    # exhaustion and a normal empty result are never retried.
+    transient = re.compile(
+        r"detached while handling|tab closed|lost its connection", re.I
+    )
+    for attempt in range(2):
+        budget = timeout
+        if deadline:
+            budget = min(timeout, deadline - time.monotonic())
+            if budget < 1:
+                return None, "browse:timeout"
+        requests = (
+            {
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "study-agent", "version": "1"},
                 },
             },
-        },
-    )
-    try:
-        line = _run_mcp(
-            [executable, "mcp"],
-            input="".join(json.dumps({"jsonrpc": "2.0", **msg}) + "\n" for msg in requests),
-            timeout=timeout + 1,
+            {"method": "notifications/initialized"},
+            {
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "execute",
+                    "arguments": {
+                        "code": script_input,
+                        "timeoutMs": max(1, int(budget * 1000)),
+                    },
+                },
+            },
         )
+        try:
+            line = _run_mcp(
+                [executable, "mcp"],
+                input="".join(json.dumps({"jsonrpc": "2.0", **msg}) + "\n" for msg in requests),
+                timeout=budget + 1,
+            )
+        except subprocess.TimeoutExpired:
+            return None, "browse:timeout"
+        except (OSError, ValueError, TypeError):
+            return None, "browse:invalid_response"
         if not line:
             return None, "browse:execution_failed"
-        response = json.loads(line)
+        try:
+            response = json.loads(line)
+        except ValueError:
+            return None, "browse:invalid_response"
         result = response.get("result")
         if not isinstance(result, dict):
             return None, "browse:execution_failed"
@@ -258,18 +314,22 @@ def _execute(
         if result.get("isError"):
             if re.search(r"\b(?:captcha|bot challenge|human action required)\b", messages, re.I):
                 return None, "browse:human_action_required"
+            if attempt == 0 and transient.search(messages):
+                if deadline and deadline - time.monotonic() < 2:
+                    return None, "browse:execution_failed"
+                continue
             return None, "browse:execution_failed"
-        value, boundary = json.JSONDecoder().raw_decode(messages)
+        try:
+            value, boundary = json.JSONDecoder().raw_decode(messages)
+        except ValueError:
+            return None, "browse:invalid_response"
         if re.search(r"(?im)^\s*(?:bot challenge|challenge|handoff|human action required)\b",
                      messages[boundary:]):
             return None, "browse:human_action_required"
         if isinstance(value, dict):
             return {"value": value}, ""
         return None, "browse:invalid_response"
-    except subprocess.TimeoutExpired:
-        return None, "browse:timeout"
-    except (OSError, ValueError, TypeError):
-        return None, "browse:invalid_response"
+    return None, "browse:execution_failed"
 
 
 def search_browse(
@@ -293,8 +353,10 @@ def search_browse(
     else:
         origins = (f"{parsed.scheme}://{parsed.netloc}",)
     url = endpoint + "?" + urlencode({"q": query})
+    deadline = time.monotonic() + timeout
     envelope, error = _execute(
-        _ENGINE_SCRIPT, url, timeout, selector=selector, origins=origins
+        _ENGINE_SCRIPT, url, timeout, selector=selector, origins=origins,
+        deadline=deadline,
     )
     if envelope is None:
         return [], error
@@ -304,11 +366,36 @@ def search_browse(
     value = envelope["value"]
     if value.get("blocked"):
         return [], "browse:human_action_required"
+    raw_results = [item for item in value.get("results", []) if isinstance(item, dict)]
+    resolved: list[str] = []
+    if chosen == "brave" and raw_results:
+        # Brave wraps every result in a tracker. Resolve at most three, and
+        # share the one remaining budget across the batch instead of giving
+        # each link the full timeout again. A link that fails keeps the ones
+        # already resolved.
+        wrappers = tuple(
+            str(item.get("url") or "") for item in raw_results[:3]
+        )
+        remaining = max(2.0, deadline - time.monotonic())
+        per_nav = max(1500, min(8000, int(remaining * 1000 / max(1, len(wrappers)))))
+        script = _BRAVE_RESOLVE_SCRIPT.replace("PER_NAV_MS", str(per_nav)).replace(
+            "POLL_STEPS", str(max(10, per_nav // 100))
+        )
+        envelope, error = _execute(
+            script, "", remaining, urls=wrappers, deadline=deadline
+        )
+        if envelope is None:
+            return [], error
+        resolved = [
+            item for item in envelope["value"].get("urls", []) if isinstance(item, str)
+        ]
     rows: list[dict[str, str]] = []
-    for item in value.get("results", []):
-        if not isinstance(item, dict):
-            continue
-        public = _result_url(item.get("url"), chosen)
+    for index, item in enumerate(raw_results):
+        if index < len(resolved) and resolved[index]:
+            candidate: object = resolved[index]
+        else:
+            candidate = item.get("url")
+        public = _result_url(candidate, chosen)
         title = item.get("title")
         if public and isinstance(title, str) and title.strip():
             rows.append({"title": title[:500], "url": public,
