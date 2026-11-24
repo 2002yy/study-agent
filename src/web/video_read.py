@@ -193,14 +193,32 @@ def _transcribe_media(media: Path, work: Path, start: int, deadline: float) -> d
     return {"rows": shifted}
 
 
-def _ocr_media(media: Path, work: Path, deadline: float) -> dict[str, Any]:
+def _ocr_media(
+    media: Path, work: Path, start: int, seconds: int, deadline: float,
+) -> dict[str, Any]:
     from src.web.video_skill import ocr_transcript
 
     remaining = deadline - time.monotonic()
     if remaining < _MIN_BUDGET:
         return {"ok": False, "error_code": "video_no_budget",
                 "error": "no time left for OCR"}
-    return ocr_transcript(media, work / "ocr", timeout=remaining)
+    result = ocr_transcript(media, work / "ocr", timeout=remaining)
+    if not result.get("ok"):
+        return result
+    shifted = []
+    for row in result.get("segments") or []:
+        if not isinstance(row, dict):
+            continue
+        begin = start + float(row.get("start") or 0)
+        if start <= begin < start + seconds:
+            shifted.append({
+                "start": round(begin, 2),
+                "end": round(start + float(row.get("end") or 0), 2),
+                "text": str(row.get("text") or "").strip(),
+            })
+    result["segments"] = shifted
+    result["text"] = "\n".join(row["text"] for row in shifted)
+    return result
 
 
 def _trim(rows: list[Any], max_chars: int) -> list[dict[str, Any]]:
@@ -229,6 +247,51 @@ def _project(transcript: list[dict[str, Any]]) -> str:
     return "\n".join(f"[{_clock(row['start'])}] {row['text']}" for row in transcript)
 
 
+def _content(transcript: list[dict[str, Any]], ocr: dict[str, Any] | None) -> str:
+    """Speech first; burned-in captions are prepended with an explicit label.
+
+    Research briefs and evidence snippets read ``content``; without this the
+    OCR text would stay in JSON and never reach the answer context.
+    """
+
+    speech = _project(transcript)
+    if not (ocr and ocr.get("ok")):
+        return speech
+    text = str(ocr.get("text") or "").strip()
+    if not text:
+        return speech
+    return f"[画面字幕 OCR]\n{text[:2000]}\n\n[语音转写]\n{speech}"
+
+
+def _apply_ocr(result: dict[str, Any], ocr: dict[str, Any]) -> dict[str, Any]:
+    ok = bool(ocr.get("ok"))
+    result["ocr"] = ocr if ok else None
+    result["ocr_error"] = None if ok else {
+        "error": ocr.get("error"),
+        "error_code": ocr.get("error_code"),
+    }
+    sources = dict(result.get("sources") or {})
+    sources.setdefault("speech", str(result.get("method") or ""))
+    sources["ocr"] = "ocr" if ok else ""
+    result["sources"] = sources
+    transcript = result.get("transcript")
+    if isinstance(transcript, list):
+        result["content"] = _content(transcript, ocr)
+    return result
+
+
+def _store_ocr(cache: Path, ocr: dict[str, Any]) -> None:
+    try:
+        payload = json.loads(cache.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    payload = _apply_ocr(payload, ocr)
+    try:
+        cache.write_text(json.dumps(payload, ensure_ascii=False) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def _read_cache(cache: Path, max_chars: int) -> dict[str, Any] | None:
     try:
         cached = json.loads(cache.read_text(encoding="utf-8"))
@@ -253,7 +316,7 @@ def _read_cache(cache: Path, max_chars: int) -> dict[str, Any] | None:
     cached["transcript"] = transcript
     cached["segments"] = transcript
     cached["text"] = "\n".join(row["text"] for row in transcript)
-    cached["content"] = _project(transcript)
+    cached["content"] = _content(transcript, cached.get("ocr"))
     cached["chars"] = kept
     cached["cached"] = True
     return cached
@@ -282,10 +345,29 @@ def read_video(
     # poison a later, larger read of the same section.
     cache = _cache_root() / f"bili-{video_id}-p{part}-{start}-{seconds}.json"
     cached = _read_cache(cache, max_chars)
-    # A speech-only cache cannot answer an OCR request; that run is repeated
-    # once and replaces the file, so no duplicate copy is kept.
-    if cached is not None and (not include_ocr or cached.get("ocr")):
-        return cached
+    if cached is not None:
+        if not include_ocr or cached.get("ocr"):
+            return cached
+        # Speech is already cached. Only the video track and OCR are needed;
+        # do not re-download audio or re-run transcription.
+        deadline = time.monotonic() + float(timeout)
+        work = _cache_root() / f"bili-{video_id}-p{part}-{start}-{seconds}.work"
+        work.mkdir(parents=True, exist_ok=True)
+        try:
+            download = _download_section(
+                target, work, start, seconds, video=True, deadline=deadline,
+            )
+            if "error_code" in download:
+                return _apply_ocr(cached, {
+                    "ok": False,
+                    "error": download.get("error"),
+                    "error_code": download["error_code"],
+                })
+            ocr = _ocr_media(download["path"], work, start, seconds, deadline)
+            _store_ocr(cache, ocr)
+            return _apply_ocr(cached, ocr)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
 
     deadline = time.monotonic() + float(timeout)
     work = _cache_root() / f"bili-{video_id}-p{part}-{start}-{seconds}.work"
@@ -356,7 +438,7 @@ def read_video(
                 ocr = {"ok": False, "error_code": "video_no_media",
                        "error": "a video track was required for OCR"}
             else:
-                ocr = _ocr_media(media, work, deadline)
+                ocr = _ocr_media(media, work, start, seconds, deadline)
 
         full = _trim(rows, 40_000)
         transcript = _trim(full, max(500, min(int(max_chars), 40_000)))
@@ -386,7 +468,7 @@ def read_video(
             "text": "\n".join(row["text"] for row in transcript),
             # The existing evidence path reads `content`; keep one timestamped
             # projection so a video read is citable without a second system.
-            "content": _project(transcript),
+            "content": _content(transcript, ocr),
             "chars": kept_chars,
             "sources": {
                 "speech": method,

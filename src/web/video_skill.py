@@ -47,7 +47,7 @@ def ocr_transcript(
              "--ocr-subtitles", "--ocr-interval", str(interval),
              "--skip-transcribe", "--mock-analysis", "--ocr-engine", "auto"],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=max(5, int(timeout)), env=env,
+            timeout=max(1, int(timeout)), env=env,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except subprocess.TimeoutExpired:
