@@ -1319,7 +1319,7 @@ class GeneralWebGateway:
             )
             if (
                 browsed.get("ok")
-                and len(browsed["content"]) > len(response["content"])
+                and len(str(browsed["content"])) > len(str(response.get("content") or ""))
             ):
                 return classify_video_page(browsed, value)
         return classify_video_page(response, value)

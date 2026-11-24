@@ -252,7 +252,7 @@ def _payload(
     value: dict[str, Any], final: str, limit: int,
     *, include_discussion: bool, max_comments: int,
 ) -> dict[str, Any]:
-    text = _tidy(value.get("text"))[:limit]
+    text = _tidy(str(value.get("text") or ""))[:limit]
     if value.get("login") and len(text) < SHORT_READ_CHARS:
         return _failure(final, "browse_login_wall", "the page requires a login")
     if len(text) < 80:
