@@ -4,7 +4,14 @@
 >
 > **产品目标**：体验接近 ChatGPT 的通用聊天与研究 Agent，覆盖自然聊天、自主研究、持续交互、智能 UI、多模态和工具执行；教学是专业场景。**部署仍限可信环境的单用户**；多用户身份/数据/费用隔离未实现。
 
-## 0. Current Handoff（2026-11-23，冷启动）
+## 0. Current Handoff（2026-11-24，冷启动）
+
+### 2026-11-24 Study Agent 的 Browse 0.1.5 启动兼容
+
+- 基线 `main@e438b82cdbb3acece5438338ad077c1ccbdd5330`。B 站、米游社等站点已有仓库适配（`8630798b`、`d034d743`）；OpenCode 也注册通用 `browse mcp`。浏览器配对与站点选择各由既有入口负责。
+- 实测插件可访问站内搜索，但基线的三个站点由应用入口发起均失败。已安装的 Browse 0.1.5 拒绝旧 `execute --rm`；一次性关闭 stdio 的替代探针在等待页面时也提前结束。修复复用 OpenCode 同一 stdio 工具入口，等待 tools/call 回应再关输入；浏览器用脚本清理自己的标签并维持时间限制、结果 URL 过滤与验证墙处理。
+- 精确本地源码的 Study Agent 网站搜索入口实测 B 站、米游社、V2EX 各得 5 个有效结果。浏览器退出后无保留的测试标签。默认检索策略与站点名单沿用现有配置。普通 HTTP 可读取一个 B 站视频公开元信息样本；同一米游社攻略的普通 HTTP 正文为空，浏览器读取约 3402 字。DeepSeek 平台样本按用户本轮要求未额外付费调用。
+- 分支 `codex/browse-cli-compat-20261124`。影响集 120 项通过，包括延迟返回的 stdio 负控、验证墙和私有 URL 过滤；Ruff、diff-check、mypy 115/125 通过。 `priority=P1`、`loop=combined`、`owner=retrieval/browser-transport`、`dynamic_evidence=real_site_search_only`、`budget_authorization=free_probes_only`、`decision=engineering-only`。端到端付费答案生成未运行，精确 HEAD CI 和评审仍为合并门禁。
 
 ### 2026-11-23 模型 URL 提案的执行上下文（第七片）
 
