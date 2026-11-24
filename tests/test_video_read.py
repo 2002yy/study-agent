@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 from src.web import video_read
@@ -55,8 +56,8 @@ def test_a_cached_transcript_is_reused(monkeypatch, tmp_path):
 
 def test_the_cache_keeps_full_text_and_caps_only_the_output(monkeypatch, tmp_path):
     monkeypatch.setattr(video_read, "_cache_root", lambda: tmp_path)
-    rows = [{"start": 0, "end": 1, "text": "字" * 100},
-            {"start": 1, "end": 2, "text": "词" * 100}]
+    rows = [{"start": 0, "end": 1, "text": "字" * 400},
+            {"start": 1, "end": 2, "text": "词" * 400}]
     (tmp_path / "bili-BV1Va4y167wd-p1-0-60.json").write_text(
         json.dumps({"ok": True, "kind": "video", "url": URL,
                     "video_id": "BV1Va4y167wd", "part": 1, "method": "sensevoice",
@@ -64,12 +65,44 @@ def test_the_cache_keeps_full_text_and_caps_only_the_output(monkeypatch, tmp_pat
                    ensure_ascii=False),
         encoding="utf-8",
     )
-    small = video_read.read_video(URL, max_chars=150, max_seconds=60)
+    small = video_read.read_video(URL, max_chars=500, max_seconds=60)
     large = video_read.read_video(URL, max_chars=1000, max_seconds=60)
     assert len(small["transcript"]) == 1
+    assert small["scope"]["chars_truncated"] is True
+    assert small["scope"]["may_be_partial"] is True
     assert len(large["transcript"]) == 2
+    assert large["scope"]["chars_truncated"] is False
     # The second read must not reuse the first read's truncation.
-    assert sum(len(row["text"]) for row in large["transcript"]) == 200
+    assert sum(len(row["text"]) for row in large["transcript"]) == 800
+
+
+def test_subtitles_are_clipped_to_a_zero_start_window(monkeypatch, tmp_path):
+    monkeypatch.setattr(video_read, "_cache_root", lambda: tmp_path)
+
+    def fake_run(args, timeout):
+        if "--dump-single-json" in args:
+            return SimpleNamespace(
+                returncode=0, stderr="",
+                stdout=json.dumps({
+                    "title": "T", "duration": 300,
+                    "subtitles": {"zh-CN": [{"ext": "vtt"}]},
+                }),
+            )
+        if "--write-subs" in args:
+            target = args[args.index("-o") + 1]
+            Path(target + ".zh-CN.vtt").write_text(
+                "WEBVTT\n\n00:00:10.000 --> 00:00:12.000\n前六十秒\n\n"
+                "00:02:00.000 --> 00:02:02.000\n两分钟以后\n",
+                encoding="utf-8",
+            )
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(video_read, "_run", fake_run)
+    result = video_read.read_video(URL, max_seconds=60, timeout=30)
+    assert result["ok"] is True
+    assert [row["text"] for row in result["transcript"]] == ["前六十秒"]
+    assert result["transcript"][0]["start"] == 10.0
 
 
 def test_a_different_part_does_not_hit_the_first_part_cache(monkeypatch, tmp_path):
