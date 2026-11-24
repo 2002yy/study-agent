@@ -164,7 +164,51 @@ def test_ocr_is_returned_as_a_separate_source(monkeypatch, tmp_path):
     assert result["transcript"][0]["text"] == "语音内容"
     assert result["ocr"]["segments"][0]["text"] == "原神"
     assert result["sources"] == {"speech": "sensevoice", "ocr": "ocr"}
-    assert result["content"] == "[00:00] 语音内容"
+    assert result["content"].startswith("[画面字幕 OCR]\n原神")
+    assert "[00:00] 语音内容" in result["content"]
+
+
+def test_ocr_timestamps_are_moved_to_video_time(monkeypatch, tmp_path):
+    import time as _time
+    from src.web import video_skill
+
+    monkeypatch.setattr(video_skill, "ocr_transcript", lambda *a, **k: {
+        "ok": True, "segments": [
+            {"start": 0, "end": 3, "text": "片内 0 秒"},
+            {"start": 30, "end": 33, "text": "片内 30 秒"},
+        ],
+        "text": "片内",
+    })
+    result = video_read._ocr_media(
+        tmp_path / "clip.mp4", tmp_path, 180, 60, _time.monotonic() + 30
+    )
+    assert [row["start"] for row in result["segments"]] == [180.0, 210.0]
+
+
+def test_cached_speech_is_kept_when_ocr_is_added(monkeypatch, tmp_path):
+    monkeypatch.setattr(video_read, "_cache_root", lambda: tmp_path)
+    (tmp_path / "bili-BV1Va4y167wd-p1-0-60.json").write_text(
+        json.dumps({"ok": True, "kind": "video", "url": URL,
+                    "video_id": "BV1Va4y167wd", "part": 1, "method": "sensevoice",
+                    "transcript": [{"start": 0, "end": 20, "text": "已有语音"}],
+                    "chars": 4, "scope": {"start": 0, "seconds": 60}},
+                   ensure_ascii=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(video_read, "_download_section", lambda *a, **k: {"path": tmp_path / "clip.mp4"})
+    monkeypatch.setattr(video_read, "_ocr_media", lambda *a, **k: {
+        "ok": True, "segments": [{"start": 0, "end": 3, "text": "OCR"}], "text": "OCR",
+    })
+    monkeypatch.setattr(
+        video_read, "_transcribe_media",
+        lambda *a, **k: (_ for _ in ()).throw(
+            AssertionError("the cached speech must not be transcribed again")
+        ),
+    )
+    result = video_read.read_video(URL, max_seconds=60, include_ocr=True)
+    assert result["transcript"][0]["text"] == "已有语音"
+    assert result["ocr"]["segments"][0]["text"] == "OCR"
+    assert result["sources"] == {"speech": "sensevoice", "ocr": "ocr"}
 
 
 def test_a_video_read_is_citable_evidence():
