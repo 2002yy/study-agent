@@ -6,6 +6,15 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-25 应用内 Browse 正文补读与读取模式（P0 切片）
+
+- 基线 `main@b7b3bf1c`（#639/#641/#642 已合并）。动机：`fetch_article_read_result` 对米游社攻略返回 `all_backends_failed`、0 字；同一 URL 用已登录 Edge 的 browse 读到 4152 字。
+- 新增 `src/web/browse_read.py`：最终 URL 必须公网有效，否则以 `browse_invalid_final_url` 失败，**不回退成请求 URL**；失败按登录墙、验证墙、超时、无正文、无预算、CLI 缺失分别返回；NGA 等站点的站内广告跳转页跟进一次；预算严格使用调用方剩余时间，不再内部抬到 2 秒。
+- `GeneralWebGateway.read(mode=...)` 支持 `auto` / `http` / `browse`：`auto` 默认普通 HTTP、失败时用已登录浏览器补读（`browse` CLI 存在即启用，`WEB_BROWSE_READ_ENABLED=0` 显式关闭）；`browser_first` 部署改为**浏览器先读**，不再先走 HTTP；`mode=browse` 直接浏览器读取，失败原因交给模型。`web_read` 工具新增 `mode` 参数。
+- 社区与视频真实探测见 `research_quality/CONTENT_READ_PROBE_20261125.md`：米游社/知乎/NGA/贴吧/V2EX/Reddit 正文可读（NGA 需跳转跟进）；小红书入口落到 404，未取得笔记；B站公开字幕仅弹幕、音频直链可取、评论公开 API 可用（3733 条）；YouTube 本次超时。
+- 验证：`tests/test_browse_read.py` 12 项、读取影响集 49 项通过；Ruff 通过；单篇米游社 + 多站免费实测，无残留标签。分支 `feat/browse-read-fallback`，PR #644。
+- 限制：评论、回答、分页与楼中楼的抽取尚未实现；视频转写/关键帧未实现。下一批按平台抽取讨论内容，并接本地 ASR。
+
 ### 2026-11-24 Study Agent 的 Browse 0.1.5 启动兼容
 
 - 基线 `main@e438b82cdbb3acece5438338ad077c1ccbdd5330`。B 站、米游社等站点已有仓库适配（`8630798b`、`d034d743`）；OpenCode 也注册通用 `browse mcp`。浏览器配对与站点选择各由既有入口负责。

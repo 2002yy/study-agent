@@ -485,12 +485,12 @@ def _resolve_relative_import(
     elif module.startswith("."):
         level = len(module) - len(module.lstrip("."))
         remainder = module[level:]
-        base = source.parent
+        relative = source.parent
         for _ in range(max(0, level - 1)):
-            base = base.parent
+            relative = relative.parent
         if remainder:
-            base = base.joinpath(*remainder.split("."))
-        candidates.extend([f"{base}.py", f"{base}/__init__.py"])
+            relative = relative.joinpath(*remainder.split("."))
+        candidates.extend([f"{relative}.py", f"{relative}/__init__.py"])
     else:
         dotted = module.replace(".", "/")
         candidates.extend(
