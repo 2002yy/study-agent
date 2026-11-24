@@ -164,8 +164,14 @@ def test_ocr_is_returned_as_a_separate_source(monkeypatch, tmp_path):
     assert result["transcript"][0]["text"] == "语音内容"
     assert result["ocr"]["segments"][0]["text"] == "原神"
     assert result["sources"] == {"speech": "sensevoice", "ocr": "ocr"}
-    assert result["content"].startswith("[画面字幕 OCR]\n原神")
+    assert result["content"].startswith("[画面字幕 OCR]\n[00:00] 原神")
     assert "[00:00] 语音内容" in result["content"]
+
+
+def test_metadata_uses_only_a_share_of_the_budget():
+    assert video_read._meta_timeout(240) == 90
+    assert video_read._meta_timeout(60) == 24
+    assert video_read._meta_timeout(8) == 8
 
 
 def test_ocr_timestamps_are_moved_to_video_time(monkeypatch, tmp_path):
