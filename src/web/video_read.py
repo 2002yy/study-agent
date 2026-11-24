@@ -224,6 +224,8 @@ def _read_cache(cache: Path, max_chars: int) -> dict[str, Any] | None:
     if not transcript:
         return None
     cached["transcript"] = transcript
+    cached["segments"] = transcript
+    cached["text"] = "\n".join(row["text"] for row in transcript)
     cached["content"] = _project(transcript)
     cached["chars"] = sum(len(row["text"]) for row in transcript)
     cached["cached"] = True
@@ -312,6 +314,10 @@ def read_video(
             "method": method,
             "language": "zh",
             "transcript": transcript,
+            # `segments` + `text` match the local video-study transcript
+            # schema, so video_study.py --transcript can consume this directly.
+            "segments": transcript,
+            "text": "\n".join(row["text"] for row in transcript),
             # The existing evidence path reads `content`; keep one timestamped
             # projection so a video read is citable without a second system.
             "content": _project(transcript),
