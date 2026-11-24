@@ -12,6 +12,7 @@ from a timeout, a challenge, or a page that simply had no body.
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Any
 from urllib.parse import urlsplit
@@ -27,7 +28,9 @@ _READ_SCRIPT = r"""
 await page.goto(READ_URL, {waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS});
 try { await page.waitForLoadState('networkidle', {timeout: WAIT_FOR_MS}); } catch (error) {}
 return await page.evaluate((limit) => {
-  const drop = 'script,style,noscript,svg,nav,header,footer,aside,form,[aria-hidden="true"]';
+  const drop = 'script,style,noscript,svg,nav,header,footer,aside,form,[aria-hidden="true"],' +
+    '[role="banner"],[role="navigation"],[role="contentinfo"],' +
+    '[class*="breadcrumb" i],[class*="cookie" i],[class*="advert" i],[id*="advert" i]';
   const scope = document.querySelector('article, main, [role="main"]') || document.body;
   let text = '';
   if (scope) {
@@ -42,10 +45,35 @@ return await page.evaluate((limit) => {
     title: document.title || '',
     url: location.href,
     login,
-    text: text.replace(/\n{3,}/g, '\n\n').trim().slice(0, limit),
+    // Collapse indentation before the cap, or the limit is spent on spaces.
+    text: text.replace(/[ \t\u00a0]+/g, ' ').trim().slice(0, limit),
   };
 }, MAX_CHARS);
 """
+
+
+def _tidy(text: str) -> str:
+    """Drop obvious line-level noise while keeping paragraph structure."""
+
+    lines: list[str] = []
+    previous = ""
+    blanks = 0
+    for raw in str(text or "").replace("\r\n", "\n").split("\n"):
+        line = re.sub(r"[ \t\u00a0]+", " ", raw).strip()
+        if not line:
+            blanks += 1
+            if blanks == 1 and lines:
+                lines.append("")
+            continue
+        blanks = 0
+        if line == previous:
+            # Repeated chrome (site name, breadcrumb) is one line, not ten.
+            continue
+        lines.append(line)
+        previous = line
+    while lines and lines[-1] == "":
+        lines.pop()
+    return "\n".join(lines)
 
 _ERROR_CODES = {
     "browse:human_action_required": ("browse_challenge", "the page asked for a human check"),
@@ -79,7 +107,7 @@ def _interstitial_target(url: str) -> str:
 
 
 def _payload(value: dict[str, Any], final: str, limit: int) -> dict[str, Any]:
-    text = str(value.get("text") or "").strip()
+    text = _tidy(value.get("text"))[:limit]
     if value.get("login") and len(text) < SHORT_READ_CHARS:
         return _failure(final, "browse_login_wall", "the page requires a login")
     if len(text) < 80:

@@ -7,6 +7,12 @@ from src.web.browse_read import read_browse
 from src.web.tool_gateway import GeneralWebGateway
 
 
+def test_obvious_repeated_lines_are_collapsed():
+    text = "标题\n\n首页\n首页\n正文一\n正文一\n\n\n正文二"
+    assert browse_read._tidy(text) == "标题\n\n首页\n正文一\n\n正文二"
+    assert browse_read._tidy("a    b") == "a b"
+
+
 def test_a_private_url_is_never_opened(monkeypatch):
     def refuse(*args, **kwargs):
         raise AssertionError("browse must not open a private URL")
