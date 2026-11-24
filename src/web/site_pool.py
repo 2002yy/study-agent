@@ -118,8 +118,9 @@ SITES: tuple[SiteProfile, ...] = (
                 note="2026-11-15: 5/5 valid results; redirects to cn.bing.com"),
     SiteProfile("brave", "Brave Search", "search", "https://search.brave.com/",
                 "https://search.brave.com/search?q={q}", adapter="brave",
-                default_enabled=True,
-                note="2026-11-15: 5/5 valid results; title is .search-snippet-title"),
+                note=("2026-11-15: 5/5 valid results; title is .search-snippet-title. "
+                      "2026-11-25: results are /go/ tracker links; resolving them costs "
+                      "about 6s per result, so it is opt-in, never a default step")),
     SiteProfile("github", "GitHub", "en_community", "https://github.com/",
                 "https://github.com/search?q={q}&type=issues", default_enabled=True,
                 note="2026-11-15: 5/5 valid results",

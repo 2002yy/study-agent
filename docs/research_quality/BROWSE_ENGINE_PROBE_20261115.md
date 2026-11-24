@@ -49,3 +49,46 @@ WEB_BROWSE_SEARCH_ENGINE=google
 - Bing /ck/a?u=a1... 在引用前解开并重新做公网校验；跳转出引擎结果页即视为不可信。
 - 四个通用引擎改为 site_pool 的 dapter，由 rowse_sites 策略按问题选择，不再有第二套独立入口。
 - 2026-11-15 复测（同一问题）：Google 5 条、Bing 5 条、Brave 5 条有效结果；DuckDuckGo 在 25 秒超时下返回 rowse:human_action_required，因此保持默认关闭。
+
+## 2026-11-25 复测（browse 0.1.5，Edge 登录态）
+
+- **执行器缺陷**：browse 0.1.5 的 execute 沙箱没有 `URL` 全局，引擎脚本里的
+  `new URL(...)` 抛 `ReferenceError`，整条引擎搜索失败（`browse:execution_failed`）。
+  通用站点脚本不受影响，因为它的 URL 解析在 `page.evaluate` 里、跑在页面侧。
+  修复：引擎脚本改为 `page.evaluate(() => ({origin, pathname}))` 后比较。
+- **实测**（同一台机器、已登录 Edge，各 1 次）：
+  | 目标 | 耗时 | 结果 |
+  | --- | --- | --- |
+  | Google | 3.4 s | 有效，前两条为 sqlite.org 官方页 |
+  | Bing | 2.7 s | 有效 |
+  | 知乎（`needs_login=True`） | 4.8 s | 10 条 question 链接，登录态可用 |
+  | B站（公开搜索） | 4.6 s | 40 条视频链接 |
+  | DuckDuckGo | 19 s | `browse:human_action_required`，维持关闭 |
+  | Brave | 2.8 s | 结果链接全是 `search.brave.com/go/v1#<token>`，真实 URL 不在 DOM |
+
+- **Brave 裁定（已实现解析）**：`/go/v1#` 是跟踪跳转，真实地址不在 DOM。现在改为在
+  新标签页逐条打开包装链接、等 URL 离开 `/go/` 后取最终地址，再走公网校验；
+  解析失败的条目仍丢弃，包装 URL 永远不会被当引用发布。
+  代价实测：3 条结果 18.2 s（约 6 s/条），所以 Brave 只适合手动候选，不应进入默认轮询。
+- **稳定性**：Google 偶发 `Detached while handling command`（标签页被 relay 断开），
+  同一秒重试即恢复；属基础设施抖动，不是站点拦截，遇到时重试一次即可。
+- 单元测试 11 passed，Ruff 通过；本次改 `src/web/browse_search.py`、对应测试与本文档。
+
+### 免费通道实测（2026-11-25，Edge 登录态，各 1 次）
+
+| 通道 | 耗时 | 有效结果 | 状态 / 失败原因 |
+| --- | ---: | ---: | --- |
+| Google | 7.3 s | 3 | ok |
+| Bing | 2.1 s | 0 | `browse:no_results`；页面返回空白（title/body 为空），非登录墙、非验证码，按规则不重试 |
+| Brave | 29.9 s | 3 | ok；3 条 `/go/` 包装链接逐条解析，共用一次剩余预算（上限 3 条） |
+| 知乎（需登录） | 4.3 s | 3（页面 10） | ok |
+| 米游社 | 3.8 s | 3（页面 17） | ok；`/sr/search` + 文章卡片选择器 |
+
+默认路由核对（Brave 已改为 opt-in，不在任何默认路线）：
+
+- `SQLite WAL 并发写入怎么选` → google, reddit, hn
+- `原神 配队 推荐` → miyoushe, bilibili, reddit
+- `Python 报错 traceback` → stackoverflow, github, google
+
+重试规则：只对 `Detached while handling command` / 标签页断开这类传输故障重试一次；
+登录墙、人机验证、权限错误、取消、预算耗尽、正常零结果都不重试。
