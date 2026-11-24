@@ -72,6 +72,7 @@ class _Phase:
     facet_id: str = ""
     gap_reason: str = ""
     gap_host: str = ""
+    site_key: str = ""
 
 
 LOOKUP_BUDGET = RecoveryBudget("lookup", 30, 10, 2, 1, 2, 6000, 16000)
@@ -117,7 +118,10 @@ def recovery_budget(
     # The interpreter's own plan is the honest signal: two or more distinct
     # research questions need the standard window, otherwise the second facet
     # is never searched at all.
-    if planned_questions(query_plan) >= 2:
+    if planned_questions(query_plan) >= 2 or (
+        query_plan and len(query_plan) > LOOKUP_BUDGET.max_queries
+        and any(row.get("site_key") for row in query_plan)
+    ):
         return STANDARD_BUDGET
     return LOOKUP_BUDGET
 
@@ -433,7 +437,16 @@ def _recover_public_research(
             ),
         ]
     )
-    if query_plan:
+    scoped = any(row.get("site_key") for row in query_plan or [])
+    if query_plan and scoped:
+        # A scoped plan is already a statement of source intent. Automatic
+        # authority and gap searches could widen it beyond the user's request.
+        phases = [
+            _Phase("semantic_query", row["query"], 1, facet_id=row["rq_id"],
+                   site_key=row.get("site_key", ""))
+            for row in query_plan
+        ]
+    elif query_plan:
         # Apply the existing entity spelling normalizer to *search advice*, not
         # the immutable original question. Official recovery runs before the
         # comparison tail can consume all remaining reads.
@@ -504,6 +517,11 @@ def _recover_public_research(
         stays valid for fixtures and deployments without a community adapter.
         """
 
+        if step.site_key:
+            search_site = getattr(gateway, "search_site", None)
+            if not callable(search_site):
+                return {"status": "unavailable", "reason": "site_search_unavailable", "results": []}
+            return invoke(lambda: search_site(step.query, site_key=step.site_key, max_results=5))
         browser = getattr(gateway, "search_community_site", None)
         if (
             step.gap_reason != "missing_community_source"
@@ -553,7 +571,7 @@ def _recover_public_research(
             ],
         }
 
-    plan = official_plan(query)
+    plan = None if scoped else official_plan(query)
     if plan and getattr(gateway, "supports_official_metadata", False) is True:
         phases.insert(0, _Phase("official_resolver", query, 2))
 
@@ -585,6 +603,8 @@ def _recover_public_research(
     community_hosts = community_hosts_for(query)
     covered_bodies: list[tuple[str, str]] = []
     searched_queries: set[str] = set()
+    searched_sites: set[tuple[str, str]] = set()
+    blocked_sites: set[str] = set()
     gap_steps: list[dict[str, str]] = []
     coverage: Any = None
     gap_used = False
@@ -677,13 +697,17 @@ def _recover_public_research(
         phase_index = 0
         while phase_index < len(bounded_phases):
             step = bounded_phases[phase_index]
+            if step.site_key in blocked_sites:
+                phase_index += 1
+                continue
             # A planned question already answered by earlier reads must not
             # spend its search slot repeating itself; point it at the part of
             # the question that no read has addressed yet. When nothing is
             # missing, the planned query still runs: a lexical hit is a hint,
             # not proof that a better page for this facet does not exist.
             if (
-                step.kind == "semantic_query"
+                not scoped
+                and step.kind == "semantic_query"
                 and step.facet_id
                 and coverage is not None
                 and len(facets) >= 2
@@ -706,10 +730,9 @@ def _recover_public_research(
                         bounded_phases[phase_index] = step
             phase, search_query, phase_cap = step.kind, step.query, step.cap
             normalized_query = " ".join(search_query.split()).casefold()
-            if (
-                phase != "official_resolver"
-                and normalized_query in searched_queries
-            ):
+            site_query = (step.site_key, normalized_query)
+            already_searched = site_query in searched_sites if step.site_key else normalized_query in searched_queries
+            if phase != "official_resolver" and already_searched:
                 # The same query inside one run returns the same rows; a
                 # retargeted slot that lands on an already-searched phrase adds
                 # nothing and costs a provider round trip. The official resolver
@@ -728,7 +751,9 @@ def _recover_public_research(
                 checkpoint("budget_exhausted", "read_or_text_limit")
                 return calls
             checkpoint("needs_more_research", phase)
-            if phase != "official_resolver":
+            if step.site_key:
+                searched_sites.add(site_query)
+            elif phase != "official_resolver":
                 searched_queries.add(normalized_query)
             searches += 1
             if phase in {"authoritative_domain", "page_type_refinement"}:
@@ -759,14 +784,18 @@ def _recover_public_research(
                         "query": search_query,
                         "max_results": 5,
                         "recovery_stage": phase,
-                        "rq_ids": [row["rq_id"] for row in query_plan or [] if row["query"] == search_query]
+                        "rq_ids": [row["rq_id"] for row in query_plan or []
+                                   if row["query"] == search_query and row.get("site_key", "") == step.site_key]
                         or ([step.facet_id] if step.gap_reason and step.facet_id else []),
                         **({"gap_reason": step.gap_reason} if step.gap_reason else {}),
                         **({"gap_host": step.gap_host} if step.gap_host else {}),
+                        **({"site_key": step.site_key} if step.site_key else {}),
                     },
                     "result": result,
                 }
             )
+            if step.site_key and result.get("reason") in {"login_required", "human_action_required"}:
+                blocked_sites.add(step.site_key)
             last_search_ok = result.get("status") in {"ok", "empty"}
             if not last_search_ok:
                 provider_failures += 1
@@ -786,7 +815,7 @@ def _recover_public_research(
             # planned facet has no discovered, topic-specific official page.
             # Search errors stay visible in the original web_search event.
             # Directory HTML is never evidence and never enters the writer.
-            if phase == "semantic_query" and query_plan:
+            if not scoped and phase == "semantic_query" and query_plan:
                 facet_domains = documentation_domains(search_query)
                 for doc_domain in facet_domains:
                     if doc_domain not in OFFICIAL_DOCUMENT_INDEXES:
@@ -1051,8 +1080,8 @@ def _recover_public_research(
                 # Related reads are progress only, not semantic question coverage.
                 if (
                     semantic_session is None
-                    and
-                    evidence
+                    and (not scoped or phase_index == len(bounded_phases) - 1)
+                    and evidence
                     and enough_targets
                     and (budget.mode == "lookup" or len(evidence) >= 2)
                 ):
@@ -1062,6 +1091,7 @@ def _recover_public_research(
             refresh_coverage()
             if (
                 _coverage_stop_enabled()
+                and (not scoped or phase_index == len(bounded_phases) - 1)
                 and coverage is not None
                 and len(facets) >= 2
                 and coverage.complete
@@ -1074,7 +1104,8 @@ def _recover_public_research(
                            coverage_stop=True)
                 return calls
             if (
-                not gap_used
+                not scoped
+                and not gap_used
                 and coverage is not None
                 and len(facets) >= 2
                 and len(bounded_phases) < budget.max_queries
