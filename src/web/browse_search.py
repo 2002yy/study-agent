@@ -16,12 +16,12 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-from pathlib import Path
 import os
+from queue import Empty, Queue
 import re
 import shutil
 import subprocess
-import tempfile
+from threading import Thread
 import time
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -145,6 +145,52 @@ return await page.evaluate(() => {
 """
 
 
+def _run_mcp(command: list[str], *, input: str, timeout: float) -> str:
+    # The relay can close requests on EOF while navigation is still in flight.
+    # Keep stdin open until the matching tools/call response arrives.
+    process = subprocess.Popen(
+        command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    stdin, stdout = process.stdin, process.stdout
+    assert stdin is not None and stdout is not None
+    responses: Queue[str] = Queue(maxsize=1)
+
+    def read_reply() -> None:
+        reply = ""
+        try:
+            for line in stdout:
+                message = json.loads(line)
+                if isinstance(message, dict) and message.get("id") == 2:
+                    reply = line
+                    break
+        except (OSError, ValueError):
+            pass
+        finally:
+            responses.put(reply)
+
+    reader = Thread(target=read_reply, daemon=True)
+    reader.start()
+    try:
+        stdin.write(input)
+        stdin.flush()
+        try:
+            return responses.get(timeout=timeout)
+        except Empty as exc:
+            raise subprocess.TimeoutExpired(command, timeout) from exc
+    finally:
+        stdin.close()
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=1)
+        reader.join(timeout=1)
+        if not reader.is_alive():
+            stdout.close()
+
+
 def _execute(
     script: str, url: str, timeout: float, *, selector: str = "",
     origins: tuple[str, ...] = (), wait_for: str = "",
@@ -163,23 +209,63 @@ def _execute(
         .replace("WAIT_FOR_MS", str(max(1000, min(6000, int(timeout * 1000 / 2)))))
         .replace("TIMEOUT_MS", str(max(1, int(timeout * 1000))))
     )
+    # Use the same stdio transport as OpenCode. Script and query data stay off
+    # the command line, including on Windows where npm installs a .cmd shim.
+    script_input = "try {\n" + body + "\n} finally { try { await page.close(); } catch {} }"
+    requests = (
+        {
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "study-agent", "version": "1"},
+            },
+        },
+        {"method": "notifications/initialized"},
+        {
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "name": "execute",
+                "arguments": {
+                    "code": script_input,
+                    "timeoutMs": max(1, int(timeout * 1000)),
+                },
+            },
+        },
+    )
     try:
-        with tempfile.TemporaryDirectory(prefix="study-agent-browse-") as folder:
-            path = Path(folder) / "search.js"
-            path.write_text(body, encoding="utf-8")
-            completed = subprocess.run(
-                [executable, "execute", "--rm", "--json", "--timeout-ms",
-                 str(max(1, int(timeout * 1000))), "--file", str(path)],
-                capture_output=True, text=True, encoding="utf-8", timeout=timeout + 1,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                check=False,
-            )
-        if completed.returncode:
+        line = _run_mcp(
+            [executable, "mcp"],
+            input="".join(json.dumps({"jsonrpc": "2.0", **msg}) + "\n" for msg in requests),
+            timeout=timeout + 1,
+        )
+        if not line:
             return None, "browse:execution_failed"
-        envelope = json.loads(completed.stdout)
-        if envelope.get("isError") or not isinstance(envelope.get("value"), dict):
+        response = json.loads(line)
+        result = response.get("result")
+        if not isinstance(result, dict):
             return None, "browse:execution_failed"
-        return envelope, ""
+        content = result.get("content")
+        if not isinstance(content, list):
+            return None, "browse:invalid_response"
+        messages = "\n".join(
+            str(item.get("text") or "")
+            for item in content
+            if isinstance(item, dict) and item.get("type") == "text"
+        ).lstrip()
+        if result.get("isError"):
+            if re.search(r"\b(?:captcha|bot challenge|human action required)\b", messages, re.I):
+                return None, "browse:human_action_required"
+            return None, "browse:execution_failed"
+        value, boundary = json.JSONDecoder().raw_decode(messages)
+        if re.search(r"(?im)^\s*(?:bot challenge|challenge|handoff|human action required)\b",
+                     messages[boundary:]):
+            return None, "browse:human_action_required"
+        if isinstance(value, dict):
+            return {"value": value}, ""
+        return None, "browse:invalid_response"
     except subprocess.TimeoutExpired:
         return None, "browse:timeout"
     except (OSError, ValueError, TypeError):

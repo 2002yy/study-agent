@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from src.web import browse_search, site_pool
 from src.web.tool_gateway import GeneralWebGateway, _merge_site_results
+from tests.browse_mcp_fixture import execute_request, execute_response
 
 
 def test_question_shape_selects_relevant_sites():
@@ -244,15 +245,10 @@ def test_a_client_rendered_site_waits_for_its_result_container(monkeypatch):
 
     def run(command, **kwargs):
         captured.clear()
-        from pathlib import Path
-        import json
-        captured.append(Path(command[-1]).read_text(encoding="utf-8"))
-        return __import__("types").SimpleNamespace(
-            returncode=0,
-            stdout=json.dumps({"value": {"url": "https://x.example/s", "results": []}}),
-        )
+        captured.append(execute_request(kwargs["input"])["code"])
+        return execute_response({"url": "https://x.example/s", "results": []})
 
-    monkeypatch.setattr(browse_search.subprocess, "run", run)
+    monkeypatch.setattr(browse_search, "_run_mcp", run)
     browse_search.search_browse_at(
         "https://x.example/s?q=a", 5, 8, selector=".hit", wait_for=".hit-list"
     )
@@ -278,17 +274,11 @@ def test_the_site_selector_is_parameterized_not_executed(monkeypatch):
     captured: dict[str, str] = {}
 
     def run(command, **kwargs):
-        from pathlib import Path
-        from types import SimpleNamespace
-        import json
-
-        captured["script"] = Path(command[-1]).read_text(encoding="utf-8")
-        return SimpleNamespace(
-            returncode=0, stdout=json.dumps(_envelope([])[0])
-        )
+        captured["script"] = execute_request(kwargs["input"])["code"]
+        return execute_response(_envelope([])[0]["value"])
 
     monkeypatch.setattr(browse_search.shutil, "which", lambda name: "browse")
-    monkeypatch.setattr(browse_search.subprocess, "run", run)
+    monkeypatch.setattr(browse_search, "_run_mcp", run)
 
     browse_search.search_browse_at(
         "https://www.bing.com/search?q=wal", 5, 3, selector="li.b_algo h2 a"
