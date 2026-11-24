@@ -8,6 +8,7 @@
 
 ### 2026-11-24 平台信源覆盖审计
 
+- 扩展清单逐项保留 156 行，按实际公开入口跑免费 Browse 首访，并补做渲染等待与 12 个定向查询或详情探针。90 行拿到可见页面文字，逐条记录搜索、详情、回复与发布证据边界。另以固定 Git 提交核对 Codex 和 OpenCode 的工具代码。两项结果收在同一审计文档。
 - 基线 `main@84f654ac3a805016a708b42ad1154339d4fcb8b4`（#637 已合并，主线 push CI 45387811942 首次查询在跑）。[平台清单与实测](research_quality/PLATFORM_SOURCE_COVERAGE_20261124.md)保存用户找回的早期候选、扩展清单、当前站点池及各站浏览器证据。
 - 免费 Browse 覆盖已接入和优先候选，复核搜索页面、目标相关性、详情和可见回复。米游社、掘金、知乎、GitHub 等可读对应正文样本。B 站只验证视频发现和标题。V2EX 当前搜索实际跳到版块页，修复传输后的五条链接不构成题目命中。Reddit 的搜索与详情仍可能分别成功、受限。没有付费调用和研究答案发布验收。
 - `priority=P2`、`loop=combined`、`owner=retrieval/platform-coverage`、`dynamic_evidence=browse_free_page_samples`、`budget_authorization=free_probes_only`、`decision=engineering-only`。本批是文档审计，生产代码无改动。下一片在现有 DeepSeek 决策层与站点池之间传递显式平台意图，使用 B 站、米游社及无站点约束的对照题验证派发。
@@ -16,7 +17,7 @@
 
 - 基线 `main@e438b82cdbb3acece5438338ad077c1ccbdd5330`。B 站、米游社等站点已有仓库适配（`8630798b`、`d034d743`）；OpenCode 也注册通用 `browse mcp`。浏览器配对与站点选择各由既有入口负责。
 - 实测插件可访问站内搜索，但基线的三个站点由应用入口发起均失败。已安装的 Browse 0.1.5 拒绝旧 `execute --rm`；一次性关闭 stdio 的替代探针在等待页面时也提前结束。修复复用 OpenCode 同一 stdio 工具入口，等待 tools/call 回应再关输入；浏览器用脚本清理自己的标签并维持时间限制、结果 URL 过滤与验证墙处理。
-- 精确本地源码的 Study Agent 网站搜索入口实测 B 站、米游社、V2EX 各得 5 个有效结果。浏览器退出后无保留的测试标签。默认检索策略与站点名单沿用现有配置。普通 HTTP 可读取一个 B 站视频公开元信息样本；同一米游社攻略的普通 HTTP 正文为空，浏览器读取约 3402 字。DeepSeek 平台样本按用户本轮要求未额外付费调用。
+- 精确本地源码的 Study Agent 网站搜索入口实测 B 站、米游社、V2EX 各得 5 个链接；后续核对发现 V2EX 样本来自版块页，未命中关键词。浏览器退出后无保留的测试标签。默认检索策略与站点名单沿用现有配置。普通 HTTP 可读取一个 B 站视频公开元信息样本；同一米游社攻略的普通 HTTP 正文为空，浏览器读取约 3402 字。DeepSeek 平台样本按用户本轮要求未额外付费调用。
 - 分支 `codex/browse-cli-compat-20261124`。影响集 120 项通过，包括延迟返回的 stdio 负控、验证墙和私有 URL 过滤；Ruff、diff-check、mypy 115/125 通过。 `priority=P1`、`loop=combined`、`owner=retrieval/browser-transport`、`dynamic_evidence=real_site_search_only`、`budget_authorization=free_probes_only`、`decision=engineering-only`。端到端付费答案生成未运行，精确 HEAD CI 和评审仍为合并门禁。
 
 ### 2026-11-23 模型 URL 提案的执行上下文（第七片）
