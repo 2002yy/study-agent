@@ -120,7 +120,9 @@ def test_planner_has_small_anchored_schema_and_does_not_mutate_shared_retry_budg
         "schema_version",
         "critical_claim",
         "supporting_claims",
+        "platform_searches",
     ]
+    assert schema["properties"]["platform_searches"]["maxItems"] == 2
     critical_branches = schema["properties"]["critical_claim"]["anyOf"]
     assert all("priority" not in branch["properties"] for branch in critical_branches)
     assert all("question_anchor" in branch["properties"] for branch in critical_branches)
@@ -418,3 +420,20 @@ def test_partial_dedicated_planner_configuration_fails_fast(
 
     with pytest.raises(RuntimeError, match="dedicated claim planner requires"):
         RuntimeClaimPlanner(shared)
+
+def test_claim_planner_selects_map_direction_in_same_call() -> None:
+    payload = _plan_payload()
+    payload["platform_searches"] = [
+        {"site_key": "miyoushe", "query": "原神 那维莱特 配队"},
+        {"site_key": "xiaohongshu.com", "query": "配队 site:other.example"},
+    ]
+    client = _StructuredClient(json.dumps(payload))
+    gateway = ResearchModelGateway(
+        provider_profile="openai", client=client, model_name="shared-model", timeout_seconds=20,
+    )
+    result = _plan(RuntimeClaimPlanner(gateway))
+    assert result.completed
+    assert result.platform_searches == ("platform:miyoushe 原神 那维莱特 配队",)
+    assert len(client.calls) == 1
+    prompt = client.calls[0]["messages"][0]["content"]
+    assert "xiaohongshu.com|小红书" in prompt

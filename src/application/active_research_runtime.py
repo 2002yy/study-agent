@@ -1037,6 +1037,23 @@ class ActiveResearchRuntimeExecutor:
                         reason="claim_plan_unavailable",
                     )
                 live.state = bootstrap.state
+                platform_queries = getattr(bootstrap, "platform_searches", ())
+                if platform_queries and live.state.gaps:
+                    bootstrap_gap = live.state.gaps[0]
+                    live.cursor = replace(
+                        live.cursor,
+                        planned_queries=tuple(
+                            RuntimePlannedQuery(
+                                id=f"{bootstrap_gap.id}:platform:{index}",
+                                gap_id=bootstrap_gap.id,
+                                claim_id=bootstrap_gap.claim_id,
+                                intent=GapSearchIntent.DISCOVERY.value,
+                                query=query,
+                                desired_source_role=bootstrap_gap.desired_source_role,
+                            )
+                            for index, query in enumerate(platform_queries)
+                        ) + live.cursor.planned_queries,
+                    )
                 # B5-H1: persist the completed model audit together with the
                 # semantic result it produced (single checkpoint boundary).
                 checkpoint()

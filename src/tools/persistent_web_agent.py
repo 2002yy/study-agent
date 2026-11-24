@@ -692,7 +692,12 @@ class PersistentWebToolAgent(WebToolAgent):
             ))
             attempts = [*episode.attempts, *[
                 {"query": str(c["arguments"]["query"])[:500],
-                 "outcome": str(c["result"].get("status", "unknown"))[:100]}
+                 "outcome": " ".join([
+                     str(c["result"].get("status", "unknown")),
+                     str(c["result"].get("reason") or ""),
+                     str(c["arguments"].get("site_key") or ""),
+                     ",".join(str(item) for item in c["result"].get("providers_attempted", [])),
+                 ]).strip()[:100]}
                 for c in calls if c.get("name") == "web_search"
             ]][-8:]
             from src.web.tool_evidence import _public_url

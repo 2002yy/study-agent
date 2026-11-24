@@ -118,8 +118,13 @@ class ActiveResearchGateway:
     ) -> dict[str, Any]:
         self._last_audit = None
         self._warnings = []
+        payload: Mapping[str, Any]
         try:
-            if deadline is not None and self._backend_accepts_deadline:
+            if query.startswith("platform:") and isinstance(self._read_gateway, ResearchWebGateway):
+                payload = self._read_gateway.gateway.search_exact(
+                    query, max_results=max_items, deadline=deadline,
+                )
+            elif deadline is not None and self._backend_accepts_deadline:
                 payload = cast(Any, self._search_backend).search_exact(
                     query,
                     max_results=max_items,
