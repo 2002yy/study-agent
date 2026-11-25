@@ -91,6 +91,8 @@ _HF_RESERVED = {
 }
 
 
+_LOBSTERS_HOST = "lobste.rs"
+
 _DEPSDEV_HOST = "deps.dev"
 _DEPSDEV_SYSTEMS = {"pypi", "npm", "maven", "cargo", "go", "nuget"}
 
@@ -107,6 +109,8 @@ def detect(url: str) -> str:
         return "mediawiki"
     if host == _HUGGINGFACE_HOST:
         return "huggingface"
+    if host == _LOBSTERS_HOST:
+        return "lobsters"
     if host == _DEPSDEV_HOST:
         return "depsdev"
     if host == "openreview.net":
@@ -563,6 +567,56 @@ def _depsdev(url: str, timeout: float) -> dict[str, Any]:
     return _result(url, "depsdev_api", f"{system} {name} {version}", content)
 
 
+def _lobsters(url: str, timeout: float) -> dict[str, Any]:
+    """Read a Lobsters story and its threaded comments in one request."""
+
+    def username(value: Any) -> str:
+        if isinstance(value, dict):
+            return str(value.get("username") or "")
+        return str(value or "")
+
+    match = re.search(r"/s/([A-Za-z0-9]+)", urllib.parse.urlsplit(url).path)
+    if not match:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "not a Lobsters story URL",
+                "error_code": "platform_unsupported"}
+    data = _get_json(f"https://{_LOBSTERS_HOST}/s/{match.group(1)}.json", timeout)
+    header = [
+        f"[story] {data.get('title') or ''}",
+        f"url: {data.get('url') or '(text post)'}",
+        f"score: {data.get('score', 0)} | comments: {data.get('comment_count', 0)}",
+        f"tags: {', '.join(str(tag) for tag in data.get('tags') or []) or '-'}",
+        f"submitted: {username(data.get('submitter_user')) or '-'} "
+        f"{data.get('created_at') or ''}",
+    ]
+    description = _text(data.get("description_plain"))
+    if description:
+        header.append("")
+        header.append(description[:4000])
+
+    comments = data.get("comments") or []
+    lines: list[str] = []
+    shown = 0
+    for comment in comments:
+        if shown >= 40:
+            break
+        depth = int(comment.get("depth") or 0)
+        if depth > 6 or comment.get("is_deleted") or comment.get("is_moderated"):
+            continue
+        text = _text(comment.get("comment_plain"))
+        if not text:
+            continue
+        who = username(comment.get("commenting_user"))
+        when = str(comment.get("created_at") or "")[:16]
+        lines.append(f"[d{depth}] {who} {when}\n{text}"[:1200])
+        shown += 1
+    content = "\n".join(header)
+    if lines:
+        content += "\n\n[comments]\n" + "\n\n".join(lines)
+    return _result(url, "lobsters_api", str(data.get("title") or ""), content,
+                   comments=shown)
+
+
 def _openreview(url: str, timeout: float) -> dict[str, Any]:
     match = re.search(r"[?&]id=([^&]+)", url)
     if not match:
@@ -625,6 +679,7 @@ _READERS = {
     "discourse": _discourse,
     "mediawiki": _mediawiki,
     "depsdev": _depsdev,
+    "lobsters": _lobsters,
     "huggingface": _huggingface,
     "openreview": _openreview,
 }
