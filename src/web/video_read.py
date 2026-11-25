@@ -319,7 +319,11 @@ def _download_section(
     return {"path": files[0]}
 
 
-def _transcribe_media(media: Path, work: Path, start: int, deadline: float) -> dict[str, Any]:
+def _transcribe_media(
+    media: Path, work: Path, start: int, deadline: float, language: str = "zh",
+) -> dict[str, Any]:
+    """Transcribe one bounded clip; audio reads pass ``auto`` for mixed speech."""
+
     asr_python = os.getenv(
         "STUDY_AGENT_ASR_PYTHON", r"D:\video\tools\envs\asr\Scripts\python.exe"
     )
@@ -334,7 +338,8 @@ def _transcribe_media(media: Path, work: Path, start: int, deadline: float) -> d
     if remaining < _MIN_BUDGET:
         return {"error_code": "video_no_budget", "error": "no time left for transcription"}
     done = _run(
-        [asr_python, script, "--video", str(media), "--out-dir", str(work / "asr")],
+        [asr_python, script, "--video", str(media), "--out-dir", str(work / "asr"),
+         "--language", language],
         remaining,
     )
     transcript = work / "asr" / "transcript-asr.json"
