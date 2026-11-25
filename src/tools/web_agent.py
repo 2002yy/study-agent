@@ -68,8 +68,8 @@ WEB_TOOLS = [
             "max_chars": {"type": "integer", "minimum": 500, "maximum": 30000},
             "mode": {
                 "type": "string",
-                "enum": ["auto", "http", "browse", "video"],
-                "description": "auto: cheap reader with browser fallback; http: plain HTTP only; browse: render in the paired browser (dynamic pages, community threads); video: read a Bilibili video's subtitles, or transcribe its audio with SenseVoice.",
+                "enum": ["auto", "http", "browse", "video", "comments"],
+                "description": "auto: cheap reader with browser fallback; http: plain HTTP only; browse: render in the paired browser (dynamic pages, community threads); video: read a Bilibili video's subtitles/audio/OCR; comments: read one page of public Bilibili comments.",
             },
             "include_discussion": {
                 "type": "boolean",
@@ -96,6 +96,12 @@ WEB_TOOLS = [
             "include_ocr": {
                 "type": "boolean",
                 "description": "Video only: also read burned-in captions with the local OCR pipeline (useful for names, models and numbers). Returned as a separate source, not merged into the speech transcript.",
+            },
+            "comment_page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50,
+                "description": "Comments mode: which page of the thread to read. One page per call; the result reports read count and total.",
             },
         },
         ["url"],
@@ -458,6 +464,7 @@ class WebToolAgent:
                 start_seconds=int(arguments.get("start_seconds", 0)),
                 video_seconds=int(arguments.get("video_seconds", 180)),
                 include_ocr=bool(arguments.get("include_ocr", False)),
+                comment_page=int(arguments.get("comment_page", 1)),
             )
         if name == "github_search":
             return self.gateway.github_search(
