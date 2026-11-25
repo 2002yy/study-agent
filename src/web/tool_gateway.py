@@ -477,6 +477,20 @@ def _github_release_default_timeout() -> float:
     return max(5.0, min(value, 30.0))
 
 
+def _video_read_default_timeout(video_seconds: int) -> float:
+    """Budget for a video read when the caller names none.
+
+    A video read downloads the media, transcribes it and may run OCR, so the
+    generic ten-second page budget is guaranteed to fail. The section length
+    plus one minute for fetch, metadata and transcription keeps the default
+    honest without letting one tool call run unbounded. An explicit caller
+    timeout always wins.
+    """
+
+    seconds = max(15, min(int(video_seconds or 180), 600))
+    return float(seconds) + 60.0
+
+
 class GeneralWebGateway:
     """Expose bounded search, page reading, and GitHub browsing to model tools."""
 
@@ -1213,6 +1227,11 @@ class GeneralWebGateway:
         # caller's timeout, or a 6 s read can take 18 s.
         if timeout is not None:
             budget = float(timeout)
+        elif mode == "video":
+            # A video read is download + transcript + optional OCR, not a page
+            # fetch. The 10 s page budget made every tool-level video read die
+            # as video_timeout before the transcript could even start.
+            budget = _video_read_default_timeout(video_seconds)
         elif self.github_reader.supports(value) and "/releases" in value:
             budget = _github_release_default_timeout()
         else:
