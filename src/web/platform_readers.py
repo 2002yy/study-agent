@@ -631,12 +631,6 @@ def _lobsters(url: str, timeout: float) -> dict[str, Any]:
                    comments=shown)
 
 
-def _get_text(url: str, timeout: float, max_bytes: int = 400_000) -> str:
-    request = urllib.request.Request(url, headers=_UA)
-    with urllib.request.urlopen(request, timeout=max(1, int(timeout))) as response:
-        return response.read(max_bytes).decode("utf-8", errors="replace")
-
-
 def _openalex_abstract(index: Any, limit: int = 4000) -> str:
     if not isinstance(index, dict):
         return ""
