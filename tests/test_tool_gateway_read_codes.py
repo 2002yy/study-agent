@@ -43,7 +43,10 @@ def test_general_web_read_exposes_only_bounded_error_code(
         github_snapshotter=object(),  # type: ignore[arg-type]
     )
 
-    result = gateway.read("https://example.com/item")
+    # mode="http" pins the article-fetcher path. The default "auto" read
+    # falls back to the browser and may legitimately succeed on this URL,
+    # which is not what this test is about (bounded failure codes).
+    result = gateway.read("https://example.com/item", mode="http")
 
     assert result["ok"] is False
     assert result["error"] == reason
