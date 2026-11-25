@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 import os
 import re
+import subprocess
 import time
 from typing import Any
 from urllib.error import HTTPError
@@ -396,6 +397,31 @@ def _browse_read(
             "method": "browse",
             "error": f"{type(exc).__name__}: {exc}",
             "error_code": "browse_failed",
+        }
+
+
+def _read_video(
+    url: str, max_chars: int, timeout: float,
+    *, start_seconds: int = 0, video_seconds: int = 180,
+    include_ocr: bool = False,
+) -> dict[str, Any]:
+    """One video read; a missing media toolchain is a result, not a raise."""
+
+    from src.web.video_read import read_video
+
+    try:
+        return read_video(
+            url, max_chars=max_chars, timeout=timeout,
+            start_seconds=start_seconds, max_seconds=video_seconds,
+            include_ocr=include_ocr,
+        )
+    except (OSError, ValueError, TypeError, subprocess.SubprocessError) as exc:
+        return {
+            "ok": False,
+            "kind": "video",
+            "url": url,
+            "error": f"{type(exc).__name__}: {exc}",
+            "error_code": "video_failed",
         }
 
 
@@ -1145,7 +1171,8 @@ class GeneralWebGateway:
     def read(
         self, url: str, *, max_chars: int = 6000, timeout: float | None = None,
         mode: str = "auto", include_discussion: bool = False,
-        max_comments: int = 0,
+        max_comments: int = 0, start_seconds: int = 0, video_seconds: int = 180,
+        include_ocr: bool = False,
     ) -> dict[str, Any]:
         value = str(url or "").strip()
         from src.web.research.official_resolver import read_official_metadata
@@ -1153,7 +1180,7 @@ class GeneralWebGateway:
         mode = str(mode or "auto").strip().lower()
         position = max(0, min(int(max_comments or 0), 50))
         include_discussion = bool(include_discussion) and mode != "http"
-        if mode not in {"auto", "http", "browse"}:
+        if mode not in {"auto", "http", "browse", "video"}:
             return {
                 "ok": False,
                 "url": value,
@@ -1190,6 +1217,12 @@ class GeneralWebGateway:
         # An explicit mode="browse" goes straight to the paired browser; the
         # default "auto" keeps the cheap HTTP path first unless the deployment
         # already chose browser_first.
+        if mode == "video":
+            return _read_video(
+                value, max_chars, remaining(),
+                start_seconds=start_seconds, video_seconds=video_seconds,
+                include_ocr=include_ocr,
+            )
         browse_allowed = mode != "http" and _browse_read_available()
         browse_tried = False
         if mode == "browse" and not browse_allowed:

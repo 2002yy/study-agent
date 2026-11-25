@@ -156,6 +156,25 @@ def test_discussion_is_absent_unless_requested(monkeypatch):
     assert "discussion_scope" not in result
 
 
+def test_video_mode_uses_the_video_reader(monkeypatch):
+    def unexpected(*args, **kwargs):
+        raise AssertionError("video mode must not run the article reader")
+
+    monkeypatch.setattr(tool_gateway, "fetch_article_read_result", unexpected)
+    monkeypatch.setattr(
+        tool_gateway, "_read_video",
+        lambda url, max_chars, timeout, **kwargs: {
+            "ok": True, "kind": "video", "url": url, "method": "sensevoice",
+            "transcript": [{"start": 0, "end": 1, "text": "视频"}], "chars": 2,
+        },
+    )
+    result = GeneralWebGateway(search_strategy="fallback").read(
+        "https://www.bilibili.com/video/BV1Va4y167wd", mode="video", timeout=20
+    )
+    assert result["kind"] == "video"
+    assert result["transcript"][0]["text"] == "视频"
+
+
 def test_discussion_requires_the_browser(monkeypatch):
     monkeypatch.setattr(tool_gateway, "_browse_read_available", lambda: True)
 
