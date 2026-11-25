@@ -16,6 +16,7 @@ import csv
 import io
 import json
 import re
+import urllib.parse
 from typing import Any
 
 _SUFFIX_KINDS = {
@@ -300,3 +301,216 @@ def render_raw(kind: str, payload: str, max_chars: int) -> tuple[str, str]:
 def looks_like_html(payload: str) -> bool:
     head = re.sub(r"^\s+", "", payload[:200]).lower()
     return head.startswith("<!doctype html") or head.startswith("<html") or "<body" in head[:400]
+
+
+#: Annotation containers whose links are navigation, not article citations.
+_NAV_TAGS = {"nav", "header", "footer", "aside"}
+_HINT_PATTERN = re.compile(
+    r"doi|arxiv|paper|preprint|source|original|via|reference|report|"
+    r"论文|原文|出处|来源|参考|报告",
+    re.IGNORECASE,
+)
+
+
+def _json_ld_values(value: Any, key: str, out: list[str], depth: int = 0) -> None:
+    if depth > 4:
+        return
+    if isinstance(value, list):
+        for item in value:
+            _json_ld_values(item, key, out, depth + 1)
+        return
+    if not isinstance(value, dict):
+        return
+    item = value.get(key)
+    if isinstance(item, str) and item.strip():
+        out.append(item.strip())
+    elif isinstance(item, dict):
+        name = item.get("name") or item.get("@id")
+        if isinstance(name, str) and name.strip():
+            out.append(name.strip())
+    elif isinstance(item, list):
+        for entry in item:
+            _json_ld_values(entry, "name", out, depth + 1)
+    for child in value.get("@graph") or []:
+        _json_ld_values(child, key, out, depth + 1)
+
+
+def page_metadata(html: str) -> str:
+    """Return author and dates the page declares, labelled as unverified.
+
+    JSON-LD is the primary source; meta tags cover pages without it. Values are
+    reported exactly as declared, never as independently verified facts.
+    """
+
+    try:
+        from lxml import html as lxml_html  # type: ignore[import-untyped]
+    except Exception:  # noqa: BLE001 - optional parser
+        return ""
+    try:
+        tree = lxml_html.fromstring(html)
+    except Exception:  # noqa: BLE001 - not parseable HTML
+        return ""
+    authors: list[str] = []
+    published: list[str] = []
+    modified: list[str] = []
+    for block in tree.xpath('//script[@type="application/ld+json"]/text()'):
+        try:
+            value = json.loads(block)
+        except ValueError:
+            continue
+        _json_ld_values(value, "author", authors)
+        _json_ld_values(value, "datePublished", published)
+        _json_ld_values(value, "dateModified", modified)
+    if not authors:
+        for node in tree.xpath('//meta[translate(@name,"AUTHOR","author")="author"]/@content'):
+            if node.strip():
+                authors.append(node.strip())
+    if not published:
+        published = [
+            node.strip()
+            for node in tree.xpath(
+                '//meta[@property="article:published_time" or '
+                '@property="og:published_time"]/@content'
+            )
+            if node.strip()
+        ]
+    if not modified:
+        modified = [
+            node.strip()
+            for node in tree.xpath(
+                '//meta[@property="article:modified_time" or '
+                '@property="og:updated_time"]/@content'
+            )
+            if node.strip()
+        ]
+    parts = []
+    if authors:
+        parts.append("author=" + ", ".join(dict.fromkeys(authors))[:160])
+    if published:
+        parts.append("published=" + published[0][:40])
+    if modified:
+        parts.append("modified=" + modified[0][:40])
+    if not parts:
+        return ""
+    return (
+        "[metadata] " + "; ".join(parts)
+        + " (declared by the page, not independently verified)"
+    )
+
+
+def citation_links(
+    html: str,
+    base_url: str,
+    *,
+    max_chars: int = 4000,
+    limit: int = 25,
+) -> str:
+    """List outbound links with a positional hint about their role.
+
+    Body links are the ones the article itself cites; links inside nav, header,
+    footer or aside are navigation or recommendations. The hint is positional,
+    not a claim that the target supports the article. Nothing is fetched.
+    """
+
+    try:
+        from lxml import html as lxml_html  # type: ignore[import-untyped]
+    except Exception:  # noqa: BLE001 - optional parser
+        return ""
+    try:
+        tree = lxml_html.fromstring(html)
+    except Exception:  # noqa: BLE001 - not parseable HTML
+        return ""
+    host = urllib.parse.urlsplit(base_url).hostname or ""
+    body: list[tuple[int, str]] = []
+    navigation: list[tuple[int, str]] = []
+    seen: set[str] = set()
+    for anchor in tree.xpath("//a[@href]"):
+        raw = str(anchor.get("href") or "").strip()
+        if not raw or raw.startswith(("#", "mailto:", "javascript:", "tel:")):
+            continue
+        url = urllib.parse.urljoin(base_url, raw)
+        if urllib.parse.urlsplit(url).scheme not in {"http", "https"}:
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        text = " ".join(anchor.text_content().split())[:120] or str(anchor.get("title") or "")[:120]
+        if not text:
+            continue
+        parent_nav = False
+        parent = anchor.getparent()
+        while parent is not None and parent.tag:
+            if str(parent.tag).lower() in _NAV_TAGS:
+                parent_nav = True
+                break
+            parent = parent.getparent()
+        hint = bool(_HINT_PATTERN.search(f"{text} {url}"))
+        relation = "nav" if parent_nav else "body"
+        if urllib.parse.urlsplit(url).hostname == host:
+            relation += ",same-site"
+        prefix = f"[{relation}{',cite-hint' if hint else ''}]"
+        line = f"{prefix} {text} — {url}"
+        (navigation if parent_nav else body).append((0 if hint else 1, line))
+    body.sort(key=lambda item: item[0])
+    navigation.sort(key=lambda item: item[0])
+    rows = [line for _, line in body[:limit]]
+    rows += [line for _, line in navigation[:5]]
+    if not rows:
+        return ""
+    notes = [f"{len(body)} body links", f"{len(navigation)} nav links"]
+    if len(body) > limit:
+        notes.append(f"showing {limit} of {len(body)} body links")
+    return clamp("[links] " + "; ".join(notes) + "\n" + "\n".join(rows), max_chars)
+
+
+def feed_summary(payload: str, max_chars: int = 20_000, limit: int = 20) -> str:
+    """Render an RSS 2.0 or Atom feed as a bounded entry list."""
+
+    import xml.etree.ElementTree as ET
+
+    try:
+        root = ET.fromstring(payload)
+    except ET.ParseError:
+        return ""
+    atom = "{http://www.w3.org/2005/Atom}"
+    entries: list[str] = []
+    if root.tag.endswith("feed"):
+        items = root.findall(f"{atom}entry")
+        for item in items[:limit]:
+            title = (item.findtext(f"{atom}title") or "").strip()
+            link = ""
+            for node in item.findall(f"{atom}link"):
+                if node.get("rel") in {"alternate", None}:
+                    link = node.get("href") or ""
+                    break
+            when = (item.findtext(f"{atom}updated") or item.findtext(f"{atom}published") or "").strip()
+            summary = (item.findtext(f"{atom}summary") or "").strip()
+            entries.append(_feed_line(title, link, when, summary))
+    else:
+        channel = root.find("channel")
+        if channel is None:
+            channel = root
+        items = channel.findall("item")
+        for item in items[:limit]:
+            title = (item.findtext("title") or "").strip()
+            link = (item.findtext("link") or "").strip()
+            when = (item.findtext("pubDate") or "").strip()
+            summary = (item.findtext("description") or "").strip()
+            entries.append(_feed_line(title, link, when, summary))
+    if not entries:
+        return ""
+    header = f"[feed] {len(items)} entries, showing {len(entries)}"
+    return clamp(header + "\n" + "\n".join(entries), max_chars)
+
+
+def _feed_line(title: str, link: str, when: str, summary: str) -> str:
+    text = re.sub(r"<[^>]+>", " ", summary or "")
+    text = " ".join(text.split())[:240]
+    parts = [f"- {title[:160]}"]
+    if when:
+        parts.append(f"({when[:32]})")
+    if link:
+        parts.append(link)
+    if text:
+        parts.append(f":: {text}")
+    return " ".join(parts)

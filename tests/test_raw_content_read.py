@@ -125,3 +125,150 @@ def test_fetch_keeps_tables_next_to_extracted_body(monkeypatch):
     assert "body text" in result.text
     assert "[tables]" in result.text
     assert "| a |" in result.text
+
+
+def test_json_ld_author_and_dates_are_reported_as_declared():
+    html = """
+    <html><head>
+    <script type="application/ld+json">
+    {"@type": "Article", "author": [{"name": "Alice"}, {"name": "Bob"}],
+     "datePublished": "2024-01-01", "dateModified": "2026-11-20"}
+    </script>
+    </head><body></body></html>
+    """
+    text = raw_content.page_metadata(html)
+
+    assert "author=Alice, Bob" in text
+    assert "published=2024-01-01" in text
+    assert "modified=2026-11-20" in text
+    assert "not independently verified" in text
+
+
+def test_metadata_falls_back_to_meta_tags():
+    html = """
+    <html><head>
+      <meta name="author" content="Carol">
+      <meta property="article:published_time" content="2025-05-05T10:00:00Z">
+    </head></html>
+    """
+    text = raw_content.page_metadata(html)
+
+    assert "author=Carol" in text
+    assert "published=2025-05-05" in text
+
+
+def test_citation_links_separate_body_from_navigation():
+    html = """
+    <html><body>
+      <nav><a href="https://site.example/section">Section</a></nav>
+      <article>
+        <p>As reported in the <a href="https://doi.org/10.1/x">original paper</a>.</p>
+        <p>See <a href="https://site.example/other">another page</a>.</p>
+      </article>
+      <footer><a href="https://twitter.com/site">Follow us</a></footer>
+    </body></html>
+    """
+    text = raw_content.citation_links(html, "https://site.example/post")
+
+    assert "[body,cite-hint] original paper" in text
+    assert "[body,same-site] another page" in text
+    assert "[nav,same-site] Section" in text
+    assert "[nav] Follow us" in text
+
+
+def test_citation_links_are_bounded_and_deduplicated():
+    links = "".join(
+        f'<p><a href="https://x.example/{i}">item {i}</a></p>' for i in range(40)
+    )
+    html = f"<html><body>{links}</body></html>"
+    text = raw_content.citation_links(html, "https://site.example/post", limit=10)
+
+    assert text.count("— https://x.example/") == 10
+    assert "40 body links" in text
+
+
+def test_rss_feed_becomes_an_entry_list():
+    payload = """<?xml version="1.0"?>
+    <rss><channel><title>Blog</title>
+      <item><title>First</title><link>https://blog.example/1</link>
+        <pubDate>Mon, 01 Jan 2024 00:00:00 GMT</pubDate>
+        <description>&lt;p&gt;hello&lt;/p&gt;</description></item>
+    </channel></rss>
+    """
+    text = raw_content.feed_summary(payload)
+
+    assert "[feed] 1 entries" in text
+    assert "First" in text
+    assert "https://blog.example/1" in text
+    assert "hello" in text
+
+
+def test_atom_feed_becomes_an_entry_list():
+    payload = """<?xml version="1.0"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry><title>Atom post</title>
+        <link rel="alternate" href="https://blog.example/atom"/>
+        <updated>2026-01-01T00:00:00Z</updated>
+        <summary>atom summary</summary></entry>
+    </feed>
+    """
+    text = raw_content.feed_summary(payload)
+
+    assert "Atom post" in text
+    assert "https://blog.example/atom" in text
+    assert "atom summary" in text
+
+
+def test_fetch_adds_metadata_and_links(monkeypatch):
+    article_fetcher._ARTICLE_CACHE.clear()
+    html = """
+    <html><head>
+      <script type="application/ld+json">
+      {"author": {"name": "Alice"}, "datePublished": "2024-01-01"}
+      </script>
+    </head><body>
+      <p>body <a href="https://doi.org/10.1/x">source paper</a></p>
+    </body></html>
+    """
+    monkeypatch.setattr(
+        article_fetcher,
+        "_fetch_html_payload",
+        lambda url, timeout, max_bytes: (html, url, "text/html", ""),
+    )
+    monkeypatch.setattr(
+        article_fetcher,
+        "read_html_locally",
+        lambda html, url="", max_chars=5000: ReaderResult(text="body", method="local_x"),
+    )
+    result = article_fetcher.fetch_article_read_result(
+        "https://example.com/post", max_chars=4000
+    )
+
+    assert "[metadata] author=Alice" in result.text
+    assert "[links]" in result.text
+    assert "source paper" in result.text
+
+
+def test_feed_payload_uses_feed_text_method(monkeypatch):
+    article_fetcher._ARTICLE_CACHE.clear()
+    payload = """<?xml version="1.0"?>
+    <rss><channel><item><title>First</title><link>https://x.example/1</link></item></channel></rss>
+    """
+    monkeypatch.setattr(article_fetcher, "_is_fetchable_article_url", lambda _url: True)
+    monkeypatch.setattr(
+        article_fetcher,
+        "_fetch_html_payload",
+        lambda url, timeout, max_bytes: ("", url, "application/rss+xml", "non_html_resource"),
+    )
+    monkeypatch.setattr(
+        article_fetcher,
+        "_fetch_text_payload",
+        lambda url, timeout, max_bytes: (payload, url, "application/rss+xml", ""),
+    )
+    result = article_fetcher.fetch_article_read_result(
+        "https://blog.example/feed.xml", max_chars=4000
+    )
+
+    assert result.ok is True
+    assert result.method == "feed_text"
+    assert "First" in result.text
