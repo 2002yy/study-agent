@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from typing import Any, Callable
 
 _UA = {
@@ -95,6 +97,10 @@ _LOBSTERS_HOST = "lobste.rs"
 
 _DEPSDEV_HOST = "deps.dev"
 _DEPSDEV_SYSTEMS = {"pypi", "npm", "maven", "cargo", "go", "nuget"}
+_DOI_HOSTS = ("doi.org", "dx.doi.org")
+_OPENALEX_HOST = "openalex.org"
+_ARXIV_HOST = "arxiv.org"
+_ZENODO_HOST = "zenodo.org"
 
 
 def detect(url: str) -> str:
@@ -113,6 +119,14 @@ def detect(url: str) -> str:
         return "lobsters"
     if host == _DEPSDEV_HOST:
         return "depsdev"
+    if host in _DOI_HOSTS:
+        return "doi"
+    if host == _OPENALEX_HOST:
+        return "openalex"
+    if host == _ARXIV_HOST:
+        return "arxiv"
+    if host == _ZENODO_HOST:
+        return "zenodo"
     if host == "openreview.net":
         return "openreview"
     return ""
@@ -617,6 +631,276 @@ def _lobsters(url: str, timeout: float) -> dict[str, Any]:
                    comments=shown)
 
 
+def _openalex_abstract(index: Any, limit: int = 4000) -> str:
+    if not isinstance(index, dict):
+        return ""
+    positions: dict[int, str] = {}
+    for word, places in index.items():
+        if not isinstance(places, list):
+            continue
+        for place in places:
+            if isinstance(place, int):
+                positions[place] = str(word)
+    if not positions:
+        return ""
+    text = " ".join(positions[key] for key in sorted(positions))
+    return text[:limit]
+
+
+def _date_parts(value: Any) -> str:
+    try:
+        parts = ((value or {}).get("date-parts") or [[]])[0]
+    except AttributeError:
+        return ""
+    return "-".join(str(part) for part in parts if part is not None)
+
+
+def _doi_from_url(url: str) -> str:
+    parsed = urllib.parse.urlsplit(url)
+    if (parsed.hostname or "").lower() not in _DOI_HOSTS:
+        return ""
+    path = urllib.parse.unquote(parsed.path or "").lstrip("/")
+    return path if path.lower().startswith("10.") else ""
+
+
+def _unpaywall(doi: str, timeout: float) -> str:
+    """Open-access location, only when the operator configured an email."""
+
+    email = os.getenv("UNPAYWALL_EMAIL", "").strip()
+    if not email:
+        return "[open access] not checked (UNPAYWALL_EMAIL is unset)"
+    try:
+        data = _get_json(
+            "https://api.unpaywall.org/v2/"
+            + urllib.parse.quote(doi, safe="/")
+            + "?email=" + urllib.parse.quote(email),
+            timeout,
+        )
+    except Exception as exc:  # noqa: BLE001 - optional enrichment
+        return f"[open access] lookup failed ({type(exc).__name__})"
+    location = data.get("best_oa_location") or {}
+    pdf = location.get("url_for_pdf") or ""
+    landing = location.get("url") or ""
+    lines = [f"[open access] is_oa={data.get('is_oa')} status={data.get('oa_status') or '-'}"]
+    if landing:
+        lines.append(f"  landing: {landing}")
+    if pdf:
+        lines.append(f"  pdf: {pdf} (not read)")
+    return "\n".join(lines)
+
+
+def _doi_reader(url: str, timeout: float) -> dict[str, Any]:
+    """Crossref (or DataCite) metadata for a DOI, clearly not the full text."""
+
+    doi = _doi_from_url(url)
+    if not doi:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "not a DOI URL",
+                "error_code": "platform_unsupported"}
+    deadline = time.monotonic() + max(1.0, float(timeout))
+
+    def remaining() -> float:
+        return max(0.0, deadline - time.monotonic())
+
+    method = "crossref_api"
+    try:
+        message = _get_json(
+            "https://api.crossref.org/works/" + urllib.parse.quote(doi, safe="/"),
+            max(1.0, remaining()),
+        ).get("message") or {}
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            raise
+        method = "datacite_api"
+        record = _get_json(
+            "https://api.datacite.org/dois/" + urllib.parse.quote(doi, safe="/"),
+            max(1.0, remaining()),
+        )
+        attrs = (record.get("data") or {}).get("attributes") or {}
+        title = ((attrs.get("titles") or [{}])[0] or {}).get("title") or ""
+        authors = "; ".join(
+            str((creator or {}).get("name") or "") for creator in attrs.get("creators") or []
+        )
+        description = next(
+            (
+                item.get("description") or ""
+                for item in attrs.get("descriptions") or []
+                if str(item.get("descriptionType") or "").lower() == "abstract"
+            ),
+            "",
+        )
+        lines = [
+            f"[work] {title}",
+            f"[identifiers] doi={doi} source=datacite",
+            f"[authors] {authors or '-'}",
+            f"[published] {attrs.get('publicationYear') or '-'}",
+            f"[publisher] {attrs.get('publisher') or '-'}",
+            f"[type] {(attrs.get('types') or {}).get('resourceTypeGeneral') or '-'}",
+            f"[abstract] {' '.join(_text(description).split())[:4000] or '-'}"
+            " (abstract only; the full text was not read)",
+            "[full text] not read by this adapter",
+        ]
+        if attrs.get("url"):
+            lines.insert(6, f"[links] landing={attrs['url']}")
+        return _result(url, method, title, "\n".join(lines))
+
+    title = str((message.get("title") or [""])[0] or "")
+    authors = "; ".join(
+        " ".join(part for part in (author.get("given"), author.get("family")) if part)
+        or str(author.get("name") or "")
+        for author in message.get("author") or []
+    )
+    published = (
+        _date_parts(message.get("published-print"))
+        or _date_parts(message.get("published-online"))
+        or _date_parts(message.get("issued"))
+        or _date_parts(message.get("created"))
+    )
+    venue = str((message.get("container-title") or [""])[0] or "")
+    licenses = ", ".join(
+        str(item.get("URL") or "") for item in message.get("license") or [] if item
+    )
+    landing = ((message.get("resource") or {}).get("primary") or {}).get("URL") or ""
+    lines = [
+        f"[work] {title}",
+        f"[identifiers] doi={message.get('DOI') or doi} source=crossref",
+        f"[authors] {authors or '-'}",
+        f"[published] {published or '-'}",
+        f"[venue] {venue or '-'}",
+        f"[type] {message.get('type') or '-'}",
+        f"[license] {licenses or '-'}",
+        f"[links] publisher={landing or '-'}",
+        "[abstract] "
+        + (" ".join(_text(message.get("abstract")).split())[:4000] or "-")
+        + " (abstract only; the full text was not read)",
+        _unpaywall(doi, max(1.0, remaining())),
+        "[full text] not read by this adapter",
+    ]
+    return _result(url, method, title, "\n".join(lines))
+
+
+def _openalex(url: str, timeout: float) -> dict[str, Any]:
+    parsed = urllib.parse.urlsplit(url)
+    match = re.search(r"/(?:works/)?(W\d+)", parsed.path or "")
+    if not match:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "not an OpenAlex work URL",
+                "error_code": "platform_unsupported"}
+    data = _get_json(f"https://api.openalex.org/works/{match.group(1)}", timeout)
+    title = str(data.get("title") or "")
+    authors = "; ".join(
+        str(((item.get("author") or {}).get("display_name")) or "")
+        for item in data.get("authorships") or []
+    )
+    venue = str(
+        ((data.get("primary_location") or {}).get("source") or {}).get("display_name") or ""
+    )
+    references = data.get("referenced_works") or []
+    reference_ids = [
+        str(item).rsplit("/", 1)[-1] for item in references[:10] if item
+    ]
+    access = data.get("open_access") or {}
+    lines = [
+        f"[work] {title}",
+        f"[identifiers] openalex={data.get('id') or match.group(1)} doi={data.get('doi') or '-'}",
+        f"[authors] {authors or '-'}",
+        f"[published] {data.get('publication_date') or data.get('publication_year') or '-'}",
+        f"[venue] {venue or '-'}",
+        f"[type] {data.get('type') or '-'}",
+        f"[citations] cited_by={data.get('cited_by_count', 0)}",
+        f"[references] {len(references)} works"
+        + (f" (first: {', '.join(reference_ids)})" if reference_ids else ""),
+        "[abstract] " + (_openalex_abstract(data.get("abstract_inverted_index")) or "-")
+        + " (abstract only; the full text was not read)",
+        f"[open access] is_oa={access.get('is_oa')} url={access.get('oa_url') or '-'} (not read)",
+        "[full text] not read by this adapter",
+    ]
+    return _result(url, "openalex_api", title, "\n".join(lines))
+
+
+def _arxiv(url: str, timeout: float) -> dict[str, Any]:
+    path = urllib.parse.urlsplit(url).path or ""
+    match = re.search(r"/(?:abs|pdf)/(.+?)(?:\.pdf)?/?$", path)
+    if not match:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "not an arXiv abs/pdf URL",
+                "error_code": "platform_unsupported"}
+    identifier = match.group(1)
+    text = _get_text(
+        "https://export.arxiv.org/api/query?"
+        + urllib.parse.urlencode({"id_list": identifier}),
+        timeout,
+    )
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "arXiv returned malformed Atom",
+                "error_code": "platform_failed"}
+    ns = {"a": "http://www.w3.org/2005/Atom"}
+    entry = root.find("a:entry", ns)
+    if entry is None:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "arXiv entry not found",
+                "error_code": "platform_empty"}
+    title = " ".join((entry.findtext("a:title", default="", namespaces=ns) or "").split())
+    summary = " ".join((entry.findtext("a:summary", default="", namespaces=ns) or "").split())
+    authors = "; ".join(
+        (author.findtext("a:name", default="", namespaces=ns) or "")
+        for author in entry.findall("a:author", ns)
+    )
+    published = entry.findtext("a:published", default="", namespaces=ns) or ""
+    updated = entry.findtext("a:updated", default="", namespaces=ns) or ""
+    pdf = ""
+    for link in entry.findall("a:link", ns):
+        if link.get("title") == "pdf":
+            pdf = link.get("href") or ""
+    lines = [
+        f"[work] {title}",
+        f"[identifiers] arxiv={identifier}",
+        f"[authors] {authors or '-'}",
+        f"[published] {published[:10] or '-'} | updated={updated[:10] or '-'}",
+        "[abstract] " + (summary[:4000] or "-")
+        + " (abstract only; the PDF was not parsed)",
+        f"[links] pdf={pdf or '-'} (not read)",
+        "[full text] not read by this adapter",
+    ]
+    return _result(url, "arxiv_api", title, "\n".join(lines))
+
+
+def _zenodo(url: str, timeout: float) -> dict[str, Any]:
+    match = re.search(r"/records?/(\d+)", urllib.parse.urlsplit(url).path or "")
+    if not match:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "not a Zenodo record URL",
+                "error_code": "platform_unsupported"}
+    data = _get_json(f"https://zenodo.org/api/records/{match.group(1)}", timeout)
+    meta = data.get("metadata") or {}
+    title = str(meta.get("title") or "")
+    creators = "; ".join(
+        str((item or {}).get("name") or "") for item in meta.get("creators") or []
+    )
+    description = " ".join(_text(meta.get("description")).split())[:4000]
+    files = data.get("files") or []
+    file_lines = [
+        f"  - {item.get('key')} ({item.get('size', 0)} bytes, not downloaded)"
+        for item in files[:10]
+    ]
+    lines = [
+        f"[record] {title}",
+        f"[identifiers] doi={meta.get('doi') or data.get('doi') or '-'} zenodo={match.group(1)}",
+        f"[authors] {creators or '-'}",
+        f"[published] {meta.get('publication_date') or '-'}",
+        f"[type] {(meta.get('resource_type') or {}).get('title') or '-'}",
+        f"[license] {(meta.get('license') or {}).get('id') or '-'}",
+        f"[description] {description or '-'}",
+        f"[files] {len(files)} total",
+        *file_lines,
+        "[full text] files were listed, not downloaded or parsed",
+    ]
+    return _result(url, "zenodo_api", title, "\n".join(lines))
+
+
 def _openreview(url: str, timeout: float) -> dict[str, Any]:
     match = re.search(r"[?&]id=([^&]+)", url)
     if not match:
@@ -681,6 +965,10 @@ _READERS = {
     "depsdev": _depsdev,
     "lobsters": _lobsters,
     "huggingface": _huggingface,
+    "doi": _doi_reader,
+    "openalex": _openalex,
+    "arxiv": _arxiv,
+    "zenodo": _zenodo,
     "openreview": _openreview,
 }
 

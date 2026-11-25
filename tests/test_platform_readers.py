@@ -107,6 +107,141 @@ def test_the_gateway_uses_the_platform_reader(monkeypatch):
     assert result["method"] == "hn_api"
 
 
+def test_academic_hosts_are_detected():
+    assert platform_readers.detect("https://doi.org/10.1038/nature12373") == "doi"
+    assert platform_readers.detect("https://openalex.org/works/W2741809807") == "openalex"
+    assert platform_readers.detect("https://arxiv.org/abs/1706.03762") == "arxiv"
+    assert platform_readers.detect("https://zenodo.org/records/12345") == "zenodo"
+
+
+def test_doi_returns_crossref_metadata_not_full_text(monkeypatch):
+    monkeypatch.delenv("UNPAYWALL_EMAIL", raising=False)
+
+    def fake(url, timeout):
+        if "crossref.org" in url:
+            return {"message": {
+                "title": ["A study"], "DOI": "10.1/x",
+                "author": [{"given": "Ada", "family": "Lovelace"}],
+                "published-print": {"date-parts": [[2024, 5, 1]]},
+                "container-title": ["Journal"], "type": "journal-article",
+                "license": [{"URL": "https://creativecommons.org/licenses/by/4.0/"}],
+                "resource": {"primary": {"URL": "https://publisher.example/x"}},
+                "abstract": "<jats:p>short abstract</jats:p>",
+            }}
+        raise AssertionError(url)
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake)
+    result = platform_readers.read("https://doi.org/10.1/x", timeout=5)
+
+    assert result["ok"] is True
+    assert result["method"] == "crossref_api"
+    assert "doi=10.1/x" in result["content"]
+    assert "Ada Lovelace" in result["content"]
+    assert "short abstract" in result["content"]
+    assert "abstract only" in result["content"]
+    assert "[full text] not read" in result["content"]
+    assert "not checked (UNPAYWALL_EMAIL is unset)" in result["content"]
+
+
+def test_unknown_doi_falls_back_to_datacite(monkeypatch):
+    monkeypatch.delenv("UNPAYWALL_EMAIL", raising=False)
+
+    def fake(url, timeout):
+        if "crossref.org" in url:
+            raise platform_readers.urllib.error.HTTPError(url, 404, "Not Found", None, None)
+        if "datacite.org" in url:
+            return {"data": {"attributes": {
+                "titles": [{"title": "A dataset"}],
+                "creators": [{"name": "Data Team"}],
+                "publicationYear": 2024,
+                "publisher": "Zenodo",
+                "types": {"resourceTypeGeneral": "Dataset"},
+                "descriptions": [{"descriptionType": "Abstract",
+                                  "description": "dataset abstract"}],
+                "url": "https://zenodo.org/records/1",
+            }}}
+        raise AssertionError(url)
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake)
+    result = platform_readers.read("https://doi.org/10.1/data", timeout=5)
+
+    assert result["ok"] is True
+    assert result["method"] == "datacite_api"
+    assert "A dataset" in result["content"]
+    assert "dataset abstract" in result["content"]
+
+
+def test_openalex_rebuilds_the_abstract_and_references(monkeypatch):
+    def fake(url, timeout):
+        return {
+            "id": "https://openalex.org/W1", "doi": "https://doi.org/10.1/x",
+            "title": "Work", "publication_date": "2024-01-01", "type": "article",
+            "authorships": [{"author": {"display_name": "Ada"}}],
+            "primary_location": {"source": {"display_name": "Journal"}},
+            "cited_by_count": 7,
+            "referenced_works": ["https://openalex.org/W2", "https://openalex.org/W3"],
+            "abstract_inverted_index": {"hello": [0], "world": [1]},
+            "open_access": {"is_oa": True, "oa_url": "https://oa.example/x"},
+        }
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake)
+    result = platform_readers.read("https://openalex.org/works/W1", timeout=5)
+
+    assert result["ok"] is True
+    assert result["method"] == "openalex_api"
+    assert "hello world" in result["content"]
+    assert "cited_by=7" in result["content"]
+    assert "2 works" in result["content"]
+    assert "W2" in result["content"]
+
+
+def test_arxiv_parses_the_atom_entry(monkeypatch):
+    atom = """<?xml version="1.0"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <title>Attention Is All You Need</title>
+        <summary> transformer abstract </summary>
+        <author><name>Vaswani</name></author>
+        <published>2017-06-12T00:00:00Z</published>
+        <updated>2023-01-01T00:00:00Z</updated>
+        <link title="pdf" href="https://arxiv.org/pdf/1706.03762"/>
+      </entry>
+    </feed>
+    """
+    monkeypatch.setattr(platform_readers, "_get_text", lambda url, timeout: atom)
+    result = platform_readers.read("https://arxiv.org/abs/1706.03762", timeout=5)
+
+    assert result["ok"] is True
+    assert result["method"] == "arxiv_api"
+    assert "Attention Is All You Need" in result["content"]
+    assert "transformer abstract" in result["content"]
+    assert "pdf=https://arxiv.org/pdf/1706.03762" in result["content"]
+    assert "PDF was not parsed" in result["content"]
+
+
+def test_zenodo_lists_files_without_downloading(monkeypatch):
+    def fake(url, timeout):
+        return {
+            "metadata": {
+                "title": "Dataset", "doi": "10.5281/zenodo.1",
+                "creators": [{"name": "Team"}],
+                "publication_date": "2024-02-02",
+                "description": "<p>data description</p>",
+                "resource_type": {"title": "Dataset"},
+                "license": {"id": "cc-by-4.0"},
+            },
+            "files": [{"key": "data.csv", "size": 1234}],
+        }
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake)
+    result = platform_readers.read("https://zenodo.org/records/1", timeout=5)
+
+    assert result["ok"] is True
+    assert result["method"] == "zenodo_api"
+    assert "data.csv" in result["content"]
+    assert "not downloaded" in result["content"]
+
+
 def test_mediawiki_hosts_are_detected():
     assert platform_readers.detect(
         "https://en.wikipedia.org/wiki/Jolt_Physics"

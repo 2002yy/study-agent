@@ -91,6 +91,28 @@ def test_arxiv_metadata_does_not_guess_missing_authors():
     assert fields["citation_date"] == "2017/06/12"
 
 
+def test_platform_api_does_not_preempt_official_fields(monkeypatch):
+    payload = (b'<meta name="citation_title" content="Attention Is All You Need">'
+               b'<meta name="citation_arxiv_id" content="1706.03762">'
+               b'<meta name="citation_author" content="Source Author">'
+               b'<div class="submission-history">[v1] Mon, 12 Jun 2017 17:57:34 UTC</div>')
+    metadata(monkeypatch, payload)
+    from src.web import platform_readers
+
+    monkeypatch.setattr(
+        platform_readers, "detect",
+        lambda url: pytest.fail("a platform API summary must not preempt official fields"),
+    )
+    result = GeneralWebGateway(search_strategy="fallback").read(
+        "https://arxiv.org/abs/1706.03762"
+    )
+
+    assert result["method"] == "official_metadata_http_v2"
+    fields = {row["field"]: row["value"] for row in result["official_fields"]}
+    assert fields["authors"] == "Source Author"
+    assert fields["first_submission"] == "Mon, 12 Jun 2017 17:57:34 UTC"
+
+
 def test_registered_paper_seed_is_read_even_without_title_words_in_url(monkeypatch):
     metadata(monkeypatch, b'<meta name="citation_title" content="Attention Is All You Need">'
              b'<meta name="citation_arxiv_id" content="1706.03762">'
