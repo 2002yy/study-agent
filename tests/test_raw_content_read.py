@@ -272,3 +272,160 @@ def test_feed_payload_uses_feed_text_method(monkeypatch):
     assert result.ok is True
     assert result.method == "feed_text"
     assert "First" in result.text
+
+
+def test_pdf_payload_is_extracted_as_text(monkeypatch):
+    article_fetcher._ARTICLE_CACHE.clear()
+    monkeypatch.setattr(
+        article_fetcher,
+        "_fetch_html_payload",
+        lambda url, timeout, max_bytes: ("", url, "application/pdf", "non_html_resource"),
+    )
+    monkeypatch.setattr(
+        article_fetcher,
+        "_fetch_binary_payload",
+        lambda url, timeout, max_bytes: (b"%PDF-1.4", url, "application/pdf", ""),
+    )
+    monkeypatch.setattr(
+        raw_content, "pdf_text", lambda data, max_chars=20_000: "[pdf] 2 pages\n[page 1]\nbody"
+    )
+    result = article_fetcher.fetch_article_read_result(
+        "https://example.com/paper.pdf", max_chars=4000
+    )
+
+    assert result.ok is True
+    assert result.method == "pdf_text"
+    assert "[page 1]" in result.text
+
+
+def test_unreadable_pdf_fails_closed(monkeypatch):
+    article_fetcher._ARTICLE_CACHE.clear()
+    monkeypatch.setattr(
+        article_fetcher,
+        "_fetch_html_payload",
+        lambda url, timeout, max_bytes: ("", url, "application/pdf", "non_html_resource"),
+    )
+    monkeypatch.setattr(
+        article_fetcher,
+        "_fetch_binary_payload",
+        lambda url, timeout, max_bytes: (b"not a pdf", url, "application/pdf", ""),
+    )
+    monkeypatch.setattr(raw_content, "pdf_text", lambda data, max_chars=20_000: "")
+    result = article_fetcher.fetch_article_read_result(
+        "https://example.com/broken.pdf", max_chars=4000
+    )
+
+    assert result.ok is False
+    assert result.reason == "pdf_unreadable"
+
+
+def test_page_toc_lists_headings_with_anchors():
+    html = """
+    <html><body>
+      <h1 id="top">Guide</h1>
+      <h2 id="install">Install</h2>
+      <h3>Options</h3>
+      <h2 id="deploy">Deploy</h2>
+    </body></html>
+    """
+    text = raw_content.page_toc(html, "https://docs.example/guide")
+
+    assert "[toc]" in text
+    assert "H2 Install — https://docs.example/guide#install" in text
+    assert "H3 Options" in text
+    assert "H2 Deploy" in text
+
+
+def test_section_text_reads_only_the_anchor():
+    html = """
+    <html><body>
+      <h2 id="install">Install</h2>
+      <p>install steps</p>
+      <h2 id="deploy">Deploy</h2>
+      <p>deploy steps</p>
+    </body></html>
+    """
+    text = raw_content.section_text(html, "install")
+
+    assert "[section #install]" in text
+    assert "install steps" in text
+    assert "deploy steps" not in text
+
+
+def test_fragment_url_reads_one_section(monkeypatch):
+    article_fetcher._ARTICLE_CACHE.clear()
+    html = """
+    <html><body>
+      <h2 id="install">Install</h2><p>install steps</p>
+      <h2 id="deploy">Deploy</h2><p>deploy steps</p>
+    </body></html>
+    """
+    monkeypatch.setattr(
+        article_fetcher,
+        "_fetch_html_payload",
+        lambda url, timeout, max_bytes: (html, url, "text/html", ""),
+    )
+    result = article_fetcher.fetch_article_read_result(
+        "https://example.com/guide#install", max_chars=4000
+    )
+
+    assert result.ok is True
+    assert result.method == "section_text"
+    assert "install steps" in result.text
+    assert "deploy steps" not in result.text
+
+
+def test_srt_and_vtt_keep_timestamps():
+    srt = """1
+00:00:01,000 --> 00:00:03,000
+Hello there
+
+2
+00:00:04,500 --> 00:00:06,000
+General Kenobi
+"""
+    vtt = """WEBVTT
+
+00:00:01.000 --> 00:00:02.000
+<c>first line</c>
+
+00:00:02.000 --> 00:00:03.000
+second line
+"""
+    srt_text = raw_content.subtitle_text(srt, "srt")
+    vtt_text = raw_content.subtitle_text(vtt, "vtt")
+
+    assert "[subtitles] 2 cues" in srt_text
+    assert "[00:00:01] Hello there" in srt_text
+    assert "[00:00:04] General Kenobi" in srt_text
+    assert "[00:00:01] first line" in vtt_text
+    assert "[00:00:02] second line" in vtt_text
+
+
+def test_ass_dialogue_lines_are_parsed():
+    ass = """[Script Info]
+Title: demo
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:05.00,0:00:07.00,Default,,0,0,0,,{\\i1}styled line{\\i0}
+"""
+    text = raw_content.subtitle_text(ass, "ass")
+
+    assert "[00:00:05] styled line" in text
+
+
+def test_podcast_feed_keeps_audio_and_transcript_links():
+    payload = """<?xml version="1.0"?>
+    <rss xmlns:podcast="https://podcastindex.org/namespace/1.0"><channel>
+      <item><title>Episode 1</title><link>https://pod.example/1</link>
+        <enclosure url="https://cdn.example/1.mp3" type="audio/mpeg" length="1"/>
+        <podcast:transcript url="https://pod.example/1.vtt" type="text/vtt"/>
+        <description>episode notes</description>
+      </item>
+    </channel></rss>
+    """
+    text = raw_content.feed_summary(payload)
+
+    assert "audio=https://cdn.example/1.mp3 (not transcribed)" in text
+    assert "transcript=https://pod.example/1.vtt" in text
