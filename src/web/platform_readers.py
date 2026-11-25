@@ -37,6 +37,51 @@ _DISCOURSE_HOSTS = (
     "discourse.julialang.org",
     "users.rust-lang.org",
 )
+#: MediaWiki sites with a public ``api.php``. Wikipedia and its sister projects
+#: share a suffix; the rest are known installs, listed explicitly so an arbitrary
+#: host cannot become an API target.
+_MEDIAWIKI_SUFFIXES = (
+    ".wikipedia.org",
+    ".wiktionary.org",
+    ".wikibooks.org",
+    ".wikiquote.org",
+    ".wikisource.org",
+    ".wikinews.org",
+    ".wikivoyage.org",
+    ".wikiversity.org",
+    ".wikimedia.org",
+    ".wiki.gg",
+)
+_MEDIAWIKI_HOSTS = (
+    "wiki.archlinux.org",
+    "wiki.gentoo.org",
+    "wiki.nixos.org",
+    "minecraft.wiki",
+    "www.mediawiki.org",
+    "moegirl.org.cn",
+    "zh.moegirl.org.cn",
+    "wiki.biligame.com",
+)
+#: Hosts whose page path is the title itself (no /wiki/ prefix).
+_ROOT_TITLE_HOSTS = ("moegirl.org.cn",)
+
+
+def _is_root_title_host(host: str) -> bool:
+    return any(host == item or host.endswith("." + item)
+               for item in _ROOT_TITLE_HOSTS)
+#: Hosts that mount one MediaWiki install per first path segment.
+_SUBPATH_WIKI_HOSTS = ("wiki.biligame.com",)
+#: Endpoints the readers discovered per origin, so a host is probed once.
+_MEDIAWIKI_ENDPOINTS: dict[str, str] = {}
+
+
+def _is_mediawiki_host(host: str) -> bool:
+    if host in _MEDIAWIKI_HOSTS:
+        return True
+    return any(host == item.lstrip(".") or host.endswith(item)
+               for item in _MEDIAWIKI_SUFFIXES)
+
+
 _HUGGINGFACE_HOST = "huggingface.co"
 _HF_KINDS = ("models", "datasets", "spaces")
 #: Top-level Hub paths that are not repositories.
@@ -54,6 +99,8 @@ def detect(url: str) -> str:
         return "stackexchange"
     if host in _DISCOURSE_HOSTS:
         return "discourse"
+    if _is_mediawiki_host(host):
+        return "mediawiki"
     if host == _HUGGINGFACE_HOST:
         return "huggingface"
     if host == "openreview.net":
@@ -165,6 +212,97 @@ def _discourse(url: str, timeout: float) -> dict[str, Any]:
         next_url = f"{url.split('?')[0]}?page=2"
     return _result(url, "discourse_api", str(data.get("title") or ""), "\n\n".join(parts),
                    replies=len(posts), next_url=next_url)
+
+
+def _mediawiki_title(url: str) -> str:
+    """Take the page title from the wiki URL shapes we support."""
+
+    parsed = urllib.parse.urlsplit(url)
+    host = (parsed.hostname or "").lower()
+    path = urllib.parse.unquote(parsed.path or "")
+    lowered = path.lower()
+    if lowered.startswith(("/w/index.php", "/index.php")):
+        path = ""
+    for prefix in ("/wiki/", "/w/", "/title/"):
+        if path.startswith(prefix) and len(path) > len(prefix):
+            return path[len(prefix):].replace("_", " ").strip().strip("/")
+    if _is_root_title_host(host) and path.strip("/"):
+        return path.strip("/").replace("_", " ")
+    values = urllib.parse.parse_qs(parsed.query or "")
+    return (values.get("title") or [""])[0].replace("_", " ").strip()
+
+
+def _mediawiki_base(url: str) -> tuple[str, str]:
+    """Return the API base and the title for this wiki URL."""
+
+    parsed = urllib.parse.urlsplit(url)
+    host = (parsed.hostname or "").lower()
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    path = urllib.parse.unquote(parsed.path or "")
+    if host in _SUBPATH_WIKI_HOSTS:
+        segments = [part for part in path.split("/") if part]
+        if len(segments) < 2:
+            return "", ""
+        title = "/".join(segments[1:]).replace("_", " ")
+        return f"{origin}/{segments[0]}", title
+    return origin, _mediawiki_title(url)
+
+
+def _mediawiki_endpoint(base: str, timeout: float) -> str:
+    """Find the api.php a wiki actually answers on, once per process."""
+
+    cached = _MEDIAWIKI_ENDPOINTS.get(base)
+    if cached:
+        return cached
+    probe = "?action=query&meta=siteinfo&format=json&formatversion=2"
+    for path in ("/w/api.php", "/api.php"):
+        try:
+            data = _get_json(f"{base}{path}{probe}", timeout)
+        except Exception:  # noqa: BLE001 - try the next candidate
+            continue
+        if (data.get("query") or {}).get("general"):
+            _MEDIAWIKI_ENDPOINTS[base] = f"{base}{path}"
+            return _MEDIAWIKI_ENDPOINTS[base]
+    return ""
+
+
+def _mediawiki(url: str, timeout: float) -> dict[str, Any]:
+    """Read one wiki page through the MediaWiki action API."""
+
+    base, title = _mediawiki_base(url)
+    if not title:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "no wiki page title in this URL",
+                "error_code": "platform_unsupported"}
+    endpoint = _mediawiki_endpoint(base, timeout)
+    if not endpoint:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "no MediaWiki api.php answered",
+                "error_code": "platform_failed"}
+    query = urllib.parse.urlencode({
+        "action": "query", "prop": "extracts", "explaintext": "1",
+        "exlimit": "1", "redirects": "1", "titles": title,
+        "format": "json", "formatversion": "2",
+    })
+    data = _get_json(f"{endpoint}?{query}", timeout)
+    pages = (data.get("query") or {}).get("pages") or []
+    page = pages[0] if pages else {}
+    if page.get("missing"):
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": f"page {title!r} does not exist",
+                "error_code": "platform_empty"}
+    page_title = str(page.get("title") or title)
+    text = str(page.get("extract") or "").strip()
+    if not text:
+        # TextExtracts is an extension; plain installs still answer action=parse.
+        parse_query = urllib.parse.urlencode({
+            "action": "parse", "page": title, "prop": "text",
+            "redirects": "1", "format": "json", "formatversion": "2",
+        })
+        parsed_page = _get_json(f"{endpoint}?{parse_query}", timeout).get("parse") or {}
+        page_title = str(parsed_page.get("title") or page_title)
+        text = _text(parsed_page.get("text"))
+    return _result(url, "mediawiki_api", page_title, text)
 
 
 def _get_text(url: str, timeout: float, max_bytes: int = 30_000) -> str:
@@ -353,6 +491,7 @@ _READERS = {
     "hn": _hn,
     "stackexchange": _stackexchange,
     "discourse": _discourse,
+    "mediawiki": _mediawiki,
     "huggingface": _huggingface,
     "openreview": _openreview,
 }
