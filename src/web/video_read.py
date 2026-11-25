@@ -22,8 +22,11 @@ from typing import Any
 from src.web.tool_evidence import _public_url
 
 _BVID = re.compile(r"(BV[0-9A-Za-z]{10})")
+_YT_ID = re.compile(r"(?:v=|/shorts/|youtu\.be/)([A-Za-z0-9_-]{11})")
 _PART = re.compile(r"[?&](?:p|page)=(\d+)")
 _SUPPORTED_HOSTS = ("bilibili.com", "b23.tv")
+_YT_HOSTS = ("youtube.com", "youtu.be", "youtube-nocookie.com")
+_YT_LANGS = ("zh-Hans", "zh-CN", "zh", "en", "en-US", "en-GB")
 #: Bilibili's "AI subtitle" tracks are not public; danmaku is not speech.
 _SPEECH_LANGS = ("zh-Hans", "zh-CN", "zh", "ai-zh", "en")
 _MAX_SECONDS = 600
@@ -47,6 +50,146 @@ def _part(url: str) -> int:
     return max(1, int(match.group(1))) if match else 1
 
 
+def _youtube_id(url: str) -> str:
+    match = _YT_ID.search(str(url or ""))
+    return match.group(1) if match else ""
+
+
+def _ytdlp_prefix() -> list[str]:
+    """yt-dlp plus the operator's proxy, when one is configured."""
+
+    command = ["yt-dlp"]
+    proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+    if proxy:
+        command.extend(["--proxy", proxy])
+    return command
+
+
+def _youtube_track(meta: dict[str, Any]) -> dict[str, str] | None:
+    """Prefer the author's language, then translations; label both honestly."""
+
+    manual = meta.get("subtitles") or {}
+    automatic = meta.get("automatic_captions") or {}
+    original = str(meta.get("language") or "").split("-")[0].casefold()
+    if original:
+        for language in manual:
+            if language.split("-")[0].casefold() == original:
+                return {"kind": "manual", "language": language}
+        for language in automatic:
+            if language.split("-")[0].casefold() == original:
+                return {"kind": "auto", "language": language}
+    for language in _YT_LANGS:
+        if language in manual:
+            family = language.split("-")[0].casefold()
+            kind = "manual" if not original or family == original else "manual_translated"
+            return {"kind": kind, "language": language}
+    for language in _YT_LANGS:
+        if language in automatic:
+            family = language.split("-")[0].casefold()
+            kind = "auto" if not original or family == original else "auto_translated"
+            return {"kind": kind, "language": language}
+    return None
+
+
+def _read_youtube(
+    url: str, *, max_chars: int, timeout: float,
+    max_seconds: int, start_seconds: int,
+) -> dict[str, Any]:
+    """Subtitles only. No audio download, no ASR, no OCR."""
+
+    video_id = _youtube_id(url)
+    if not video_id:
+        return _failure(url, "video_unsupported", "not a YouTube video URL")
+    if timeout < _MIN_BUDGET:
+        return _failure(url, "video_no_budget", "no time left for a video read")
+    start = max(0, min(int(start_seconds), 3600))
+    seconds = max(15, min(int(max_seconds), _MAX_SECONDS))
+    deadline = time.monotonic() + float(timeout)
+    remaining = deadline - time.monotonic()
+    try:
+        done = _run(
+            [*_ytdlp_prefix(), "--dump-single-json", "--skip-download", url],
+            _meta_timeout(remaining),
+        )
+    except subprocess.TimeoutExpired:
+        return _failure(url, "video_timeout", "metadata lookup timed out")
+    if done.returncode != 0 or not (done.stdout or "").strip():
+        return _failure(url, "video_unavailable",
+                        (done.stderr or "yt-dlp could not read the video")[-300:])
+    try:
+        meta = json.loads(done.stdout)
+    except ValueError:
+        return _failure(url, "video_unavailable", "yt-dlp returned invalid metadata")
+
+    track = _youtube_track(meta)
+    if track is None:
+        # The requirement is explicit: no silent audio download.
+        return _failure(url, "video_no_subtitles", "no public subtitles on this video")
+    kind, language = track["kind"], track["language"]
+    cache = _cache_root() / (
+        f"yt-{video_id}-{kind}-{language}-{start}-{seconds}.json"
+    )
+    cached = _read_cache(cache, max_chars)
+    if cached is not None:
+        return cached
+
+    work = _cache_root() / f"yt-{video_id}-{kind}-{language}-{start}-{seconds}.work"
+    work.mkdir(parents=True, exist_ok=True)
+    try:
+        remaining = deadline - time.monotonic()
+        if remaining < _MIN_BUDGET:
+            return _failure(url, "video_no_budget", "no time left for subtitles")
+        command = [*_ytdlp_prefix(), "--skip-download", "--sub-langs", language,
+                   "--sub-format", "vtt", "-o", str(work / "sub")]
+        command.append("--write-subs" if kind == "manual" else "--write-auto-subs")
+        command.append(url)
+        done = _run(command, remaining)
+        path = next(iter(work.glob("sub*.vtt")), None)
+        if path is None:
+            return _failure(url, "video_no_subtitles",
+                            (done.stderr or "subtitle download produced no file")[-300:])
+        rows = _parse_vtt(path.read_text(encoding="utf-8", errors="replace"))
+        window_end = start + seconds
+        rows = [row for row in rows if start <= float(row.get("start") or 0) < window_end]
+        rows = _dedupe_cues(rows)
+        transcript = _trim(rows, max(500, min(int(max_chars), 40_000)))
+        if not transcript:
+            return _failure(url, "video_no_transcript", "this section has no subtitle text")
+        duration = meta.get("duration")
+        result = {
+            "ok": True,
+            "kind": "video",
+            "url": url,
+            "platform": "youtube",
+            "video_id": video_id,
+            "title": str(meta.get("title") or ""),
+            "duration": duration,
+            "method": "subtitle",
+            "subtitle_type": kind,
+            "language": language,
+            "transcript": transcript,
+            "segments": transcript,
+            "text": "\n".join(row["text"] for row in transcript),
+            "content": _content(transcript, None),
+            "chars": sum(len(row["text"]) for row in transcript),
+            "sources": {"speech": "subtitle", "ocr": ""},
+            "scope": {
+                "start": start,
+                "seconds": seconds,
+                "may_be_partial": bool(duration and duration > window_end),
+                "chars_truncated": False,
+            },
+            "cached": False,
+        }
+        try:
+            cache.write_text(json.dumps(result, ensure_ascii=False) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+        return result
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def _failure(url: str, code: str, message: str) -> dict[str, Any]:
     return {
         "ok": False,
@@ -65,6 +208,21 @@ def _run(args: list[str], timeout: float) -> subprocess.CompletedProcess:
     )
 
 
+def _dedupe_cues(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rolling auto-captions repeat the same line; keep one of each run."""
+
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        text = str(row.get("text") or "").strip()
+        if not text:
+            continue
+        if out and text == out[-1]["text"]:
+            out[-1]["end"] = max(out[-1]["end"], row["end"])
+            continue
+        out.append({"start": row["start"], "end": row["end"], "text": text})
+    return out
+
+
 def _parse_vtt(text: str) -> list[dict[str, Any]]:
     """Minimal VTT cue parser; timestamps stay attached to each line."""
 
@@ -80,7 +238,10 @@ def _parse_vtt(text: str) -> list[dict[str, Any]]:
             continue
         if not line or line.isdigit() or line.startswith(("WEBVTT", "NOTE", "Kind:", "Language:")):
             continue
-        rows.append({"start": current_start, "end": current_end, "text": line})
+        # Auto captions carry inline <c>/timestamp markup; keep the words.
+        line = re.sub(r"<[^>]*>", "", line).strip()
+        if line:
+            rows.append({"start": current_start, "end": current_end, "text": line})
     return rows
 
 
@@ -344,10 +505,15 @@ def read_video(
     """Return timed transcript rows for one Bilibili video section."""
 
     target = _public_url(url)
+    host = (target.split("/")[2] if target and "//" in target else "").lower()
+    if target and any(host == item or host.endswith("." + item) for item in _YT_HOSTS):
+        return _read_youtube(
+            target, max_chars=max_chars, timeout=timeout,
+            max_seconds=max_seconds, start_seconds=start_seconds,
+        )
     video_id = _bvid(target or str(url or ""))
     if not target or not video_id:
         return _failure(str(url or ""), "video_unsupported", "not a Bilibili video URL")
-    host = (target.split("/")[2] if "//" in target else "").lower()
     if not any(host == item or host.endswith("." + item) for item in _SUPPORTED_HOSTS):
         return _failure(target, "video_unsupported", "host is not supported yet")
     if timeout < _MIN_BUDGET:
