@@ -1242,6 +1242,15 @@ class GeneralWebGateway:
                 start_seconds=start_seconds, video_seconds=video_seconds,
                 include_ocr=include_ocr,
             )
+
+        # Platforms with a stable public API are read through it instead of
+        # scraping their JS pages; a failure falls back to the normal path.
+        from src.web import platform_readers
+
+        if platform_readers.detect(value):
+            platform = platform_readers.read(value, timeout=remaining())
+            if platform.get("ok"):
+                return platform
         browse_allowed = mode != "http" and _browse_read_available()
         browse_tried = False
         if mode == "browse" and not browse_allowed:
