@@ -82,6 +82,16 @@ def _supported_url(url: str) -> bool:
                 or url == "https://platform.claude.com/docs/en/models/overview")
 
 
+def is_official_source_url(url: str) -> bool:
+    """True when the page-bound official resolver owns this URL.
+
+    Platform API readers summarise a resource; a known-source query needs the
+    page's own metadata spans, so those readers must not answer first.
+    """
+
+    return _supported_url(str(url or "").strip())
+
+
 class _OfficialRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         if urlsplit(newurl).scheme != "https" or urlsplit(newurl).hostname != urlsplit(req.full_url).hostname:

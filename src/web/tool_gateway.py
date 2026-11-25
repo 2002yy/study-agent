@@ -1267,9 +1267,13 @@ class GeneralWebGateway:
 
         # Platforms with a stable public API are read through it instead of
         # scraping their JS pages; a failure falls back to the normal path.
+        # A known-source URL is excluded: an API summary cannot carry the page
+        # spans that the official-field publication binds, so answering from it
+        # would silently drop the verified author/date.
         from src.web import platform_readers
+        from src.web.research.official_resolver import is_official_source_url
 
-        if platform_readers.detect(value):
+        if not is_official_source_url(value) and platform_readers.detect(value):
             platform = platform_readers.read(value, timeout=remaining())
             if platform.get("ok"):
                 return platform
