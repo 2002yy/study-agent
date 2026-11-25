@@ -527,6 +527,8 @@ def test_full_platform_map_is_available_to_existing_model_prompt(monkeypatch):
     assert "miyoushe|米游社|游戏专项|N" in prompt
     assert "xiaohongshu.com|小红书|生活消费|I" in prompt
     assert "t.me|Telegram 公开频道|即时讨论|L" in prompt
+    assert "Readable through platform APIs" in prompt
+    assert "MediaWiki" in prompt and "Hugging Face" in prompt and "deps.dev" in prompt
     value = decision()
     value["proposed_queries"] = [
         {"rq_id": "rq-identity", "query": "春招笔试", "site_key": "xiaohongshu.com"},

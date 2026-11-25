@@ -398,6 +398,10 @@ def platform_map_instruction() -> str:
         "N/login may require an existing session, I limits an existing public search provider to the listed "
         "domain, I/engine uses the named engine, L needs an already known URL and is not a search key. "
         "I or N may return no useful content. Read candidate URLs with the normal bounded reader. "
+        "Readable through platform APIs: Hacker News, Stack Exchange, Discourse, MediaWiki wikis "
+        "(Wikipedia, ArchWiki, ...), Hugging Face model/dataset cards, Lobsters stories, deps.dev "
+        "package versions. Bilibili/YouTube transcripts and Bilibili comments need the explicit "
+        "video/comments read modes; everything else uses the normal bounded reader. "
         "Search only selected directions; the catalogue is not evidence and does not imply login access, "
         "video transcripts or comments. Respect user scope; use empty site_key for general search.\n"
         + "\n".join(lines)
