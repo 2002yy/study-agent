@@ -206,10 +206,10 @@ def jsonl_summary(payload: str, max_chars: int = 20_000) -> str:
 
 def _table_rows(table: Any) -> list[list[str]]:
     rows: list[list[str]] = []
-    for row in table.find_all("tr"):
+    for row in table.xpath("./tr | ./thead/tr | ./tbody/tr | ./tfoot/tr"):
         cells = [
-            cell.get_text(" ", strip=True)
-            for cell in row.find_all(["th", "td"])
+            " ".join(cell.text_content().split())
+            for cell in row.xpath("./th | ./td")
         ]
         if cells:
             rows.append(cells)
@@ -228,20 +228,24 @@ def tables_to_markdown(
 
     Tables with merged cells are reported, not guessed: a colspan/rowspan table
     cannot be rendered as a rectangular grid without inventing cell positions.
+    lxml is already a declared dependency; the reader adds no new one.
     """
 
     try:
-        from bs4 import BeautifulSoup
+        from lxml import html as lxml_html  # type: ignore[import-untyped]
     except Exception:  # noqa: BLE001 - optional parser
         return ""
-    soup = BeautifulSoup(html, "html.parser")
+    try:
+        tree = lxml_html.fromstring(html)
+    except Exception:  # noqa: BLE001 - not parseable HTML
+        return ""
     blocks: list[str] = []
     notes: list[str] = []
-    tables = [table for table in soup.find_all("table") if not table.find_parent("table")]
+    tables = tree.xpath("//table[not(ancestor::table)]")
     for index, table in enumerate(tables[:max_tables], start=1):
         merged = any(
             cell.get("colspan") or cell.get("rowspan")
-            for cell in table.find_all(["td", "th"])
+            for cell in table.xpath(".//td | .//th")
         )
         if merged:
             notes.append(f"table {index} skipped: merged cells")
