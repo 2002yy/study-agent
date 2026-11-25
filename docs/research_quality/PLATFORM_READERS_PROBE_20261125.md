@@ -51,3 +51,29 @@
 - 不访问登录态内容；删除/审核评论不参与证据。
 
 网关实测：`method=lobsters_api`，证据链 `source=lobsters_api`。
+
+## deps.dev
+
+实现：`depsdev` 分发，`method=depsdev_api`。站点 URL
+`/{system}/{name}/{version}` 映射到 `api.deps.dev/v3`，读取版本元数据与依赖图。
+
+- 支持 `pypi`、`npm`、`maven`、`cargo`、`go`、`nuget`。
+- 元数据：许可证、发布时间、是否默认版本、是否废弃、advisories、官方链接。
+- 依赖：`:dependencies` 返回的节点，跳过 SELF，最多列 30 个。
+- Maven 的站点路径用 `group/artifact`，API 名字用 `group:artifact`，已转换。
+- 两个请求共享一个截止时间；依赖图失败不影响版本元数据。
+
+| 样本 | 结果 |
+| --- | --- |
+| `pypi/requests/2.31.0` | 510 字，6 个 advisory，Apache-2.0 |
+| `npm/react/18.2.0` | 429 字 |
+| `cargo/serde/1.0.219` | 265 字 |
+| `maven/org.apache.commons/commons-lang3/3.14.0` | 471 字，1 个 advisory |
+
+边界：
+
+- 只读版本元数据和依赖关系，不下载包、不执行构建。
+- 不跟随 `relatedProjects`，不递归展开完整依赖树。
+- 未知 system 或缺少版本段时交回普通读取。
+
+网关实测：`method=depsdev_api`，证据链 `source=depsdev_api`。

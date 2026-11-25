@@ -319,6 +319,71 @@ def test_mediawiki_requests_share_one_deadline(monkeypatch):
     assert 2.9 <= seen[0] <= 3.0
     assert seen[1] <= 2.0
 
+def test_depsdev_reads_version_and_dependencies(monkeypatch):
+    assert platform_readers.detect(
+        "https://deps.dev/pypi/requests/2.31.0"
+    ) == "depsdev"
+
+    def fake(url, timeout):
+        if url.endswith(":dependencies"):
+            return {"nodes": [
+                {"versionKey": {"system": "PYPI", "name": "requests", "version": "2.31.0"},
+                 "relation": "SELF"},
+                {"versionKey": {"system": "PYPI", "name": "urllib3", "version": "1.26.18"},
+                 "relation": "DIRECT"},
+            ]}
+        return {
+            "publishedAt": "2023-05-22T15:12:42Z",
+            "isDefault": False, "isDeprecated": False,
+            "licenses": ["Apache-2.0"],
+            "advisoryKeys": [{"id": "GHSA-1"}],
+            "links": [{"label": "SOURCE_REPO", "url": "https://github.com/psf/requests"}],
+        }
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake)
+    result = platform_readers.read("https://deps.dev/pypi/requests/2.31.0", timeout=5)
+
+    assert result["ok"] is True
+    assert result["method"] == "depsdev_api"
+    assert "Apache-2.0" in result["content"]
+    assert "GHSA-1" in result["content"]
+    assert "urllib3 1.26.18" in result["content"]
+    assert "- requests " not in result["content"]
+
+
+def test_depsdev_maven_packages_keep_the_group_path(monkeypatch):
+    seen: list[str] = []
+
+    def fake(url, timeout):
+        seen.append(url)
+        if url.endswith(":dependencies"):
+            return {"nodes": []}
+        return {"licenses": ["Apache-2.0"], "advisoryKeys": []}
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake)
+    result = platform_readers.read(
+        "https://deps.dev/maven/org.apache.commons/commons-lang3/3.14.0", timeout=5
+    )
+
+    assert result["ok"] is True
+    assert any("org.apache.commons%3Acommons-lang3" in url for url in seen)
+
+
+def test_depsdev_missing_version_is_empty(monkeypatch):
+    def missing(url, timeout):
+        raise platform_readers.urllib.error.HTTPError(url, 404, "Not Found", None, None)
+
+    monkeypatch.setattr(platform_readers, "_get_json", missing)
+    result = platform_readers.read("https://deps.dev/pypi/nope/0.0.0", timeout=5)
+    assert result["ok"] is False
+    assert result["error_code"] == "platform_empty"
+
+
+def test_depsdev_unknown_shape_falls_back():
+    result = platform_readers.read("https://deps.dev/", timeout=5)
+    assert result["ok"] is False
+    assert result["error_code"] == "platform_unsupported"
+
 def test_lobsters_returns_the_story_and_threaded_comments(monkeypatch):
     assert platform_readers.detect(
         "https://lobste.rs/s/srb0dp/title"
