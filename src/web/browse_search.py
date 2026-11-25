@@ -419,6 +419,7 @@ def search_browse_at(
     pattern: str = "",
     own_hosts: tuple[str, ...] = (),
     wait_for: str = "",
+    require_search_page: bool = False,
 ) -> tuple[list[dict[str, str]], str, dict[str, Any]]:
     """Search one site and report what actually happened on its page.
 
@@ -453,6 +454,13 @@ def search_browse_at(
     if value.get("login"):
         meta["status"] = "browse:login_required"
         return [], "browse:login_required", meta
+    if require_search_page:
+        requested = urlsplit(url)
+        final = urlsplit(meta["final_url"])
+        if ((final.scheme, final.hostname, final.path) != (requested.scheme, requested.hostname, requested.path)
+                or parse_qs(final.query) != parse_qs(requested.query)):
+            meta["status"] = "browse:unexpected_search_page"
+            return [], meta["status"], meta
     raw = value.get("results")
     meta["page_results"] = len(raw) if isinstance(raw, list) else 0
     meta["sample"] = [row["url"] for row in _public_rows(raw, 8, source=source)]

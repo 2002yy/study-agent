@@ -607,3 +607,24 @@ def test_site_pool_filters_non_public_results():
         source="site via browse",
     )
     assert [row["url"] for row in rows] == ["https://reddit.com/r/x"]
+
+def test_v2ex_topic_links_require_the_requested_search_page(monkeypatch):
+    from urllib.parse import parse_qs, urlsplit
+
+    gateway = GeneralWebGateway()
+    profile = next(site for site in site_pool.SITES if site.key == "v2ex")
+    topic = {"title": "Obsidian 笔记", "url": "https://www.v2ex.com/t/123456"}
+    for final_url, expected in [
+        ("https://www.v2ex.com/go/search", "browse:unexpected_search_page"),
+        ("https://www.v2ex.com/search?q=unrelated", "browse:unexpected_search_page"),
+        ("https://www.v2ex.com/search?q=Obsidian%20%E7%AC%94%E8%AE%B0", "ok"),
+    ]:
+        def execute(script, url, timeout, **kwargs):
+            assert parse_qs(urlsplit(url).query) == {"q": ["Obsidian 笔记"]}
+            return {"value": {"url": final_url, "results": [topic]}}, ""
+
+        monkeypatch.setattr(browse_search, "_execute", execute)
+        rows, _ = gateway._search_browse_sites("Obsidian 笔记", 5, 10, target_site=profile)
+        outcomes = site_pool.take_outcomes()
+        assert len(rows) == int(expected == "ok")
+        assert outcomes[0]["status"] == expected

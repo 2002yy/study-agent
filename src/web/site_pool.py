@@ -65,6 +65,7 @@ class SiteProfile:
     #: ``<question> site:<host>`` and the results are still validated by
     #: ``result_pattern``, so only that site's real pages can pass.
     search_via: str = ""
+    require_search_page: bool = False
 
     #: Alternative search templates chosen by a word in the question, e.g. a
     #: community that has one search page per game. (keywords, template) pairs,
@@ -142,7 +143,8 @@ SITES: tuple[SiteProfile, ...] = (
                 result_pattern=r"^https://news\.ycombinator\.com/item\?id=\d+"),
     SiteProfile("v2ex", "V2EX", "zh_community", "https://www.v2ex.com/",
                 "https://www.v2ex.com/search?q={q}", needs_login=True,
-                default_enabled=True, note="2026-11-15: 5/5 valid results",
+                default_enabled=True, require_search_page=True,
+                note="2026-11-24: /search can redirect to /go/search; require the original search page",
                 result_pattern=r"^https://(?:www\.)?v2ex\.com/t/\d+"),
     SiteProfile("linuxdo", "LINUX DO", "zh_community", "https://linux.do/",
                 "https://linux.do/search?q={q}", needs_login=True,
