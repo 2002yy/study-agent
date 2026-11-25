@@ -1222,6 +1222,19 @@ class GeneralWebGateway:
                 "error_code": "invalid_mode",
             }
 
+        # The A/B/C experiment gate. Unset means production and every path is
+        # open; a configured arm may only use its own read paths. This runs
+        # before the budget so a denied path costs nothing and cannot be
+        # reached through a fallback.
+        from src.web.experiment_arm import disabled_result, feature_allowed
+
+        if mode == "video" and not feature_allowed("video"):
+            return disabled_result("video", value)
+        if mode == "comments" and not feature_allowed("comments"):
+            return disabled_result("comments", value)
+        if include_discussion and not feature_allowed("discussion"):
+            return disabled_result("discussion", value)
+
         # One budget for the whole read, not one budget per stage: the metadata
         # probe, the GitHub reader and the article fetcher must not each get the
         # caller's timeout, or a 6 s read can take 18 s.
@@ -1269,7 +1282,7 @@ class GeneralWebGateway:
         # scraping their JS pages; a failure falls back to the normal path.
         from src.web import platform_readers
 
-        if platform_readers.detect(value):
+        if platform_readers.detect(value) and feature_allowed("platform"):
             platform = platform_readers.read(value, timeout=remaining())
             if platform.get("ok"):
                 return platform
