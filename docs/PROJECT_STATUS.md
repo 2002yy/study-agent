@@ -13,8 +13,10 @@
 - #646 不是代码问题：它的基分支 `feat/browse-read-fallback` 在 #644 squash 合并后被删除，PR 自动关闭；同一批视频代码已重放到 main，即 #651，能力没有丢失。
 - 能力边界：B站字幕/ASR/OCR 与字幕区间读取、YouTube 仅公开字幕（原语言优先，区分 manual/auto/translated，无字幕直接 `video_no_subtitles`，不下载音视频）、B站公开评论分页、HN Algolia、Stack Exchange answers API、Discourse `/t/{id}.json` 与分页、OpenReview 仅文本搜索（forum/notes 匿名 403，记录后暂停）。OCR 与 ASR 仍是独立来源，`content` 用带时间戳标签投影 OCR 后再拼语音转写。
 - 免费实测（main 代码）：YouTube `aircAruvnKk` 60 s 区间 1093 字 / en / 27.7 s；Discourse `users.rust-lang.org` 三个真实主题 975 / 2941 / 393 字、1–6 条回复；HN、Stack Exchange 通过网关返回 `hn_api` / `stackexchange_api`。V2EX 站内搜索确认会跳到 `/go/search` 版块页：不校验时拿回 5 条无关帖，校验后 0 条并记 `browse:unexpected_search_page`（#640）。
-- 本地全量回归没有在单进程内跑完：前 85%（约 5715 项）0 失败后被 40 分钟工具超时终止；剩余 76 个文件 1124 项里 4 条失败来自 #644 遗留的过时断言（`read()` 现在会 Browse 兜底并把 `example.com/item` 真读成正文，`ok=True` 是正确行为），用 `mode="http"` 钉住 article 路径后该文件 7/7 通过（#652）。`main@803387cf` 上同一文件同样失败，属既有遗留，不是本轮合并引入。
-- 后续三件：#652（测试契约）、#640（V2EX 版块页拒绝，已实测）、#653（站点覆盖清单带 11-25 注记，取代 #638）。三者都是收尾，不扩能力。
+- 本地全量回归没有在单进程内跑完：前 85%（约 5715 项）0 失败后被 40 分钟工具超时终止；剩余 76 个文件 1126 项（1120 passed / 4 failed / 2 skipped）里 4 条失败来自 #644 遗留的过时断言（`read()` 现在会 Browse 兜底并把 `example.com/item` 真读成正文，`ok=True` 是正确行为），用 `mode="http"` 钉住 article 路径后该文件 7/7 通过（#652）。`main@803387cf` 上同一文件同样失败，属既有遗留，不是本轮合并引入。
+- 收尾三项均已合并：`7624df8f` 站点覆盖清单带 11-25 注记（#653，取代 #638）、`5928e2aa` V2EX 版块页拒绝（#640，现场实测：不校验时 `/go/search` 返回 5 条无关帖，校验后 0 条并记 `browse:unexpected_search_page`）、`8f4d1691` 读取模式测试契约 + **视频读取预算修复**（#652）。
+- #652 里有一个真实 P1：`web_read` 工具层不传 `timeout`，网关默认预算 10 s，而视频读取实际需要 20 s 以上，导致 `mode="video"` 经工具调用**必然** `video_timeout`——刚合入的视频能力在模型入口上原本不可用。现按 `video_seconds + 60` 给视频读取单独预算（上限 660 s），显式 timeout 仍然优先；有两条回归测试锁住。修复后无 timeout 的 YouTube 读取 `ok=True`、3434 字、13 s。
+- 证据链验证（main 代码、免费）：`web_search` 发现 → `web_read` 读取 → `tool_evidence_items` 产出 3 条证据，`source` 分别为 `subtitle`（带 `[00:04]` 时间戳）、`hn_api`、`discourse_api`；`trusted_tool_calls` 4 条、`tool_call_errors` 为空。未发现的 URL 仍被正确拒绝，说明发现—读取授权关系没有被弱化。
 - 横向扩展冻结：MediaWiki / Hugging Face / Lobsters / OpenAlex / Crossref / deps.dev / GitLab / Gitee / Codeberg / ModelScope / Bluesky / Mastodon 等候选**暂不接入**。下一阶段是真实研究 A/B/C 对照验收（传统搜索 / 社区讨论 / 视频+画面），付费模型调用与视觉图片传输需单独授权。
 - `priority=P1`、`loop=static`、`owner=retrieval/content-read`、`dynamic_evidence=free_live_reads`、`budget_authorization=free_probes_only`、`decision=engineering-only`。
 
