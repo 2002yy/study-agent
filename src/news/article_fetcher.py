@@ -225,6 +225,31 @@ def _fetch_text_payload(
     return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
 
 
+def _fetch_binary_payload(
+    url: str,
+    timeout: int,
+    max_bytes: int,
+) -> tuple[bytes, str, str, str]:
+    """Return (bytes, final_url, content_type, reason) for a binary resource."""
+
+    try:
+        deadline = time.monotonic() + float(timeout)
+        result = safe_fetch_result(url, timeout=float(timeout), max_bytes=max_bytes, deadline=deadline)
+    except SafeFetchRefusal:
+        raise
+    except SafeFetchError as exc:
+        return b"", url, "", exc.reason or "fetch_failed"
+    except Exception:  # noqa: BLE001 - ordinary network/status failure
+        return b"", url, "", "fetch_failed"
+    final_url = result["final_url"]
+    if final_url and not _is_fetchable_article_url(final_url):
+        return b"", final_url or url, "", "unsafe_redirect_target"
+    payload = _decompress_transport_payload(result["raw"], result["content_encoding"])
+    if len(payload) > MAX_DECOMPRESSED:
+        return b"", final_url or url, result["content_type"], "response_too_large"
+    return payload, final_url or url, result["content_type"], ""
+
+
 def _try_firecrawl(url: str, timeout: int, max_chars: int) -> tuple[str, str]:
     if not firecrawl_enabled():
         return "", ""
@@ -250,7 +275,9 @@ def fetch_article_read_result(
     max_chars: int = 5000,
 ) -> ArticleReadResult:
     """Fetch article and return a structured result with failure diagnostics."""
-    url = (url or "").strip()
+    requested = (url or "").strip()
+    fragment = urlparse(requested).fragment
+    url = requested.split("#", 1)[0]
     if not url or not _is_fetchable_article_url(url):
         return ArticleReadResult(ok=False, requested_url=url, reason="unsafe_or_empty_url")
 
@@ -269,15 +296,74 @@ def fetch_article_read_result(
         )
 
     try:
+        lower_path = url.split("?", 1)[0].lower()
+        pdf_url = lower_path.endswith(".pdf") or "/pdf/" in lower_path
+        if pdf_url:
+            data, final_url, content_type, reason = _fetch_binary_payload(
+                url, timeout=timeout, max_bytes=max(max_bytes, 12_000_000)
+            )
+            if reason:
+                return ArticleReadResult(
+                    ok=False,
+                    requested_url=url,
+                    final_url=final_url,
+                    content_type=content_type,
+                    reason=reason,
+                )
+            text = raw_content.pdf_text(data, max_chars=max_chars)
+            if text:
+                _ARTICLE_CACHE[url] = (now, text, "pdf_text", "", final_url or url)
+                return ArticleReadResult(
+                    ok=True,
+                    text=text,
+                    method="pdf_text",
+                    requested_url=url,
+                    final_url=final_url,
+                    content_type=content_type,
+                )
+            return ArticleReadResult(
+                ok=False,
+                requested_url=url,
+                final_url=final_url,
+                content_type=content_type,
+                reason="pdf_unreadable",
+            )
+
         payload, final_url, content_type, reason = _fetch_html_payload(
             url, timeout=timeout, max_bytes=max_bytes
         )
         if reason == "non_html_resource":
-            # JSON and other non-HTML text still arrives through the same safe
-            # transport; binary payloads keep failing closed below.
-            payload, final_url, content_type, reason = _fetch_text_payload(
-                url, timeout=timeout, max_bytes=max_bytes
-            )
+            lowered = (content_type or "").lower()
+            looks_pdf = "pdf" in lowered or (final_url or url).split("?")[0].lower().endswith(".pdf")
+            if looks_pdf:
+                data, final_url, content_type, reason = _fetch_binary_payload(
+                    url, timeout=timeout, max_bytes=max_bytes
+                )
+                if not reason:
+                    text = raw_content.pdf_text(data, max_chars=max_chars)
+                    if text:
+                        _ARTICLE_CACHE[url] = (now, text, "pdf_text", "", final_url or url)
+                        return ArticleReadResult(
+                            ok=True,
+                            text=text,
+                            method="pdf_text",
+                            requested_url=url,
+                            final_url=final_url,
+                            content_type=content_type,
+                        )
+                    return ArticleReadResult(
+                        ok=False,
+                        requested_url=url,
+                        final_url=final_url,
+                        content_type=content_type,
+                        reason="pdf_unreadable",
+                    )
+            else:
+                # JSON and other non-HTML text still arrives through the same
+                # safe transport; binary payloads keep failing closed below.
+                payload, final_url, content_type, reason = _fetch_text_payload(
+                    url, timeout=timeout, max_bytes=max_bytes
+                )
         if reason:
             return ArticleReadResult(
                 ok=False,
@@ -328,6 +414,20 @@ def fetch_article_read_result(
         html = payload
 
         if html:
+            if fragment:
+                section = raw_content.section_text(html, fragment, max_chars)
+                if section:
+                    _ARTICLE_CACHE[url] = (
+                        now, section, "section_text", "", final_url or url
+                    )
+                    return ArticleReadResult(
+                        ok=True,
+                        text=section,
+                        method="section_text",
+                        requested_url=url,
+                        final_url=final_url,
+                        content_type=content_type,
+                    )
             local_result = read_html_locally(
                 html,
                 url=final_url or url,
@@ -337,12 +437,19 @@ def fetch_article_read_result(
                 text = local_result.text
                 tables = raw_content.tables_to_markdown(html, max_chars=max_chars)
                 metadata = raw_content.page_metadata(html)
+                toc = raw_content.page_toc(html, final_url or url)
                 links = raw_content.citation_links(
                     html, final_url or url, max_chars=max_chars
                 )
                 extras = []
+                if fragment:
+                    extras.append(
+                        f"[section #{fragment} not found; returned the whole page]"
+                    )
                 if metadata:
                     extras.append(metadata)
+                if toc:
+                    extras.append(toc)
                 if tables:
                     extras.append(f"[tables]\n{tables}")
                 if links:

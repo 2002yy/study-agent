@@ -36,6 +36,33 @@
 
 - 只走现有安全传输、解压上限与共享超时；没有新建下载路径。
 - JSON 超限时返回结构摘要，不返回半个对象。
-- 二进制（PDF/EPUB/图片）仍按 `non_text_resource` 失败，本批不处理。
+- EPUB 与图片仍按 `non_text_resource` 失败；PDF 见下一节。
 - 本机 `raw.githubusercontent.com` 的 HTTP 传输间歇超时，Browse 回退可用；读取方法会如实标注。
 - 不新增站点池条目、不递归抓取、不调用付费模型。
+
+## 最后一批：PDF、目录、章节、字幕、播客（2026-11-26）
+
+| 能力 | 实现 | method |
+| --- | --- | --- |
+| PDF 全文 | `pypdf` 提取纯文本，最多 20 页、下载上限 12 MB | `pdf_text` |
+| 文档目录 | HTML `h1`–`h3` + 锚点，输出 `[toc]` | 沿用 `local_*` |
+| 章节定位 | URL 片段 `#id` 只读该标题及其后续内容 | `section_text` |
+| 字幕 | SRT / VTT / ASS 解析，保留时间戳 | `subtitle_text` |
+| 播客 RSS | 条目附 `audio=` 与 `transcript=` 链接，不自动转写 | `feed_text` |
+
+### 实测
+
+| 样本 | 结果 |
+| --- | --- |
+| `arxiv.org/pdf/1706.03762` | `pdf_text`，15 页全部提取，1.7 s |
+| `docs.python.org/3/library/asyncio.html` | `local_trafilatura` + `[toc]`，3.1 s |
+| 带 `#asyncio.run` 的同一页面 | 锚点未命中时明确写 `section not found; returned the whole page`，不静默 |
+
+### 边界
+
+- PDF 只保留纯文本；表格、图片、公式版式不保留。扫描件无文本层时返回 `pdf_unreadable`。
+- 章节定位依赖页面自身锚点；没有锚点时回退整页并标注。
+- 字幕只解析文本与时间戳；样式、定位、卡拉 OK 效果忽略。
+- 播客只给音频/文字稿链接，不自动下载或转写。
+- 独立音频转写需要 SenseVoice 运行时，作为下一小批单独实现。
+

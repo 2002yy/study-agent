@@ -29,6 +29,10 @@ _SUFFIX_KINDS = {
     ".json": "json",
     ".jsonl": "jsonl",
     ".ndjson": "jsonl",
+    ".srt": "srt",
+    ".vtt": "vtt",
+    ".ass": "ass",
+    ".ssa": "ass",
 }
 _MAX_ROWS = 40
 _MAX_COLS = 12
@@ -51,6 +55,14 @@ def kind_for(content_type: str, url: str, payload: str) -> str:
         return "jsonl"
     if "json" in lowered:
         return "jsonl" if suffix in {".jsonl", ".ndjson"} else "json"
+    if "subrip" in lowered or suffix == ".srt":
+        return "srt"
+    if "vtt" in lowered or suffix == ".vtt":
+        return "vtt"
+    if suffix in {".ass", ".ssa"}:
+        return "ass"
+    if "pdf" in lowered:
+        return "pdf"
     if "tab-separated" in lowered or "tsv" in lowered:
         return "tsv"
     if "csv" in lowered:
@@ -295,12 +307,200 @@ def render_raw(kind: str, payload: str, max_chars: int) -> tuple[str, str]:
         return json_summary(payload, max_chars), "json_text"
     if kind == "jsonl":
         return jsonl_summary(payload, max_chars), "jsonl_text"
+    if kind in {"srt", "vtt", "ass"}:
+        return subtitle_text(payload, kind, max_chars), "subtitle_text"
     return "", ""
 
 
 def looks_like_html(payload: str) -> bool:
     head = re.sub(r"^\s+", "", payload[:200]).lower()
     return head.startswith("<!doctype html") or head.startswith("<html") or "<body" in head[:400]
+
+
+def _clock(seconds: float) -> str:
+    total = max(0, int(seconds))
+    return f"{total // 3600:02d}:{total % 3600 // 60:02d}:{total % 60:02d}"
+
+
+def _parse_clock(value: str) -> float:
+    value = value.strip().replace(",", ".")
+    parts = value.split(":")
+    try:
+        numbers = [float(part) for part in parts]
+    except ValueError:
+        return 0.0
+    while len(numbers) < 3:
+        numbers.insert(0, 0.0)
+    return numbers[0] * 3600 + numbers[1] * 60 + numbers[2]
+
+
+def _cue_lines(payload: str, kind: str) -> list[tuple[float, str]]:
+    cues: list[tuple[float, str]] = []
+    if kind in {"srt", "vtt"}:
+        time_pattern = re.compile(
+            r"(\d{1,2}:\d{2}:\d{2}[.,]\d{1,3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{1,3})"
+        )
+        current: float | None = None
+        for raw in payload.splitlines():
+            line = raw.strip()
+            match = time_pattern.search(line)
+            if match:
+                current = _parse_clock(match.group(1))
+                continue
+            if not line or line.isdigit() or line.upper() == "WEBVTT":
+                continue
+            if current is None:
+                continue
+            text = re.sub(r"<[^>]+>", "", line)
+            text = " ".join(text.split())
+            if not text:
+                continue
+            if cues and cues[-1][0] == current and cues[-1][1] == text:
+                continue
+            cues.append((current, text))
+    elif kind == "ass":
+        in_events = False
+        fields: list[str] = []
+        for raw in payload.splitlines():
+            line = raw.strip()
+            if line.startswith("[") and line.endswith("]"):
+                in_events = line.lower() == "[events]"
+                continue
+            if not in_events:
+                continue
+            if line.lower().startswith("format:"):
+                fields = [part.strip().lower() for part in line.split(":", 1)[1].split(",")]
+                continue
+            if not line.lower().startswith("dialogue:"):
+                continue
+            parts = line.split(":", 1)[1].split(",", max(0, len(fields) - 1) if fields else 9)
+            if fields and "start" in fields and "text" in fields:
+                try:
+                    when = _parse_clock(parts[fields.index("start")])
+                    text = parts[fields.index("text")]
+                except (IndexError, ValueError):
+                    continue
+            else:
+                if len(parts) < 10:
+                    continue
+                when = _parse_clock(parts[1])
+                text = parts[9]
+            text = re.sub(r"\{[^}]*\}", "", text)
+            text = " ".join(text.replace("\\N", " ").split())
+            if text:
+                cues.append((when, text))
+    return cues
+
+
+def subtitle_text(payload: str, kind: str, max_chars: int = 20_000) -> str:
+    """Render SRT/VTT/ASS cues with timestamps, dropping markup only."""
+
+    cues = _cue_lines(payload, kind)
+    if not cues:
+        return ""
+    header = f"[subtitles] {len(cues)} cues ({kind}), timestamps preserved"
+    lines = [f"[{_clock(when)}] {text}"[:600] for when, text in cues]
+    return clamp(header + "\n" + "\n".join(lines), max_chars)
+
+
+def pdf_text(data: bytes, max_chars: int = 20_000, max_pages: int = 20) -> str:
+    """Extract plain text from a PDF; layout, tables and images are not kept."""
+
+    try:
+        from pypdf import PdfReader
+    except Exception:  # noqa: BLE001 - optional dependency
+        return ""
+    try:
+        reader = PdfReader(io.BytesIO(data))
+    except Exception:  # noqa: BLE001 - not a readable PDF
+        return ""
+    total = len(reader.pages)
+    pages: list[str] = []
+    for index, page in enumerate(reader.pages[:max_pages], start=1):
+        try:
+            text = page.extract_text() or ""
+        except Exception:  # noqa: BLE001 - one bad page must not drop the rest
+            continue
+        text = " ".join(text.split())
+        if text:
+            pages.append(f"[page {index}]\n{text}")
+    if not pages:
+        return ""
+    info = getattr(reader, "metadata", None) or {}
+    title = str(getattr(info, "title", "") or "")
+    header = (
+        f"[pdf] {total} pages; extracted {min(total, max_pages)} as plain text "
+        "(layout, tables and images are not preserved)"
+    )
+    if title.strip():
+        header += f"; title={title.strip()[:160]}"
+    return clamp(header + "\n" + "\n\n".join(pages), max_chars)
+
+
+def page_toc(html: str, base_url: str, limit: int = 40, max_chars: int = 2000) -> str:
+    """List document headings so a long page can be read by section."""
+
+    try:
+        from lxml import html as lxml_html  # type: ignore[import-untyped]
+    except Exception:  # noqa: BLE001 - optional parser
+        return ""
+    try:
+        tree = lxml_html.fromstring(html)
+    except Exception:  # noqa: BLE001 - not parseable HTML
+        return ""
+    rows: list[str] = []
+    for heading in tree.xpath("//h1 | //h2 | //h3"):
+        text = " ".join(heading.text_content().split())[:120]
+        if not text:
+            continue
+        anchor = heading.get("id") or ""
+        if not anchor:
+            links = heading.xpath(".//a[@id or @name]")
+            if links:
+                anchor = links[0].get("id") or links[0].get("name") or ""
+        level = str(heading.tag).upper()
+        suffix = f" — {base_url.split('#', 1)[0]}#{anchor}" if anchor else ""
+        rows.append(f"- {level} {text}{suffix}")
+        if len(rows) >= limit:
+            break
+    if len(rows) < 3:
+        return ""
+    return clamp("[toc]\n" + "\n".join(rows), max_chars)
+
+
+def section_text(html: str, fragment: str, max_chars: int = 20_000) -> str:
+    """Plain text of one anchored section, for very long documents."""
+
+    if not fragment:
+        return ""
+    try:
+        from lxml import html as lxml_html  # type: ignore[import-untyped]
+    except Exception:  # noqa: BLE001 - optional parser
+        return ""
+    try:
+        tree = lxml_html.fromstring(html)
+    except Exception:  # noqa: BLE001 - not parseable HTML
+        return ""
+    matches = tree.xpath("//*[@id=$fragment]", fragment=fragment) or tree.xpath(
+        "//*[@name=$fragment]", fragment=fragment
+    )
+    if not matches:
+        return ""
+    heading = matches[0]
+    ranks = {"h1": 1, "h2": 2, "h3": 3, "h4": 4}
+    rank = ranks.get(str(heading.tag).lower(), 4)
+    parts = [" ".join(heading.text_content().split())]
+    for sibling in heading.itersiblings():
+        tag = str(sibling.tag).lower() if isinstance(sibling.tag, str) else ""
+        if ranks.get(tag, 99) <= rank:
+            break
+        text = " ".join(sibling.text_content().split())
+        if text:
+            parts.append(text)
+    text = " ".join(part for part in parts if part)
+    if not text.strip():
+        return ""
+    return clamp(f"[section #{fragment}]\n{text}", max_chars)
 
 
 #: Annotation containers whose links are navigation, not article citations.
@@ -479,13 +679,15 @@ def feed_summary(payload: str, max_chars: int = 20_000, limit: int = 20) -> str:
         for item in items[:limit]:
             title = (item.findtext(f"{atom}title") or "").strip()
             link = ""
+            audio = ""
             for node in item.findall(f"{atom}link"):
-                if node.get("rel") in {"alternate", None}:
+                if node.get("rel") in {"alternate", None} and not link:
                     link = node.get("href") or ""
-                    break
+                if node.get("rel") == "enclosure":
+                    audio = node.get("href") or ""
             when = (item.findtext(f"{atom}updated") or item.findtext(f"{atom}published") or "").strip()
             summary = (item.findtext(f"{atom}summary") or "").strip()
-            entries.append(_feed_line(title, link, when, summary))
+            entries.append(_feed_line(title, link, when, summary, audio))
     else:
         channel = root.find("channel")
         if channel is None:
@@ -496,14 +698,24 @@ def feed_summary(payload: str, max_chars: int = 20_000, limit: int = 20) -> str:
             link = (item.findtext("link") or "").strip()
             when = (item.findtext("pubDate") or "").strip()
             summary = (item.findtext("description") or "").strip()
-            entries.append(_feed_line(title, link, when, summary))
+            enclosure = item.find("enclosure")
+            audio = (enclosure.get("url") or "") if enclosure is not None else ""
+            transcript = ""
+            for child in item.iter():
+                if str(child.tag).lower().endswith("transcript") and child.get("url"):
+                    transcript = child.get("url") or ""
+                    break
+            entries.append(_feed_line(title, link, when, summary, audio, transcript))
     if not entries:
         return ""
     header = f"[feed] {len(items)} entries, showing {len(entries)}"
     return clamp(header + "\n" + "\n".join(entries), max_chars)
 
 
-def _feed_line(title: str, link: str, when: str, summary: str) -> str:
+def _feed_line(
+    title: str, link: str, when: str, summary: str,
+    audio: str = "", transcript: str = "",
+) -> str:
     text = re.sub(r"<[^>]+>", " ", summary or "")
     text = " ".join(text.split())[:240]
     parts = [f"- {title[:160]}"]
@@ -511,6 +723,10 @@ def _feed_line(title: str, link: str, when: str, summary: str) -> str:
         parts.append(f"({when[:32]})")
     if link:
         parts.append(link)
+    if audio:
+        parts.append(f"audio={audio} (not transcribed)")
+    if transcript:
+        parts.append(f"transcript={transcript}")
     if text:
         parts.append(f":: {text}")
     return " ".join(parts)
