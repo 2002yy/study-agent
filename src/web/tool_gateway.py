@@ -268,6 +268,7 @@ SEARCH_STRATEGIES = (
     "deepseek_first",
 )
 _DEFAULT_SEARCH_STRATEGY = "fallback"
+_DEFAULT_AUDIO_SECONDS = 240
 _MERGE_TRACE_KEYS = (
     "search_strategy",
     "providers_attempted",
@@ -427,6 +428,29 @@ def _read_video(
         }
 
 
+def _read_audio(
+    url: str, max_chars: int, timeout: float,
+    *, start_seconds: int = 0, audio_seconds: int = 240,
+) -> dict[str, Any]:
+    """One audio read; a missing FFmpeg/ASR toolchain is a result, not a raise."""
+
+    from src.web.audio_read import read_audio
+
+    try:
+        return read_audio(
+            url, max_chars=max_chars, timeout=timeout,
+            start_seconds=start_seconds, max_seconds=audio_seconds,
+        )
+    except (OSError, ValueError, TypeError, subprocess.SubprocessError) as exc:
+        return {
+            "ok": False,
+            "kind": "audio",
+            "url": url,
+            "error": f"{type(exc).__name__}: {exc}",
+            "error_code": "audio_failed",
+        }
+
+
 def _read_comments(
     url: str, page: int, limit: int, timeout: float,
 ) -> dict[str, Any]:
@@ -489,6 +513,17 @@ def _video_read_default_timeout(video_seconds: int) -> float:
 
     seconds = max(15, min(int(video_seconds or 180), 600))
     return float(seconds) + 60.0
+
+
+def _audio_read_default_timeout(audio_seconds: int) -> float:
+    """Budget for an audio read when the caller names none.
+
+    Download plus FFmpeg conversion plus transcription needs the section length
+    and some slack; the generic ten-second page budget cannot finish.
+    """
+
+    seconds = max(15, min(int(audio_seconds or _DEFAULT_AUDIO_SECONDS), 600))
+    return float(seconds) + 90.0
 
 
 class GeneralWebGateway:
@@ -1207,6 +1242,7 @@ class GeneralWebGateway:
         mode: str = "auto", include_discussion: bool = False,
         max_comments: int = 0, start_seconds: int = 0, video_seconds: int = 180,
         include_ocr: bool = False, comment_page: int = 1,
+        audio_seconds: int = 240,
     ) -> dict[str, Any]:
         value = str(url or "").strip()
         from src.web.research.official_resolver import read_official_metadata
@@ -1214,13 +1250,20 @@ class GeneralWebGateway:
         mode = str(mode or "auto").strip().lower()
         position = max(0, min(int(max_comments or 0), 50))
         include_discussion = bool(include_discussion) and mode != "http"
-        if mode not in {"auto", "http", "browse", "video", "comments"}:
+        if mode not in {"auto", "http", "browse", "video", "comments", "audio"}:
             return {
                 "ok": False,
                 "url": value,
                 "error": f"unknown read mode {mode!r}",
                 "error_code": "invalid_mode",
             }
+        # A direct audio file is a transcript read, not a page: sending an MP3
+        # through the article reader would decode it as text and "succeed".
+        from src.web.audio_read import looks_like_audio_url
+
+        wants_audio = mode == "audio" or (
+            mode in {"auto", "http"} and looks_like_audio_url(value)
+        )
 
         # One budget for the whole read, not one budget per stage: the metadata
         # probe, the GitHub reader and the article fetcher must not each get the
@@ -1232,6 +1275,8 @@ class GeneralWebGateway:
             # fetch. The 10 s page budget made every tool-level video read die
             # as video_timeout before the transcript could even start.
             budget = _video_read_default_timeout(video_seconds)
+        elif wants_audio:
+            budget = _audio_read_default_timeout(audio_seconds)
         elif self.github_reader.supports(value) and "/releases" in value:
             budget = _github_release_default_timeout()
         else:
@@ -1263,6 +1308,11 @@ class GeneralWebGateway:
                 value, max_chars, remaining(),
                 start_seconds=start_seconds, video_seconds=video_seconds,
                 include_ocr=include_ocr,
+            )
+        if wants_audio:
+            return _read_audio(
+                value, max_chars, remaining(),
+                start_seconds=start_seconds, audio_seconds=audio_seconds,
             )
 
         # Platforms with a stable public API are read through it instead of
