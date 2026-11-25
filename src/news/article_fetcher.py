@@ -292,7 +292,11 @@ def fetch_article_read_result(
             kind == "unknown" and raw_content.looks_like_html(payload)
         ):
             if kind == "xml":
-                text, method = raw_content.clamp(payload, max_chars), "raw_xml"
+                feed = raw_content.feed_summary(payload, max_chars)
+                if feed:
+                    text, method = feed, "feed_text"
+                else:
+                    text, method = raw_content.clamp(payload, max_chars), "raw_xml"
             else:
                 text, method = raw_content.render_raw(kind, payload, max_chars)
             if text:
@@ -332,9 +336,20 @@ def fetch_article_read_result(
             if local_result.ok:
                 text = local_result.text
                 tables = raw_content.tables_to_markdown(html, max_chars=max_chars)
+                metadata = raw_content.page_metadata(html)
+                links = raw_content.citation_links(
+                    html, final_url or url, max_chars=max_chars
+                )
+                extras = []
+                if metadata:
+                    extras.append(metadata)
                 if tables:
+                    extras.append(f"[tables]\n{tables}")
+                if links:
+                    extras.append(links)
+                if extras:
                     text = raw_content.clamp(
-                        f"{text}\n\n[tables]\n{tables}", max_chars
+                        text + "\n\n" + "\n\n".join(extras), max_chars
                     )
                 _ARTICLE_CACHE[url] = (
                     now, text, local_result.method, local_result.author, final_url or url
