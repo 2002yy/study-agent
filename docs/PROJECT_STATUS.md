@@ -6,6 +6,18 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-25 内容读取能力收口：搜索 / 社区 / 视频 / 平台 API 全部进 main
+
+- `main@12f5acc4` 依次合入五条 squash：`051352b7` B站视频 ASR/OCR（#651）、`a6911cf1` OCR 时间戳与元数据预算（#647）、`9b67b4e4` 社区收口与 B站评论（#648）、`190255f9` YouTube 公开字幕（#649）、`12f5acc4` HN / Stack Exchange / Discourse 薄适配（#650）。
+- 合并方式：上游 squash 后，下游一律 `rebase --onto main <旧基>` 再改目标分支，**不删上游分支**。四个下游分支改基均无冲突，各自只剩 1 个提交；影响集 #647 33 项、#648 37 项、#649 40 项、#650 25 项通过，Ruff 干净，exact-head CI 全绿后才合并。
+- #646 不是代码问题：它的基分支 `feat/browse-read-fallback` 在 #644 squash 合并后被删除，PR 自动关闭；同一批视频代码已重放到 main，即 #651，能力没有丢失。
+- 能力边界：B站字幕/ASR/OCR 与字幕区间读取、YouTube 仅公开字幕（原语言优先，区分 manual/auto/translated，无字幕直接 `video_no_subtitles`，不下载音视频）、B站公开评论分页、HN Algolia、Stack Exchange answers API、Discourse `/t/{id}.json` 与分页、OpenReview 仅文本搜索（forum/notes 匿名 403，记录后暂停）。OCR 与 ASR 仍是独立来源，`content` 用带时间戳标签投影 OCR 后再拼语音转写。
+- 免费实测（main 代码）：YouTube `aircAruvnKk` 60 s 区间 1093 字 / en / 27.7 s；Discourse `users.rust-lang.org` 三个真实主题 975 / 2941 / 393 字、1–6 条回复；HN、Stack Exchange 通过网关返回 `hn_api` / `stackexchange_api`。V2EX 站内搜索确认会跳到 `/go/search` 版块页：不校验时拿回 5 条无关帖，校验后 0 条并记 `browse:unexpected_search_page`（#640）。
+- 本地全量回归没有在单进程内跑完：前 85%（约 5715 项）0 失败后被 40 分钟工具超时终止；剩余 76 个文件 1124 项里 4 条失败来自 #644 遗留的过时断言（`read()` 现在会 Browse 兜底并把 `example.com/item` 真读成正文，`ok=True` 是正确行为），用 `mode="http"` 钉住 article 路径后该文件 7/7 通过（#652）。`main@803387cf` 上同一文件同样失败，属既有遗留，不是本轮合并引入。
+- 后续三件：#652（测试契约）、#640（V2EX 版块页拒绝，已实测）、#653（站点覆盖清单带 11-25 注记，取代 #638）。三者都是收尾，不扩能力。
+- 横向扩展冻结：MediaWiki / Hugging Face / Lobsters / OpenAlex / Crossref / deps.dev / GitLab / Gitee / Codeberg / ModelScope / Bluesky / Mastodon 等候选**暂不接入**。下一阶段是真实研究 A/B/C 对照验收（传统搜索 / 社区讨论 / 视频+画面），付费模型调用与视觉图片传输需单独授权。
+- `priority=P1`、`loop=static`、`owner=retrieval/content-read`、`dynamic_evidence=free_live_reads`、`budget_authorization=free_probes_only`、`decision=engineering-only`。
+
 ### 2026-11-25 应用内 Browse 正文补读与读取模式（P0 切片）
 
 - 基线 `main@b7b3bf1c`（#639/#641/#642 已合并）。动机：`fetch_article_read_result` 对米游社攻略返回 `all_backends_failed`、0 字；同一 URL 用已登录 Edge 的 browse 读到 4152 字。
