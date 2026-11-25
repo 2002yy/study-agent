@@ -10,6 +10,8 @@ from __future__ import annotations
 import html
 import json
 import re
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -35,6 +37,13 @@ _DISCOURSE_HOSTS = (
     "discourse.julialang.org",
     "users.rust-lang.org",
 )
+_HUGGINGFACE_HOST = "huggingface.co"
+_HF_KINDS = ("models", "datasets", "spaces")
+#: Top-level Hub paths that are not repositories.
+_HF_RESERVED = {
+    "papers", "blog", "docs", "join", "login", "settings", "organizations",
+    "tasks", "pricing", "enterprise", "collections", "search", "new", "chat",
+}
 
 
 def detect(url: str) -> str:
@@ -45,6 +54,8 @@ def detect(url: str) -> str:
         return "stackexchange"
     if host in _DISCOURSE_HOSTS:
         return "discourse"
+    if host == _HUGGINGFACE_HOST:
+        return "huggingface"
     if host == "openreview.net":
         return "openreview"
     return ""
@@ -156,6 +167,132 @@ def _discourse(url: str, timeout: float) -> dict[str, Any]:
                    replies=len(posts), next_url=next_url)
 
 
+def _get_text(url: str, timeout: float, max_bytes: int = 30_000) -> str:
+    request = urllib.request.Request(url, headers=_UA)
+    with urllib.request.urlopen(request, timeout=max(1, int(timeout))) as response:
+        return response.read(max_bytes).decode("utf-8", errors="replace")
+
+
+def _huggingface(url: str, timeout: float) -> dict[str, Any]:
+    """Read a model, dataset or space through the public Hub API.
+
+    The card and the discussion titles are separate optional requests; losing
+    either still leaves a usable record. All requests share one deadline so a
+    slow Hub cannot multiply the caller's read budget.
+    """
+
+    parsed = urllib.parse.urlsplit(url)
+    if (parsed.hostname or "").lower() != _HUGGINGFACE_HOST:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "not a Hugging Face host",
+                "error_code": "platform_unsupported"}
+    segments = [part for part in parsed.path.split("/") if part]
+    kind = "models"
+    if segments and segments[0] in _HF_KINDS:
+        kind = segments[0]
+        segments = segments[1:]
+    if len(segments) != 2:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "not a model, dataset or space URL",
+                "error_code": "platform_unsupported"}
+    if kind == "models" and segments[0].lower() in _HF_RESERVED:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "not a model repository URL",
+                "error_code": "platform_unsupported"}
+    repo_id = f"{segments[0]}/{segments[1]}"
+    deadline = time.monotonic() + max(1.0, float(timeout))
+
+    def remaining() -> float:
+        return max(0.0, deadline - time.monotonic())
+
+    def left() -> float | None:
+        value = remaining()
+        return value if value >= 0.5 else None
+
+    budget = left()
+    if budget is None:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "read budget exhausted before the Hub request",
+                "error_code": "platform_failed"}
+    try:
+        data = _get_json(f"https://{_HUGGINGFACE_HOST}/api/{kind}/{repo_id}", budget)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return {"ok": False, "kind": "web_page", "url": url,
+                    "error": f"{repo_id} not found",
+                    "error_code": "platform_empty"}
+        raise
+
+    card_data = data.get("cardData") or {}
+    license_name = str(card_data.get("license") or "")
+    if not license_name:
+        license_name = next(
+            (tag.split(":", 1)[1] for tag in data.get("tags") or []
+             if str(tag).startswith("license:")),
+            "",
+        )
+    label = {"models": "model", "datasets": "dataset", "spaces": "space"}[kind]
+    header = [
+        f"[{label}] {data.get('id') or repo_id}",
+        f"task: {data.get('pipeline_tag') or '-'}",
+        f"library: {data.get('library_name') or '-'}",
+        f"license: {license_name or '-'}",
+        f"downloads: {data.get('downloads', '-')} | likes: {data.get('likes', '-')}",
+        f"gated: {data.get('gated')} | private: {data.get('private')}",
+        f"created: {data.get('createdAt') or '-'} | modified: {data.get('lastModified') or '-'}",
+        f"files: {len(data.get('siblings') or [])}",
+    ]
+    tags = [str(tag) for tag in (data.get("tags") or [])][:20]
+    if tags:
+        header.append("tags: " + ", ".join(tags))
+
+    discussion_lines: list[str] = []
+    discussion_total: int | None = None
+    budget = left()
+    if budget is not None:
+        try:
+            discussions = _get_json(
+                f"https://{_HUGGINGFACE_HOST}/api/{kind}/{repo_id}/discussions?p=0",
+                budget,
+            )
+        except Exception:  # noqa: BLE001 - discussions are optional context
+            discussions = {}
+        else:
+            items = discussions.get("discussions") or []
+            discussion_total = int(discussions.get("count") or len(items))
+            if items:
+                discussion_lines.append(f"[discussions] {discussion_total} total")
+                for item in items[:5]:
+                    discussion_lines.append(
+                        f"[#{item.get('num')}] {str(item.get('title') or '')[:120]} "
+                        f"({item.get('numComments', 0)} comments)"
+                    )
+
+    card = ""
+    budget = left()
+    if budget is not None:
+        prefix = "" if kind == "models" else f"{kind}/"
+        try:
+            card = _get_text(
+                f"https://{_HUGGINGFACE_HOST}/{prefix}{repo_id}/raw/main/README.md",
+                budget,
+                20_000,
+            )
+        except Exception:  # noqa: BLE001 - a missing card is not a failed read
+            card = ""
+
+    content = "\n".join(header)
+    if discussion_lines:
+        content += "\n\n" + "\n".join(discussion_lines)
+    if card.strip():
+        content += "\n\n[model card]\n" + card
+    extra: dict[str, Any] = {}
+    if discussion_total is not None:
+        extra["discussions"] = discussion_total
+    return _result(url, "huggingface_api", str(data.get("id") or repo_id), content,
+                   **extra)
+
+
 def _openreview(url: str, timeout: float) -> dict[str, Any]:
     match = re.search(r"[?&]id=([^&]+)", url)
     if not match:
@@ -216,6 +353,7 @@ _READERS = {
     "hn": _hn,
     "stackexchange": _stackexchange,
     "discourse": _discourse,
+    "huggingface": _huggingface,
     "openreview": _openreview,
 }
 

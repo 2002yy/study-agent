@@ -103,3 +103,74 @@ def test_the_gateway_uses_the_platform_reader(monkeypatch):
         "https://news.ycombinator.com/item?id=42", timeout=5
     )
     assert result["method"] == "hn_api"
+
+
+def test_huggingface_model_returns_metadata_card_and_discussions(monkeypatch):
+    assert platform_readers.detect(
+        "https://huggingface.co/microsoft/phi-2"
+    ) == "huggingface"
+
+    def fake_json(url, timeout):
+        if url.endswith("/discussions?p=0"):
+            return {"count": 147, "discussions": [
+                {"num": 12, "title": "Multilingual powerhouse", "numComments": 14},
+            ]}
+        return {
+            "id": "microsoft/phi-2", "pipeline_tag": "text-generation",
+            "library_name": "transformers", "downloads": 186898, "likes": 3540,
+            "gated": False, "private": False, "lastModified": "2025-12-08",
+            "cardData": {"license": "mit"}, "tags": ["transformers"],
+            "siblings": [{"rfilename": "a"}, {"rfilename": "b"}],
+        }
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake_json)
+    monkeypatch.setattr(
+        platform_readers, "_get_text",
+        lambda url, timeout, max_bytes=30_000: "# Model card\nPhi-2 text",
+    )
+    result = platform_readers.read("https://huggingface.co/microsoft/phi-2", timeout=5)
+
+    assert result["ok"] is True
+    assert result["method"] == "huggingface_api"
+    assert "license: mit" in result["content"]
+    assert "text-generation" in result["content"]
+    assert "147 total" in result["content"]
+    assert "Model card" in result["content"]
+    assert result["discussions"] == 147
+
+
+def test_huggingface_dataset_uses_the_dataset_api(monkeypatch):
+    seen: list[str] = []
+
+    def fake_json(url, timeout):
+        seen.append(url)
+        if url.endswith("/discussions?p=0"):
+            return {"count": 0, "discussions": []}
+        return {"id": "rajpurkar/squad", "cardData": {"license": "cc-by-sa-4.0"},
+                "tags": [], "siblings": []}
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake_json)
+    monkeypatch.setattr(platform_readers, "_get_text", lambda *a, **k: "")
+    result = platform_readers.read(
+        "https://huggingface.co/datasets/rajpurkar/squad", timeout=5
+    )
+
+    assert result["ok"] is True
+    assert any("/api/datasets/rajpurkar/squad" in url for url in seen)
+    assert "license: cc-by-sa-4.0" in result["content"]
+
+
+def test_huggingface_missing_repo_is_empty(monkeypatch):
+    def missing(url, timeout):
+        raise platform_readers.urllib.error.HTTPError(url, 404, "Not Found", None, None)
+
+    monkeypatch.setattr(platform_readers, "_get_json", missing)
+    result = platform_readers.read("https://huggingface.co/no/such-model", timeout=5)
+    assert result["ok"] is False
+    assert result["error_code"] == "platform_empty"
+
+
+def test_huggingface_non_repo_urls_fall_back():
+    result = platform_readers.read("https://huggingface.co/papers/1234", timeout=5)
+    assert result["ok"] is False
+    assert result["error_code"] == "platform_unsupported"
