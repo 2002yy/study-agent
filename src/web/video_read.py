@@ -251,16 +251,31 @@ def _content(transcript: list[dict[str, Any]], ocr: dict[str, Any] | None) -> st
     """Speech first; burned-in captions are prepended with an explicit label.
 
     Research briefs and evidence snippets read ``content``; without this the
-    OCR text would stay in JSON and never reach the answer context.
+    OCR text would stay in JSON and never reach the answer context. OCR lines
+    keep their timestamps so a caption can be tied to a video interval.
     """
 
     speech = _project(transcript)
     if not (ocr and ocr.get("ok")):
         return speech
-    text = str(ocr.get("text") or "").strip()
+    rows = [row for row in (ocr.get("segments") or []) if isinstance(row, dict)]
+    lines = [
+        f"[{_clock(float(row.get('start') or 0))}] {str(row.get('text') or '').strip()}"
+        for row in rows
+        if str(row.get("text") or "").strip()
+    ]
+    text = "\n".join(lines)[:2000]
     if not text:
         return speech
-    return f"[画面字幕 OCR]\n{text[:2000]}\n\n[语音转写]\n{speech}"
+    return f"[画面字幕 OCR]\n{text}\n\n[语音转写]\n{speech}"
+
+
+def _meta_timeout(remaining: float) -> float:
+    """Metadata may use a slice of the read budget, never all of it."""
+
+    if remaining <= 10:
+        return max(1.0, remaining)
+    return min(remaining, max(10.0, min(90.0, remaining * 0.4)))
 
 
 def _apply_ocr(result: dict[str, Any], ocr: dict[str, Any]) -> dict[str, Any]:
@@ -380,7 +395,7 @@ def read_video(
         try:
             done = _run(
                 ["yt-dlp", "--dump-single-json", "--skip-download", target],
-                min(60.0, remaining),
+                _meta_timeout(remaining),
             )
         except subprocess.TimeoutExpired:
             return _failure(target, "video_timeout", "metadata lookup timed out")
