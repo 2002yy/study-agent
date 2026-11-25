@@ -6,6 +6,17 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-26 横向读取冻结：最后三批 + 独立音频收口
+
+- `main@e0a6552e` 合入 #664；此前 #662 `bf83993a`、#663 `cb759fc3`；#665 音频合入 `1f6e153e`。
+- 新能力：页面元数据 / 引用链接 / RSS；DOI、Crossref/DataCite、OpenAlex、arXiv、Zenodo；PDF、目录、章节锚点、SRT/VTT/ASS、播客音频/文字稿链接；独立音频转写（`mode="audio"`，SenseVoice，时间戳，按 URL+窗口缓存）。
+- #663 回归：arXiv API 摘要抢在官方元数据解析之前，导致官方字段绑定失败、`audit=abstained`；已修为已知官方源跳过平台 API，并在 `tests/test_official_source_quality.py` 新增回归测试。
+- 音频边界：4 MB 传输上限约等于 4 分钟 128 kbps；约 4 分钟音频识别约 12 秒，语义链 8 秒读取预算会返回 `audio_timeout`；音乐/静音返回 `audio_no_speech`；不自动发现播放器，不做说话人分离。
+- 验证：音频 13 项 + 读取影响集 170 项通过；#665 exact-head CI 全绿；全程无付费调用。
+- 冻结：不再新增平台、读取器、工具或研究架构层。
+- 下一片（只读审查）：`research_quality/RESEARCH_DECISION_CHAIN_AUDIT_20261126.md`。已确认断点：长读取与 8–12 秒预算冲突；平台地图与工具入口分属两条链；`[links]` 无消费者且常落在 lead 抽取窗口外；fragment 被 canonical 化丢弃；冲突不生成反例查询；用户直接给的 URL 不保证进读取候选。
+- `priority=P1`、`loop=static`、`owner=research/decision-chain`、`dynamic_evidence=free_probes`、`budget_authorization=free_probes_only`、`decision=engineering-only`。
+
 ### 2026-11-25 内容读取能力收口：搜索 / 社区 / 视频 / 平台 API 全部进 main
 
 - `main@12f5acc4` 依次合入五条 squash：`051352b7` B站视频 ASR/OCR（#651）、`a6911cf1` OCR 时间戳与元数据预算（#647）、`9b67b4e4` 社区收口与 B站评论（#648）、`190255f9` YouTube 公开字幕（#649）、`12f5acc4` HN / Stack Exchange / Discourse 薄适配（#650）。
