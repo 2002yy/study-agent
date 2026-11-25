@@ -29,3 +29,25 @@
 - 没有新增站点池条目；发现仍走现有搜索引擎。
 
 网关实测：`method=huggingface_api`，证据链 `source=huggingface_api`。
+
+## Lobsters
+
+实现：`lobsters` 分发，`method=lobsters_api`。一次请求 `/s/{id}.json`
+同时拿到故事、标签、正文和带 `depth` 的评论列表；不额外抓页面。
+
+- 内容：标题、外链、分数、评论数、标签、提交者与时间、`description_plain`。
+- 评论：按 `depth` 缩进，最多 40 条、深度 6；跳过已删除/被审核的评论；
+  每条截断 1,200 字。
+
+| 样本 | 结果 |
+| --- | --- |
+| 当前 hottest 第 1 条 | 3,751 字，10 条评论，5.0 s |
+| 当前 hottest 第 2 条 | 469 字，2 条评论，3.6 s |
+
+边界：
+
+- 只识别 `/s/{short_id}`；其余路径交回普通读取。
+- 评论是扁平的 `depth` 列表，按顺序渲染，不重建父子树。
+- 不访问登录态内容；删除/审核评论不参与证据。
+
+网关实测：`method=lobsters_api`，证据链 `source=lobsters_api`。
