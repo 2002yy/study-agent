@@ -91,6 +91,10 @@ _HF_RESERVED = {
 }
 
 
+_DEPSDEV_HOST = "deps.dev"
+_DEPSDEV_SYSTEMS = {"pypi", "npm", "maven", "cargo", "go", "nuget"}
+
+
 def detect(url: str) -> str:
     host = (urllib.parse.urlsplit(url).hostname or "").lower()
     if host == "news.ycombinator.com":
@@ -103,6 +107,8 @@ def detect(url: str) -> str:
         return "mediawiki"
     if host == _HUGGINGFACE_HOST:
         return "huggingface"
+    if host == _DEPSDEV_HOST:
+        return "depsdev"
     if host == "openreview.net":
         return "openreview"
     return ""
@@ -464,6 +470,99 @@ def _huggingface(url: str, timeout: float) -> dict[str, Any]:
                    **extra)
 
 
+def _depsdev(url: str, timeout: float) -> dict[str, Any]:
+    """Read one package version and its dependency graph from deps.dev."""
+
+    parsed = urllib.parse.urlsplit(url)
+    if (parsed.hostname or "").lower() != _DEPSDEV_HOST:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "not a deps.dev host",
+                "error_code": "platform_unsupported"}
+    segments = [urllib.parse.unquote(part) for part in parsed.path.split("/") if part]
+    system = segments[0].lower() if segments else ""
+    if system not in _DEPSDEV_SYSTEMS or len(segments) < 3:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "not a deps.dev package version URL",
+                "error_code": "platform_unsupported"}
+    version = segments[-1]
+    name = "/".join(segments[1:-1])
+    if system == "maven":
+        # deps.dev names Maven packages by "group:artifact"; the site URL uses
+        # a slash between them.
+        name = ":".join(segments[1:-1])
+    base = (f"https://api.{_DEPSDEV_HOST}/v3/systems/"
+            f"{urllib.parse.quote(system, safe='')}/packages/"
+            f"{urllib.parse.quote(name, safe='')}/versions/"
+            f"{urllib.parse.quote(version, safe='')}")
+    deadline = time.monotonic() + max(1.0, float(timeout))
+
+    def remaining() -> float:
+        return max(0.0, deadline - time.monotonic())
+
+    def left() -> float | None:
+        value = remaining()
+        return value if value >= 0.5 else None
+
+    budget = left()
+    if budget is None:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "read budget exhausted before the deps.dev request",
+                "error_code": "platform_failed"}
+    try:
+        data = _get_json(base, budget)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return {"ok": False, "kind": "web_page", "url": url,
+                    "error": f"{system} {name} {version} not found",
+                    "error_code": "platform_empty"}
+        raise
+
+    header = [
+        f"[package] {system} {name} {version}",
+        f"published: {data.get('publishedAt') or '-'}",
+        f"default version: {data.get('isDefault')} | deprecated: {data.get('isDeprecated')}"
+        + (f" ({data.get('deprecatedReason')})" if data.get("deprecatedReason") else ""),
+        f"licenses: {', '.join(str(item) for item in data.get('licenses') or []) or '-'}",
+    ]
+    advisories = data.get("advisoryKeys") or []
+    if advisories:
+        ids = [str((item or {}).get("id") or "") for item in advisories][:8]
+        header.append(f"advisories: {len(advisories)} ({', '.join(i for i in ids if i)})")
+    else:
+        header.append("advisories: 0")
+    links = [
+        f"{item.get('label')}={item.get('url')}"
+        for item in (data.get("links") or [])[:6] if isinstance(item, dict)
+    ]
+    if links:
+        header.append("links: " + " | ".join(links))
+
+    dependency_lines: list[str] = []
+    budget = left()
+    if budget is not None:
+        try:
+            graph = _get_json(f"{base}:dependencies", budget)
+        except Exception:  # noqa: BLE001 - the graph is optional context
+            graph = {}
+        nodes = (graph.get("nodes") or []) if isinstance(graph, dict) else []
+        dependencies = [
+            node for node in nodes
+            if isinstance(node, dict) and node.get("relation") != "SELF"
+        ]
+        if dependencies:
+            dependency_lines.append(f"[dependencies] {len(dependencies)} direct/transitive nodes")
+            for node in dependencies[:30]:
+                key = node.get("versionKey") or {}
+                dependency_lines.append(
+                    f"- {key.get('name')} {key.get('version')} ({node.get('relation') or '-'})"
+                )
+
+    content = "\n".join(header)
+    if dependency_lines:
+        content += "\n\n" + "\n".join(dependency_lines)
+    return _result(url, "depsdev_api", f"{system} {name} {version}", content)
+
+
 def _openreview(url: str, timeout: float) -> dict[str, Any]:
     match = re.search(r"[?&]id=([^&]+)", url)
     if not match:
@@ -525,6 +624,7 @@ _READERS = {
     "stackexchange": _stackexchange,
     "discourse": _discourse,
     "mediawiki": _mediawiki,
+    "depsdev": _depsdev,
     "huggingface": _huggingface,
     "openreview": _openreview,
 }
