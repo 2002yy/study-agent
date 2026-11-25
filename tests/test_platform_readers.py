@@ -318,3 +318,44 @@ def test_mediawiki_requests_share_one_deadline(monkeypatch):
     assert result["ok"] is True
     assert 2.9 <= seen[0] <= 3.0
     assert seen[1] <= 2.0
+
+def test_lobsters_returns_the_story_and_threaded_comments(monkeypatch):
+    assert platform_readers.detect(
+        "https://lobste.rs/s/srb0dp/title"
+    ) == "lobsters"
+    story = {
+        "title": "Marginalia Search",
+        "url": "https://example.com/post",
+        "score": 42,
+        "comment_count": 3,
+        "tags": ["search", "ai"],
+        "submitter_user": {"username": "alice"},
+        "created_at": "2026-11-01T10:00:00.000-05:00",
+        "description_plain": "<p>story body</p>",
+        "comments": [
+            {"depth": 0, "comment_plain": "<p>first</p>",
+             "commenting_user": {"username": "bob"}, "created_at": "2026-11-01T11:00:00Z"},
+            {"depth": 1, "comment_plain": "nested reply",
+             "commenting_user": {"username": "carol"}, "created_at": "2026-11-01T12:00:00Z"},
+            {"depth": 0, "comment_plain": "deleted", "is_deleted": True},
+            {"depth": 9, "comment_plain": "too deep"},
+        ],
+    }
+    monkeypatch.setattr(platform_readers, "_get_json", lambda url, timeout: story)
+    result = platform_readers.read(
+        "https://lobste.rs/s/srb0dp/marginalia", timeout=5
+    )
+
+    assert result["ok"] is True
+    assert result["method"] == "lobsters_api"
+    assert result["comments"] == 2
+    assert "story body" in result["content"]
+    assert "[d1] carol" in result["content"]
+    assert "deleted" not in result["content"]
+    assert "too deep" not in result["content"]
+
+
+def test_lobsters_requires_a_story_id():
+    result = platform_readers.read("https://lobste.rs/", timeout=5)
+    assert result["ok"] is False
+    assert result["error_code"] == "platform_unsupported"
