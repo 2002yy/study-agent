@@ -17,6 +17,7 @@ from src.news.article_extractor import (
     decompress_transport_payload as _decompress_transport_payload,
 )
 from src.news.domain_policy import article_priority_adjustment, should_fetch_article
+from src.news import raw_content
 from src.news.readers.firecrawl_reader import firecrawl_enabled, read_with_firecrawl
 from src.news.readers.jina_reader import read_with_jina_reader
 from src.news.readers.local_reader import read_html_locally
@@ -268,9 +269,15 @@ def fetch_article_read_result(
         )
 
     try:
-        html, final_url, content_type, reason = _fetch_html_payload(
+        payload, final_url, content_type, reason = _fetch_html_payload(
             url, timeout=timeout, max_bytes=max_bytes
         )
+        if reason == "non_html_resource":
+            # JSON and other non-HTML text still arrives through the same safe
+            # transport; binary payloads keep failing closed below.
+            payload, final_url, content_type, reason = _fetch_text_payload(
+                url, timeout=timeout, max_bytes=max_bytes
+            )
         if reason:
             return ArticleReadResult(
                 ok=False,
@@ -280,6 +287,42 @@ def fetch_article_read_result(
                 reason=reason,
             )
 
+        kind = raw_content.kind_for(content_type, final_url or url, payload)
+        if kind != "html" and not (
+            kind == "unknown" and raw_content.looks_like_html(payload)
+        ):
+            if kind == "xml":
+                text, method = raw_content.clamp(payload, max_chars), "raw_xml"
+            else:
+                text, method = raw_content.render_raw(kind, payload, max_chars)
+            if text:
+                _ARTICLE_CACHE[url] = (now, text, method, "", final_url or url)
+                return ArticleReadResult(
+                    ok=True,
+                    text=text,
+                    method=method,
+                    requested_url=url,
+                    final_url=final_url,
+                    content_type=content_type,
+                )
+            if kind not in {"unknown", "html"}:
+                return ArticleReadResult(
+                    ok=False,
+                    requested_url=url,
+                    final_url=final_url,
+                    content_type=content_type,
+                    reason="empty_text_resource",
+                )
+            if kind == "unknown":
+                return ArticleReadResult(
+                    ok=False,
+                    requested_url=url,
+                    final_url=final_url,
+                    content_type=content_type,
+                    reason="non_html_resource",
+                )
+        html = payload
+
         if html:
             local_result = read_html_locally(
                 html,
@@ -287,12 +330,18 @@ def fetch_article_read_result(
                 max_chars=max_chars,
             )
             if local_result.ok:
+                text = local_result.text
+                tables = raw_content.tables_to_markdown(html, max_chars=max_chars)
+                if tables:
+                    text = raw_content.clamp(
+                        f"{text}\n\n[tables]\n{tables}", max_chars
+                    )
                 _ARTICLE_CACHE[url] = (
-                    now, local_result.text, local_result.method, local_result.author, final_url or url
+                    now, text, local_result.method, local_result.author, final_url or url
                 )
                 return ArticleReadResult(
                     ok=True,
-                    text=local_result.text,
+                    text=text,
                     method=local_result.method,
                     author=local_result.author,
                     requested_url=url,
