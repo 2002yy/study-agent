@@ -71,3 +71,23 @@
 
 过滤规则（通用）：去掉正文自身、纯数字/翻页控件、“N 条回复 • 时间”、“只看楼主/排序”等 UI 行；
 连续重复行合并；作者与时间从条目头部剥离。没有为平台写独立读取系统。
+
+## MediaWiki 读取（2026-11-25，一个适配覆盖多个 Wiki）
+
+实现：`platform_readers.py` 新增 `mediawiki` 分发，`method=mediawiki_api`。
+先 `action=query&prop=extracts` 取纯文本，扩展缺失时回退 `action=parse` 后去标签；
+`api.php` 位置按 `/w/api.php`、`/api.php` 顺序探测并按 host 缓存；标题支持 `/wiki/`、`/w/`、
+`/title/`、`?title=`，萌娘百科用根路径标题，BWIKI 用首段作为子路径 API 基址。
+
+| 站点 | 实测 | 结果 |
+| --- | --- | --- |
+| en.wikipedia.org | `Physics engine` | 13,124 字，5.6 s，`mediawiki_api` |
+| zh.wikipedia.org | `破壞` | 149 字，6.2 s（条目本身短） |
+| zh.moegirl.org.cn | `初音未来`（根路径） | 19,999 字，4.0 s，截断到 20k |
+| wiki.biligame.com/sr | `角色`（子路径） | 首次探测 200，随后 567 反爬；失败后回退普通读取 |
+| wiki.archlinux.org | `Arch boot process` | HTTP 200 但是 “Making sure you're not a bot!” 页面，非 JSON，`platform_failed` |
+| minecraft.wiki | `Block` | Cloudflare 403 challenge，`platform_failed` |
+
+边界：只对白名单 host 启用，不把任意域名变成 API 目标；被反爬拦截的站点不绕过、
+不求解验证，按失败返回并交给普通读取/Browse 回退。Wikipedia 在本机需要走代理，
+读取器沿用 urllib 的环境代理设置。发现仍走现有搜索引擎，本次没有新增站点池条目。

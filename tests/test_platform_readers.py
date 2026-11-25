@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from src.web import platform_readers
 from src.web.tool_gateway import GeneralWebGateway
 
@@ -105,6 +107,113 @@ def test_the_gateway_uses_the_platform_reader(monkeypatch):
     assert result["method"] == "hn_api"
 
 
+def test_mediawiki_hosts_are_detected():
+    assert platform_readers.detect(
+        "https://en.wikipedia.org/wiki/Jolt_Physics"
+    ) == "mediawiki"
+    assert platform_readers.detect(
+        "https://zh.wikipedia.org/wiki/%E7%A0%B4%E5%9D%8F"
+    ) == "mediawiki"
+    assert platform_readers.detect(
+        "https://wiki.archlinux.org/title/Arch_boot_process"
+    ) == "mediawiki"
+    assert platform_readers.detect("https://minecraft.wiki/w/Block") == "mediawiki"
+    assert platform_readers.detect("https://example.com/wiki/Foo") == ""
+
+
+def test_mediawiki_titles_are_taken_from_each_url_shape():
+    assert platform_readers._mediawiki_title(
+        "https://en.wikipedia.org/wiki/Jolt_Physics"
+    ) == "Jolt Physics"
+    assert platform_readers._mediawiki_title(
+        "https://zh.wikipedia.org/wiki/%E7%A0%B4%E5%9D%8F"
+    ) == "破坏"
+    assert platform_readers._mediawiki_title(
+        "https://minecraft.wiki/w/Block"
+    ) == "Block"
+    assert platform_readers._mediawiki_title(
+        "https://wiki.archlinux.org/title/Arch_boot_process"
+    ) == "Arch boot process"
+    assert platform_readers._mediawiki_title(
+        "https://en.wikipedia.org/w/index.php?title=Jolt_Physics"
+    ) == "Jolt Physics"
+    assert platform_readers._mediawiki_title("https://en.wikipedia.org/") == ""
+    assert platform_readers._mediawiki_title(
+        "https://zh.moegirl.org.cn/%E5%88%9D%E9%9F%B3%E6%9C%AA%E6%9D%A5"
+    ) == "初音未来"
+
+
+def test_mediawiki_subpath_wikis_use_the_first_segment_as_their_base():
+    base, title = platform_readers._mediawiki_base(
+        "https://wiki.biligame.com/sr/%E8%A7%92%E8%89%B2"
+    )
+    assert base == "https://wiki.biligame.com/sr"
+    assert title == "角色"
+    assert platform_readers._mediawiki_base("https://wiki.biligame.com/") == ("", "")
+
+
+def test_mediawiki_reads_plain_extract(monkeypatch):
+    monkeypatch.setattr(platform_readers, "_MEDIAWIKI_ENDPOINTS", {})
+
+    def fake(url, timeout):
+        if "meta=siteinfo" in url:
+            return {"query": {"general": {"sitename": "Wikipedia"}}}
+        return {"query": {"pages": [{
+            "title": "Jolt Physics",
+            "extract": "Jolt is a rigid body physics engine.",
+        }]}}
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake)
+    result = platform_readers.read(
+        "https://en.wikipedia.org/wiki/Jolt_Physics", timeout=5
+    )
+    assert result["ok"] is True
+    assert result["method"] == "mediawiki_api"
+    assert result["title"] == "Jolt Physics"
+    assert "rigid body" in result["content"]
+    assert platform_readers._MEDIAWIKI_ENDPOINTS["https://en.wikipedia.org"] == (
+        "https://en.wikipedia.org/w/api.php"
+    )
+
+
+def test_mediawiki_falls_back_to_parse_html(monkeypatch):
+    monkeypatch.setattr(platform_readers, "_MEDIAWIKI_ENDPOINTS", {})
+
+    def fake(url, timeout):
+        if "meta=siteinfo" in url:
+            return {"query": {"general": {"sitename": "ArchWiki"}}}
+        if "action=parse" in url:
+            return {"parse": {"title": "Arch boot process",
+                              "text": "<p>Boot <b>sequence</b></p>"}}
+        return {"query": {"pages": [{"title": "Arch boot process", "extract": ""}]}}
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake)
+    result = platform_readers.read(
+        "https://wiki.archlinux.org/title/Arch_boot_process", timeout=5
+    )
+    assert result["ok"] is True
+    assert "Boot sequence" in result["content"]
+
+
+def test_mediawiki_reports_a_missing_page(monkeypatch):
+    monkeypatch.setattr(platform_readers, "_MEDIAWIKI_ENDPOINTS", {})
+
+    def fake(url, timeout):
+        if "meta=siteinfo" in url:
+            return {"query": {"general": {"sitename": "Wikipedia"}}}
+        return {"query": {"pages": [{"title": "Nope", "missing": True}]}}
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake)
+    result = platform_readers.read("https://en.wikipedia.org/wiki/Nope", timeout=5)
+    assert result["ok"] is False
+    assert result["error_code"] == "platform_empty"
+
+
+def test_mediawiki_requires_a_page_title(monkeypatch):
+    result = platform_readers.read("https://en.wikipedia.org/", timeout=5)
+    assert result["ok"] is False
+    assert result["error_code"] == "platform_unsupported"
+
 def test_huggingface_model_returns_metadata_card_and_discussions(monkeypatch):
     assert platform_readers.detect(
         "https://huggingface.co/microsoft/phi-2"
@@ -174,3 +283,38 @@ def test_huggingface_non_repo_urls_fall_back():
     result = platform_readers.read("https://huggingface.co/papers/1234", timeout=5)
     assert result["ok"] is False
     assert result["error_code"] == "platform_unsupported"
+
+
+def test_mediawiki_revision_urls_are_not_read_as_the_latest_page(monkeypatch):
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("revision URLs must not hit the API")
+
+    monkeypatch.setattr(platform_readers, "_get_json", forbidden)
+
+    for url in (
+        "https://en.wikipedia.org/w/index.php?title=Foo&oldid=12345",
+        "https://en.wikipedia.org/w/index.php?title=Foo&diff=12345&oldid=12344",
+        "https://en.wikipedia.org/w/index.php?title=Foo&action=history",
+    ):
+        result = platform_readers.read(url, timeout=5)
+        assert result["ok"] is False
+        assert result["error_code"] == "platform_unsupported"
+
+
+def test_mediawiki_requests_share_one_deadline(monkeypatch):
+    monkeypatch.setattr(platform_readers, "_MEDIAWIKI_ENDPOINTS", {})
+    seen: list[float] = []
+
+    def fake(url, timeout):
+        seen.append(timeout)
+        if "meta=siteinfo" in url:
+            time.sleep(1.2)
+            return {"query": {"general": {"sitename": "Wikipedia"}}}
+        return {"query": {"pages": [{"title": "X", "extract": "body"}]}}
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake)
+    result = platform_readers.read("https://en.wikipedia.org/wiki/X", timeout=3)
+
+    assert result["ok"] is True
+    assert 2.9 <= seen[0] <= 3.0
+    assert seen[1] <= 2.0
