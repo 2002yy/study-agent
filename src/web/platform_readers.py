@@ -14,7 +14,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
 _UA = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -248,7 +248,7 @@ def _mediawiki_base(url: str) -> tuple[str, str]:
     return origin, _mediawiki_title(url)
 
 
-def _mediawiki_endpoint(base: str, timeout: float) -> str:
+def _mediawiki_endpoint(base: str, remaining: Callable[[], float]) -> str:
     """Find the api.php a wiki actually answers on, once per process."""
 
     cached = _MEDIAWIKI_ENDPOINTS.get(base)
@@ -256,8 +256,11 @@ def _mediawiki_endpoint(base: str, timeout: float) -> str:
         return cached
     probe = "?action=query&meta=siteinfo&format=json&formatversion=2"
     for path in ("/w/api.php", "/api.php"):
+        left = remaining()
+        if left < 0.5:
+            return ""
         try:
-            data = _get_json(f"{base}{path}{probe}", timeout)
+            data = _get_json(f"{base}{path}{probe}", left)
         except Exception:  # noqa: BLE001 - try the next candidate
             continue
         if (data.get("query") or {}).get("general"):
@@ -267,24 +270,49 @@ def _mediawiki_endpoint(base: str, timeout: float) -> str:
 
 
 def _mediawiki(url: str, timeout: float) -> dict[str, Any]:
-    """Read one wiki page through the MediaWiki action API."""
+    """Read one wiki page through the MediaWiki action API.
 
+    Every request shares one deadline. Probing the endpoint, the extract and the
+    parse fallback used to each get the caller's full timeout, so a slow wiki
+    could spend four times the read budget.
+    """
+
+    parsed = urllib.parse.urlsplit(url)
+    values = urllib.parse.parse_qs(parsed.query or "")
+    if any(key in values for key in ("oldid", "diff")) or "history" in (
+        values.get("action") or []
+    ):
+        # A revision URL is not the current article; reading the latest text
+        # would silently misrepresent history, so the normal reader takes over.
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "revision and diff URLs are not read by this adapter",
+                "error_code": "platform_unsupported"}
     base, title = _mediawiki_base(url)
     if not title:
         return {"ok": False, "kind": "web_page", "url": url,
                 "error": "no wiki page title in this URL",
                 "error_code": "platform_unsupported"}
-    endpoint = _mediawiki_endpoint(base, timeout)
+    deadline = time.monotonic() + max(1.0, float(timeout))
+
+    def remaining() -> float:
+        return max(0.0, deadline - time.monotonic())
+
+    endpoint = _mediawiki_endpoint(base, remaining)
     if not endpoint:
         return {"ok": False, "kind": "web_page", "url": url,
                 "error": "no MediaWiki api.php answered",
+                "error_code": "platform_failed"}
+    left = remaining()
+    if left < 0.5:
+        return {"ok": False, "kind": "web_page", "url": url,
+                "error": "read budget exhausted before the wiki request",
                 "error_code": "platform_failed"}
     query = urllib.parse.urlencode({
         "action": "query", "prop": "extracts", "explaintext": "1",
         "exlimit": "1", "redirects": "1", "titles": title,
         "format": "json", "formatversion": "2",
     })
-    data = _get_json(f"{endpoint}?{query}", timeout)
+    data = _get_json(f"{endpoint}?{query}", left)
     pages = (data.get("query") or {}).get("pages") or []
     page = pages[0] if pages else {}
     if page.get("missing"):
@@ -295,11 +323,16 @@ def _mediawiki(url: str, timeout: float) -> dict[str, Any]:
     text = str(page.get("extract") or "").strip()
     if not text:
         # TextExtracts is an extension; plain installs still answer action=parse.
+        left = remaining()
+        if left < 0.5:
+            return {"ok": False, "kind": "web_page", "url": url,
+                    "error": "read budget exhausted before the parse fallback",
+                    "error_code": "platform_failed"}
         parse_query = urllib.parse.urlencode({
             "action": "parse", "page": title, "prop": "text",
             "redirects": "1", "format": "json", "formatversion": "2",
         })
-        parsed_page = _get_json(f"{endpoint}?{parse_query}", timeout).get("parse") or {}
+        parsed_page = _get_json(f"{endpoint}?{parse_query}", left).get("parse") or {}
         page_title = str(parsed_page.get("title") or page_title)
         text = _text(parsed_page.get("text"))
     return _result(url, "mediawiki_api", page_title, text)

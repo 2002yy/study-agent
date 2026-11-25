@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from src.web import platform_readers
 from src.web.tool_gateway import GeneralWebGateway
 
@@ -281,3 +283,38 @@ def test_huggingface_non_repo_urls_fall_back():
     result = platform_readers.read("https://huggingface.co/papers/1234", timeout=5)
     assert result["ok"] is False
     assert result["error_code"] == "platform_unsupported"
+
+
+def test_mediawiki_revision_urls_are_not_read_as_the_latest_page(monkeypatch):
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("revision URLs must not hit the API")
+
+    monkeypatch.setattr(platform_readers, "_get_json", forbidden)
+
+    for url in (
+        "https://en.wikipedia.org/w/index.php?title=Foo&oldid=12345",
+        "https://en.wikipedia.org/w/index.php?title=Foo&diff=12345&oldid=12344",
+        "https://en.wikipedia.org/w/index.php?title=Foo&action=history",
+    ):
+        result = platform_readers.read(url, timeout=5)
+        assert result["ok"] is False
+        assert result["error_code"] == "platform_unsupported"
+
+
+def test_mediawiki_requests_share_one_deadline(monkeypatch):
+    monkeypatch.setattr(platform_readers, "_MEDIAWIKI_ENDPOINTS", {})
+    seen: list[float] = []
+
+    def fake(url, timeout):
+        seen.append(timeout)
+        if "meta=siteinfo" in url:
+            time.sleep(1.2)
+            return {"query": {"general": {"sitename": "Wikipedia"}}}
+        return {"query": {"pages": [{"title": "X", "extract": "body"}]}}
+
+    monkeypatch.setattr(platform_readers, "_get_json", fake)
+    result = platform_readers.read("https://en.wikipedia.org/wiki/X", timeout=3)
+
+    assert result["ok"] is True
+    assert 2.9 <= seen[0] <= 3.0
+    assert seen[1] <= 2.0
