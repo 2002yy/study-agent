@@ -391,6 +391,47 @@ def canonicalize_url(url: str) -> str:
     return urlunparse((scheme, netloc, path, "", query, ""))
 
 
+_LANGUAGE_SEGMENTS = frozenset({
+    "ar", "bg", "ca", "cs", "da", "de", "el", "en", "es", "et",
+    "fa", "fi", "fr", "he", "hi", "hr", "hu", "id", "it", "ja",
+    "ko", "lt", "lv", "nl", "no", "pl", "pt", "pt-br", "ro", "ru",
+    "sk", "sl", "sr", "sv", "th", "tr", "uk", "vi", "zh", "zh-cn",
+    "zh-hans", "zh-hant", "zh-tw",
+})
+
+
+_VERSION_SEGMENT = re.compile(
+    r"^(?:latest|stable|current|next|v?\d+(?:\.\d+)*(?:\.x)?)$",
+    re.I,
+)
+
+
+def document_identity(url: str) -> str:
+    """Identity for the same documentation page in another UI language.
+
+    Only a leading language segment is removed, and only when the host stays
+    the same and a version-shaped segment follows. Version segments --
+    including `latest`/`stable`/`next` and `4.x` -- are kept verbatim,
+    because they may point at different content. Different hosts are never
+    merged: a mirror, or a same-named page from another project, stays separate
+    evidence. The read URL is never changed.
+    """
+
+    canonical = canonicalize_url(url)
+    if not canonical:
+        return ""
+    parsed = _safe_urlparse(canonical)
+    if parsed is None:
+        return canonical
+    segments = [part for part in parsed.path.split("/") if part]
+    if len(segments) < 2 or segments[0].casefold() not in _LANGUAGE_SEGMENTS:
+        return canonical
+    if not _VERSION_SEGMENT.fullmatch(segments[1]):
+        return canonical
+    path = "/" + "/".join(segments[1:])
+    return urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
+
+
 def build_url_metadata(
     original_url: str,
     resolved_url: str = "",

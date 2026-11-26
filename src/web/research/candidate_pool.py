@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from hashlib import sha256
 from typing import Any
 
-from src.news.url_normalizer import canonicalize_url
+from src.news.url_normalizer import canonicalize_url, document_identity
 from src.web.research.gap_planner import GapQueryBatch, GapSearchIntent, PlannedGapQuery
 from src.web.research.selection_trace import SelectionTraceCollector
 from src.web.tool_evidence import _public_url
@@ -232,6 +232,7 @@ def merge_candidate_pool(
         for raw in results:
             raw_url = str(raw.get("url") or raw.get("link") or "").strip()
             canonical = canonicalize_url(raw_url)
+            identity = document_identity(raw_url) or canonical
             title = _bounded_text(raw.get("title") or raw.get("name"), 500)
             if not canonical or not title:
                 if trace is not None:
@@ -244,7 +245,7 @@ def merge_candidate_pool(
                 trace.note_normalized(canonical)
             source = _bounded_text(raw.get("source"), 200)
             providers = _candidate_providers(raw, payload_providers)
-            existing_position = positions.get(canonical)
+            existing_position = positions.get(identity)
             if existing_position is not None:
                 if trace is not None:
                     trace.note_duplicate(canonical)
@@ -286,7 +287,7 @@ def merge_candidate_pool(
                 providers=providers,
                 first_seen_rank=seen_rank,
             )
-            positions[canonical] = len(ordered)
+            positions[identity] = len(ordered)
             ordered.append(item)
             if trace is not None:
                 trace.note_materialized(canonical)
