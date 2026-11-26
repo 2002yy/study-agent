@@ -6,6 +6,17 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-27 冻结快照：读取与时间预算优化收口
+
+- 冻结主线：`main@cf732c7131dc0174075ef6d84b607098f89d1161`，工作区干净。包含 #675 `48ee4054` 尺寸分层、#677 `f7329b7d` 保守去重、#678 `3de4d21d` 并行读取 + 研究状态块、#679 `cf732c71` 时间预算分级。
+- 精确 head CI：#678 run `45869346116` 五项全绿；#679 run `45872773763` 五项全绿（backend 13m55s）；均未借用旧 SHA 结果。
+- E0 读计划核对：B 组 15 个 `worth_reading=true` 候选全部进入读取尝试，**0 跳过**；A 组 15/15、C 组 11/11 同样 0 跳过。失败在读取执行，不在计划遗漏；B 组 8 成功、7 失败（6 个 `response_too_large` + 1 个 `all_backends_failed`），停止原因 `sources_partially_read`。
+- 读取消耗：B 组 `used_chars=36,119`、`consumed_reads=15`；`read_summary.budget` 仍是 Lookup 默认 3 次 / 16k 字符，不是 Deep 的权威预算，后续分析不要拿它当上限。
+- 费用：E0 总 **¥1.137 / ¥3**（19 次调用、预留口径，账本无 settlement 行）；B 组修正后重跑 3 次调用、**¥0.204**。
+- 明确暂缓：R6 模型阅读建议、RQCE/Deep 并行读取、1800 秒专题档。没有证据前不新增调度机制。
+- 下一片：真实研究复验（需授权）。只回答三件事：官方文档是否进入最终答案、关键事实覆盖是否提升、Deep 是否因串行读取/读取次数/模型调用次数提前停止。
+- `priority=P1`、`loop=dynamic`、`owner=research/validation`、`dynamic_evidence=authorized_only`、`budget_authorization=not_granted`、`decision=pending_user_authorization`。
+
 ### 2026-11-27 E0 读取断点：尺寸、去重、预算、有限并行
 
 - `main@48ee4054` 合入 #675：网页尺寸分层（HTML 2 MiB + 一次 4 MiB 重试，解压后 8 MiB，PDF 12 MiB，音频 4 MiB）。E0 B 组官方页从 `response_too_large` 恢复为 11,630 字符，含 `bias` / `softness` / `ghost`；SSRF、重定向、解压炸弹与 `max_chars` 限制未变。
@@ -15,7 +26,7 @@
 - 验证：#677 影响集 195 项、#678 工具循环/持久 Agent 40 项通过；Ruff 干净；mypy 112/125；全程无付费模型调用。
 - E0 总花费仍为 **¥1.137 / ¥3**，实验 `e0-godot-jolt-20261126`，账本 `e0-results/spend.db`；B 组修正后重跑为 3 次调用、¥0.204（预留口径）。
 - E0 读计划核对：B 组 15 个 `worth_reading=true` 候选全部进入读取尝试，**0 跳过**；8 成功、7 失败（6 个 `response_too_large` + 1 个 `all_backends_failed`）。停止原因 `sources_partially_read`。失败在读取执行，不在计划遗漏。A 组同样 15/15、0 跳过；C 组 11/11、0 跳过。
-- 待办：#677、#678 的精确 head CI；R5 只做设计，先回答“模型能看到计划、已读事实、未读候选与缺口吗”，不重写执行器。
+- 待办：R6 模型阅读建议、RQCE/Deep 并行读取、1800 秒专题档均暂缓；先做真实研究复验。R5 已实现但只覆盖工具循环。
 - `priority=P1`、`loop=static`、`owner=research/read-pipeline`、`dynamic_evidence=free_probes`、`budget_authorization=free_probes_only`、`decision=engineering-only`。
 
 ### 2026-11-27 时间预算分级：先放宽时间，不动付费
