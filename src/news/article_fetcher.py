@@ -278,6 +278,9 @@ def fetch_article_read_result(
     """Fetch article and return a structured result with failure diagnostics."""
     requested = (url or "").strip()
     fragment = urlparse(requested).fragment
+    # A section read and a full-page read are different bodies; sharing one
+    # cache slot made the second read return the other one's text.
+    cache_key = requested
     url = requested.split("#", 1)[0]
     if not url or not _is_fetchable_article_url(url):
         return ArticleReadResult(ok=False, requested_url=url, reason="unsafe_or_empty_url")
@@ -285,7 +288,7 @@ def fetch_article_read_result(
     now = time.time()
     _prune_article_cache(now)
 
-    cached = _ARTICLE_CACHE.get(url)
+    cached = _ARTICLE_CACHE.get(cache_key)
     if cached and cached[1] and now - cached[0] < _ARTICLE_CACHE_TTL:
         return ArticleReadResult(
             ok=True,
@@ -314,7 +317,7 @@ def fetch_article_read_result(
                 )
             text = raw_content.pdf_text(data, max_chars=max_chars)
             if text:
-                _ARTICLE_CACHE[url] = (now, text, "pdf_text", "", final_url or url, ())
+                _ARTICLE_CACHE[cache_key] = (now, text, "pdf_text", "", final_url or url, ())
                 return ArticleReadResult(
                     ok=True,
                     text=text,
@@ -344,7 +347,7 @@ def fetch_article_read_result(
                 if not reason:
                     text = raw_content.pdf_text(data, max_chars=max_chars)
                     if text:
-                        _ARTICLE_CACHE[url] = (now, text, "pdf_text", "", final_url or url, ())
+                        _ARTICLE_CACHE[cache_key] = (now, text, "pdf_text", "", final_url or url, ())
                         return ArticleReadResult(
                             ok=True,
                             text=text,
@@ -388,7 +391,7 @@ def fetch_article_read_result(
             else:
                 text, method = raw_content.render_raw(kind, payload, max_chars)
             if text:
-                _ARTICLE_CACHE[url] = (now, text, method, "", final_url or url, ())
+                _ARTICLE_CACHE[cache_key] = (now, text, method, "", final_url or url, ())
                 return ArticleReadResult(
                     ok=True,
                     text=text,
@@ -419,7 +422,7 @@ def fetch_article_read_result(
             if fragment:
                 section = raw_content.section_text(html, fragment, max_chars)
                 if section:
-                    _ARTICLE_CACHE[url] = (
+                    _ARTICLE_CACHE[cache_key] = (
                         now, section, "section_text", "", final_url or url, ()
                     )
                     return ArticleReadResult(
@@ -463,7 +466,7 @@ def fetch_article_read_result(
                     text = raw_content.clamp(
                         text + "\n\n" + "\n\n".join(extras), max_chars
                     )
-                _ARTICLE_CACHE[url] = (
+                _ARTICLE_CACHE[cache_key] = (
                     now, text, local_result.method, local_result.author,
                     final_url or url, link_items,
                 )
@@ -481,7 +484,7 @@ def fetch_article_read_result(
         fallback_url = final_url or url
         text, method = _try_firecrawl(fallback_url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "", fallback_url, ())
+            _ARTICLE_CACHE[cache_key] = (now, text, method, "", fallback_url, ())
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -492,7 +495,7 @@ def fetch_article_read_result(
 
         text, method = _try_jina(fallback_url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "", fallback_url, ())
+            _ARTICLE_CACHE[cache_key] = (now, text, method, "", fallback_url, ())
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -517,7 +520,7 @@ def fetch_article_read_result(
     except Exception as exc:
         text, method = _try_firecrawl(url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "", url, ())
+            _ARTICLE_CACHE[cache_key] = (now, text, method, "", url, ())
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -527,7 +530,7 @@ def fetch_article_read_result(
 
         text, method = _try_jina(url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "", url, ())
+            _ARTICLE_CACHE[cache_key] = (now, text, method, "", url, ())
             return ArticleReadResult(
                 ok=True,
                 text=text,

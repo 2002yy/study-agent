@@ -16,6 +16,7 @@ from typing import Any
 from src.news.url_normalizer import canonicalize_url
 from src.web.research.gap_planner import GapQueryBatch, GapSearchIntent, PlannedGapQuery
 from src.web.research.selection_trace import SelectionTraceCollector
+from src.web.tool_evidence import _public_url
 
 DEFAULT_RESULTS_PER_QUERY = 5
 DEFAULT_MAX_POOL_CANDIDATES = 20
@@ -229,9 +230,8 @@ def merge_candidate_pool(
     seen_rank = 0
     for planned, results, payload_providers in batches:
         for raw in results:
-            canonical = canonicalize_url(
-                str(raw.get("url") or raw.get("link") or "")
-            )
+            raw_url = str(raw.get("url") or raw.get("link") or "").strip()
+            canonical = canonicalize_url(raw_url)
             title = _bounded_text(raw.get("title") or raw.get("name"), 500)
             if not canonical or not title:
                 if trace is not None:
@@ -272,7 +272,9 @@ def merge_candidate_pool(
             item = CandidatePoolItem(
                 id=f"candidate_{sha256(canonical.encode('utf-8')).hexdigest()[:16]}",
                 canonical_url=canonical,
-                url=canonical,
+                # Identity is canonical; the read target keeps a meaningful
+                # fragment such as #install so one section can be read.
+                url=_public_url(raw_url) or canonical,
                 title=title,
                 snippet=_bounded_text(
                     raw.get("snippet") or raw.get("search_excerpt"), 2000

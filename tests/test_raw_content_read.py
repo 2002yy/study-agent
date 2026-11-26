@@ -469,3 +469,44 @@ def test_long_page_keeps_structured_links_even_when_text_is_clamped(monkeypatch)
     assert result.links[0]["url"] == "https://source.example/paper"
     # The text is clamped; the structured link must not depend on that budget.
     assert "[links]" not in result.text
+
+
+def test_section_and_full_page_reads_do_not_share_a_cache_entry(monkeypatch):
+    from types import SimpleNamespace
+
+    article_fetcher._ARTICLE_CACHE.clear()
+    html = """
+    <html><body>
+      <h2 id="install">Install</h2><p>install steps</p>
+      <h2 id="deploy">Deploy</h2><p>deploy steps</p>
+    </body></html>
+    """
+    monkeypatch.setattr(
+        article_fetcher,
+        "_fetch_html_payload",
+        lambda url, timeout, max_bytes: (html, url, "text/html", ""),
+    )
+    monkeypatch.setattr(
+        article_fetcher, "read_html_locally",
+        lambda html, url, max_chars: SimpleNamespace(
+            ok=True, text="full page body with deploy steps",
+            method="local_fixture", author="",
+        ),
+    )
+
+    section = article_fetcher.fetch_article_read_result(
+        "https://example.com/guide#install", max_chars=4000
+    )
+    full = article_fetcher.fetch_article_read_result(
+        "https://example.com/guide", max_chars=4000
+    )
+    again = article_fetcher.fetch_article_read_result(
+        "https://example.com/guide#install", max_chars=4000
+    )
+
+    assert section.method == "section_text"
+    assert "install steps" in section.text
+    assert full.method == "local_fixture"
+    assert "full page body" in full.text
+    assert again.method == "section_text"
+    assert "install steps" in again.text

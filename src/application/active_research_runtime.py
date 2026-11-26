@@ -73,6 +73,7 @@ from src.web.research.lead_discovery import (
     RuntimeLeadDiscoverer,
 )
 from src.news.url_normalizer import canonicalize_url
+from src.web.tool_evidence import _public_url
 from src.web.research.evidence_gain import GapBatchDelta
 from src.web.research.failure_contracts import ResearchFailureCode
 from src.web.research.gap_planner import (
@@ -2541,7 +2542,7 @@ def _gap_query_batch(query: RuntimePlannedQuery) -> GapQueryBatch:
 def _candidate_item(item: RuntimeCandidate) -> CandidatePoolItem:
     return CandidatePoolItem(
         id=item.id,
-        canonical_url=item.url,
+        canonical_url=canonicalize_url(item.url) or item.url,
         url=item.url,
         title=item.title,
         snippet=item.snippet,
@@ -3815,7 +3816,7 @@ def _evidence_lead_followup_candidates(
             source_url=page_url,
             source_authority_class=gap.source_authority_class,
         )
-    known_urls = {item.url for item in existing}
+    known_urls = {canonicalize_url(item.url) or item.url for item in existing}
     added: list[RuntimeCandidate] = []
     for url in urls:
         if len(existing) + len(added) >= max_candidates:
@@ -3885,7 +3886,7 @@ def _lead_discovered_candidates(
     if remaining_run_budget <= 0:
         stats["cap_exhausted"] = 1
         return (), stats
-    known_urls = {item.url for item in existing}
+    known_urls = {canonicalize_url(item.url) or item.url for item in existing}
     added: list[RuntimeCandidate] = []
     for raw_url in discovery.discovered_urls:
         if len(added) >= remaining_run_budget:
@@ -3905,7 +3906,9 @@ def _lead_discovered_candidates(
         added.append(
             RuntimeCandidate(
                 id=new_id("candidate"),
-                url=canonical,
+                # Keep a cited section fragment for the read; dedupe still uses
+                # the canonical identity above.
+                url=_public_url(raw_url) or canonical,
                 title=canonical,
                 snippet="",
                 source="lead_discovery",
