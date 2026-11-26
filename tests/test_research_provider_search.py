@@ -48,7 +48,7 @@ def test_legacy_gateway_still_stops_after_first_nonempty_provider(
         GeneralWebGateway, "_search_duckduckgo", staticmethod(must_not_run)
     )
 
-    payload = GeneralWebGateway().search_exact("query")
+    payload = GeneralWebGateway(search_strategy="fallback").search_exact("query")
     assert payload["status"] == "ok"
     assert payload["providers_attempted"] == ["searxng"]
 

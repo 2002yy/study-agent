@@ -38,6 +38,7 @@ def _search_payload() -> dict:
 
 
 def test_default_search_has_no_network_or_paid_activity(monkeypatch):
+    monkeypatch.delenv("WEB_DEEPSEEK_SEARCH_ENABLED", raising=False)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setenv("WEB_DEEPSEEK_SEARCH_MAX_REQUESTS", "2")
     monkeypatch.setattr(
@@ -215,7 +216,7 @@ def test_gateway_normal_fallback_never_adds_deepseek(monkeypatch):
         GeneralWebGateway, "_search_deepseek",
         staticmethod(lambda *args: pytest.fail("DeepSeek called while disabled")),
     )
-    payload = GeneralWebGateway().search_exact("question")
+    payload = GeneralWebGateway(search_strategy="fallback").search_exact("question")
     assert payload["providers_attempted"] == ["bing_rss"]
 
 
@@ -247,6 +248,9 @@ def test_gateway_opt_in_deepseek_first_and_failed_provider_fallback(monkeypatch)
 
 def test_gateway_read_fetch_uses_last_resort_only_when_opted_in(monkeypatch):
     from src.web.research import official_resolver
+
+    # This test is about the paid Fetch fallback, not the paired browser.
+    monkeypatch.setenv("WEB_BROWSE_READ_ENABLED", "0")
 
     monkeypatch.setattr(
         official_resolver, "read_official_metadata", lambda *_a, **_kw: None

@@ -35,7 +35,10 @@ _request_lock = threading.Lock()
 
 
 def _enabled(kind: str) -> bool:
-    return os.getenv(f"WEB_DEEPSEEK_{kind.upper()}_ENABLED", "false").lower() in {
+    # Both independent tool APIs are paid. Search has a first-class place in the
+    # order, but still requires an explicit switch and a positive request cap.
+    default = "false"
+    return os.getenv(f"WEB_DEEPSEEK_{kind.upper()}_ENABLED", default).lower() in {
         "1", "true", "yes", "on",
     }
 

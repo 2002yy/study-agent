@@ -65,7 +65,7 @@ def test_explicit_year_does_not_inject_current_month():
 
 
 def test_detailed_search_reports_empty_without_inferring_nonexistence(monkeypatch):
-    gateway = GeneralWebGateway()
+    gateway = GeneralWebGateway(search_strategy="fallback")
     attempted: list[str] = []
 
     def empty_search(query: str, limit: int):
@@ -93,7 +93,7 @@ def test_detailed_search_reports_empty_without_inferring_nonexistence(monkeypatc
 
 
 def test_detailed_search_prefers_canonical_variant_and_stops_after_results(monkeypatch):
-    gateway = GeneralWebGateway()
+    gateway = GeneralWebGateway(search_strategy="fallback")
     attempted: list[str] = []
 
     def search(query: str, limit: int):
@@ -132,7 +132,7 @@ def test_detailed_search_prefers_canonical_variant_and_stops_after_results(monke
 
 
 def test_provider_fallbacks_share_one_bounded_search_budget(monkeypatch):
-    gateway = GeneralWebGateway()
+    gateway = GeneralWebGateway(search_strategy="fallback")
     clock = iter((0.0, 0.0, 7.9, 8.0))
     captured: dict[str, float] = {}
 

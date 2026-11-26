@@ -33,10 +33,10 @@ def _patch_providers(monkeypatch, bing, ddg):
     )
 
 
-def test_the_default_strategy_is_the_unchanged_fallback():
-    """Production must not switch paths because the experiment exists."""
+def test_the_default_strategy_is_research():
+    """DeepSeek, then the paired browser, then the free engines."""
 
-    assert GeneralWebGateway().search_strategy == "fallback"
+    assert GeneralWebGateway().search_strategy == "research"
 
 
 def test_an_unknown_strategy_is_rejected():
@@ -57,7 +57,9 @@ def test_fallback_still_stops_at_the_first_engine_that_answers(monkeypatch):
 
     _patch_providers(monkeypatch, bing, ddg)
 
-    payload = GeneralWebGateway().search_exact("python asyncio timeout", max_results=5)
+    payload = GeneralWebGateway(search_strategy="fallback").search_exact(
+        "python asyncio timeout", max_results=5
+    )
 
     assert calls == ["bing"]
     assert [item["url"] for item in payload["results"]] == ["https://a.example/1"]

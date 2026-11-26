@@ -32,6 +32,10 @@ def _row(title: str, url: str, snippet: str = "") -> dict[str, str]:
 @pytest.fixture(autouse=True)
 def _no_searxng(monkeypatch):
     monkeypatch.setattr(tool_gateway, "searxng_enabled", lambda: False)
+    # The default research order tries the paired browser after DeepSeek. These
+    # tests are about the trace, so keep the browser out of the provider list.
+    monkeypatch.setattr(tool_gateway, "_browse_read_available", lambda: False)
+    monkeypatch.delenv("WEB_DEEPSEEK_SEARCH_ENABLED", raising=False)
 
 
 def _patch_providers(monkeypatch, bing, ddg):
@@ -82,8 +86,8 @@ def test_a_merge_search_returns_the_trace_of_the_same_call(monkeypatch):
     assert trace["ranked_urls"] == [item["url"] for item in results]
 
 
-def test_the_default_strategy_claims_no_merge(monkeypatch):
-    """A run on the current arm must not look like the candidate arm."""
+def test_the_default_strategy_is_research_not_merge(monkeypatch):
+    """A research-order search must not claim the two-engine merge."""
 
     _patch_providers(
         monkeypatch,
@@ -94,7 +98,8 @@ def test_the_default_strategy_claims_no_merge(monkeypatch):
 
     _results, trace = gateway.search_with_trace("python asyncio timeout", max_items=5)
 
-    assert trace == {}
+    assert trace["search_strategy"] == "research"
+    assert "merged_count" not in trace
 
 
 def test_a_direct_github_url_is_not_a_search(monkeypatch):
@@ -283,7 +288,7 @@ def test_two_interleaved_runs_persist_their_own_evidence(monkeypatch, tmp_path):
     ]
 
 
-def test_the_default_arm_records_no_trace_field(monkeypatch, tmp_path):
+def test_the_default_arm_records_the_research_strategy(monkeypatch, tmp_path):
     _patch_providers(
         monkeypatch,
         lambda: ([_row("python asyncio timeout", "https://a.example/1")], ""),
@@ -298,7 +303,7 @@ def test_the_default_arm_records_no_trace_field(monkeypatch, tmp_path):
     restored = WebLookupRepository(database).get(created.id)
 
     assert restored is not None
-    assert "search_trace" not in restored.query_attempts[0]
+    assert restored.query_attempts[0]["search_trace"]["search_strategy"] == "research"
 
 
 def test_a_gateway_without_a_trace_reader_still_works(tmp_path):
