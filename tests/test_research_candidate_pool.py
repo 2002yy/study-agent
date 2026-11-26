@@ -303,3 +303,30 @@ def test_unsafe_or_titleless_results_are_cheap_filtered() -> None:
     result = execute_candidate_pool_batch(_batch(2), search_exact=search)
     assert result.status == "empty"
     assert result.candidates == ()
+
+
+def test_a_section_fragment_is_kept_for_the_read_not_the_identity() -> None:
+    from src.web.research.candidate_pool import merge_candidate_pool
+
+    query = PlannedGapQuery(
+        id="gap-1:primary",
+        gap_id="gap-1",
+        claim_id="claim-1",
+        intent=GapSearchIntent.PRIMARY,
+        query="guide install",
+        desired_source_role="primary",
+    )
+    items = merge_candidate_pool([
+        (
+            query,
+            (
+                {"title": "Guide install", "url": "https://example.com/guide#install"},
+                {"title": "Guide install (dup)", "url": "https://example.com/guide"},
+            ),
+            ("searxng",),
+        )
+    ])
+
+    assert len(items) == 1
+    assert items[0].canonical_url == "https://example.com/guide"
+    assert items[0].url == "https://example.com/guide#install"
