@@ -12,6 +12,8 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
+from src.news.url_normalizer import document_identity
+
 
 _CJK_RUN = re.compile(r"[\u3400-\u9fff]+")
 _LATIN_TOKEN = re.compile(r"[a-z0-9]+")
@@ -145,6 +147,9 @@ def _relevance(
 
 def _dedupe_key(title: str, url: str) -> str:
     if url:
+        identity = document_identity(url)
+        if identity:
+            return f"doc:{identity}"
         parsed = urlparse(url)
         return (
             f"url:{parsed.scheme.lower()}://"

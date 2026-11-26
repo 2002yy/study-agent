@@ -391,6 +391,49 @@ def canonicalize_url(url: str) -> str:
     return urlunparse((scheme, netloc, path, "", query, ""))
 
 
+_LANGUAGE_SEGMENTS = frozenset({
+    "ar", "bg", "ca", "cs", "da", "de", "el", "en", "es", "et",
+    "fa", "fi", "fr", "he", "hi", "hr", "hu", "id", "it", "ja",
+    "ko", "lt", "lv", "nl", "no", "pl", "pt", "pt-br", "ro", "ru",
+    "sk", "sl", "sr", "sv", "th", "tr", "uk", "vi", "zh", "zh-cn",
+    "zh-hans", "zh-hant", "zh-tw",
+})
+
+
+_CHANNEL_VERSION = re.compile(r"^(?:latest|stable|current|next|v?\d+\.x)$", re.I)
+_CONCRETE_VERSION = re.compile(r"^v?\d+(?:\.\d+)+$", re.I)
+
+
+def document_identity(url: str) -> str:
+    """Identity for the same documentation page across language and mirrors.
+
+    A docs-shaped path starts with a language segment and a version/channel
+    segment. Language and host are dropped; a channel (`latest`/`stable`/
+    `4.x`) is collapsed, while a concrete version such as `4.5` stays
+    distinct. Non-docs URLs keep their full canonical identity. The read URL is
+    never changed.
+    """
+
+    canonical = canonicalize_url(url)
+    if not canonical:
+        return ""
+    parsed = _safe_urlparse(canonical)
+    if parsed is None:
+        return canonical
+    segments = [part for part in parsed.path.split("/") if part]
+    if len(segments) < 2 or segments[0].casefold() not in _LANGUAGE_SEGMENTS:
+        return canonical
+    tail = segments[1:]
+    version = tail[0]
+    if _CHANNEL_VERSION.fullmatch(version):
+        tail[0] = "channel"
+    elif _CONCRETE_VERSION.fullmatch(version):
+        pass
+    else:
+        return canonical
+    return "doc:/" + "/".join(tail)
+
+
 def build_url_metadata(
     original_url: str,
     resolved_url: str = "",
