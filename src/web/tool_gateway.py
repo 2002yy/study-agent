@@ -1261,6 +1261,36 @@ class GeneralWebGateway:
 
         return merge_trace(outcome)
 
+    def can_read_in_parallel(
+        self, mode: str = "auto", url: str = "", *,
+        include_discussion: bool = False,
+    ) -> bool:
+        """True when this read stays on an independent in-process HTTP path.
+
+        A browse read owns one browser session and a media read owns a long
+        transcript budget, so neither is dispatched beside another read. Such
+        calls stay sequential and keep their normal timeout.
+        """
+
+        normalized = str(mode or "auto").strip().lower()
+        if normalized not in {"auto", "http"}:
+            return False
+        from src.web.audio_read import looks_like_audio_url
+
+        if looks_like_audio_url(url):
+            return False
+        if normalized == "http":
+            return True
+        if include_discussion:
+            # ``auto`` + discussion takes the browse path (see ``read``).
+            return False
+        browse_allowed = _browse_read_available()
+        if not browse_allowed:
+            return True
+        browse_first = self.search_strategy == "browser_first"
+        browse_upgrade = browse_first or _env_flag("WEB_BROWSE_READ_ENABLED", False)
+        return not (browse_first or browse_upgrade)
+
     def read(
         self, url: str, *, max_chars: int = 6000, timeout: float | None = None,
         mode: str = "auto", include_discussion: bool = False,

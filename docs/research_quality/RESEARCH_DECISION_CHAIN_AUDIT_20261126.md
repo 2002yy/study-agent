@@ -210,3 +210,60 @@ Gate 只有在同一 claim 同时存在 `supports` 与 `contradicts` 时才建�
 - 测试里旧的读取结果替身缺少 `links` 字段，已按 `ArticleReadResult` 契约补齐，不删除测试。
 
 下一步不再是工程扩展，而是真实研究实验；条件与预算见 `docs/PROJECT_STATUS.md` §0。
+
+## 8. E0 之后的读取断点（2026-11-27）
+
+E0 的失败不在排序：B 组官方页在读取前已经 `selected=true`、`worth_reading=true`、
+`relevance=0.357`、`rejected_sources=[]`，却被 `security_refused:response_too_large`
+拒绝。页面实测 1,382,594 字节，旧上限是 512 KiB + 一次 1 MiB 重试。
+
+| 层 | 结论 | 证据 |
+| --- | --- | --- |
+| 尺寸 | 正常技术文档可读 | #675 `48ee4054`；HTML 2 MiB + 一次 4 MiB 重试；官方页 11,630 字符，含 `bias`/`softness`/`ghost` |
+| 去重 | 只合并同主机、同版本的语言变体 | #677；`stable`/`latest`/`next`、具体版本、跨主机均不合并；E0 的 15 个候选仍是 15 个独立身份 |
+| 预算 | 超出单次读取预算的成功结果仍会进入来源 | `run_single_read_measurement` + `project_read_chain` 实测：12.1 秒返回 `chain_ok=True`、`projected_ok=True`、8,000 字符；#679 再把页面预算放宽到 15 秒、文档页 30 秒 |
+| 并行 | 同轮独立页面读取最多 3 路 | #678；三条真实读取同时开始，wall 12.5 秒；搜索/浏览器/视频/音频保持串行 |
+
+去重收紧后，E0 那 5 个“重复”其实是跨主机的翻译站与镜像。按“宁可多读一份，
+不错误丢掉独立证据”的原则，它们保留为独立来源。下一层才是模型如何看到计划、
+已读事实、未读候选与证据缺口，并选择下一步；这属于 R5，不与读取层混在一起。
+
+### E0 读计划核对（2026-11-27）
+
+直接读 B 组保存的 `runtime.db`，不重跑模型：
+
+| 项目 | 数值 |
+| --- | --- |
+| 候选来源 | 15 |
+| `selected=true` | 15 |
+| `worth_reading=true` | 15 |
+| 读取计划尝试 | 15 |
+| 跳过 | 0 |
+| 成功 | 8 |
+| 失败 | 7 |
+
+**没有任何 `worth_reading=true` 的候选被读计划遗漏**：15 个全部进入尝试，0 跳过。
+失败全部发生在读取执行：
+
+- 6 个 `security_refused:response_too_large`（官方页 3 个语言、readthedocs 3 个）
+- 1 个 `all_backends_failed`（`ecosystems.gitwallet.co`）
+
+另两臂同样没有计划遗漏：A 组 15 个候选、15 次尝试、0 跳过、8 成功 / 7 失败；
+C 组 11 个候选、11 次尝试、0 跳过、9 成功 / 2 失败。三臂停止原因都是
+`sources_partially_read`，置信度都是 `medium`。
+
+`stop_reason = sources_partially_read`，`answer_confidence = medium`。
+`warnings` 7 条与失败数一致。
+
+读取消耗：`read_summary.attempted=15`、`successful=8`、`failed=7`、`used_chars=36,119`。
+其中 `read_summary.budget` 仍是 Lookup 的默认 `max_reads=3 / 16k chars`，不是 Deep 的
+预算权威；Deep 实际消费 `consumed_reads=15`、memo `consumed_chars=7,831`。
+这个字段会误导后续分析，已记录，不在本批改动预算语义。
+
+B 组修正后重跑的付费调用：3 次（2 次 `deep_planner` + 1 次最终回答），
+预留口径 **¥0.204**。E0 全部 19 次调用、**¥1.137 / ¥3**；账本没有 settlement 行，
+所以只能报预留口径。
+
+未完成：B 组没有结构化 `EvidenceGap` 列表（这是旧 Deep 路径），能观察到的主要缺口
+就是那 7 个失败读取；R2 免费回放已证明其中官方文档在尺寸修复后可读。真实模型是否
+把这些事实写进最终答案，仍需另行授权复验。
