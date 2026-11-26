@@ -1442,6 +1442,8 @@ class GeneralWebGateway:
         }
         if result.author:
             response["author"] = result.author
+        if result.links:
+            response["links"] = [dict(item) for item in result.links]
         # A static reader can "succeed" with navigation chrome only. When the
         # browser is already in play, ask it for the real body before giving up
         # on the page.

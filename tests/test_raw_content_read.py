@@ -429,3 +429,43 @@ def test_podcast_feed_keeps_audio_and_transcript_links():
 
     assert "audio=https://cdn.example/1.mp3 (not transcribed)" in text
     assert "transcript=https://pod.example/1.vtt" in text
+
+
+def test_citation_link_items_are_structured_and_bounded():
+    anchors = "".join(
+        f'<a href="https://source.example/{i}">source {i}</a>'
+        for i in range(30)
+    )
+    html = "<html><body>" + ("<p>body text</p>" * 2000) + anchors + "</body></html>"
+
+    items = raw_content.citation_link_items(html, "https://example.com/page")
+
+    assert len(items) == 25
+    assert items[0]["url"] == "https://source.example/0"
+    assert items[0]["text"] == "source 0"
+    assert items[0]["relation"] == "body"
+    assert isinstance(items[0]["cite_hint"], bool)
+
+
+def test_long_page_keeps_structured_links_even_when_text_is_clamped(monkeypatch):
+    article_fetcher._ARTICLE_CACHE.clear()
+    body = "<p>" + ("long body sentence. " * 400) + "</p>"
+    html = (
+        "<html><body>" + body
+        + '<a href="https://source.example/paper">the source paper</a>'
+        + "</body></html>"
+    )
+    monkeypatch.setattr(
+        article_fetcher,
+        "_fetch_html_payload",
+        lambda url, timeout, max_bytes: (html, url, "text/html", ""),
+    )
+    result = article_fetcher.fetch_article_read_result(
+        "https://example.com/long", max_chars=500
+    )
+
+    assert result.ok is True
+    assert result.links
+    assert result.links[0]["url"] == "https://source.example/paper"
+    # The text is clamped; the structured link must not depend on that budget.
+    assert "[links]" not in result.text

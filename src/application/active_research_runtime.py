@@ -1843,6 +1843,7 @@ class ActiveResearchRuntimeExecutor:
                             run_id=run_id,
                             candidate=lead_candidate,
                             content=lead_content,
+                            links=(raw_lead_read or {}).get("links") or (),
                             timeout_seconds=remaining_timeout(),
                             on_attempt_started=on_model_started,
                             on_attempt_finished=on_model_finished,

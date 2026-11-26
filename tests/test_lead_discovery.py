@@ -500,3 +500,28 @@ def test_gap_planner_uses_bounded_source_hints_for_primary_intent() -> None:
         item for item in with_hints.queries if item.intent == GapSearchIntent.DISCOVERY
     )
     assert discovery_plain.query == discovery_hinted.query
+
+
+def test_discoverer_receives_structured_links_outside_the_excerpt():
+    links = tuple(
+        {
+            "url": f"https://source.example/{i}",
+            "text": f"source {i}",
+            "relation": "body",
+            "cite_hint": True,
+        }
+        for i in range(12)
+    )
+    gateway = _FakeGateway(_payload())
+    result = RuntimeLeadDiscoverer(gateway).discover(
+        run_id="run-1",
+        candidate=_candidate(),
+        content="x" * 9000,
+        links=links,
+    )
+
+    assert result.status == "completed"
+    page = gateway.calls[0]["audit_payload"]["page"]
+    assert len(page["links"]) == 10
+    assert page["links"][0]["url"] == "https://source.example/0"
+    assert page["links"][0]["cite_hint"] is True

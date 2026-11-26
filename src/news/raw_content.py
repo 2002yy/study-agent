@@ -598,14 +598,13 @@ def page_metadata(html: str) -> str:
     )
 
 
-def citation_links(
+def _scan_citation_links(
     html: str,
     base_url: str,
     *,
-    max_chars: int = 4000,
     limit: int = 25,
-) -> str:
-    """List outbound links with a positional hint about their role.
+) -> tuple[list[dict[str, Any]], int, int]:
+    """Structured outbound links; rendering is a separate concern.
 
     Body links are the ones the article itself cites; links inside nav, header,
     footer or aside are navigation or recommendations. The hint is positional,
@@ -615,14 +614,14 @@ def citation_links(
     try:
         from lxml import html as lxml_html  # type: ignore[import-untyped]
     except Exception:  # noqa: BLE001 - optional parser
-        return ""
+        return [], 0, 0
     try:
         tree = lxml_html.fromstring(html)
     except Exception:  # noqa: BLE001 - not parseable HTML
-        return ""
+        return [], 0, 0
     host = urllib.parse.urlsplit(base_url).hostname or ""
-    body: list[tuple[int, str]] = []
-    navigation: list[tuple[int, str]] = []
+    body: list[tuple[int, dict[str, Any]]] = []
+    navigation: list[tuple[int, dict[str, Any]]] = []
     seen: set[str] = set()
     for anchor in tree.xpath("//a[@href]"):
         raw = str(anchor.get("href") or "").strip()
@@ -645,21 +644,56 @@ def citation_links(
                 break
             parent = parent.getparent()
         hint = bool(_HINT_PATTERN.search(f"{text} {url}"))
-        relation = "nav" if parent_nav else "body"
-        if urllib.parse.urlsplit(url).hostname == host:
-            relation += ",same-site"
-        prefix = f"[{relation}{',cite-hint' if hint else ''}]"
-        line = f"{prefix} {text} — {url}"
-        (navigation if parent_nav else body).append((0 if hint else 1, line))
-    body.sort(key=lambda item: item[0])
-    navigation.sort(key=lambda item: item[0])
-    rows = [line for _, line in body[:limit]]
-    rows += [line for _, line in navigation[:5]]
-    if not rows:
+        item = {
+            "url": url,
+            "text": text,
+            "relation": "nav" if parent_nav else "body",
+            "same_site": urllib.parse.urlsplit(url).hostname == host,
+            "cite_hint": hint,
+        }
+        (navigation if parent_nav else body).append((0 if hint else 1, item))
+    body.sort(key=lambda entry: entry[0])
+    navigation.sort(key=lambda entry: entry[0])
+    items = [item for _, item in body[:limit]] + [
+        item for _, item in navigation[:5]
+    ]
+    return items, len(body), len(navigation)
+
+
+def citation_link_items(
+    html: str,
+    base_url: str,
+    *,
+    limit: int = 25,
+) -> list[dict[str, Any]]:
+    """Structured outbound links only (the renderer keeps the totals)."""
+
+    items, _body, _nav = _scan_citation_links(html, base_url, limit=limit)
+    return items
+
+
+def citation_links(
+    html: str,
+    base_url: str,
+    *,
+    max_chars: int = 4000,
+    limit: int = 25,
+) -> str:
+    """Render structured outbound links with their positional hint."""
+
+    items, body_total, nav_total = _scan_citation_links(
+        html, base_url, limit=limit
+    )
+    if not items:
         return ""
-    notes = [f"{len(body)} body links", f"{len(navigation)} nav links"]
-    if len(body) > limit:
-        notes.append(f"showing {limit} of {len(body)} body links")
+    rows = [
+        f"[{item['relation']}{',same-site' if item['same_site'] else ''}"
+        f"{',cite-hint' if item['cite_hint'] else ''}] {item['text']} — {item['url']}"
+        for item in items
+    ]
+    notes = [f"{body_total} body links", f"{nav_total} nav links"]
+    if body_total > limit:
+        notes.append(f"showing {limit} of {body_total} body links")
     return clamp("[links] " + "; ".join(notes) + "\n" + "\n".join(rows), max_chars)
 
 
