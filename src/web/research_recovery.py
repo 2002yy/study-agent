@@ -79,6 +79,9 @@ class _Phase:
 LOOKUP_BUDGET = RecoveryBudget("lookup", 30, 10, 2, 1, 2, 6000, 16000)
 STANDARD_BUDGET = RecoveryBudget("standard", 60, 12, 3, 2, 4, 6000, 24000)
 
+#: A source the user typed is not a search result: read it first, bounded.
+USER_SUPPLIED_MAX_URLS = 3
+
 
 def recovery_summary(calls: list[dict[str, Any]]) -> dict[str, Any] | None:
     return next(
@@ -138,6 +141,35 @@ def _coverage_stop_enabled() -> bool:
     return (os.getenv("WEB_RESEARCH_COVERAGE_STOP", "") or "").strip().casefold() in {
         "1", "true", "yes", "on",
     }
+
+
+def _user_supplied_urls(query: str) -> tuple[str, ...]:
+    """Public URLs the user typed, in order, bounded and de-duplicated.
+
+    These are read addresses, not search terms. Trailing prose punctuation and
+    markdown wrappers are stripped; private/local targets stay excluded by the
+    same ``_public_url`` rule the gateway uses.
+    """
+
+    found: list[str] = []
+    for raw in re.findall(r"https?://[^\s<>\"'）)，。；;、\]]+", str(query or "")):
+        candidate = raw.rstrip(".,;:!?)]}>")
+        url = _public_url(candidate)
+        if url and url not in found:
+            found.append(url)
+        if len(found) >= USER_SUPPLIED_MAX_URLS:
+            break
+    return tuple(found)
+
+
+def _strip_user_urls(query: str) -> str:
+    """Drop typed URLs from the search surface; they are read, not searched."""
+
+    cleaned = re.sub(
+        r"https?://[^\s<>\"'）)，。；;、\]]+", " ", str(query or "")
+    )
+    cleaned = " ".join(cleaned.split())
+    return cleaned or str(query or "").strip()
 
 
 def _provider_call_seconds(gateway: Any) -> float:
@@ -395,7 +427,8 @@ def _recover_public_research(
     covered: set[int] = set()
     searches = reads = used_chars = recovery_reads = authority_queries = rewrites = 0
     provider_failures = 0
-    search_topic = normalize_web_query(query).canonical_query
+    user_urls = _user_supplied_urls(query)
+    search_topic = normalize_web_query(_strip_user_urls(query)).canonical_query
     rewritten, domains = _rewrite(search_topic)
     doc_domains = () if domains else documentation_domains(query, rewritten)
     markers = [target_identity_pattern(target) for target in model_targets(rewritten)]
@@ -699,6 +732,12 @@ def _recover_public_research(
     last_search_ok = False
     try:
         bounded_phases = phases[: budget.max_queries]
+        if user_urls:
+            # A typed source is not a search result and must not consume a
+            # search slot: read it first, then continue the planned searches.
+            bounded_phases.insert(0, _Phase(
+                "user_supplied", query, max(1, len(user_urls)),
+            ))
         phase_index = 0
         while phase_index < len(bounded_phases):
             step = bounded_phases[phase_index]
@@ -737,7 +776,7 @@ def _recover_public_research(
             normalized_query = " ".join(search_query.split()).casefold()
             site_query = (step.site_key, normalized_query)
             already_searched = site_query in searched_sites if step.site_key else normalized_query in searched_queries
-            if phase != "official_resolver" and already_searched:
+            if phase not in {"official_resolver", "user_supplied"} and already_searched:
                 # The same query inside one run returns the same rows; a
                 # retargeted slot that lands on an already-searched phrase adds
                 # nothing and costs a provider round trip. The official resolver
@@ -758,9 +797,10 @@ def _recover_public_research(
             checkpoint("needs_more_research", phase)
             if step.site_key:
                 searched_sites.add(site_query)
-            elif phase != "official_resolver":
+            elif phase not in {"official_resolver", "user_supplied"}:
                 searched_queries.add(normalized_query)
-            searches += 1
+            if phase != "user_supplied":
+                searches += 1
             if phase in {"authoritative_domain", "page_type_refinement"}:
                 authority_queries += 1
             if phase in {"query_rewrite", "page_type_refinement", "gap_fill"}:
@@ -770,6 +810,15 @@ def _recover_public_research(
                     result = {"status": "ok", "reason": "known_official_addresses_not_search_results",
                               "results": [{"url": url, "title": f"{plan.entity} {plan.version} official metadata", "snippet": ""}
                                           for url in plan.urls]}
+                elif phase == "user_supplied":
+                    result = {
+                        "status": "ok",
+                        "reason": "user_supplied_sources_not_search_results",
+                        "results": [
+                            {"url": url, "title": url, "snippet": "user supplied source"}
+                            for url in user_urls
+                        ],
+                    }
                 else:
                     result = search_gap(step)
                 if not isinstance(result, dict):
@@ -784,7 +833,11 @@ def _recover_public_research(
                 }
             calls.append(
                 {
-                    "name": "official_resolve" if phase == "official_resolver" else "web_search",
+                    "name": (
+                        "official_resolve" if phase == "official_resolver"
+                        else "user_supplied_sources" if phase == "user_supplied"
+                        else "web_search"
+                    ),
                     "arguments": {
                         "query": search_query,
                         "max_results": 5,
@@ -929,7 +982,7 @@ def _recover_public_research(
                 selected.sort(key=lambda row: not any(marker.search(
                     str(row["item"].get("title", "")) + " " + str(row["item"].get("snippet", ""))
                     + " " + str(row["assessment"].get("url", ""))) for marker in markers))
-            if phase != "official_resolver" and semantic_session is not None and selected and "research_candidate_relevance" not in semantic_session.stages:
+            if phase not in {"official_resolver", "user_supplied"} and semantic_session is not None and selected and "research_candidate_relevance" not in semantic_session.stages:
                 window = selected[:5]
                 try:
                     relevance = semantic_session.relevance("research_candidate_relevance", [
