@@ -40,7 +40,7 @@ class SearxngObservabilityTests(unittest.TestCase):
 
     def test_stopped_container_is_a_provider_failure_not_no_results(self):
         with patch.object(searxng_source, "urlopen", side_effect=ConnectionRefusedError("container stopped")) as fetch:
-            result = GeneralWebGateway().search_exact("SQLite backup")
+            result = GeneralWebGateway(search_strategy="fallback").search_exact("SQLite backup")
         self.assertEqual(fetch.call_count, 1)
         self.assertEqual(result["status"], "unavailable")
         self.assertEqual(result["reason"], "providers_failed")
@@ -50,7 +50,7 @@ class SearxngObservabilityTests(unittest.TestCase):
 
     def test_healthy_empty_result_stays_empty_without_error(self):
         with patch.object(searxng_source, "urlopen", return_value=_Response(b'{"results":[]}')):
-            result = GeneralWebGateway().search_exact("SQLite backup")
+            result = GeneralWebGateway(search_strategy="fallback").search_exact("SQLite backup")
         self.assertEqual(result["status"], "empty")
         self.assertEqual(result["reason"], "providers_returned_no_results")
         self.assertEqual(result["provider_outcomes"][0]["status"], "empty")
@@ -60,7 +60,7 @@ class SearxngObservabilityTests(unittest.TestCase):
         with patch.dict(os.environ, {"WEB_ENABLE_BING_RSS": "1"}), (
             patch.object(searxng_source, "urlopen", side_effect=ConnectionRefusedError("offline"))
         ), patch.object(GeneralWebGateway, "_search_bing_rss", return_value=([], "")):
-            result = GeneralWebGateway().search_exact("SQLite backup")
+            result = GeneralWebGateway(search_strategy="fallback").search_exact("SQLite backup")
         self.assertEqual(result["status"], "empty")  # stable gateway contract
         self.assertEqual(result["reason"], "providers_returned_no_results")
         self.assertEqual([row["status"] for row in result["provider_outcomes"][:2]], ["failed", "empty"])
@@ -70,20 +70,20 @@ class SearxngObservabilityTests(unittest.TestCase):
         with patch.dict(os.environ, {"WEB_ENABLE_BING_RSS": "1"}), (
             patch.object(searxng_source, "urlopen", side_effect=ConnectionRefusedError("offline"))
         ), patch.object(GeneralWebGateway, "_search_bing_rss", return_value=([row], "")):
-            result = GeneralWebGateway().search_exact("SQLite backup")
+            result = GeneralWebGateway(search_strategy="fallback").search_exact("SQLite backup")
         self.assertEqual(result["status"], "ok")
         self.assertEqual([row["status"] for row in result["provider_outcomes"][:2]], ["failed", "ok"])
         self.assertEqual(len(result["results"]), 1)
 
     def test_invalid_json_is_not_counted_as_a_valid_empty_search(self):
         with patch.object(searxng_source, "urlopen", return_value=_Response(b'{"results":')):
-            result = GeneralWebGateway().search_exact("SQLite backup")
+            result = GeneralWebGateway(search_strategy="fallback").search_exact("SQLite backup")
         self.assertEqual(result["status"], "unavailable")
         self.assertEqual(result["provider_outcomes"][0]["reason"], "invalid_json")
 
     def test_malformed_json_shape_is_diagnostic_not_a_crash(self):
         with patch.object(searxng_source, "urlopen", return_value=_Response(json.dumps([]).encode())):
-            result = GeneralWebGateway().search_exact("SQLite backup")
+            result = GeneralWebGateway(search_strategy="fallback").search_exact("SQLite backup")
         self.assertEqual(result["status"], "unavailable")
         self.assertEqual(result["provider_outcomes"][0]["reason"], "invalid_json")
 
@@ -91,7 +91,7 @@ class SearxngObservabilityTests(unittest.TestCase):
         with patch.dict(os.environ, {"WEB_ENABLE_BING_RSS": "1"}), (
             patch.object(searxng_source, "urlopen", side_effect=ConnectionRefusedError("offline"))
         ), patch.object(GeneralWebGateway, "_search_bing_rss", return_value=([], "")):
-            result = GeneralWebGateway().search_detailed("SQLite backup")
+            result = GeneralWebGateway(search_strategy="fallback").search_detailed("SQLite backup")
         self.assertEqual(result["status"], "empty")
         self.assertEqual(result["reason"], "providers_returned_no_results")
         self.assertTrue(any(row["status"] == "failed" for row in result["provider_outcomes"]))
