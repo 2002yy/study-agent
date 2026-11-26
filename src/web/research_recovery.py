@@ -81,8 +81,8 @@ class _Phase:
     site_key: str = ""
 
 
-LOOKUP_BUDGET = RecoveryBudget("lookup", 30, 10, 2, 1, 2, 6000, 16000)
-STANDARD_BUDGET = RecoveryBudget("standard", 60, 12, 3, 2, 4, 6000, 24000)
+LOOKUP_BUDGET = RecoveryBudget("lookup", 60, 10, 2, 1, 2, 6000, 16000)
+STANDARD_BUDGET = RecoveryBudget("standard", 180, 12, 3, 2, 4, 6000, 24000)
 
 #: A source the user typed is not a search result: read it first, bounded.
 USER_SUPPLIED_MAX_URLS = 3

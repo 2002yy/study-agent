@@ -178,7 +178,7 @@ def test_resume_rechecks_saved_authorities(running, invalid):
     if invalid == "cancel":
         runs.request_cancel(execution.run_id)
     elif invalid == "deadline":
-        clock[0] += timedelta(seconds=60)
+        clock[0] += timedelta(seconds=240)
     elif invalid == "source_changed":
         with repository.database.connect() as connection:
             connection.execute(
@@ -368,7 +368,7 @@ def test_provider_timeout_leaves_no_late_result(running, monkeypatch):
         @staticmethod
         def monotonic():
             FakeTime.calls += 1
-            return 0.0 if FakeTime.calls == 1 else 9.0
+            return 0.0 if FakeTime.calls == 1 else 16.0
 
     monkeypatch.setattr(module, "time", FakeTime)
     try:
@@ -393,7 +393,7 @@ def test_deadline_between_reservation_and_dispatch_spends_no_network_work(runnin
     def advancing_clock():
         nonlocal calls
         calls += 1
-        return original_clock() if calls == 1 else clock[0] + timedelta(seconds=60)
+        return original_clock() if calls == 1 else clock[0] + timedelta(seconds=240)
 
     execution.clock = advancing_clock
     gateway = Gateway()

@@ -18,6 +18,18 @@
 - 待办：#677、#678 的精确 head CI；R5 只做设计，先回答“模型能看到计划、已读事实、未读候选与缺口吗”，不重写执行器。
 - `priority=P1`、`loop=static`、`owner=research/read-pipeline`、`dynamic_evidence=free_probes`、`budget_authorization=free_probes_only`、`decision=engineering-only`。
 
+### 2026-11-27 时间预算分级：先放宽时间，不动付费
+
+- 读取：普通页面 15 秒，文档型页面 30 秒，PDF 60 秒，音视频 330 秒；均被剩余研究窗口截断。文档型判断是通用主机/路径形状（`docs.`、`readthedocs.`、`/docs/`、`/reference/` 等），不是站点白名单。
+- 研究窗口：Lookup 30→60 秒，Standard 60→180 秒，Deep 180→600 秒（soft 450 秒）；测试中的截止时间场景同步改为新窗口。
+- 搜索与工具：研究搜索总预算 15→30 秒（可配上限 48 秒）；工具循环总预算 45→120 秒；语义链单次读取 8→15 秒、全局墙钟 180→600 秒。
+- 分层：生产窗口是 Lookup 60 秒、Standard 180 秒、Deep 600 秒；shadow/measurement 的 tier 表（20/90/120/180）属于观测配置，本轮**不改**，也没有 1800 秒生产调用点。
+- 付费不变：模型调用次数、`max_queries` / `max_reads`、DeepSeek Search 请求上限与账本硬限制全部保持；本轮只放宽墙钟。
+- 验证：读取预算测试更新；Deep / Standard / Recovery / Active Runtime / 搜索 / 工具循环影响集 320 项通过；Ruff 干净；mypy 112/125；无付费调用。
+- 边界：30 秒是上限不是目标；文档判断可能把少数大博客当文档，只是允许它更久，不强制等待。E0 的 11.2 秒页面在新预算下有 30 秒余量。
+- 下一步：R4/R5 的覆盖范围仍只在工具循环；普通/Deep 的模型“有限阅读建议”复用现有规划调用，由现有调度器执行，另行评估。
+- `priority=P1`、`loop=static`、`owner=research/time-budget`、`dynamic_evidence=free_probes`、`budget_authorization=free_probes_only`、`decision=engineering-only`。
+
 ### 2026-11-26 研究决策链接线修复：P0/P1 六项
 
 - `main@4bf2639d` 依次合入：#667 `7e474965` 用户指定 URL 先读；#668 `c3136225` 按类型读取预算；#669 `49181be2` 平台地图 + site_key；#670 `a4892d69` 结构化引用；#671 `13a882e8` 章节锚点与缓存隔离；#672 `4bf2639d` 冲突反例查询。

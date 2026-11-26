@@ -408,8 +408,8 @@ def test_e47_no_path_grants_publication_authority(ctx):
 def test_deep_budget_profile_is_the_frozen_one():
     assert DEEP_V1_BUDGET.max_candidates == 40
     assert DEEP_V1_BUDGET.max_reads == 12
-    assert DEEP_V1_BUDGET.soft_timeout_seconds == 120
-    assert DEEP_V1_BUDGET.hard_timeout_seconds == 180
+    assert DEEP_V1_BUDGET.soft_timeout_seconds == 450
+    assert DEEP_V1_BUDGET.hard_timeout_seconds == 600
     assert DEEP_V1_BUDGET.max_total_chars == 80_000
 
 

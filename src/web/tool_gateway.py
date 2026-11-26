@@ -31,6 +31,7 @@ from src.web.deepseek_web_tools import fetch_deepseek, search_deepseek
 from src.web.github_reader import GitHubSourceReader
 from src.web.github_snapshot import GitHubRepositorySnapshotter
 from src.web.query_normalizer import normalize_web_query
+from src.web.read_budget import read_budget_seconds
 from src.web.research.read_adequacy import classify_video_page
 from src.web.search_router import DUAL, route_search
 from src.web.site_pool import SiteProfile, enabled_platforms, platform_index_domain, platform_search_query, take_outcomes
@@ -507,7 +508,7 @@ def _video_read_default_timeout(video_seconds: int) -> float:
     """Budget for a video read when the caller names none.
 
     A video read downloads the media, transcribes it and may run OCR, so the
-    generic ten-second page budget is guaranteed to fail. The section length
+    generic page budget is guaranteed to fail. The section length
     plus one minute for fetch, metadata and transcription keeps the default
     honest without letting one tool call run unbounded. An explicit caller
     timeout always wins.
@@ -521,7 +522,7 @@ def _audio_read_default_timeout(audio_seconds: int) -> float:
     """Budget for an audio read when the caller names none.
 
     Download plus FFmpeg conversion plus transcription needs the section length
-    and some slack; the generic ten-second page budget cannot finish.
+    and some slack; the generic page budget cannot finish.
     """
 
     seconds = max(15, min(int(audio_seconds or _DEFAULT_AUDIO_SECONDS), 600))
@@ -976,9 +977,9 @@ class GeneralWebGateway:
             default_deadline = time.monotonic() + _env_float(
                 "WEB_RESEARCH_SEARCH_TOTAL_SECONDS" if research_order
                 else "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS",
-                15.0 if research_order else 8.0,
+                30.0 if research_order else 8.0,
                 minimum=8.0 if research_order else 3.0,
-                maximum=24.0 if research_order else 10.0,
+                maximum=48.0 if research_order else 10.0,
             )
         deadline = default_deadline if deadline is None else min(deadline, default_deadline)
         pool_deadline = min(pool_deadline, deadline)
@@ -1334,7 +1335,7 @@ class GeneralWebGateway:
         elif self.github_reader.supports(value) and "/releases" in value:
             budget = _github_release_default_timeout()
         else:
-            budget = 10.0
+            budget = read_budget_seconds(value, remaining=float("inf"))
         deadline = time.monotonic() + max(0.5, budget)
 
         def remaining() -> float:

@@ -3680,8 +3680,8 @@ def test_read_forwards_shared_research_deadline(tmp_path: Any) -> None:
 
     assert completed.status == "completed"
     assert reader.calls, "expected the run to read at least one page"
-    # The reader's own 10s default is the cap while the window is healthy.
-    assert {timeout for _url, timeout in reader.calls} == {10.0}
+    # The reader's own 15s default is the cap while the window is healthy.
+    assert {timeout for _url, timeout in reader.calls} == {15.0}
 
 
 class _WindowJumpTimer:

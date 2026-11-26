@@ -282,7 +282,7 @@ def test_deadline_preserves_finalization_reserve_and_rejects_late_search_body():
     class DelayedGateway(Gateway):
         def search_exact(self, query, **kwargs):
             result = super().search_exact(query, **kwargs)
-            clock[0] = 49
+            clock[0] = 179
             return result
 
     gateway = DelayedGateway([[item("late")]], {})

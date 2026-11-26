@@ -48,7 +48,7 @@ def test_supported_official_lookup_stops_and_saves_bound_fields(monkeypatch, tmp
     assert summary["mode"] == "lookup" and summary["reads"] == 1
     assert summary["target_coverage"]["covered"] == summary["target_coverage"]["required"]
     assert not any(call["name"] == "web_search" for call in calls)
-    assert summary["limits"]["reads"] == 3 and summary["limits"]["hard_seconds"] == 30
+    assert summary["limits"]["reads"] == 3 and summary["limits"]["hard_seconds"] == 60
     saved, audit = saved_exit(tmp_path, query, calls)
     assert audit["status"] == "field_backed"
     assert required <= {ref["field"] for ref in audit["assertion_refs"]}
@@ -97,7 +97,7 @@ def test_lookup_deadline_preserves_reserve_and_does_not_read_late_candidate(tmp_
     class DelayedGateway(Gateway):
         def search_exact(self, query, **kwargs):
             result = super().search_exact(query, **kwargs)
-            clock[0] = 21
+            clock[0] = 55
             return result
 
     gateway = DelayedGateway([[item("late", title="public topic")]], {})

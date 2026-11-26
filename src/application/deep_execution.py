@@ -50,7 +50,7 @@ from src.web.research.state import attach_claim_engine_state
 DEEP_V1_BUDGET = ResearchBudget(
     max_candidates=40,
     max_reads=12,
-    soft_timeout_seconds=120,
+    soft_timeout_seconds=450,
     hard_timeout_seconds=DEEP_HARD_SECONDS,
     max_total_chars=80_000,
 )

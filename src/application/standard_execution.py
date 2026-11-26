@@ -136,7 +136,7 @@ class StandardExecution:
         remaining = (end - self.clock()).total_seconds()
         if remaining <= 0:
             raise ValueError("Standard deadline exhausted before dispatch")
-        call_end = time.monotonic() + min(8.0, remaining)
+        call_end = time.monotonic() + min(15.0, remaining)
 
         def invoke() -> dict:
             self.journal.check(

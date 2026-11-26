@@ -694,7 +694,7 @@ RESEARCH_WINDOW_RESERVE_SECONDS = 12.0
 # outside the shared research window. ``READ_TIMEOUT_CAP_SECONDS`` mirrors the
 # reader's own default network timeout; the effective timeout is the smaller of
 # that cap and the remaining research window.
-READ_TIMEOUT_CAP_SECONDS = 10.0
+READ_TIMEOUT_CAP_SECONDS = 15.0
 MIN_READ_SECONDS = 1.0
 
 

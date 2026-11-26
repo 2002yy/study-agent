@@ -4,7 +4,7 @@ This is a drop-in subclass of StandardContinuationChatService. Its only added be
 signal the background runner after the turn is durably complete - it never runs Deep work, never
 waits for the worker and never touches the answer.
 
-That is what keeps the Deep tier's 180 second window out of the chat response path. If the wake
+That is what keeps the Deep tier's 600 second window out of the chat response path. If the wake
 is lost, the runner's startup and periodic scans rediscover the same durable work, so signalling
 is an optimisation rather than a correctness requirement.
 """
