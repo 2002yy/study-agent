@@ -589,3 +589,31 @@ def test_user_supplied_urls_are_bounded_public_and_deduplicated():
         "https://b.example/b.pdf",
         "https://c.example/c.pdf",
     )
+
+
+def test_a_user_supplied_media_url_gets_a_media_read_budget():
+    gateway = Gateway([[]], {"episode.mp3": "the episode transcript"})
+    recover_public_research(
+        gateway, "读一下 https://example.com/episode.mp3 讲了什么"
+    )
+
+    assert gateway.reads
+    assert gateway.reads[0][2] > 8
+
+
+def test_a_user_supplied_pdf_url_gets_a_pdf_read_budget():
+    gateway = Gateway([[]], {"paper.pdf": "the paper text"})
+    recover_public_research(
+        gateway, "总结 https://example.com/paper.pdf 的结论"
+    )
+
+    assert gateway.reads
+    assert gateway.reads[0][2] > 8
+
+
+def test_a_typed_media_or_pdf_url_escalates_the_research_window():
+    from src.web.research_recovery import LOOKUP_BUDGET
+
+    assert recovery_budget("读 https://x.example/a.mp3") == STANDARD_BUDGET
+    assert recovery_budget("读 https://x.example/a.pdf") == STANDARD_BUDGET
+    assert recovery_budget("读 https://x.example/a.html") == LOOKUP_BUDGET

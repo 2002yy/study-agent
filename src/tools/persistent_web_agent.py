@@ -78,6 +78,14 @@ _PR_REVIEW_CONTEXT_TOOL = {
 }
 
 
+def _web_tool_total_budget() -> int:
+    """Whole-loop budget; a page read stays short inside it, media can fit."""
+
+    return _env_int(
+        "WEB_TOOL_TOTAL_BUDGET_SECONDS", 45, minimum=5, maximum=300,
+    )
+
+
 def _requires_planned_tools(user_input: str) -> bool:
     """Keep the LLM planner for GitHub workflows; use deterministic web search otherwise."""
 
@@ -295,12 +303,7 @@ class PersistentWebToolAgent(WebToolAgent):
                     run_id=(run.id if run else ""),
                 )
 
-            total_budget = _env_int(
-                "WEB_TOOL_TOTAL_BUDGET_SECONDS",
-                12,
-                minimum=5,
-                maximum=18,
-            )
+            total_budget = _web_tool_total_budget()
             deadline = time.monotonic() + total_budget
             executor = None
             submit = self.submit_tool_loop
