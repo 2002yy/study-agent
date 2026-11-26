@@ -14,7 +14,7 @@
 - #678：工具循环里同轮最多 3 条独立 `web_read` 并行（`WEB_TOOL_MAX_PARALLEL_READS`，默认 3，可设 1 关闭）。结果仍按模型调用顺序入证据；单条失败不影响邻居；搜索、浏览器、视频与音频保持串行。免费实测 3 页同时开始，wall 12.5 秒（串行约 30 秒）。
 - 验证：#677 影响集 195 项、#678 工具循环/持久 Agent 40 项通过；Ruff 干净；mypy 112/125；全程无付费模型调用。
 - E0 总花费仍为 **¥1.137 / ¥3**，实验 `e0-godot-jolt-20261126`，账本 `e0-results/spend.db`；B 组修正后重跑为 3 次调用、¥0.204（预留口径）。
-- E0 读计划核对：B 组 15 个 `worth_reading=true` 候选全部进入读取尝试，**0 跳过**；8 成功、7 失败（6 个 `response_too_large` + 1 个 `all_backends_failed`）。停止原因 `sources_partially_read`。失败在读取执行，不在计划遗漏。
+- E0 读计划核对：B 组 15 个 `worth_reading=true` 候选全部进入读取尝试，**0 跳过**；8 成功、7 失败（6 个 `response_too_large` + 1 个 `all_backends_failed`）。停止原因 `sources_partially_read`。失败在读取执行，不在计划遗漏。A 组同样 15/15、0 跳过；C 组 11/11、0 跳过。
 - 待办：#677、#678 的精确 head CI；R5 只做设计，先回答“模型能看到计划、已读事实、未读候选与缺口吗”，不重写执行器。
 - `priority=P1`、`loop=static`、`owner=research/read-pipeline`、`dynamic_evidence=free_probes`、`budget_authorization=free_probes_only`、`decision=engineering-only`。
 

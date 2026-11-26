@@ -248,6 +248,10 @@ E0 的失败不在排序：B 组官方页在读取前已经 `selected=true`、`w
 - 6 个 `security_refused:response_too_large`（官方页 3 个语言、readthedocs 3 个）
 - 1 个 `all_backends_failed`（`ecosystems.gitwallet.co`）
 
+另两臂同样没有计划遗漏：A 组 15 个候选、15 次尝试、0 跳过、8 成功 / 7 失败；
+C 组 11 个候选、11 次尝试、0 跳过、9 成功 / 2 失败。三臂停止原因都是
+`sources_partially_read`，置信度都是 `medium`。
+
 `stop_reason = sources_partially_read`，`answer_confidence = medium`。
 `warnings` 7 条与失败数一致。
 
