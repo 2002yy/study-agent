@@ -440,6 +440,13 @@ class WebToolAgent:
                     minimum=1,
                     maximum=8,
                 ),
+                max_parallel_tools=_env_int(
+                    "WEB_TOOL_MAX_PARALLEL_READS",
+                    3,
+                    minimum=1,
+                    maximum=3,
+                ),
+                parallel_safe=self._parallel_read_safe,
             )
             return WebToolTrace(calls=tuple(calls))
         except Exception as exc:
@@ -448,6 +455,23 @@ class WebToolAgent:
     def _optional(self, method: str) -> Callable[..., dict[str, Any]] | None:
         value = getattr(self.gateway, method, None)
         return value if callable(value) else None
+
+    def _parallel_read_safe(
+        self, name: str, arguments: dict[str, Any],
+    ) -> bool:
+        """Only independent page reads may share a turn; nothing else moves."""
+
+        if name != "web_read":
+            return False
+        can_parallel = getattr(self.gateway, "can_read_in_parallel", None)
+        if not callable(can_parallel):
+            return False
+        return bool(
+            can_parallel(
+                str(arguments.get("mode", "auto") or "auto"),
+                str(arguments.get("url", "") or ""),
+            )
+        )
 
     def _execute(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name == "web_search":

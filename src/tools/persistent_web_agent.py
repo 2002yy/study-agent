@@ -331,6 +331,13 @@ class PersistentWebToolAgent(WebToolAgent):
                     minimum=1,
                     maximum=5,
                 ),
+                max_parallel_tools=_env_int(
+                    "WEB_TOOL_MAX_PARALLEL_READS",
+                    3,
+                    minimum=1,
+                    maximum=3,
+                ),
+                parallel_safe=self._parallel_read_safe,
                 should_cancel=(
                     lambda: (
                         time.monotonic() >= deadline

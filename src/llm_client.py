@@ -4,6 +4,7 @@ import os
 import re
 import json
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable, Iterator, Literal
 
@@ -711,12 +712,19 @@ def run_tool_loop(
     timeout: float | None = None,
     request_max_retries: int | None = None,
     request_key: str | None = None,
+    max_parallel_tools: int = 1,
+    parallel_safe: Callable[[str, dict[str, Any]], bool] | None = None,
 ) -> list[dict[str, Any]]:
     """Run an OpenAI-compatible function-call loop and return tool evidence.
 
     The final natural-language planner response is deliberately not returned:
     the caller will make its normal streaming generation request with the
     collected evidence in context, so the UI keeps one assistant response.
+
+    Calls that pass ``parallel_safe`` and arrive consecutively are dispatched
+    together, at most ``max_parallel_tools`` at a time. Each call keeps its own
+    deadline inside the tool, and one failure never cancels its neighbours.
+    Results still enter evidence and the transcript in the model's call order.
     """
     if not messages or not tools:
         return []
@@ -730,6 +738,7 @@ def run_tool_loop(
     )
     transcript = list(messages)
     evidence: list[dict[str, Any]] = []
+    max_parallel = max(1, int(max_parallel_tools))
     for _round in range(max(1, max_rounds)):
         if should_cancel is not None and should_cancel():
             raise RuntimeError("tool_loop_cancelled")
@@ -758,34 +767,92 @@ def run_tool_loop(
         raw_calls = getattr(message, "tool_calls", None) or []
         if not raw_calls:
             return evidence
-        assistant_calls: list[dict[str, Any]] = []
+        prepared: list[dict[str, Any]] = []
         for index, call in enumerate(raw_calls):
-            if should_cancel is not None and should_cancel():
-                raise RuntimeError("tool_loop_cancelled")
             function = getattr(call, "function", None)
             name = str(getattr(function, "name", "") or "")
             raw_arguments = str(getattr(function, "arguments", "") or "{}")
+            result: dict[str, Any] | None = None
             try:
                 arguments = json.loads(raw_arguments)
                 if not isinstance(arguments, dict):
                     raise ValueError("tool arguments must be an object")
             except (ValueError, TypeError, json.JSONDecodeError) as exc:
                 arguments = {}
-                result: dict[str, Any] = {"error": f"invalid_tool_arguments:{exc}"}
-            else:
-                try:
-                    result = execute_tool(name, arguments)
-                except Exception as exc:  # Individual tools fail soft for the model.
-                    result = {"error": f"{type(exc).__name__}: {exc}"}
+                result = {"error": f"invalid_tool_arguments:{exc}"}
+            prepared.append(
+                {
+                    "name": name,
+                    "arguments": arguments,
+                    "raw_arguments": raw_arguments,
+                    "call_id": str(
+                        getattr(call, "id", "") or f"tool_call_{index}"
+                    ),
+                    "result": result,
+                }
+            )
+
+        def run_one(entry: dict[str, Any]) -> dict[str, Any]:
+            try:
+                return execute_tool(entry["name"], entry["arguments"])
+            except Exception as exc:  # Individual tools fail soft for the model.
+                return {"error": f"{type(exc).__name__}: {exc}"}
+
+        def parallel_eligible(entry: dict[str, Any]) -> bool:
+            if max_parallel < 2 or parallel_safe is None:
+                return False
+            return bool(parallel_safe(entry["name"], entry["arguments"]))
+
+        position = 0
+        while position < len(prepared):
+            entry = prepared[position]
+            if entry["result"] is not None:
+                position += 1
+                continue
             if should_cancel is not None and should_cancel():
                 raise RuntimeError("tool_loop_cancelled")
-            call_id = str(getattr(call, "id", "") or f"tool_call_{index}")
+            group = [entry]
+            if parallel_eligible(entry):
+                cursor = position + 1
+                while (
+                    cursor < len(prepared)
+                    and prepared[cursor]["result"] is None
+                    and parallel_eligible(prepared[cursor])
+                ):
+                    group.append(prepared[cursor])
+                    cursor += 1
+            if len(group) > 1:
+                with ThreadPoolExecutor(
+                    max_workers=min(max_parallel, len(group)),
+                    thread_name_prefix="tool-read",
+                ) as pool:
+                    futures = [pool.submit(run_one, item) for item in group]
+                    for item, future in zip(group, futures, strict=True):
+                        item["result"] = future.result()
+            else:
+                entry["result"] = run_one(entry)
+            position += len(group)
+
+        if should_cancel is not None and should_cancel():
+            raise RuntimeError("tool_loop_cancelled")
+
+        assistant_calls: list[dict[str, Any]] = []
+        for entry in prepared:
+            result = entry["result"]
+            if result is None:
+                result = {"error": "tool_not_executed"}
+            name = entry["name"]
+            arguments = entry["arguments"]
+            call_id = entry["call_id"]
             evidence.append({"name": name, "arguments": arguments, "result": result})
             assistant_calls.append(
                 {
                     "id": call_id,
                     "type": "function",
-                    "function": {"name": name, "arguments": raw_arguments},
+                    "function": {
+                        "name": name,
+                        "arguments": entry["raw_arguments"],
+                    },
                 }
             )
             transcript.append(
