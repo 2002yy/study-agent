@@ -78,7 +78,7 @@ class DeepTriggerRunner:
             thread.start()
 
     def stop(self) -> None:
-        """Bounded shutdown: never waits out a 180s Deep call."""
+        """Bounded shutdown: never waits out a 600s Deep call."""
 
         self._stop.set()
         self._wake.set()

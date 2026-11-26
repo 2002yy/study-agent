@@ -553,7 +553,7 @@ def test_stop_preserves_diagnostic_artifact_without_new_work(running, mode):
     if mode == "cancel":
         runs.request_cancel(execution.run_id)
     else:
-        clock[0] += timedelta(seconds=60)
+        clock[0] += timedelta(seconds=179)
     result = StandardResearchLoop(execution, planner).advance(gateway)
     assert result["stop_reason"] == ("cancelled" if mode == "cancel" else "deadline")
     assert not gateway.events and len(planner.requests) == 1
@@ -563,7 +563,7 @@ def test_stop_preserves_diagnostic_artifact_without_new_work(running, mode):
 
 def test_expiry_before_planning_does_not_call_or_charge_model(running):
     execution, clock, _, _, _ = running
-    clock[0] += timedelta(seconds=60)
+    clock[0] += timedelta(seconds=179)
     result = StandardResearchLoop(
         execution, lambda _: pytest.fail("no model after deadline")
     ).advance(Gateway())

@@ -84,7 +84,7 @@ def _web_tool_total_budget() -> int:
     """Whole-loop budget; a page read stays short inside it, media can fit."""
 
     return _env_int(
-        "WEB_TOOL_TOTAL_BUDGET_SECONDS", 45, minimum=5, maximum=300,
+        "WEB_TOOL_TOTAL_BUDGET_SECONDS", 120, minimum=5, maximum=300,
     )
 
 

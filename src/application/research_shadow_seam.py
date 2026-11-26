@@ -55,13 +55,13 @@ PHASE_SCHEMA: dict[str, tuple[str, bool]] = {
 #: all state (no restart, no re-payment) when goals remain unresolved and the state still
 #: holds an actionable candidate.
 BUDGET_TIERS: dict[str, tuple[int, int, int, float]] = {
-    "quick": (4, 2, 2, 20.0),
+    "quick": (4, 2, 2, 60.0),
     # Research that must find and compare two mechanism articles does not fit a
     # 40-second allowance: the tier was measured to run out during acquisition, not
     # during verification. 40s stays available as the `quick` tier.
-    "standard": (12, 4, 6, 90.0),
-    "deep": (16, 6, 8, 120.0),
-    "extended": (20, 8, 14, 180.0),
+    "standard": (12, 4, 6, 180.0),
+    "deep": (16, 6, 8, 600.0),
+    "extended": (20, 8, 14, 1800.0),
 }
 DEFAULT_TIER = "standard"
 #: Escalation is a CHAIN, applied in order, once per step, inside the same run.

@@ -151,7 +151,7 @@ def test_second_call_does_not_run_the_planner_again(ctx):
 def test_deadline_is_derived_from_the_parent_creation_time(ctx):
     service, _repository, runs, parent, created, _gateway, _clock = ctx
     # Starting Standard after the original window is refused, not granted a fresh one.
-    late = created + timedelta(seconds=120)
+    late = created + timedelta(seconds=250)
     with pytest.raises(ValueError):
         StandardExecution.start(
             service.repository,

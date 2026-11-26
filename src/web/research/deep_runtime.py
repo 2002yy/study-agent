@@ -24,7 +24,7 @@ from src.news.url_normalizer import canonicalize_url
 
 DEEP_EXECUTION_SCHEMA = "deep-execution-v1"
 DEEP_BUDGET_PROFILE = "deep-v1"
-DEEP_HARD_SECONDS = 180
+DEEP_HARD_SECONDS = 600
 DEEP_SOURCE_LIMIT = 6000
 
 SEED_SCHEMA = "deep-seed-v1"

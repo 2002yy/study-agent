@@ -609,7 +609,7 @@ MAX_CORRECTIONS = 2  # bounded free corrections for refused decisions
 #: Global limits independent of any caller-supplied budget: the semantic loop can never
 #: open a second, larger allowance.
 HARD_MODEL_CALL_CAP = 22
-HARD_WALL_SECONDS = 180.0
+HARD_WALL_SECONDS = 600.0
 #: Extraction plus independent verification are two model calls: the run reserves this much
 #: of its wall clock for them instead of spending its single chance on a truncated call. It
 #: is a RESERVATION, not an early stop - it never shortens the research allowance itself.
@@ -1691,7 +1691,7 @@ def run_tool_agent(
                 continue
             reads += 1
             try:
-                res = safe_fetch_result(url, timeout=min(8.0, max(0.5, deadline - monotonic())),
+                res = safe_fetch_result(url, timeout=min(15.0, max(0.5, deadline - monotonic())),
                                         max_bytes=300_000, deadline=deadline)
                 raw = res.get("content") or res.get("body") or res.get("text") or ""
                 html = raw.decode("utf-8", "replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
@@ -1842,7 +1842,7 @@ def run_tool_agent(
             read_row["attempted"] = True
             try:
                 body = gateway.read(action["url"], max_chars=6000,
-                                    timeout=min(8.0, max(0.5, deadline - monotonic())))
+                                    timeout=min(15.0, max(0.5, deadline - monotonic())))
             except Exception as exc:  # noqa: BLE001
                 body = {"ok": False, "url": action["url"], "error": f"{type(exc).__name__}"}
             final_url = str(body.get("url") or action["url"])
