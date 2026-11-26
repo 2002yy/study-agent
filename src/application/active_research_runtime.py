@@ -118,6 +118,7 @@ from src.web.research.llm_proposal import (
     tier1_miss_reason,
 )
 from src.web.site_pool import REQUESTED_PLATFORM_SCOPE_KEY, platform_key_for_query, platform_read_allowed, platform_url_allowed
+from src.web.read_budget import read_budget_seconds
 from src.web.research.domain_targeted import (
     DISCOVERY_METHOD_DOMAIN_TARGETED,
     MAX_DOMAINS,
@@ -413,7 +414,11 @@ class _ProductionGatewayReadContext:
         if self.accepts_timeout:
             payload = self.gateway.read(
                 target, max_chars=max_chars,
-                timeout=min(READ_TIMEOUT_CAP_SECONDS, max(0.0, self.research_seconds_left())),
+                timeout=read_budget_seconds(
+                    target,
+                    remaining=self.research_seconds_left(),
+                    page_seconds=READ_TIMEOUT_CAP_SECONDS,
+                ),
             ) or {}
         else:
             payload = self.gateway.read(target, max_chars=max_chars) or {}

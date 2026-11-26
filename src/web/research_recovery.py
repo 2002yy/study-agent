@@ -31,6 +31,11 @@ from src.web.research.facet_coverage import (
     plan_facets,
 )
 from src.web.query_normalizer import normalize_web_query
+from src.web.read_budget import (
+    looks_like_media_url,
+    looks_like_pdf_url,
+    read_budget_seconds,
+)
 from src.web.site_pool import platform_read_allowed, platform_url_allowed
 
 
@@ -111,6 +116,13 @@ def model_targets(query: str) -> list[tuple[str, str]]:
 def recovery_budget(
     query: str, query_plan: list[dict[str, str]] | None = None
 ) -> RecoveryBudget:
+    # A typed media/PDF source needs room for download + transcription/parse,
+    # not the ordinary page window. The total window still caps the read.
+    if any(
+        looks_like_media_url(url) or looks_like_pdf_url(url)
+        for url in _user_supplied_urls(query)
+    ):
+        return STANDARD_BUDGET
     if len(model_targets(query)) > 1 or re.search(
         r"比较|对比|区别|优缺点|多来源|综合|调查|compare|versus|\bvs\b",
         query,
@@ -1040,13 +1052,19 @@ def _recover_public_research(
                 phase_reads += 1
                 last_novel += 1
                 read_started_at = datetime.now(timezone.utc).isoformat()
+                read_seconds = read_budget_seconds(
+                    url,
+                    remaining=deadline - monotonic(),
+                    page_seconds=8.0,
+                )
                 try:
                     body = invoke(
                         lambda: gateway.read(
                             url,
                             max_chars=limit,
-                            timeout=min(8, max(0.1, deadline - monotonic())),
-                        )
+                            timeout=read_seconds,
+                        ),
+                        cap_seconds=read_seconds,
                     )
                     if not isinstance(body, dict):
                         raise ValueError("invalid_read_result")

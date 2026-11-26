@@ -340,3 +340,12 @@ def test_auto_deep_does_not_slice_an_absent_explicit_prefix(monkeypatch):
     )
     assert not trace.error
     assert queries == ["opus5.5 performance comparison"]
+
+
+def test_web_tool_loop_total_budget_is_not_the_page_read_cap(monkeypatch):
+    from src.tools.persistent_web_agent import _web_tool_total_budget
+
+    monkeypatch.delenv("WEB_TOOL_TOTAL_BUDGET_SECONDS", raising=False)
+    assert _web_tool_total_budget() >= 30
+    monkeypatch.setenv("WEB_TOOL_TOTAL_BUDGET_SECONDS", "20")
+    assert _web_tool_total_budget() == 20
