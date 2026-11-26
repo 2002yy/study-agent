@@ -6,6 +6,17 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-27 E0 读取断点：尺寸、去重、预算、有限并行
+
+- `main@48ee4054` 合入 #675：网页尺寸分层（HTML 2 MiB + 一次 4 MiB 重试，解压后 8 MiB，PDF 12 MiB，音频 4 MiB）。E0 B 组官方页从 `response_too_large` 恢复为 11,630 字符，含 `bias` / `softness` / `ghost`；SSRF、重定向、解压炸弹与 `max_chars` 限制未变。
+- #677：`document_identity` 收紧为“同主机、同版本、仅语言不同才合并”。`stable`/`latest`/`next`、具体版本、跨主机与镜像一律不合并，避免把不同项目或不同版本误判成一份证据；E0 的 15 个候选因此仍是 15 个独立身份。
+- R3.5：在真实页面预算 10 秒下免费重放中文 / 英文 / 日文官方页，6.9–11.2 秒全部成功；没有新增“大文档”预算类别。
+- #678：工具循环里同轮最多 3 条独立 `web_read` 并行（`WEB_TOOL_MAX_PARALLEL_READS`，默认 3，可设 1 关闭）。结果仍按模型调用顺序入证据；单条失败不影响邻居；搜索、浏览器、视频与音频保持串行。免费实测 3 页同时开始，wall 12.5 秒（串行约 30 秒）。
+- 验证：#677 影响集 195 项、#678 工具循环/持久 Agent 40 项通过；Ruff 干净；mypy 112/125；全程无付费模型调用。
+- E0 总花费仍为 **¥1.137 / ¥3**，实验 `e0-godot-jolt-20261126`，账本 `e0-results/spend.db`。
+- 待办：#677、#678 的精确 head CI；R5 只做设计，先回答“模型能看到计划、已读事实、未读候选与缺口吗”，不重写执行器。
+- `priority=P1`、`loop=static`、`owner=research/read-pipeline`、`dynamic_evidence=free_probes`、`budget_authorization=free_probes_only`、`decision=engineering-only`。
+
 ### 2026-11-26 研究决策链接线修复：P0/P1 六项
 
 - `main@4bf2639d` 依次合入：#667 `7e474965` 用户指定 URL 先读；#668 `c3136225` 按类型读取预算；#669 `49181be2` 平台地图 + site_key；#670 `a4892d69` 结构化引用；#671 `13a882e8` 章节锚点与缓存隔离；#672 `4bf2639d` 冲突反例查询。
