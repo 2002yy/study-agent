@@ -10,6 +10,7 @@ from typing import Any, Callable
 from src.llm_client import ModelProfile, run_tool_loop
 from src.web.query_normalizer import normalize_web_query
 from src.web.research_recovery import recovery_summary
+from src.web.site_pool import platform_map_instruction
 from src.web.tool_evidence import (
     diagnostic_tool_calls,
     evidence_tool_calls,
@@ -53,10 +54,14 @@ _REF = {
 WEB_TOOLS = [
     _function_tool(
         "web_search",
-        "Search the public web broadly for current, niche, or externally verifiable information. Empty results do not prove nonexistence.",
+        "Search the public web broadly for current, niche, or externally verifiable information. Empty results do not prove nonexistence. Set site_key only when the platform map names a source that owns this question; omit it for a broad search.",
         {
             "query": {"type": "string", "description": "Focused query for one research step."},
             "max_results": {"type": "integer", "minimum": 1, "maximum": 12},
+            "site_key": {
+                "type": "string",
+                "description": "Optional platform key from the platform map (for example hn, stackexchange, v2ex). Leave empty for a broad search. An unknown or disabled key fails explicitly instead of falling back silently.",
+            },
         },
         ["query"],
     ),
@@ -406,6 +411,7 @@ class WebToolAgent:
         system_prompt = (
             f"{_TOOL_SYSTEM_PROMPT}\n"
             f"{research_instruction}\n"
+            f"{platform_map_instruction()}\n"
             f"Current UTC date: {query_context.as_of_date}.\n"
             f"Canonical user query: {query_context.canonical_query}.\n"
             f"Candidate search variants: "
@@ -447,6 +453,13 @@ class WebToolAgent:
         if name == "web_search":
             query = str(arguments.get("query", ""))
             max_results = int(arguments.get("max_results", 5))
+            site_key = str(arguments.get("site_key", "") or "").strip()
+            if site_key:
+                search_site = getattr(self.gateway, "search_site", None)
+                if callable(search_site):
+                    return search_site(
+                        query, site_key=site_key, max_results=max_results,
+                    )
             detailed = getattr(self.gateway, "search_detailed", None)
             if callable(detailed):
                 return detailed(query, max_results=max_results)
