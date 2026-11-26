@@ -156,9 +156,9 @@ def test_wrong_owner_or_clock_is_rejected(saved_parent, failure):
     kwargs = (
         {"thread_id": "another-thread"}
         if failure == "thread"
-        else {"deadline": created + timedelta(seconds=91)}
+        else {"deadline": created + timedelta(seconds=250)}
         if failure == "deadline_reset"
-        else {"now": created + timedelta(seconds=91)}
+        else {"now": created + timedelta(seconds=250)}
         if failure == "expired"
         else {"now": created - timedelta(seconds=1)}
     )
