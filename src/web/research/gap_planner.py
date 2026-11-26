@@ -225,6 +225,7 @@ def plan_gap_queries(
     source_hints: tuple[str, ...] = (),
     trusted_domain: str = "",
     question: str = "",
+    conflict_open: bool = False,
 ) -> GapQueryBatch:
     """Return a bounded, intent-diverse query batch for one open gap.
 
@@ -288,7 +289,16 @@ def plan_gap_queries(
     year = _reference_year(reference_date) if temporal else ""
     hints = _bounded_hints(source_hints)
     trusted = _bounded_domain(trusted_domain)
-    intents = _select_intents(gap=gap, claim=claim)[:limit]
+    intents = _select_intents(gap=gap, claim=claim)
+    if conflict_open and GapSearchIntent.COUNTER_EVIDENCE not in intents:
+        # A detected contradiction is not a reason to read more of the same
+        # candidates: it must buy one deliberately corrective query.
+        intents = (
+            intents[0],
+            GapSearchIntent.COUNTER_EVIDENCE,
+            *intents[1:],
+        )
+    intents = intents[:limit]
     queries: list[PlannedGapQuery] = []
     seen: set[str] = set()
     for intent in intents:

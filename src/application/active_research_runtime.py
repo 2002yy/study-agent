@@ -2485,6 +2485,10 @@ def _append_gap_queries(
             "",
         )
         trusted_domain, claim_hints = _lead_hints_for_claim(cursor, claim.id)
+        conflict_open = any(
+            item.claim_id == claim.id and item.state in {"open", "searching"}
+            for item in state.conflict_gaps
+        )
         batch = plan_gap_queries(
             gap,
             claim,
@@ -2492,6 +2496,7 @@ def _append_gap_queries(
             source_hints=claim_hints,
             trusted_domain=trusted_domain,
             question=question_surface,
+            conflict_open=conflict_open,
         )
         for item in batch.queries:
             runtime_query = _runtime_query(item)

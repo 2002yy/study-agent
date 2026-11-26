@@ -140,3 +140,25 @@ def test_non_primary_requirement_does_not_generate_primary_intent() -> None:
         ),
     )
     assert GapSearchIntent.PRIMARY not in {item.intent for item in batch.queries}
+
+
+def test_an_open_conflict_buys_a_counter_evidence_query() -> None:
+    batch = plan_gap_queries(
+        _gap(),
+        _claim("What is the official rate limit for unauthenticated requests?"),
+        conflict_open=True,
+    )
+
+    intents = [item.intent for item in batch.queries]
+    assert intents[0] == GapSearchIntent.DISCOVERY
+    assert GapSearchIntent.COUNTER_EVIDENCE in intents
+    assert "correction" in batch.queries[1].query
+
+
+def test_without_an_open_conflict_primary_keeps_no_counter_query() -> None:
+    batch = plan_gap_queries(
+        _gap(),
+        _claim("What is the official rate limit for unauthenticated requests?"),
+    )
+
+    assert GapSearchIntent.COUNTER_EVIDENCE not in [item.intent for item in batch.queries]
