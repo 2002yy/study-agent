@@ -326,6 +326,7 @@ def test_gateway_successful_normal_read_never_pays_for_fetch(monkeypatch):
             method="direct",
             text="Existing reader works",
             author="",
+            links=(),
         ),
     )
     monkeypatch.setattr(

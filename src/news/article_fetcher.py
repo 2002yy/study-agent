@@ -44,11 +44,12 @@ class ArticleReadResult:
     content_type: str = ""
     reason: str = ""
     author: str = ""
+    links: tuple[dict[str, Any], ...] = ()
 
 
 # ── Cache ─────────────────────────────────────────────────────────────
 
-_ARTICLE_CACHE: dict[str, tuple[float, str, str, str, str]] = {}
+_ARTICLE_CACHE: dict[str, tuple[float, str, str, str, str, tuple[dict[str, Any], ...]]] = {}
 _ARTICLE_CACHE_TTL = 1800
 _ARTICLE_CACHE_MAX_SIZE = 32
 
@@ -293,6 +294,7 @@ def fetch_article_read_result(
             author=cached[3],
             requested_url=url,
             final_url=cached[4] if len(cached) > 4 else "",
+            links=cached[5] if len(cached) > 5 else (),
         )
 
     try:
@@ -312,7 +314,7 @@ def fetch_article_read_result(
                 )
             text = raw_content.pdf_text(data, max_chars=max_chars)
             if text:
-                _ARTICLE_CACHE[url] = (now, text, "pdf_text", "", final_url or url)
+                _ARTICLE_CACHE[url] = (now, text, "pdf_text", "", final_url or url, ())
                 return ArticleReadResult(
                     ok=True,
                     text=text,
@@ -342,7 +344,7 @@ def fetch_article_read_result(
                 if not reason:
                     text = raw_content.pdf_text(data, max_chars=max_chars)
                     if text:
-                        _ARTICLE_CACHE[url] = (now, text, "pdf_text", "", final_url or url)
+                        _ARTICLE_CACHE[url] = (now, text, "pdf_text", "", final_url or url, ())
                         return ArticleReadResult(
                             ok=True,
                             text=text,
@@ -386,7 +388,7 @@ def fetch_article_read_result(
             else:
                 text, method = raw_content.render_raw(kind, payload, max_chars)
             if text:
-                _ARTICLE_CACHE[url] = (now, text, method, "", final_url or url)
+                _ARTICLE_CACHE[url] = (now, text, method, "", final_url or url, ())
                 return ArticleReadResult(
                     ok=True,
                     text=text,
@@ -418,7 +420,7 @@ def fetch_article_read_result(
                 section = raw_content.section_text(html, fragment, max_chars)
                 if section:
                     _ARTICLE_CACHE[url] = (
-                        now, section, "section_text", "", final_url or url
+                        now, section, "section_text", "", final_url or url, ()
                     )
                     return ArticleReadResult(
                         ok=True,
@@ -441,6 +443,9 @@ def fetch_article_read_result(
                 links = raw_content.citation_links(
                     html, final_url or url, max_chars=max_chars
                 )
+                link_items = tuple(raw_content.citation_link_items(
+                    html, final_url or url
+                ))
                 extras = []
                 if fragment:
                     extras.append(
@@ -459,7 +464,8 @@ def fetch_article_read_result(
                         text + "\n\n" + "\n\n".join(extras), max_chars
                     )
                 _ARTICLE_CACHE[url] = (
-                    now, text, local_result.method, local_result.author, final_url or url
+                    now, text, local_result.method, local_result.author,
+                    final_url or url, link_items,
                 )
                 return ArticleReadResult(
                     ok=True,
@@ -469,12 +475,13 @@ def fetch_article_read_result(
                     requested_url=url,
                     final_url=final_url,
                     content_type=content_type,
+                    links=link_items,
                 )
 
         fallback_url = final_url or url
         text, method = _try_firecrawl(fallback_url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "", fallback_url)
+            _ARTICLE_CACHE[url] = (now, text, method, "", fallback_url, ())
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -485,7 +492,7 @@ def fetch_article_read_result(
 
         text, method = _try_jina(fallback_url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "", fallback_url)
+            _ARTICLE_CACHE[url] = (now, text, method, "", fallback_url, ())
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -510,7 +517,7 @@ def fetch_article_read_result(
     except Exception as exc:
         text, method = _try_firecrawl(url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "", url)
+            _ARTICLE_CACHE[url] = (now, text, method, "", url, ())
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -520,7 +527,7 @@ def fetch_article_read_result(
 
         text, method = _try_jina(url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method, "", url)
+            _ARTICLE_CACHE[url] = (now, text, method, "", url, ())
             return ArticleReadResult(
                 ok=True,
                 text=text,

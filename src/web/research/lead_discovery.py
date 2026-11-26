@@ -39,6 +39,7 @@ LEAD_DISCOVERY_MAX_ORGANIZATIONS = 5
 LEAD_DISCOVERY_MAX_HINTS = 5
 LEAD_DISCOVERY_MAX_WARNINGS = 4
 LEAD_DISCOVERY_MAX_TOKENS = 700
+LEAD_DISCOVERY_MAX_LINKS = 10
 LEAD_DISCOVERY_EXCERPT_CHARS = 6000
 
 LEAD_DISCOVERY_FIELDS = frozenset(
@@ -200,6 +201,7 @@ class RuntimeLeadDiscoverer:
         run_id: str,
         candidate: CandidatePoolItem,
         content: str,
+        links: Any = (),
         timeout_seconds: float | None = None,
         on_attempt_started: AttemptStartedHook | None = None,
         on_attempt_finished: AttemptFinishedHook | None = None,
@@ -214,6 +216,21 @@ class RuntimeLeadDiscoverer:
                 audits=(),
                 reason="empty_read_content",
             )
+        link_rows: list[dict[str, Any]] = []
+        for item in links or ():
+            if not isinstance(item, Mapping):
+                continue
+            url = str(item.get("url") or "").strip()
+            if not url.startswith(("http://", "https://")):
+                continue
+            link_rows.append({
+                "url": url[:2000],
+                "text": str(item.get("text") or "")[:160],
+                "relation": str(item.get("relation") or ""),
+                "cite_hint": bool(item.get("cite_hint")),
+            })
+            if len(link_rows) >= LEAD_DISCOVERY_MAX_LINKS:
+                break
         request = {
             "schema_version": LEAD_DISCOVERY_SCHEMA_VERSION,
             "candidate_id": candidate.id,
@@ -221,6 +238,9 @@ class RuntimeLeadDiscoverer:
                 "title": candidate.title[:500],
                 "url": candidate.canonical_url[:2000],
                 "excerpt": excerpt,
+                # Structured links survive the excerpt cap: a long page must
+                # not hide the sources it cites behind its first 6000 chars.
+                "links": link_rows,
             },
         }
         mode, thinking_off = research_structured_output_capabilities(

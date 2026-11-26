@@ -102,7 +102,7 @@ def test_an_interstitial_is_followed_once(monkeypatch):
 def _failing_read(url: str, **kwargs):
     return SimpleNamespace(
         ok=False, reason="page_read_failed", requested_url=url,
-        final_url="", method="", text="", author="",
+        final_url="", method="", text="", author="", links=(),
     )
 
 
@@ -286,7 +286,7 @@ def test_a_short_static_read_is_upgraded_when_browse_has_more(monkeypatch):
         tool_gateway, "fetch_article_read_result",
         lambda url, **kwargs: SimpleNamespace(
             ok=True, reason="", requested_url=url, final_url=url, method="local_html",
-            text="导航 首页 登录", author="",
+            text="导航 首页 登录", author="", links=(),
         ),
     )
     monkeypatch.setattr(tool_gateway, "_browse_read", _ok_browse)
