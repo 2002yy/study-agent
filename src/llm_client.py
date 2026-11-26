@@ -714,6 +714,7 @@ def run_tool_loop(
     request_key: str | None = None,
     max_parallel_tools: int = 1,
     parallel_safe: Callable[[str, dict[str, Any]], bool] | None = None,
+    state_provider: Callable[[list[dict[str, Any]], int], str] | None = None,
 ) -> list[dict[str, Any]]:
     """Run an OpenAI-compatible function-call loop and return tool evidence.
 
@@ -823,12 +824,16 @@ def run_tool_loop(
                     cursor += 1
             if len(group) > 1:
                 with ThreadPoolExecutor(
-                    max_workers=min(max_parallel, len(group)),
+                    max_workers=max_parallel,
                     thread_name_prefix="tool-read",
                 ) as pool:
-                    futures = [pool.submit(run_one, item) for item in group]
-                    for item, future in zip(group, futures, strict=True):
-                        item["result"] = future.result()
+                    for start in range(0, len(group), max_parallel):
+                        if start and should_cancel is not None and should_cancel():
+                            raise RuntimeError("tool_loop_cancelled")
+                        batch = group[start:start + max_parallel]
+                        futures = [pool.submit(run_one, item) for item in batch]
+                        for item, future in zip(batch, futures, strict=True):
+                            item["result"] = future.result()
             else:
                 entry["result"] = run_one(entry)
             position += len(group)
@@ -870,4 +875,8 @@ def run_tool_loop(
                 "tool_calls": assistant_calls,
             },
         )
+        if state_provider is not None and _round + 1 < max(1, max_rounds):
+            block = state_provider(list(evidence), _round + 2)
+            if block:
+                transcript.append({"role": "user", "content": block})
     return evidence

@@ -17,6 +17,7 @@ from src.tools.web_agent import (
     _TOOL_SYSTEM_PROMPT,
     _env_flag,
     _env_int,
+    build_research_state,
 )
 from src.web.query_normalizer import normalize_web_query
 from src.web.conversation_query import conversation_search_query, research_topic
@@ -318,6 +319,12 @@ class PersistentWebToolAgent(WebToolAgent):
                     thread_name_prefix="study-agent-web-tool-request",
                 )
                 submit = executor.submit
+            tool_rounds = _env_int(
+                "WEB_TOOL_MAX_ROUNDS",
+                3,
+                minimum=1,
+                maximum=5,
+            )
             future: Future[list[dict[str, Any]]] = submit(
                 self.run_loop,
                 messages,
@@ -325,12 +332,7 @@ class PersistentWebToolAgent(WebToolAgent):
                 execute_tool=self._execute,
                 model_profile=model_profile,
                 task_name="web_tool_planner",
-                max_rounds=_env_int(
-                    "WEB_TOOL_MAX_ROUNDS",
-                    3,
-                    minimum=1,
-                    maximum=5,
-                ),
+                max_rounds=tool_rounds,
                 max_parallel_tools=_env_int(
                     "WEB_TOOL_MAX_PARALLEL_READS",
                     3,
@@ -338,6 +340,12 @@ class PersistentWebToolAgent(WebToolAgent):
                     maximum=3,
                 ),
                 parallel_safe=self._parallel_read_safe,
+                state_provider=lambda evidence, next_round: build_research_state(
+                    evidence,
+                    next_round=next_round,
+                    max_rounds=tool_rounds,
+                    remaining_seconds=max(0.0, deadline - time.monotonic()),
+                ),
                 should_cancel=(
                     lambda: (
                         time.monotonic() >= deadline

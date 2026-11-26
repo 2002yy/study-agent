@@ -142,6 +142,36 @@ def test_without_the_predicate_reads_stay_sequential(monkeypatch):
     assert peak == 1
 
 
+def test_parallel_batches_check_cancellation_between_batches(monkeypatch):
+    calls = [
+        _call(index, "web_read", {"url": f"https://{index}.example/doc"})
+        for index in range(1, 6)
+    ]
+    executed: list[str] = []
+    lock = threading.Lock()
+
+    def execute(_name, arguments):
+        with lock:
+            executed.append(arguments["url"])
+        return {"ok": True, "url": arguments["url"]}
+
+    def cancelled() -> bool:
+        with lock:
+            return len(executed) >= 3
+
+    with pytest.raises(RuntimeError, match="tool_loop_cancelled"):
+        _run(
+            monkeypatch,
+            calls,
+            execute,
+            max_parallel_tools=3,
+            parallel_safe=lambda name, _arguments: name == "web_read",
+            should_cancel=cancelled,
+        )
+
+    assert len(executed) == 3
+
+
 @pytest.fixture
 def browse_off(monkeypatch):
     monkeypatch.setattr(
@@ -165,6 +195,13 @@ def test_browser_or_media_reads_never_join_a_parallel_group(monkeypatch):
     assert gateway.can_read_in_parallel("browse", "https://example.org/a") is False
     assert gateway.can_read_in_parallel("video", "https://example.org/a") is False
     assert gateway.can_read_in_parallel("audio", "https://example.org/a") is False
+    # Discussion reads take the browse path under "auto" (see gateway.read).
+    assert gateway.can_read_in_parallel(
+        "auto", "https://example.org/a", include_discussion=True
+    ) is False
+    assert gateway.can_read_in_parallel(
+        "http", "https://example.org/a", include_discussion=True
+    ) is True
 
     monkeypatch.delenv("WEB_BROWSE_READ_ENABLED", raising=False)
     assert gateway.can_read_in_parallel("auto", "https://example.org/ep.mp3") is False
