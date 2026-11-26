@@ -402,7 +402,8 @@ def platform_map_instruction() -> str:
         "(Wikipedia, ArchWiki, ...), Hugging Face model/dataset cards, Lobsters stories, deps.dev "
         "package versions. Bilibili/YouTube transcripts and Bilibili comments need the explicit "
         "video/comments read modes; a public audio file (podcast or interview clip) needs the "
-        "audio read mode; everything else uses the normal bounded reader. "
+        "audio read mode; PDFs and subtitle files are detected automatically; everything else "
+        "uses the normal bounded reader. "
         "Search only selected directions; the catalogue is not evidence and does not imply login access, "
         "video transcripts or comments. Respect user scope; use empty site_key for general search.\n"
         + "\n".join(lines)

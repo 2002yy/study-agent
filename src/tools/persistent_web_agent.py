@@ -22,6 +22,7 @@ from src.web.query_normalizer import normalize_web_query
 from src.web.conversation_query import conversation_search_query, research_topic
 from src.web.research_recovery import recover_public_research, recovery_budget
 from src.web.semantic_recovery import ResearchEpisode, ResearchSemanticSession
+from src.web.site_pool import platform_map_instruction
 
 if TYPE_CHECKING:
     from src.application.web_lookup_service import WebLookupService
@@ -245,6 +246,7 @@ class PersistentWebToolAgent(WebToolAgent):
         system_prompt = (
             f"{_TOOL_SYSTEM_PROMPT}\n"
             f"{research_instruction}\n"
+            f"{platform_map_instruction()}\n"
             "Use github_pr_review_context when the user asks for an integrated PR review, "
             "review risk context, unresolved-review mapping, or CI-to-change evidence. "
             "Prefer it over manually combining github_pr and github_change_impact. "
