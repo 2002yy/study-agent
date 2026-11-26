@@ -559,3 +559,10 @@ def test_lobsters_requires_a_story_id():
     result = platform_readers.read("https://lobste.rs/", timeout=5)
     assert result["ok"] is False
     assert result["error_code"] == "platform_unsupported"
+
+
+def test_arxiv_pdf_urls_are_not_claimed_by_the_metadata_adapter():
+    # `/abs/` metadata is useful; `/pdf/` must reach the PDF text reader.
+    assert platform_readers.detect("https://arxiv.org/abs/1706.03762") == "arxiv"
+    assert platform_readers.detect("https://arxiv.org/pdf/1706.03762") == ""
+    assert platform_readers.detect("https://arxiv.org/pdf/1706.03762v1") == ""

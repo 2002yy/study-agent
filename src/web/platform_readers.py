@@ -124,7 +124,11 @@ def detect(url: str) -> str:
     if host == _OPENALEX_HOST:
         return "openalex"
     if host == _ARXIV_HOST:
-        return "arxiv"
+        # `/abs/` is metadata; `/pdf/` is the paper itself. Claiming the PDF
+        # here would replace full text with an abstract summary, so let the
+        # article reader's PDF path own it.
+        path = urllib.parse.urlsplit(url).path or ""
+        return "arxiv" if path.startswith("/abs/") else ""
     if host == _ZENODO_HOST:
         return "zenodo"
     if host == "openreview.net":

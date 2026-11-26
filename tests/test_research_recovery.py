@@ -556,3 +556,36 @@ def test_documentation_domains_ignore_unrelated_words():
     assert documentation_domains("今天天气怎么样") == ()
     assert documentation_domains("sqlite3 命令行") == ()
     assert documentation_domains("SQLite 的 WAL 文档") == ("sqlite.org",)
+
+
+def test_user_supplied_url_is_read_before_search_results():
+    gateway = Gateway([[]], {"episode.mp3": "the episode transcript"})
+    calls = recover_public_research(
+        gateway, "读一下 https://example.com/episode.mp3 讲了什么"
+    )
+
+    assert gateway.reads
+    assert gateway.reads[0][0] == "https://example.com/episode.mp3"
+    summary = recovery_summary(calls)
+    assert summary["reads"] == 1
+    user_calls = [call for call in calls if call["name"] == "user_supplied_sources"]
+    assert user_calls
+    assert "user_supplied" in user_calls[0]["result"]["reason"]
+    assert not any(call["name"] == "web_search" and "episode.mp3" in call["arguments"]["query"]
+                   for call in calls)
+
+
+def test_user_supplied_urls_are_bounded_public_and_deduplicated():
+    from src.web.research_recovery import _user_supplied_urls
+
+    urls = _user_supplied_urls(
+        "看 https://example.com/a.mp3，还有 https://example.com/a.mp3、"
+        "http://127.0.0.1/x.pdf https://b.example/b.pdf "
+        "https://c.example/c.pdf https://d.example/d.pdf"
+    )
+
+    assert urls == (
+        "https://example.com/a.mp3",
+        "https://b.example/b.pdf",
+        "https://c.example/c.pdf",
+    )
