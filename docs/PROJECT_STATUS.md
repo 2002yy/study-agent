@@ -6,6 +6,19 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-26 研究决策链接线修复：P0/P1 六项
+
+- `main@4bf2639d` 依次合入：#667 `7e474965` 用户指定 URL 先读；#668 `c3136225` 按类型读取预算；#669 `49181be2` 平台地图 + site_key；#670 `a4892d69` 结构化引用；#671 `13a882e8` 章节锚点与缓存隔离；#672 `4bf2639d` 冲突反例查询。
+- 用户指定 URL：消息中的公开 URL 在搜索前读取，不占搜索名额；arXiv `/pdf/` 交给 PDF 全文，不再被元数据摘要抢占；仅含媒体/PDF 时研究窗口升到 standard。
+- 预算：页面 10 秒、PDF 30 秒、媒体 330 秒，均被剩余研究窗口截断；语义链 8 秒 provider 上限一并修正；工具循环总预算 12→45 秒。
+- 引用：读取结果新增结构化 `links`（正文长度与链接数量独立）；Deep lead 抽取收到窗口外链接（最多 10 条）。
+- 锚点：候选身份仍用 canonical，读取地址保留 fragment；章节读取与整页读取不再共用缓存键。
+- 冲突：开放冲突时 gap planner 强制一条 counter_evidence 查询（查询总数上限不变）。
+- 验证：各 PR 影响集 60–185 项通过；#670 首轮 CI 因测试替身缺 `links` 失败，补齐契约字段后 exact-head 全绿；#672 最终 backend/browser 全绿；全程无付费调用。
+- 边界：45 秒工具总预算仍会截断超长媒体；4 MB 音频上限不变；假模型只证明程序允许，不证明模型意愿。
+- 下一步：整理 #655 与最新 main 的兼容性，等待付费授权后跑真实研究；不再新增读取器、实验框架或大规模模拟测试。
+- `priority=P1`、`loop=static`、`owner=research/decision-chain`、`dynamic_evidence=free_probes`、`budget_authorization=free_probes_only`、`decision=engineering-only`。
+
 ### 2026-11-26 横向读取冻结：最后三批 + 独立音频收口
 
 - `main@e0a6552e` 合入 #664；此前 #662 `bf83993a`、#663 `cb759fc3`；#665 音频合入 `1f6e153e`。
