@@ -260,6 +260,7 @@ def _merge_site_results(
 
 
 SEARCH_STRATEGIES = (
+    "research",
     "fallback",
     "merge",
     "ddg_first",
@@ -267,7 +268,8 @@ SEARCH_STRATEGIES = (
     "browse_sites",
     "deepseek_first",
 )
-_DEFAULT_SEARCH_STRATEGY = "fallback"
+#: DeepSeek Search first, then the paired browser, then the free engines.
+_DEFAULT_SEARCH_STRATEGY = "research"
 _DEFAULT_AUDIO_SECONDS = 240
 _MERGE_TRACE_KEYS = (
     "search_strategy",
@@ -956,6 +958,7 @@ class GeneralWebGateway:
         strategy = self.search_strategy
         if index_only and strategy == "browse_sites":
             strategy = "browser_first"
+        research_order = strategy == "research"
         if strategy == "browse_sites":
             # One provider searches several sites sequentially, so it needs its
             # own budget. The reserve is what keeps SearXNG/Bing RSS/DuckDuckGo
@@ -971,34 +974,45 @@ class GeneralWebGateway:
         else:
             pool_deadline = 0.0
             default_deadline = time.monotonic() + _env_float(
-                "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", 8.0, minimum=3.0, maximum=10.0
+                "WEB_RESEARCH_SEARCH_TOTAL_SECONDS" if research_order
+                else "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS",
+                15.0 if research_order else 8.0,
+                minimum=8.0 if research_order else 3.0,
+                maximum=24.0 if research_order else 10.0,
             )
         deadline = default_deadline if deadline is None else min(deadline, default_deadline)
         pool_deadline = min(pool_deadline, deadline)
         plan = {
+            "research": (
+                "deepseek", "browse", "searxng", "bing_rss", "duckduckgo_html",
+            ),
             "fallback": ("searxng", "bing_rss", "duckduckgo_html"),
-            "browser_first": ("browse", "searxng", "bing_rss", "duckduckgo_html"),
+            "browser_first": (
+                "browse", "deepseek", "searxng", "bing_rss", "duckduckgo_html",
+            ),
             "browse_sites": ("browse_sites", "searxng", "bing_rss", "duckduckgo_html"),
             "ddg_first": ("duckduckgo_html", "bing_rss"),
             "merge": ("bing_rss", "duckduckgo_html"),
-            "deepseek_first": ("deepseek", "searxng", "bing_rss", "duckduckgo_html"),
+            "deepseek_first": (
+                "deepseek", "browse", "searxng", "bing_rss", "duckduckgo_html",
+            ),
         }[strategy]
         # No change to existing routing/diagnostics until explicitly enabled.
         # The independent index is tried after SearXNG on regular fallback,
         # or first when selected for a later controlled comparison.
         if _env_flag("WEB_DEEPSEEK_SEARCH_ENABLED") and strategy in {
-            "fallback",
             "browser_first",
             "browse_sites",
         }:
             index = plan.index("searxng") + 1
             plan = (*plan[:index], "deepseek", *plan[index:])
         providers = {
-            "browse": (True, self._search_browse),
+            "browse": (_browse_read_available(), self._search_browse),
             "browse_sites": (True, self._search_browse_sites),
             "searxng": (searxng_enabled(), self._search_searxng),
             "deepseek": (
-                _env_flag("WEB_DEEPSEEK_SEARCH_ENABLED"), self._search_deepseek
+                _env_flag("WEB_DEEPSEEK_SEARCH_ENABLED", True),
+                self._search_deepseek,
             ),
             "bing_rss": (_env_flag("WEB_ENABLE_BING_RSS", True), self._search_bing_rss),
             "duckduckgo_html": (
@@ -1038,6 +1052,13 @@ class GeneralWebGateway:
                     continue
             else:
                 timeout = _provider_timeout(deadline, provider_timeout, name, errors)
+                if name == "deepseek" and research_order:
+                    # Keep room for the browser and the free engines: a slow
+                    # first provider must not make the rest unreachable.
+                    timeout = min(
+                        timeout,
+                        max(0.5, deadline - time.monotonic() - 4.0),
+                    )
             if not timeout:
                 skipped.append({"provider": name, "reason": "search_budget_exhausted"})
                 provider_outcomes.append({
@@ -1066,7 +1087,10 @@ class GeneralWebGateway:
             filtered_count += len(rows) - len(eligible)
             collected.extend(eligible)
             # A provider returning unrelated sites is not a successful search.
-            if eligible and (index_only or strategy != "merge"):
+            # Research keeps going while the result set is thin, so a single
+            # lucky hit cannot hide the browser or a fallback engine.
+            enough = len(eligible) >= min(limit, 3) if research_order else True
+            if eligible and enough and (index_only or strategy != "merge"):
                 break
 
         unique = _dedupe_results(collected, len(collected))

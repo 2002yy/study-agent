@@ -184,7 +184,7 @@ def test_the_production_gateway_class_honours_the_environment_strategy(monkeypat
     assert gateway.search_strategy == "ddg_first"
 
 
-def test_no_environment_setting_keeps_the_fallback(monkeypatch):
+def test_no_environment_setting_uses_the_research_order(monkeypatch):
     monkeypatch.delenv("WEB_SEARCH_STRATEGY", raising=False)
 
-    assert GeneralWebGateway().search_strategy == "fallback"
+    assert GeneralWebGateway().search_strategy == "research"
