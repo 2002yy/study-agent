@@ -16,9 +16,10 @@ from urllib.parse import urljoin, urlsplit
 
 from src.web.tool_evidence import _public_url
 
-MAX_BYTES = 512 * 1024          # ordinary page cap (512 KiB)
-MAX_BYTES_LARGE = 1024 * 1024   # ONE bounded retry for a legitimately large article
-MAX_DECOMPRESSED = 4 * 1024 * 1024  # post-decompression cap, independent of the wire cap
+MAX_BYTES = 512 * 1024              # small probe / feed cap (512 KiB)
+MAX_BYTES_HTML = 2 * 1024 * 1024    # ordinary HTML document cap (2 MiB)
+MAX_BYTES_LARGE = 4 * 1024 * 1024   # ONE bounded retry for a large technical document
+MAX_DECOMPRESSED = 8 * 1024 * 1024  # post-decompression cap, independent of the wire cap
 MAX_HOPS = 4
 
 # Security refusals (SSRF-class) must be distinguishable from ordinary network

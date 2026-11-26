@@ -24,7 +24,7 @@ from src.news.readers.local_reader import read_html_locally
 from src.news.url_normalizer import is_probable_article_page_url
 from src.web.concurrency import BoundedTask, run_bounded
 from src.web.safe_http import (
-    MAX_BYTES,
+    MAX_BYTES_HTML,
     MAX_DECOMPRESSED,
     SafeFetchError,
     SafeFetchRefusal,
@@ -246,7 +246,7 @@ def _fetch_binary_payload(
     if final_url and not _is_fetchable_article_url(final_url):
         return b"", final_url or url, "", "unsafe_redirect_target"
     payload = _decompress_transport_payload(result["raw"], result["content_encoding"])
-    if len(payload) > MAX_DECOMPRESSED:
+    if len(payload) > max(max_bytes, MAX_DECOMPRESSED):
         return b"", final_url or url, result["content_type"], "response_too_large"
     return payload, final_url or url, result["content_type"], ""
 
@@ -272,7 +272,7 @@ def _try_jina(url: str, timeout: int, max_chars: int) -> tuple[str, str]:
 def fetch_article_read_result(
     url: str,
     timeout: int = 8,
-    max_bytes: int = MAX_BYTES,
+    max_bytes: int = MAX_BYTES_HTML,
     max_chars: int = 5000,
 ) -> ArticleReadResult:
     """Fetch article and return a structured result with failure diagnostics."""

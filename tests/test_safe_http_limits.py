@@ -121,8 +121,9 @@ def test_mapping_small_200_returns_payload(monkeypatch):
 
 def test_capacity_policy_constants():
     assert sh.MAX_BYTES == 512 * 1024
-    assert sh.MAX_BYTES_LARGE == 1024 * 1024
-    assert sh.MAX_DECOMPRESSED == 4 * 1024 * 1024
+    assert sh.MAX_BYTES_HTML == 2 * 1024 * 1024
+    assert sh.MAX_BYTES_LARGE == 4 * 1024 * 1024
+    assert sh.MAX_DECOMPRESSED == 8 * 1024 * 1024
 
 
 def test_ordinary_cap_retries_once_up_to_the_large_cap(monkeypatch):
