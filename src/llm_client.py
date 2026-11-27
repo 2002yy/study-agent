@@ -852,12 +852,16 @@ def run_tool_loop(
         message = response.choices[0].message
         raw_calls = getattr(message, "tool_calls", None) or []
         if not raw_calls:
-            # A text-only reply ends the loop. Keep the text for diagnosis:
-            # without it a premature stop looks identical to a real summary.
+            # A text-only reply ends the loop. Keep the text and the provider's
+            # finish reason for diagnosis: an empty completion and a real
+            # summary otherwise look identical in the trace.
             if stop_state is not None:
                 stop_state["final_text"] = str(
                     getattr(message, "content", "") or ""
                 )[:2000]
+                stop_state["finish_reason"] = str(
+                    getattr(response.choices[0], "finish_reason", "") or ""
+                )
             mark_stop("completed")
             return evidence
         prepared: list[dict[str, Any]] = []

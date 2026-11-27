@@ -437,6 +437,8 @@ class WebToolTrace:
     query: str = ""
     #: Text of a model reply that ended the loop without a tool call.
     final_text: str = ""
+    #: Provider finish reason for that reply (empty when it never arrived).
+    finish_reason: str = ""
     #: The autonomous path admits a successful public read without a search.
     require_discovery: bool = True
     # Admission separates exploratory reads from answer evidence. `None` keeps
@@ -538,6 +540,7 @@ class WebToolTrace:
             "tool_calls": self.tool_calls,
             "stop_reason": self.stop_reason,
             "final_text": self.final_text,
+            "finish_reason": self.finish_reason,
             "rejected_evidence": list(self.rejected_evidence),
             "recovery": recovery_summary(list(self.calls)),
             "semantics": next((dict(call["result"]) for call in reversed(self.calls)
