@@ -437,6 +437,8 @@ class WebToolTrace:
     query: str = ""
     #: Text of a model reply that ended the loop without a tool call.
     final_text: str = ""
+    #: The autonomous path admits a successful public read without a search.
+    require_discovery: bool = True
     # Admission separates exploratory reads from answer evidence. `None` keeps
     # the legacy derived behaviour for every existing caller.
     evidence_calls: tuple[dict[str, Any], ...] | None = None
@@ -445,7 +447,9 @@ class WebToolTrace:
     def admitted_calls(self) -> list[dict[str, Any]]:
         if self.evidence_calls is not None:
             return list(self.evidence_calls)
-        return evidence_tool_calls(list(self.calls))
+        return evidence_tool_calls(
+            list(self.calls), require_discovery=self.require_discovery
+        )
 
     @property
     def used(self) -> bool:
@@ -467,10 +471,14 @@ class WebToolTrace:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        display_calls = trusted_tool_calls(list(self.calls))
+        display_calls = trusted_tool_calls(
+            list(self.calls), require_discovery=self.require_discovery
+        )
         evidence_calls = self.admitted_calls()
         evidence_items = tool_evidence_items(
-            list(self.calls), admitted=evidence_calls
+            list(self.calls),
+            admitted=evidence_calls,
+            require_discovery=self.require_discovery,
         )
         call_errors = tool_call_errors(list(self.calls))
         candidate_count = sum(

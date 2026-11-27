@@ -624,6 +624,7 @@ class WebLookupService:
         final: bool = True,
         stop_reason: str = "",
         user_urls: Sequence[str] = (),
+        require_discovery: bool = True,
     ) -> WebLookupRun:
         explicit_operation = operation_id is not None
         operation_id = operation_id or new_id("web_tool")
@@ -636,11 +637,21 @@ class WebLookupService:
                 operation_id=operation_id,
                 stage="searching",
             )
-        display_calls = trusted_tool_calls(calls, user_urls=user_urls)
-        evidence_calls = evidence_tool_calls(calls, user_urls=user_urls)
+        display_calls = trusted_tool_calls(
+            calls, user_urls=user_urls, require_discovery=require_discovery
+        )
+        evidence_calls = evidence_tool_calls(
+            calls, user_urls=user_urls, require_discovery=require_discovery
+        )
         provider_errors = tool_call_errors(calls)
-        items = tool_source_items(display_calls, user_urls=user_urls)
-        evidence_items = tool_evidence_items(calls, user_urls=user_urls)
+        items = tool_source_items(
+            display_calls,
+            user_urls=user_urls,
+            require_discovery=require_discovery,
+        )
+        evidence_items = tool_evidence_items(
+            calls, user_urls=user_urls, require_discovery=require_discovery
+        )
         read_urls = {
             _canonical_source_url(
                 str(
@@ -698,7 +709,9 @@ class WebLookupService:
                 # used to live only in process memory; they are bounded here so
                 # a reviewer can tell exploration from evidence.
                 "exploration_reads": exploration_read_records(
-                    calls, user_urls=user_urls
+                    calls,
+                    user_urls=user_urls,
+                    require_discovery=require_discovery,
                 ),
                 "provider_errors": provider_errors,
             },

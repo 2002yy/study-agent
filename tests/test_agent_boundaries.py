@@ -212,11 +212,12 @@ def test_autonomous_max_model_calls_is_capped_at_five(monkeypatch):
     assert autonomous_budget(deep=False).max_model_calls == 5
 
 
-def test_autonomous_admits_user_url_and_rejects_unrelated_read(monkeypatch):
+def test_autonomous_admits_successful_public_reads_without_discovery(monkeypatch):
     monkeypatch.setenv(AUTONOMOUS_RESEARCH_FLAG, "1")
     service = FakeService()
     user_url = "https://user.example/doc"
-    random_url = "https://random.example/x"
+    followed_url = "https://docs.example.org/latest/guide"
+    failed_url = "https://dead.example/y"
     calls = [
         {
             "name": "web_read",
@@ -225,8 +226,17 @@ def test_autonomous_admits_user_url_and_rejects_unrelated_read(monkeypatch):
         },
         {
             "name": "web_read",
-            "arguments": {"url": random_url},
-            "result": {"ok": True, "url": random_url, "content": "random body"},
+            "arguments": {"url": followed_url},
+            "result": {
+                "ok": True,
+                "url": followed_url,
+                "content": "followed body",
+            },
+        },
+        {
+            "name": "web_read",
+            "arguments": {"url": failed_url},
+            "result": {"ok": False, "url": failed_url, "error": "timeout"},
         },
     ]
 
@@ -238,10 +248,15 @@ def test_autonomous_admits_user_url_and_rejects_unrelated_read(monkeypatch):
         f"请研究 {user_url}", research_intent=True
     )
 
-    assert [row["result"]["url"] for row in trace.evidence_calls] == [user_url]
+    assert [row["result"]["url"] for row in trace.evidence_calls] == [
+        user_url,
+        followed_url,
+    ]
     assert trace.rejected_evidence == (
-        {"url": random_url, "reason": "source_not_established"},
+        {"url": failed_url, "reason": "read_failed"},
     )
     assert "user.example" in trace.context_block()
-    assert "random.example" not in trace.context_block()
+    assert "docs.example.org" in trace.context_block()
+    assert "dead.example" not in trace.context_block()
     assert service.traces[-1][1]["user_urls"] == (user_url,)
+    assert service.traces[-1][1]["require_discovery"] is False
