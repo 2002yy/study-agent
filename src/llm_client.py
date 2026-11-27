@@ -532,6 +532,12 @@ def stream_chat(
     if not messages:
         return
 
+    # Tool choice is a bounded JSON decision. DeepSeek V4 defaults thinking to
+    # high, and reasoning tokens count against max_tokens: with 600/1600 the
+    # whole budget could be consumed before a tool call was emitted
+    # (finish_reason=length, empty content). Bounded semantic calls already use
+    # this capability switch; the planner does the same.
+    _, thinking_off = research_structured_output_capabilities(provider_profile)
     client = get_client(provider_profile=provider_profile)
     request_client = (
         client.with_options(max_retries=max(0, request_max_retries))
@@ -673,6 +679,12 @@ def chat(
     if not messages:
         return ""
 
+    # Tool choice is a bounded JSON decision. DeepSeek V4 defaults thinking to
+    # high, and reasoning tokens count against max_tokens: with 600/1600 the
+    # whole budget could be consumed before a tool call was emitted
+    # (finish_reason=length, empty content). Bounded semantic calls already use
+    # this capability switch; the planner does the same.
+    _, thinking_off = research_structured_output_capabilities(provider_profile)
     client = get_client(provider_profile=provider_profile)
     request_client = (
         client.with_options(max_retries=max(0, request_max_retries))
@@ -766,6 +778,12 @@ def run_tool_loop(
             mark_stop("cancelled")
             return []
         raise RuntimeError("tool_loop_cancelled")
+    # Tool choice is a bounded JSON decision. DeepSeek V4 defaults thinking to
+    # high, and reasoning tokens count against max_tokens: with 600/1600 the
+    # whole budget could be consumed before a tool call was emitted
+    # (finish_reason=length, empty content). Bounded semantic calls already use
+    # this capability switch; the planner does the same.
+    _, thinking_off = research_structured_output_capabilities(provider_profile)
     client = get_client(provider_profile=provider_profile)
     request_client = (
         client.with_options(max_retries=max(0, request_max_retries))
@@ -837,6 +855,7 @@ def run_tool_loop(
                     f"{request_key}#round{_round}" if request_key else None
                 ),
                 request_max_retries=request_max_retries,
+                extra_body=thinking_off,
             )
         except Exception as exc:
             if return_partial_on_error:

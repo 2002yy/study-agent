@@ -294,3 +294,29 @@ def test_an_empty_reply_keeps_its_finish_reason(monkeypatch):
     assert evidence == []
     assert stop["final_text"] == ""
     assert stop["finish_reason"] == "length"
+
+
+def test_planner_disables_thinking_when_the_provider_supports_it(monkeypatch):
+    completions = FakeCompletions([_message()])
+
+    _run(
+        monkeypatch,
+        completions,
+        lambda _name, _args: {"ok": True},
+        provider_profile="deepseek",
+    )
+
+    assert completions.requests[0]["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+def test_planner_keeps_the_default_transport_for_other_providers(monkeypatch):
+    completions = FakeCompletions([_message()])
+
+    _run(
+        monkeypatch,
+        completions,
+        lambda _name, _args: {"ok": True},
+        provider_profile="openai",
+    )
+
+    assert "extra_body" not in completions.requests[0]
