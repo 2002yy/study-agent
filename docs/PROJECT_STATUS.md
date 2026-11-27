@@ -13,9 +13,11 @@
 - RQCE 臂 3 次规划调用、16 次读取尝试（12 成功）、28 个选中来源；来源以 `opendeer.net` / `project-awesome` / 论坛等镜像为主，答案把"扩展不支持线程安全"误当成内置模块限制，并把 4.4 的 SoftBody3D-Area3D 缺失当作当前限制。
 - 评分（单评分者、非盲评）：自主 **72** / RQCE **64**（事实 30 / 覆盖 25 / 新发现 15 / 反例 15 / 证据 15）。自主答案更可执行，RQCE 证据可追溯性更好但一手性差。
 - **未证明"模型主导更好"**：自主的研究深度不足，且最好的来源被准入规则拒绝；差异混合了架构、来源选择与读取深度。
-- 下一步唯一值得先做的机制决定：**是否合并同一文档的语言/版本变体**（P1 遗留未决项，本轮首次有真实代价证据）。修复后重跑 1 题 × 2 路径需再次授权；剩余预算约 ¥1.09。
+- 已按"成功读取的公开 URL 直接准入"修正：**#695**（`4e396043`），只放宽自主路径，RQCE 默认仍严格；失败/空正文/非公开/`answer_eligible=false` 仍拒绝，语言与版本身份不合并。
+- 免费回放首轮 B 组保存的官方文档：严格模式 `admitted=0`（`source_not_established`），放宽后 `admitted=1`，答案块 18,596 字符，URL 与 `en/latest` 版本保留。
 - 过程中修了两个 P1/P0 缺口并合入：自主路径未绑定实验 spend scope（#692）、首轮纯文本提前结束不可诊断（#693）。
-- `priority=P1`、`loop=dynamic`、`owner=research/mode-comparison`、`dynamic_evidence=authorized_run`、`budget_authorization=granted_2cny`、`decision=inconclusive_pending_admission_fix`。
+- 剩余预算约 **¥1.091**（模型账本口径，不含未核实的 Search/Fetch）。是否重跑 1 题 × 2 路径（Deep / Standard / 仅 B）需再次授权；评分口径已冻结在结果报告 §4。
+- `priority=P1`、`loop=dynamic`、`owner=research/mode-comparison`、`dynamic_evidence=authorized_run`、`budget_authorization=granted_2cny`、`decision=admission_fixed_retest_pending`。
 
 ### 2026-11-27 自主路径 P2：来源准入补齐、答案证据组装、工作上下文压缩
 
