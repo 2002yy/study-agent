@@ -63,6 +63,32 @@ def _agent(run_loop, service=None):
     )
 
 
+def test_autonomous_loop_runs_inside_the_experiment_spend_scope(monkeypatch):
+    monkeypatch.setenv(AUTONOMOUS_RESEARCH_FLAG, "1")
+    monkeypatch.setenv("LLM_SPEND_EXPERIMENT_ID", "rab-test")
+    seen: dict[str, str] = {}
+
+    class ScopeLoop(FakeRunLoop):
+        def __call__(self, messages, **kwargs):
+            from src.llm_spend_guard import current_scope
+
+            scope = current_scope()
+            seen["experiment"] = scope.experiment if scope else ""
+            seen["purpose"] = scope.purpose if scope else ""
+            seen["run_id"] = scope.run_id if scope else ""
+            return []
+
+    agent = _agent(ScopeLoop(), FakeService())
+
+    agent.resolve("Godot Jolt limitations", research_intent=True)
+
+    assert seen == {
+        "experiment": "rab-test",
+        "purpose": "autonomous_research",
+        "run_id": "run-auto",
+    }
+
+
 def test_autonomous_normal_research_uses_the_existing_loop(monkeypatch):
     monkeypatch.setenv(AUTONOMOUS_RESEARCH_FLAG, "1")
     monkeypatch.delenv(AUTONOMOUS_DEEP_FLAG, raising=False)
