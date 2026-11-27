@@ -428,6 +428,9 @@ class WebToolTrace:
     run_id: str = ""
     # Process-local deadline; never serialized as durable evidence or authority.
     answer_deadline: float | None = None
+    model_calls: int = 0
+    tool_calls: int = 0
+    stop_reason: str = ""
 
     @property
     def used(self) -> bool:
@@ -511,6 +514,9 @@ class WebToolTrace:
             "provider_errors": call_errors,
             "error": self.error or derived_error,
             "run_id": self.run_id,
+            "model_calls": self.model_calls,
+            "tool_calls": self.tool_calls,
+            "stop_reason": self.stop_reason,
             "recovery": recovery_summary(list(self.calls)),
             "semantics": next((dict(call["result"]) for call in reversed(self.calls)
                                if call.get("name") == "research_semantics"), None),
@@ -618,43 +624,64 @@ class WebToolAgent:
             )
         )
 
+    def _search_tool(
+        self, arguments: dict[str, Any], *, deadline: float | None = None,
+    ) -> dict[str, Any]:
+        """Search through the existing gateway; ``deadline`` bounds providers."""
+
+        query = str(arguments.get("query", ""))
+        max_results = int(arguments.get("max_results", 5))
+        site_key = str(arguments.get("site_key", "") or "").strip()
+        if site_key:
+            search_site = getattr(self.gateway, "search_site", None)
+            if callable(search_site):
+                return search_site(
+                    query,
+                    site_key=site_key,
+                    max_results=max_results,
+                    deadline=deadline,
+                )
+        detailed = getattr(self.gateway, "search_detailed", None)
+        if callable(detailed):
+            return detailed(
+                query, max_results=max_results, deadline=deadline,
+            )
+        results = self.gateway.search(query, max_results=max_results)
+        normalization = normalize_web_query(query)
+        return {
+            **normalization.to_dict(),
+            "status": "ok" if results else "empty",
+            "reason": "results_found" if results else "providers_returned_no_results",
+            "attempted_queries": [query] if query.strip() else [],
+            "results": results,
+            "provider_errors": [],
+        }
+
+    def _read_tool(
+        self, arguments: dict[str, Any], *, timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Read one URL; ``timeout`` is capped by the caller's deadline."""
+
+        kwargs: dict[str, Any] = {
+            "max_chars": int(arguments.get("max_chars", 8000)),
+            "mode": str(arguments.get("mode", "auto")),
+            "include_discussion": bool(arguments.get("include_discussion", False)),
+            "max_comments": int(arguments.get("max_comments", 0)),
+            "start_seconds": int(arguments.get("start_seconds", 0)),
+            "video_seconds": int(arguments.get("video_seconds", 180)),
+            "include_ocr": bool(arguments.get("include_ocr", False)),
+            "comment_page": int(arguments.get("comment_page", 1)),
+            "audio_seconds": int(arguments.get("audio_seconds", 240)),
+        }
+        if timeout is not None:
+            kwargs["timeout"] = max(1.0, float(timeout))
+        return self.gateway.read(str(arguments.get("url", "")), **kwargs)
+
     def _execute(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name == "web_search":
-            query = str(arguments.get("query", ""))
-            max_results = int(arguments.get("max_results", 5))
-            site_key = str(arguments.get("site_key", "") or "").strip()
-            if site_key:
-                search_site = getattr(self.gateway, "search_site", None)
-                if callable(search_site):
-                    return search_site(
-                        query, site_key=site_key, max_results=max_results,
-                    )
-            detailed = getattr(self.gateway, "search_detailed", None)
-            if callable(detailed):
-                return detailed(query, max_results=max_results)
-            results = self.gateway.search(query, max_results=max_results)
-            normalization = normalize_web_query(query)
-            return {
-                **normalization.to_dict(),
-                "status": "ok" if results else "empty",
-                "reason": "results_found" if results else "providers_returned_no_results",
-                "attempted_queries": [query] if query.strip() else [],
-                "results": results,
-                "provider_errors": [],
-            }
+            return self._search_tool(arguments)
         if name == "web_read":
-            return self.gateway.read(
-                str(arguments.get("url", "")),
-                max_chars=int(arguments.get("max_chars", 8000)),
-                mode=str(arguments.get("mode", "auto")),
-                include_discussion=bool(arguments.get("include_discussion", False)),
-                max_comments=int(arguments.get("max_comments", 0)),
-                start_seconds=int(arguments.get("start_seconds", 0)),
-                video_seconds=int(arguments.get("video_seconds", 180)),
-                include_ocr=bool(arguments.get("include_ocr", False)),
-                comment_page=int(arguments.get("comment_page", 1)),
-                audio_seconds=int(arguments.get("audio_seconds", 240)),
-            )
+            return self._read_tool(arguments)
         if name == "github_search":
             return self.gateway.github_search(
                 str(arguments.get("repo_url", "")),

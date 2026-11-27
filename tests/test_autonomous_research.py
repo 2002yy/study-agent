@@ -80,10 +80,11 @@ def test_autonomous_normal_research_uses_the_existing_loop(monkeypatch):
     assert service.created[0][1]["run_kind"] == "autonomous_research"
     assert service.created[0][1]["research_mode"] == "standard"
     assert loop.kwargs[0]["task_name"] == "autonomous_research"
-    assert loop.kwargs[0]["max_rounds"] == 6
+    assert loop.kwargs[0]["max_rounds"] == 4
     assert isinstance(loop.kwargs[0]["execute_tool"], AutonomousToolBudget)
     assert "You decide the next action" in loop.messages[0][0]["content"]
-    assert "at most 4 searches" in loop.messages[0][0]["content"]
+    assert "at most 4 model calls" in loop.messages[0][0]["content"]
+    assert "4 searches" in loop.messages[0][0]["content"]
     assert service.traces and service.traces[0][0] == "run-auto"
 
 
@@ -117,8 +118,9 @@ def test_explicit_deep_needs_the_deep_flag(monkeypatch):
     agent2 = _agent(loop2, service2)
     agent2.resolve("deep topic", research_intent=True, deep_requested=True)
     assert loop2.kwargs[0]["task_name"] == "autonomous_research"
-    assert loop2.kwargs[0]["max_rounds"] == 10
-    assert "at most 8 searches" in loop2.messages[0][0]["content"]
+    assert loop2.kwargs[0]["max_rounds"] == 5
+    assert "at most 5 model calls" in loop2.messages[0][0]["content"]
+    assert "8 searches" in loop2.messages[0][0]["content"]
     assert service2.traces[0][0] == "run-auto"
 
 
@@ -130,7 +132,12 @@ def test_budget_blocks_only_the_exhausted_kind():
         return {"ok": True, "name": name}
 
     budget = AutonomousBudget(
-        max_rounds=4, max_searches=1, max_reads=2, max_seconds=60
+        max_rounds=4,
+        max_searches=1,
+        max_reads=2,
+        max_model_calls=4,
+        max_tool_calls=10,
+        max_seconds=60,
     )
     gate = AutonomousToolBudget(
         execute, budget, deadline=time.monotonic() + 60
@@ -150,7 +157,12 @@ def test_budget_blocks_only_the_exhausted_kind():
 
 def test_wall_clock_blocks_every_tool():
     budget = AutonomousBudget(
-        max_rounds=4, max_searches=4, max_reads=4, max_seconds=10
+        max_rounds=4,
+        max_searches=4,
+        max_reads=4,
+        max_model_calls=4,
+        max_tool_calls=10,
+        max_seconds=10,
     )
     gate = AutonomousToolBudget(
         lambda name, arguments: {"ok": True},
@@ -185,16 +197,18 @@ def test_state_provider_reports_budget_without_page_body(monkeypatch):
     )
 
     assert "[research_state]" in block
-    assert "budget: searches 0/4" in block
+    assert "searches 0/4" in block
     assert "SECRET BODY" not in block
 
 
 def test_autonomous_budget_defaults_and_env_override(monkeypatch):
     normal = autonomous_budget(deep=False)
     deep = autonomous_budget(deep=True)
-    assert (normal.max_rounds, normal.max_searches, normal.max_reads) == (6, 4, 6)
+    assert (normal.max_rounds, normal.max_searches, normal.max_reads) == (4, 4, 6)
+    assert (normal.max_model_calls, normal.max_tool_calls) == (4, 12)
     assert normal.max_seconds == 180
-    assert (deep.max_rounds, deep.max_searches, deep.max_reads) == (10, 8, 12)
+    assert (deep.max_rounds, deep.max_searches, deep.max_reads) == (5, 8, 12)
+    assert (deep.max_model_calls, deep.max_tool_calls) == (5, 24)
     assert deep.max_seconds == 600
 
     monkeypatch.setenv("WEB_AUTONOMOUS_MAX_ROUNDS", "3")
@@ -217,3 +231,127 @@ def test_cancel_requested_stops_the_loop(monkeypatch):
 
     assert "tool_loop_cancelled" in trace.error
     assert service.traces and "tool_loop_cancelled" in service.traces[0][1]["error"]
+
+
+def test_total_tool_quota_blocks_every_kind():
+    budget = AutonomousBudget(
+        max_rounds=4,
+        max_searches=4,
+        max_reads=4,
+        max_model_calls=4,
+        max_tool_calls=1,
+        max_seconds=60,
+    )
+    gate = AutonomousToolBudget(
+        lambda _name, _arguments: {"ok": True},
+        budget,
+        deadline=time.monotonic() + 60,
+    )
+
+    assert gate("web_search", {"query": "a"})["ok"] is True
+    blocked = gate("web_read", {"url": "https://a.example"})
+    assert blocked["reason"] == "tool_quota"
+
+
+def test_read_receives_the_remaining_wall_time():
+    captured: list[float] = []
+    budget = AutonomousBudget(
+        max_rounds=4,
+        max_searches=4,
+        max_reads=4,
+        max_model_calls=4,
+        max_tool_calls=10,
+        max_seconds=60,
+    )
+    gate = AutonomousToolBudget(
+        lambda _name, _arguments: {"ok": True},
+        budget,
+        deadline=100.0,
+        clock=lambda: 90.0,
+        read_execute=lambda arguments, remaining: (
+            captured.append(remaining),
+            {"ok": True, "url": arguments["url"]},
+        )[1],
+    )
+
+    gate("web_read", {"url": "https://a.example"})
+    assert captured == [10.0]
+
+
+def test_partial_rounds_are_persisted_before_the_final_trace(monkeypatch):
+    monkeypatch.setenv(AUTONOMOUS_RESEARCH_FLAG, "1")
+    service = FakeService()
+    partial_calls = [
+        {
+            "name": "web_read",
+            "arguments": {"url": "https://docs.example.org/a"},
+            "result": {"ok": True, "url": "https://docs.example.org/a", "content": "x"},
+        }
+    ]
+
+    class OneRoundLoop(FakeRunLoop):
+        def __call__(self, messages, **kwargs):
+            kwargs["stop_state"]["reason"] = "deadline"
+            kwargs["stop_state"]["model_calls"] = 2
+            kwargs["on_round"](partial_calls)
+            return partial_calls
+
+    trace = _agent(OneRoundLoop(), service).resolve(
+        "research topic", research_intent=True
+    )
+
+    assert trace.stop_reason == "deadline"
+    assert trace.model_calls == 2
+    assert trace.tool_calls == 0
+    assert trace.error == ""
+    flags = [row[1]["final"] for row in service.traces]
+    assert flags == [False, True]
+    assert service.traces[0][1]["stop_reason"] == "sources_partially_read"
+    assert service.traces[1][1]["stop_reason"] == "sources_partially_read"
+
+
+def test_provider_failure_keeps_partial_calls_and_reports_the_error(monkeypatch):
+    monkeypatch.setenv(AUTONOMOUS_RESEARCH_FLAG, "1")
+    service = FakeService()
+    calls = [
+        {
+            "name": "web_read",
+            "arguments": {"url": "https://docs.example.org/a"},
+            "result": {"ok": True, "url": "https://docs.example.org/a", "content": "x"},
+        }
+    ]
+
+    class FailingLoop(FakeRunLoop):
+        def __call__(self, messages, **kwargs):
+            kwargs["stop_state"]["reason"] = "provider_error"
+            kwargs["stop_state"]["error"] = "RuntimeError: provider down"
+            kwargs["on_round"](calls)
+            return calls
+
+    trace = _agent(FailingLoop(), service).resolve(
+        "research topic", research_intent=True
+    )
+
+    assert "provider down" in trace.error
+    assert trace.stop_reason == "provider_error"
+    assert [row[1]["final"] for row in service.traces] == [False, True]
+    assert service.traces[1][1]["stop_reason"] == "chat_tool_loop_failed"
+    assert service.traces[1][1]["calls"] == calls
+
+
+def test_turn_model_budget_counts_autonomous_calls():
+    from types import SimpleNamespace
+
+    import pytest
+
+    from src.application.chat_service import ChatService
+
+    failed: list[object] = []
+    fake = SimpleNamespace(fail_turn=lambda prepared: failed.append(prepared))
+    prepared = SimpleNamespace(
+        rag={"web_tools": {"model_calls": 6, "semantics": None}}
+    )
+
+    with pytest.raises(TimeoutError, match="research_model_call_budget_exhausted"):
+        ChatService._check_research_model_budget(fake, prepared, 1)
+    assert failed

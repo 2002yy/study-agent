@@ -851,6 +851,7 @@ class GeneralWebGateway:
         *,
         max_results: int = 5,
         now: datetime | None = None,
+        deadline: float | None = None,
     ) -> dict[str, Any]:
         normalization = normalize_web_query(query, now=now)
         current = now or datetime.now(timezone.utc)
@@ -877,8 +878,16 @@ class GeneralWebGateway:
         variant_traces: list[dict[str, Any]] = []
         adopted_query: str | None = None
         for variant_index, variant in enumerate(normalization.query_variants):
+            if deadline is not None and time.monotonic() >= deadline:
+                provider_errors.append("search_budget_exhausted")
+                break
             attempted.append(variant)
-            exact = self.search_exact(variant, max_results=limit, now=current)
+            exact = self.search_exact(
+                variant,
+                max_results=limit,
+                now=current,
+                deadline=deadline,
+            )
             provider_outcomes.extend(
                 {**row, "query_index": variant_index}
                 for row in exact.get("provider_outcomes", [])

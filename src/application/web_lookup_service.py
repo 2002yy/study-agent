@@ -620,6 +620,8 @@ class WebLookupService:
         operation_id: str | None = None,
         semantic_episode: dict[str, Any] | None = None,
         semantic_events: list[dict[str, Any]] | None = None,
+        final: bool = True,
+        stop_reason: str = "",
     ) -> WebLookupRun:
         explicit_operation = operation_id is not None
         operation_id = operation_id or new_id("web_tool")
@@ -721,10 +723,48 @@ class WebLookupService:
                 "run_attempt": context["run_attempt"],
             },
         ]
+        provider_status = (
+            "found"
+            if evidence_calls
+            else "candidates_only" if display_calls else "empty"
+        )
+        derived_stop = (
+            "read_backed_tool_evidence_found"
+            if evidence_calls
+            else "search_candidates_only"
+            if display_calls
+            else "providers_returned_no_results"
+            if calls
+            else "no_tool_calls"
+        )
+        effective_stop = stop_reason or derived_stop
+
+        def save_partial(reason: str) -> WebLookupRun:
+            return self.repository.checkpoint(
+                run_id,
+                operation_id=operation_id,
+                research_context=context,
+                query_attempts=attempts,
+                selected_sources=selected_sources,
+                rejected_sources=[],
+                items=items,
+                warnings=provider_errors,
+                provider_status=provider_status,
+                stop_reason=reason,
+            )
+
         if self.repository.cancel_requested(run_id, operation_id=operation_id):
-            return self.repository.finish_cancel(run_id, operation_id=operation_id)
+            if calls and semantic_episode is None:
+                save_partial("user_cancelled")
+            return self.repository.finish_cancel(
+                run_id, operation_id=operation_id
+            )
+        if not final:
+            return save_partial(effective_stop)
         if error or (provider_errors and not display_calls):
             failure = error or "; ".join(provider_errors)
+            if calls and semantic_episode is None:
+                save_partial(stop_reason or "chat_tool_loop_failed")
             return self.repository.fail(
                 run_id,
                 failure,
@@ -743,20 +783,8 @@ class WebLookupService:
             query_attempts=attempts,
             selected_sources=selected_sources,
             rejected_sources=[],
-            provider_status=(
-                "found"
-                if evidence_calls
-                else "candidates_only" if display_calls else "empty"
-            ),
-            stop_reason=(
-                "read_backed_tool_evidence_found"
-                if evidence_calls
-                else "search_candidates_only"
-                if display_calls
-                else "providers_returned_no_results"
-                if calls
-                else "no_tool_calls"
-            ),
+            provider_status=provider_status,
+            stop_reason=effective_stop,
             operation_id=operation_id,
         )
 

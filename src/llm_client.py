@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import json
+import time
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -715,6 +716,13 @@ def run_tool_loop(
     max_parallel_tools: int = 1,
     parallel_safe: Callable[[str, dict[str, Any]], bool] | None = None,
     state_provider: Callable[[list[dict[str, Any]], int], str] | None = None,
+    deadline: float | None = None,
+    max_model_calls: int | None = None,
+    return_partial_on_error: bool = False,
+    return_partial_on_cancel: bool = False,
+    stop_state: dict[str, Any] | None = None,
+    on_round: Callable[[list[dict[str, Any]]], None] | None = None,
+    clock: Callable[[], float] = time.monotonic,
 ) -> list[dict[str, Any]]:
     """Run an OpenAI-compatible function-call loop and return tool evidence.
 
@@ -726,10 +734,27 @@ def run_tool_loop(
     together, at most ``max_parallel_tools`` at a time. Each call keeps its own
     deadline inside the tool, and one failure never cancels its neighbours.
     Results still enter evidence and the transcript in the model's call order.
+
+    ``deadline`` is a hard monotonic cutoff: once reached, no further model
+    request starts and the evidence collected so far is returned. A provider
+    failure or user cancellation can also return the partial evidence when the
+    caller asks for it. ``stop_state`` receives ``reason``, ``error`` and
+    ``model_calls`` for the caller's durable trace.
     """
     if not messages or not tools:
         return []
+    model_calls = 0
+
+    def mark_stop(reason: str, error: str = "") -> None:
+        if stop_state is not None:
+            stop_state["reason"] = reason
+            stop_state["model_calls"] = model_calls
+            if error:
+                stop_state["error"] = error
+
     if should_cancel is not None and should_cancel():
+        if return_partial_on_cancel:
+            return []
         raise RuntimeError("tool_loop_cancelled")
     client = get_client(provider_profile=provider_profile)
     request_client = (
@@ -741,8 +766,29 @@ def run_tool_loop(
     evidence: list[dict[str, Any]] = []
     max_parallel = max(1, int(max_parallel_tools))
     for _round in range(max(1, max_rounds)):
+        # User cancellation stays visible even after the clock runs out.
         if should_cancel is not None and should_cancel():
+            if return_partial_on_cancel:
+                mark_stop("cancelled")
+                return evidence
             raise RuntimeError("tool_loop_cancelled")
+        if deadline is not None and clock() >= deadline:
+            mark_stop("deadline")
+            return evidence
+        if max_model_calls is not None and model_calls >= max_model_calls:
+            mark_stop("model_call_budget")
+            return evidence
+        round_timeout = timeout
+        if deadline is not None:
+            remaining = max(0.0, deadline - clock())
+            if remaining <= 0:
+                mark_stop("deadline")
+                return evidence
+            round_timeout = (
+                remaining
+                if timeout is None
+                else min(float(timeout), remaining)
+            )
         request_kwargs = _build_request_kwargs(
             messages=transcript,
             temperature=0.0,
@@ -750,7 +796,7 @@ def run_tool_loop(
             provider_profile=provider_profile,
             task_name=task_name,
             max_tokens=600,
-            timeout=timeout,
+            timeout=round_timeout,
             response_format=None,
             stream=False,
             tools=tools,
@@ -760,13 +806,20 @@ def run_tool_loop(
             ),
             request_max_retries=request_max_retries,
         )
+        model_calls += 1
+        if stop_state is not None:
+            stop_state["model_calls"] = model_calls
         try:
             response = request_client.chat.completions.create(**request_kwargs)
         except Exception as exc:
+            if return_partial_on_error:
+                mark_stop("provider_error", f"{type(exc).__name__}: {exc}")
+                return evidence
             raise RuntimeError(_classify_error(exc)) from exc
         message = response.choices[0].message
         raw_calls = getattr(message, "tool_calls", None) or []
         if not raw_calls:
+            mark_stop("completed")
             return evidence
         prepared: list[dict[str, Any]] = []
         for index, call in enumerate(raw_calls):
@@ -838,8 +891,8 @@ def run_tool_loop(
                 entry["result"] = run_one(entry)
             position += len(group)
 
-        if should_cancel is not None and should_cancel():
-            raise RuntimeError("tool_loop_cancelled")
+        if stop_state is not None:
+            stop_state["model_calls"] = model_calls
 
         assistant_calls: list[dict[str, Any]] = []
         for entry in prepared:
@@ -879,4 +932,13 @@ def run_tool_loop(
             block = state_provider(list(evidence), _round + 2)
             if block:
                 transcript.append({"role": "user", "content": block})
+        if on_round is not None:
+            try:
+                on_round(list(evidence))
+            except Exception as exc:  # A checkpoint failure must not erase evidence.
+                if stop_state is not None:
+                    stop_state["checkpoint_error"] = (
+                        f"{type(exc).__name__}: {exc}"
+                    )
+    mark_stop("max_rounds")
     return evidence
