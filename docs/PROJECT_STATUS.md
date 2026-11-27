@@ -16,8 +16,13 @@
 - 已按"成功读取的公开 URL 直接准入"修正：**#695**（`4e396043`），只放宽自主路径，RQCE 默认仍严格；失败/空正文/非公开/`answer_eligible=false` 仍拒绝，语言与版本身份不合并。
 - 免费回放首轮 B 组保存的官方文档：严格模式 `admitted=0`（`source_not_established`），放宽后 `admitted=1`，答案块 18,596 字符，URL 与 `en/latest` 版本保留。
 - 过程中修了两个 P1/P0 缺口并合入：自主路径未绑定实验 spend scope（#692）、首轮纯文本提前结束不可诊断（#693）。
-- 剩余预算约 **¥1.091**（模型账本口径，不含未核实的 Search/Fetch）。是否重跑 1 题 × 2 路径（Deep / Standard / 仅 B）需再次授权；评分口径已冻结在结果报告 §4。
-- `priority=P1`、`loop=dynamic`、`owner=research/mode-comparison`、`dynamic_evidence=authorized_run`、`budget_authorization=granted_2cny`、`decision=admission_fixed_retest_pending`。
+- **Round 2（已授权，同账本）没有可评分的一对答案**：
+  - A：11 次成功读取、31,238 字符源块，但答案门禁以 `citation_outside_evidence`（引用了未读取的 GitHub 源码/镜像）整轮拒发，只剩 32 字；费用 ¥0.219。
+  - B：准入修复生效——成功读取 godot-jolt 官方 README、Godot 文档源镜像、论坛帖共 3 个来源、0 拒绝；但在答案生成前撞上账本上限（研究 ¥0.639，答案还差约 ¥0.177，剩余 ¥0.048）。
+  - B 的三次空回复由两处真实缺陷造成：规划 600/1600 token 被 DeepSeek thinking 吃光（`finish_reason=length`）。已修：#697 记录 `finish_reason`、#698 提到 1600、#699 规划轮关闭 thinking。
+- 总模型费用 **¥1.949 / ¥2**（账本 ¥1.892 + 重置前 ¥0.057），剩余约 ¥0.05，不足以再发起付费调用。
+- 结论：准入修复已验证；首轮唯一可评分结果仍是自主 72 / RQCE 64。下一轮需要新预算，并单独处理 A 的发布门禁整轮拒发；不自动续费。
+- `priority=P1`、`loop=dynamic`、`owner=research/mode-comparison`、`dynamic_evidence=authorized_run`、`budget_authorization=exhausted_1_949_of_2`、`decision=retest_blocked_by_budget`。
 
 ### 2026-11-27 自主路径 P2：来源准入补齐、答案证据组装、工作上下文压缩
 
