@@ -1063,8 +1063,12 @@ class ChatService:
         )
 
     def _check_research_model_budget(self, prepared: PreparedChatTurn, next_calls: int) -> None:
-        semantic = (prepared.rag.get("web_tools") or {}).get("semantics")
-        if isinstance(semantic, dict) and int(semantic.get("model_calls", 0)) + next_calls > 6:
+        web_tools = prepared.rag.get("web_tools") or {}
+        semantic = web_tools.get("semantics")
+        research_calls = int(web_tools.get("model_calls") or 0)
+        if isinstance(semantic, dict):
+            research_calls = max(research_calls, int(semantic.get("model_calls", 0)))
+        if research_calls + next_calls > 6:
             self.fail_turn(prepared)
             raise TimeoutError("research_model_call_budget_exhausted")
 

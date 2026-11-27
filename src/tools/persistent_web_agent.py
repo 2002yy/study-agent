@@ -132,6 +132,8 @@ class AutonomousBudget:
     max_rounds: int
     max_searches: int
     max_reads: int
+    max_model_calls: int
+    max_tool_calls: int
     max_seconds: float
 
     def to_dict(self) -> dict[str, Any]:
@@ -139,23 +141,41 @@ class AutonomousBudget:
             "max_rounds": self.max_rounds,
             "max_searches": self.max_searches,
             "max_reads": self.max_reads,
+            "max_model_calls": self.max_model_calls,
+            "max_tool_calls": self.max_tool_calls,
             "max_seconds": self.max_seconds,
         }
 
 
 def autonomous_budget(deep: bool) -> AutonomousBudget:
-    """Time and call bounds for the autonomous path; paid quota is unchanged."""
+    """Time and call bounds for the autonomous path.
+
+    The turn-wide model-call check still caps research plus final generation at
+    six calls, so the autonomous loop leaves room for the answer: four calls for
+    standard research, five for deep. Paid quota and the spend guard are not
+    changed by this function.
+    """
 
     prefix = "WEB_AUTONOMOUS_DEEP" if deep else "WEB_AUTONOMOUS"
+    max_model_calls = _env_int(
+        f"{prefix}_MAX_MODEL_CALLS", 5 if deep else 4, minimum=1, maximum=6
+    )
     return AutonomousBudget(
         max_rounds=_env_int(
-            f"{prefix}_MAX_ROUNDS", 10 if deep else 6, minimum=2, maximum=20
+            f"{prefix}_MAX_ROUNDS",
+            max_model_calls,
+            minimum=1,
+            maximum=20,
         ),
         max_searches=_env_int(
             f"{prefix}_MAX_SEARCHES", 8 if deep else 4, minimum=1, maximum=20
         ),
         max_reads=_env_int(
             f"{prefix}_MAX_READS", 12 if deep else 6, minimum=1, maximum=30
+        ),
+        max_model_calls=max_model_calls,
+        max_tool_calls=_env_int(
+            f"{prefix}_MAX_TOOL_CALLS", 24 if deep else 12, minimum=1, maximum=50
         ),
         max_seconds=float(
             _env_int(
@@ -169,11 +189,12 @@ def autonomous_budget(deep: bool) -> AutonomousBudget:
 
 
 class AutonomousToolBudget:
-    """Wrap the existing tools with search/read/wall limits.
+    """Wrap the existing tools with search/read/wall/tool limits.
 
-    Only the blocked tool is refused. After the search quota is spent the model
-    can still read what it already found; after the wall clock is spent every
-    tool is refused so the run can finish with the collected evidence.
+    Only the blocked kind is refused: after the search quota the model can still
+    read what it found. The wall clock refuses everything. Reads and searches
+    receive the remaining wall time so a 5-second remainder cannot start a
+    30-second fetch.
     """
 
     def __init__(
@@ -183,18 +204,27 @@ class AutonomousToolBudget:
         deadline: float,
         *,
         clock: Callable[[], float] = time.monotonic,
+        read_execute: Callable[[dict[str, Any], float], dict[str, Any]]
+        | None = None,
+        search_execute: Callable[[dict[str, Any], float], dict[str, Any]]
+        | None = None,
     ) -> None:
         self._execute_tool = execute_tool
         self._budget = budget
         self._deadline = deadline
         self._clock = clock
+        self._read_execute = read_execute
+        self._search_execute = search_execute
         self._lock = threading.Lock()
         self._searches = 0
         self._reads = 0
+        self._tool_calls = 0
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             return {
+                "tool_calls": self._tool_calls,
+                "max_tool_calls": self._budget.max_tool_calls,
                 "searches": self._searches,
                 "reads": self._reads,
                 "max_searches": self._budget.max_searches,
@@ -205,6 +235,8 @@ class AutonomousToolBudget:
     def _refusal(self, name: str) -> str:
         if self._clock() >= self._deadline:
             return "wall_time"
+        if self._tool_calls >= self._budget.max_tool_calls:
+            return "tool_quota"
         if name == "web_search" and self._searches >= self._budget.max_searches:
             return "search_quota"
         if name == "web_read" and self._reads >= self._budget.max_reads:
@@ -215,6 +247,7 @@ class AutonomousToolBudget:
         with self._lock:
             reason = self._refusal(name)
             if not reason:
+                self._tool_calls += 1
                 if name == "web_search":
                     self._searches += 1
                 elif name == "web_read":
@@ -227,12 +260,18 @@ class AutonomousToolBudget:
                 "error": f"research_budget_exhausted:{reason}",
                 "budget": self.snapshot(),
             }
+        remaining = max(0.0, self._deadline - self._clock())
+        if name == "web_read" and self._read_execute is not None:
+            return self._read_execute(arguments, remaining)
+        if name == "web_search" and self._search_execute is not None:
+            return self._search_execute(arguments, self._deadline)
         return self._execute_tool(name, arguments)
 
     def usage_line(self) -> str:
         snap = self.snapshot()
         return (
-            f"budget: searches {snap['searches']}/{snap['max_searches']}, "
+            f"budget: tools {snap['tool_calls']}/{snap['max_tool_calls']}, "
+            f"searches {snap['searches']}/{snap['max_searches']}, "
             f"reads {snap['reads']}/{snap['max_reads']}, "
             f"remaining {snap['remaining_seconds']}s"
         )
@@ -641,13 +680,25 @@ class PersistentWebToolAgent(WebToolAgent):
                     answer_deadline=deadline,
                 )
 
-        gate = AutonomousToolBudget(self._execute, budget, deadline)
+        stop: dict[str, Any] = {}
+        gate = AutonomousToolBudget(
+            self._execute,
+            budget,
+            deadline,
+            read_execute=lambda arguments, remaining: self._read_tool(
+                arguments, timeout=remaining
+            ),
+            search_execute=lambda arguments, wall_deadline: self._search_tool(
+                arguments, deadline=wall_deadline
+            ),
+        )
         system_prompt = (
             f"{_TOOL_SYSTEM_PROMPT}\n"
             f"{_AUTONOMOUS_SYSTEM_PROMPT}\n"
             f"{platform_map_instruction()}\n"
             f"Research mode: {'deep' if deep else 'standard'}.\n"
-            f"Budget: at most {budget.max_searches} searches, "
+            f"Budget: at most {budget.max_model_calls} model calls, "
+            f"{budget.max_tool_calls} tool calls, {budget.max_searches} searches, "
             f"{budget.max_reads} page reads, {budget.max_rounds} rounds, "
             f"{int(budget.max_seconds)} seconds.\n"
             f"Current UTC date: {normalize_web_query(stripped).as_of_date}.\n"
@@ -673,12 +724,13 @@ class PersistentWebToolAgent(WebToolAgent):
                 max_rounds=budget.max_rounds,
                 remaining_seconds=max(0.0, deadline - time.monotonic()),
             )
-            usage = gate.usage_line()
+            usage = (
+                f"{gate.usage_line()}, "
+                f"model calls {stop.get('model_calls', 0)}/{budget.max_model_calls}"
+            )
             return f"{state}\n{usage}" if state else usage
 
         def should_cancel() -> bool:
-            if time.monotonic() >= deadline:
-                return False  # the wrapper refuses tools; let the model finish
             if service is None or run is None:
                 return False
             try:
@@ -688,7 +740,21 @@ class PersistentWebToolAgent(WebToolAgent):
             except Exception:
                 return False
 
+        def persist_round(rows: list[dict[str, Any]]) -> None:
+            if run is None:
+                return
+            preview = WebToolTrace(calls=tuple(rows), run_id=run.id)
+            self._record_trace(
+                run.id,
+                calls=rows,
+                source_block=preview.context_block(),
+                operation_id=operation_id,
+                final=False,
+                stop_reason="sources_partially_read",
+            )
+
         calls: list[dict[str, Any]] = []
+        trace_error = ""
         try:
             calls = self.run_loop(
                 messages,
@@ -697,6 +763,7 @@ class PersistentWebToolAgent(WebToolAgent):
                 model_profile=model_profile,
                 task_name="autonomous_research",
                 max_rounds=budget.max_rounds,
+                max_model_calls=budget.max_model_calls,
                 max_parallel_tools=_env_int(
                     "WEB_AUTONOMOUS_MAX_PARALLEL_READS",
                     3,
@@ -706,10 +773,26 @@ class PersistentWebToolAgent(WebToolAgent):
                 parallel_safe=self._autonomous_parallel_safe,
                 state_provider=state_provider,
                 should_cancel=should_cancel,
+                deadline=deadline,
+                return_partial_on_error=True,
+                return_partial_on_cancel=True,
+                stop_state=stop,
+                on_round=persist_round,
                 request_max_retries=0,
             )
         except Exception as exc:
             trace_error = f"{type(exc).__name__}: {exc}"
+
+        stop_reason = str(stop.get("reason") or "completed")
+        record_stop = ""
+        if stop_reason == "provider_error":
+            trace_error = str(stop.get("error") or "provider_error")
+            record_stop = "chat_tool_loop_failed"
+        elif stop_reason == "cancelled":
+            trace_error = "ResearchCancelled: Research cancelled by user"
+            record_stop = "user_cancelled"
+        elif stop_reason in {"deadline", "model_call_budget", "max_rounds"}:
+            record_stop = "sources_partially_read" if calls else "no_tool_calls"
 
         if run is not None:
             preview = WebToolTrace(calls=tuple(calls), run_id=run.id)
@@ -719,13 +802,20 @@ class PersistentWebToolAgent(WebToolAgent):
                 source_block=preview.context_block(),
                 error=trace_error,
                 operation_id=operation_id,
+                final=True,
+                stop_reason=record_stop,
             )
+        else:
+            persistence_error = ""
         error = trace_error or persistence_error
         return WebToolTrace(
             calls=tuple(calls),
             run_id=(run.id if run is not None else ""),
             error=error,
             answer_deadline=deadline,
+            model_calls=int(stop.get("model_calls") or 0),
+            tool_calls=int(gate.snapshot()["tool_calls"]),
+            stop_reason=stop_reason,
         )
 
     def _resolve_deep_research(
@@ -1104,6 +1194,8 @@ class PersistentWebToolAgent(WebToolAgent):
         source_block: str,
         error: str = "",
         operation_id: str = "",
+        final: bool = True,
+        stop_reason: str = "",
     ) -> str:
         if self.research_service is None:
             return ""
@@ -1114,6 +1206,8 @@ class PersistentWebToolAgent(WebToolAgent):
                 source_block=source_block,
                 error=error,
                 operation_id=operation_id or None,
+                final=final,
+                stop_reason=stop_reason,
             )
         except Exception as exc:
             return f"ResearchRun persistence failed: {type(exc).__name__}: {exc}"

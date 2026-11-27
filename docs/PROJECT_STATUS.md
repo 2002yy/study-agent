@@ -6,6 +6,18 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-27 自主路径 P0 修正：硬截止、部分保留、统一调用口径
+
+- 分支 `fix/agent-loop-lifecycle`，基于 `main@aa524dd3`；仍默认关闭，RQCE 与普通语义路径不变。
+- **硬截止**：`run_tool_loop` 新增 `deadline`，到点不再发起模型请求，直接返回已收集证据；用户取消在截止后仍然有效。模型请求的 `timeout` 取 `min(调用方超时, 剩余时间)`；网页读取和搜索也收到剩余时间（读取 timeout、搜索 deadline）。
+- **部分保留**：`return_partial_on_error` / `return_partial_on_cancel` 让提供方失败或取消失败时返回已有 evidence，不再抛异常丢掉整轮；`on_round` 每轮把当前工具结果写入现有 `record_tool_trace(final=False)` 检查点，复用同一个 run、operation 与 `repository.checkpoint`。
+- **最终失败也保留**：`record_tool_trace` 在 fail 前先 checkpoint 部分来源；语义恢复路径（带 `semantic_episode`）跳过这个额外 checkpoint，避免 episode 版本错位。
+- **统一调用口径**：自主预算改为普通 4 次模型调用 / 12 次工具 / 4 搜索 / 6 读取，Deep 5 / 24 / 8 / 12；`WebToolTrace` 记录 `model_calls`、`tool_calls`、`stop_reason`，聊天服务的六次调用检查同时读取 `web_tools.model_calls`，与 `semantics.model_calls` 取较大值。最终回答仍保留在六次总额度内。
+- **未变**：spend guard、DeepSeek Search 优先级、Evidence Gate、RQCE、默认开关。没有新增读取器或数据库。
+- 验证：新增 10 项工具循环生命周期测试、5 项自主预算/保留测试、1 项真实 service checkpoint 测试；相关影响集 142 项通过；Ruff 干净；mypy 112/125；无付费调用。
+- 待办：Evidence Gate 接入（P1）、用户 URL/引用/锚点继承（P1）、上下文压缩（P1）。真实模型对照仍需授权。
+- `priority=P0`、`loop=static`、`owner=research/agent-lifecycle`、`dynamic_evidence=not_run`、`budget_authorization=not_granted`、`decision=engineering-only`。
+
 ### 2026-11-27 自主研究路径 slice 1：模型选下一步，程序管边界
 
 - 已合入 `main@3de55c7f845d5681564acb75c4cb4424eb211c85`（PR #681，CI run `45951853331` 五项全绿）；默认关闭，RQCE 与普通语义路径不变。
