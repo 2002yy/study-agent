@@ -11,6 +11,7 @@ from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as Futur
 from typing import TYPE_CHECKING, Any, Callable, Sequence
 
 from src.llm_client import ModelProfile
+from src.llm_spend_guard import experiment_id, spend_scope
 from src.tools.web_agent import (
     WEB_TOOLS,
     WebToolAgent,
@@ -786,31 +787,40 @@ class PersistentWebToolAgent(WebToolAgent):
         calls: list[dict[str, Any]] = []
         trace_error = ""
         try:
-            calls = self.run_loop(
-                messages,
-                tools=WEB_TOOLS,
-                execute_tool=gate,
-                model_profile=model_profile,
-                task_name="autonomous_research",
-                max_rounds=budget.max_rounds,
-                max_model_calls=budget.max_model_calls,
-                max_parallel_tools=_env_int(
-                    "WEB_AUTONOMOUS_MAX_PARALLEL_READS",
-                    3,
-                    minimum=1,
-                    maximum=3,
-                ),
-                parallel_safe=self._autonomous_parallel_safe,
-                state_provider=state_provider,
-                context_budget=_working_context_budget(),
-                should_cancel=should_cancel,
-                deadline=deadline,
-                return_partial_on_error=True,
-                return_partial_on_cancel=True,
-                stop_state=stop,
-                on_round=persist_round,
-                request_max_retries=0,
-            )
+            # One paid unit of work: every planner call in this run is charged
+            # to the run/operation, so an experiment cap covers the whole
+            # sample instead of only the final answer generation.
+            with spend_scope(
+                run_id=(run.id if run is not None else ""),
+                operation_id=operation_id,
+                purpose="autonomous_research",
+                experiment=experiment_id(),
+            ):
+                calls = self.run_loop(
+                    messages,
+                    tools=WEB_TOOLS,
+                    execute_tool=gate,
+                    model_profile=model_profile,
+                    task_name="autonomous_research",
+                    max_rounds=budget.max_rounds,
+                    max_model_calls=budget.max_model_calls,
+                    max_parallel_tools=_env_int(
+                        "WEB_AUTONOMOUS_MAX_PARALLEL_READS",
+                        3,
+                        minimum=1,
+                        maximum=3,
+                    ),
+                    parallel_safe=self._autonomous_parallel_safe,
+                    state_provider=state_provider,
+                    context_budget=_working_context_budget(),
+                    should_cancel=should_cancel,
+                    deadline=deadline,
+                    return_partial_on_error=True,
+                    return_partial_on_cancel=True,
+                    stop_state=stop,
+                    on_round=persist_round,
+                    request_max_retries=0,
+                )
         except Exception as exc:
             trace_error = f"{type(exc).__name__}: {exc}"
 
