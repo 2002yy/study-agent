@@ -1,0 +1,286 @@
+[
+  {
+    "arm": "a",
+    "status": "completed",
+    "answer_chars": 4804,
+    "research_seconds": 103.8,
+    "elapsed_seconds": 129.5,
+    "spend_before_micros": 616956,
+    "spend_after_micros": 851728,
+    "task_contract": {
+      "task_intent": "research",
+      "closure_eligibility": "research_summary",
+      "source_policy": "web_only",
+      "learning_state_enabled": false,
+      "confidence": "high",
+      "reason": "explicit_external_research",
+      "explicit_override": false
+    },
+    "web_tools": {
+      "model_calls": 0,
+      "tool_calls": 0,
+      "stop_reason": "",
+      "error": "",
+      "final_text": "",
+      "calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "influenced_by_steering": false,
+            "query": "Godot Jolt destructible buildings rigid body limitations",
+            "round": 1
+          },
+          "ok": null,
+          "status": "ok",
+          "url": "",
+          "content_chars": 0,
+          "results": 12
+        },
+        {
+          "name": "web_search",
+          "arguments": {
+            "influenced_by_steering": false,
+            "query": "Godot Jolt compound shapes fracture performance",
+            "round": 1
+          },
+          "ok": null,
+          "status": "ok",
+          "url": "",
+          "content_chars": 0,
+          "results": 12
+        },
+        {
+          "name": "web_read",
+          "arguments": {
+            "round": 1,
+            "url": "http://m.qwbw.cn/news/21975"
+          },
+          "ok": true,
+          "status": "read",
+          "url": "http://m.qwbw.cn/news/21975",
+          "content_chars": 1200,
+          "results": 0
+        },
+        {
+          "name": "web_read",
+          "arguments": {
+            "round": 1,
+            "url": "https://bugnet.io/blog/fix-godot-physics-different-after-switching-to-jolt#areas"
+          },
+          "ok": true,
+          "status": "read",
+          "url": "https://bugnet.io/blog/fix-godot-physics-different-after-switching-to-jolt#areas",
+          "content_chars": 631,
+          "results": 0
+        },
+        {
+          "name": "web_read",
+          "arguments": {
+            "round": 1,
+            "url": "https://project-awesome.org/r/godot-jolt-godot-jolt"
+          },
+          "ok": true,
+          "status": "read",
+          "url": "https://project-awesome.org/r/godot-jolt-godot-jolt",
+          "content_chars": 1200,
+          "results": 0
+        },
+        {
+          "name": "web_read",
+          "arguments": {
+            "round": 1,
+            "url": "https://raw.githubusercontent.com/godot-jolt/godot-jolt/master/README.md#1"
+          },
+          "ok": true,
+          "status": "read",
+          "url": "https://raw.githubusercontent.com/godot-jolt/godot-jolt/master/README.md#1",
+          "content_chars": 1200,
+          "results": 0
+        },
+        {
+          "name": "web_read",
+          "arguments": {
+            "round": 1,
+            "url": "https://mygit.top/repository/566533013#1"
+          },
+          "ok": true,
+          "status": "read",
+          "url": "https://mygit.top/repository/566533013#1",
+          "content_chars": 1200,
+          "results": 0
+        },
+        {
+          "name": "web_read",
+          "arguments": {
+            "round": 1,
+            "url": "https://opendeer.net/zh/repo/godot-jolt/godot-jolt"
+          },
+          "ok": true,
+          "status": "read",
+          "url": "https://opendeer.net/zh/repo/godot-jolt/godot-jolt",
+          "content_chars": 1124,
+          "results": 0
+        },
+        {
+          "name": "web_read",
+          "arguments": {
+            "round": 1,
+            "url": "https://forum.godotengine.org/t/do-you-guys-recommend-jolt/38483"
+          },
+          "ok": true,
+          "status": "read",
+          "url": "https://forum.godotengine.org/t/do-you-guys-recommend-jolt/38483",
+          "content_chars": 1200,
+          "results": 0
+        },
+        {
+          "name": "web_read",
+          "arguments": {
+            "round": 1,
+            "url": "https://opendeer.net/en/repo/godot-jolt/godot-jolt"
+          },
+          "ok": true,
+          "status": "read",
+          "url": "https://opendeer.net/en/repo/godot-jolt/godot-jolt",
+          "content_chars": 1200,
+          "results": 0
+        },
+        {
+          "name": "web_read",
+          "arguments": {
+            "round": 1,
+            "url": "https://my.oschina.net/emacs_7996282/blog/19689133#1"
+          },
+          "ok": true,
+          "status": "read",
+          "url": "https://my.oschina.net/emacs_7996282/blog/19689133#1",
+          "content_chars": 1200,
+          "results": 0
+        }
+      ],
+      "recovery": null
+    },
+    "research_runs": [
+      {
+        "id": "web_lookup_c4abd70c42224391b496a64757f54799",
+        "stage": "completed",
+        "status": "completed",
+        "stop_reason": "sources_partially_read",
+        "provider_status": "partial",
+        "source_block_chars": 30972,
+        "items_chars": 82122,
+        "selected_sources_chars": 182833,
+        "deep": true,
+        "trace_calls": 0,
+        "trace_reads": 0,
+        "rejected_reads": 0,
+        "read_summary": {
+          "attempted": 16,
+          "budget": {
+            "max_chars_per_source": 6000,
+            "max_reads": 3,
+            "max_total_chars": 16000
+          },
+          "failed": 4,
+          "skipped": 0,
+          "successful": 12,
+          "used_chars": 48080
+        },
+        "stop_state": null
+      }
+    ]
+  },
+  {
+    "arm": "b",
+    "status": "completed",
+    "answer_chars": 5652,
+    "research_seconds": 22.3,
+    "elapsed_seconds": 67.4,
+    "spend_before_micros": 0,
+    "spend_after_micros": 616956,
+    "task_contract": {
+      "task_intent": "research",
+      "closure_eligibility": "research_summary",
+      "source_policy": "web_only",
+      "learning_state_enabled": false,
+      "confidence": "high",
+      "reason": "explicit_external_research",
+      "explicit_override": false
+    },
+    "web_tools": {
+      "model_calls": 4,
+      "tool_calls": 4,
+      "stop_reason": "completed",
+      "error": "",
+      "final_text": "",
+      "calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "max_results": 8,
+            "query": "Godot Jolt limitations concave shapes soft bodies known limitations documentation"
+          },
+          "ok": null,
+          "status": "ok",
+          "url": "",
+          "content_chars": 0,
+          "results": 8
+        },
+        {
+          "name": "web_search",
+          "arguments": {
+            "max_results": 8,
+            "query": "Jolt Physics documentation limitations compound shape rebuild runtime performance"
+          },
+          "ok": null,
+          "status": "ok",
+          "url": "",
+          "content_chars": 0,
+          "results": 8
+        },
+        {
+          "name": "web_read",
+          "arguments": {
+            "max_chars": 20000,
+            "url": "https://github.com/godotengine/godot/pull/101189"
+          },
+          "ok": true,
+          "status": "",
+          "url": "https://github.com/godotengine/godot/pull/101189",
+          "content_chars": 3722,
+          "results": 0
+        }
+      ],
+      "recovery": null
+    },
+    "research_runs": [
+      {
+        "id": "web_lookup_01db59b0f6f043fc8fbbcf2b093deaa8",
+        "stage": "completed",
+        "status": "completed",
+        "stop_reason": "read_backed_tool_evidence_found",
+        "provider_status": "found",
+        "source_block_chars": 3832,
+        "items_chars": 30245,
+        "selected_sources_chars": 907,
+        "deep": true,
+        "trace_calls": 3,
+        "trace_reads": 1,
+        "rejected_reads": 1,
+        "read_summary": {
+          "attempted": 0,
+          "budget": {
+            "max_chars_per_source": 6000,
+            "max_reads": 3,
+            "max_total_chars": 16000
+          },
+          "failed": 0,
+          "skipped": 0,
+          "successful": 0,
+          "used_chars": 0
+        },
+        "stop_state": null
+      }
+    ]
+  }
+]
