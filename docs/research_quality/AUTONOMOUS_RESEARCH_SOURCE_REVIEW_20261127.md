@@ -60,13 +60,29 @@
 
 首版把“到点后继续轮次”当成了收尾，实际会多花模型调用并跳过用户取消。现改为：
 
-- deadline 进入 
-un_tool_loop：到点不再发模型请求，直接返回已有 evidence。
+- deadline 进入 run_tool_loop：到点不再发模型请求，直接返回已有 evidence。
 - 用户取消始终检查，即使已经过截止时间。
 - 模型请求、网页读取、搜索都收到剩余时间。
-- 提供方失败/取消返回部分 evidence；每轮用现有 
-ecord_tool_trace(final=False) 检查点。
+- 提供方失败/取消返回部分 evidence；每轮用现有 record_tool_trace(final=False) 检查点。
 - 自主预算显式记录模型调用、工具调用、搜索、读取；聊天服务的六次调用检查把自主模型调用算进去。
 
 Codex 的“turn 生命周期”和 OpenCode 的“达到上限后文本收尾”在这里对应为：
 **停止发起新动作，但保留已完成动作的结果**。
+
+## 6. P2 上下文管理（2026-11-27）
+
+两份源码里的压缩机制落到本仓库时分成两个不同用途，而不是一个“截断到 N 字符”：
+
+| 用途 | 本仓实现 | 对应源码机制 |
+| --- | --- | --- |
+| 模型工作上下文 | `src/llm_context.py`：超过 `WEB_TOOL_WORKING_CONTEXT_CHARS`（默认 60,000）才压缩；最近 2 轮原样，旧工具结果换成结构化摘要；旧状态块折叠；system/user 不改写 | OpenCode 的阈值触发与“保留最近原文”；Codex 的工具输出保留/截断分离 |
+| 最终答案证据 | `src/web/answer_evidence.py`：按来源水填充分配 30,000 字符；短来源全文，长来源按问题词选段并保留页首页尾；相同正文只算一次 | Codex 的“摘要与后续上下文分开组装” |
+
+两种用途都引用同一份原始证据：
+
+- 准入读取的完整正文仍在 `tool_trace.calls`；
+- 未准入的探索性读取正文在 `tool_trace.exploration_reads`（单条 20,000、单轮 60,000、最多 12 条，附 `chars`/`stored_chars`/`truncated`/`digest`）；
+- 工作上下文压缩不会改变 `run_tool_loop` 返回的 evidence，也不会改持久化 trace。
+
+没有引入模型摘要、子代理或第二套证据系统。真实模型对照仍需授权。
+
