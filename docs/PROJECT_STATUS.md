@@ -6,6 +6,18 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-27 自主研究路径 slice 1：模型选下一步，程序管边界
+
+- 分支 `feat/autonomous-research`，基于冻结主线 `8b4f8410`；默认关闭，RQCE 与普通语义路径不变。
+- 源码对照见 `docs/research_quality/AUTONOMOUS_RESEARCH_SOURCE_REVIEW_20261127.md`：Codex 的 turn 循环 / 独立压缩 / abort 契约；OpenCode 的一步内并行工具 / 最大 step 文本收尾 / 阈值压缩。许可证 Apache-2.0 与 MIT；只复现机制，不复制代码。
+- 新增 `WEB_AUTONOMOUS_RESEARCH=1`：普通研究改走 `run_tool_loop`，模型自行决定搜索、读取、核查与停止；`PersistentWebToolAgent` 只做路由与持久化。
+- 新增 `WEB_AUTONOMOUS_DEEP=1`：显式 Deep 才走同一路径；默认仍由 RQCE 执行。
+- 预算包装器 `AutonomousToolBudget`：普通研究 6 轮 / 4 搜索 / 6 读取 / 180 秒；Deep 10 / 8 / 12 / 600 秒；搜索配额用完后仍可读已发现页面，墙钟到点后所有工具拒绝，模型用已有证据收尾。
+- 复用：现有搜索/读取网关、平台地图、SSRF/范围检查、研究运行与工具轨迹、研究状态块、并行读取。未新增读取器、证据库、调度器或第二套状态机。
+- 验证：新增 8 项自主路径测试；工具循环/持久 Agent/状态块/搜索影响集 63 项通过；Ruff 干净；mypy 112/125；无付费调用。本机 `test_deepseek_web_tools` 有 1 项因 Browse CLI 可用性波动，CI 无该 CLI，与本次改动无关。
+- 边界：本批是普通研究 + Deep 路由的骨架，不是完整替代；上下文压缩、子代理、真实模型对照均未做。
+- `priority=P0`、`loop=static`、`owner=research/autonomous-loop`、`dynamic_evidence=not_run`、`budget_authorization=not_granted`、`decision=engineering-only`。
+
 ### 2026-11-27 冻结快照：读取与时间预算优化收口
 
 - 冻结主线：`main@cf732c7131dc0174075ef6d84b607098f89d1161`，工作区干净。包含 #675 `48ee4054` 尺寸分层、#677 `f7329b7d` 保守去重、#678 `3de4d21d` 并行读取 + 研究状态块、#679 `cf732c71` 时间预算分级。
