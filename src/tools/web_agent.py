@@ -610,6 +610,12 @@ class WebToolAgent:
                     next_round=next_round,
                     max_rounds=max_rounds,
                 ),
+                context_budget=_env_int(
+                    "WEB_TOOL_WORKING_CONTEXT_CHARS",
+                    60000,
+                    minimum=8000,
+                    maximum=400000,
+                ),
             )
             return WebToolTrace(calls=tuple(calls))
         except Exception as exc:

@@ -94,6 +94,14 @@ def _web_tool_total_budget() -> int:
     )
 
 
+def _working_context_budget() -> int:
+    """Transcript characters before older tool results are compacted."""
+
+    return _env_int(
+        "WEB_TOOL_WORKING_CONTEXT_CHARS", 60000, minimum=8000, maximum=400000,
+    )
+
+
 def _requires_planned_tools(user_input: str) -> bool:
     """Keep the LLM planner for GitHub workflows; use deterministic web search otherwise."""
 
@@ -559,6 +567,7 @@ class PersistentWebToolAgent(WebToolAgent):
                     max_rounds=tool_rounds,
                     remaining_seconds=max(0.0, deadline - time.monotonic()),
                 ),
+                context_budget=_working_context_budget(),
                 should_cancel=(
                     lambda: (
                         time.monotonic() >= deadline
@@ -786,6 +795,7 @@ class PersistentWebToolAgent(WebToolAgent):
                 ),
                 parallel_safe=self._autonomous_parallel_safe,
                 state_provider=state_provider,
+                context_budget=_working_context_budget(),
                 should_cancel=should_cancel,
                 deadline=deadline,
                 return_partial_on_error=True,
