@@ -8,7 +8,7 @@
 
 ### 2026-11-27 自主研究路径 slice 1：模型选下一步，程序管边界
 
-- 分支 `feat/autonomous-research`，基于冻结主线 `8b4f8410`；默认关闭，RQCE 与普通语义路径不变。
+- 已合入 `main@3de55c7f845d5681564acb75c4cb4424eb211c85`（PR #681，CI run `45951853331` 五项全绿）；默认关闭，RQCE 与普通语义路径不变。
 - 源码对照见 `docs/research_quality/AUTONOMOUS_RESEARCH_SOURCE_REVIEW_20261127.md`：Codex 的 turn 循环 / 独立压缩 / abort 契约；OpenCode 的一步内并行工具 / 最大 step 文本收尾 / 阈值压缩。许可证 Apache-2.0 与 MIT；只复现机制，不复制代码。
 - 新增 `WEB_AUTONOMOUS_RESEARCH=1`：普通研究改走 `run_tool_loop`，模型自行决定搜索、读取、核查与停止；`PersistentWebToolAgent` 只做路由与持久化。
 - 新增 `WEB_AUTONOMOUS_DEEP=1`：显式 Deep 才走同一路径；默认仍由 RQCE 执行。
