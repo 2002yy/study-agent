@@ -511,7 +511,9 @@ class PersistentWebToolAgent(WebToolAgent):
                 )
                 trace_error = persistence_error
                 if run is not None:
-                    preview = WebToolTrace(calls=tuple(calls), run_id=run.id)
+                    preview = WebToolTrace(
+                        query=user_input, calls=tuple(calls), run_id=run.id
+                    )
                     trace_error = self._record_trace(
                         run.id,
                         calls=calls,
@@ -519,6 +521,7 @@ class PersistentWebToolAgent(WebToolAgent):
                         operation_id=operation_id,
                     )
                 return WebToolTrace(
+                    query=user_input,
                     calls=tuple(calls),
                     answer_deadline=answer_deadline,
                     error=("ResearchCancelled: Research cancelled by user"
@@ -597,7 +600,9 @@ class PersistentWebToolAgent(WebToolAgent):
                     executor.shutdown(wait=False, cancel_futures=True)
             trace_error = persistence_error
             if run is not None:
-                preview = WebToolTrace(calls=tuple(calls), run_id=run.id)
+                preview = WebToolTrace(
+                    query=user_input, calls=tuple(calls), run_id=run.id
+                )
                 trace_error = self._record_trace(
                     run.id,
                     calls=calls,
@@ -605,6 +610,7 @@ class PersistentWebToolAgent(WebToolAgent):
                     operation_id=operation_id,
                 )
             return WebToolTrace(
+                query=user_input,
                 calls=tuple(calls),
                 error=trace_error,
                 run_id=(run.id if run else ""),
@@ -760,6 +766,7 @@ class PersistentWebToolAgent(WebToolAgent):
                 return
             admitted, _rejected = admit_tool_evidence(rows, user_urls=user_urls)
             preview = WebToolTrace(
+                query=user_input,
                 calls=tuple(rows),
                 run_id=run.id,
                 evidence_calls=tuple(admitted),
@@ -821,6 +828,7 @@ class PersistentWebToolAgent(WebToolAgent):
         admitted, rejected = admit_tool_evidence(calls, user_urls=user_urls)
         if run is not None:
             preview = WebToolTrace(
+                query=user_input,
                 calls=tuple(calls),
                 run_id=run.id,
                 evidence_calls=tuple(admitted),
@@ -840,6 +848,7 @@ class PersistentWebToolAgent(WebToolAgent):
         checkpoint_error = str(stop.get("checkpoint_error") or "")
         error = trace_error or persistence_error or checkpoint_error
         return WebToolTrace(
+            query=user_input,
             calls=tuple(calls),
             run_id=(run.id if run is not None else ""),
             error=error,
@@ -965,6 +974,7 @@ class PersistentWebToolAgent(WebToolAgent):
                         }
                     )
             return WebToolTrace(
+                query=user_input,
                 calls=tuple(calls),
                 run_id=completed.id,
             )
@@ -976,6 +986,7 @@ class PersistentWebToolAgent(WebToolAgent):
             if cancelled:
                 error = "ResearchCancelled: 深度研究已被用户停止"
             return WebToolTrace(
+                query=user_input,
                 calls=tuple(calls),
                 error=error,
                 run_id=(run.id if run else ""),
@@ -1115,7 +1126,12 @@ class PersistentWebToolAgent(WebToolAgent):
             }
             if service.tool_trace_cancel_requested(run.id, operation_id):
                 service.finish_tool_trace_cancel(run.id, operation_id)
-                return WebToolTrace(calls=tuple(calls), error="ResearchCancelled: Research cancelled by user", run_id=run.id)
+                return WebToolTrace(
+                    query=user_input,
+                    calls=tuple(calls),
+                    error="ResearchCancelled: Research cancelled by user",
+                    run_id=run.id,
+                )
             restrict_fallback = (
                 str(exc) == "site_scope_invalid"
                 or bool(prior and prior.constraints.get("platform_scope", "general") != "general")
@@ -1200,8 +1216,15 @@ class PersistentWebToolAgent(WebToolAgent):
         }})
         if session.should_cancel():
             service.finish_tool_trace_cancel(run.id, operation_id)
-            return WebToolTrace(calls=tuple(calls), error="ResearchCancelled: Research cancelled by user", run_id=run.id)
-        preview = WebToolTrace(calls=tuple(calls), run_id=run.id)
+            return WebToolTrace(
+                query=user_input,
+                calls=tuple(calls),
+                error="ResearchCancelled: Research cancelled by user",
+                run_id=run.id,
+            )
+        preview = WebToolTrace(
+            query=user_input, calls=tuple(calls), run_id=run.id
+        )
         try:
             service.record_tool_trace(
                 run.id, calls=calls, source_block=preview.context_block(), error=error,
@@ -1211,6 +1234,7 @@ class PersistentWebToolAgent(WebToolAgent):
         except Exception as exc:
             error = f"ResearchRun record failed: {type(exc).__name__}: {exc}"
         return WebToolTrace(
+            query=user_input,
             calls=tuple(calls),
             error=error,
             run_id=run.id,
