@@ -6,6 +6,17 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-27 研究执行方式首轮对照：自主 Deep vs RQCE Deep
+
+- 已获授权执行 1 题 × 2 路径（Godot + Jolt，¥2 上限，图片关闭）；实际模型费用 **¥0.909 / ¥2**。报告与原始答案：`docs/research_quality/RESEARCH_MODE_AB_RESULTS_20261127.md`、`docs/research_quality/evidence/rab-20261127/`。
+- 自主臂完成研究并产出 5,652 字答案；4 次规划调用、4 次工具调用、**只准入 1 个来源**。它实际读到了 18,436 字符的 Godot 官方 Jolt 文档，但搜索给的是 `/ja/4.4/`、它读的是 `/en/latest/`，canonical 不合并语言/版本，被判 `source_not_established` 后丢弃；答案因此主要靠模型知识（它自己明确标注了这一点）。
+- RQCE 臂 3 次规划调用、16 次读取尝试（12 成功）、28 个选中来源；来源以 `opendeer.net` / `project-awesome` / 论坛等镜像为主，答案把"扩展不支持线程安全"误当成内置模块限制，并把 4.4 的 SoftBody3D-Area3D 缺失当作当前限制。
+- 评分（单评分者、非盲评）：自主 **72** / RQCE **64**（事实 30 / 覆盖 25 / 新发现 15 / 反例 15 / 证据 15）。自主答案更可执行，RQCE 证据可追溯性更好但一手性差。
+- **未证明"模型主导更好"**：自主的研究深度不足，且最好的来源被准入规则拒绝；差异混合了架构、来源选择与读取深度。
+- 下一步唯一值得先做的机制决定：**是否合并同一文档的语言/版本变体**（P1 遗留未决项，本轮首次有真实代价证据）。修复后重跑 1 题 × 2 路径需再次授权；剩余预算约 ¥1.09。
+- 过程中修了两个 P1/P0 缺口并合入：自主路径未绑定实验 spend scope（#692）、首轮纯文本提前结束不可诊断（#693）。
+- `priority=P1`、`loop=dynamic`、`owner=research/mode-comparison`、`dynamic_evidence=authorized_run`、`budget_authorization=granted_2cny`、`decision=inconclusive_pending_admission_fix`。
+
 ### 2026-11-27 自主路径 P2：来源准入补齐、答案证据组装、工作上下文压缩
 
 - 当前 `main@70096299`，工作区干净；自主路径仍默认关闭，RQCE 与普通语义路径未改。
