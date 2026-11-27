@@ -11,6 +11,8 @@ from typing import Any, AsyncIterator, Callable, Iterator, Literal
 
 from dotenv import load_dotenv
 
+from src.llm_context import compress_working_context
+
 load_dotenv()
 
 ModelProfile = Literal["flash", "pro"]
@@ -716,6 +718,8 @@ def run_tool_loop(
     max_parallel_tools: int = 1,
     parallel_safe: Callable[[str, dict[str, Any]], bool] | None = None,
     state_provider: Callable[[list[dict[str, Any]], int], str] | None = None,
+    context_budget: int | None = None,
+    context_keep_rounds: int = 2,
     deadline: float | None = None,
     max_model_calls: int | None = None,
     return_partial_on_error: bool = False,
@@ -740,6 +744,11 @@ def run_tool_loop(
     failure or user cancellation can also return the partial evidence when the
     caller asks for it. ``stop_state`` receives ``reason``, ``error`` and
     ``model_calls`` for the caller's durable trace.
+
+    ``context_budget`` enables deterministic working-context compression. Once
+    the transcript crosses that many characters, tool results older than the
+    most recent ``context_keep_rounds`` are replaced by bounded summaries; the
+    returned evidence and its durable trace keep the full bodies.
     """
     if not messages or not tools:
         return []
@@ -765,6 +774,7 @@ def run_tool_loop(
     )
     transcript = list(messages)
     evidence: list[dict[str, Any]] = []
+    state_indexes: list[int] = []
     max_parallel = max(1, int(max_parallel_tools))
     for _round in range(max(1, max_rounds)):
         # User cancellation stays visible even after the clock runs out.
@@ -779,6 +789,22 @@ def run_tool_loop(
         if max_model_calls is not None and model_calls >= max_model_calls:
             mark_stop("model_call_budget")
             return evidence
+        if context_budget is not None:
+            try:
+                stats = compress_working_context(
+                    transcript,
+                    completed_rounds=_round,
+                    budget=int(context_budget),
+                    keep_rounds=context_keep_rounds,
+                    state_indexes=state_indexes,
+                )
+                if stop_state is not None and stats["compressed"]:
+                    stop_state["working_context"] = stats
+            except Exception as exc:  # A compression bug must not end research.
+                if stop_state is not None:
+                    stop_state["context_compression_error"] = (
+                        f"{type(exc).__name__}: {exc}"
+                    )
         round_timeout = timeout
         if deadline is not None:
             remaining = max(0.0, deadline - clock())
@@ -960,6 +986,7 @@ def run_tool_loop(
         if state_provider is not None and _round + 1 < max(1, max_rounds):
             block = state_provider(list(evidence), _round + 2)
             if block:
+                state_indexes.append(len(transcript))
                 transcript.append({"role": "user", "content": block})
         if on_round is not None:
             try:
