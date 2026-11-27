@@ -635,17 +635,17 @@ class WebToolAgent:
         if site_key:
             search_site = getattr(self.gateway, "search_site", None)
             if callable(search_site):
+                extra = {"deadline": deadline} if deadline is not None else {}
                 return search_site(
                     query,
                     site_key=site_key,
                     max_results=max_results,
-                    deadline=deadline,
+                    **extra,
                 )
         detailed = getattr(self.gateway, "search_detailed", None)
         if callable(detailed):
-            return detailed(
-                query, max_results=max_results, deadline=deadline,
-            )
+            extra = {"deadline": deadline} if deadline is not None else {}
+            return detailed(query, max_results=max_results, **extra)
         results = self.gateway.search(query, max_results=max_results)
         normalization = normalize_web_query(query)
         return {

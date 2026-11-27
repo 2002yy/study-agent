@@ -57,6 +57,7 @@ def _patch_client(monkeypatch, completions: FakeCompletions) -> None:
 
 def _run(monkeypatch, completions, execute, **kwargs):
     _patch_client(monkeypatch, completions)
+    kwargs.setdefault("timeout", 5.0)
     return run_tool_loop(
         [{"role": "user", "content": "research"}],
         tools=[{"type": "function", "function": {"name": "web_search"}}],
