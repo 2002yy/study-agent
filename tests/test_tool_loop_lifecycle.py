@@ -245,3 +245,26 @@ def test_cancel_between_tool_groups_still_raises_without_partial(monkeypatch):
             execute,
             should_cancel=lambda: cancelled[0],
         )
+
+
+def test_a_text_only_reply_records_what_the_model_said(monkeypatch):
+    response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(content="我先列出子问题，不调用工具。", tool_calls=[])
+            )
+        ]
+    )
+    completions = FakeCompletions([response])
+    stop: dict = {}
+
+    evidence = _run(
+        monkeypatch,
+        completions,
+        lambda _name, _args: {"ok": True},
+        stop_state=stop,
+    )
+
+    assert evidence == []
+    assert stop["reason"] == "completed"
+    assert stop["final_text"] == "我先列出子问题，不调用工具。"

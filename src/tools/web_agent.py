@@ -435,6 +435,8 @@ class WebToolTrace:
     stop_reason: str = ""
     #: The research question, used only to pick passages worth the answer budget.
     query: str = ""
+    #: Text of a model reply that ended the loop without a tool call.
+    final_text: str = ""
     # Admission separates exploratory reads from answer evidence. `None` keeps
     # the legacy derived behaviour for every existing caller.
     evidence_calls: tuple[dict[str, Any], ...] | None = None
@@ -527,6 +529,7 @@ class WebToolTrace:
             "model_calls": self.model_calls,
             "tool_calls": self.tool_calls,
             "stop_reason": self.stop_reason,
+            "final_text": self.final_text,
             "rejected_evidence": list(self.rejected_evidence),
             "recovery": recovery_summary(list(self.calls)),
             "semantics": next((dict(call["result"]) for call in reversed(self.calls)
