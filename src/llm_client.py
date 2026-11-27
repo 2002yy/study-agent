@@ -823,7 +823,11 @@ def run_tool_loop(
                 model_profile=model_profile,
                 provider_profile=provider_profile,
                 task_name=task_name,
-                max_tokens=600,
+                # A reasoning model can spend the whole budget before it emits
+                # the tool call; 600 tokens produced empty completions with
+                # finish_reason=length. The planner still needs only a small
+                # JSON call, so the extra room is a ceiling, not a target.
+                max_tokens=1600,
                 timeout=round_timeout,
                 response_format=None,
                 stream=False,
