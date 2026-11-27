@@ -6,8 +6,10 @@ import re
 
 from copy import deepcopy
 import ipaddress
-from typing import Any
+from typing import Any, Sequence
 from urllib.parse import urlparse
+
+from src.news.url_normalizer import canonicalize_url
 
 
 def _public_url(value: object) -> str:
@@ -43,7 +45,11 @@ def _is_true(value: object) -> bool:
     return value is True or str(value).strip().casefold() == "true"
 
 
-def trusted_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def trusted_tool_calls(
+    calls: list[dict[str, Any]],
+    *,
+    user_urls: Sequence[str] = (),
+) -> list[dict[str, Any]]:
     """Return sanitized source-bearing calls, including search candidates.
 
     A successful ``web_search`` proves only that candidate links were
@@ -53,6 +59,11 @@ def trusted_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     trusted: list[dict[str, Any]] = []
     discovered_urls: set[str] = set()
+    # Canonical keys strip fragments and normalize the query, so a section
+    # anchor or a user-typed variant still matches its source document.
+    discovered_keys: set[str] = {
+        key for key in (canonicalize_url(url) for url in user_urls) if key
+    }
     for raw_call in calls:
         if not isinstance(raw_call, dict):
             continue
@@ -76,6 +87,9 @@ def trusted_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 continue
             projected["results"] = valid
             discovered_urls.update(str(item["url"]).casefold() for item in valid)
+            discovered_keys.update(
+                key for key in (canonicalize_url(str(item["url"])) for item in valid) if key
+            )
             trusted.append(call)
             continue
 
@@ -96,6 +110,14 @@ def trusted_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 _public_url(item.get("url") or item.get("link")).casefold()
                 for item in valid_results
             )
+            discovered_keys.update(
+                key
+                for key in (
+                    canonicalize_url(_public_url(item.get("url") or item.get("link")))
+                    for item in valid_results
+                )
+                if key
+            )
             trusted.append(call)
             continue
 
@@ -112,7 +134,11 @@ def trusted_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
             # Never add that destination to the search results to manufacture
             # discovery provenance, or accept an undiscovered request because
             # its response claims a previously discovered destination.
-            if requested_url.casefold() not in discovered_urls:
+            requested_key = canonicalize_url(requested_url)
+            if (
+                requested_url.casefold() not in discovered_urls
+                and (not requested_key or requested_key not in discovered_keys)
+            ):
                 continue
             if result.get("requested_url") and result["requested_url"] != requested_url:
                 continue
@@ -120,6 +146,15 @@ def trusted_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 continue
             projected["url"] = url
             trusted.append(call)
+            links = result.get("links")
+            if isinstance(links, (list, tuple)):
+                for link in links:
+                    if not isinstance(link, dict):
+                        continue
+                    link_url = _public_url(link.get("url") or link.get("link"))
+                    key = canonicalize_url(link_url) if link_url else ""
+                    if key:
+                        discovered_keys.add(key)
             continue
 
         if name.startswith("github_") and _is_true(result.get("ok")):
@@ -146,7 +181,11 @@ def trusted_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return trusted
 
 
-def evidence_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def evidence_tool_calls(
+    calls: list[dict[str, Any]],
+    *,
+    user_urls: Sequence[str] = (),
+) -> list[dict[str, Any]]:
     """Return calls that may enter answer context.
 
     Plain search snippets are deliberately excluded.  A normal web page is
@@ -157,7 +196,7 @@ def evidence_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     return [
         call
-        for call in trusted_tool_calls(calls)
+        for call in trusted_tool_calls(calls, user_urls=user_urls)
         if (
             str(call.get("name") or "") == "web_read"
             and call.get("result", {}).get("answer_eligible") is not False
@@ -283,10 +322,19 @@ def tool_source_items(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return items
 
 
-def tool_evidence_items(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Project answer-usable calls into stable source identities."""
+def tool_evidence_items(
+    calls: list[dict[str, Any]],
+    *,
+    admitted: Sequence[dict[str, Any]] | None = None,
+    user_urls: Sequence[str] = (),
+) -> list[dict[str, Any]]:
+    """Project answer-usable calls into stable source identities.
 
-    safe_calls = trusted_tool_calls(calls)
+    `admitted` lets the caller pass a gate-approved read subset while the
+    full call list still supplies search titles and structured metadata.
+    """
+
+    safe_calls = trusted_tool_calls(calls, user_urls=user_urls)
     search_titles: dict[str, str] = {}
     for call in safe_calls:
         if str(call.get("name") or "") != "web_search":
@@ -304,7 +352,11 @@ def tool_evidence_items(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     items: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for call in evidence_tool_calls(calls):
+    for call in (
+        admitted
+        if admitted is not None
+        else evidence_tool_calls(calls, user_urls=user_urls)
+    ):
         name = str(call.get("name") or "")
         result = call.get("result")
         if not isinstance(result, dict):
@@ -337,3 +389,57 @@ def tool_evidence_items(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
             seen.add(url.casefold())
             items.append(item)
     return items
+
+def admit_tool_evidence(
+    calls: list[dict[str, Any]],
+    *,
+    user_urls: Sequence[str] = (),
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Admitted reads plus a bounded reason for each rejected read.
+
+    Reading is exploration; only an admitted read may support the final answer.
+    A source is admitted when it was typed by the user, discovered by a search,
+    cited by an already-admitted read, or is the same canonical document as one
+    of those (fragment/query differences do not hide an anchor).
+    """
+
+    admitted = evidence_tool_calls(calls, user_urls=user_urls)
+
+    def signature(call: dict[str, Any]) -> tuple[str, str]:
+        arguments = call.get("arguments")
+        arguments = arguments if isinstance(arguments, dict) else {}
+        result = call.get("result")
+        result = result if isinstance(result, dict) else {}
+        return (
+            canonicalize_url(str(arguments.get("url") or "")),
+            canonicalize_url(str(result.get("url") or "")),
+        )
+
+    admitted_signatures = {signature(call) for call in admitted}
+    rejected: list[dict[str, str]] = []
+    for call in calls:
+        if not isinstance(call, dict) or call.get("name") != "web_read":
+            continue
+        if signature(call) in admitted_signatures:
+            continue
+        result = call.get("result")
+        arguments = call.get("arguments")
+        arguments = arguments if isinstance(arguments, dict) else {}
+        if not isinstance(result, dict):
+            reason = "missing_result"
+        elif not _is_true(result.get("ok")):
+            reason = "read_failed"
+        elif not str(result.get("content") or result.get("readme") or "").strip():
+            reason = "empty_content"
+        else:
+            reason = "source_not_established"
+        rejected.append(
+            {
+                "url": _public_url(
+                    result.get("url") if isinstance(result, dict) else ""
+                )
+                or _public_url(arguments.get("url")),
+                "reason": reason,
+            }
+        )
+    return admitted, rejected

@@ -18,14 +18,14 @@ def _search_call() -> dict:
     }
 
 
-def _read_call() -> dict:
+def _read_call(url: str = "https://example.org/a") -> dict:
     return {
         "name": "web_read",
-        "arguments": {"url": "https://example.org/a"},
+        "arguments": {"url": url},
         "result": {
             "ok": True,
             "status": "read",
-            "url": "https://example.org/a",
+            "url": url,
             "title": "A",
             "content": "body",
         },
@@ -68,3 +68,28 @@ def test_partial_checkpoint_keeps_the_run_open_then_failure_keeps_the_calls(tmp_
     assert failed.status == "failed"
     assert len(failed.selected_sources) == 1
     assert failed.stop_reason == "chat_tool_loop_failed"
+
+
+def test_recorded_trace_admits_a_user_supplied_url_without_a_search(tmp_path):
+    service = WebLookupService(
+        WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    )
+    run = service.create(
+        "topic",
+        run_kind="autonomous_research",
+        research_mode="standard",
+    )
+    operation = service.begin_tool_trace(run.id)
+    url = "https://user.example/doc"
+
+    completed = service.record_tool_trace(
+        run.id,
+        calls=[_read_call(url)],
+        source_block="",
+        operation_id=operation,
+        final=True,
+        user_urls=(url,),
+    )
+
+    assert completed.status == "completed"
+    assert [row["item"]["url"] for row in completed.selected_sources] == [url]

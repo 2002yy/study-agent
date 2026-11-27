@@ -789,23 +789,29 @@ def run_tool_loop(
                 if timeout is None
                 else min(float(timeout), remaining)
             )
-        request_kwargs = _build_request_kwargs(
-            messages=transcript,
-            temperature=0.0,
-            model_profile=model_profile,
-            provider_profile=provider_profile,
-            task_name=task_name,
-            max_tokens=600,
-            timeout=round_timeout,
-            response_format=None,
-            stream=False,
-            tools=tools,
-            # Every round is its own paid send, so it gets its own key.
-            request_key=(
-                f"{request_key}#round{_round}" if request_key else None
-            ),
-            request_max_retries=request_max_retries,
-        )
+        try:
+            request_kwargs = _build_request_kwargs(
+                messages=transcript,
+                temperature=0.0,
+                model_profile=model_profile,
+                provider_profile=provider_profile,
+                task_name=task_name,
+                max_tokens=600,
+                timeout=round_timeout,
+                response_format=None,
+                stream=False,
+                tools=tools,
+                # Every round is its own paid send, so it gets its own key.
+                request_key=(
+                    f"{request_key}#round{_round}" if request_key else None
+                ),
+                request_max_retries=request_max_retries,
+            )
+        except Exception as exc:
+            if return_partial_on_error:
+                mark_stop("provider_error", f"{type(exc).__name__}: {exc}")
+                return evidence
+            raise
         model_calls += 1
         if stop_state is not None:
             stop_state["model_calls"] = model_calls
@@ -875,6 +881,7 @@ def run_tool_loop(
                 ):
                     group.append(prepared[cursor])
                     cursor += 1
+            cancelled_mid_round = False
             if len(group) > 1:
                 with ThreadPoolExecutor(
                     max_workers=max_parallel,
@@ -882,7 +889,9 @@ def run_tool_loop(
                 ) as pool:
                     for start in range(0, len(group), max_parallel):
                         if start and should_cancel is not None and should_cancel():
-                            raise RuntimeError("tool_loop_cancelled")
+                            mark_stop("cancelled")
+                            cancelled_mid_round = True
+                            break
                         batch = group[start:start + max_parallel]
                         futures = [pool.submit(run_one, item) for item in batch]
                         for item, future in zip(batch, futures, strict=True):
@@ -890,6 +899,8 @@ def run_tool_loop(
             else:
                 entry["result"] = run_one(entry)
             position += len(group)
+            if cancelled_mid_round:
+                break
 
         if stop_state is not None:
             stop_state["model_calls"] = model_calls
@@ -898,7 +909,8 @@ def run_tool_loop(
         for entry in prepared:
             result = entry["result"]
             if result is None:
-                result = {"error": "tool_not_executed"}
+                # A batch cancelled before dispatch has no result to report.
+                continue
             name = entry["name"]
             arguments = entry["arguments"]
             call_id = entry["call_id"]
@@ -928,6 +940,18 @@ def run_tool_loop(
                 "tool_calls": assistant_calls,
             },
         )
+        if cancelled_mid_round:
+            if on_round is not None:
+                try:
+                    on_round(list(evidence))
+                except Exception as exc:
+                    if stop_state is not None:
+                        stop_state["checkpoint_error"] = (
+                            f"{type(exc).__name__}: {exc}"
+                        )
+            if return_partial_on_cancel:
+                return evidence
+            raise RuntimeError("tool_loop_cancelled")
         if state_provider is not None and _round + 1 < max(1, max_rounds):
             block = state_provider(list(evidence), _round + 2)
             if block:

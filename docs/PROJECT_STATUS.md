@@ -6,6 +6,19 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-27 自主路径 P1：截止分离、分级读取、来源准入
+
+- 分支 `fix/p1-boundaries`，基于 `main@f3df9882`；默认仍关闭。
+- **回答窗口**：自主研究返回 `answer_deadline = 研究截止 + 60 秒`，复用 `ANSWER_GENERATION_RESERVE_SECONDS`；研究到点后仍能生成答案。
+- **读取分级**：自主读取的 `timeout` 取 `min(资料类型预算, 剩余研究时间)`；普通页 15、文档 30、PDF 60、音视频 330，不再被剩余 500 秒覆盖。
+- **边界补齐**：并行批次中间取消保留已完成批次；`_build_request_kwargs`（含账本/凭据错误）失败也返回部分 evidence；检查点失败写入 `stop_state` 并进入最终 `error` 诊断。
+- **调用额度**：自主模型调用上限最高 5，给最终回答至少留 1 次；普通默认 4、Deep 5。
+- **来源准入**：`trusted_tool_calls` / `evidence_tool_calls` 支持用户指定 URL、搜索发现、已读页面 `links` 引用、章节锚点（canonical 去 fragment）。读取仍自由，但 `WebToolTrace.evidence_calls` 只放行可追溯来源；`rejected_evidence` 记录 `source_not_established` / `read_failed` 等原因。
+- **持久化**：`record_tool_trace(user_urls=...)` 把同一准入规则用于 `selected_sources`，不是只在内存里过滤。
+- 验证：新增 7 项边界测试、6 项来源准入测试、用户 URL 真实 service 持久化测试；相关影响集 300+ 项通过；Ruff 干净；mypy 112/125；无付费调用。
+- 边界：这是工具循环的来源准入，不是 RQCE 的 claim 级 Evidence Gate；claim 级 Gate 仍只覆盖确定性路径。上下文压缩尚未做。
+- `priority=P1`、`loop=static`、`owner=research/evidence-admission`、`dynamic_evidence=not_run`、`budget_authorization=not_granted`、`decision=engineering-only`。
+
 ### 2026-11-27 自主路径 P0 修正：硬截止、部分保留、统一调用口径
 
 - 已合入 `main@616bfb370539da668e80b046dc1f071497ce5f33`（PR #683，CI run `45970813807` 五项全绿）；仍默认关闭，RQCE 与普通语义路径不变。
