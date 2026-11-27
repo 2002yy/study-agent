@@ -6,6 +6,17 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-28 研究交付可靠性：Deep 16k、发布局部修正、版本提示
+
+- 已合入 `main@6733b650`（PR #702，CI run `46049472438` 五项全绿）。
+- **Deep 回答上限**：`chat_max_tokens("deep")` = 16,384；fast/standard 保持 8,192。显式 `请深度研究：` 前缀即使 runtime mode 仍是默认，也取 16k。仍是上限，不是目标；账本按 max_tokens 预留。
+- **发布门禁局部修正**：答案引用未读取页面时，删除该引用、保留结论，附"已移除 N 处未读取来源的引用"；删除后仍有已读引用则正常发布，没有则降级为"【未完整核实的研究草稿】"。无法安全删除的畸形链接仍整轮拒绝。`answer_citation_scope` 记录 `outside/removed/policy/downgraded`。严格 binder 模式不变。
+- **版本准确性**：自主提示词要求记录 URL 中的版本/分支/commit 并按该版本表述；答案证据块标题声明不得把旧版本限制说成当前版本。这是提示词约束，不是自动事实核对。
+- **thinking 适配**：沿用 #699（规划轮关闭 thinking）；B 的真实运行用该配置完成 4 次搜索 + 3 次读取。
+- 验证：新增 Deep 16k、显式前缀、局部删除/降级、保留有效引用、裸链删除、流式同样修正等测试；影响集 266 项通过；全量 CI backend 6974 passed / 17 skipped；Ruff 干净；mypy 112/125；无付费调用。
+- 已知限制：局部修正只识别 URL 链接，纯文本提到未读来源不会被识别；A2 的候选答案原文未持久化，免费验证使用等价合成答案而非逐字回放。
+- `priority=P0/P1`、`loop=static`、`owner=research/publication`、`dynamic_evidence=free_replay`、`budget_authorization=exhausted`、`decision=delivery_fixes_merged`。
+
 ### 2026-11-27 研究执行方式首轮对照：自主 Deep vs RQCE Deep
 
 - 已获授权执行 1 题 × 2 路径（Godot + Jolt，¥2 上限，图片关闭）；实际模型费用 **¥0.909 / ¥2**。报告与原始答案：`docs/research_quality/RESEARCH_MODE_AB_RESULTS_20261127.md`、`docs/research_quality/evidence/rab-20261127/`。
