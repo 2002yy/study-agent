@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from src.domain.answer_links import classify_outside_links, outside_evidence_links
+from src.domain.answer_links import (
+    classify_outside_links,
+    outside_evidence_links,
+    strip_outside_links,
+)
 
 
 def test_a_link_to_an_unread_page_is_outside_the_evidence():
@@ -74,3 +78,38 @@ def test_a_different_port_is_not_the_same_read_page():
         "见 https://forum.example:8443/thread",
         ["https://forum.example/thread"],
     ) == ["https://forum.example:8443/thread"]
+
+
+def test_strip_removes_an_unread_markdown_link_but_keeps_the_claim():
+    answer = "请看[备份](https://official.example/backup)中的说明。"
+    evidence = ["https://official.example/release"]
+
+    cleaned, removed = strip_outside_links(answer, evidence)
+
+    assert "https://official.example/backup" not in cleaned
+    assert "请看备份中的说明。" in cleaned
+    assert removed == ["https://official.example/backup"]
+
+
+def test_strip_keeps_a_read_link_and_a_descriptive_label():
+    answer = (
+        "结论[来源](https://bad.example/a)与"
+        "[官方 README](https://official.example/release)。"
+    )
+    evidence = ["https://official.example/release"]
+
+    cleaned, removed = strip_outside_links(answer, evidence)
+
+    assert cleaned == "结论与[官方 README](https://official.example/release)。"
+    assert removed == ["https://bad.example/a"]
+
+
+def test_strip_removes_a_bare_unread_url():
+    answer = "裸链 https://bad.example/x 和好链 https://official.example/release"
+    evidence = ["https://official.example/release"]
+
+    cleaned, removed = strip_outside_links(answer, evidence)
+
+    assert "https://bad.example/x" not in cleaned
+    assert "https://official.example/release" in cleaned
+    assert removed == ["https://bad.example/x"]

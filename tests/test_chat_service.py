@@ -837,3 +837,20 @@ def test_partial_commit_cannot_revive_superseded_turn(tmp_path):
     assert changed is False
     assert stored.status == "superseded"
     assert repository.get_chat_turn(first.turn.id).status == "superseded"
+
+
+def test_the_explicit_deep_prefix_gets_the_larger_answer_ceiling():
+    from types import SimpleNamespace
+
+    from src.application.chat_service import ChatService
+
+    service = object.__new__(ChatService)
+    service.dependencies = SimpleNamespace(chat_max_tokens=lambda _mode: 8192)
+    prepared = SimpleNamespace(
+        messages=[],
+        turn=SimpleNamespace(user_message="请深度研究：Godot Jolt 限制"),
+        runtime_modes=SimpleNamespace(performance_mode="standard"),
+        route={},
+    )
+
+    assert service._answer_max_tokens(prepared) == 16384

@@ -1343,8 +1343,21 @@ class ChatService:
         )
 
     def _answer_max_tokens(self, prepared: PreparedChatTurn) -> int:
+        base = self.dependencies.chat_max_tokens(
+            prepared.runtime_modes.performance_mode
+        )
+        # The explicit deep-research prefix selects the deep research path even
+        # when the runtime mode stayed at its default; its report gets the same
+        # larger ceiling instead of being cut at 8k.
+        try:
+            from src.tools.persistent_web_agent import DEEP_RESEARCH_PREFIX
+
+            if prepared.turn.user_message.strip().startswith(DEEP_RESEARCH_PREFIX):
+                base = max(base, 16384)
+        except Exception:
+            pass
         budget = interactive_reply_budget(
-            self.dependencies.chat_max_tokens(prepared.runtime_modes.performance_mode),
+            base,
             prepared.messages,
             prepared.turn.user_message,
         )
@@ -1577,31 +1590,70 @@ class ChatService:
                 True,
             )
         # A citation must refer to a page read in this turn, regardless of
-        # whether the optional semantic binder is enabled.
-        from src.domain.answer_links import classify_outside_links, normalize_link
+        # whether the optional semantic binder is enabled. A bad citation is
+        # corrected locally: the unsupported link is removed, the claim stays,
+        # and the deletion is disclosed. Blocking the whole report because two
+        # links were unread denied the user research that was otherwise valid.
+        from src.domain.answer_links import (
+            classify_outside_links,
+            links_in_answer,
+            normalize_link,
+            strip_outside_links,
+        )
 
-        outside = classify_outside_links(answer, (row.url for row in rows if row.url))
+        allowed_urls = tuple(row.url for row in rows if row.url)
+        allowed_set = {normalize_link(url) for url in allowed_urls if normalize_link(url)}
+        outside = classify_outside_links(answer, allowed_urls)
         if outside:
-            blocked = rejected_answer_claim_snapshot(
-                answer=RESEARCH_ANSWER_BLOCKED_COPY,
-                producer=ANSWER_CLAIM_BINDER_PRODUCER,
-                reason=(
-                    f"citation_outside_evidence:{outside[0]['kind']}:"
-                    + ",".join(item["url"] for item in outside[:3])[:150]
-                ),
-            )
-            if isinstance(prepared.rag, dict):
-                prepared.rag["answer_claim_snapshot"] = blocked.to_dict()
-                prepared.rag["answer_citation_scope"] = {
-                    "allowed": sorted({row.url for row in rows if row.url}),
-                    "outside": outside[:10],
-                }
-            return (
-                RESEARCH_ANSWER_BLOCKED_COPY,
-                blocked,
-                self._blocked_audit_phases(generation_phase, "citation_outside_evidence"),
-                True,
-            )
+            cleaned, removed = strip_outside_links(answer, allowed_urls)
+            remaining = classify_outside_links(cleaned, allowed_urls) if cleaned else []
+            if cleaned.strip() and removed and not remaining:
+                answer = cleaned
+                has_allowed_citation = any(
+                    normalize_link(link) in allowed_set
+                    for link in links_in_answer(answer)
+                )
+                note = (
+                    f"已移除 {len(removed)} 处未读取来源的引用；"
+                    "相关结论未标注为已验证。"
+                )
+                if has_allowed_citation:
+                    answer = f"{answer.rstrip()}\n\n> {note}"
+                else:
+                    # Most core claims are now uncited: downgrade to a draft
+                    # instead of publishing a report that looks verified.
+                    answer = f"【未完整核实的研究草稿】\n\n{answer.rstrip()}\n\n> {note}"
+                if isinstance(prepared.rag, dict):
+                    prepared.rag["answer_citation_scope"] = {
+                        "allowed": sorted(allowed_set),
+                        "outside": outside[:10],
+                        "removed": removed[:10],
+                        "policy": "removed_unread_citations",
+                        "downgraded": not has_allowed_citation,
+                    }
+            else:
+                blocked = rejected_answer_claim_snapshot(
+                    answer=RESEARCH_ANSWER_BLOCKED_COPY,
+                    producer=ANSWER_CLAIM_BINDER_PRODUCER,
+                    reason=(
+                        f"citation_outside_evidence:{outside[0]['kind']}:"
+                        + ",".join(item["url"] for item in outside[:3])[:150]
+                    ),
+                )
+                if isinstance(prepared.rag, dict):
+                    prepared.rag["answer_claim_snapshot"] = blocked.to_dict()
+                    prepared.rag["answer_citation_scope"] = {
+                        "allowed": sorted(allowed_set),
+                        "outside": outside[:10],
+                    }
+                return (
+                    RESEARCH_ANSWER_BLOCKED_COPY,
+                    blocked,
+                    self._blocked_audit_phases(
+                        generation_phase, "citation_outside_evidence"
+                    ),
+                    True,
+                )
         if not _strict_research_publication_enabled():
             # Do not split or rewrite Markdown: headings, list numbering and
             # table structure are part of the user's answer, not claims for a
@@ -1612,11 +1664,14 @@ class ChatService:
             cited_pages = {normalize_link(url) for url in links_in_answer(answer)}
             if isinstance(prepared.rag, dict):
                 prepared.rag["research_publication_mode"] = "simple"
-                prepared.rag["answer_citation_scope"] = {
+                scope = dict(prepared.rag.get("answer_citation_scope") or {})
+                scope.setdefault("outside", [])
+                scope.update({
                     "allowed": sorted({row.url for row in rows if row.url}),
-                    "outside": [],
+                    "remaining_outside": [],
                     "check": "read_page_url_only",
-                }
+                })
+                prepared.rag["answer_citation_scope"] = scope
                 prepared.rag["research_evidence_refs"] = [
                     {
                         "evidence_id": row.evidence_id,
@@ -1629,7 +1684,7 @@ class ChatService:
                     if normalize_link(row.url) in cited_pages
                 ]
             return (
-                candidate,
+                answer,
                 None,  # No claim-level validation was performed.
                 {PHASE_ANSWER_GENERATION: generation_phase},
                 False,
@@ -1647,7 +1702,7 @@ class ChatService:
         bound = bind_answer_claims(
             request=AnswerClaimBindingRequest(
                 question=question,
-                final_answer=candidate,
+                final_answer=answer,
                 evidence_rows=rows,
             ),
             model_fn=lambda messages: bounded_model_call(
@@ -1698,10 +1753,10 @@ class ChatService:
             prepared,
             outcome=snapshot.status,
             attempts=bound.attempt_count,
-            candidate=candidate,
+            candidate=answer,
         )
         if snapshot.status == "validated" and substantive_claims_fully_bound(snapshot):
-            published = bound.published_text or candidate
+            published = bound.published_text or answer
             if bound.withheld:
                 if not str(bound.published_text or "").strip():
                     binding_phase["outcome"] = PHASE_OUTCOME_REJECTED
@@ -1727,7 +1782,7 @@ class ChatService:
                 # contradict the evidence ledger. The binding snapshot stays
                 # truthful; only the publication decision changes.
                 consistency = check_answer_consistency(
-                    candidate=candidate,
+                    candidate=answer,
                     claims=snapshot.claims,
                     links=snapshot.claim_links,
                     rows=rows,

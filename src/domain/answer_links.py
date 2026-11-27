@@ -13,6 +13,11 @@ from typing import Iterable
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 _URL = re.compile(r"https?://[^\s<>()\[\]\"'，。；）】]+", re.IGNORECASE)
+_MARKDOWN_LINK = re.compile(r"\[([^\]]*)\]\((https?://[^)\s]+)\)", re.IGNORECASE)
+#: Citation labels that carry no meaning once the link is removed.
+_BARE_LABEL = re.compile(
+    r"(?:来源|source|link|链接|参考|ref(?:erence)?)\s*\d*", re.IGNORECASE
+)
 
 
 def normalize_link(url: str) -> str:
@@ -50,6 +55,49 @@ def normalize_link(url: str) -> str:
 
 def links_in_answer(answer: str) -> list[str]:
     return [match.group(0) for match in _URL.finditer(str(answer or ""))]
+
+
+def strip_outside_links(
+    answer: str, evidence_urls: Iterable[str]
+) -> tuple[str, list[str]]:
+    """Remove citations to pages this turn did not read.
+
+    The claim stays; only the unsupported citation disappears. A citation label
+    such as ``[来源]`` is meaningless without its link, so that token is dropped
+    whole; a descriptive label (``[官方 README]``) is kept as plain text. The
+    caller records the removed URLs so the answer is not presented as verified.
+    """
+
+    allowed = {
+        normalized
+        for normalized in (normalize_link(url) for url in evidence_urls)
+        if normalized
+    }
+    removed: list[str] = []
+
+    def replace_markdown(match: re.Match[str]) -> str:
+        label, url = match.group(1), match.group(2)
+        if normalize_link(url) in allowed:
+            return match.group(0)
+        removed.append(url)
+        label = label.strip()
+        if not label or _BARE_LABEL.fullmatch(label):
+            return ""
+        return label
+
+    text = _MARKDOWN_LINK.sub(replace_markdown, str(answer or ""))
+
+    def replace_bare(match: re.Match[str]) -> str:
+        url = match.group(0)
+        if normalize_link(url) in allowed:
+            return url
+        removed.append(url)
+        return ""
+
+    text = _URL.sub(replace_bare, text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip(), removed
 
 
 def outside_evidence_links(
@@ -101,4 +149,5 @@ __all__ = [
     "links_in_answer",
     "normalize_link",
     "outside_evidence_links",
+    "strip_outside_links",
 ]
