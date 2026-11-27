@@ -8,7 +8,7 @@
 
 ### 2026-11-27 自主路径 P0 修正：硬截止、部分保留、统一调用口径
 
-- 分支 `fix/agent-loop-lifecycle`，基于 `main@aa524dd3`；仍默认关闭，RQCE 与普通语义路径不变。
+- 已合入 `main@616bfb370539da668e80b046dc1f071497ce5f33`（PR #683，CI run `45970813807` 五项全绿）；仍默认关闭，RQCE 与普通语义路径不变。
 - **硬截止**：`run_tool_loop` 新增 `deadline`，到点不再发起模型请求，直接返回已收集证据；用户取消在截止后仍然有效。模型请求的 `timeout` 取 `min(调用方超时, 剩余时间)`；网页读取和搜索也收到剩余时间（读取 timeout、搜索 deadline）。
 - **部分保留**：`return_partial_on_error` / `return_partial_on_cancel` 让提供方失败或取消失败时返回已有 evidence，不再抛异常丢掉整轮；`on_round` 每轮把当前工具结果写入现有 `record_tool_trace(final=False)` 检查点，复用同一个 run、operation 与 `repository.checkpoint`。
 - **最终失败也保留**：`record_tool_trace` 在 fail 前先 checkpoint 部分来源；语义恢复路径（带 `semantic_episode`）跳过这个额外 checkpoint，避免 episode 版本错位。
