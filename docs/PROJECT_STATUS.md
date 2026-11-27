@@ -8,7 +8,7 @@
 
 ### 2026-11-27 自主路径 P1：截止分离、分级读取、来源准入
 
-- 分支 `fix/p1-boundaries`，基于 `main@f3df9882`；默认仍关闭。
+- 已合入 `main@d0ab83a8f2b4e4589851a02889dcdcb25aef0a41`（PR #685，CI run `45981791729` 五项全绿）；默认仍关闭。
 - **回答窗口**：自主研究返回 `answer_deadline = 研究截止 + 60 秒`，复用 `ANSWER_GENERATION_RESERVE_SECONDS`；研究到点后仍能生成答案。
 - **读取分级**：自主读取的 `timeout` 取 `min(资料类型预算, 剩余研究时间)`；普通页 15、文档 30、PDF 60、音视频 330，不再被剩余 500 秒覆盖。
 - **边界补齐**：并行批次中间取消保留已完成批次；`_build_request_kwargs`（含账本/凭据错误）失败也返回部分 evidence；检查点失败写入 `stop_state` 并进入最终 `error` 诊断。
