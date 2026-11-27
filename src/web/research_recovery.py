@@ -174,6 +174,12 @@ def _user_supplied_urls(query: str) -> tuple[str, ...]:
     return tuple(found)
 
 
+def user_supplied_urls(query: str) -> tuple[str, ...]:
+    """Public URLs the user typed, for admission by the evidence gate."""
+
+    return _user_supplied_urls(query)
+
+
 def _strip_user_urls(query: str) -> str:
     """Drop typed URLs from the search surface; they are read, not searched."""
 

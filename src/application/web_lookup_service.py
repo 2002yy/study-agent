@@ -5,7 +5,7 @@ from collections.abc import Callable, Mapping
 
 import re
 import time
-from typing import Any, Protocol
+from typing import Any, Protocol, Sequence
 
 from src.domain.runtime_entities import WebLookupRun, new_id, utc_now
 from src.application.web_lookup_evidence import (
@@ -622,6 +622,7 @@ class WebLookupService:
         semantic_events: list[dict[str, Any]] | None = None,
         final: bool = True,
         stop_reason: str = "",
+        user_urls: Sequence[str] = (),
     ) -> WebLookupRun:
         explicit_operation = operation_id is not None
         operation_id = operation_id or new_id("web_tool")
@@ -634,11 +635,11 @@ class WebLookupService:
                 operation_id=operation_id,
                 stage="searching",
             )
-        display_calls = trusted_tool_calls(calls)
-        evidence_calls = evidence_tool_calls(calls)
+        display_calls = trusted_tool_calls(calls, user_urls=user_urls)
+        evidence_calls = evidence_tool_calls(calls, user_urls=user_urls)
         provider_errors = tool_call_errors(calls)
         items = tool_source_items(display_calls)
-        evidence_items = tool_evidence_items(calls)
+        evidence_items = tool_evidence_items(calls, user_urls=user_urls)
         read_urls = {
             _canonical_source_url(
                 str(

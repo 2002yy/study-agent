@@ -8,7 +8,7 @@ import threading
 import time
 from dataclasses import dataclass, replace
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeout
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Sequence
 
 from src.llm_client import ModelProfile
 from src.tools.web_agent import (
@@ -22,9 +22,14 @@ from src.tools.web_agent import (
 )
 from src.web.query_normalizer import normalize_web_query
 from src.web.conversation_query import conversation_search_query, research_topic
-from src.web.research_recovery import recover_public_research, recovery_budget
+from src.web.research_recovery import (
+    recover_public_research,
+    recovery_budget,
+    user_supplied_urls,
+)
 from src.web.semantic_recovery import ResearchEpisode, ResearchSemanticSession
 from src.web.site_pool import platform_map_instruction
+from src.web.tool_evidence import admit_tool_evidence
 
 if TYPE_CHECKING:
     from src.application.web_lookup_service import WebLookupService
@@ -158,7 +163,7 @@ def autonomous_budget(deep: bool) -> AutonomousBudget:
 
     prefix = "WEB_AUTONOMOUS_DEEP" if deep else "WEB_AUTONOMOUS"
     max_model_calls = _env_int(
-        f"{prefix}_MAX_MODEL_CALLS", 5 if deep else 4, minimum=1, maximum=6
+        f"{prefix}_MAX_MODEL_CALLS", 5 if deep else 4, minimum=1, maximum=5
     )
     return AutonomousBudget(
         max_rounds=_env_int(
@@ -677,9 +682,10 @@ class PersistentWebToolAgent(WebToolAgent):
             except Exception as exc:
                 return WebToolTrace(
                     error=f"ResearchRun create failed: {type(exc).__name__}: {exc}",
-                    answer_deadline=deadline,
+                    answer_deadline=deadline + ANSWER_GENERATION_RESERVE_SECONDS,
                 )
 
+        user_urls = user_supplied_urls(user_input)
         stop: dict[str, Any] = {}
         gate = AutonomousToolBudget(
             self._execute,
@@ -743,15 +749,23 @@ class PersistentWebToolAgent(WebToolAgent):
         def persist_round(rows: list[dict[str, Any]]) -> None:
             if run is None:
                 return
-            preview = WebToolTrace(calls=tuple(rows), run_id=run.id)
-            self._record_trace(
+            admitted, _rejected = admit_tool_evidence(rows, user_urls=user_urls)
+            preview = WebToolTrace(
+                calls=tuple(rows),
+                run_id=run.id,
+                evidence_calls=tuple(admitted),
+            )
+            checkpoint_error = self._record_trace(
                 run.id,
                 calls=rows,
                 source_block=preview.context_block(),
                 operation_id=operation_id,
                 final=False,
                 stop_reason="sources_partially_read",
+                user_urls=user_urls,
             )
+            if checkpoint_error:
+                stop["checkpoint_error"] = checkpoint_error
 
         calls: list[dict[str, Any]] = []
         trace_error = ""
@@ -794,8 +808,13 @@ class PersistentWebToolAgent(WebToolAgent):
         elif stop_reason in {"deadline", "model_call_budget", "max_rounds"}:
             record_stop = "sources_partially_read" if calls else "no_tool_calls"
 
+        admitted, rejected = admit_tool_evidence(calls, user_urls=user_urls)
         if run is not None:
-            preview = WebToolTrace(calls=tuple(calls), run_id=run.id)
+            preview = WebToolTrace(
+                calls=tuple(calls),
+                run_id=run.id,
+                evidence_calls=tuple(admitted),
+            )
             persistence_error = self._record_trace(
                 run.id,
                 calls=calls,
@@ -804,18 +823,22 @@ class PersistentWebToolAgent(WebToolAgent):
                 operation_id=operation_id,
                 final=True,
                 stop_reason=record_stop,
+                user_urls=user_urls,
             )
         else:
             persistence_error = ""
-        error = trace_error or persistence_error
+        checkpoint_error = str(stop.get("checkpoint_error") or "")
+        error = trace_error or persistence_error or checkpoint_error
         return WebToolTrace(
             calls=tuple(calls),
             run_id=(run.id if run is not None else ""),
             error=error,
-            answer_deadline=deadline,
+            answer_deadline=deadline + ANSWER_GENERATION_RESERVE_SECONDS,
             model_calls=int(stop.get("model_calls") or 0),
             tool_calls=int(gate.snapshot()["tool_calls"]),
             stop_reason=stop_reason,
+            evidence_calls=tuple(admitted),
+            rejected_evidence=tuple(rejected),
         )
 
     def _resolve_deep_research(
@@ -1196,6 +1219,7 @@ class PersistentWebToolAgent(WebToolAgent):
         operation_id: str = "",
         final: bool = True,
         stop_reason: str = "",
+        user_urls: Sequence[str] = (),
     ) -> str:
         if self.research_service is None:
             return ""
@@ -1208,6 +1232,7 @@ class PersistentWebToolAgent(WebToolAgent):
                 operation_id=operation_id or None,
                 final=final,
                 stop_reason=stop_reason,
+                user_urls=user_urls,
             )
         except Exception as exc:
             return f"ResearchRun persistence failed: {type(exc).__name__}: {exc}"
