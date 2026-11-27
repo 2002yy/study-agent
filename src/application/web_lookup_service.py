@@ -39,6 +39,7 @@ from src.web.source_assessment import assess_sources, evidence_confidence
 from src.web.tool_evidence import (
     diagnostic_tool_calls,
     evidence_tool_calls,
+    exploration_read_records,
     tool_evidence_items,
     trusted_tool_calls,
     tool_call_errors,
@@ -638,7 +639,7 @@ class WebLookupService:
         display_calls = trusted_tool_calls(calls, user_urls=user_urls)
         evidence_calls = evidence_tool_calls(calls, user_urls=user_urls)
         provider_errors = tool_call_errors(calls)
-        items = tool_source_items(display_calls)
+        items = tool_source_items(display_calls, user_urls=user_urls)
         evidence_items = tool_evidence_items(calls, user_urls=user_urls)
         read_urls = {
             _canonical_source_url(
@@ -692,6 +693,12 @@ class WebLookupService:
                     diagnostic_tool_calls(calls)
                     if len(display_calls) != len(calls)
                     else []
+                ),
+                # Successful reads that never became answer evidence. Bodies
+                # used to live only in process memory; they are bounded here so
+                # a reviewer can tell exploration from evidence.
+                "exploration_reads": exploration_read_records(
+                    calls, user_urls=user_urls
                 ),
                 "provider_errors": provider_errors,
             },

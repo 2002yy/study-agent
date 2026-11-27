@@ -93,3 +93,37 @@ def test_recorded_trace_admits_a_user_supplied_url_without_a_search(tmp_path):
 
     assert completed.status == "completed"
     assert [row["item"]["url"] for row in completed.selected_sources] == [url]
+    assert [row["url"] for row in completed.items] == [url]
+
+
+def test_rejected_exploratory_read_body_survives_in_the_durable_trace(tmp_path):
+    service = WebLookupService(
+        WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    )
+    run = service.create(
+        "topic",
+        run_kind="autonomous_research",
+        research_mode="standard",
+    )
+    operation = service.begin_tool_trace(run.id)
+    admitted_url = "https://example.org/a"
+    explored_url = "https://random.example/x"
+
+    completed = service.record_tool_trace(
+        run.id,
+        calls=[_search_call(), _read_call(admitted_url), _read_call(explored_url)],
+        source_block="",
+        operation_id=operation,
+        final=True,
+    )
+
+    stored = service.get(run.id)
+    trace = stored.research_context["tool_trace"]
+    assert [row["item"]["url"] for row in completed.selected_sources] == [
+        admitted_url
+    ]
+    assert [row["url"] for row in trace["exploration_reads"]] == [explored_url]
+    record = trace["exploration_reads"][0]
+    assert record["content"] == "body"
+    assert record["chars"] == 4
+    assert record["reason"] == "source_not_established"

@@ -206,3 +206,42 @@ def test_request_timeout_is_clamped_to_the_deadline(monkeypatch):
     )
 
     assert completions.requests[0]["timeout"] == 5.0
+
+
+def test_cancel_between_tool_groups_keeps_completed_calls(monkeypatch):
+    cancelled = [False]
+    completions = FakeCompletions([_message([_tool_call("c1"), _tool_call("c2")])])
+    stop: dict = {}
+
+    def execute(_name, _args):
+        cancelled[0] = True
+        return {"ok": True}
+
+    evidence = _run(
+        monkeypatch,
+        completions,
+        execute,
+        should_cancel=lambda: cancelled[0],
+        return_partial_on_cancel=True,
+        stop_state=stop,
+    )
+
+    assert [row["result"] for row in evidence] == [{"ok": True}]
+    assert stop["reason"] == "cancelled"
+
+
+def test_cancel_between_tool_groups_still_raises_without_partial(monkeypatch):
+    cancelled = [False]
+    completions = FakeCompletions([_message([_tool_call("c1"), _tool_call("c2")])])
+
+    def execute(_name, _args):
+        cancelled[0] = True
+        return {"ok": True}
+
+    with pytest.raises(RuntimeError, match="tool_loop_cancelled"):
+        _run(
+            monkeypatch,
+            completions,
+            execute,
+            should_cancel=lambda: cancelled[0],
+        )
