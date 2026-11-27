@@ -241,7 +241,7 @@ def assemble_answer_evidence(
         if not text:
             continue
         digest = _digest(text)
-        source = {
+        source: dict[str, Any] = {
             "url": url,
             "title": title or url,
             "text": text,
@@ -260,7 +260,6 @@ def assemble_answer_evidence(
 
     headers: list[str] = []
     unique_sizes: list[int] = []
-    unique_positions: list[int] = []
     for index, source in enumerate(sources, start=1):
         if seen_digests[source["digest"]] != index - 1:
             first = seen_digests[source["digest"]] + 1
@@ -270,7 +269,6 @@ def assemble_answer_evidence(
                 "不重复占用预算。"
             )
             continue
-        unique_positions.append(index - 1)
         unique_sizes.append(source["chars"])
         headings = [f"来源 {index}/{len(sources)} {source['url']}"]
         if source["title"] and source["title"] != source["url"]:
