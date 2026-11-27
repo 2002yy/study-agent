@@ -874,6 +874,7 @@ class PersistentWebToolAgent(WebToolAgent):
             run_id=(run.id if run is not None else ""),
             error=error,
             final_text=str(stop.get("final_text") or ""),
+            finish_reason=str(stop.get("finish_reason") or ""),
             answer_deadline=deadline + ANSWER_GENERATION_RESERVE_SECONDS,
             model_calls=int(stop.get("model_calls") or 0),
             tool_calls=int(gate.snapshot()["tool_calls"]),

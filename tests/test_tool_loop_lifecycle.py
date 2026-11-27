@@ -251,7 +251,8 @@ def test_a_text_only_reply_records_what_the_model_said(monkeypatch):
     response = SimpleNamespace(
         choices=[
             SimpleNamespace(
-                message=SimpleNamespace(content="我先列出子问题，不调用工具。", tool_calls=[])
+                finish_reason="stop",
+                message=SimpleNamespace(content="我先列出子问题，不调用工具。", tool_calls=[]),
             )
         ]
     )
@@ -268,3 +269,28 @@ def test_a_text_only_reply_records_what_the_model_said(monkeypatch):
     assert evidence == []
     assert stop["reason"] == "completed"
     assert stop["final_text"] == "我先列出子问题，不调用工具。"
+    assert stop["finish_reason"] == "stop"
+
+
+def test_an_empty_reply_keeps_its_finish_reason(monkeypatch):
+    response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                finish_reason="length",
+                message=SimpleNamespace(content="", tool_calls=[]),
+            )
+        ]
+    )
+    completions = FakeCompletions([response])
+    stop: dict = {}
+
+    evidence = _run(
+        monkeypatch,
+        completions,
+        lambda _name, _args: {"ok": True},
+        stop_state=stop,
+    )
+
+    assert evidence == []
+    assert stop["final_text"] == ""
+    assert stop["finish_reason"] == "length"
