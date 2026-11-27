@@ -754,6 +754,7 @@ def run_tool_loop(
 
     if should_cancel is not None and should_cancel():
         if return_partial_on_cancel:
+            mark_stop("cancelled")
             return []
         raise RuntimeError("tool_loop_cancelled")
     client = get_client(provider_profile=provider_profile)
@@ -864,13 +865,18 @@ def run_tool_loop(
             return bool(parallel_safe(entry["name"], entry["arguments"]))
 
         position = 0
+        cancelled_mid_round = False
         while position < len(prepared):
             entry = prepared[position]
             if entry["result"] is not None:
                 position += 1
                 continue
             if should_cancel is not None and should_cancel():
-                raise RuntimeError("tool_loop_cancelled")
+                # Cancellation between tool groups keeps the batches that
+                # already ran; the common tail checkpoints and returns them.
+                mark_stop("cancelled")
+                cancelled_mid_round = True
+                break
             group = [entry]
             if parallel_eligible(entry):
                 cursor = position + 1
@@ -881,7 +887,6 @@ def run_tool_loop(
                 ):
                     group.append(prepared[cursor])
                     cursor += 1
-            cancelled_mid_round = False
             if len(group) > 1:
                 with ThreadPoolExecutor(
                     max_workers=max_parallel,

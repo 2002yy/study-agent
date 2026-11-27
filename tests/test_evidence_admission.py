@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from src.tools.web_agent import WebToolTrace
-from src.web.tool_evidence import admit_tool_evidence, evidence_tool_calls
+from src.web.tool_evidence import (
+    admit_tool_evidence,
+    evidence_tool_calls,
+    exploration_read_records,
+)
 
 
 def _read(url: str, *, ok: bool = True, links=()) -> dict:
@@ -104,3 +108,69 @@ def test_legacy_trace_without_admission_keeps_derived_evidence():
 
     assert trace.evidence_calls is None
     assert trace.admitted_calls() == evidence_tool_calls([search, read])
+
+
+def _failed_read(url: str) -> dict:
+    return {
+        "name": "web_read",
+        "arguments": {"url": url},
+        "result": {"ok": False, "url": url, "error": "timeout"},
+    }
+
+
+def test_failed_attempt_at_an_admitted_url_keeps_its_rejection():
+    url = "https://docs.example.org/a"
+    calls = [_search([url]), _failed_read(url), _read(url)]
+
+    admitted, rejected = admit_tool_evidence(calls)
+
+    assert [call["result"]["url"] for call in admitted] == [url]
+    assert rejected == [{"url": url, "reason": "read_failed"}]
+
+
+def test_repeated_successful_reads_are_all_admitted_once_each():
+    url = "https://docs.example.org/a"
+    calls = [_search([url]), _read(url), _read(url)]
+
+    admitted, rejected = admit_tool_evidence(calls)
+
+    assert len(admitted) == 2
+    assert rejected == []
+
+
+def test_exploratory_read_bodies_are_recorded_without_becoming_evidence():
+    admitted_url = "https://docs.example.org/a"
+    explored_url = "https://random.example/x"
+    calls = [
+        _search([admitted_url]),
+        _read(admitted_url),
+        _read(explored_url),
+        _failed_read("https://dead.example/y"),
+    ]
+
+    admitted, rejected = admit_tool_evidence(calls)
+    records = exploration_read_records(calls)
+
+    assert [call["result"]["url"] for call in admitted] == [admitted_url]
+    assert [row["url"] for row in rejected] == [
+        explored_url,
+        "https://dead.example/y",
+    ]
+    assert [row["url"] for row in records] == [explored_url]
+    assert records[0]["content"] == "body"
+    assert records[0]["chars"] == 4
+    assert records[0]["truncated"] is False
+    assert records[0]["reason"] == "source_not_established"
+    assert len(records[0]["digest"]) == 12
+
+
+def test_exploratory_body_storage_is_bounded_and_reports_truncation():
+    urls = [f"https://random.example/{index}" for index in range(3)]
+    calls = [_read(url) for url in urls]
+
+    records = exploration_read_records(calls, content_chars=2, total_chars=4)
+
+    assert len(records) == 2
+    assert all(row["truncated"] is True for row in records)
+    assert [row["stored_chars"] for row in records] == [2, 2]
+    assert all(row["chars"] == 4 for row in records)

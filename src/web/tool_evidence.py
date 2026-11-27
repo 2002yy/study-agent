@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 from copy import deepcopy
@@ -45,26 +46,26 @@ def _is_true(value: object) -> bool:
     return value is True or str(value).strip().casefold() == "true"
 
 
-def trusted_tool_calls(
+def _trusted_call_pairs(
     calls: list[dict[str, Any]],
     *,
     user_urls: Sequence[str] = (),
-) -> list[dict[str, Any]]:
-    """Return sanitized source-bearing calls, including search candidates.
+) -> list[tuple[int, dict[str, Any]]]:
+    """Sanitized source-bearing calls paired with their original position.
 
-    A successful ``web_search`` proves only that candidate links were
-    discovered.  Callers must use :func:`evidence_tool_calls` before treating
-    a call as answer evidence.
+    Admission needs the position because two reads of the same URL can differ
+    (one failed, one succeeded); comparing projected payloads would let a later
+    success erase the earlier failure.
     """
 
-    trusted: list[dict[str, Any]] = []
+    trusted: list[tuple[int, dict[str, Any]]] = []
     discovered_urls: set[str] = set()
     # Canonical keys strip fragments and normalize the query, so a section
     # anchor or a user-typed variant still matches its source document.
     discovered_keys: set[str] = {
         key for key in (canonicalize_url(url) for url in user_urls) if key
     }
-    for raw_call in calls:
+    for index, raw_call in enumerate(calls):
         if not isinstance(raw_call, dict):
             continue
         name = str(raw_call.get("name") or "")
@@ -90,7 +91,7 @@ def trusted_tool_calls(
             discovered_keys.update(
                 key for key in (canonicalize_url(str(item["url"])) for item in valid) if key
             )
-            trusted.append(call)
+            trusted.append((index, call))
             continue
 
         if name == "web_search":
@@ -118,7 +119,7 @@ def trusted_tool_calls(
                 )
                 if key
             )
-            trusted.append(call)
+            trusted.append((index, call))
             continue
 
         if name == "web_read":
@@ -145,7 +146,7 @@ def trusted_tool_calls(
             if not isinstance(content, str) or not content.strip():
                 continue
             projected["url"] = url
-            trusted.append(call)
+            trusted.append((index, call))
             links = result.get("links")
             if isinstance(links, (list, tuple)):
                 for link in links:
@@ -176,9 +177,26 @@ def trusted_tool_calls(
                 continue
             if valid_results:
                 projected["results"] = valid_results
-            trusted.append(call)
+            trusted.append((index, call))
 
     return trusted
+
+
+def trusted_tool_calls(
+    calls: list[dict[str, Any]],
+    *,
+    user_urls: Sequence[str] = (),
+) -> list[dict[str, Any]]:
+    """Return sanitized source-bearing calls, including search candidates.
+
+    A successful ``web_search`` proves only that candidate links were
+    discovered.  Callers must use :func:`evidence_tool_calls` before treating
+    a call as answer evidence.
+    """
+
+    return [
+        call for _index, call in _trusted_call_pairs(calls, user_urls=user_urls)
+    ]
 
 
 def evidence_tool_calls(
@@ -267,12 +285,16 @@ def diagnostic_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return diagnostics
 
 
-def tool_source_items(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def tool_source_items(
+    calls: list[dict[str, Any]],
+    *,
+    user_urls: Sequence[str] = (),
+) -> list[dict[str, Any]]:
     """Project trusted web search/read calls into durable source items."""
 
     items: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for call in trusted_tool_calls(calls):
+    for call in trusted_tool_calls(calls, user_urls=user_urls):
         name = str(call.get("name") or "")
         result = call.get("result")
         if not isinstance(result, dict):
@@ -382,13 +404,28 @@ def tool_evidence_items(
             continue
         # Structured GitHub calls are already independently sanitized by
         # ``trusted_tool_calls`` and can reuse the normal item projection.
-        for item in tool_source_items([call]):
+        for item in tool_source_items([call], user_urls=user_urls):
             url = _public_url(item.get("url") or item.get("link"))
             if not url or url.casefold() in seen:
                 continue
             seen.add(url.casefold())
             items.append(item)
     return items
+
+def _admitted_call_indexes(
+    pairs: Sequence[tuple[int, dict[str, Any]]],
+) -> set[int]:
+    """Positions whose projected call may support the final answer."""
+
+    indexes: set[int] = set()
+    for index, call in pairs:
+        name = str(call.get("name") or "")
+        if name == "web_read" and call.get("result", {}).get("answer_eligible") is False:
+            continue
+        if name == "web_read" or name.startswith("github_"):
+            indexes.add(index)
+    return indexes
+
 
 def admit_tool_evidence(
     calls: list[dict[str, Any]],
@@ -403,24 +440,14 @@ def admit_tool_evidence(
     of those (fragment/query differences do not hide an anchor).
     """
 
-    admitted = evidence_tool_calls(calls, user_urls=user_urls)
-
-    def signature(call: dict[str, Any]) -> tuple[str, str]:
-        arguments = call.get("arguments")
-        arguments = arguments if isinstance(arguments, dict) else {}
-        result = call.get("result")
-        result = result if isinstance(result, dict) else {}
-        return (
-            canonicalize_url(str(arguments.get("url") or "")),
-            canonicalize_url(str(result.get("url") or "")),
-        )
-
-    admitted_signatures = {signature(call) for call in admitted}
+    pairs = _trusted_call_pairs(calls, user_urls=user_urls)
+    admitted_indexes = _admitted_call_indexes(pairs)
+    admitted = [call for index, call in pairs if index in admitted_indexes]
     rejected: list[dict[str, str]] = []
-    for call in calls:
+    for index, call in enumerate(calls):
         if not isinstance(call, dict) or call.get("name") != "web_read":
             continue
-        if signature(call) in admitted_signatures:
+        if index in admitted_indexes:
             continue
         result = call.get("result")
         arguments = call.get("arguments")
@@ -431,6 +458,10 @@ def admit_tool_evidence(
             reason = "read_failed"
         elif not str(result.get("content") or result.get("readme") or "").strip():
             reason = "empty_content"
+        elif result.get("requested_url") and str(
+            result["requested_url"]
+        ) != (_public_url(arguments.get("url")) or str(result["requested_url"])):
+            reason = "redirect_unverified"
         else:
             reason = "source_not_established"
         rejected.append(
@@ -443,3 +474,72 @@ def admit_tool_evidence(
             }
         )
     return admitted, rejected
+
+
+#: Exploratory reads are kept for audit even when they never become evidence.
+#: The body budget is bounded so one turn cannot store an arbitrary page dump;
+#: every record still reports its full size and digest.
+EXPLORATION_CONTENT_CHARS = 20000
+EXPLORATION_TOTAL_CHARS = 60000
+EXPLORATION_MAX_RECORDS = 12
+
+
+def exploration_read_records(
+    calls: list[dict[str, Any]],
+    *,
+    user_urls: Sequence[str] = (),
+    content_chars: int = EXPLORATION_CONTENT_CHARS,
+    total_chars: int = EXPLORATION_TOTAL_CHARS,
+    max_records: int = EXPLORATION_MAX_RECORDS,
+) -> list[dict[str, Any]]:
+    """Bounded bodies of successful reads that were not admitted as evidence.
+
+    ``tool_trace.calls`` already carries every admitted read.  This projection
+    covers the other case: a page the model read but could not use, whose body
+    used to survive only in process memory.  Nothing here becomes answer
+    evidence; it exists so a reviewer can see what was explored.
+    """
+
+    pairs = _trusted_call_pairs(calls, user_urls=user_urls)
+    admitted_indexes = _admitted_call_indexes(pairs)
+    records: list[dict[str, Any]] = []
+    remaining = max(0, int(total_chars))
+    for index, call in enumerate(calls):
+        if index in admitted_indexes or not isinstance(call, dict):
+            continue
+        if call.get("name") != "web_read":
+            continue
+        result = call.get("result")
+        if not isinstance(result, dict) or not _is_true(result.get("ok")):
+            continue
+        content = result.get("content") or result.get("readme")
+        if not isinstance(content, str) or not content.strip():
+            continue
+        if len(records) >= max_records or remaining <= 0:
+            break
+        arguments = call.get("arguments")
+        arguments = arguments if isinstance(arguments, dict) else {}
+        url = _public_url(result.get("url")) or _public_url(arguments.get("url"))
+        keep = max(0, min(int(content_chars), remaining, len(content)))
+        records.append(
+            {
+                "url": url,
+                "requested_url": _public_url(arguments.get("url")),
+                "title": str(result.get("title") or "")[:200],
+                "method": str(result.get("method") or ""),
+                "chars": len(content),
+                "stored_chars": keep,
+                "truncated": keep < len(content),
+                "digest": hashlib.sha256(
+                    content.encode("utf-8", "ignore")
+                ).hexdigest()[:12],
+                "reason": (
+                    "answer_ineligible"
+                    if result.get("answer_eligible") is False
+                    else "source_not_established"
+                ),
+                "content": content[:keep],
+            }
+        )
+        remaining -= keep
+    return records
