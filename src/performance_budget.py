@@ -13,7 +13,10 @@ def normalize_performance_mode(mode: str | None) -> str:
 
 
 def chat_max_tokens(mode: str | None) -> int:
-    # Keep the argument for persisted clients; speed modes no longer shorten answers.
+    # Deep research reports need room for the full report; ordinary chat and
+    # research keep the established 8k ceiling. This is a maximum, not a target.
+    if normalize_performance_mode(mode) == "deep":
+        return 16384
     return 8192
 
 

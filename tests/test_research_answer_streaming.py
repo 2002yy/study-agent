@@ -536,10 +536,10 @@ def test_simple_mode_streams_markdown_without_calling_the_binder(
     assert final["reply"].startswith("## 结论")
 
 
-def test_simple_mode_stream_still_rejects_an_unread_citation(
+def test_simple_mode_stream_removes_an_unread_citation(
     runtime_test_context, monkeypatch
 ) -> None:
-    """Streaming is not an exemption: the gate runs on the complete answer."""
+    """Streaming is not an exemption: the gate corrects the complete answer."""
 
     monkeypatch.delenv("RESEARCH_PUBLICATION_MODE", raising=False)
     service = _service(
@@ -560,5 +560,7 @@ def test_simple_mode_stream_still_rejects_an_unread_citation(
         [line for line in body.split("event: done", 1)[-1].splitlines()
          if line.startswith("data: ")][-1][6:]
     )
-    assert final["reply"] == RESEARCH_ANSWER_BLOCKED_COPY
+    assert final["reply"] != RESEARCH_ANSWER_BLOCKED_COPY
+    assert final["reply"].startswith("【未完整核实的研究草稿】")
+    assert "已移除 1 处未读取来源的引用" in final["reply"]
     assert "/backup" not in final["reply"]

@@ -134,6 +134,8 @@ Work in short rounds:
 
 Rules:
 - Prefer primary/official sources, then independent sources that corroborate each other.
+- When a URL carries a version, release tag, branch or commit, record it. State a
+  limitation for that version; check whether a newer stable version changed it.
 - Do not invent a fact that no read result supports. If a read failed, say so.
 - Before you have read at least one page, every reply must call a tool. State the
   subquestions in the same message as your first search, never as a text-only reply.

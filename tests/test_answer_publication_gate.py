@@ -272,7 +272,7 @@ def test_default_simple_research_publishes_markdown_without_binder(
     assert evidence_refs[0]["selection_reason"] == "research_read_cited_unverified"
 
 
-def test_simple_research_still_blocks_unread_citation(tmp_path, monkeypatch) -> None:
+def test_simple_research_removes_an_unread_citation_and_publishes(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("RESEARCH_PUBLICATION_MODE", "simple")
     tasks: list[str] = []
 
@@ -283,14 +283,44 @@ def test_simple_research_still_blocks_unread_citation(tmp_path, monkeypatch) -> 
     service, repository = _service(tmp_path, chat_fn)
     reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
 
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
-    assert tasks == ["single_chat"]
+    assert reply != RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith("【未完整核实的研究草稿】")
+    assert "请看备份中的说明。" in reply
+    assert "https://official.example/backup" not in reply
+    assert "已移除 1 处未读取来源的引用" in reply
     scope = (turn.rag_snapshot or {})["answer_citation_scope"]
     assert scope["outside"] == [{
         "url": "https://official.example/backup",
         "kind": "read_host_page_not_read",
     }]
-    assert turn.answer_claim_snapshot["status"] == "rejected"
+    assert scope["removed"] == ["https://official.example/backup"]
+    assert scope["policy"] == "removed_unread_citations"
+    assert scope["downgraded"] is True
+    assert turn.answer_claim_snapshot["status"] != "rejected"
+
+
+def test_simple_research_keeps_a_valid_citation_after_local_removal(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("RESEARCH_PUBLICATION_MODE", "simple")
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        return (
+            "发布说明见[官方](https://official.example/release)，"
+            "备份见[备份](https://official.example/backup)。"
+        )
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply != RESEARCH_ANSWER_BLOCKED_COPY
+    assert not reply.startswith("【未完整核实的研究草稿】")
+    assert "[官方](https://official.example/release)" in reply
+    assert "https://official.example/backup" not in reply
+    assert "已移除 1 处未读取来源的引用" in reply
+    scope = (turn.rag_snapshot or {})["answer_citation_scope"]
+    assert scope["downgraded"] is False
+    assert scope["removed"] == ["https://official.example/backup"]
 
 
 def test_passed_binding_publishes_candidate_with_full_audit(tmp_path) -> None:
