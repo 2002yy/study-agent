@@ -1,0 +1,518 @@
+[
+  {
+    "label": "round2-a-rqce",
+    "status": "completed",
+    "error": "",
+    "answer_chars": 32,
+    "answer": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+    "research_seconds": 156.3,
+    "spend_before_micros": 851728,
+    "spend_after_micros": 1070949,
+    "model_calls": 0,
+    "tool_calls": 0,
+    "stop_reason": "",
+    "finish_reason": null,
+    "final_text": "",
+    "calls": [
+      {
+        "name": "web_search",
+        "arguments": {
+          "influenced_by_steering": false,
+          "query": "Godot Jolt destructible buildings limitations",
+          "round": 1
+        },
+        "ok": null,
+        "url": "",
+        "content_chars": 0,
+        "results": 10
+      },
+      {
+        "name": "web_search",
+        "arguments": {
+          "influenced_by_steering": false,
+          "query": "Godot Jolt compound shapes breakable structures",
+          "round": 1
+        },
+        "ok": null,
+        "url": "",
+        "content_chars": 0,
+        "results": 10
+      },
+      {
+        "name": "web_search",
+        "arguments": {
+          "influenced_by_steering": false,
+          "query": "Godot Jolt physics stability large structures",
+          "round": 2
+        },
+        "ok": null,
+        "url": "",
+        "content_chars": 0,
+        "results": 1
+      },
+      {
+        "name": "web_search",
+        "arguments": {
+          "influenced_by_steering": false,
+          "query": "godot-jolt known limitations large compound shapes many rigid bodies destruction",
+          "round": 2
+        },
+        "ok": null,
+        "url": "",
+        "content_chars": 0,
+        "results": 1
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "round": 1,
+          "url": "http://m.qwbw.cn/news/21975"
+        },
+        "ok": true,
+        "url": "http://m.qwbw.cn/news/21975",
+        "content_chars": 1200,
+        "results": 0
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "round": 1,
+          "url": "https://forum.godotengine.org/t/do-you-guys-recommend-jolt/38483"
+        },
+        "ok": true,
+        "url": "https://forum.godotengine.org/t/do-you-guys-recommend-jolt/38483",
+        "content_chars": 1200,
+        "results": 0
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "round": 1,
+          "url": "https://project-awesome.org/r/godot-jolt-godot-jolt"
+        },
+        "ok": true,
+        "url": "https://project-awesome.org/r/godot-jolt-godot-jolt",
+        "content_chars": 1200,
+        "results": 0
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "round": 1,
+          "url": "https://mygit.top/repository/566533013#1"
+        },
+        "ok": true,
+        "url": "https://mygit.top/repository/566533013#1",
+        "content_chars": 1200,
+        "results": 0
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "round": 1,
+          "url": "https://opendeer.net/en/repo/godot-jolt/godot-jolt"
+        },
+        "ok": true,
+        "url": "https://opendeer.net/en/repo/godot-jolt/godot-jolt",
+        "content_chars": 1200,
+        "results": 0
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "round": 1,
+          "url": "https://github.com/godotengine/godot/blob/master/thirdparty/jolt_physics/Jolt/Physics/Collision/Shape/CompoundShape.cpp#1"
+        },
+        "ok": true,
+        "url": "https://github.com/godotengine/godot/blob/master/thirdparty/jolt_physics/Jolt/Physics/Collision/Shape/CompoundShape.cpp#1",
+        "content_chars": 1200,
+        "results": 0
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "round": 1,
+          "url": "https://raw.githubusercontent.com/ezEngine/docs-src/refs/heads/main/pages/docs/physics/jolt/special/jolt-breakable-slab-component.md#1"
+        },
+        "ok": true,
+        "url": "https://raw.githubusercontent.com/ezEngine/docs-src/refs/heads/main/pages/docs/physics/jolt/special/jolt-breakable-slab-component.md#1",
+        "content_chars": 1200,
+        "results": 0
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "round": 1,
+          "url": "https://ezengine.net/pages/docs/physics/jolt/constraints/jolt-fixed-constraint-component.html"
+        },
+        "ok": true,
+        "url": "https://ezengine.net/pages/docs/physics/jolt/constraints/jolt-fixed-constraint-component.html",
+        "content_chars": 1200,
+        "results": 0
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "round": 1,
+          "url": "https://blog.gitcode.com/19f8f11bacaa5ff4685094c962eaf76c.html"
+        },
+        "ok": true,
+        "url": "https://blog.gitcode.com/19f8f11bacaa5ff4685094c962eaf76c.html",
+        "content_chars": 100,
+        "results": 0
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "round": 1,
+          "url": "https://github.com/godotengine/godot/blob/master/thirdparty/jolt_physics/Jolt/Physics/Collision/Shape/MutableCompoundShape.cpp#2"
+        },
+        "ok": true,
+        "url": "https://github.com/godotengine/godot/blob/master/thirdparty/jolt_physics/Jolt/Physics/Collision/Shape/MutableCompoundShape.cpp#2",
+        "content_chars": 1200,
+        "results": 0
+      }
+    ],
+    "research_runs": [
+      {
+        "id": "web_lookup_280a7b52683b458e958cb80d291e9d60",
+        "stage": "completed",
+        "status": "completed",
+        "stop_reason": "sources_partially_read",
+        "provider_status": "partial",
+        "source_block_chars": 31238,
+        "items_chars": 99955,
+        "selected_sources_chars": 180445,
+        "deep": true,
+        "trace_calls": 0,
+        "trace_reads": 0,
+        "rejected_reads": 0,
+        "read_summary": {
+          "attempted": 16,
+          "budget": {
+            "max_chars_per_source": 6000,
+            "max_reads": 3,
+            "max_total_chars": 16000
+          },
+          "failed": 5,
+          "skipped": 0,
+          "successful": 11,
+          "used_chars": 45415
+        },
+        "stop_state": null
+      }
+    ],
+    "publication": {
+      "audit": {
+        "candidate_answer_sha256": "49c39efccd2d64ffe37320fd2eb23db97fa6b9d6a9beb6efc5a645cc5515486c",
+        "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "phases": {
+          "answer_claim_binding": {
+            "attempted": true,
+            "attempts": 0,
+            "error_type": "citation_outside_evidence",
+            "model_calls": 0,
+            "outcome": "rejected"
+          },
+          "answer_generation": {
+            "attempted": true,
+            "attempts": 1,
+            "error_type": "",
+            "model_calls": 1,
+            "outcome": "completed"
+          }
+        },
+        "schema_version": "answer-validation-audit-v1"
+      },
+      "claim_snapshot": {
+        "answer_hash": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "claim_links": [],
+        "claims": [],
+        "producer": "answer_claim_binder_v3",
+        "reason": "citation_outside_evidence:read_host_page_not_read:https://github.com/godotengine/godot/blob/master/thirdparty/jolt_physics/Jolt/Physics/Collision/Shape/MutableCompoundShape.cpp#2,https://opendeer.net/",
+        "schema_version": "answer-claim-snapshot-v1",
+        "status": "rejected"
+      },
+      "citation_scope": {
+        "allowed": [
+          "http://m.qwbw.cn/news/21975",
+          "https://ezengine.net/pages/docs/physics/jolt/constraints/jolt-fixed-constraint-component.html",
+          "https://forum.godotengine.org/t/do-you-guys-recommend-jolt/38483",
+          "https://github.com/godotengine/godot/blob/master/thirdparty/jolt_physics/Jolt/Physics/Collision/Shape/CompoundShape.cpp#1",
+          "https://mygit.top/repository/566533013#1",
+          "https://opendeer.net/en/repo/godot-jolt/godot-jolt",
+          "https://project-awesome.org/r/godot-jolt-godot-jolt",
+          "https://raw.githubusercontent.com/ezEngine/docs-src/refs/heads/main/pages/docs/physics/jolt/special/jolt-breakable-slab-component.md#1"
+        ],
+        "outside": [
+          {
+            "kind": "read_host_page_not_read",
+            "url": "https://github.com/godotengine/godot/blob/master/thirdparty/jolt_physics/Jolt/Physics/Collision/Shape/MutableCompoundShape.cpp#2"
+          },
+          {
+            "kind": "read_host_page_not_read",
+            "url": "https://opendeer.net/en/repo/godot-jolt"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "label": "round2-b-autonomous",
+    "status": "failed",
+    "error": "SpendLimitExceeded: experiment rab-godot-jolt-20261127 would exceed its cap: reserved=1892456 next=177262 cap=1940000 micro-CNY",
+    "answer_chars": null,
+    "answer": "",
+    "research_seconds": 59.0,
+    "spend_before_micros": 1252721,
+    "spend_after_micros": 1892456,
+    "model_calls": null,
+    "tool_calls": null,
+    "stop_reason": null,
+    "finish_reason": null,
+    "final_text": "",
+    "calls": [
+      {
+        "name": "web_search",
+        "arguments": {
+          "max_results": 8,
+          "query": "Godot Jolt physics limitations documentation"
+        },
+        "ok": null,
+        "url": "",
+        "content_chars": 0,
+        "results": 7
+      },
+      {
+        "name": "web_search",
+        "arguments": {
+          "max_results": 8,
+          "query": "godot-jolt github limitations unsupported features"
+        },
+        "ok": null,
+        "url": "",
+        "content_chars": 0,
+        "results": 6
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "max_chars": 20000,
+          "url": "https://raw.githubusercontent.com/godot-jolt/godot-jolt/master/README.md"
+        },
+        "ok": true,
+        "url": "https://raw.githubusercontent.com/godot-jolt/godot-jolt/master/README.md",
+        "content_chars": 5460,
+        "results": 0
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "max_chars": 30000,
+          "url": "https://raw.githubusercontent.com/mihe/godot-docs/29c9520b3270e416865304502df82a1bf7de0153/tutorials/physics/using_jolt_physics.rst"
+        },
+        "ok": true,
+        "url": "https://raw.githubusercontent.com/mihe/godot-docs/29c9520b3270e416865304502df82a1bf7de0153/tutorials/physics/using_jolt_physics.rst",
+        "content_chars": 14387,
+        "results": 0
+      },
+      {
+        "name": "web_search",
+        "arguments": {
+          "max_results": 8,
+          "query": "Godot 4 destructible building Jolt rigid body performance many pieces"
+        },
+        "ok": null,
+        "url": "",
+        "content_chars": 0,
+        "results": 8
+      },
+      {
+        "name": "web_read",
+        "arguments": {
+          "max_chars": 20000,
+          "url": "https://forum.godotengine.org/t/collapsable-buildings-in-3d/45949/13"
+        },
+        "ok": true,
+        "url": "https://forum.godotengine.org/t/collapsable-buildings-in-3d/45949/13",
+        "content_chars": 5381,
+        "results": 0
+      },
+      {
+        "name": "web_search",
+        "arguments": {
+          "max_results": 8,
+          "query": "Jolt Physics breakable joint break threshold GroupFilter destructible"
+        },
+        "ok": null,
+        "url": "",
+        "content_chars": 0,
+        "results": 7
+      }
+    ],
+    "research_runs": [
+      {
+        "id": "web_lookup_ca344dfb26a24337b8f2e48d1b3cfd0c",
+        "stage": "failed",
+        "status": "failed",
+        "stop_reason": "chat_tool_loop_failed",
+        "provider_status": "provider_failed",
+        "source_block_chars": 0,
+        "items_chars": 53017,
+        "selected_sources_chars": 3181,
+        "deep": true,
+        "trace_calls": 7,
+        "trace_reads": 3,
+        "rejected_reads": 0,
+        "read_summary": {
+          "attempted": 0,
+          "budget": {
+            "max_chars_per_source": 6000,
+            "max_reads": 3,
+            "max_total_chars": 16000
+          },
+          "failed": 0,
+          "skipped": 0,
+          "successful": 0,
+          "used_chars": 0
+        },
+        "stop_state": null
+      }
+    ]
+  },
+  {
+    "label": "b-empty-1",
+    "status": "completed",
+    "error": "",
+    "answer_chars": 52,
+    "answer": "本次尚未取得能逐事实支持所问内容的记录，暂不能给出已核实的结论。相邻版本、搜索摘要和模型记忆不作为支持。",
+    "research_seconds": 6.6,
+    "spend_before_micros": 1070949,
+    "spend_after_micros": 1128873,
+    "model_calls": 1,
+    "tool_calls": 0,
+    "stop_reason": "completed",
+    "finish_reason": null,
+    "final_text": "",
+    "calls": [],
+    "research_runs": [
+      {
+        "id": "web_lookup_1276dc00045e45d5925a2d7c68edcc16",
+        "stage": "completed",
+        "status": "completed",
+        "stop_reason": "no_tool_calls",
+        "provider_status": "empty",
+        "source_block_chars": 0,
+        "items_chars": 2,
+        "selected_sources_chars": 2,
+        "deep": true,
+        "trace_calls": 0,
+        "trace_reads": 0,
+        "rejected_reads": 0,
+        "read_summary": {
+          "attempted": 0,
+          "budget": {
+            "max_chars_per_source": 6000,
+            "max_reads": 3,
+            "max_total_chars": 16000
+          },
+          "failed": 0,
+          "skipped": 0,
+          "successful": 0,
+          "used_chars": 0
+        },
+        "stop_state": null
+      }
+    ]
+  },
+  {
+    "label": "b-empty-2",
+    "status": "completed",
+    "error": "",
+    "answer_chars": 52,
+    "answer": "本次尚未取得能逐事实支持所问内容的记录，暂不能给出已核实的结论。相邻版本、搜索摘要和模型记忆不作为支持。",
+    "research_seconds": 7.2,
+    "spend_before_micros": 1128873,
+    "spend_after_micros": 1186797,
+    "model_calls": 1,
+    "tool_calls": 0,
+    "stop_reason": "completed",
+    "finish_reason": "length",
+    "final_text": "",
+    "calls": [],
+    "research_runs": [
+      {
+        "id": "web_lookup_1b84fe720057460db0a4872a06663001",
+        "stage": "completed",
+        "status": "completed",
+        "stop_reason": "no_tool_calls",
+        "provider_status": "empty",
+        "source_block_chars": 0,
+        "items_chars": 2,
+        "selected_sources_chars": 2,
+        "deep": true,
+        "trace_calls": 0,
+        "trace_reads": 0,
+        "rejected_reads": 0,
+        "read_summary": {
+          "attempted": 0,
+          "budget": {
+            "max_chars_per_source": 6000,
+            "max_reads": 3,
+            "max_total_chars": 16000
+          },
+          "failed": 0,
+          "skipped": 0,
+          "successful": 0,
+          "used_chars": 0
+        },
+        "stop_state": null
+      }
+    ]
+  },
+  {
+    "label": "b-length-1600",
+    "status": "completed",
+    "error": "",
+    "answer_chars": 52,
+    "answer": "本次尚未取得能逐事实支持所问内容的记录，暂不能给出已核实的结论。相邻版本、搜索摘要和模型记忆不作为支持。",
+    "research_seconds": 13.7,
+    "spend_before_micros": 1186797,
+    "spend_after_micros": 1252721,
+    "model_calls": 1,
+    "tool_calls": 0,
+    "stop_reason": "completed",
+    "finish_reason": "length",
+    "final_text": "",
+    "calls": [],
+    "research_runs": [
+      {
+        "id": "web_lookup_1c1e34d224154b948f945befc5d6d76d",
+        "stage": "completed",
+        "status": "completed",
+        "stop_reason": "no_tool_calls",
+        "provider_status": "empty",
+        "source_block_chars": 0,
+        "items_chars": 2,
+        "selected_sources_chars": 2,
+        "deep": true,
+        "trace_calls": 0,
+        "trace_reads": 0,
+        "rejected_reads": 0,
+        "read_summary": {
+          "attempted": 0,
+          "budget": {
+            "max_chars_per_source": 6000,
+            "max_reads": 3,
+            "max_total_chars": 16000
+          },
+          "failed": 0,
+          "skipped": 0,
+          "successful": 0,
+          "used_chars": 0
+        },
+        "stop_state": null
+      }
+    ]
+  }
+]
