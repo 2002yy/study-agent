@@ -127,3 +127,35 @@ def test_rejected_exploratory_read_body_survives_in_the_durable_trace(tmp_path):
     assert record["content"] == "body"
     assert record["chars"] == 4
     assert record["reason"] == "source_not_established"
+
+
+def test_relaxed_trace_persists_an_undiscovered_public_read(tmp_path):
+    service = WebLookupService(
+        WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    )
+    url = "https://docs.example.org/en/latest/guide"
+    strict_run = service.create("topic", run_kind="autonomous_research")
+    strict_operation = service.begin_tool_trace(strict_run.id)
+
+    strict = service.record_tool_trace(
+        strict_run.id,
+        calls=[_read_call(url)],
+        source_block="",
+        operation_id=strict_operation,
+        final=True,
+    )
+
+    relaxed_run = service.create("topic", run_kind="autonomous_research")
+    relaxed_operation = service.begin_tool_trace(relaxed_run.id)
+    relaxed = service.record_tool_trace(
+        relaxed_run.id,
+        calls=[_read_call(url)],
+        source_block="",
+        operation_id=relaxed_operation,
+        final=True,
+        require_discovery=False,
+    )
+
+    assert strict.selected_sources == []
+    assert [row["item"]["url"] for row in relaxed.selected_sources] == [url]
+    assert [row["url"] for row in relaxed.items] == [url]

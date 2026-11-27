@@ -174,3 +174,53 @@ def test_exploratory_body_storage_is_bounded_and_reports_truncation():
     assert all(row["truncated"] is True for row in records)
     assert [row["stored_chars"] for row in records] == [2, 2]
     assert all(row["chars"] == 4 for row in records)
+
+
+def test_discovery_is_still_required_by_default():
+    call = _read("https://docs.example.org/en/latest/guide")
+
+    admitted, rejected = admit_tool_evidence([call])
+
+    assert admitted == []
+    assert rejected == [
+        {"url": "https://docs.example.org/en/latest/guide", "reason": "source_not_established"}
+    ]
+
+
+def test_relaxed_admission_takes_a_successful_public_read_without_a_search():
+    call = _read("https://docs.example.org/en/latest/guide")
+
+    admitted, rejected = admit_tool_evidence([call], require_discovery=False)
+
+    assert [row["result"]["url"] for row in admitted] == [
+        "https://docs.example.org/en/latest/guide"
+    ]
+    assert rejected == []
+
+
+def test_relaxed_admission_still_rejects_ineligible_failed_and_empty_reads():
+    ineligible = _read("https://docs.example.org/a")
+    ineligible["result"]["answer_eligible"] = False
+    empty = _read("https://docs.example.org/b")
+    empty["result"]["content"] = "  "
+    failed = _failed_read("https://docs.example.org/c")
+
+    admitted, rejected = admit_tool_evidence(
+        [ineligible, empty, failed], require_discovery=False
+    )
+
+    assert admitted == []
+    assert [row["reason"] for row in rejected] == [
+        "source_not_established",
+        "empty_content",
+        "read_failed",
+    ]
+
+
+def test_relaxed_admission_rejects_a_non_public_url():
+    call = _read("http://127.0.0.1/admin")
+
+    admitted, rejected = admit_tool_evidence([call], require_discovery=False)
+
+    assert admitted == []
+    assert rejected == [{"url": "", "reason": "non_public_url"}]

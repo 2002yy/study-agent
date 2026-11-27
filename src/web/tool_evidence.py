@@ -50,6 +50,7 @@ def _trusted_call_pairs(
     calls: list[dict[str, Any]],
     *,
     user_urls: Sequence[str] = (),
+    require_discovery: bool = True,
 ) -> list[tuple[int, dict[str, Any]]]:
     """Sanitized source-bearing calls paired with their original position.
 
@@ -136,7 +137,7 @@ def _trusted_call_pairs(
             # discovery provenance, or accept an undiscovered request because
             # its response claims a previously discovered destination.
             requested_key = canonicalize_url(requested_url)
-            if (
+            if require_discovery and (
                 requested_url.casefold() not in discovered_urls
                 and (not requested_key or requested_key not in discovered_keys)
             ):
@@ -186,16 +187,27 @@ def trusted_tool_calls(
     calls: list[dict[str, Any]],
     *,
     user_urls: Sequence[str] = (),
+    require_discovery: bool = True,
 ) -> list[dict[str, Any]]:
     """Return sanitized source-bearing calls, including search candidates.
 
     A successful ``web_search`` proves only that candidate links were
     discovered.  Callers must use :func:`evidence_tool_calls` before treating
     a call as answer evidence.
+
+    ``require_discovery=False`` admits a successful read of any public URL.
+    The autonomous research path uses it: the model may follow the same
+    document to another language or version instead of being forced back to
+    the exact URL a search engine returned.  Safety checks (public URL, read
+    success, non-empty body, redirect identity) still apply, and the stored
+    call keeps the requested and final URL.
     """
 
     return [
-        call for _index, call in _trusted_call_pairs(calls, user_urls=user_urls)
+        call
+        for _index, call in _trusted_call_pairs(
+            calls, user_urls=user_urls, require_discovery=require_discovery
+        )
     ]
 
 
@@ -203,6 +215,7 @@ def evidence_tool_calls(
     calls: list[dict[str, Any]],
     *,
     user_urls: Sequence[str] = (),
+    require_discovery: bool = True,
 ) -> list[dict[str, Any]]:
     """Return calls that may enter answer context.
 
@@ -214,7 +227,9 @@ def evidence_tool_calls(
 
     return [
         call
-        for call in trusted_tool_calls(calls, user_urls=user_urls)
+        for call in trusted_tool_calls(
+            calls, user_urls=user_urls, require_discovery=require_discovery
+        )
         if (
             str(call.get("name") or "") == "web_read"
             and call.get("result", {}).get("answer_eligible") is not False
@@ -289,12 +304,15 @@ def tool_source_items(
     calls: list[dict[str, Any]],
     *,
     user_urls: Sequence[str] = (),
+    require_discovery: bool = True,
 ) -> list[dict[str, Any]]:
     """Project trusted web search/read calls into durable source items."""
 
     items: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for call in trusted_tool_calls(calls, user_urls=user_urls):
+    for call in trusted_tool_calls(
+        calls, user_urls=user_urls, require_discovery=require_discovery
+    ):
         name = str(call.get("name") or "")
         result = call.get("result")
         if not isinstance(result, dict):
@@ -349,6 +367,7 @@ def tool_evidence_items(
     *,
     admitted: Sequence[dict[str, Any]] | None = None,
     user_urls: Sequence[str] = (),
+    require_discovery: bool = True,
 ) -> list[dict[str, Any]]:
     """Project answer-usable calls into stable source identities.
 
@@ -356,7 +375,9 @@ def tool_evidence_items(
     full call list still supplies search titles and structured metadata.
     """
 
-    safe_calls = trusted_tool_calls(calls, user_urls=user_urls)
+    safe_calls = trusted_tool_calls(
+        calls, user_urls=user_urls, require_discovery=require_discovery
+    )
     search_titles: dict[str, str] = {}
     for call in safe_calls:
         if str(call.get("name") or "") != "web_search":
@@ -377,7 +398,9 @@ def tool_evidence_items(
     for call in (
         admitted
         if admitted is not None
-        else evidence_tool_calls(calls, user_urls=user_urls)
+        else evidence_tool_calls(
+            calls, user_urls=user_urls, require_discovery=require_discovery
+        )
     ):
         name = str(call.get("name") or "")
         result = call.get("result")
@@ -404,7 +427,9 @@ def tool_evidence_items(
             continue
         # Structured GitHub calls are already independently sanitized by
         # ``trusted_tool_calls`` and can reuse the normal item projection.
-        for item in tool_source_items([call], user_urls=user_urls):
+        for item in tool_source_items(
+            [call], user_urls=user_urls, require_discovery=require_discovery
+        ):
             url = _public_url(item.get("url") or item.get("link"))
             if not url or url.casefold() in seen:
                 continue
@@ -431,6 +456,7 @@ def admit_tool_evidence(
     calls: list[dict[str, Any]],
     *,
     user_urls: Sequence[str] = (),
+    require_discovery: bool = True,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     """Admitted reads plus a bounded reason for each rejected read.
 
@@ -440,7 +466,9 @@ def admit_tool_evidence(
     of those (fragment/query differences do not hide an anchor).
     """
 
-    pairs = _trusted_call_pairs(calls, user_urls=user_urls)
+    pairs = _trusted_call_pairs(
+        calls, user_urls=user_urls, require_discovery=require_discovery
+    )
     admitted_indexes = _admitted_call_indexes(pairs)
     admitted = [call for index, call in pairs if index in admitted_indexes]
     rejected: list[dict[str, str]] = []
@@ -462,6 +490,10 @@ def admit_tool_evidence(
             result["requested_url"]
         ) != (_public_url(arguments.get("url")) or str(result["requested_url"])):
             reason = "redirect_unverified"
+        elif not (
+            _public_url(result.get("url")) or _public_url(arguments.get("url"))
+        ):
+            reason = "non_public_url"
         else:
             reason = "source_not_established"
         rejected.append(
@@ -488,6 +520,7 @@ def exploration_read_records(
     calls: list[dict[str, Any]],
     *,
     user_urls: Sequence[str] = (),
+    require_discovery: bool = True,
     content_chars: int = EXPLORATION_CONTENT_CHARS,
     total_chars: int = EXPLORATION_TOTAL_CHARS,
     max_records: int = EXPLORATION_MAX_RECORDS,
@@ -500,7 +533,9 @@ def exploration_read_records(
     evidence; it exists so a reviewer can see what was explored.
     """
 
-    pairs = _trusted_call_pairs(calls, user_urls=user_urls)
+    pairs = _trusted_call_pairs(
+        calls, user_urls=user_urls, require_discovery=require_discovery
+    )
     admitted_indexes = _admitted_call_indexes(pairs)
     records: list[dict[str, Any]] = []
     remaining = max(0, int(total_chars))

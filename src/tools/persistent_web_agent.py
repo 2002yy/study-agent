@@ -768,12 +768,15 @@ class PersistentWebToolAgent(WebToolAgent):
         def persist_round(rows: list[dict[str, Any]]) -> None:
             if run is None:
                 return
-            admitted, _rejected = admit_tool_evidence(rows, user_urls=user_urls)
+            admitted, _rejected = admit_tool_evidence(
+                rows, user_urls=user_urls, require_discovery=False
+            )
             preview = WebToolTrace(
                 query=user_input,
                 calls=tuple(rows),
                 run_id=run.id,
                 evidence_calls=tuple(admitted),
+                require_discovery=False,
             )
             checkpoint_error = self._record_trace(
                 run.id,
@@ -783,6 +786,7 @@ class PersistentWebToolAgent(WebToolAgent):
                 final=False,
                 stop_reason="sources_partially_read",
                 user_urls=user_urls,
+                require_discovery=False,
             )
             if checkpoint_error:
                 stop["checkpoint_error"] = checkpoint_error
@@ -838,13 +842,16 @@ class PersistentWebToolAgent(WebToolAgent):
         elif stop_reason in {"deadline", "model_call_budget", "max_rounds"}:
             record_stop = "sources_partially_read" if calls else "no_tool_calls"
 
-        admitted, rejected = admit_tool_evidence(calls, user_urls=user_urls)
+        admitted, rejected = admit_tool_evidence(
+            calls, user_urls=user_urls, require_discovery=False
+        )
         if run is not None:
             preview = WebToolTrace(
                 query=user_input,
                 calls=tuple(calls),
                 run_id=run.id,
                 evidence_calls=tuple(admitted),
+                require_discovery=False,
             )
             persistence_error = self._record_trace(
                 run.id,
@@ -855,6 +862,7 @@ class PersistentWebToolAgent(WebToolAgent):
                 final=True,
                 stop_reason=record_stop,
                 user_urls=user_urls,
+                require_discovery=False,
             )
         else:
             persistence_error = ""
@@ -872,6 +880,7 @@ class PersistentWebToolAgent(WebToolAgent):
             stop_reason=stop_reason,
             evidence_calls=tuple(admitted),
             rejected_evidence=tuple(rejected),
+            require_discovery=False,
         )
 
     def _resolve_deep_research(
@@ -1268,6 +1277,7 @@ class PersistentWebToolAgent(WebToolAgent):
         final: bool = True,
         stop_reason: str = "",
         user_urls: Sequence[str] = (),
+        require_discovery: bool = True,
     ) -> str:
         if self.research_service is None:
             return ""
@@ -1281,6 +1291,7 @@ class PersistentWebToolAgent(WebToolAgent):
                 final=final,
                 stop_reason=stop_reason,
                 user_urls=user_urls,
+                require_discovery=require_discovery,
             )
         except Exception as exc:
             return f"ResearchRun persistence failed: {type(exc).__name__}: {exc}"

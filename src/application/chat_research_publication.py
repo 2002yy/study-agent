@@ -152,7 +152,10 @@ def _tool_read_validation_plan(
 
     from src.web.tool_evidence import evidence_tool_calls
 
-    calls = evidence_tool_calls(list(getattr(trace, "calls", ()) or ()))
+    calls = evidence_tool_calls(
+        list(getattr(trace, "calls", ()) or ()),
+        require_discovery=bool(getattr(trace, "require_discovery", True)),
+    )
     rows: list[dict[str, Any]] = []
     for index, call in enumerate(calls[:8], start=1):
         result = call.get("result") if isinstance(call, dict) else None
