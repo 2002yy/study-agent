@@ -1,0 +1,47 @@
+[
+  {
+    "label": "answer-8k",
+    "status": "completed",
+    "answer_chars": 3546,
+    "admitted_reads": [
+      "https://raw.githubusercontent.com/godot-jolt/godot-jolt/master/README.md",
+      "https://raw.githubusercontent.com/mihe/godot-docs/29c9520b3270e416865304502df82a1bf7de0153/tutorials/physics/using_jolt_physics.rst",
+      "https://forum.godotengine.org/t/collapsable-buildings-in-3d/45949/13"
+    ],
+    "block_chars": 25578,
+    "output_budget": null,
+    "generation": null,
+    "claim_status": "unavailable",
+    "claim_reason": "producer_unavailable",
+    "outside_citations": [],
+    "spend_before_micros": 0,
+    "spend_after_micros": 177050,
+    "elapsed_seconds": 46.8
+  },
+  {
+    "label": "answer-16k",
+    "status": "completed",
+    "answer_chars": 11341,
+    "admitted_reads": [
+      "https://raw.githubusercontent.com/godot-jolt/godot-jolt/master/README.md",
+      "https://raw.githubusercontent.com/mihe/godot-docs/29c9520b3270e416865304502df82a1bf7de0153/tutorials/physics/using_jolt_physics.rst",
+      "https://forum.godotengine.org/t/collapsable-buildings-in-3d/45949/13"
+    ],
+    "block_chars": 25578,
+    "output_budget": {
+      "kind": "text",
+      "max_tokens": 16384,
+      "capability_enabled": false
+    },
+    "generation": {
+      "status": "completed",
+      "finish_reason": "stop"
+    },
+    "claim_status": "unavailable",
+    "claim_reason": "producer_unavailable",
+    "outside_citations": [],
+    "spend_before_micros": 0,
+    "spend_after_micros": 242588,
+    "elapsed_seconds": 65.2
+  }
+]

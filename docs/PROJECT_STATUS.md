@@ -20,9 +20,11 @@
   - A：11 次成功读取、31,238 字符源块，但答案门禁以 `citation_outside_evidence`（引用了未读取的 GitHub 源码/镜像）整轮拒发，只剩 32 字；费用 ¥0.219。
   - B：准入修复生效——成功读取 godot-jolt 官方 README、Godot 文档源镜像、论坛帖共 3 个来源、0 拒绝；但在答案生成前撞上账本上限（研究 ¥0.639，答案还差约 ¥0.177，剩余 ¥0.048）。
   - B 的三次空回复由两处真实缺陷造成：规划 600/1600 token 被 DeepSeek thinking 吃光（`finish_reason=length`）。已修：#697 记录 `finish_reason`、#698 提到 1600、#699 规划轮关闭 thinking。
-- 总模型费用 **¥1.949 / ¥2**（账本 ¥1.892 + 重置前 ¥0.057），剩余约 ¥0.05，不足以再发起付费调用。
-- 结论：准入修复已验证；首轮唯一可评分结果仍是自主 72 / RQCE 64。下一轮需要新预算，并单独处理 A 的发布门禁整轮拒发；不自动续费。
-- `priority=P1`、`loop=dynamic`、`owner=research/mode-comparison`、`dynamic_evidence=authorized_run`、`budget_authorization=exhausted_1_949_of_2`、`decision=retest_blocked_by_budget`。
+- **B 的补生成答案**（replay，已授权）：用 B 已保存的 3 个准入来源重建 25,578 字符答案上下文，只调用答案模型。8k 上限被截断（3,546 字，¥0.177）；16k 上限完整（11,341 字，`finish_reason=stop`，¥0.243）。评分 **91/100**（事实 4.5 / 覆盖 5 / 新发现 4.5 / 反例 4.5 / 证据 4），明显高于 A1 64、B1 72。
+- B2 的官方资料真正支撑了关节、软限位、冲量、margin、跨 body 幽灵碰撞等条目；caveat 是 replay（非端到端）、claim binder `producer_unavailable` 未执行、文档源为 4.4 快照、单样本非盲评。
+- 最终模型费用 **¥2.369**（账本 ¥2.312 + 重置前 ¥0.057），在累计授权约 ¥2.38 以内；账本无余额，不再发起付费调用。
+- 结论：准入修复 + 三个可靠性修复后，自主路径在"资料可用"时能产出明显更好的答案；但 A 的发布门禁整轮拒发、replay 未过 claim 门禁、以及单样本限制意味着还不能宣布架构胜出。下一轮需要新预算与 A 门禁修复。
+- `priority=P1`、`loop=dynamic`、`owner=research/mode-comparison`、`dynamic_evidence=authorized_run`、`budget_authorization=exhausted_2_369`、`decision=b2_scored_retest_needed`。
 
 ### 2026-11-27 自主路径 P2：来源准入补齐、答案证据组装、工作上下文压缩
 
