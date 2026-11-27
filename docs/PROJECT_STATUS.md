@@ -6,6 +6,30 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-27 自主路径 P2：来源准入补齐、答案证据组装、工作上下文压缩
+
+- 当前 `main@70096299`，工作区干净；自主路径仍默认关闭，RQCE 与普通语义路径未改。
+- **边界补齐**（PR #687 → `1a0020e5`，CI run `45988567392` 五项全绿）：
+  - 工具组之间取消改走 `cancelled_mid_round` 部分返回路径，不再丢弃已完成批次；默认无部分返回时仍抛异常。
+  - `tool_source_items` / `record_tool_trace` 传入 `user_urls`，用户指定 URL 进入 `run.items`。
+  - 准入改为按原始调用位置匹配（`_trusted_call_pairs`），同 URL 先失败后成功不再吞掉失败记录；新增 `redirect_unverified` 原因。
+  - 新增 `tool_trace.exploration_reads`：成功但未准入的读取也持久化正文，单条 20,000 / 单轮 60,000 字符 / 最多 12 条，记录 `chars`、`stored_chars`、`truncated`、`digest`。**准确表述**：准入读取的完整正文在 `tool_trace.calls`；未准入读取的正文在 `exploration_reads`（有界），不是"所有原始读取均完整保存"。
+- **P2-A 答案证据组装**（PR #688 → `70096299`，CI run `45994077364` 五项全绿）：
+  - `WebToolTrace.context_block()` 改由 `src/web/answer_evidence.py` 组装，不再对整段拼接做前缀截断。
+  - 按来源水填充分配预算：短来源保留全文，长来源共享剩余额度；来源内复用 `question_terms` + `prose_blocks` 选问题相关段落，页首与页尾必留。
+  - sha256 相同的正文只占一次预算并标注与哪个来源重复；不同版本照常保留。
+  - 上限仍是 `WEB_TOOL_CONTEXT_MAX_CHARS`（默认 30,000）；`tool_trace.calls` 继续保存完整正文。
+  - 已知行为变化：来源块现在是多行 `article_excerpt` 证据单元；在 `bounded_units` 披露级别会进入 private-only 块（仍在模型上下文里），不再按 `search_excerpt` 被选中两条。
+- **P2-B 工作上下文压缩**（PR #689 → `1e383cd8`，CI run `45990427736` 五项全绿）：
+  - `run_tool_loop(context_budget=...)` 阈值触发（`WEB_TOOL_WORKING_CONTEXT_CHARS`，默认 60,000 字符）。
+  - 最近 2 轮工具结果原样保留；更早结果换成稳定摘要（url/status/字符数/700 字符摘录/前 5 条搜索结果）；旧研究状态块折叠为一行；仍超预算时去掉摘录。
+  - system 与用户原始请求永不改写；返回的 evidence 与持久化 trace 保持完整正文；压缩异常写入 `stop_state`，不中断研究。
+  - 两个研究入口都接入该预算；`stop_state["working_context"]` 记录压缩前后字符数与条数。
+- 验证：新增 2 项取消边界、6 项准入/探索读取、2 项持久化、8 项答案组装、5 项工作上下文测试；三批影响集分别 247 / 197 / 73 项通过；三次精确 HEAD CI 全绿；Ruff 干净；mypy 112/125；无付费调用。
+- 边界：来源准入不是 claim 级事实校验；答案组装是确定性词面投影，不是语义评分；工作上下文压缩不调用摘要模型。
+- 下一步：**冻结功能开发**，准备自主路径与 RQCE 的真实同题对照；真实模型调用仍需用户明确授权，不得自行产生付费调用。
+- `priority=P2`、`loop=static`、`owner=research/context-management`、`dynamic_evidence=not_run`、`budget_authorization=not_granted`、`decision=engineering-only`。
+
 ### 2026-11-27 自主路径 P1：截止分离、分级读取、来源准入
 
 - 已合入 `main@d0ab83a8f2b4e4589851a02889dcdcb25aef0a41`（PR #685，CI run `45981791729` 五项全绿）；默认仍关闭。
@@ -16,7 +40,7 @@
 - **来源准入**：`trusted_tool_calls` / `evidence_tool_calls` 支持用户指定 URL、搜索发现、已读页面 `links` 引用、章节锚点（canonical 去 fragment）。读取仍自由，但 `WebToolTrace.evidence_calls` 只放行可追溯来源；`rejected_evidence` 记录 `source_not_established` / `read_failed` 等原因。
 - **持久化**：`record_tool_trace(user_urls=...)` 把同一准入规则用于 `selected_sources`，不是只在内存里过滤。
 - 验证：新增 7 项边界测试、6 项来源准入测试、用户 URL 真实 service 持久化测试；相关影响集 300+ 项通过；Ruff 干净；mypy 112/125；无付费调用。
-- 边界：这是工具循环的来源准入，不是 RQCE 的 claim 级 Evidence Gate；claim 级 Gate 仍只覆盖确定性路径。上下文压缩尚未做。
+- 边界：这是工具循环的来源准入，不是 RQCE 的 claim 级 Evidence Gate；claim 级 Gate 仍只覆盖确定性路径。上下文压缩已在 P2 完成。
 - `priority=P1`、`loop=static`、`owner=research/evidence-admission`、`dynamic_evidence=not_run`、`budget_authorization=not_granted`、`decision=engineering-only`。
 
 ### 2026-11-27 自主路径 P0 修正：硬截止、部分保留、统一调用口径
