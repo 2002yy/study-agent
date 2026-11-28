@@ -14,11 +14,10 @@ if TYPE_CHECKING:
 
 
 # Gate=BLOCK is known *before* generation (no eligible evidence rows, or no
-# attempt budget), and in that case the release gate replaces whatever the model
-# writes with RESEARCH_ANSWER_BLOCKED_COPY. Measured: the default answer call
-# spends 1330-2083 hidden reasoning tokens (16-41s) for output that is then
-# discarded, so the blocked branch runs with thinking disabled. The published
-# surface is unchanged; PARTIAL/PASS keep the production default.
+# attempt budget). Generation still runs because its output is now delivered as
+# a labelled draft instead of being discarded. Measured: the default answer call
+# spends 1330-2083 hidden reasoning tokens (16-41s), so the blocked branch runs
+# with thinking disabled. PARTIAL/PASS keep the production default.
 THINKING_DISABLED_EXTRA_BODY: dict[str, dict[str, str]] = {
     "thinking": {"type": "disabled"}
 }
@@ -138,7 +137,7 @@ def _tool_read_validation_plan(
 
     A research turn normally receives its plan from a ResearchRun, whose
     claim-engine brief carries validated support rows. The inline tool loop has
-    no such brief, so it used to fall through to the blocked copy without ever
+    no such brief, so it used to fall through to a fixed refusal without ever
     calling the model - even after a successful read.
 
     Reading a page is not support for a claim, so these rows carry **no**
@@ -207,7 +206,7 @@ def inline_research_validation_plan(
     Both preparation pipelines call this: the base ``ChatService`` and the
     external-data-policy pipeline that production uses. It lives here once
     because duplicating the condition is how the policy path lost its
-    read-backed answer - it published the blocked copy without ever calling
+    read-backed answer - it published a fixed refusal without ever calling
     the model, even though the turn had read a page.
     """
 
