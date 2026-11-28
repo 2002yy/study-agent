@@ -6,6 +6,31 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-28 RQCE Deep v2：与自主 Deep 对齐外部资源
+
+- 已合入 `main@9fc81b0c`（PR #714，CI run `46146538589` 五项全绿；backend **7016 passed / 17 skipped**）。
+- 新运行使用 `deep-v2`：120 candidates / 60 reads / 1200s soft / 1800s hard / 240k chars。旧 `deep-v1`（40/12/450s/600s/80k）保留。
+- `build_execution_envelope` 默认新 profile；`validate_execution_envelope` 按 envelope 自己记录的 `budget_profile` 校验 deadline，不要求旧记录升级；`RESEARCH_DEEP_BUDGET_PROFILE=deep-v1` 可回旧 profile。
+- 验证：深研相关 5 个测试文件 **160 passed**；Ruff 干净；无付费调用。
+- `priority=P0`、`loop=static`、`owner=research/budget`、`dynamic_evidence=none`、`budget_authorization=unchanged`、`decision=rqce_deep_v2_merged`。
+
+### 2026-11-28 Claude Code 恢复源码研究
+
+- 已合入 `main@d787bd48`（PR #713，CI run `46145048647`）与 `main@4ac87b2d`（PR #715，CI run `46148312192`）；只读研究，无付费调用。
+- 固定 `PM-Shawn/claude-code-source@ae56bff`（2026-03-31 npm v2.1.88 source map 恢复源码）与 5 个第三方分析/研究仓库：Query Loop、token budget、工具结果落盘/微压缩、Todo、Explore/Plan、sidechain 恢复、prompt cache。
+- 关键结论：Claude Code 的核心循环很薄，真正支撑长任务的是工具结果持久化 + 预览、多级压缩、Todo/Task、只读子代理、sidechain 恢复和缓存观测。Study Agent 最值得补的是“持久化工具结果 + 按 id 重新取回”，可同时解决压缩、重复读取与恢复。
+- 明确不采用：完整子代理、Todo 硬门禁、Anthropic cache_edits/TTL、固定 min queries、复制专有源码。报告见 `docs/research_quality/CLAUDE_CODE_SOURCE_STUDY_20261128.md`。
+- 限制：恢复源码仓库无许可证、属于 Anthropic 专有代码；未逐文件核对 source map 完整性，未运行 Claude Code 本体。
+
+### 2026-11-28 读取身份、缓存正文与续跑真实性
+
+- 已合入 `main@d33fb6c2`（PR #712，CI run `46142354897` 五项全绿；backend **7014 passed / 17 skipped**）。
+- **读取身份**：重复判断不再只看 URL；包含章节锚点、mode、`start_seconds`、`video_seconds`、`include_ocr`、`comment_page`、`include_discussion`、`max_comments`、`audio_seconds`、`max_chars`。同 URL 的不同章节/视频段/OCR/评论页/更深正文都可以再次读取。
+- **缓存正文**：同一有效读取请求返回 `cached: true` 的完整结果，不再只给 `duplicate_read` 错误；更深的 `max_chars` 允许重读，较浅的返回缓存。
+- **费用顺序**：先压缩工作上下文，再估算下一轮费用，避免压缩前误触发 `spend_reserve`。
+- **续跑真实性**：删除 `model_calls + 1 < max_model_calls` 的重复预留；有缺口但不能续跑时记录 `continuation_limit` / `model_call_budget` / `deadline`，不再统一写 `completed`。
+- 验证：本轮 40 个聚焦测试通过；Ruff 干净；无付费调用。
+
 ### 2026-11-28 研究预算契约：放宽决策次数，保留费用硬边界
 
 - 已合入 `main@6ee6a7e8`（PR #710，CI run `46137691134` 五项全绿；backend **7010 passed / 17 skipped**）。
@@ -15,8 +40,8 @@
 - **最终答案预留**：时间预留 60→180 秒；费用余量阈值普通 ¥0.10、Deep ¥0.30（可配置），研究循环在剩余费用低于“阈值 + 下一次调用最坏成本”时以 `spend_reserve` 停止。它是停止阈值，不是预扣款；实际扣款仍由 `reserve_call()` 逐次预留。
 - **防止放宽后乱烧**：重复相同查询（含 site_key）返回 `duplicate_query`，不消耗搜索额度；已充分读取的同一 URL 返回 `duplicate_read`，复用正文；失败/短壳页允许一次 `mode="browse"` 重试。完成判断仍按可观察缺口续跑，有足够读取就接受。
 - **普通语义 Standard**：180s/5 reads/4 queries → 300s/20 reads（8 基础 + 12 恢复）/12 queries/48k chars；Lookup 保持 60s。
-- **未同步调整**：RQCE Deep 仍为 600s/12 reads/80k chars 的冻结 profile；通用 web tool fallback 仍 120s/3 轮。二者是不同契约，需单独决策。
-- 对照：Codex `065e18b0` 上下文压缩后继续；OpenCode `eeeeaa0d` 可配置 steps + 强制收尾；DSH `4b399c39` 核心循环与外层预算分离；Claude Code 核心源码未公开，按官方预算文档说明“预算过小会导致模型缩小范围/提前停止”。详见 `docs/research_quality/BUDGET_CONTRACT_20261128.md`。
+- **当时的未同步项**：RQCE 当时仍为 600s/12 reads/80k；随后 #714 以 `deep-v2` 对齐（旧 `deep-v1` 保留）。通用 web tool fallback 仍 120s/3 轮。
+- 对照：Codex `065e18b0` 上下文压缩后继续；OpenCode `eeeeaa0d` 可配置 steps + 强制收尾；DSH `4b399c39` 核心循环与外层预算分离；Claude Code 官方未公开核心源码；v2.1.88 恢复源码的专项研究见 `CLAUDE_CODE_SOURCE_STUDY_20261128.md`。详见 `docs/research_quality/BUDGET_CONTRACT_20261128.md`。
 - 验证：影响集 **231 passed**；Ruff 干净；mypy baseline **112/125 passed**；旧 6 次 `research_model_call_budget_exhausted` 不再触发。无付费调用，账本未变化。
 - 已知限制：数值是建议安全上限，不是实测最优；RQCE/通用 fallback 未同步；费用余量依赖账本 pricing，无 cap 时只做调用/时间预留；重复保护是精确匹配，同义改写仍消耗搜索额度。
 - `priority=P0`、`loop=static`、`owner=research/budget`、`dynamic_evidence=none`、`budget_authorization=unchanged`、`decision=budget_contract_merged`。
