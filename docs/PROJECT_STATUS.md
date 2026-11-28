@@ -6,11 +6,25 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-28 研究交付容错：门禁失败不再清空答案
+
+- 已合入 `main@b161ef05`（PR #705，CI run `46121128518` 五项全绿；backend **6985 passed / 17 skipped**）。
+- **产品原则**：已经完成的读取、证据和生成结果，不因后续质量/预算/运行时检查失败而整轮消失；安全边界仍严格拦截。新增 `src/application/research_delivery.py`，把交付结果分为 `draft` / `verified_subset` / `no_answer` / `partial`。
+- **逐路径修复**：核验预算耗尽、证据简报缺失、模型无正文、未读引用无法安全删除、逐条核验全部扣留、一致性检查失败、binder 拒绝/不可用、门禁异常、输出截断，均改为局部扣留或带标签交付，不再返回固定拒绝文案。
+- **标签**：`【部分结论尚未核实】`（部分/删除后仍可发布）、`【未完整核实的研究草稿】`（整份草稿）、`【研究未完成，已保留已读来源】`（无正文，只交付来源）。结构化 `research_delivery` 始终 `verified: false`，`answer_claim_snapshot.status` 仍为 `rejected`。
+- **候选保留**：门禁前完整候选写入 `rag_snapshot["answer_gate_candidate"]`（120k 字符上限，含 sha256/chars/truncated），解决 A2 候选原文无法回放的问题；这是 turn 提交时保留，不是崩溃前独立事务落盘。
+- **来源交付**：从 evidence rows、`used_sources`、成功 tool calls 合并，全部经 `_public_url` 过滤私网/凭证 URL，最多 8 条。
+- **四项目源码对照**（固定 commit，详见 `docs/research_quality/DELIVERY_FAILURE_AUDIT_20261128.md`）：Codex `065e18b0` Stop hook 无可执行 prompt 时不得 block；Claude Code 官方 Hooks 文档 `stop_hook_active` + 8 次续跑上限 + `StopFailure`；OpenCode `eeeeaa0d` 最大步数强制文本收尾 + 输出上限 3 次判定；DSH `4b399c39` sticky `max-tokens`、中断内容持久化、tool results 回收、turn 结束原因结构化。未引入框架或额外模型调用。
+- 免费回放：B2 16k 实际答案 11,341 字符、3 个唯一链接全部属于已读来源（outside=0）；A2 两个原始未读 URL 的等价合成答案被删除且 outside=0；A2 候选原文未持久化，不是逐字回放。
+- 验证：影响集 8 文件 **151 passed**；Ruff 干净；mypy baseline **112/125 passed**；无付费调用，账本未变化。
+- 已知限制：只识别 URL 引用；strict 模式语义改为带标签草稿；一致性检查默认关闭，开启时按 claim 文本/拒绝短语块级删除；known-source 显式“只要已核实”的 abstention 未改。
+- `priority=P0/P1`、`loop=static`、`owner=research/publication`、`dynamic_evidence=free_replay`、`budget_authorization=exhausted`、`decision=delivery_fallback_merged`。
+
 ### 2026-11-28 研究交付可靠性：Deep 16k、发布局部修正、版本提示
 
 - 已合入 `main@6733b650`（PR #702，CI run `46049472438` 五项全绿）。
 - **Deep 回答上限**：`chat_max_tokens("deep")` = 16,384；fast/standard 保持 8,192。显式 `请深度研究：` 前缀即使 runtime mode 仍是默认，也取 16k。仍是上限，不是目标；账本按 max_tokens 预留。
-- **发布门禁局部修正**：答案引用未读取页面时，删除该引用、保留结论；只要发生删除，报告开头标"【部分结论尚未核实】"并附删除说明；没有剩余已读引用时降级为"【未完整核实的研究草稿】"。一条合法引用不替其他被删引用的结论背书。无法安全删除的畸形链接仍整轮拒绝。`answer_citation_scope` 记录 `outside/removed/policy/downgraded`。严格 binder 模式不变。
+- **发布门禁局部修正**：答案引用未读取页面时，删除该引用、保留结论；只要发生删除，报告开头标"【部分结论尚未核实】"并附删除说明；没有剩余已读引用时降级为"【未完整核实的研究草稿】"。一条合法引用不替其他被删引用的结论背书。无法安全删除的畸形链接按块扣留，不能定位时只交付已读来源（#705 起）。`answer_citation_scope` 记录 `outside/removed/policy/downgraded`。严格 binder 的结构化状态仍为 rejected，但失败时发布带标签草稿（#705 起）。
 - **版本准确性**：自主提示词要求记录 URL 中的版本/分支/commit 并按该版本表述；答案证据块标题声明不得把旧版本限制说成当前版本。这是提示词约束，不是自动事实核对。
 - **thinking 适配**：沿用 #699（规划轮关闭 thinking）；B 的真实运行用该配置完成 4 次搜索 + 3 次读取。
 - 验证：新增 Deep 16k、显式前缀、局部删除/降级、保留有效引用、裸链删除、流式同样修正等测试；影响集 266 项通过；全量 CI backend 6974 passed / 17 skipped；Ruff 干净；mypy 112/125；无付费调用。
