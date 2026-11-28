@@ -6,6 +6,19 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-28 研究完成判断与失败恢复：停止调用工具 ≠ 研究完成
+
+- 已合入 `main@a3321909`（PR #708，CI run `46126218628` 五项全绿；backend **7001 passed / 17 skipped**）。
+- **根因**：`run_tool_loop` 在模型不返回工具调用时直接 `mark_stop("completed")`，把“模型停手”当成“研究完成”。现在 text-only 只是候选完成，由 `completion_check` 判断是否有可观察的未完成动作。
+- **有界续跑**：自主路径接入 `research_completion_gap`；最多 2 次续跑，始终为最终回答保留 1 次模型调用，剩余 <5s 不续跑，检查异常不终止研究。只对零工具、零结果搜索、零正文、全部读取失败、模型称资料不足但有未读候选、JS 壳/反爬页/短导航这些可观察情况续跑；有至少一篇充分读取就接受回答，不设固定来源数。
+- **失败恢复**：JS 壳/反爬页即使未开 `WEB_BROWSE_READ_ENABLED` 也自动尝试一次 paired browser；普通短页仍不自动开浏览器。HTTP 读取失败→浏览器、视频无字幕→ASR 原本已有。
+- **提示词**：自主提示词从“读取失败就说明”改为“先 `mode=browse`/换源再说明失败原因”。
+- **三路径审查**：普通语义研究已有 `gap_fill` 阶段（`research_recovery.py` L779/L1200）；RQCE 用 `_ordered_gaps` + `completed_wave_stop_signal` 按缺口/饱和/gate 停止；只有自主路径存在“模型停手即完成”的缺陷。`coverage_stop_assessment` 仍是 advisory，未变成硬门禁。
+- **源码对照**（固定 commit）：Codex `065e18b0` Stop hook 无可执行 prompt 不得 block；Claude Code `stop_hook_active` + 8 次续跑上限 + `StopFailure`；OpenCode `eeeeaa0d` 最大步数强制文本收尾；DSH `4b399c39` tool results 回收 + 中断内容保留 + `max-tokens` sticky。详见 `docs/research_quality/RESEARCH_COMPLETION_AND_RECOVERY_20261128.md`。
+- 验证：影响集 **203 passed**；Ruff 干净；免费回放 Round 1 A 组真实 trace（14 调用/10 成功读取）返回 `None`，不会强制增加读取。无付费调用，账本未变化。
+- 已知限制：只识别可观察缺口，不判断语义覆盖；读两篇充分资料后自信结束仍会接受；资料矛盾/过时版本/反例仍主要靠提示词与 RQCE conflict gap；视频无语音不自动跑 OCR。本机存在 `browse` 时 `test_deepseek_web_tools` 的一个搜索回退断言会因浏览器先返回结果而失败（环境差异，CI 通过）。
+- `priority=P0`、`loop=static`、`owner=research/loop`、`dynamic_evidence=free_replay`、`budget_authorization=exhausted`、`decision=completion_recovery_merged`。
+
 ### 2026-11-28 研究交付容错：门禁失败不再清空答案
 
 - 已合入 `main@b161ef05`（PR #705，CI run `46121128518` 五项全绿；backend **6985 passed / 17 skipped**）。
