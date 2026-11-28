@@ -1617,12 +1617,16 @@ class ChatService:
                     f"已移除 {len(removed)} 处未读取来源的引用；"
                     "相关结论未标注为已验证。"
                 )
-                if has_allowed_citation:
-                    answer = f"{answer.rstrip()}\n\n> {note}"
-                else:
-                    # Most core claims are now uncited: downgrade to a draft
-                    # instead of publishing a report that looks verified.
-                    answer = f"【未完整核实的研究草稿】\n\n{answer.rstrip()}\n\n> {note}"
+                # One valid citation does not vouch for the claims whose
+                # citations were just removed. Any removal is announced at the
+                # top of the report; a report with no valid citation left is
+                # announced as a draft instead.
+                heading = (
+                    "【部分结论尚未核实】"
+                    if has_allowed_citation
+                    else "【未完整核实的研究草稿】"
+                )
+                answer = f"{heading}\n\n{answer.rstrip()}\n\n> {note}"
                 if isinstance(prepared.rag, dict):
                     prepared.rag["answer_citation_scope"] = {
                         "allowed": sorted(allowed_set),

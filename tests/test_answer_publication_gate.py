@@ -314,7 +314,7 @@ def test_simple_research_keeps_a_valid_citation_after_local_removal(
     reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
 
     assert reply != RESEARCH_ANSWER_BLOCKED_COPY
-    assert not reply.startswith("【未完整核实的研究草稿】")
+    assert reply.startswith("【部分结论尚未核实】")
     assert "[官方](https://official.example/release)" in reply
     assert "https://official.example/backup" not in reply
     assert "已移除 1 处未读取来源的引用" in reply
