@@ -295,3 +295,43 @@ def test_a_short_static_read_is_upgraded_when_browse_has_more(monkeypatch):
     )
     assert result["method"] == "browse"
     assert result["chars"] == 500
+
+def test_a_js_shell_is_upgraded_without_the_short_read_switch(monkeypatch):
+    monkeypatch.delenv("WEB_BROWSE_READ_ENABLED", raising=False)
+    monkeypatch.setattr(tool_gateway, "_browse_read_available", lambda: True)
+    monkeypatch.setattr(
+        tool_gateway, "fetch_article_read_result",
+        lambda url, **kwargs: SimpleNamespace(
+            ok=True, reason="", requested_url=url, final_url=url,
+            method="local_html", text="Please enable JavaScript to continue.",
+            author="", links=(),
+        ),
+    )
+    monkeypatch.setattr(tool_gateway, "_browse_read", _ok_browse)
+    result = GeneralWebGateway(search_strategy="fallback").read(
+        "https://example.com/app", timeout=5
+    )
+    assert result["method"] == "browse"
+    assert result["chars"] == 500
+
+
+def test_a_short_but_real_page_does_not_launch_the_browser(monkeypatch):
+    monkeypatch.delenv("WEB_BROWSE_READ_ENABLED", raising=False)
+    monkeypatch.setattr(tool_gateway, "_browse_read_available", lambda: True)
+    monkeypatch.setattr(
+        tool_gateway, "fetch_article_read_result",
+        lambda url, **kwargs: SimpleNamespace(
+            ok=True, reason="", requested_url=url, final_url=url,
+            method="local_html", text="A short but real page body.",
+            author="", links=(),
+        ),
+    )
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("a short non-shell page must not open the browser")
+
+    monkeypatch.setattr(tool_gateway, "_browse_read", unexpected)
+    result = GeneralWebGateway(search_strategy="fallback").read(
+        "https://example.com/short", timeout=5
+    )
+    assert result["method"] == "local_html"

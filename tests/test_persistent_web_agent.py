@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import src.tools.persistent_web_agent as persistent_web_agent
 from src.tools.persistent_web_agent import PersistentWebToolAgent
+from src.tools.web_agent import research_completion_gap
 
 
 class FakeGateway:
@@ -349,3 +350,34 @@ def test_web_tool_loop_total_budget_is_not_the_page_read_cap(monkeypatch):
     assert _web_tool_total_budget() >= 30
     monkeypatch.setenv("WEB_TOOL_TOTAL_BUDGET_SECONDS", "20")
     assert _web_tool_total_budget() == 20
+
+def test_persistent_agent_passes_the_completion_gap_check(monkeypatch):
+    monkeypatch.setenv("WEB_AUTONOMOUS_RESEARCH", "1")
+    captured: dict = {}
+
+    class FakeResearchService:
+        def create(self, _query, **_kwargs):
+            return SimpleNamespace(id="web_lookup_autonomous_1")
+
+        def begin_tool_trace(self, _run_id):
+            return "operation-1"
+
+        def record_tool_trace(self, _run_id, **_kwargs):
+            return None
+
+        def tool_trace_cancel_requested(self, _run_id, _operation_id):
+            return False
+
+    def run_loop(_messages, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    agent = PersistentWebToolAgent(
+        gateway=FakeGateway(),  # type: ignore[arg-type]
+        run_loop=run_loop,
+        research_service=FakeResearchService(),  # type: ignore[arg-type]
+    )
+    agent.resolve("Research durable runs", research_intent=True)
+
+    assert captured["completion_check"] is research_completion_gap
+    assert captured["max_continuations"] == 2

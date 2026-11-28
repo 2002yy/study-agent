@@ -1444,10 +1444,6 @@ class GeneralWebGateway:
             max_chars=max(500, min(max_chars, 20_000)),
         )
         browse_enabled = browse_allowed and not browse_tried
-        browse_upgrade = browse_enabled and (
-            self.search_strategy == "browser_first"
-            or _env_flag("WEB_BROWSE_READ_ENABLED", False)
-        )
         if not result.ok:
             # Independent paid Fetch is a last-resort, explicitly enabled
             # fallback; never override an explicit safety refusal from the
@@ -1508,12 +1504,25 @@ class GeneralWebGateway:
             response["author"] = result.author
         if result.links:
             response["links"] = [dict(item) for item in result.links]
-        # A static reader can "succeed" with navigation chrome only. When the
-        # browser is already in play, ask it for the real body before giving up
-        # on the page.
+        # A static reader can "succeed" with navigation chrome only, a JS
+        # shell, or an anti-bot interstitial. A JS/challenge shell is an
+        # extraction failure, so the paired browser gets one automatic attempt
+        # even when the optional short-read upgrade is off. A merely short
+        # document still needs the explicit upgrade switch: it may be a real
+        # short page, and launching the browser is slower.
+        from src.web.research.read_adequacy import classify_reader_result
+
+        adequacy = classify_reader_result(response)
+        strong_shell = adequacy.shape in {"js_shell", "anti_bot_or_error"}
+        browse_upgrade = browse_enabled and (
+            strong_shell
+            or self.search_strategy == "browser_first"
+            or _env_flag("WEB_BROWSE_READ_ENABLED", False)
+        )
+        short_read = len(str(result.text or "")) < _browse_short_read_chars()
         if (
             browse_upgrade
-            and len(str(result.text or "")) < _browse_short_read_chars()
+            and (strong_shell or short_read)
             and remaining() >= 0.5
         ):
             browsed = _browse_read(
