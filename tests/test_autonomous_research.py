@@ -425,7 +425,9 @@ def test_duplicate_successful_read_reuses_the_existing_body():
     second = budget("web_read", {"url": "https://example.org/a"})
 
     assert first["ok"] is True
-    assert second["reason"] == "duplicate_read"
+    assert second["ok"] is True
+    assert second["cached"] is True and second["duplicate"] is True
+    assert second["content"] == "body"
     assert executed == ["https://example.org/a/"]
     assert budget.snapshot()["reads"] == 1
 
@@ -463,5 +465,58 @@ def test_a_short_shell_read_can_be_retried_once_with_browse():
 
     assert auto["ok"] is True
     assert browse["ok"] is True
-    assert again["reason"] == "duplicate_read"
+    assert again["cached"] is True
     assert executed == ["auto", "browse"]
+
+def test_a_section_anchor_is_a_different_read_identity():
+    executed: list[str] = []
+
+    def execute(_name, arguments):
+        executed.append(str(arguments.get("url")))
+        return {"ok": True, "url": arguments.get("url"), "content": "section body"}
+
+    budget = _budget_for(execute)
+    budget("web_read", {"url": "https://docs.example/page#install"})
+    budget("web_read", {"url": "https://docs.example/page#upgrade"})
+    budget("web_read", {"url": "https://docs.example/page#install"})
+
+    assert len(executed) == 2
+    assert budget.snapshot()["reads"] == 2
+
+
+def test_video_window_ocr_and_comment_page_are_different_reads():
+    executed: list[dict] = []
+
+    def execute(_name, arguments):
+        executed.append(dict(arguments))
+        return {"ok": True, "url": arguments.get("url"), "content": "body"}
+
+    budget = _budget_for(execute)
+    url = "https://video.example/watch?v=1"
+    budget("web_read", {"url": url, "start_seconds": 0})
+    budget("web_read", {"url": url, "start_seconds": 120})
+    budget("web_read", {"url": url, "start_seconds": 0, "include_ocr": True})
+    budget("web_read", {"url": url, "mode": "comments", "comment_page": 1})
+    budget("web_read", {"url": url, "mode": "comments", "comment_page": 2})
+
+    assert len(executed) == 5
+    assert budget.snapshot()["reads"] == 5
+
+
+def test_a_deeper_max_chars_is_allowed_and_a_shallower_one_is_cached():
+    executed: list[int] = []
+
+    def execute(_name, arguments):
+        executed.append(int(arguments.get("max_chars") or 8000))
+        return {"ok": True, "url": arguments.get("url"), "content": "body"}
+
+    budget = _budget_for(execute)
+    url = "https://example.org/article"
+    first = budget("web_read", {"url": url, "max_chars": 4000})
+    deeper = budget("web_read", {"url": url, "max_chars": 8000})
+    shallower = budget("web_read", {"url": url, "max_chars": 2000})
+
+    assert first.get("cached") is None
+    assert deeper.get("cached") is None
+    assert shallower["cached"] is True
+    assert executed == [4000, 8000]

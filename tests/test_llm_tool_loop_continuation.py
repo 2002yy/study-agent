@@ -92,27 +92,32 @@ def test_a_text_only_reply_can_be_continued_without_losing_evidence(monkeypatch)
     assert stop["completion_gap"] == "Read an unread candidate."
 
 
-def test_a_continuation_never_consumes_the_reserved_final_call(monkeypatch) -> None:
-    client = _Client([_text_only()])
+def test_a_continuation_does_not_need_an_extra_reserved_call(monkeypatch) -> None:
+    client = _Client([_text_only(), _text_only()])
     _install(monkeypatch, client)
     stop: dict = {}
+    seen = {"calls": 0}
+
+    def check(_evidence, _text, _finish):
+        seen["calls"] += 1
+        return "continue" if seen["calls"] == 1 else None
 
     run_tool_loop(
         [{"role": "user", "content": "research"}],
         tools=_tools(),
         execute_tool=lambda _name, _arguments: {"ok": True},
-        completion_check=lambda *_args: "continue",
-        max_model_calls=1,
+        completion_check=check,
+        max_model_calls=2,
         stop_state=stop,
         timeout=1.0,
     )
 
-    assert client.calls == 1
-    assert "continuations" not in stop
+    assert client.calls == 2
+    assert stop["continuations"] == 1
     assert stop["reason"] == "completed"
 
 
-def test_continuations_are_bounded(monkeypatch) -> None:
+def test_continuations_are_bounded_and_report_the_unresolved_gap(monkeypatch) -> None:
     client = _Client([_text_only(), _text_only(), _text_only(), _text_only()])
     _install(monkeypatch, client)
     stop: dict = {}
@@ -130,7 +135,27 @@ def test_continuations_are_bounded(monkeypatch) -> None:
 
     assert client.calls == 3
     assert stop["continuations"] == 2
-    assert stop["reason"] == "completed"
+    assert stop["reason"] == "continuation_limit"
+    assert stop["completion_gap"] == "continue"
+
+
+def test_a_gap_blocked_by_the_model_call_budget_is_not_completed(monkeypatch) -> None:
+    client = _Client([_text_only()])
+    _install(monkeypatch, client)
+    stop: dict = {}
+
+    run_tool_loop(
+        [{"role": "user", "content": "research"}],
+        tools=_tools(),
+        execute_tool=lambda _name, _arguments: {"ok": True},
+        completion_check=lambda *_args: "read an unread candidate",
+        max_model_calls=1,
+        stop_state=stop,
+        timeout=1.0,
+    )
+
+    assert stop["reason"] == "model_call_budget"
+    assert stop["completion_gap"] == "read an unread candidate"
 
 
 def test_a_broken_completion_check_does_not_end_the_loop(monkeypatch) -> None:

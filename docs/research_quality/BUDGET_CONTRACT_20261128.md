@@ -29,12 +29,13 @@
 | 单轮规划输出 | 4096 tokens | 4096 tokens |
 | 最终答案输出 | 8192 tokens | 16384 tokens |
 | 最终答案时间预留 | 180s | 180s |
-| 最终答案费用预留 | ¥0.10 | ¥0.30 |
+| 最终答案费用预留 | 按价格/上下文/输出上限动态计算 | 同左 |
 
 环境变量仍可单独覆盖：`WEB_AUTONOMOUS_MAX_*` 与
 `WEB_AUTONOMOUS_DEEP_MAX_*`；上限分别放宽到 60/60/60/80/200/3600。
-最终答案费用预留用 `WEB_AUTONOMOUS_ANSWER_RESERVE_CNY` /
-`WEB_AUTONOMOUS_DEEP_ANSWER_RESERVE_CNY` 覆盖。它是研究循环的**停止阈值**，
+最终答案费用预留默认用 `reservation_cny()` 按实际价格、保守的 60k 字符答案上下文
+和 8k/16k 输出上限计算；`WEB_AUTONOMOUS_ANSWER_RESERVE_CNY` /
+`WEB_AUTONOMOUS_DEEP_ANSWER_RESERVE_CNY` 可显式覆盖。它是研究循环的**停止阈值**，
 不是预扣款：实际扣款仍由 `reserve_call()` 在每次请求前按最坏情况预留。
 
 ### 2.2 全 turn 模型调用上限
@@ -76,10 +77,12 @@ Deep 是两条不同的预算契约；把 RQCE 一并放宽到 1800s/60 reads �
 | 搜索/读取/工具配额 | 该工具返回 `budget_exhausted`，模型仍可用其他工具或总结 |
 | 时间上限 | 停止新工具，保留已读证据 |
 | 费用预留不足 | `spend_reserve`：在吃掉最终答案费用前停止研究 |
-| 无进展/重复 | 重复查询或重复成功读取返回 `duplicate_query` / `duplicate_read`，不消耗对应搜索/读取额度 |
+| 无进展/重复 | 重复查询返回 `duplicate_query`；重复读取返回缓存正文（`cached: true`），不消耗阅读额度 |
 
-重复保护只阻止完全相同的查询（含 site_key）和已充分读取的同一 URL；
-失败读取、短壳页仍允许一次 `mode="browse"` 重试。
+重复保护只阻止完全相同的查询（含 site_key）和同一有效读取请求；读取身份包含
+URL、章节锚点、读取模式、视频时间段、OCR、评论页码、讨论开关和 `max_chars`。
+重复读取返回缓存正文（`cached: true`），不是错误；更深的 `max_chars`、不同章节、
+不同视频段、开启 OCR、翻评论页都允许再次读取。失败读取仍可重试。
 
 ## 4. 与成熟 Agent 的对照
 
@@ -114,5 +117,5 @@ Deep 是两条不同的预算契约；把 RQCE 一并放宽到 1800s/60 reads �
    与时间预留，费用由 `reserve_call` 硬限制兜底。
 3. RQCE Deep 与通用 web tool fallback 仍是旧额度；本轮只统一了全 turn 上限，
    没有强行把三条路径改成同一组数字。
-4. 重复保护是精确匹配；改写后的同义查询仍会消耗搜索额度，是否语义去重需要
-   真实样本再决定。
+4. 重复查询保护是精确匹配；改写后的同义查询仍会消耗搜索额度，是否语义去重需要
+   真实样本再决定。重复读取按有效参数区分，不做语义去重。
