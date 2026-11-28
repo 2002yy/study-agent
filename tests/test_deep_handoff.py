@@ -76,7 +76,7 @@ def test_handoff_carries_its_schema_and_no_authority():
     handoff = _handoff()
     assert handoff["schema_version"] == DEEP_HANDOFF_SCHEMA
     assert handoff["publication_authority"] is False
-    assert handoff["budget_profile"] == "deep-v1"
+    assert handoff["budget_profile"] == "deep-v2"
     assert handoff["payload_sha256"] == payload_digest(handoff)
 
 
