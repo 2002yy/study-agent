@@ -738,6 +738,10 @@ def run_tool_loop(
     return_partial_on_cancel: bool = False,
     stop_state: dict[str, Any] | None = None,
     on_round: Callable[[list[dict[str, Any]]], None] | None = None,
+    completion_check: (
+        Callable[[list[dict[str, Any]], str, str], str | None] | None
+    ) = None,
+    max_continuations: int = 2,
     clock: Callable[[], float] = time.monotonic,
 ) -> list[dict[str, Any]]:
     """Run an OpenAI-compatible function-call loop and return tool evidence.
@@ -761,10 +765,19 @@ def run_tool_loop(
     the transcript crosses that many characters, tool results older than the
     most recent ``context_keep_rounds`` are replaced by bounded summaries; the
     returned evidence and its durable trace keep the full bodies.
+
+    ``completion_check`` turns a text-only reply into an *advisory* continuation
+    rather than an automatic stop. It receives the evidence, the final text and
+    the provider finish reason; a returned message is appended and the loop
+    continues, bounded by ``max_continuations`` and by one model call reserved
+    for the final answer. A ``None`` return accepts completion. This exists
+    because "the model stopped calling tools" is not evidence that the task is
+    done.
     """
     if not messages or not tools:
         return []
     model_calls = 0
+    continuations = 0
 
     def mark_stop(reason: str, error: str = "") -> None:
         if stop_state is not None:
@@ -875,16 +888,46 @@ def run_tool_loop(
         message = response.choices[0].message
         raw_calls = getattr(message, "tool_calls", None) or []
         if not raw_calls:
-            # A text-only reply ends the loop. Keep the text and the provider's
-            # finish reason for diagnosis: an empty completion and a real
-            # summary otherwise look identical in the trace.
+            # A text-only reply is a *candidate* completion, not proof the
+            # task is done. Keep the text and the provider's finish reason,
+            # then let the caller's completion check decide whether a concrete
+            # gap remains. The check is bounded and reserves one model call for
+            # the final answer, so it cannot loop or eat the answer budget.
+            final_text = str(getattr(message, "content", "") or "")
+            finish_reason = str(
+                getattr(response.choices[0], "finish_reason", "") or ""
+            )
             if stop_state is not None:
-                stop_state["final_text"] = str(
-                    getattr(message, "content", "") or ""
-                )[:2000]
-                stop_state["finish_reason"] = str(
-                    getattr(response.choices[0], "finish_reason", "") or ""
+                stop_state["final_text"] = final_text[:2000]
+                stop_state["finish_reason"] = finish_reason
+            continuation: str | None = None
+            if completion_check is not None:
+                try:
+                    continuation = completion_check(
+                        list(evidence), final_text, finish_reason
+                    )
+                except Exception as exc:  # noqa: BLE001 - a check bug must not end research
+                    if stop_state is not None:
+                        stop_state["completion_check_error"] = (
+                            f"{type(exc).__name__}: {exc}"
+                        )
+            can_continue = bool(
+                continuation
+                and continuations < max(0, int(max_continuations))
+                and (
+                    max_model_calls is None
+                    or model_calls + 1 < max_model_calls
                 )
+                and (deadline is None or deadline - clock() > 5.0)
+            )
+            if can_continue:
+                transcript.append({"role": "assistant", "content": final_text})
+                transcript.append({"role": "user", "content": str(continuation)})
+                continuations += 1
+                if stop_state is not None:
+                    stop_state["continuations"] = continuations
+                    stop_state["completion_gap"] = str(continuation)[:2000]
+                continue
             mark_stop("completed")
             return evidence
         prepared: list[dict[str, Any]] = []

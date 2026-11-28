@@ -161,13 +161,178 @@ def build_research_state(
     return "\n".join(lines)[: max(0, int(max_chars))]
 
 
+_COMPLETION_MISSING_SIGNALS = (
+    "没有找到",
+    "未找到",
+    "无法找到",
+    "找不到",
+    "没有可用",
+    "资料不足",
+    "信息不足",
+    "缺乏资料",
+    "not found",
+    "could not find",
+    "couldn't find",
+    "unable to find",
+    "no information",
+    "insufficient evidence",
+    "no reliable source",
+)
+
+
+def research_completion_gap(
+    evidence: list[dict[str, Any]],
+    final_text: str,
+    finish_reason: str,
+) -> str | None:
+    """Return a concrete continuation when a text-only stop is premature.
+
+    This is not a minimum-source rule and it does not judge answer quality. It
+    only continues when the turn shows an *observable* unmet action:
+
+    * no tool ran at all,
+    * every search returned zero results,
+    * every read failed,
+    * candidates were found but no page body was read,
+    * the model says information is missing while candidates remain unread,
+    * reads succeeded but produced a JS shell / anti-bot page / short document.
+
+    With at least one adequate read, a text-only answer is accepted: evidence
+    volume is never a completion target. The message names specific next
+    actions so a retry cannot blindly repeat the same failed call.
+    """
+
+    from src.web.research.read_adequacy import classify_reader_result
+
+    text = str(final_text or "").strip()
+    finish = str(finish_reason or "").strip().lower()
+    if not text or finish == "length":
+        return (
+            "Your previous reply was empty or cut off by the output limit. "
+            "Do not stop with no usable text: if the evidence already read is "
+            "enough, write the final answer now; otherwise call one more tool "
+            "for the specific gap."
+        )
+    if not evidence:
+        return (
+            "No research action has run yet. Do not answer from memory. Call "
+            "web_search once for the core question, then read the most "
+            "authoritative candidate. If the request does not need external "
+            "research, answer directly and say why."
+        )
+
+    searches: list[tuple[str, int]] = []
+    read_ok: list[dict[str, Any]] = []
+    read_failed: list[tuple[str, str]] = []
+    candidates: dict[str, tuple[str, str]] = {}
+    attempted: set[str] = set()
+    for entry in evidence:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or "")
+        arguments = entry.get("arguments") or {}
+        result = entry.get("result") or {}
+        if not isinstance(result, dict):
+            continue
+        if name == "web_search":
+            rows = result.get("results") or []
+            searches.append((_state_text(arguments.get("query"), 60), len(rows)))
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                url = str(row.get("url") or row.get("link") or "")
+                if not url:
+                    continue
+                key = _state_url_key(url)
+                candidates.setdefault(
+                    key, (_state_text(row.get("title") or url, 70), url)
+                )
+        elif name == "web_read":
+            url = str(result.get("url") or arguments.get("url") or "")
+            if not url:
+                continue
+            key = _state_url_key(url)
+            attempted.add(key)
+            if result.get("ok") is True:
+                read_ok.append(result)
+            else:
+                read_failed.append(
+                    (
+                        _state_domain(url),
+                        _state_text(
+                            result.get("error_code")
+                            or result.get("error")
+                            or "read_failed",
+                            40,
+                        ),
+                    )
+                )
+
+    unread = [
+        (title, url)
+        for key, (title, url) in candidates.items()
+        if key not in attempted
+    ]
+    unread_lines = "\n".join(f"- {title}: {url}" for title, url in unread[:4])
+    missing_claim = any(
+        signal in text.casefold() for signal in _COMPLETION_MISSING_SIGNALS
+    )
+
+    if not read_ok and read_failed and not unread:
+        reasons = ", ".join(f"{domain} ({reason})" for domain, reason in read_failed[:3])
+        return (
+            f"Every read failed: {reasons}. A failed tool is not a failed "
+            'research task. Retry the same URL with mode="browse" for dynamic '
+            "pages or community threads, or read a different candidate. Do not "
+            "conclude that the information does not exist yet."
+        )
+    if not read_ok and unread:
+        return (
+            "You found candidates but have not read any page body. Read the "
+            "most authoritative one now (official docs, source code, or the "
+            "original post) before finishing. Unread candidates:\n"
+            f"{unread_lines}"
+        )
+    if not read_ok and searches and all(count == 0 for _, count in searches):
+        return (
+            "All searches returned zero results. Empty results do not prove "
+            "the topic does not exist. Retry with different keywords, another "
+            "language, or a platform site_key from the platform map, then read "
+            "a candidate. Do not finish from an empty search."
+        )
+    if missing_claim and unread:
+        return (
+            "Your summary says the information is missing, but these "
+            "candidates were never read:\n"
+            f"{unread_lines}\n"
+            "Read them before concluding. If they also fail, say specifically "
+            "which source and which access problem blocked the answer."
+        )
+
+    page_reads = [
+        result
+        for result in read_ok
+        if str(result.get("kind") or "web_page") == "web_page"
+    ]
+    if page_reads:
+        adequacy = [classify_reader_result(result) for result in page_reads]
+        if not any(item.adequate for item in adequacy):
+            shapes = ", ".join(sorted({item.shape for item in adequacy}))
+            return (
+                "The reads returned no usable body "
+                f"({shapes}). This is an extraction failure, not proof the "
+                'information is missing. Retry those URLs with mode="browse" '
+                "or read a different source before answering."
+            )
+    return None
+
+
 def _function_tool(
     name: str,
     description: str,
     properties: dict[str, Any],
     required: list[str],
-) -> dict[str, Any]:
-    return {
+) -> dict[str, Any]:    return {
         "type": "function",
         "function": {
             "name": name,

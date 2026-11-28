@@ -20,6 +20,7 @@ from src.tools.web_agent import (
     _env_flag,
     _env_int,
     build_research_state,
+    research_completion_gap,
 )
 from src.web.query_normalizer import normalize_web_query
 from src.web.conversation_query import conversation_search_query, research_topic
@@ -136,7 +137,10 @@ Rules:
 - Prefer primary/official sources, then independent sources that corroborate each other.
 - When a URL carries a version, release tag, branch or commit, record it. State a
   limitation for that version; check whether a newer stable version changed it.
-- Do not invent a fact that no read result supports. If a read failed, say so.
+- Do not invent a fact that no read result supports. If a read failed or
+  returned only navigation/challenge text, retry once with mode="browse" or
+  read another candidate; a failed tool is not a failed research task. If every
+  route fails, name the source and the access problem that blocked it.
 - Before you have read at least one page, every reply must call a tool. State the
   subquestions in the same message as your first search, never as a text-only reply.
 - When the tool budget is exhausted, stop calling tools and summarize what you have,
@@ -828,6 +832,8 @@ class PersistentWebToolAgent(WebToolAgent):
                     return_partial_on_cancel=True,
                     stop_state=stop,
                     on_round=persist_round,
+                    completion_check=research_completion_gap,
+                    max_continuations=2,
                     request_max_retries=0,
                 )
         except Exception as exc:
