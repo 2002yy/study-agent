@@ -130,6 +130,21 @@ Hooks 文档（https://code.claude.com/docs/en/hooks ，2026-11-28 抓取）：
 采用：截断状态“粘住”并披露；已读证据与候选在门禁失败后继续保留；失败原因分类
 写入结构化记录。未迁移整个 session 框架。
 
+### 4.5 第二批：DSH 的 DeepSeek 适配（源码）
+
+同一 commit `4b399c39`，`packages/llm/llm-deepseek/src/translate.ts`、`serialize.ts`。
+
+| 主题 | DSH 的实际做法 | Study Agent 现状 | 本轮决定 |
+| --- | --- | --- | --- |
+| thinking | `serialize.ts` L147–155：`thinking` 只有 `disabled` / `enabled` 两态，`max_tokens` 逐请求下发；`translate.ts` L52–54 把 `thinking` 块映射为 `reasoning`，签名单独保留用于 replay | 规划轮用 `{"thinking":{"type":"disabled"}}`，答案轮保持默认；B 的真实运行已验证该配置能完成工具循环 | 线格式一致，不再改 |
+| 工具参数 | `translate.ts` L84–86 累积 `input_json_delta`；L148 在块结束时替换为完整 JSON；L166–171 在非 `max-tokens` 时校验 JSON，**max-tokens 时保留截断的工具 JSON，交给共享 assembler 修剪** | `llm_client.py` L894–902：JSON 解析失败不抛异常，记录 `invalid_tool_arguments` 并让循环继续 | 已有等价容错；不引入 assembler |
+| finish_reason | `translate.ts` L101 `max_tokens` → `max-tokens`；L166 只有非 max-tokens 才校验工具 JSON；空内容且 stop 抛 `EMPTY_RESPONSE`；`refusal` 先上报已计费 usage 再抛 `CONTENT_REFUSED` | `generation_outcome.py` 把 `length` 映射为 `output_limit`；本轮新增“保留正文 + 截断说明”；空正文仍按失败处理 | 已采用截断语义 |
+| 流式输出 | L490–529：中断时把 `interruptedBlocks()` 持久化为 `assistant/message` 并标记 `interrupted`；没有内容才写 `assistant/attempt` | 研究轮在门禁前缓冲候选；本轮把候选写入 `answer_gate_candidate`，门禁失败不再丢 | 已采用“部分输出保留” |
+| 异常恢复 | L359–386：步骤失败时 `ToolCallRecovery` 重放已产生的 tool results；L533 起 `agent/request-error` 可重试一次 | 工具结果已在 `web_tools.calls` / evidence rows 中；门禁异常被捕获并降级 | 不迁移 session 框架 |
+| 上下文 | `docs/subsystems/session.zh.md`：从会话事件重建上下文，事件带 turn/step 序号 | `llm_context.py` 已有工作上下文压缩；本轮未改 | 暂缓，等真实长任务样本 |
+
+结论：第二批只有“截断状态要保留并披露”是可落地的差异，已在 #705 完成；其余差异要么 Study Agent 已有等价容错，要么属于会话框架迁移，不在本轮范围。
+
 ## 5. 免费验证
 
 - 影响集：`test_answer_publication_gate.py`、`test_research_delivery.py`、
