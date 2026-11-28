@@ -59,6 +59,12 @@ from src.application.learner_state_shadow_seam import (
 from src.application.learning_authority_projection import (
     resolve_expected_concepts,
 )
+from src.application.research_delivery import (
+    PARTIAL_HEADING,
+    compose_degraded_delivery,
+    compose_generation_notice,
+    withhold_blocks,
+)
 from src.application.shadow_isolation import BestEffortTelemetry
 from src.application.helpers import resolve_context_mode, load_frontend_settings
 from src.application.skill_context import bound_skill_ids, selected_skill_context
@@ -107,6 +113,9 @@ from src.tools.web_agent import WebToolTrace, web_tools_disabled
 
 PERFORMANCE_MODES = {"fast", "standard", "deep"}
 
+#: Legacy fixed refusal, kept for callers/tests that still reference the
+#: constant. The inline research gate no longer emits it: a quality, budget, or
+#: runtime failure now publishes a labelled draft plus the pages actually read.
 RESEARCH_ANSWER_BLOCKED_COPY = (
     "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。"
 )
@@ -1521,6 +1530,152 @@ class ChatService:
         prepared.route["external_data_policy"] = refreshed
         prepared.rag["external_data_policy"] = refreshed
 
+    #: The candidate is kept for postmortem replay. 120k chars is well above
+    #: the 16k-token Deep budget, so a truncated record is itself a signal.
+    _GATE_CANDIDATE_LIMIT = 120_000
+
+    def _delivery_sources(
+        self, prepared: PreparedChatTurn, rows: tuple[AnswerClaimBindingRow, ...] = ()
+    ) -> list[dict[str, str]]:
+        """Public pages this turn actually read, for a degraded delivery.
+
+        Only ``http(s)`` URLs without credentials or private hosts survive
+        ``_public_url``. The source list is provenance, never support for an
+        assertion.
+        """
+
+        from urllib.parse import urlsplit
+
+        from src.web.tool_evidence import _public_url
+
+        sources: list[dict[str, str]] = []
+        seen: set[str] = set()
+
+        def add(url: object, title: object) -> None:
+            safe = _public_url(url)
+            if not safe or safe in seen:
+                return
+            seen.add(safe)
+            label = str(title or "").strip()[:120]
+            sources.append(
+                {"url": safe, "title": label or (urlsplit(safe).hostname or safe)}
+            )
+
+        for row in rows:
+            add(row.url, row.title)
+        tools = ((prepared.rag or {}).get("web_tools") or {}) if isinstance(prepared.rag, dict) else {}
+        for item in tools.get("used_sources") or ():
+            if isinstance(item, dict):
+                add(item.get("url"), item.get("title"))
+        for call in tools.get("calls") or ():
+            if not isinstance(call, dict):
+                continue
+            result = call.get("result")
+            if not isinstance(result, dict):
+                continue
+            arguments = call.get("arguments")
+            arguments = arguments if isinstance(arguments, dict) else {}
+            add(
+                result.get("url")
+                or result.get("html_url")
+                or arguments.get("url"),
+                result.get("title") or result.get("name"),
+            )
+        return sources[:8]
+
+    def _persist_gate_candidate(
+        self,
+        prepared: PreparedChatTurn,
+        candidate: str,
+        delivery: dict[str, Any],
+    ) -> None:
+        """Keep the pre-gate candidate text so a failed gate is replayable.
+
+        The audit only carries hashes; that made a real lost answer impossible
+        to inspect after the fact. This record is storage-only and is not part
+        of the learner-facing reply.
+        """
+
+        if not isinstance(prepared.rag, dict):
+            return
+        from src.domain.answer_validation import sha256_text
+
+        text = str(candidate or "")
+        prepared.rag["answer_gate_candidate"] = {
+            "text": text[: self._GATE_CANDIDATE_LIMIT],
+            "sha256": sha256_text(text),
+            "chars": len(text),
+            "truncated": len(text) > self._GATE_CANDIDATE_LIMIT,
+            "delivery_outcome": str(delivery.get("outcome") or ""),
+        }
+
+    def _degraded_gate_result(
+        self,
+        prepared: PreparedChatTurn,
+        candidate: str,
+        *,
+        reason_code: str,
+        audit_phases: dict[str, Any],
+        rows: tuple[AnswerClaimBindingRow, ...] = (),
+        heading: str | None = None,
+        extra_note: str = "",
+        verified_subset: bool = False,
+        snapshot_answer: str | None = None,
+        claim_snapshot: Any | None = None,
+    ) -> tuple[str, Any | None, dict[str, Any], bool]:
+        """Publish what can be published, labelled for what it is.
+
+        The claim snapshot describes the *candidate* the model produced, not
+        the degraded surface, so the audit stays tied to the generated text.
+        """
+
+        sources = self._delivery_sources(prepared, rows)
+        text, delivery = compose_degraded_delivery(
+            candidate,
+            reason_code=reason_code,
+            sources=sources,
+            heading=heading,
+            extra_note=extra_note,
+            verified_subset=verified_subset,
+        )
+        original = str(
+            snapshot_answer if snapshot_answer is not None else candidate or ""
+        )
+        snapshot = claim_snapshot or rejected_answer_claim_snapshot(
+            answer=original,
+            producer=ANSWER_CLAIM_BINDER_PRODUCER,
+            reason=reason_code,
+        )
+        if isinstance(prepared.rag, dict):
+            prepared.rag["answer_claim_snapshot"] = snapshot.to_dict()
+            prepared.rag["research_delivery"] = delivery
+            self._persist_gate_candidate(prepared, original, delivery)
+        return text, snapshot, audit_phases, True
+
+    def _annotate_generation_health(
+        self, prepared: PreparedChatTurn, answer: str
+    ) -> str:
+        """Disclose provider-side truncation without discarding the answer.
+
+        A ``length`` finish is not a verified-but-short answer, and it is not a
+        reason to hide the text either. The note is appended and the delivery
+        record says the answer is partial.
+        """
+
+        status = str((prepared.route.get("generation") or {}).get("status") or "")
+        code = {
+            "output_limit": "output_limit",
+            "provider_blocked": "provider_blocked",
+        }.get(status)
+        if not code:
+            return answer
+        text, record = compose_generation_notice(answer, reason_code=code)
+        if isinstance(prepared.rag, dict):
+            record = {**record, "generation_status": status}
+            prepared.rag["research_delivery"] = record
+        return text
+
+
     def _gate_research_answer(
         self,
         prepared: PreparedChatTurn,
@@ -1537,20 +1692,21 @@ class ChatService:
         plan = prepared.answer_validation or {}
         allowed_attempts = _answer_attempt_budget(prepared)
         if allowed_attempts < 1:
-            return (
-                RESEARCH_ANSWER_BLOCKED_COPY,
-                None,
-                {
-                    PHASE_ANSWER_GENERATION: generation_phase,
-                    PHASE_ANSWER_CLAIM_BINDING: {
-                        "attempted": True,
-                        "model_calls": 0,
-                        "attempts": 0,
-                        "outcome": PHASE_OUTCOME_BUDGET_EXHAUSTED,
-                        "error_type": "budget_exhausted",
-                    },
+            budget_phases = {
+                PHASE_ANSWER_GENERATION: generation_phase,
+                PHASE_ANSWER_CLAIM_BINDING: {
+                    "attempted": True,
+                    "model_calls": 0,
+                    "attempts": 0,
+                    "outcome": PHASE_OUTCOME_BUDGET_EXHAUSTED,
+                    "error_type": "budget_exhausted",
                 },
-                True,
+            }
+            return self._degraded_gate_result(
+                prepared,
+                candidate,
+                reason_code="budget_exhausted",
+                audit_phases=budget_phases,
             )
         raw_rows = plan.get("evidence_rows") or ()
         rows = tuple(
@@ -1574,20 +1730,32 @@ class ChatService:
             if isinstance(row, dict)
         )
         if not rows:
-            return (
-                RESEARCH_ANSWER_BLOCKED_COPY,
-                None,
-                self._blocked_audit_phases(generation_phase, "missing_evidence_brief"),
-                True,
+            return self._degraded_gate_result(
+                prepared,
+                candidate,
+                reason_code="missing_evidence_brief",
+                audit_phases=self._blocked_audit_phases(
+                    generation_phase, "missing_evidence_brief"
+                ),
             )
         question = prepared.turn.user_message
         answer = candidate.strip()
         if not answer:
-            return (
-                RESEARCH_ANSWER_BLOCKED_COPY,
-                None,
-                self._blocked_audit_phases(generation_phase, "candidate_unavailable"),
-                True,
+            generation_status = str(
+                (prepared.route.get("generation") or {}).get("status") or ""
+            )
+            empty_reason = {
+                "output_limit": "output_limit",
+                "provider_blocked": "provider_blocked",
+            }.get(generation_status, "candidate_unavailable")
+            return self._degraded_gate_result(
+                prepared,
+                "",
+                reason_code=empty_reason,
+                audit_phases=self._blocked_audit_phases(
+                    generation_phase, "candidate_unavailable"
+                ),
+                rows=rows,
             )
         # A citation must refer to a page read in this turn, regardless of
         # whether the optional semantic binder is enabled. A bad citation is
@@ -1636,27 +1804,37 @@ class ChatService:
                         "downgraded": not has_allowed_citation,
                     }
             else:
-                blocked = rejected_answer_claim_snapshot(
-                    answer=RESEARCH_ANSWER_BLOCKED_COPY,
-                    producer=ANSWER_CLAIM_BINDER_PRODUCER,
-                    reason=(
-                        f"citation_outside_evidence:{outside[0]['kind']}:"
-                        + ",".join(item["url"] for item in outside[:3])[:150]
-                    ),
+                # Some out-of-scope citation could not be removed safely. Drop
+                # only the blocks that contain it; if none can be located, the
+                # candidate is withheld but the read sources are still shown.
+                partial_text, dropped = withhold_blocks(
+                    answer, [item["url"] for item in outside]
+                )
+                if not partial_text.strip() or dropped == 0:
+                    partial_text = ""
+                extra = (
+                    f"已移除 {dropped} 处包含无法安全处理链接的内容。"
+                    if dropped
+                    else ""
                 )
                 if isinstance(prepared.rag, dict):
-                    prepared.rag["answer_claim_snapshot"] = blocked.to_dict()
                     prepared.rag["answer_citation_scope"] = {
                         "allowed": sorted(allowed_set),
                         "outside": outside[:10],
+                        "policy": "withheld_unremovable_links",
+                        "removed_blocks": dropped,
                     }
-                return (
-                    RESEARCH_ANSWER_BLOCKED_COPY,
-                    blocked,
-                    self._blocked_audit_phases(
+                return self._degraded_gate_result(
+                    prepared,
+                    partial_text,
+                    reason_code="citation_outside_evidence",
+                    audit_phases=self._blocked_audit_phases(
                         generation_phase, "citation_outside_evidence"
                     ),
-                    True,
+                    rows=rows,
+                    heading=PARTIAL_HEADING if partial_text else None,
+                    extra_note=extra,
+                    snapshot_answer=answer,
                 )
         if not _strict_research_publication_enabled():
             # Do not split or rewrite Markdown: headings, list numbering and
@@ -1688,7 +1866,7 @@ class ChatService:
                     if normalize_link(row.url) in cited_pages
                 ]
             return (
-                answer,
+                self._annotate_generation_health(prepared, answer),
                 None,  # No claim-level validation was performed.
                 {PHASE_ANSWER_GENERATION: generation_phase},
                 False,
@@ -1765,14 +1943,20 @@ class ChatService:
                 if not str(bound.published_text or "").strip():
                     binding_phase["outcome"] = PHASE_OUTCOME_REJECTED
                     binding_phase["error_type"] = "answer_fully_withheld"
-                    return (
-                        RESEARCH_ANSWER_BLOCKED_COPY,
-                        snapshot,
-                        {
+                    # The binder withheld every statement; publishing the
+                    # candidate would contradict that decision. The read pages
+                    # are still delivered, so the turn is not a total loss.
+                    return self._degraded_gate_result(
+                        prepared,
+                        "",
+                        reason_code="answer_fully_withheld",
+                        audit_phases={
                             PHASE_ANSWER_GENERATION: generation_phase,
                             PHASE_ANSWER_CLAIM_BINDING: binding_phase,
                         },
-                        True,
+                        rows=rows,
+                        snapshot_answer=answer,
+                        claim_snapshot=snapshot,
                     )
                 # Deleting unsupported statements is the correction the contract
                 # asks for; the deletion is disclosed instead of staying silent.
@@ -1794,22 +1978,52 @@ class ChatService:
                 if isinstance(prepared.rag, dict):
                     prepared.rag["answer_consistency"] = consistency.to_dict()
                 if not consistency.ok:
+                    claim_text = {
+                        str(getattr(claim, "id", "") or ""): str(
+                            getattr(claim, "text", "") or ""
+                        )
+                        for claim in snapshot.claims
+                    }
+                    needles = [
+                        claim_text.get(str(claim_id), "")
+                        for claim_id in (
+                            *consistency.unbound_substantive_claims,
+                            *consistency.direction_violations,
+                        )
+                    ]
+                    needles.extend(consistency.evidence_state_conflicts)
+                    local_text, dropped = withhold_blocks(published, needles)
+                    if dropped and not local_text.strip():
+                        local_text = ""
                     binding_phase["outcome"] = PHASE_OUTCOME_REJECTED
                     binding_phase["error_type"] = (
                         "consistency_failed:" + "_".join(consistency.codes())
                     )[:120]
-                    return (
-                        RESEARCH_ANSWER_BLOCKED_COPY,
-                        snapshot,
-                        {
+                    extra = (
+                        f"已移除 {dropped} 处与证据记录冲突的表述。"
+                        if dropped
+                        else "无法定位具体冲突表述，整份答案按未完整核验处理。"
+                    )
+                    return self._degraded_gate_result(
+                        prepared,
+                        local_text,
+                        reason_code=(
+                            "consistency_failed:" + "_".join(consistency.codes())
+                        ),
+                        audit_phases={
                             PHASE_ANSWER_GENERATION: generation_phase,
                             PHASE_ANSWER_CLAIM_BINDING: binding_phase,
                         },
-                        True,
+                        rows=rows,
+                        heading=PARTIAL_HEADING if local_text else None,
+                        extra_note=extra,
+                        verified_subset=bool(dropped),
+                        snapshot_answer=answer,
+                        claim_snapshot=snapshot,
                     )
             binding_phase["outcome"] = PHASE_OUTCOME_PASSED
             return (
-                published,
+                self._annotate_generation_health(prepared, published),
                 snapshot,
                 {
                     PHASE_ANSWER_GENERATION: generation_phase,
@@ -1828,23 +2042,33 @@ class ChatService:
             if snapshot.status != "validated"
             else "unbound_factual_claim"
         )
-        rejected = rejected_answer_claim_snapshot(
-            answer=RESEARCH_ANSWER_BLOCKED_COPY,
-            producer=ANSWER_CLAIM_BINDER_PRODUCER,
-            reason=rejected_reason,
-        )
-        if isinstance(prepared.rag, dict):
-            # The response is assembled from the turn's rag snapshot, so the
-            # reason must be written there or every rejection looks identical.
-            prepared.rag["answer_claim_snapshot"] = rejected.to_dict()
-        return (
-            RESEARCH_ANSWER_BLOCKED_COPY,
-            rejected,
-            {
-                PHASE_ANSWER_GENERATION: generation_phase,
-                PHASE_ANSWER_CLAIM_BINDING: binding_phase,
-            },
-            True,
+        audit = {
+            PHASE_ANSWER_GENERATION: generation_phase,
+            PHASE_ANSWER_CLAIM_BINDING: binding_phase,
+        }
+        verified = str(bound.published_text or "").strip()
+        if verified:
+            # Some segments were verified before the batch failed. Publish
+            # those and disclose the rest instead of discarding both.
+            return self._degraded_gate_result(
+                prepared,
+                verified,
+                reason_code=rejected_reason,
+                audit_phases=audit,
+                rows=rows,
+                heading=PARTIAL_HEADING,
+                verified_subset=True,
+                snapshot_answer=answer,
+                claim_snapshot=snapshot,
+            )
+        return self._degraded_gate_result(
+            prepared,
+            answer,
+            reason_code=rejected_reason,
+            audit_phases=audit,
+            rows=rows,
+            snapshot_answer=answer,
+            claim_snapshot=snapshot,
         )
 
     def _lookup_terminal_snapshot(self, prepared: PreparedChatTurn) -> dict[str, Any]:
@@ -1951,9 +2175,37 @@ class ChatService:
             # A diagnostic field-backed answer never advances learning authority.
             gate_blocked_pedagogy = True
         elif answer_validation_active(prepared):
-            reply, claims_snapshot, audit_phases, gate_blocked_pedagogy = (
-                self._gate_research_answer(prepared, reply)
-            )
+            try:
+                reply, claims_snapshot, audit_phases, gate_blocked_pedagogy = (
+                    self._gate_research_answer(prepared, reply)
+                )
+            except Exception as exc:  # noqa: BLE001 - a gate bug must not erase the answer
+                generation_calls = _route_generation_calls(prepared.route)
+                reply, claims_snapshot, audit_phases, gate_blocked_pedagogy = (
+                    self._degraded_gate_result(
+                        prepared,
+                        reply,
+                        reason_code=f"gate_exception:{type(exc).__name__}",
+                        audit_phases={
+                            PHASE_ANSWER_GENERATION: {
+                                "attempted": True,
+                                "model_calls": generation_calls,
+                                "attempts": generation_calls,
+                                "outcome": PHASE_OUTCOME_COMPLETED,
+                                "error_type": "",
+                            },
+                            PHASE_ANSWER_CLAIM_BINDING: {
+                                "attempted": True,
+                                "model_calls": 0,
+                                "attempts": 0,
+                                "outcome": PHASE_OUTCOME_REJECTED,
+                                "error_type": "gate_exception",
+                            },
+                        },
+                    )
+                )
+                if isinstance(prepared.rag, dict):
+                    prepared.rag["research_gate_error"] = type(exc).__name__
             audit = build_answer_validation_audit(
                 candidate_answer=(
                     f"{prepared.base_reply}{suffix}"

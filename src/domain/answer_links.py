@@ -1,9 +1,10 @@
 """Which sources an answer is allowed to cite.
 
 Verification can only check pages the turn actually read. A model that writes a
-plausible citation from memory therefore produces a link nobody can verify, and
-the binder rejects the whole answer. The cheaper, earlier rule is: an answer may
-cite only sources that are already in the evidence set.
+plausible citation from memory therefore produces a link nobody can verify.
+The cheaper, earlier rule is: an answer may cite only sources that are already
+in the evidence set. The gate removes an unsupported link locally and labels
+the result, instead of discarding the whole answer.
 """
 
 from __future__ import annotations

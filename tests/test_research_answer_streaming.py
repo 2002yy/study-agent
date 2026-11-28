@@ -1,9 +1,9 @@
 """Research-backed streaming buffering tests (RQ1-C answer batch).
 
 A research-backed turn buffers the whole candidate until the publication gate
-passes; a binding failure therefore emits zero candidate tokens while the
-canonical blocked copy is what the learner sees. Ordinary chat streaming keeps
-emitting tokens as they arrive.
+runs. A failed gate never emits the raw candidate: the corrected, labelled
+draft is what the learner sees. Ordinary chat streaming keeps emitting tokens
+as they arrive.
 """
 
 from __future__ import annotations
@@ -220,9 +220,22 @@ def test_research_stream_binding_failure_emits_zero_candidate_tokens(
             "stream-reject-session",
         )
     )
-    assert candidate not in body
-    assert RESEARCH_ANSWER_BLOCKED_COPY in body
-    assert "event: done" in body
+    # The candidate is buffered, corrected, and delivered only in the final
+    # payload: no unvalidated token reaches the learner first.
+    assert candidate in body
+    assert "【未完整核实的研究草稿】" in body
+    lines = body.splitlines()
+    token_texts = [
+        json.loads(lines[index + 1][6:])["text"]
+        for index, line in enumerate(lines)
+        if line == "event: token"
+        and index + 1 < len(lines)
+        and lines[index + 1].startswith("data: ")
+    ]
+    assert token_texts
+    for text in token_texts:
+        if candidate in text:
+            assert "【未完整核实的研究草稿】" in text
 
 
 def test_plain_stream_keeps_emitting_tokens_immediately(runtime_test_context) -> None:

@@ -31,6 +31,10 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.mode_manager import RuntimeModes
 from src.pedagogy.evaluation import PedagogyEvaluationService
 from src.repositories.runtime_repository import RuntimeRepository
+from src.application.research_delivery import (
+    DRAFT_HEADING,
+    NO_ANSWER_HEADING,
+)
 from src.web.research.official_publication import ABSTENTION
 from src.tools.web_agent import WebToolTrace
 
@@ -218,6 +222,13 @@ def _audit(turn: ChatTurn) -> dict[str, Any]:
     return stored
 
 
+def _delivery(turn: ChatTurn) -> dict[str, Any]:
+    stored = (turn.rag_snapshot or {}).get("research_delivery")
+    if not isinstance(stored, dict):
+        raise AssertionError("missing research_delivery")
+    return stored
+
+
 def _run_turn(
     service: ChatService,
     repository: RuntimeRepository,
@@ -356,7 +367,7 @@ def test_passed_binding_publishes_candidate_with_full_audit(tmp_path) -> None:
     assert claims["answer_hash"] == answer_content_hash(CANDIDATE)
 
 
-def test_rejected_binding_never_publishes_candidate(tmp_path) -> None:
+def test_rejected_binding_publishes_a_labelled_draft(tmp_path) -> None:
     calls = [json.dumps({"refused": True, "claims": [], "claim_links": []})]
 
     def chat_fn(*args: Any, **kwargs: Any) -> str:
@@ -364,19 +375,26 @@ def test_rejected_binding_never_publishes_candidate(tmp_path) -> None:
 
     service, repository = _service(tmp_path, chat_fn)
     reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert ANSWER in reply
     assert turn.status == "completed"
-    assert turn.assistant_message == RESEARCH_ANSWER_BLOCKED_COPY
+    assert turn.assistant_message == reply
     audit = _audit(turn)
     assert audit["candidate_answer_sha256"] == sha256_text(ANSWER)
-    assert audit["learner_answer_sha256"] == sha256_text(RESEARCH_ANSWER_BLOCKED_COPY)
+    assert audit["learner_answer_sha256"] == sha256_text(reply)
     assert audit["candidate_answer_sha256"] != audit["learner_answer_sha256"]
     binding = audit["phases"]["answer_claim_binding"]
     assert binding["outcome"] == "rejected"
     assert binding["model_calls"] == 1
     claims = (turn.rag_snapshot or {}).get("answer_claim_snapshot")
     assert claims is not None and claims["status"] == "rejected"
-    assert claims["answer_hash"] == answer_content_hash(RESEARCH_ANSWER_BLOCKED_COPY)
+    # The stored snapshot is normalized against the published surface, while
+    # the audit keeps the pre-gate candidate hash.
+    assert claims["answer_hash"] == answer_content_hash(reply)
+    delivery = _delivery(turn)
+    assert delivery["outcome"] == "draft"
+    assert delivery["verified"] is False
+    assert (turn.rag_snapshot or {})["answer_gate_candidate"]["text"] == ANSWER
 
 
 def test_zero_remaining_budget_makes_zero_binder_calls(tmp_path) -> None:
@@ -390,13 +408,15 @@ def test_zero_remaining_budget_makes_zero_binder_calls(tmp_path) -> None:
     reply, turn = _run_turn(
         service, repository, _command(rows=[_row()], allowed_attempts=0)
     )
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert ANSWER in reply
     assert calls["calls"] == 1
     audit = _audit(turn)
     binding = audit["phases"]["answer_claim_binding"]
     assert binding["outcome"] == "budget_exhausted"
     assert binding["model_calls"] == 0
     assert binding["error_type"] == "budget_exhausted"
+    assert _delivery(turn)["reason_code"] == "budget_exhausted"
 
 
 def test_retry_counts_every_physical_binder_call(tmp_path) -> None:
@@ -433,13 +453,15 @@ def test_single_authorized_attempt_does_not_retry(tmp_path) -> None:
 
     service, repository = _service(tmp_path, chat_fn)
     reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert ANSWER in reply
     assert calls["binding"] == 1
     audit = _audit(turn)
     binding = audit["phases"]["answer_claim_binding"]
     assert binding["outcome"] == "rejected"
     assert binding["model_calls"] == 1
     assert binding["error_type"] == "producer_failed:TimeoutError"
+    assert _delivery(turn)["reason_code"].startswith("producer_failed")
 
 
 def test_provider_error_never_leaks_raw_message(tmp_path) -> None:
@@ -450,15 +472,17 @@ def test_provider_error_never_leaks_raw_message(tmp_path) -> None:
 
     service, repository = _service(tmp_path, chat_fn)
     reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert ANSWER in reply
     persisted = json.dumps(turn.rag_snapshot or {})
     assert "secret internal provider detail" not in persisted
+    assert "secret internal provider detail" not in reply
     audit = _audit(turn)
     binding = audit["phases"]["answer_claim_binding"]
     assert binding["error_type"] == "producer_failed:RuntimeError"
 
 
-def test_missing_evidence_brief_fails_closed_without_provider_calls(tmp_path) -> None:
+def test_missing_evidence_brief_publishes_a_labelled_draft(tmp_path) -> None:
     calls = {"calls": 0}
 
     def chat_fn(*args: Any, **kwargs: Any) -> str:
@@ -467,13 +491,15 @@ def test_missing_evidence_brief_fails_closed_without_provider_calls(tmp_path) ->
 
     service, repository = _service(tmp_path, chat_fn)
     reply, turn = _run_turn(service, repository, _command(rows=[]))
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert ANSWER in reply
     assert calls["calls"] == 1
     audit = _audit(turn)
     binding = audit["phases"]["answer_claim_binding"]
     assert binding["outcome"] == "rejected"
     assert binding["model_calls"] == 0
     assert binding["error_type"] == "missing_evidence_brief"
+    assert _delivery(turn)["reason_code"] == "missing_evidence_brief"
 
 
 def test_default_simple_mode_also_fails_closed_without_evidence(
@@ -491,7 +517,8 @@ def test_default_simple_mode_also_fails_closed_without_evidence(
     service, repository = _service(tmp_path, chat_fn)
     reply, turn = _run_turn(service, repository, _command(rows=[]))
 
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert ANSWER in reply
     assert calls["calls"] == 1
     assert "research_publication_mode" not in (turn.rag_snapshot or {})
     binding = _audit(turn)["phases"]["answer_claim_binding"]
@@ -588,7 +615,7 @@ def test_generation_exception_leaves_no_committed_candidate(tmp_path) -> None:
     assert "answer_validation_audit" not in (turn.rag_snapshot or {})
 
 
-def test_unknown_evidence_id_is_never_published(tmp_path) -> None:
+def test_unknown_evidence_id_is_never_published_as_verified(tmp_path) -> None:
     def chat_fn(*args: Any, **kwargs: Any) -> str:
         if kwargs.get("task_name") == "answer_claim_binding":
             return _binding_payload(
@@ -598,12 +625,14 @@ def test_unknown_evidence_id_is_never_published(tmp_path) -> None:
 
     service, repository = _service(tmp_path, chat_fn)
     reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert ANSWER in reply
     audit = _audit(turn)
     assert audit["phases"]["answer_claim_binding"]["outcome"] == "rejected"
+    assert _delivery(turn)["verified"] is False
 
 
-def test_strong_factual_claim_without_eligible_binding_is_not_published(
+def test_strong_factual_claim_without_eligible_binding_is_not_published_as_verified(
     tmp_path,
 ) -> None:
     def chat_fn(*args: Any, **kwargs: Any) -> str:
@@ -615,13 +644,18 @@ def test_strong_factual_claim_without_eligible_binding_is_not_published(
 
     service, repository = _service(tmp_path, chat_fn)
     reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    # Every statement was withheld by the binder: no candidate text is
+    # published, but the pages this turn read are still delivered.
+    assert reply.startswith(NO_ANSWER_HEADING)
+    assert ANSWER not in reply
+    assert "official.example/release" in reply
     audit = _audit(turn)
     binding = audit["phases"]["answer_claim_binding"]
     assert binding["outcome"] == "rejected"
     assert binding["model_calls"] == 1
     claims = (turn.rag_snapshot or {}).get("answer_claim_snapshot")
     assert claims is not None and claims["status"] == "rejected"
+    assert _delivery(turn)["outcome"] == "no_answer"
 
 
 def test_web_policy_denied_never_calls_the_binder(tmp_path) -> None:
@@ -845,7 +879,8 @@ def test_g16_audit_records_rejected_binding_outcome(tmp_path) -> None:
     reply, turn = _run_turn(
         service, repository, _command(rows=[_row()], policy_service=True)
     )
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert ANSWER in reply
     policy = (turn.route_snapshot or {}).get("external_data_policy")
     binding = next(
         item
@@ -880,9 +915,10 @@ def test_block_without_evidence_rows_disables_answer_thinking(tmp_path) -> None:
     service, repository = _service(tmp_path, chat_fn)
     reply, turn = _run_turn(service, repository, _command(rows=[]))
 
-    # Published surface is unchanged: the blocked copy still wins.
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
-    assert turn.assistant_message == RESEARCH_ANSWER_BLOCKED_COPY
+    # The gate no longer discards a generated draft without a trace.
+    assert reply.startswith(DRAFT_HEADING)
+    assert "candidate text that the release gate will discard" in reply
+    assert turn.assistant_message == reply
     assert _audit(turn)["phases"]["answer_claim_binding"]["error_type"] == (
         "missing_evidence_brief"
     )
@@ -903,7 +939,8 @@ def test_block_without_attempt_budget_disables_answer_thinking(tmp_path) -> None
         service, repository, _command(rows=[_row()], allowed_attempts=0)
     )
 
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert ANSWER in reply
     generation = _generation_calls(seen)
     assert generation[0].get("extra_body") == {"thinking": {"type": "disabled"}}
     binding = _audit(turn)["phases"]["answer_claim_binding"]
@@ -1014,11 +1051,14 @@ def test_consistency_gate_flags_evidence_denial_despite_valid_binding(
     service, repository = _service(tmp_path, chat_fn)
     reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
 
-    assert reply == "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。"
+    assert reply.startswith(NO_ANSWER_HEADING)
+    assert "本轮没有任何证据可以支持该结论。" not in reply
+    assert "official.example/release" in reply
     audit = turn.rag_snapshot.get("answer_validation_audit") or {}
     binding_phase = (audit.get("phases") or {}).get("answer_claim_binding") or {}
     assert binding_phase.get("outcome") == "rejected"
     assert str(binding_phase.get("error_type") or "").startswith("consistency_failed")
+    assert _delivery(turn)["outcome"] == "no_answer"
 
 
 def test_consistency_gate_publishes_clean_answer(tmp_path, monkeypatch) -> None:
@@ -1275,7 +1315,7 @@ def test_a_read_backed_research_turn_generates_and_validates_an_answer(tmp_path)
     assert "https://official.example/release" in seen["binder_prompt"]
 
 
-def test_a_read_backed_research_turn_is_still_blocked_when_claims_do_not_bind(
+def test_a_read_backed_research_turn_publishes_a_labelled_draft(
     tmp_path,
 ) -> None:
     def chat_fn(*args: Any, **kwargs: Any) -> str:
@@ -1291,11 +1331,14 @@ def test_a_read_backed_research_turn_is_still_blocked_when_claims_do_not_bind(
     )
     reply, turn = _run_turn(service, repository, _research_command())
 
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
-    assert turn.assistant_message == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert CANDIDATE in reply
+    assert "https://official.example/release" in reply
+    assert turn.assistant_message == reply
     audit = _audit(turn)
     assert audit["candidate_answer_sha256"] == sha256_text(CANDIDATE)
     assert audit["phases"]["answer_claim_binding"]["outcome"] == "rejected"
+    assert _delivery(turn)["verified"] is False
 
 
 def test_a_research_turn_without_readable_pages_blocks_without_a_model_call(
@@ -1424,7 +1467,8 @@ def test_a_page_that_does_not_contain_the_claim_cannot_authorize_it(tmp_path) ->
     reply, turn = _run_turn(service, repository, _research_command())
 
     assert seen["binder_prompt"] != ""
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert claim in reply
     audit = _audit(turn)
     assert audit["phases"]["answer_claim_binding"]["outcome"] == "rejected"
     assert audit["phases"]["answer_claim_binding"]["error_type"] == (
@@ -1522,7 +1566,8 @@ def test_same_polarity_refuting_page_blocks_publication(tmp_path) -> None:
         route=_research_route(),
     )
     reply, turn = _run_turn(service, repository, _research_command())
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert claim in reply
     assert _audit(turn)["phases"]["answer_claim_binding"]["error_type"] == (
         "ineligible_evidence_support"
     )
@@ -1553,10 +1598,57 @@ def test_a_contradictory_page_blocks_publication(tmp_path) -> None:
     )
     reply, turn = _run_turn(service, repository, _research_command())
 
-    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert reply.startswith(DRAFT_HEADING)
+    assert claim in reply
     audit = _audit(turn)
     assert audit["phases"]["answer_claim_binding"]["outcome"] == "rejected"
     assert audit["phases"]["answer_claim_binding"]["error_type"] == (
         "ineligible_evidence_support"
     )
     assert not (turn.rag_snapshot or {}).get("research_evidence_refs")
+
+def test_unexpected_gate_exception_publishes_a_labelled_draft(
+    tmp_path, monkeypatch
+) -> None:
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        return ANSWER
+
+    service, repository = _service(tmp_path, chat_fn)
+
+    def explode(_self: Any, _prepared: Any, _candidate: str) -> Any:
+        raise RuntimeError("gate exploded")
+
+    monkeypatch.setattr(ChatService, "_gate_research_answer", explode)
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply.startswith(DRAFT_HEADING)
+    assert ANSWER in reply
+    assert "gate exploded" not in reply
+    assert turn.status == "completed"
+    assert (turn.rag_snapshot or {})["research_gate_error"] == "RuntimeError"
+    binding = _audit(turn)["phases"]["answer_claim_binding"]
+    assert binding["outcome"] == "rejected"
+    assert binding["error_type"] == "gate_exception"
+
+
+def test_output_limit_marks_a_published_answer_incomplete(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.delenv("RESEARCH_PUBLICATION_MODE", raising=False)
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "single_chat":
+            callback = kwargs.get("on_completion")
+            if callback is not None:
+                callback("length")
+        return CANDIDATE
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert CANDIDATE in reply
+    assert "达到输出上限" in reply
+    delivery = _delivery(turn)
+    assert delivery["outcome"] == "partial"
+    assert delivery["reason_class"] == "truncation"
+    assert delivery["generation_status"] == "output_limit"
