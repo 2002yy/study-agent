@@ -382,7 +382,7 @@ def test_semantic_egress_audit_and_writer_call_reserve(tmp_path):
     assert _refresh_execution_truth({"external_calls": rows})["history_sent_to_model"] is True
     prepared = SimpleNamespace(answer_validation={"allowed_attempts": 2},
                                rag={"web_tools": trace.to_dict()}, route={"answer_generation_calls": 2})
-    assert _answer_attempt_budget(prepared) == 1
+    assert _answer_attempt_budget(prepared) == 2
 
 
 def test_rejected_semantic_output_still_records_physical_history_egress():
@@ -423,17 +423,17 @@ def test_official_release_backlog_survives_failed_docs_phase_cap():
     assert len(evidence_tool_calls(calls)) == 1
 
 
-def test_writer_cannot_exceed_shared_six_call_budget(tmp_path):
+def test_writer_cannot_exceed_the_turn_runaway_ceiling(tmp_path):
     from src.application.chat_service import ChatCommand
     from tests.test_chat_service import _service
 
     service, repository = _service(tmp_path)
     prepared = service.start_turn(ChatCommand(user_input="Question", thread_id="budget"))
-    prepared.route["answer_generation_calls"] = 3
-    prepared.rag["web_tools"] = {"semantics": {"model_calls": 3}}
+    prepared.route["answer_generation_calls"] = 63
+    prepared.rag["web_tools"] = {"semantics": {"model_calls": 1}}
     with pytest.raises(TimeoutError, match="research_model_call_budget_exhausted"):
         service.generate(prepared)
-    assert prepared.route["answer_generation_calls"] == 3
+    assert prepared.route["answer_generation_calls"] == 63
     assert repository.get_chat_turn(prepared.turn.id).status == "failed"
 
 @pytest.mark.parametrize(("prompt", "site_key", "search_url", "wall"), [

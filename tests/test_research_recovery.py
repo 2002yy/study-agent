@@ -196,7 +196,7 @@ def test_short_chinese_topic_does_not_adopt_a_one_character_dictionary_entry():
     assert rejected["result"]["adequacy_reason"] == "literal_topic_absent"
 
 
-def test_standard_reserves_two_reads_and_two_authority_queries():
+def test_standard_budget_has_recovery_headroom_and_reads_candidates():
     searches = [[item("a"), item("b")], [item("c")], [item("d")], [item("e")]]
     bodies = {key: f"Unrelated unique body {key}" for key in "abcde"}
     gateway = Gateway(searches, bodies)
@@ -204,7 +204,8 @@ def test_standard_reserves_two_reads_and_two_authority_queries():
     final = recovery_summary(calls)
     assert final["mode"] == "standard"
     assert final["reads"] == 5
-    assert final["recovery_reads"] == 2
+    assert final["recovery_reads"] == 0
+    assert final["limits"]["reads"] == STANDARD_BUDGET.max_reads == 20
     assert final["authority_queries"] == 2
     assert final["query_rewrites"] == 2
     assert final["status"] == "budget_exhausted"
@@ -248,9 +249,9 @@ def test_character_budget_includes_rejected_bodies_and_enforces_last_read_limit(
         {key: key * 9000 for key in "abcde"},
     )
     calls = recover_public_research(gateway, "比较opus5.5", budget=STANDARD_BUDGET)
-    assert recovery_summary(calls)["used_chars"] == 24000
+    assert recovery_summary(calls)["used_chars"] == 30000
     assert recovery_summary(calls)["status"] == "budget_exhausted"
-    assert len(gateway.reads) == 4
+    assert len(gateway.reads) == 5
     assert all(
         len(row["result"].get("content", "")) <= row["arguments"]["max_chars"]
         for row in calls
@@ -282,7 +283,7 @@ def test_deadline_preserves_finalization_reserve_and_rejects_late_search_body():
     class DelayedGateway(Gateway):
         def search_exact(self, query, **kwargs):
             result = super().search_exact(query, **kwargs)
-            clock[0] = 179
+            clock[0] = STANDARD_BUDGET.hard_seconds - 1
             return result
 
     gateway = DelayedGateway([[item("late")]], {})
@@ -422,7 +423,7 @@ def test_multi_facet_reads_each_new_question_before_spending_budget_on_extra_pag
         assert backup_index < read_urls.index("https://sqlite.org/wal-index.html")
     assert gateway.reads[backup_index][1] == STANDARD_BUDGET.max_source_chars
     assert len(gateway.queries) == 4
-    assert recovery_summary(calls)["limits"]["reads"] == 5
+    assert recovery_summary(calls)["limits"]["reads"] == 20
 
 
 def test_success_does_not_use_reserved_reads_or_all_query_budget():

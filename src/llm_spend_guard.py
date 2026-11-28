@@ -107,6 +107,7 @@ __all__ = [
     "current_scope",
     "experiment_spend",
     "remaining_cny",
+    "remaining_budget_cny",
     "reservation_cny",
     "require_allowed_model",
     "reserve_call",
@@ -732,6 +733,26 @@ def spent_cny() -> float:
 def remaining_cny() -> float | None:
     cap = spend_cap_cny()
     return None if cap is None else max(0.0, cap - _reserved_cny)
+
+
+def remaining_budget_cny() -> float | None:
+    """Remaining money under the experiment cap, else the process cap.
+
+    The experiment ledger is durable across processes, so it is the relevant
+    number for a paid research run. A read failure returns ``None`` rather than
+    guessing; the actual ``reserve_call`` still enforces the cap.
+    """
+
+    experiment = experiment_id()
+    if experiment:
+        try:
+            totals = experiment_spend(experiment)
+            if totals is not None:
+                return max(0.0, totals["remaining_micros"] / 1_000_000)
+        except Exception:  # noqa: BLE001 - advisory headroom only
+            return None
+    return remaining_cny()
+
 
 
 def allowed_models() -> frozenset[str] | None:

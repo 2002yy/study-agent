@@ -44,6 +44,7 @@ from src.application.chat_research_publication import (
     inline_research_validation_plan,
     _question_excerpts as _question_excerpts,
     _route_generation_calls,
+    _turn_model_call_ceiling,
 )
 from src.application.learner_state_durable_adapter import (
     adjudicate as adjudicate_learner_state,
@@ -1077,7 +1078,7 @@ class ChatService:
         research_calls = int(web_tools.get("model_calls") or 0)
         if isinstance(semantic, dict):
             research_calls = max(research_calls, int(semantic.get("model_calls", 0)))
-        if research_calls + next_calls > 6:
+        if research_calls + next_calls > _turn_model_call_ceiling():
             self.fail_turn(prepared)
             raise TimeoutError("research_model_call_budget_exhausted")
 

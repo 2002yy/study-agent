@@ -8,6 +8,7 @@ import pytest
 
 from src.application.chat_service import ChatCommand
 from src.application.standard_handoff import admit_standard_handoff
+from src.web.research_recovery import LOOKUP_BUDGET, STANDARD_BUDGET
 from src.application.standard_execution import StandardExecution
 from src.domain.runtime_entities import WebLookupRun
 from src.repositories.web_lookup_repository import WebLookupRepository
@@ -133,7 +134,7 @@ def test_real_saved_handoff_reuses_source_without_new_dispatch_or_charge(saved_p
 def test_new_work_is_bounded_and_repeated_work_is_cached(saved_parent, kind):
     context, clock = consumer(saved_parent)
     gateway = Gateway()
-    limit = 5 if kind == "reads" else 4
+    limit = STANDARD_BUDGET.max_reads if kind == "reads" else STANDARD_BUDGET.max_queries
     method = context.read if kind == "reads" else context.search
     for index in range(limit):
         target = (
@@ -156,9 +157,9 @@ def test_wrong_owner_or_clock_is_rejected(saved_parent, failure):
     kwargs = (
         {"thread_id": "another-thread"}
         if failure == "thread"
-        else {"deadline": created + timedelta(seconds=250)}
+        else {"deadline": created + timedelta(seconds=LOOKUP_BUDGET.hard_seconds + STANDARD_BUDGET.hard_seconds + 1)}
         if failure == "deadline_reset"
-        else {"now": created + timedelta(seconds=250)}
+        else {"now": created + timedelta(seconds=LOOKUP_BUDGET.hard_seconds + STANDARD_BUDGET.hard_seconds + 1)}
         if failure == "expired"
         else {"now": created - timedelta(seconds=1)}
     )
@@ -240,7 +241,7 @@ def test_failed_dispatch_still_consumes_new_budget(saved_parent, kind):
         search_exact = read
 
     method = context.read if kind == "reads" else context.search
-    limit = 5 if kind == "reads" else 4
+    limit = STANDARD_BUDGET.max_reads if kind == "reads" else STANDARD_BUDGET.max_queries
     for index in range(limit):
         with pytest.raises(OSError):
             method(FailedGateway(), f"failed target {index}")

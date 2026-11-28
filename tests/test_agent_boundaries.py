@@ -206,10 +206,11 @@ def test_checkpoint_error_is_reported(monkeypatch):
     assert "checkpoint offline" in trace.error
 
 
-def test_autonomous_max_model_calls_is_capped_at_five(monkeypatch):
-    monkeypatch.setenv("WEB_AUTONOMOUS_MAX_MODEL_CALLS", "9")
-    assert autonomous_budget(deep=True).max_model_calls == 5
-    assert autonomous_budget(deep=False).max_model_calls == 5
+def test_autonomous_max_model_calls_has_a_wide_runaway_ceiling(monkeypatch):
+    monkeypatch.setenv("WEB_AUTONOMOUS_MAX_MODEL_CALLS", "999")
+    monkeypatch.setenv("WEB_AUTONOMOUS_DEEP_MAX_MODEL_CALLS", "999")
+    assert autonomous_budget(deep=True).max_model_calls == 60
+    assert autonomous_budget(deep=False).max_model_calls == 60
 
 
 def test_autonomous_admits_successful_public_reads_without_discovery(monkeypatch):

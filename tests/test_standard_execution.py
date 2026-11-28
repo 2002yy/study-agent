@@ -7,6 +7,7 @@ from threading import Event
 import pytest
 
 from src.application.standard_execution import StandardExecution
+from src.web.research_recovery import STANDARD_BUDGET
 from src.repositories.runtime_repository import RuntimeRepository
 from src.repositories.web_lookup_repository import WebLookupRepository
 from tests.test_standard_handoff import Gateway, saved_parent as saved_parent
@@ -155,7 +156,10 @@ def test_failure_and_restart_do_not_reset_or_retry_cost(running, kind):
     assert snapshot(running)[counter] == 1
 
 
-@pytest.mark.parametrize("kind,limit", [("read", 5), ("search", 4)])
+@pytest.mark.parametrize(
+    "kind,limit",
+    [("read", STANDARD_BUDGET.max_reads), ("search", STANDARD_BUDGET.max_queries)],
+)
 def test_remaining_budget_stays_bounded_across_restart(running, kind, limit):
     execution, _, _, _, _ = running
     gateway = Gateway()
@@ -342,13 +346,13 @@ def test_total_body_budget_survives_restart(running):
             return {"content": "x" * 6000}
 
     gateway = LargeBody()
-    for index in range(3):
+    for index in range(7):
         execution.read(gateway, f"body-{index}")
     execution.interrupt()
     after = resume(running)
     with pytest.raises(ValueError, match="text budget"):
         after.read(gateway, "excess-total-body")
-    assert snapshot(running)["new_reads"] == 4
+    assert snapshot(running)["new_reads"] == 8
 
 
 def test_provider_timeout_leaves_no_late_result(running, monkeypatch):
@@ -434,6 +438,7 @@ import sys
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.runtime_repository import RuntimeRepository
 from src.application.standard_execution import StandardExecution
+from src.web.research_recovery import STANDARD_BUDGET
 class NoNetwork:
     def read(self, *_a, **_k):
         raise AssertionError('completed work must not dispatch again')

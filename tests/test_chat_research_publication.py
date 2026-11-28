@@ -33,13 +33,13 @@ def test_blocked_generation_has_zero_hidden_reasoning_and_no_extra_attempt():
     assert _answer_generation_extra_body(prepared) == THINKING_DISABLED_EXTRA_BODY
 
 
-def test_pass_generation_preserves_default_policy_and_semantic_budget():
+def test_pass_generation_preserves_default_policy_and_wide_turn_ceiling():
     prepared = SimpleNamespace(
         answer_validation={"allowed_attempts": 2, "evidence_rows": [{"id": "e"}]},
         rag={"web_tools": {"semantics": {"model_calls": 4}}},
         route={"answer_generation_calls": 1},
     )
-    assert _answer_attempt_budget(prepared) == 1
+    assert _answer_attempt_budget(prepared) == 2
     with patch.dict("os.environ", {"RESEARCH_ANSWER_BOUNDED_POLICY": "off"}):
         assert _answer_generation_extra_body(prepared) is None
     with patch.dict("os.environ", {"RESEARCH_ANSWER_BOUNDED_POLICY": "on"}):

@@ -106,11 +106,11 @@ def test_autonomous_normal_research_uses_the_existing_loop(monkeypatch):
     assert service.created[0][1]["run_kind"] == "autonomous_research"
     assert service.created[0][1]["research_mode"] == "standard"
     assert loop.kwargs[0]["task_name"] == "autonomous_research"
-    assert loop.kwargs[0]["max_rounds"] == 4
+    assert loop.kwargs[0]["max_rounds"] == 12
     assert isinstance(loop.kwargs[0]["execute_tool"], AutonomousToolBudget)
     assert "You decide the next action" in loop.messages[0][0]["content"]
-    assert "at most 4 model calls" in loop.messages[0][0]["content"]
-    assert "4 searches" in loop.messages[0][0]["content"]
+    assert "at most 12 model calls" in loop.messages[0][0]["content"]
+    assert "12 searches" in loop.messages[0][0]["content"]
     assert service.traces and service.traces[0][0] == "run-auto"
 
 
@@ -144,9 +144,9 @@ def test_explicit_deep_needs_the_deep_flag(monkeypatch):
     agent2 = _agent(loop2, service2)
     agent2.resolve("deep topic", research_intent=True, deep_requested=True)
     assert loop2.kwargs[0]["task_name"] == "autonomous_research"
-    assert loop2.kwargs[0]["max_rounds"] == 5
-    assert "at most 5 model calls" in loop2.messages[0][0]["content"]
-    assert "8 searches" in loop2.messages[0][0]["content"]
+    assert loop2.kwargs[0]["max_rounds"] == 30
+    assert "at most 30 model calls" in loop2.messages[0][0]["content"]
+    assert "30 searches" in loop2.messages[0][0]["content"]
     assert service2.traces[0][0] == "run-auto"
 
 
@@ -223,19 +223,19 @@ def test_state_provider_reports_budget_without_page_body(monkeypatch):
     )
 
     assert "[research_state]" in block
-    assert "searches 0/4" in block
+    assert "searches 0/12" in block
     assert "SECRET BODY" not in block
 
 
 def test_autonomous_budget_defaults_and_env_override(monkeypatch):
     normal = autonomous_budget(deep=False)
     deep = autonomous_budget(deep=True)
-    assert (normal.max_rounds, normal.max_searches, normal.max_reads) == (4, 4, 6)
-    assert (normal.max_model_calls, normal.max_tool_calls) == (4, 12)
-    assert normal.max_seconds == 180
-    assert (deep.max_rounds, deep.max_searches, deep.max_reads) == (5, 8, 12)
-    assert (deep.max_model_calls, deep.max_tool_calls) == (5, 24)
-    assert deep.max_seconds == 600
+    assert (normal.max_rounds, normal.max_searches, normal.max_reads) == (12, 12, 20)
+    assert (normal.max_model_calls, normal.max_tool_calls) == (12, 40)
+    assert normal.max_seconds == 300
+    assert (deep.max_rounds, deep.max_searches, deep.max_reads) == (30, 30, 60)
+    assert (deep.max_model_calls, deep.max_tool_calls) == (30, 120)
+    assert deep.max_seconds == 1800
 
     monkeypatch.setenv("WEB_AUTONOMOUS_MAX_ROUNDS", "3")
     assert autonomous_budget(deep=False).max_rounds == 3
@@ -375,9 +375,93 @@ def test_turn_model_budget_counts_autonomous_calls():
     failed: list[object] = []
     fake = SimpleNamespace(fail_turn=lambda prepared: failed.append(prepared))
     prepared = SimpleNamespace(
-        rag={"web_tools": {"model_calls": 6, "semantics": None}}
+        rag={"web_tools": {"model_calls": 64, "semantics": None}}
     )
 
     with pytest.raises(TimeoutError, match="research_model_call_budget_exhausted"):
         ChatService._check_research_model_budget(fake, prepared, 1)
     assert failed
+
+
+def _budget_for(execute):
+    return AutonomousToolBudget(
+        execute,
+        AutonomousBudget(30, 10, 10, 30, 50, 600),
+        time.monotonic() + 300,
+        read_execute=lambda arguments, _remaining: execute("web_read", arguments),
+        search_execute=lambda arguments, _deadline: execute("web_search", arguments),
+    )
+
+
+def test_duplicate_search_is_refused_without_spending_search_budget():
+    executed: list[str] = []
+
+    def execute(name, arguments):
+        executed.append(str(arguments.get("query") or arguments.get("url")))
+        return {"ok": True, "status": "ok", "results": []}
+
+    budget = _budget_for(execute)
+    first = budget("web_search", {"query": "Godot Jolt"})
+    second = budget("web_search", {"query": "  Godot   Jolt "})
+    changed = budget("web_search", {"query": "Godot Jolt limitations"})
+
+    assert first["status"] == "ok"
+    assert second["status"] == "duplicate"
+    assert second["reason"] == "duplicate_query"
+    assert changed["status"] == "ok"
+    assert executed == ["Godot Jolt", "Godot Jolt limitations"]
+    assert budget.snapshot()["searches"] == 2
+
+
+def test_duplicate_successful_read_reuses_the_existing_body():
+    executed: list[str] = []
+
+    def execute(_name, arguments):
+        executed.append(str(arguments.get("url")))
+        return {"ok": True, "url": arguments.get("url"), "content": "body"}
+
+    budget = _budget_for(execute)
+    first = budget("web_read", {"url": "https://example.org/a/"})
+    second = budget("web_read", {"url": "https://example.org/a"})
+
+    assert first["ok"] is True
+    assert second["reason"] == "duplicate_read"
+    assert executed == ["https://example.org/a/"]
+    assert budget.snapshot()["reads"] == 1
+
+
+def test_a_failed_read_can_be_retried_with_another_mode():
+    executed: list[str] = []
+
+    def execute(_name, arguments):
+        executed.append(str(arguments.get("url")))
+        return {"ok": False, "url": arguments.get("url"), "error": "js_shell"}
+
+    budget = _budget_for(execute)
+    first = budget("web_read", {"url": "https://example.org/a"})
+    second = budget("web_read", {"url": "https://example.org/a"})
+
+    assert first["ok"] is False
+    assert second["ok"] is False
+    assert len(executed) == 2
+    assert budget.snapshot()["reads"] == 2
+
+def test_a_short_shell_read_can_be_retried_once_with_browse():
+    executed: list[str] = []
+
+    def execute(_name, arguments):
+        mode = str(arguments.get("mode") or "auto")
+        executed.append(mode)
+        if mode == "browse":
+            return {"ok": True, "url": arguments.get("url"), "content": "full article " * 100}
+        return {"ok": True, "url": arguments.get("url"), "content": "Please enable JavaScript"}
+
+    budget = _budget_for(execute)
+    auto = budget("web_read", {"url": "https://example.org/app"})
+    browse = budget("web_read", {"url": "https://example.org/app", "mode": "browse"})
+    again = budget("web_read", {"url": "https://example.org/app", "mode": "browse"})
+
+    assert auto["ok"] is True
+    assert browse["ok"] is True
+    assert again["reason"] == "duplicate_read"
+    assert executed == ["auto", "browse"]

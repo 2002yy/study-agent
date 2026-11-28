@@ -82,7 +82,11 @@ class _Phase:
 
 
 LOOKUP_BUDGET = RecoveryBudget("lookup", 60, 10, 2, 1, 2, 6000, 16000)
-STANDARD_BUDGET = RecoveryBudget("standard", 180, 12, 3, 2, 4, 6000, 24000)
+#: Standard research is allowed to follow more than one lead. The old 180s /
+#: 5-read window made a multi-facet question stop while sources were still
+#: readable. The spend ledger remains the hard cost boundary; these are time and
+#: volume guards, not quality targets.
+STANDARD_BUDGET = RecoveryBudget("standard", 300, 15, 8, 12, 12, 6000, 48000)
 
 #: A source the user typed is not a search result: read it first, bounded.
 USER_SUPPLIED_MAX_URLS = 3
