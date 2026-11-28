@@ -12,7 +12,12 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src.application.deep_execution import DeepExecutionService, DEEP_V1_BUDGET
+from src.application.deep_execution import (
+    DEEP_V1_BUDGET,
+    DEEP_V2_BUDGET,
+    DeepExecutionService,
+    deep_budget_profile,
+)
 from src.application.deep_handoff import DeepHandoffService
 from src.application.standard_continuation import StandardContinuationService
 from src.web.research.deep_runtime import (
@@ -405,12 +410,39 @@ def test_e47_no_path_grants_publication_authority(ctx):
     assert snapshot(repository, parent)["deep_terminal"]["handoff"]["publication_authority"] is False
 
 
-def test_deep_budget_profile_is_the_frozen_one():
+def test_deep_v1_profile_is_preserved_for_old_envelopes():
     assert DEEP_V1_BUDGET.max_candidates == 40
     assert DEEP_V1_BUDGET.max_reads == 12
     assert DEEP_V1_BUDGET.soft_timeout_seconds == 450
     assert DEEP_V1_BUDGET.hard_timeout_seconds == 600
     assert DEEP_V1_BUDGET.max_total_chars == 80_000
+
+
+def test_new_deep_runs_use_the_v2_external_envelope():
+    assert deep_budget_profile() == "deep-v2"
+    assert DEEP_V2_BUDGET.max_candidates == 120
+    assert DEEP_V2_BUDGET.max_reads == 60
+    assert DEEP_V2_BUDGET.soft_timeout_seconds == 1200
+    assert DEEP_V2_BUDGET.hard_timeout_seconds == 1800
+    assert DEEP_V2_BUDGET.max_total_chars == 240_000
+
+
+def test_old_and_new_envelopes_validate_against_their_own_profile():
+    now = datetime(2026, 11, 28, tzinfo=timezone.utc)
+    v1 = build_execution_envelope(
+        parent_turn_id="t", handoff_sha256="h", admitted_at=now,
+        budget_profile="deep-v1",
+    )
+    v2 = build_execution_envelope(
+        parent_turn_id="t", handoff_sha256="h", admitted_at=now,
+        budget_profile="deep-v2",
+    )
+    assert validate_execution_envelope(v1) == (True, "")
+    assert validate_execution_envelope(v2) == (True, "")
+    assert v1["deadline_at"] != v2["deadline_at"]
+    assert validate_execution_envelope(
+        {**v1, "budget_profile": "deep-v2"}
+    )[0] is False
 
 
 # --- review round 1: durable integrity, stale resume, taxonomy ----------------------

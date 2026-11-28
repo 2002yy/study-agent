@@ -23,7 +23,9 @@ DEEP_TERMINAL_SCHEMA = "standard-deep-terminal-v1"
 CONTINUATION_SCHEMA = "standard-auto-continuation-v1"
 
 DEEP_REASON = "unresolved_after_standard"
+#: Legacy alias; new handoffs record the profile selected by deep_runtime.
 DEEP_BUDGET_PROFILE = "deep-v1"
+DEEP_V2_BUDGET_PROFILE = "deep-v2"
 
 # Standard finished its own research and still has a gap: this is what Deep exists for.
 UPGRADE_STOP_REASONS = frozenset(
@@ -83,9 +85,13 @@ def build_deep_handoff(
     standard_handoff_sha256: str,
     standard_result: dict,
     seed_source_refs: list[dict],
+    budget_profile: str | None = None,
 ) -> dict:
     """Assemble the durable handoff. Control plane only - never any raw body."""
 
+    from src.web.research.deep_runtime import current_deep_budget_profile
+
+    profile = str(budget_profile or current_deep_budget_profile()).strip().lower()
     payload = {
         "schema_version": DEEP_HANDOFF_SCHEMA,
         "reason": DEEP_REASON,
@@ -103,7 +109,7 @@ def build_deep_handoff(
         "known_assertion_refs": deepcopy(standard_result.get("known_assertion_refs") or []),
         # References only: url, digest, field association, origin. No content.
         "seed_source_refs": [dict(ref) for ref in seed_source_refs],
-        "budget_profile": DEEP_BUDGET_PROFILE,
+        "budget_profile": profile,
         "publication_authority": False,
     }
     payload["payload_sha256"] = payload_digest(payload)

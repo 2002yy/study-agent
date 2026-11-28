@@ -23,8 +23,16 @@ from typing import Any, Mapping
 from src.news.url_normalizer import canonicalize_url
 
 DEEP_EXECUTION_SCHEMA = "deep-execution-v1"
-DEEP_BUDGET_PROFILE = "deep-v1"
+DEEP_V1_PROFILE = "deep-v1"
+DEEP_V2_PROFILE = "deep-v2"
+#: Legacy alias kept for callers/tests that mean the original frozen profile.
+DEEP_BUDGET_PROFILE = DEEP_V1_PROFILE
 DEEP_HARD_SECONDS = 600
+DEEP_V2_HARD_SECONDS = 1800
+_PROFILE_HARD_SECONDS = {
+    DEEP_V1_PROFILE: DEEP_HARD_SECONDS,
+    DEEP_V2_PROFILE: DEEP_V2_HARD_SECONDS,
+}
 DEEP_SOURCE_LIMIT = 6000
 
 SEED_SCHEMA = "deep-seed-v1"
@@ -47,6 +55,21 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def current_deep_budget_profile() -> str:
+    """The profile new Deep runs use; old envelopes keep their own profile."""
+
+    import os
+
+    raw = (os.getenv("RESEARCH_DEEP_BUDGET_PROFILE") or DEEP_V2_PROFILE).strip().lower()
+    if raw not in _PROFILE_HARD_SECONDS:
+        raise ValueError(f"unknown Deep budget profile {raw!r}")
+    return raw
+
+
+def profile_hard_seconds(profile: str) -> int | None:
+    return _PROFILE_HARD_SECONDS.get(str(profile or "").strip().lower())
+
+
 def seed_candidate_identity(canonical_url: str) -> str:
     """Deterministic candidate id for a seed URL. Identity is the canonical URL, not rank."""
 
@@ -59,16 +82,21 @@ def build_execution_envelope(
     parent_turn_id: str,
     handoff_sha256: str,
     admitted_at: datetime,
+    budget_profile: str | None = None,
 ) -> dict[str, Any]:
     """The first-admission envelope. ``deadline_at`` is derived, never supplied."""
 
+    profile = str(budget_profile or current_deep_budget_profile()).strip().lower()
+    seconds = profile_hard_seconds(profile)
+    if seconds is None:
+        raise ValueError(f"unknown Deep budget profile {profile!r}")
     return {
         "schema_version": DEEP_EXECUTION_SCHEMA,
-        "budget_profile": DEEP_BUDGET_PROFILE,
+        "budget_profile": profile,
         "parent_turn_id": str(parent_turn_id),
         "handoff_sha256": str(handoff_sha256),
         "admitted_at": admitted_at.astimezone(timezone.utc).isoformat(),
-        "deadline_at": (admitted_at.astimezone(timezone.utc) + timedelta(seconds=DEEP_HARD_SECONDS)).isoformat(),
+        "deadline_at": (admitted_at.astimezone(timezone.utc) + timedelta(seconds=seconds)).isoformat(),
         "publication_authority": False,
     }
 
@@ -101,7 +129,9 @@ def validate_execution_envelope(envelope: Any) -> tuple[bool, str]:
         return (False, "execution_envelope_absent")
     if envelope.get("schema_version") != DEEP_EXECUTION_SCHEMA:
         return (False, "execution_schema_mismatch")
-    if envelope.get("budget_profile") != DEEP_BUDGET_PROFILE:
+    profile = str(envelope.get("budget_profile") or "")
+    seconds = profile_hard_seconds(profile)
+    if seconds is None:
         return (False, "execution_budget_profile_mismatch")
     if envelope.get("publication_authority") is not False:
         return (False, "execution_cannot_publish")
@@ -112,7 +142,7 @@ def validate_execution_envelope(envelope: Any) -> tuple[bool, str]:
         return (False, "execution_timestamp_invalid")
     if admitted.tzinfo is None or deadline.tzinfo is None:
         return (False, "execution_timestamp_naive")
-    if deadline != admitted + timedelta(seconds=DEEP_HARD_SECONDS):
+    if deadline != admitted + timedelta(seconds=seconds):
         return (False, "execution_deadline_mismatch")
     return (True, "")
 

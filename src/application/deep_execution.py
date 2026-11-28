@@ -32,11 +32,13 @@ from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.contracts import ResearchBudget, build_research_state
 from src.web.research.deep_handoff import DEEP_TERMINAL_SCHEMA, load_deep_handoff
 from src.web.research.deep_runtime import (
-    DEEP_BUDGET_PROFILE,
     DEEP_HARD_SECONDS,
+    DEEP_V2_HARD_SECONDS,
+    DEEP_V2_PROFILE,
     DeepIntegrityError,
     bind_execution_envelope,
     build_execution_envelope,
+    current_deep_budget_profile,
     read_execution_envelope,
     read_seed,
     reference_date_from,
@@ -54,6 +56,25 @@ DEEP_V1_BUDGET = ResearchBudget(
     hard_timeout_seconds=DEEP_HARD_SECONDS,
     max_total_chars=80_000,
 )
+
+# Deep v2 matches the autonomous Deep external envelope (1800s, 60 reads).
+DEEP_V2_BUDGET = ResearchBudget(
+    max_candidates=120,
+    max_reads=60,
+    soft_timeout_seconds=1200,
+    hard_timeout_seconds=DEEP_V2_HARD_SECONDS,
+    max_total_chars=240_000,
+)
+
+
+def current_deep_budget() -> ResearchBudget:
+    """The profile new Deep runs use; old v1 envelopes keep v1 validation."""
+
+    return (
+        DEEP_V2_BUDGET
+        if current_deep_budget_profile() == DEEP_V2_PROFILE
+        else DEEP_V1_BUDGET
+    )
 
 TERMINAL_CHILD_STATUSES = frozenset({"completed", "partial", "failed", "cancelled"})
 
@@ -245,7 +266,7 @@ class DeepExecutionService:
             source_clusters=(),
             gaps=(),
             conflict_gaps=(),
-            budget=DEEP_V1_BUDGET,
+            budget=current_deep_budget(),
             known_evidence_ids=(),
             reference_date=reference_date_from(parent.created_at),
         )
@@ -373,6 +394,6 @@ def _blocked_reason(exc: BaseException) -> str:
 
 
 def deep_budget_profile() -> str:
-    """The frozen Deep budget profile name, for diagnostics and tests."""
+    """The Deep budget profile new runs use, for diagnostics and tests."""
 
-    return DEEP_BUDGET_PROFILE
+    return current_deep_budget_profile()

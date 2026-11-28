@@ -59,10 +59,12 @@ Standard 的 `finalization_reserve` 是 15s：搜索/读取在答案窗口前停
 
 ### 2.4 RQCE Deep
 
-本轮**未改** RQCE 的冻结 profile：`max_candidates=40`、`max_reads=12`、
-`soft_timeout=450s`、`hard_timeout=600s`、`max_total_chars=80k`。它与自主
-Deep 是两条不同的预算契约；把 RQCE 一并放宽到 1800s/60 reads 会改变
-`DeepExecution` 的持久化 envelope 和现有验收测试，需要单独决策。
+新运行使用 `deep-v2`：`max_candidates=120`、`max_reads=60`、
+`soft_timeout=1200s`、`hard_timeout=1800s`、`max_total_chars=240k`，与自主
+Deep 的外部资源条件对齐。旧的 `deep-v1`（40/12/450s/600s/80k）保留：
+`validate_execution_envelope` 按 envelope 自己记录的 `budget_profile` 校验
+deadline，不要求旧记录升级；新 envelope 默认 `deep-v2`。可用
+`RESEARCH_DEEP_BUDGET_PROFILE=deep-v1` 回到旧 profile。
 
 ### 2.5 通用 web tool fallback
 
@@ -115,7 +117,7 @@ URL、章节锚点、读取模式、视频时间段、OCR、评论页码、讨�
    需要三类任务的端到端实验。
 2. 费用预留按 CNY 估算，依赖账本 pricing；没有 experiment cap 时只做调用
    与时间预留，费用由 `reserve_call` 硬限制兜底。
-3. RQCE Deep 与通用 web tool fallback 仍是旧额度；本轮只统一了全 turn 上限，
-   没有强行把三条路径改成同一组数字。
+3. 通用 web tool fallback 仍是 120s/3 轮；RQCE 新运行已用 `deep-v2`，旧 `deep-v1`
+   记录继续按原 profile 校验。
 4. 重复查询保护是精确匹配；改写后的同义查询仍会消耗搜索额度，是否语义去重需要
    真实样本再决定。重复读取按有效参数区分，不做语义去重。
