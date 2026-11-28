@@ -51,7 +51,7 @@
 - **Codex** `065e18b0` `codex-rs/core/src/session/turn.rs` L865–908：
   Stop hook 只有带具体 continuation prompt 时才继续；没有 prompt 时
   warning 并忽略 block。对应：续跑必须带可执行指令。
-- **Claude Code** 官方 Hooks 文档（公开仓库 `102fafb0` 不含核心 loop）：
+- **Claude Code** 官方 Hooks 文档（官方仓库 `102fafb0` 不含核心 loop；v2.1.88 恢复源码的专项研究见 `CLAUDE_CODE_SOURCE_STUDY_20261128.md`）：
   `stop_hook_active`、连续续跑 8 次上限、`StopFailure` 单独表示 API 错误。
   对应：续跑有界，且失败类型分开。
 - **OpenCode** `eeeeaa0d` `runner/max-steps.ts` L1、`runner/llm.ts` L263–282：
