@@ -6,6 +6,21 @@
 
 ## 0. Current Handoff（2026-11-24，冷启动）
 
+### 2026-11-28 研究预算契约：放宽决策次数，保留费用硬边界
+
+- 已合入 `main@6ee6a7e8`（PR #710，CI run `46137691134` 五项全绿；backend **7010 passed / 17 skipped**）。
+- **根因**：研究模型调用 4/5 次 + 全 turn 6 次硬编码 + 180/600 秒，多层上限同时卡住同一个决策；600 秒 Deep 只能做 5 轮决策。费用账本本来已是硬边界，次数上限属于重复限制。
+- **自主研究新额度**：普通 12 调用/12 轮/12 搜索/20 阅读/40 工具/300 秒；Deep 30/30/30/60/120/1800 秒；env 上限同步放宽到 60/60/60/80/200/3600。规划输出 1600→4096；最终答案仍 8k/16k。
+- **全 turn 上限**：删除 `research + generation > 6` 硬编码，改为 `RESEARCH_TURN_MAX_MODEL_CALLS` 默认 **64**（8–256）的失控护栏；普通约 15、Deep 约 33，均低于 64。
+- **最终答案预留**：时间预留 60→180 秒；费用余量阈值普通 ¥0.10、Deep ¥0.30（可配置），研究循环在剩余费用低于“阈值 + 下一次调用最坏成本”时以 `spend_reserve` 停止。它是停止阈值，不是预扣款；实际扣款仍由 `reserve_call()` 逐次预留。
+- **防止放宽后乱烧**：重复相同查询（含 site_key）返回 `duplicate_query`，不消耗搜索额度；已充分读取的同一 URL 返回 `duplicate_read`，复用正文；失败/短壳页允许一次 `mode="browse"` 重试。完成判断仍按可观察缺口续跑，有足够读取就接受。
+- **普通语义 Standard**：180s/5 reads/4 queries → 300s/20 reads（8 基础 + 12 恢复）/12 queries/48k chars；Lookup 保持 60s。
+- **未同步调整**：RQCE Deep 仍为 600s/12 reads/80k chars 的冻结 profile；通用 web tool fallback 仍 120s/3 轮。二者是不同契约，需单独决策。
+- 对照：Codex `065e18b0` 上下文压缩后继续；OpenCode `eeeeaa0d` 可配置 steps + 强制收尾；DSH `4b399c39` 核心循环与外层预算分离；Claude Code 核心源码未公开，按官方预算文档说明“预算过小会导致模型缩小范围/提前停止”。详见 `docs/research_quality/BUDGET_CONTRACT_20261128.md`。
+- 验证：影响集 **231 passed**；Ruff 干净；mypy baseline **112/125 passed**；旧 6 次 `research_model_call_budget_exhausted` 不再触发。无付费调用，账本未变化。
+- 已知限制：数值是建议安全上限，不是实测最优；RQCE/通用 fallback 未同步；费用余量依赖账本 pricing，无 cap 时只做调用/时间预留；重复保护是精确匹配，同义改写仍消耗搜索额度。
+- `priority=P0`、`loop=static`、`owner=research/budget`、`dynamic_evidence=none`、`budget_authorization=unchanged`、`decision=budget_contract_merged`。
+
 ### 2026-11-28 研究完成判断与失败恢复：停止调用工具 ≠ 研究完成
 
 - 已合入 `main@a3321909`（PR #708，CI run `46126218628` 五项全绿；backend **7001 passed / 17 skipped**）。
