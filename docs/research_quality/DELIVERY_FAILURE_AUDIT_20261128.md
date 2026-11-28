@@ -3,9 +3,10 @@
 范围：`main@c29b67ef` 的 inline research publication gate，以及四个成熟 Agent
 （Codex、Claude Code、OpenCode、DeepSeek Harness）的**实际源码/官方文档**对照。
 
-本轮不产生付费模型调用。所有源码对照均固定到具体 commit；Claude Code 的公开
-仓库是插件/配置仓库，核心运行时代码未公开，因此该部分只引用官方 Hooks 文档，
-不把文档描述冒充成源码事实。
+本轮不产生付费模型调用。所有源码对照均固定到具体 commit；Claude Code 的官方
+仓库是插件/配置仓库，核心运行时代码未官方公开。2026-03-31 npm v2.1.88 意外
+暴露 source map 后的恢复源码已另做专项研究（见 CLAUDE_CODE_SOURCE_STUDY_20261128.md）；
+本文该部分仍只引用官方 Hooks 文档，不把文档描述冒充成源码事实。
 
 ## 1. 结论
 
