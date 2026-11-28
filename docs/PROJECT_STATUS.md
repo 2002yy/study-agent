@@ -16,6 +16,7 @@
 - **来源交付**：从 evidence rows、`used_sources`、成功 tool calls 合并，全部经 `_public_url` 过滤私网/凭证 URL，最多 8 条。
 - **四项目源码对照**（固定 commit，详见 `docs/research_quality/DELIVERY_FAILURE_AUDIT_20261128.md`）：Codex `065e18b0` Stop hook 无可执行 prompt 时不得 block；Claude Code 官方 Hooks 文档 `stop_hook_active` + 8 次续跑上限 + `StopFailure`；OpenCode `eeeeaa0d` 最大步数强制文本收尾 + 输出上限 3 次判定；DSH `4b399c39` sticky `max-tokens`、中断内容持久化、tool results 回收、turn 结束原因结构化。未引入框架或额外模型调用。
 - 免费回放：B2 16k 实际答案 11,341 字符、3 个唯一链接全部属于已读来源（outside=0）；A2 两个原始未读 URL 的等价合成答案被删除且 outside=0；A2 候选原文未持久化，不是逐字回放。
+- **第二批 DSH DeepSeek 适配**：对照 `llm-deepseek/src/translate.ts` / `serialize.ts`，thinking 线格式一致；工具参数解析失败已有 `invalid_tool_arguments` 等价容错；截断语义已采用；流中断保留与 session 重建不迁移。详见审计文档 §4.5。
 - 验证：影响集 8 文件 **151 passed**；Ruff 干净；mypy baseline **112/125 passed**；无付费调用，账本未变化。
 - 已知限制：只识别 URL 引用；strict 模式语义改为带标签草稿；一致性检查默认关闭，开启时按 claim 文本/拒绝短语块级删除；known-source 显式“只要已核实”的 abstention 未改。
 - `priority=P0/P1`、`loop=static`、`owner=research/publication`、`dynamic_evidence=free_replay`、`budget_authorization=exhausted`、`decision=delivery_fallback_merged`。
