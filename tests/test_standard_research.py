@@ -537,12 +537,15 @@ def test_model_request_mutation_cannot_reset_ledger_budget(running):
     }
 
 
-def test_new_reads_stop_at_existing_ledger_budget(running):
+def test_new_reads_respect_the_existing_ledger_budget(running):
+    from src.web.research_recovery import STANDARD_BUDGET
+
     gateway = Gateway(count=8)
     result = StandardResearchLoop(running[0], Planner()).advance(gateway)
-    assert result["stop_reason"] == "budget_exhausted"
-    assert result["budget_consumed"]["new_reads"] == 5
-    assert len([event for event in gateway.events if event[0] == "read"]) == 5
+    assert result["stop_reason"] == "ready_for_binding"
+    assert result["budget_consumed"]["new_reads"] == 8
+    assert result["budget_consumed"]["new_reads"] <= STANDARD_BUDGET.max_reads
+    assert len([event for event in gateway.events if event[0] == "read"]) == 8
 
 
 @pytest.mark.parametrize("mode", ["cancel", "deadline"])

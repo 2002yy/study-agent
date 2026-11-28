@@ -742,6 +742,7 @@ def run_tool_loop(
         Callable[[list[dict[str, Any]], str, str], str | None] | None
     ) = None,
     max_continuations: int = 2,
+    spend_reserve_cny: float = 0.0,
     clock: Callable[[], float] = time.monotonic,
 ) -> list[dict[str, Any]]:
     """Run an OpenAI-compatible function-call loop and return tool evidence.
@@ -820,6 +821,30 @@ def run_tool_loop(
         if max_model_calls is not None and model_calls >= max_model_calls:
             mark_stop("model_call_budget")
             return evidence
+        if spend_reserve_cny > 0:
+            # Keep enough money for the final answer. This is advisory headroom:
+            # the next call's reservation still runs and the ledger still
+            # enforces the hard cap. If the ledger cannot be read, continue and
+            # let `reserve_call` decide rather than inventing a spare budget.
+            try:
+                from src.llm_spend_guard import remaining_budget_cny, reservation_cny
+
+                remaining = remaining_budget_cny()
+                if remaining is not None:
+                    request_shape: dict[str, Any] = {
+                        "messages": transcript,
+                        "tools": tools,
+                    }
+                    worst_next = reservation_cny(
+                        prompt_chars=_prompt_chars([request_shape]),
+                        max_tokens=4096,
+                        attempts=1,
+                    )
+                    if remaining < spend_reserve_cny + worst_next:
+                        mark_stop("spend_reserve")
+                        return evidence
+            except Exception:  # noqa: BLE001 - headroom is advisory
+                pass
         if context_budget is not None:
             try:
                 stats = compress_working_context(
@@ -856,9 +881,10 @@ def run_tool_loop(
                 task_name=task_name,
                 # A reasoning model can spend the whole budget before it emits
                 # the tool call; 600 tokens produced empty completions with
-                # finish_reason=length. The planner still needs only a small
-                # JSON call, so the extra room is a ceiling, not a target.
-                max_tokens=1600,
+                # finish_reason=length. A planner decision is still small, but
+                # 4096 leaves room for a multi-step JSON decision without
+                # making the ceiling a target.
+                max_tokens=4096,
                 timeout=round_timeout,
                 response_format=None,
                 stream=False,

@@ -39,10 +39,12 @@ class _Client:
     def __init__(self, responses: list[SimpleNamespace]) -> None:
         self.responses = list(responses)
         self.calls = 0
+        self.requests: list[dict] = []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
-    def _create(self, **_kwargs):
+    def _create(self, **kwargs):
         self.calls += 1
+        self.requests.append(dict(kwargs))
         return self.responses.pop(0)
 
     def with_options(self, *, max_retries: int):
@@ -148,3 +150,74 @@ def test_a_broken_completion_check_does_not_end_the_loop(monkeypatch) -> None:
 
     assert stop["reason"] == "completed"
     assert stop["completion_check_error"] == "RuntimeError: boom"
+
+
+def test_planner_request_uses_a_4096_output_ceiling(monkeypatch) -> None:
+    client = _Client([_tool_call(), _text_only()])
+    _install(monkeypatch, client)
+    run_tool_loop(
+        [{"role": "user", "content": "research"}],
+        tools=_tools(),
+        execute_tool=lambda _name, _arguments: {"ok": True},
+        max_model_calls=5,
+        timeout=1.0,
+    )
+    assert client.requests[0]["max_tokens"] == 4096
+
+
+def test_spend_headroom_stops_before_it_eats_the_answer_reserve(monkeypatch) -> None:
+    client = _Client([_tool_call()])
+    _install(monkeypatch, client)
+    monkeypatch.setattr("src.llm_spend_guard.remaining_budget_cny", lambda: 0.10)
+    monkeypatch.setattr(
+        "src.llm_spend_guard.reservation_cny", lambda **_kwargs: 0.05
+    )
+    stop: dict = {}
+    result = run_tool_loop(
+        [{"role": "user", "content": "research"}],
+        tools=_tools(),
+        execute_tool=lambda _name, _arguments: {"ok": True},
+        max_model_calls=5,
+        spend_reserve_cny=0.20,
+        stop_state=stop,
+        timeout=1.0,
+    )
+    assert result == []
+    assert client.calls == 0
+    assert stop["reason"] == "spend_reserve"
+
+
+def test_turn_ceiling_is_configurable_and_not_six(monkeypatch) -> None:
+    from src.application.chat_research_publication import _turn_model_call_ceiling
+
+    monkeypatch.delenv("RESEARCH_TURN_MAX_MODEL_CALLS", raising=False)
+    assert _turn_model_call_ceiling() == 64
+    monkeypatch.setenv("RESEARCH_TURN_MAX_MODEL_CALLS", "16")
+    assert _turn_model_call_ceiling() == 16
+    monkeypatch.setenv("RESEARCH_TURN_MAX_MODEL_CALLS", "1")
+    assert _turn_model_call_ceiling() == 8
+
+
+def test_autonomous_budget_leaves_a_wide_answer_window() -> None:
+    from src.tools.persistent_web_agent import (
+        ANSWER_GENERATION_RESERVE_SECONDS,
+        _answer_spend_reserve_cny,
+        autonomous_budget,
+    )
+
+    normal = autonomous_budget(deep=False)
+    deep = autonomous_budget(deep=True)
+    assert normal.max_model_calls == 12
+    assert deep.max_model_calls == 30
+    assert normal.max_seconds == 300
+    assert deep.max_seconds == 1800
+    assert ANSWER_GENERATION_RESERVE_SECONDS >= 180
+    assert _answer_spend_reserve_cny(deep=True) > _answer_spend_reserve_cny(deep=False)
+
+
+def test_standard_research_read_budget_is_wider() -> None:
+    from src.web.research_recovery import STANDARD_BUDGET
+
+    assert STANDARD_BUDGET.hard_seconds == 300
+    assert STANDARD_BUDGET.max_reads == 20
+    assert STANDARD_BUDGET.max_queries == 12

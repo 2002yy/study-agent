@@ -23,6 +23,25 @@ THINKING_DISABLED_EXTRA_BODY: dict[str, dict[str, str]] = {
 }
 
 
+def _turn_model_call_ceiling() -> int:
+    """Runaway guard for one turn, not a research budget.
+
+    The old hard-coded six-call ceiling capped research *and* answer generation
+    together, so a Deep run could spend 600 seconds but only make five research
+    decisions. The per-path budgets and the durable spend ledger are the real
+    limits; this ceiling only stops a broken loop from calling forever.
+    """
+
+    import os
+
+    raw = os.getenv("RESEARCH_TURN_MAX_MODEL_CALLS", "64")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = 64
+    return max(8, min(value, 256))
+
+
 def _answer_attempt_budget(prepared: Any) -> int:
     """Allowed answer-generation attempts for this turn (shared gate input)."""
 
@@ -35,7 +54,7 @@ def _answer_attempt_budget(prepared: Any) -> int:
     semantic = ((getattr(prepared, "rag", {}) or {}).get("web_tools") or {}).get("semantics")
     if isinstance(semantic, dict):
         remaining = (
-            6
+            _turn_model_call_ceiling()
             - int(semantic.get("model_calls", 0))
             - _route_generation_calls(prepared.route)
         )

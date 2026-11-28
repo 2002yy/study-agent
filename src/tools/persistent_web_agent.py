@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import time
 from dataclasses import dataclass, replace
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeout
 from typing import TYPE_CHECKING, Any, Callable, Sequence
+from urllib.parse import urlsplit
 
 from src.llm_client import ModelProfile
 from src.llm_spend_guard import experiment_id, spend_scope
@@ -171,44 +173,62 @@ class AutonomousBudget:
 
 
 def autonomous_budget(deep: bool) -> AutonomousBudget:
-    """Time and call bounds for the autonomous path.
+    """Loose time and call bounds for the autonomous path.
 
-    The turn-wide model-call check still caps research plus final generation at
-    six calls, so the autonomous loop leaves room for the answer: four calls for
-    standard research, five for deep. Paid quota and the spend guard are not
-    changed by this function.
+    The old four/five research calls existed to fit a six-call turn ceiling,
+    which made a 600-second Deep run unable to follow more than a handful of
+    leads. The spend ledger is the hard money boundary; these numbers are the
+    second-layer runaway guards. A simple question can still finish in three
+    rounds.
     """
 
     prefix = "WEB_AUTONOMOUS_DEEP" if deep else "WEB_AUTONOMOUS"
     max_model_calls = _env_int(
-        f"{prefix}_MAX_MODEL_CALLS", 5 if deep else 4, minimum=1, maximum=5
+        f"{prefix}_MAX_MODEL_CALLS", 30 if deep else 12, minimum=1, maximum=60
     )
     return AutonomousBudget(
         max_rounds=_env_int(
             f"{prefix}_MAX_ROUNDS",
             max_model_calls,
             minimum=1,
-            maximum=20,
+            maximum=60,
         ),
         max_searches=_env_int(
-            f"{prefix}_MAX_SEARCHES", 8 if deep else 4, minimum=1, maximum=20
+            f"{prefix}_MAX_SEARCHES", 30 if deep else 12, minimum=1, maximum=60
         ),
         max_reads=_env_int(
-            f"{prefix}_MAX_READS", 12 if deep else 6, minimum=1, maximum=30
+            f"{prefix}_MAX_READS", 60 if deep else 20, minimum=1, maximum=80
         ),
         max_model_calls=max_model_calls,
         max_tool_calls=_env_int(
-            f"{prefix}_MAX_TOOL_CALLS", 24 if deep else 12, minimum=1, maximum=50
+            f"{prefix}_MAX_TOOL_CALLS", 120 if deep else 40, minimum=1, maximum=200
         ),
         max_seconds=float(
             _env_int(
                 f"{prefix}_MAX_SECONDS",
-                600 if deep else 180,
+                1800 if deep else 300,
                 minimum=30,
                 maximum=3600,
             )
         ),
     )
+
+
+def _answer_spend_reserve_cny(deep: bool) -> float:
+    """Money the research loop must leave for the final answer."""
+
+    try:
+        value = float(
+            os.getenv(
+                "WEB_AUTONOMOUS_DEEP_ANSWER_RESERVE_CNY"
+                if deep
+                else "WEB_AUTONOMOUS_ANSWER_RESERVE_CNY",
+                "0.30" if deep else "0.10",
+            )
+        )
+    except (TypeError, ValueError):
+        value = 0.30 if deep else 0.10
+    return max(0.0, min(value, 10.0))
 
 
 class AutonomousToolBudget:
@@ -242,6 +262,27 @@ class AutonomousToolBudget:
         self._searches = 0
         self._reads = 0
         self._tool_calls = 0
+        self._search_queries: set[str] = set()
+        self._read_state: dict[str, str] = {}
+
+    @staticmethod
+    def _query_key(arguments: dict[str, Any]) -> str:
+        query = " ".join(str(arguments.get("query") or "").split()).casefold()
+        site = str(arguments.get("site_key") or "").strip().casefold()
+        return f"{site}\x00{query}" if query else ""
+
+    @staticmethod
+    def _url_key(arguments: dict[str, Any]) -> str:
+        raw = str(arguments.get("url") or "").strip()
+        if not raw:
+            return ""
+        try:
+            parts = urlsplit(raw)
+        except ValueError:
+            return raw.casefold()
+        path = parts.path.rstrip("/") or "/"
+        query = f"?{parts.query}" if parts.query else ""
+        return f"{parts.scheme.casefold()}://{parts.netloc.casefold()}{path}{query}"
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
@@ -267,14 +308,49 @@ class AutonomousToolBudget:
         return ""
 
     def __call__(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        query_key = self._query_key(arguments) if name == "web_search" else ""
+        url_key = self._url_key(arguments) if name == "web_read" else ""
+        requested_mode = str(arguments.get("mode") or "auto").strip().lower()
         with self._lock:
             reason = self._refusal(name)
+            if not reason:
+                if query_key and query_key in self._search_queries:
+                    reason = "duplicate_query"
+                elif url_key:
+                    previous = self._read_state.get(url_key)
+                    if previous and not (
+                        previous == "inadequate" and requested_mode == "browse"
+                    ):
+                        reason = "duplicate_read"
             if not reason:
                 self._tool_calls += 1
                 if name == "web_search":
                     self._searches += 1
                 elif name == "web_read":
                     self._reads += 1
+        if reason == "duplicate_query":
+            return {
+                "ok": False,
+                "status": "duplicate",
+                "reason": "duplicate_query",
+                "error": (
+                    "duplicate_query: this exact query already ran. Change the "
+                    "keywords, language or site_key, or read an unread candidate."
+                ),
+                "results": [],
+            }
+        if reason == "duplicate_read":
+            return {
+                "ok": False,
+                "status": "duplicate",
+                "reason": "duplicate_read",
+                "error": (
+                    "duplicate_read: this page body is already in the transcript. "
+                    "Reuse it or read a different source; use mode=\"browse\" only "
+                    "if the earlier read was a shell or failed."
+                ),
+                "url": str(arguments.get("url") or ""),
+            }
         if reason:
             return {
                 "ok": False,
@@ -285,10 +361,32 @@ class AutonomousToolBudget:
             }
         remaining = max(0.0, self._deadline - self._clock())
         if name == "web_read" and self._read_execute is not None:
-            return self._read_execute(arguments, remaining)
-        if name == "web_search" and self._search_execute is not None:
-            return self._search_execute(arguments, self._deadline)
-        return self._execute_tool(name, arguments)
+            result = self._read_execute(arguments, remaining)
+        elif name == "web_search" and self._search_execute is not None:
+            result = self._search_execute(arguments, self._deadline)
+        else:
+            result = self._execute_tool(name, arguments)
+        if isinstance(result, dict):
+            if query_key and not result.get("provider_errors"):
+                with self._lock:
+                    self._search_queries.add(query_key)
+            if url_key and result.get("ok") is True:
+                from src.web.research.read_adequacy import classify_reader_result
+
+                kind = str(result.get("kind") or "web_page")
+                if kind != "web_page":
+                    # GitHub/video/audio reads are not browser shells; a repeat
+                    # should reuse the existing structured payload.
+                    state = "adequate"
+                elif requested_mode == "browse":
+                    state = "browse"
+                elif classify_reader_result(result).adequate:
+                    state = "adequate"
+                else:
+                    state = "inadequate"
+                with self._lock:
+                    self._read_state[url_key] = state
+        return result
 
     def usage_line(self) -> str:
         snap = self.snapshot()
@@ -300,10 +398,10 @@ class AutonomousToolBudget:
         )
 
 
-#: The retrieval window and the writing window are different budgets. The
-#: research loop must stop reading in time to answer; the answer itself must not
-#: be cut off merely because retrieval used its full window.
-ANSWER_GENERATION_RESERVE_SECONDS = 60.0
+#: The retrieval window and the writing window are different budgets. A 16k
+#: Deep answer needs more than the old 60 seconds, so the reserve is wider than
+#: the retrieval loop and never counts against `max_seconds`.
+ANSWER_GENERATION_RESERVE_SECONDS = 180.0
 
 
 def _requires_deep_research(user_input: str) -> bool:
@@ -834,6 +932,7 @@ class PersistentWebToolAgent(WebToolAgent):
                     on_round=persist_round,
                     completion_check=research_completion_gap,
                     max_continuations=2,
+                    spend_reserve_cny=_answer_spend_reserve_cny(deep),
                     request_max_retries=0,
                 )
         except Exception as exc:
@@ -847,7 +946,12 @@ class PersistentWebToolAgent(WebToolAgent):
         elif stop_reason == "cancelled":
             trace_error = "ResearchCancelled: Research cancelled by user"
             record_stop = "user_cancelled"
-        elif stop_reason in {"deadline", "model_call_budget", "max_rounds"}:
+        elif stop_reason in {
+            "deadline",
+            "model_call_budget",
+            "max_rounds",
+            "spend_reserve",
+        }:
             record_stop = "sources_partially_read" if calls else "no_tool_calls"
 
         admitted, rejected = admit_tool_evidence(

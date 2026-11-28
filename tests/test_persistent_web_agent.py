@@ -319,7 +319,7 @@ def test_multi_aspect_explicit_research_uses_standard_recovery_not_legacy_deep()
         summary = trace.to_dict()["recovery"]
         assert summary["mode"] == "standard"
         assert summary["query"] == topic
-        assert summary["limits"]["hard_seconds"] == 180
+        assert summary["limits"]["hard_seconds"] == 300
         assert all("opus5.5" in call["arguments"]["query"] or "opus 5.5" in call["arguments"]["query"].casefold()
                    for call in trace.calls if call["name"] == "web_search")
 
