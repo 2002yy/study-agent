@@ -215,20 +215,36 @@ def autonomous_budget(deep: bool) -> AutonomousBudget:
 
 
 def _answer_spend_reserve_cny(deep: bool) -> float:
-    """Money the research loop must leave for the final answer."""
+    """Money the research loop must leave for the final answer.
 
+    The default is computed from the actual model price, a conservative answer
+    context and the configured output ceiling. An explicit env value still wins
+    for experiments; without pricing it falls back to a small fixed reserve.
+    """
+
+    env_name = (
+        "WEB_AUTONOMOUS_DEEP_ANSWER_RESERVE_CNY"
+        if deep
+        else "WEB_AUTONOMOUS_ANSWER_RESERVE_CNY"
+    )
+    raw = os.getenv(env_name)
+    if raw is not None and raw != "":
+        try:
+            return max(0.0, min(float(raw), 10.0))
+        except (TypeError, ValueError):
+            pass
     try:
-        value = float(
-            os.getenv(
-                "WEB_AUTONOMOUS_DEEP_ANSWER_RESERVE_CNY"
-                if deep
-                else "WEB_AUTONOMOUS_ANSWER_RESERVE_CNY",
-                "0.30" if deep else "0.10",
-            )
+        from src.llm_spend_guard import reservation_cny
+        from src.performance_budget import chat_max_tokens
+
+        dynamic = reservation_cny(
+            prompt_chars=60_000,
+            max_tokens=chat_max_tokens("deep" if deep else "standard"),
+            attempts=1,
         )
-    except (TypeError, ValueError):
-        value = 0.30 if deep else 0.10
-    return max(0.0, min(value, 10.0))
+        return max(0.01, dynamic * 1.25)
+    except Exception:  # noqa: BLE001 - no pricing configured
+        return 0.30 if deep else 0.10
 
 
 class AutonomousToolBudget:
@@ -263,7 +279,7 @@ class AutonomousToolBudget:
         self._reads = 0
         self._tool_calls = 0
         self._search_queries: set[str] = set()
-        self._read_state: dict[str, str] = {}
+        self._read_cache: dict[tuple[Any, ...], tuple[dict[str, Any], int]] = {}
 
     @staticmethod
     def _query_key(arguments: dict[str, Any]) -> str:
@@ -283,6 +299,40 @@ class AutonomousToolBudget:
         path = parts.path.rstrip("/") or "/"
         query = f"?{parts.query}" if parts.query else ""
         return f"{parts.scheme.casefold()}://{parts.netloc.casefold()}{path}{query}"
+
+    @staticmethod
+    def _read_identity(arguments: dict[str, Any]) -> tuple[Any, ...]:
+        """The effective read request, not just the URL.
+
+        A section anchor, browser/HTTP mode, video window, OCR toggle, comment
+        page and discussion request all change what is being read. Reusing one
+        URL must not make those deeper reads impossible.
+        """
+
+        raw = str(arguments.get("url") or "")
+        try:
+            anchor = urlsplit(raw).fragment
+        except ValueError:
+            anchor = ""
+
+        def integer(name: str, default: int) -> int:
+            try:
+                return int(arguments.get(name, default) or default)
+            except (TypeError, ValueError):
+                return default
+
+        return (
+            AutonomousToolBudget._url_key(arguments),
+            anchor,
+            str(arguments.get("mode") or "auto").strip().lower(),
+            integer("start_seconds", 0),
+            integer("video_seconds", 180),
+            bool(arguments.get("include_ocr", False)),
+            integer("comment_page", 1),
+            bool(arguments.get("include_discussion", False)),
+            integer("max_comments", 0),
+            integer("audio_seconds", 240),
+        )
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
@@ -309,19 +359,30 @@ class AutonomousToolBudget:
 
     def __call__(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         query_key = self._query_key(arguments) if name == "web_search" else ""
-        url_key = self._url_key(arguments) if name == "web_read" else ""
-        requested_mode = str(arguments.get("mode") or "auto").strip().lower()
+        identity = self._read_identity(arguments) if name == "web_read" else ()
+        try:
+            requested_chars = int(arguments.get("max_chars", 8000) or 8000)
+        except (TypeError, ValueError):
+            requested_chars = 8000
         with self._lock:
             reason = self._refusal(name)
+            cached_entry = self._read_cache.get(identity) if identity else None
             if not reason:
                 if query_key and query_key in self._search_queries:
                     reason = "duplicate_query"
-                elif url_key:
-                    previous = self._read_state.get(url_key)
-                    if previous and not (
-                        previous == "inadequate" and requested_mode == "browse"
-                    ):
-                        reason = "duplicate_read"
+            if (
+                not reason
+                and cached_entry is not None
+                and requested_chars <= cached_entry[1]
+            ):
+                # The body was already read at this depth or deeper. Return it
+                # again: after context compression the model may no longer have
+                # it, and a pointer to "the old body" is not usable evidence.
+                self._tool_calls += 1
+                cached = dict(cached_entry[0])
+                cached["cached"] = True
+                cached["duplicate"] = True
+                return cached
             if not reason:
                 self._tool_calls += 1
                 if name == "web_search":
@@ -338,18 +399,6 @@ class AutonomousToolBudget:
                     "keywords, language or site_key, or read an unread candidate."
                 ),
                 "results": [],
-            }
-        if reason == "duplicate_read":
-            return {
-                "ok": False,
-                "status": "duplicate",
-                "reason": "duplicate_read",
-                "error": (
-                    "duplicate_read: this page body is already in the transcript. "
-                    "Reuse it or read a different source; use mode=\"browse\" only "
-                    "if the earlier read was a shell or failed."
-                ),
-                "url": str(arguments.get("url") or ""),
             }
         if reason:
             return {
@@ -370,22 +419,9 @@ class AutonomousToolBudget:
             if query_key and not result.get("provider_errors"):
                 with self._lock:
                     self._search_queries.add(query_key)
-            if url_key and result.get("ok") is True:
-                from src.web.research.read_adequacy import classify_reader_result
-
-                kind = str(result.get("kind") or "web_page")
-                if kind != "web_page":
-                    # GitHub/video/audio reads are not browser shells; a repeat
-                    # should reuse the existing structured payload.
-                    state = "adequate"
-                elif requested_mode == "browse":
-                    state = "browse"
-                elif classify_reader_result(result).adequate:
-                    state = "adequate"
-                else:
-                    state = "inadequate"
+            if identity and result.get("ok") is True:
                 with self._lock:
-                    self._read_state[url_key] = state
+                    self._read_cache[identity] = (dict(result), requested_chars)
         return result
 
     def usage_line(self) -> str:
@@ -951,6 +987,8 @@ class PersistentWebToolAgent(WebToolAgent):
             "model_call_budget",
             "max_rounds",
             "spend_reserve",
+            "continuation_limit",
+            "unfinished_gap",
         }:
             record_stop = "sources_partially_read" if calls else "no_tool_calls"
 

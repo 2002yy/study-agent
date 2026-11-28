@@ -821,11 +821,29 @@ def run_tool_loop(
         if max_model_calls is not None and model_calls >= max_model_calls:
             mark_stop("model_call_budget")
             return evidence
+        if context_budget is not None:
+            try:
+                stats = compress_working_context(
+                    transcript,
+                    completed_rounds=_round,
+                    budget=int(context_budget),
+                    keep_rounds=context_keep_rounds,
+                    state_indexes=state_indexes,
+                )
+                if stop_state is not None and stats["compressed"]:
+                    stop_state["working_context"] = stats
+            except Exception as exc:  # A compression bug must not end research.
+                if stop_state is not None:
+                    stop_state["context_compression_error"] = (
+                        f"{type(exc).__name__}: {exc}"
+                    )
         if spend_reserve_cny > 0:
-            # Keep enough money for the final answer. This is advisory headroom:
-            # the next call's reservation still runs and the ledger still
-            # enforces the hard cap. If the ledger cannot be read, continue and
-            # let `reserve_call` decide rather than inventing a spare budget.
+            # Keep enough money for the final answer. Compress first: a
+            # compressed transcript can make the next call cheap enough to
+            # continue, and the old order stopped research before that saving.
+            # The actual reservation still runs and the ledger still enforces
+            # the hard cap; if the ledger cannot be read, continue and let
+            # `reserve_call` decide rather than inventing a spare budget.
             try:
                 from src.llm_spend_guard import remaining_budget_cny, reservation_cny
 
@@ -845,22 +863,6 @@ def run_tool_loop(
                         return evidence
             except Exception:  # noqa: BLE001 - headroom is advisory
                 pass
-        if context_budget is not None:
-            try:
-                stats = compress_working_context(
-                    transcript,
-                    completed_rounds=_round,
-                    budget=int(context_budget),
-                    keep_rounds=context_keep_rounds,
-                    state_indexes=state_indexes,
-                )
-                if stop_state is not None and stats["compressed"]:
-                    stop_state["working_context"] = stats
-            except Exception as exc:  # A compression bug must not end research.
-                if stop_state is not None:
-                    stop_state["context_compression_error"] = (
-                        f"{type(exc).__name__}: {exc}"
-                    )
         round_timeout = timeout
         if deadline is not None:
             remaining = max(0.0, deadline - clock())
@@ -942,7 +944,7 @@ def run_tool_loop(
                 and continuations < max(0, int(max_continuations))
                 and (
                     max_model_calls is None
-                    or model_calls + 1 < max_model_calls
+                    or model_calls < max_model_calls
                 )
                 and (deadline is None or deadline - clock() > 5.0)
             )
@@ -954,6 +956,24 @@ def run_tool_loop(
                     stop_state["continuations"] = continuations
                     stop_state["completion_gap"] = str(continuation)[:2000]
                 continue
+            if continuation:
+                # The check found a real gap but the loop cannot act on it.
+                # Record that truth instead of reporting a clean completion.
+                if continuations >= max(0, int(max_continuations)):
+                    blocked = "continuation_limit"
+                elif (
+                    max_model_calls is not None
+                    and model_calls >= max_model_calls
+                ):
+                    blocked = "model_call_budget"
+                elif deadline is not None and deadline - clock() <= 5.0:
+                    blocked = "deadline"
+                else:
+                    blocked = "unfinished_gap"
+                if stop_state is not None:
+                    stop_state["completion_gap"] = str(continuation)[:2000]
+                mark_stop(blocked)
+                return evidence
             mark_stop("completed")
             return evidence
         prepared: list[dict[str, Any]] = []
