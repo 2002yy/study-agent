@@ -139,7 +139,22 @@ Study Agent 目前有第 1 层的简化版（上下文压缩 + 本轮读取缓�
 
 对照：Study Agent 使用 DeepSeek/OpenAI-compatible 接口，缓存行为与 Anthropic 不同；在没有实测 cache read 数据前，不应照搬 cache_edits 或 TTL 常量。可借鉴的是“记录 system/tools hash 与 cache 命中变化”，作为诊断字段。
 
-## 3. 与 Study Agent 的逐项差距
+## 3. 与 Codex / OpenCode / DSH 的横向定位
+
+只列本轮实际核对过的模块；未核对的 Todo/Explore 实现不冒充结论。
+
+| 模块 | Codex `065e18b0` | OpenCode `eeeeaa0d` | DSH `4b399c39` | Claude Code `ae56bff` | Study Agent 当前 |
+| --- | --- | --- | --- | --- | --- |
+| 主循环 | `turn.rs` 的 turn 循环 + Stop hook | `runner/llm.ts` step 循环 | `agent.ts` while + `preStep/step` | `query.ts` while(true) | `run_tool_loop` + `completion_check` |
+| 预算/继续 | Stop hook 可要求继续，无 prompt 则忽略 | 可配置 `steps`，到限强制文本收尾 | 外层预算，核心循环不内置总预算 | token budget 90% + 收益递减 | 可观察缺口 + 最多 2 次续跑 |
+| 压缩 | 上下文接近上限先 auto-compact 再继续 | compaction + 输出上限续跑 | 会话事件重建 | 五级：结果预算/snip/microcompact/collapse/autocompact | 单层 `compress_working_context` |
+| 工具结果 | 本轮未核对持久化细节 | 未完成 assistant/tool 结算 | `ToolCallRecovery` 回收结果 | 大结果落盘 + 预览 + 冻结替换 + 恢复重建 | trace 保存 + 本轮读取缓存 |
+| 任务规划 | 本轮未核对 Todo/Plan | 本轮未核对 Todo/Explore | 本轮未核对 Todo/Explore | Todo + Plan/Explore 子代理 | 提示词内规划，无 Todo/子代理 |
+| 恢复 | Stop hook/compact 继续 | stale/aborted 结算 | turn/step 结束原因 + tool recovery | 中断检测 + “Continue from where you left off” + sidechain | turn 失败/重试，无消息级续跑 |
+
+结论：Study Agent 的循环与失败恢复已经不是最薄弱的；差距集中在**上下文/工具结果的持久化与重新访问**，以及**任务状态（Todo）和中断续跑**。
+
+## 4. 与 Study Agent 的逐项差距
 
 | 模块 | Claude Code | Study Agent 当前 | 差距/判断 |
 | --- | --- | --- | --- |
@@ -152,7 +167,7 @@ Study Agent 目前有第 1 层的简化版（上下文压缩 + 本轮读取缓�
 | Prompt cache | 前缀 hash/缓存断点观测 | 无显式观测 | P2 先测 DeepSeek 缓存，再加诊断 |
 | Verification | 3+ 任务关闭时提醒验证 agent | 发布门禁 + binder | 不新增模型调用；暂不引入 verifier 子代理 |
 
-## 4. 值得采用 / 不值得采用
+## 5. 值得采用 / 不值得采用
 
 ### 值得采用（按优先级）
 
@@ -185,14 +200,14 @@ Study Agent 目前有第 1 层的简化版（上下文压缩 + 本轮读取缓�
 - **固定 `EXPLORE_AGENT_MIN_QUERIES=3`**：这是 Claude 搜索代理的启发式，不是研究质量规则；Study Agent 不设固定阅读数。
 - **复制恢复源码**：无许可证、专有代码；只读机制，不复制实现、常量或提示词。
 
-## 5. 对当前 Study Agent 的具体建议
+## 6. 对当前 Study Agent 的具体建议
 
 - 先做 P1 的“工具结果持久化 + 重新取回”，因为它同时解决上下文压缩、重复读取和恢复三个问题，且不需要新模型调用。
 - 再做 P1 的“轻量研究任务账本”和“中断续跑”，都用现有 `rag_snapshot` 与 `stop_reason`，不新建框架。
 - P2 的 token/收益递减与缓存诊断，先用真实运行数据验证；没有数据前不调参数。
 - 继续禁止把“固定阅读数”当质量，也不把 Todo 完成当发布许可。
 
-## 6. 本轮验证与限制
+## 7. 本轮验证与限制
 
 - 只读源码/文档；无付费模型调用，账本未变化。
 - 恢复源码版本固定为 `ae56bff1`；第三方分析固定到各自 commit。
